@@ -3,18 +3,17 @@ import { isRecord } from "./json-value.js";
 // what the statements may create, and whether they agree with what a project's library already holds, is for the platform to check when
 // it opens the library (packages/plugin-runtime `openPluginProjectDatabase`), and whether the Home's registry holds a `home` library
 // as this plugin's own is for the Host to check when it starts the plugin. `parsePluginManifest` is the one caller.
-import { projectRowsProblems } from "./project-rows-declarations.js";
+import { partitionDeletionProblems, pinnedRowsProblems, projectRowsProblems } from "./project-rows-declarations.js";
 
 /** The name a plugin's store goes by, the same rule as a library in the Home. */
 const STORE_NAME = /^[a-z][a-z0-9-]*$/u;
 const SCOPES = ["project", "home", "partition"] as const;
 const DECLARATION_FIELDS = new Set(["store_name", "version", "schema", "read_permission", "write_permission", "upgrades"]);
 const STEP_FIELDS = new Set(["from", "sql", "reduces_rows"]);
-/**
- * A library in the Home may also be partitioned by project, or say which of its rows belong to a project; a project's library is one
- * per project already.
- */
-const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "partition", "project_rows", "snapshot_exclusions"]);
+/** A library in the Home may say which of its rows belong to a project; a project's library is one per project already. */
+const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "project_rows", "snapshot_exclusions"]);
+/** A partition's own library may name the table its pinned 成果 versions are recorded on, and what a project's deletion says of it. */
+const PARTITION_FIELDS = new Set([...DECLARATION_FIELDS, "pinned_rows", "deletion"]);
 const EXCLUSION_FIELDS = new Set(["path", "reason", "restore"]);
 const EXCLUSION_PATH = /^[a-z0-9][a-z0-9._-]*$/u;
 const PARTITION_SCHEMA_LIMITS = { bytes: 256 * 1024, statements: 128 } as const;
@@ -29,7 +28,7 @@ export function databaseDeclarationProblems(value: unknown, permissions: Readonl
   const scopes = Object.keys(value).filter(scope => !(SCOPES as readonly string[]).includes(scope));
   if (scopes.length > 0) return [`databases 只能声明 project（项目库）、home（Home 库）和 partition（分区独立库），不认 ${scopes.join(", ")}`];
   const problems = SCOPES.flatMap(scope => value[scope] === undefined ? [] : declarationProblems(scope, value[scope], permissions, ownerFiles));
-  // A library of its own in each partition replaces the Home library partitioned by project; one plugin does not declare both (§4.2 第 2 条).
+  // A library of its own in each partition is the plugin's whole store; it does not also keep one in the Home (§4.2 第 2 条).
   if (value.partition !== undefined && value.home !== undefined) problems.push("databases.partition 与 databases.home 不能同时声明：分区独立库就是这个插件在每个分区自己的库");
   return problems;
 }
@@ -38,7 +37,7 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
   const path = `databases.${scope}`;
   if (!isRecord(declaration)) return [`${path} 必须为对象`];
   const problems: string[] = [];
-  const fields = scope === "home" ? HOME_FIELDS : DECLARATION_FIELDS;
+  const fields = scope === "home" ? HOME_FIELDS : scope === "partition" ? PARTITION_FIELDS : DECLARATION_FIELDS;
   const unknown = Object.keys(declaration).filter(field => !fields.has(field));
   if (unknown.length > 0) problems.push(`${path} 不认这些字段：${unknown.join("、")}`);
   if (typeof declaration.store_name !== "string" || !STORE_NAME.test(declaration.store_name)) {
@@ -54,11 +53,12 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
     if (typeof permission !== "string" || !permissions.has(permission)) problems.push(`${path}.${field} 必须是这份 Manifest 在 permissions 里声明的权限`);
   }
   problems.push(...upgradeStepsProblems(path, declaration.upgrades, declaration.version));
-  if (scope === "home" && declaration.partition !== undefined && declaration.partition !== "project") problems.push(`${path}.partition 只能是 "project"`);
   if (scope === "home") {
-    problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined, ownerFiles));
+    problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, ownerFiles));
     problems.push(...snapshotExclusionsProblems(`${path}.snapshot_exclusions`, declaration.snapshot_exclusions));
   }
+  if (scope === "partition" && declaration.pinned_rows !== undefined) problems.push(...pinnedRowsProblems(`${path}.pinned_rows`, declaration.pinned_rows, declaration.schema));
+  if (scope === "partition") problems.push(...partitionDeletionProblems(`${path}.deletion`, declaration.deletion));
   return problems;
 }
 

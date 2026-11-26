@@ -9,7 +9,7 @@ import test, { type TestContext } from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, openProjectVersionStores, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
-import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
+import { ensureProjectPlugins, releaseProjectPlugins, runningPluginPlatform, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -48,7 +48,7 @@ for (const mode of ["stop", "revoke", "restart", "caller-revoke"] as const) {
     const refused = assert.rejects(pending);
     try {
       await entered.promise;
-      const platform = await f.host.withProject(f.project.reference, runtime => runningProjectPlatform(runtime.store, f.project.project_id));
+      const platform = await f.host.withProject(f.project.reference, runtime => runningPluginPlatform(runtime.store, f.project.project_id, "io.molis.work.lingguang"));
       assert.ok(platform);
       const plugin = "io.molis.work.lingguang", installId = platform.supervisor.state(plugin)!.install_id!;
       if (mode === "stop") await platform.runtime.stop(installId);
@@ -58,8 +58,8 @@ for (const mode of ["stop", "revoke", "restart", "caller-revoke"] as const) {
       assert.throws(() => progress!({ type: "text-delta", text: "迟到的文字" }));
       release.resolve(); await refused;
       assert.deepEqual(seen, ["预览"]);
-      const reopened = openLingguangStore(f.home);
-      try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, []); assert.equal(reopened.get(spark.id).body, "保留的想法"); }
+      const reopened = openLingguangStore(f.home, f.project.project_id);
+      try { assert.deepEqual(reopened.conversation(conversation.id).messages, []); assert.equal(reopened.get(spark.id).body, "保留的想法"); }
       finally { reopened.close(); }
       if (mode === "stop") assert.equal((await platform.supervisor.restart(plugin)).status, "running");
       if (mode === "revoke") assert.equal((await platform.supervisor.enable(plugin)).status, "running");
@@ -97,8 +97,8 @@ test("RAC-34 Lingguang HTTP disconnect cancels model preview and saves no partia
     release.resolve();
     const recovered = await f.bound.invoke(lingguangActions.message, { id: conversation.id, body: "重新提问" });
     assert.deepEqual(recovered.messages.map(row => [row.role, row.body]), [["user", "重新提问"], ["assistant", "完整回复"]]);
-    const reopened = openLingguangStore(f.home);
-    try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, recovered.messages); }
+    const reopened = openLingguangStore(f.home, f.project.project_id);
+    try { assert.deepEqual(reopened.conversation(conversation.id).messages, recovered.messages); }
     finally { reopened.close(); }
   } finally { release.resolve(); abort.abort(); }
 });
@@ -357,7 +357,7 @@ for (const scope of ["home", "project"] as const) {
 
 test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running instance's; a stopped one shows the unavailable shell, never the catalog's", { timeout: 60_000 }, async t => {
   const { host, project, request } = await serveHomeRuntime(t);
-  const one = await project("Project stage has one Runtime owner");
+  const one = await project("Project stage has one Runtime owner", ["form"]);
   const formUnavailable = /data-work-surface="form"[^>]*\bdata-project-plugin-unavailable\b/u;
   const page = async (locale = "zh") => {
     const response = await request(`/projects/${one.project_id}`, { headers: { cookie: `molis_work_locale=${locale}` } });
@@ -370,7 +370,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running
     return stage;
   };
   assert.match(await page(), /data-form-new/u);
-  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  const platform = await host.withProject(one.reference, runtime => runningPluginPlatform(runtime.store, one.project_id, FORM_PLUGIN_ID));
   assert.ok(platform);
   const pagePath = `/projects/${one.project_id}/api/host/plugin-pages`;
   const opened = await request(pagePath, { method: "POST", body: { plugin_id: FORM_PLUGIN_ID } });
@@ -424,9 +424,9 @@ test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running
 
 test("RAC-612 RAC-613 RAC-614 a failed or crashed project plugin's placeholder says why and offers to start it again; one switched off, blocked, stopped or uninstalled gets no button", { timeout: 90_000 }, async t => {
   const { host, project, request } = await serveHomeRuntime(t);
-  const one = await project("Project placeholder restart");
+  const one = await project("Project placeholder restart", ["form"]);
   await request(`/projects/${one.project_id}`); // opening the project page starts its plugin platform
-  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  const platform = await host.withProject(one.reference, runtime => runningPluginPlatform(runtime.store, one.project_id, FORM_PLUGIN_ID));
   assert.ok(platform);
   const installId = platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!;
   const placeholder = async (locale = "zh") => {
@@ -502,7 +502,7 @@ test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a
   const { localHost, projectId, databasePath, evaluate, click, waitFor, reloadPage, navigate } = browser;
   assert.ok(localHost && projectId);
   await navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${projectId}/` }, browser.sessionId));
-  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId }), runtime => runningProjectPlatform(runtime.store, projectId));
+  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId }), runtime => runningPluginPlatform(runtime.store, projectId, FORM_PLUGIN_ID));
   assert.ok(platform);
   const installId = platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!;
   const stage = '[data-work-surface="form"][data-project-plugin-unavailable]';
@@ -805,7 +805,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 the real Form frame stays usable after a stoppe
   const loaded = "document.querySelector('[data-form-new]') && document.querySelector('[data-form-ai-reason] a[href=\"/settings/models\"]')";
   await frame.waitFor(loaded);
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const platform = await localHost.withProject(reference, runtime => runningProjectPlatform(runtime.store, projectId));
+  const platform = await localHost.withProject(reference, runtime => runningPluginPlatform(runtime.store, projectId, FORM_PLUGIN_ID));
   assert.ok(platform);
   const original = platform.supervisor.contribution.bind(platform.supervisor), form = original(FORM_PLUGIN_ID);
   assert.ok(form?.kind === "app");

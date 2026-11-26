@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { openPagesStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -18,15 +17,15 @@ async function fixture(t: TestContext, completion: Parameters<typeof openGoalBro
   }});`);
   const frame = await pluginFrameBrowser(t, b, "pages");
   const create = (title: string, text: string) => {
-    const store = openPagesStore(b.homeDirectory);
-    try { return store.create({ project_id: b.projectId!, title, body: body(text) }); } finally { store.close(); }
+    const store = openPagesStore(b.homeDirectory, b.projectId!);
+    try { return store.create({ title, body: body(text) }); } finally { store.close(); }
   };
   const a = create("Original document", "Original body");
   const path = `/projects/${b.projectId}/api/plugins/io.molis.work.pages/pages/${a.id}`;
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=pages&openItem=${a.id}` }, b.sessionId));
   await frame.waitFor(`window.ownershipEditor?.view && document.querySelector('[data-pages-title]')?.value === ${JSON.stringify(a.title)}`);
-  const read = () => { const store = openPagesStore(b.homeDirectory); try { return store.get(a.id, b.projectId!)!; } finally { store.close(); } };
-  const documents = () => { const store = openPagesStore(b.homeDirectory); try { return store.list(b.projectId!); } finally { store.close(); } };
+  const read = () => { const store = openPagesStore(b.homeDirectory, b.projectId!); try { return store.get(a.id)!; } finally { store.close(); } };
+  const documents = () => { const store = openPagesStore(b.homeDirectory, b.projectId!); try { return store.list(); } finally { store.close(); } };
   const title = (value: string) => frame.evaluate(`{ const input=document.querySelector('[data-pages-title]');input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('input',{bubbles:true})); }`);
   const text = () => frame.evaluate<string>("ownershipEditor.view.state.doc.textContent");
   return { ...b, frame, a, path, create, read, documents, title, text };
@@ -149,7 +148,7 @@ for (const lost of [false, true]) test(`QEA-71: an edited translation candidate 
   await translation(f, "Translated model candidate");
   const candidate = ".pages-pop:not([hidden]) textarea";
   await f.frame.evaluate(`{const area=document.querySelector(${JSON.stringify(candidate)});area.value='My edited translation';area.dispatchEvent(new Event('input',{bubbles:true}));}`);
-  const alter = (sql: string) => { const db = openSqliteConnection(homeSqlitePath(f.homeDirectory, "pages"), { fileMustExist: true }); try { db.exec(sql); } finally { db.close(); } };
+  const alter = (sql: string) => { const db = openPartitionLibraryDatabase(f.homeDirectory, f.projectId!, "pages"); try { db.exec(sql); } finally { db.close(); } };
   if (!lost) alter("CREATE TRIGGER refuse_translation BEFORE INSERT ON pages BEGIN SELECT RAISE(ABORT, 'fixture translation storage unavailable'); END");
   await f.frame.evaluate(`(() => {
     const original=window.molisWorkRequest,target=${JSON.stringify(f.path.slice(0, f.path.lastIndexOf('/')))};

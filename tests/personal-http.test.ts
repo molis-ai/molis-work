@@ -3,6 +3,7 @@ import {completeInstallationLogin} from './fixtures/installation-login.js';
 import {trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
 import {accountRefreshFixture,accountProbeCore} from './fixtures/account-refresh.js';
 import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
+import {projectPluginRevision} from '@molis-ai/molis-work-test-kit/local-host-http';
 import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -166,8 +167,15 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
     const scopes=await(await request('/api/spaces')).json();spaceId=scopes.current.spaceId;
     token=readFileSync(join(home,'spaces',spaceId,'config/web-control-token'),'utf8').trim();
     // Pages is a project Runtime owner on main; opening that project is the person's activation, not sync discovery.
-    const project=historyProject??=(await(await request('/api/settings/projects','POST',{display_name:'History fixture',user_confirmed:true})).json()).project;
-    historyKey=JSON.stringify([null,JSON.stringify([project.project_id,'document','page'])]);
+    let project=historyProject;
+    if(!project){
+      project=historyProject=(await(await request('/api/settings/projects','POST',{display_name:'History fixture',user_confirmed:true})).json()).project as {project_id:string};
+      // Pages is not on in a new project (batch 107): the person adds it to the project whose pages are synced.
+      const expected_revision=await projectPluginRevision({get:async<Answer>(path:string)=>(await request(path)).json() as Promise<Answer>},project.project_id);
+      await request('/api/settings/projects/'+encodeURIComponent(project.project_id)+'/plugins','POST',{plugin_id:'pages',expected_revision});
+    }
+    // A wire key names the partition its page is in (batch 107).
+    historyKey=JSON.stringify([project.project_id,JSON.stringify([project.project_id,'document','page'])]);
     await request('/projects/'+encodeURIComponent(project.project_id)+'/');
   };
   try{

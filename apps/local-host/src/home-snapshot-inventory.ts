@@ -69,8 +69,7 @@ export function snapshotDatabaseOptions(store: HomeSnapshotStore, file: string):
   if (special) return special;
   if (!store.library) return undefined;
   const expected = store.library.file ?? store.path + ".db";
-  const matches = store.library.partition === "project" ? file.split("/").length === 3 && file.startsWith("projects/") && file.endsWith("/" + expected) : file === expected;
-  return matches ? { baseline: store.library.baseline, requireSpace: store.path !== "server" } : undefined;
+  return file === expected ? { baseline: store.library.baseline, requireSpace: store.path !== "server" } : undefined;
 }
 
 /** Read metadata and file headers only. Ownership locks and sealed private trees are removed before any content read. */

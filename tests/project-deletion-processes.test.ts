@@ -269,8 +269,8 @@ test("a process without the Agent runtime rebuilds the demo, clears what it can,
   let withCatalog = withMolisWorkProjectCatalog;
   await ranBefore(home);
   (await withCatalog({ homeDirectory: home }, catalog => catalog.ensureDemoProject(input)));
-  const sparks = () => { const store = openLingguangStore(home); try { return store.list(DEMO_PROJECT_ID).map(spark => spark.title); } finally { store.close(); } };
-  const addSpark = (title: string) => { const store = openLingguangStore(home); store.create({ project_id: DEMO_PROJECT_ID, title, body: "私密" }); store.close(); };
+  const sparks = () => { const store = openLingguangStore(home, DEMO_PROJECT_ID); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
+  const addSpark = (title: string) => { const store = openLingguangStore(home, DEMO_PROJECT_ID); store.create({ title, body: "私密" }); store.close(); };
   addSpark("重建前的想法");
   const files = recorder("test-files");
   const dispose = projectDeletedHooksFor(home).register(files.owner);
@@ -416,10 +416,10 @@ test("the public CLI rebuilds the demo in a Home that has an Agent runtime, and 
   await ranBefore(home);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const demo = (action: string, ...flags: string[]) => spawnSync(process.execPath, [join(root, "dist", "cli", "main.js"), "demo", action, "--home", home, "--confirm", ...flags], { cwd: root, env: process.env, encoding: "utf8" });
-  const sparks = () => { const store = openLingguangStore(home); try { return store.list(DEMO_PROJECT_ID).map(spark => spark.title); } finally { store.close(); } };
+  const sparks = () => { const store = openLingguangStore(home, DEMO_PROJECT_ID); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
 
   assert.equal(demo("create").status, 0);
-  const store = openLingguangStore(home); store.create({ project_id: DEMO_PROJECT_ID, title: "重建前的想法", body: "私密" }); store.close();
+  const store = openLingguangStore(home, DEMO_PROJECT_ID); store.create({ title: "重建前的想法", body: "私密" }); store.close();
   assert.deepEqual(sparks(), ["重建前的想法"]);
 
   const reset = demo("reset");

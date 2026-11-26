@@ -1,4 +1,4 @@
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -20,6 +20,21 @@ export async function projectPluginEnablement(home: string | undefined, projectI
   const reachable = await catalog({ homeDirectory: home }, value => cachedProjectReachablePlugins(value, projectId, homePluginsOutsideBuild(home)));
   if (!reachable) return undefined;
   return enablementMap(reachable);
+}
+
+/**
+ * The plugins of `pluginIds` this partition enables now, by the same reach its actions and routes are judged by (PG-013): a personal plugin
+ * is enabled unless the partition hid it, any other unless the partition does not list it. One outside the build's catalog (a test fixture)
+ * is enabled; without a catalog, all are.
+ */
+export async function partitionPluginMembers(home: string, partitionId: string, pluginIds: readonly string[]): Promise<readonly string[]> {
+  const catalog = pluginCatalogFor(home);
+  if (!catalog) return pluginIds;
+  const reachable = await catalog({ homeDirectory: home }, value => cachedProjectReachablePlugins(value, partitionId, homePluginsOutsideBuild(home)));
+  return pluginIds.filter(pluginId => {
+    const entry = builtinPluginByManifestId(pluginId);
+    return !entry || pluginReachable(entry, reachable);
+  });
 }
 
 /** Compare what the supervisor is expected to run on either side of the committed Catalog change. */

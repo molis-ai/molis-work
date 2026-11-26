@@ -336,13 +336,13 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
-  const store = openPagesStore(homeDirectory);
+  const store = openPagesStore(homeDirectory, projectId!);
   const seeded = (() => {
     try {
-      const folder = store.createFolder({ project_id: projectId!, title: "Work" });
-      const a = store.create({ project_id: projectId!, folder_id: folder.id, title: "Page A", body: { type: "doc", content: [] } });
-      const b = store.create({ project_id: projectId!, folder_id: folder.id, title: "Page B", body: { type: "doc", content: [] } });
-      const c = store.create({ project_id: projectId!, title: "Page C", body: { type: "doc", content: [] } });
+      const folder = store.createFolder({ title: "Work" });
+      const a = store.create({ folder_id: folder.id, title: "Page A", body: { type: "doc", content: [] } });
+      const b = store.create({ folder_id: folder.id, title: "Page B", body: { type: "doc", content: [] } });
+      const c = store.create({ title: "Page C", body: { type: "doc", content: [] } });
       return { folder, pages: [a, b, c] as const };
     } finally { store.close(); }
   })();
@@ -544,8 +544,8 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   t.after(() => { heldSaves.splice(0).forEach(release => release()); });
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory, server } = browser;
-  const store = openPagesStore(homeDirectory);
-  const makePage = (name: string) => store.create({ project_id: projectId!, title: `Item ${name}`, body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Saved body ${name}` }] }] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const makePage = (name: string) => store.create({ title: `Item ${name}`, body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Saved body ${name}` }] }] } });
   const a = makePage("A"), b = makePage("B"), c = makePage("C"), d = makePage("D"); store.close();
   let holdSaves = false, heldStatus = 0, saveArrived!: () => void;
   const saveHeld = new Promise<void>(resolve => { saveArrived = resolve; });

@@ -25,7 +25,10 @@ test("PLIB-11 RAC-301 a Home library is declared only in the Manifest's database
 
   const libraries = BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.databases?.home ? [entry] : []);
   assert.deepEqual(libraries.map(entry => entry.manifest.databases!.home!.store_name).sort(),
-    ["cognia", "dataset", "feed-content", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "todo", "work-brief", "workflows"]);
+    ["cognia", "feed-content", "images", "issues", "jelly", "todo", "work-brief"]);
+  // Batch 107: these keep a library in each partition (`databases.partition`, U2) and none in the Home.
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.databases?.partition ? [entry.manifest.databases.partition.store_name] : []).sort(),
+    ["dataset", "form", "lingguang", "pages", "ppt", "workflows"]);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     assert.equal("database" in (entry.runtime ?? {}), false, `${entry.project_plugin_id}: runtime.database`);
     assert.equal(entry.home_store?.library, undefined, `${entry.project_plugin_id}: home_store.library`);
@@ -33,7 +36,7 @@ test("PLIB-11 RAC-301 a Home library is declared only in the Manifest's database
   for (const { manifest } of libraries) {
     const library = pluginSyncDatabaseDeclaration(manifest, manifest.databases!.home!), store = homeStores().get(library.store_name);
     assert.equal(store?.owner, manifest.plugin_id, library.store_name);
-    assert.deepEqual(store?.library, { baseline: { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} }, ...library.partition ? { partition: library.partition } : {} }, library.store_name);
+    assert.deepEqual(store?.library, { baseline: { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} } }, library.store_name);
     const permissions = new Set(manifest.permissions.map(item => item.permission));
     for (const permission of ["storage:private", library.read_permission, library.write_permission]) assert.ok(permissions.has(permission), `${manifest.plugin_id}: ${permission}`);
   }

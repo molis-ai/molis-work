@@ -20,7 +20,7 @@ const STEP: ActionDefinition = { capability_id: "fixture.desk.ticket", version: 
 
 test("OCL-03 OCL-08 EC-06: a failed step and its retry are two records of one run, each in the call that made it and joined to the action it ran", { timeout: 120_000 }, async t => {
   const served = await openTestHome(t, { catalogPolicy: false });
-  const project = await served.createProject("Workflow records", ["feed"]);
+  const project = await served.createProject("Workflow records", ["feed", "workflows"]);
   const seed = new LocalProjectDatabase(project.database_path);
   try {
     const source = createLocalFeedSourceService(seed.db, project.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
@@ -82,7 +82,7 @@ test("OCL-03 OCL-08 EC-06: a failed step and its retry are two records of one ru
 
 test("OCL-11 S-35: a continuation cancelled or losing authority mid-handoff records no failed workflow step", { timeout: 120_000 }, async t => {
   const served = await openTestHome(t, { catalogPolicy: false });
-  const project = await served.createProject("Workflow cancel records", ["feed"]);
+  const project = await served.createProject("Workflow cancel records", ["feed", "workflows"]);
   const seed = new LocalProjectDatabase(project.database_path);
   try {
     const source = createLocalFeedSourceService(seed.db, project.project_id).register({

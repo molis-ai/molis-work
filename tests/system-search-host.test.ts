@@ -26,8 +26,8 @@ const ids = (response: SearchQueryResponse) => response.hits.map(hit => `${hit.p
 test("real Host: unopened content of every wired plugin is searchable, kept current, scoped and opened by its owner", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-search-host-"));
   const [a, b] = await withCatalog({ homeDirectory: home }, async catalog => [
-    await (async () => { const p = await catalog.createProject({ display_name: "搜索项目甲", actor_id: "owner" }); catalog.addProjectPlugin({ project_id: p.project_id, plugin_id: "goals", actor_id: "owner" }); return p; })(),
-    await (async () => { const p = await catalog.createProject({ display_name: "搜索项目乙", actor_id: "owner" }); catalog.addProjectPlugin({ project_id: p.project_id, plugin_id: "goals", actor_id: "owner" }); return p; })(),
+    await (async () => { const p = await catalog.createProject({ display_name: "搜索项目甲", actor_id: "owner" }); for (const plugin_id of ["goals", "pages", "form", "lingguang"]) catalog.addProjectPlugin({ project_id: p.project_id, plugin_id, actor_id: "owner" }); return p; })(),
+    await (async () => { const p = await catalog.createProject({ display_name: "搜索项目乙", actor_id: "owner" }); for (const plugin_id of ["goals", "pages"]) catalog.addProjectPlugin({ project_id: p.project_id, plugin_id, actor_id: "owner" }); return p; })(),
   ]);
   const refA = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
   const refB = molisWorkHostProjectReference({ databasePath: b.database_path, projectId: b.project_id });

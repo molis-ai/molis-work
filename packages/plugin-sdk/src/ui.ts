@@ -25,6 +25,7 @@ export * from "./ui/calendar.js";
 export * from "./ui/directory.js";
 export * from "./ui/layout.js";
 export * from "./ui/process-fold.js";
+export { redrawInPlace, takeWordsInPlace } from "./ui/redraw-in-place.js";
 export { activeUiIntlLocale, activeUiLocale, format, installTextForTest, installUiText, say, t, tryUiText, UI_TEXT_UNAVAILABLE, type TextForTest } from "./ui/text.js";
 export * from "./ui/text-ref.js";
 export { formatDate, formatMessage, formatNumber, type MessageFormatOptions } from "./ui/message-format.js";

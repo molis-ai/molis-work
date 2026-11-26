@@ -27,7 +27,7 @@ async function handoffs(t: TestContext) {
     runs.push((await browser.web.post<{ instance: WorkflowInstance }>(`${path}/${updated.workflow_id}/instances`, { item_id: item.item_id })).instance);
   }
   await feed.flushPendingJudgments();
-  const store = openWorkflowsStore(browser.homeDirectory), pages = openPagesStore(browser.homeDirectory);
+  const store = openWorkflowsStore(browser.homeDirectory, project), pages = openPagesStore(browser.homeDirectory, project);
   t.after(() => { store.close(); pages.close(); });
   await browser.click("[data-plugin-strip] [data-plugin-id=workflows]");
   const directory = async () => {
@@ -49,7 +49,7 @@ async function handoffs(t: TestContext) {
   };
   await browser.frame.waitFor(`document.querySelector('[data-wf-open="${flows[0]!.workflow_id}"]')`);
   await open(0);
-  const current = (index: number) => store.instance(runs[index]!.instance_id, project);
+  const current = (index: number) => store.instance(runs[index]!.instance_id);
   return { ...browser, project, path, flows, runs, pages, open, directory, current };
 }
 
@@ -116,7 +116,7 @@ test("QEA-60 · A's late preview cannot supply the content of B's real handoff",
   await b.frame.waitFor("document.querySelector('.wf-run__status')?.dataset.mwState === 'done'");
   const actual = b.current(1);
   assert.equal(actual.steps[0]!.handoff?.output.body, "只属于 B 的原始正文");
-  const saved = b.pages.get(actual.steps[1]!.item!.item_id, b.project);
+  const saved = b.pages.get(actual.steps[1]!.item!.item_id);
   assert.match(JSON.stringify(saved.body), /只属于 B 的原始正文/);
   assert.doesNotMatch(JSON.stringify(saved.body), /只属于 A/);
   assert.equal(b.current(0).steps[0]!.handoff, null);
@@ -182,11 +182,11 @@ test("QEA-61 · a refused uncommitted handoff retains the person's editable draf
   assert.equal(await b.frame.evaluate("document.querySelector('[data-wf-manual] textarea').disabled"), true);
   assert.equal(await b.frame.evaluate("document.querySelector('[data-wf-action=handoff-cancel]').disabled"), true);
   await b.frame.evaluate("window.__releaseHandoff()"); await b.frame.waitFor("window.__handoffReturned && window.__handoffReads === 0");
-  assert.equal(b.current(0).steps[0]!.pending, undefined); assert.equal(b.pages.list(b.project).length, 0);
+  assert.equal(b.current(0).steps[0]!.pending, undefined); assert.equal(b.pages.list().length, 0);
   assert.equal(await b.frame.evaluate("document.querySelector('[data-wf-manual] textarea').value"), body);
   assert.equal(await b.frame.evaluate("document.querySelector('[data-wf-manual] textarea').disabled"), false);
   await b.frame.click("[data-wf-action=handoff-submit]"); await b.frame.waitFor("document.querySelector('.wf-run__status')?.dataset.mwState === 'done'");
-  assert.equal(b.current(0).steps[0]!.handoff?.output.body, body); assert.equal(b.pages.list(b.project).length, 1);
+  assert.equal(b.current(0).steps[0]!.handoff?.output.body, body); assert.equal(b.pages.list().length, 1);
 });
 
 test("QEA-61 · a lost real Pages receipt preserves the edited handoff across reload and resumes the same delivery", { timeout: 90_000 }, async t => {
@@ -204,7 +204,7 @@ test("QEA-61 · a lost real Pages receipt preserves the edited handoff across re
   await b.frame.waitFor("document.querySelector('[data-wf-toast]')?.dataset.tone === 'error'");
   const pending = b.current(0).steps[0]!.pending!;
   assert.equal(pending.output.body, body);
-  assert.equal(b.pages.list(b.project).length, 1, "the original receive actually committed");
+  assert.equal(b.pages.list().length, 1, "the original receive actually committed");
   await b.reloadPage(); await b.click("[data-plugin-strip] [data-plugin-id=workflows]"); await b.surfaceReady("workflows");
   await b.frame.waitFor(`document.querySelector('[data-wf-open="${b.flows[0]!.workflow_id}"]')`); await b.open(0);
   await b.frame.waitFor("document.querySelector('[data-wf-action=continue]')");
@@ -221,8 +221,8 @@ test("QEA-61 · a lost real Pages receipt preserves the edited handoff across re
   assert.equal(deliveries, 2);
   assert.equal(b.current(0).steps[0]!.handoff?.key, pending.key);
   assert.equal(b.current(0).steps[0]!.handoff?.output.body, body);
-  assert.equal(b.pages.list(b.project).length, 1, "the original request reuses the real document");
-  assert.match(JSON.stringify(b.pages.list(b.project)[0]!.body), new RegExp(body));
+  assert.equal(b.pages.list().length, 1, "the original request reuses the real document");
+  assert.match(JSON.stringify(b.pages.list()[0]!.body), new RegExp(body));
 });
 
 async function replaceA(b: Handoffs, chain: { stations: unknown[]; links: unknown[] }) {
@@ -302,13 +302,13 @@ test("QEA-63 · a judgment's actual refusal stays on the stopped step without cl
   await b.frame.waitFor("document.querySelector('.wf-run__status')?.dataset.mwState === 'stopped'");
   const stopped = b.current(0);
   assert.equal(stopped.current, 0); assert.equal(stopped.stopped?.verdict?.choice, "hold");
-  assert.equal(judged, 1); assert.equal(b.pages.list(b.project).length, 0);
+  assert.equal(judged, 1); assert.equal(b.pages.list().length, 0);
   assert.equal(await b.frame.evaluate("document.querySelector('.wf-vstep.is-selected')?.dataset.wfStep"), "0");
   assert.match(await b.frame.evaluate<string>("document.querySelector('[data-wf-handoff]').innerText"), /hold/);
   assert.equal(await b.frame.evaluate("window.__handoffToasts.some(text => /已交给|已执行/.test(text))"), false);
   await reviewState(b, "held-judgment", "[data-wf-handoff]");
   allow = true; await replaceA(b, chain);
   await b.frame.click("[data-wf-action=continue]"); await b.frame.waitFor("document.querySelector('.wf-run__status')?.dataset.mwState === 'done'");
-  assert.equal(judged, 2); assert.equal(b.pages.list(b.project).length, 1);
+  assert.equal(judged, 2); assert.equal(b.pages.list().length, 1);
   assert.equal(b.current(0).steps[0]!.handoff?.actor, "judgment");
 });

@@ -57,7 +57,7 @@ function request(): PagesGenerationRecord {
 
 test("a failed run cannot complete or fail a retry started in the same millisecond", t => {
   const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-race-"));
-  const store = openPagesStore(home);
+  const store = openPagesStore(home, "project-a");
   t.mock.method(Date, "now", () => Date.parse("2026-09-25T00:00:00Z"));
   try {
     const old = store.beginGeneration(request());
@@ -66,23 +66,23 @@ test("a failed run cannot complete or fail a retry started in the same milliseco
     assert.notEqual(next.updated_at, old.updated_at);
     assert.throws(() => store.completeGeneration(old, { type: "doc" }), /另一次处理/);
     store.failGeneration(old, "late stale failure");
-    assert.deepEqual(store.generation(next.project_id, next.request_id), next);
+    assert.deepEqual(store.generation(next.request_id), next);
     const saved = store.completeGeneration(next, { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Latest result" }] }] });
     store.failGeneration(old, "another late failure");
     store.failGeneration(next, "late current failure");
-    assert.equal(store.generation(next.project_id, next.request_id)!.status, "completed");
+    assert.equal(store.generation(next.request_id)!.status, "completed");
     assert.equal(store.completeGeneration(old, { type: "doc" }).id, saved.id);
-    assert.equal(store.list(next.project_id).length, 1);
+    assert.equal(store.list().length, 1);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
 test("Pages retries saved input, rejects concurrent generation and preserves later user edits", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-loop-pages-"));
-  const store = openPagesStore(home);
+  const store = openPagesStore(home, "project-a");
   try {
     const record = request();
     await assert.rejects(generate(store, record), /尚未配置/);
-    assert.equal(store.generation("project-a", record.request_id)?.status, "failed");
+    assert.equal(store.generation(record.request_id)?.status, "failed");
     let calls = 0;
     let finish!: (value: string) => void;
     const first = generate(store, record, async input => { const prompt = modelPromptText(input); calls++; assert.match(prompt, /SUMMARY_EXPORT/); return new Promise(resolve => { finish = resolve; }); });
@@ -90,12 +90,15 @@ test("Pages retries saved input, rejects concurrent generation and preserves lat
     finish("# 观察\n\n有边界的内容。");
     const saved = await first;
     assert.match(JSON.stringify(saved.document.body), /原帖未核验/);
-    store.update(saved.document.id, { title: "用户改过的标题" }, "project-a");
+    store.update(saved.document.id, { title: "用户改过的标题" });
     const replay = await generate(store, record, async () => { calls++; return "should not run"; });
     assert.equal(calls, 1);
     assert.equal(replay.document.title, "用户改过的标题");
-    assert.equal(store.generations("project-b").length, 0);
-    assert.throws(() => store.get(saved.document.id, "project-b"), /找不到/);
+    const other = openPagesStore(home, "project-b");
+    try {
+      assert.equal(other.generations().length, 0, "another partition's library has none of its generations");
+      assert.throws(() => other.get(saved.document.id), /找不到/);
+    } finally { other.close(); }
     await assert.rejects(generate(store, { ...record, request_hash: "changed" }, async () => "text"), /已改变/);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
@@ -134,7 +137,7 @@ test("Host uses configured model transport and never fabricates text on failure"
 });
 
 test("Multi-material document retains every source and a project-scoped return link", async () => {
-  const home = mkdtempSync(join(tmpdir(), "molis-loop-multi-")); const store = openPagesStore(home);
+  const home = mkdtempSync(join(tmpdir(), "molis-loop-multi-")); const store = openPagesStore(home, "project-a");
   try {
     const record = request();
     const multi = { ...record, inputs: [...record.inputs, { ...record.inputs[0]!, entry_id: "entry-2", item_id: "item-2", body: "第二个来源只支持有限推断", url: "https://example.com/second" }] };
@@ -145,12 +148,12 @@ test("Multi-material document retains every source and a project-scoped return l
     assert.match(body, /SUMMARY_EXPORT/); assert.match(body, /第二个来源只支持有限推断/);
     assert.match(body, /\/projects\/project-a\/\?openPlugin=inbox&openItem=entry-1"/);
     assert.match(body, /\/projects\/project-a\/\?openPlugin=inbox&openItem=entry-2"/);
-    assert.deepEqual(store.generation("project-a", record.request_id)?.inputs.map(i => i.entry_id), ["entry-1", "entry-2"]);
+    assert.deepEqual(store.generation(record.request_id)?.inputs.map(i => i.entry_id), ["entry-1", "entry-2"]);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
 test("PG-070: an Inbox return link is the platform's object link, and page startup names no plugin's parameter", async () => {
-  const home = mkdtempSync(join(tmpdir(), "molis-loop-link-")); const store = openPagesStore(home);
+  const home = mkdtempSync(join(tmpdir(), "molis-loop-link-")); const store = openPagesStore(home, "project-a");
   try {
     const result = await generate(store, request(), async () => "材料支持这个结论。[材料 1]");
     const links = [...JSON.stringify(result.document.body).matchAll(/\/projects\/project-a\/\?([^)"\\]+)/gu)].map(match => new URLSearchParams(match[1]));
@@ -229,7 +232,7 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
 
 test("RAC-2186: a generated document is at most 100,000 characters, however many units its characters take", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-length-"));
-  const store = openPagesStore(home);
+  const store = openPagesStore(home, "project-a");
   try {
     const accepted = await generate(store, { ...request(), request_id: "length-accepted", request_hash: "hash-accepted" }, async () => "😀".repeat(100_000));
     assert.equal(accepted.document.title, "观察文稿");
@@ -240,7 +243,7 @@ test("RAC-2186: a generated document is at most 100,000 characters, however many
 
 test("RAC-2275: a document of 100,001 one-unit characters is refused by the character limit, though its 100,001 units are far under the unit limit", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-ascii-length-"));
-  const store = openPagesStore(home);
+  const store = openPagesStore(home, "project-a");
   try {
     const accepted = await generate(store, { ...request(), request_id: "ascii-accepted", request_hash: "hash-ascii-accepted" }, async () => "a".repeat(100_000));
     assert.equal(accepted.replayed, false);

@@ -1,4 +1,4 @@
-import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "./contract.js";
 import { pptErrors } from "./error.js";
 import type { PptStores } from "./store.js";
@@ -54,15 +54,14 @@ export function slidesFromMarkdown(markdown: string, fallbackTitle: string): { t
 }
 
 export function createPptContentHandlers(stores: PptStores): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw pptErrors.invalid("缺少项目"); return caller.project_id; };
   return bindWorkflowContentHandlers(pptContentActions, {
-    list: caller => stores.read(store => store.list(project(caller)).map(deck => ({ item_id: deck.id, title: deck.title, caption: deck.slides.length + " 页", at: deck.updated_at }))),
-    read: ({ item_id }, caller) => stores.read(store => { const deck = store.get(item_id, project(caller)); return { title: deck.title, body: pptMarkdown(deck), source: "演示稿" }; }),
+    list: () => stores.read(store => store.list().map(deck => ({ item_id: deck.id, title: deck.title, caption: deck.slides.length + " 页", at: deck.updated_at }))),
+    read: ({ item_id }) => stores.read(store => { const deck = store.get(item_id); return { title: deck.title, body: pptMarkdown(deck), source: "演示稿" }; }),
     receive: ({ title, body, request_id }, caller) => stores.write(caller, store => {
       const outline = slidesFromMarkdown(body, title);
-      const deck = store.receive(project(caller), request_id, outline.title, outline.slides);
+      const deck = store.receive(request_id, outline.title, outline.slides);
       return { subject: { kind: PPT_SUBJECT_KIND, id: deck.id }, title: deck.title };
     }),
-    create: ({ title }, caller) => stores.write(caller, store => { const deck = store.create({ title, project_id: project(caller) }); return { subject: { kind: PPT_SUBJECT_KIND, id: deck.id }, title: deck.title }; }),
+    create: ({ title }, caller) => stores.write(caller, store => { const deck = store.create({ title }); return { subject: { kind: PPT_SUBJECT_KIND, id: deck.id }, title: deck.title }; }),
   });
 }

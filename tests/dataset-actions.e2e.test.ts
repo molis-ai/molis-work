@@ -3,8 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
-import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openDatasetStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -15,7 +14,7 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "dataset");
   const { evaluate, waitFor, click } = child;
-  const read = () => { const store = openDatasetStore(homeDirectory); try { return store.list(projectId!); } finally { store.close(); } };
+  const read = () => { const store = openDatasetStore(homeDirectory, projectId!); try { return store.list(); } finally { store.close(); } };
   const idle = () => waitFor("document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
   const input = async (selector: string, value: string) => {
     await evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('input', {bubbles:true})); })()`);
@@ -94,8 +93,8 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   await moreClick('[data-dataset-export-json]'); await idle();
   assert.deepEqual(JSON.parse(await exportedFile('第二笔.json', JSON.stringify(read()[0]!, null, 2))).rows, read()[0]!.rows);
   // An external writer changes the version. A stale publish must retain input and do nothing.
-  const other = openDatasetStore(homeDirectory);
-  try { other.update(id, { title: '另一客户端修改' }, projectId!); } finally { other.close(); }
+  const other = openDatasetStore(homeDirectory, projectId!);
+  try { other.update(id, { title: '另一客户端修改' }); } finally { other.close(); }
   await input('[data-dataset-title]', '待保留输入'); await click('[data-dataset-artifact-bar]'); await idle();
   await waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '保存失败'");
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '待保留输入');
@@ -109,7 +108,7 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   await click('[data-dataset-confirm] [data-confirm-ok]'); await idle();
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '另一客户端修改');
   // An undeclared trigger is refused before publication. The page keeps the draft and offers an explicit new attempt.
-  const db = openHomeSqliteDatabase(homeDirectory, 'dataset');
+  const db = openPartitionLibraryDatabase(homeDirectory, projectId!, 'dataset');
   try {
     db.exec("CREATE TRIGGER fail_dataset_ui_publication BEFORE UPDATE OF artifact_version ON datasets WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
     await click('[data-dataset-artifact-bar]'); await idle(); assert.equal(read()[0]!.publication_pending, undefined); assert.equal(read()[0]!.artifact_version, 0);
@@ -167,8 +166,8 @@ for (const phase of ["transport", "body", "save"] as const) test(`BSH-09 BL-1033
   assert.ok(projectId);
   const child = await pluginFrameBrowser(t, browser, "dataset");
   const createTable = (title: string) => {
-    const store = openDatasetStore(homeDirectory);
-    try { return store.create({ project_id: projectId, title }); } finally { store.close(); }
+    const store = openDatasetStore(homeDirectory, projectId!);
+    try { return store.create({ title }); } finally { store.close(); }
   };
   const original = createTable("请求前的表");
   browser.setFrameInitScript(`
@@ -220,7 +219,7 @@ for (const phase of ["transport", "body", "save"] as const) test(`BSH-09 BL-1033
     assert.deepEqual(await child.evaluate("({ status: datasetRead.error.status, code: datasetRead.error.code })"), {
       status: 403, code: "actions.scope_mismatch",
     });
-    assert.match(await child.evaluate<string>(`document.querySelector('${failure} p').textContent`), /无权读取此内容/);
+    assert.match(await child.evaluate<string>(`document.querySelector('${failure} p').textContent`), /当前没有查看这项内容的权限/);
     await child.click(`${failure} button`);
   }
   await child.waitFor(`document.querySelector('[data-dataset-id="${original.id}"]')`);

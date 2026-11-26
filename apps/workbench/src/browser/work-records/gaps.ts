@@ -44,7 +44,8 @@ function reasonCause(reason: string | null | undefined, count: number): string {
   if (reason === "unknown_exit") return readText("workbench.settings-work-records.cause-unknown-exit");
   if (reason === "exit_failed" || reason === "record_failed") return readText("workbench.settings-work-records.cause-record-failed", { count: fmtNum(count || 1) });
   if (reason === "fact_not_owned") return readText("workbench.settings-work-records.cause-fact-not-owned", { count: fmtNum(count || 1) });
-  if (reason === "not_connected") return readText("workbench.settings-work-records.cause-not-connected");
+  // A source whose writer is not wired yet (`*_not_wired`, such as a partition plugin's lifecycle or a carry's settle) is not connected yet.
+  if (reason === "not_connected" || reason?.endsWith("_not_wired")) return readText("workbench.settings-work-records.cause-not-connected");
   if (reason === "image_resources_not_kept") return readText("workbench.settings-work-records.cause-image-refs");
   if (reason === "child_stream_not_followed") return readText("workbench.settings-work-records.cause-subagent-stream");
   if (reason === "sandbox_callbacks_outside_scope") return readText("workbench.settings-work-records.cause-sandbox-scope");

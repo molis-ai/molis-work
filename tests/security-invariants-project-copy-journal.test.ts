@@ -1,4 +1,4 @@
-import {openFormCopyOwner, openFormStore} from "./fixtures/plugin-sync-stores.js";
+import {openFormCopyOwner, openFormStore, openPartitionedCopyOwner} from "./fixtures/plugin-sync-stores.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,readFileSync,readdirSync,writeFileSync,rmSync,renameSync,symlinkSync} from 'node:fs';
@@ -15,11 +15,14 @@ function fixture(t:import('node:test').TestContext){
  let active=true;const check=()=>{if(!active)throw new Error('ACCOUNT_REVOKED');},journal=()=>openProjectCopyJournal(targetHome,target.spaceId,check);
  const projects=[{id:'original-a',title:'First complete project'},{id:'original-b',title:'Second complete project'}],identity={operationId:'same-stable-operation',sourceSpaceId:local.spaceId,targetSpaceId:target.spaceId,projects},maps=projectCopyIdentities(identity);
  const context=(direction:'source'|'target',authorize:()=>void):AggregateCopyContext=>({direction,spaceId:direction==='source'?local.spaceId:target.spaceId,authorize,project(id){const found=projects.find(p=>(direction==='source'?p.id:maps.project(p.id))===id);assert.ok(found,'only selected project identities');return {title:found.title};},canUploadProject:()=>false,hasArtifact:()=>false});
- const form=openFormStore(localHome);for(const project of projects)form.create({project_id:project.id,title:'Complete original '+project.id});form.close();
- const source=openFormCopyOwner(localHome,context('source',check))!;t.after(()=>source.close());const sources=[{ownerId:'io.molis.work.form',owner:source.owner}],preview=previewProjectCopy({sourceSpaceId:local.spaceId,projectIds:projects.map(p=>p.id),sources,authorize:check});
+ for(const project of projects){const form=openFormStore(localHome,project.id);form.create({title:'Complete original '+project.id});form.close();}
+ const source=openPartitionedCopyOwner('form',localHome,context('source',check),openFormCopyOwner);t.after(()=>source.close());const sources=[{ownerId:'io.molis.work.form',owner:source.owner}],preview=previewProjectCopy({sourceSpaceId:local.spaceId,projectIds:projects.map(p=>p.id),sources,authorize:check});
  const visible=new Set<string>(),prepared=new Set<string>();
- const input:ProjectCopyExecution={...identity,fingerprint:preview.view.fingerprint,preview,sources,journal:journal(),authorize:check,target(ownerId,authorize){assert.equal(ownerId,'io.molis.work.form');return openFormCopyOwner(targetHome,context('target',authorize))!;},async prepareProject(project,authorize){authorize();prepared.add(project.targetId);assert.equal(visible.size,0,'preparation does not publish');},async publishProject(project,authorize){authorize();visible.add(project.targetId);}};
- return {root,localHome,targetHome,local,target,context,check,journal,input,maps,visible,prepared,revoke(){active=false;}};
+ const input:ProjectCopyExecution={...identity,fingerprint:preview.view.fingerprint,preview,sources,journal:journal(),authorize:check,target(ownerId,authorize){assert.equal(ownerId,'io.molis.work.form');return openPartitionedCopyOwner('form',targetHome,context('target',authorize),openFormCopyOwner);},async prepareProject(project,authorize){authorize();prepared.add(project.targetId);assert.equal(visible.size,0,'preparation does not publish');},async publishProject(project,authorize){authorize();visible.add(project.targetId);}};
+ /** A store on one copied project's library, and the rows of every copied project: each project has its own library (U2). */
+ const copiedForms=(project:string)=>openFormStore(targetHome,maps.project(project));
+ const copiedRows=()=>projects.flatMap(project=>{const store=copiedForms(project.id);try{return store.list();}finally{store.close();}});
+ return {root,localHome,targetHome,local,target,context,check,journal,input,maps,visible,prepared,copiedForms,copiedRows,revoke(){active=false;}};
 }
 
 test('copy journal persists complete identity plans before effects and refuses premature publishing, wrong attempts and changed plans',t=>{
@@ -36,30 +39,30 @@ test('copy execution recovers an owner commit whose acknowledgement was lost, wi
  const f=fixture(t),originalJournal=f.input.journal;let lost=true;
  f.input.journal={...originalJournal,applied(id,attempt,assetId){if(lost){lost=false;throw new Error('ACK_LOST');}originalJournal.applied(id,attempt,assetId);}};
  await assert.rejects(executeProjectCopy(f.input),/ACK_LOST/);assert.equal(f.visible.size,0);assert.equal(f.journal().get(f.input.operationId)!.applied.length,0);
- const target=openFormStore(f.targetHome);try{assert.equal(f.input.projects.flatMap(p=>target.list(f.maps.project(p.id))).length,1,'one actual owner commit survived before its receipt');}finally{target.close();}
+ assert.equal(f.copiedRows().length,1,'one actual owner commit survived before its receipt');
  f.input.journal=f.journal();const result=await executeProjectCopy(f.input);assert.equal(result.state,'complete');assert.equal(result.applied.length,2);assert.equal(f.visible.size,2);
- const copied=openFormStore(f.targetHome);try{assert.equal(f.input.projects.flatMap(p=>copied.list(f.maps.project(p.id))).length,2);const first=copied.list(f.maps.project('original-a'))[0]!;copied.update(first.id,{title:'Independent later edit'},first.project_id);assert.equal((await executeProjectCopy({...f.input,preview:{...f.input.preview,confirm(){throw new Error('COMPLETED_MUST_NOT_READ_SOURCE');}}})).state,'complete');assert.equal(copied.get(first.id,first.project_id).title,'Independent later edit');}finally{copied.close();}
+ assert.equal(f.copiedRows().length,2);const copied=f.copiedForms('original-a');try{const first=copied.list()[0]!;copied.update(first.id,{title:'Independent later edit'});assert.equal((await executeProjectCopy({...f.input,preview:{...f.input.preview,confirm(){throw new Error('COMPLETED_MUST_NOT_READ_SOURCE');}}})).state,'complete');assert.equal(copied.get(first.id).title,'Independent later edit');}finally{copied.close();}
 });
 
 test('copy restart refuses a changed partial target and keeps both originals and the unpublished receipt',async t=>{
  const f=fixture(t);let commits=0;const targetPort=f.input.target;
  f.input.target=(ownerId,check)=>{const port=targetPort(ownerId,check);return {...port,owner:{...port.owner,apply(asset){port.owner.apply(asset);if(++commits===1)throw new Error('INTERRUPTED');}}};};
  await assert.rejects(executeProjectCopy(f.input),/INTERRUPTED/);assert.equal(f.visible.size,0);
- const target=openFormStore(f.targetHome);try{const item=f.input.projects.flatMap(p=>target.list(f.maps.project(p.id)))[0]!;target.update(item.id,{title:'User edited partial copy'},item.project_id);}finally{target.close();}
+ {const target=f.input.projects.map(p=>f.copiedForms(p.id));try{const holder=target.find(store=>store.list().length)!,item=holder.list()[0]!;holder.update(item.id,{title:'User edited partial copy'});}finally{for(const store of target)store.close();}}
  f.input.target=targetPort;f.input.journal=f.journal();await assert.rejects(executeProjectCopy(f.input),/目标副本已经变化/);assert.equal(f.visible.size,0);assert.equal(f.journal().get(f.input.operationId)!.state,'copying');
- const source=openFormStore(f.localHome);try{assert.equal(source.list('original-a')[0]!.title,'Complete original original-a');assert.equal(source.list('original-b')[0]!.title,'Complete original original-b');}finally{source.close();}
+ for(const project of f.input.projects){const source=openFormStore(f.localHome,project.id);try{assert.equal(source.list()[0]!.title,'Complete original '+project.id);}finally{source.close();}}
 });
 
 test('copy attempt takeover during an owner final transaction check rolls back content and the normal sync journal',async t=>{
  const f=fixture(t);let stolen=false;
- f.input.target=(ownerId,check)=>{assert.equal(ownerId,'io.molis.work.form');let calls=0;const port=openFormCopyOwner(f.targetHome,f.context('target',()=>{if(++calls===4&&!stolen){const current=f.journal().get(f.input.operationId)!;f.journal().start(f.input.operationId,current.planHash);stolen=true;}check();}))!;calls=0;return port;};
+ f.input.target=(ownerId,check)=>{assert.equal(ownerId,'io.molis.work.form');let calls=0;const port=openPartitionedCopyOwner('form',f.targetHome,f.context('target',()=>{if(++calls===4&&!stolen){const current=f.journal().get(f.input.operationId)!;f.journal().start(f.input.operationId,current.planHash);stolen=true;}check();}),openFormCopyOwner);calls=0;return port;};
  await assert.rejects(executeProjectCopy(f.input),{code:'placement.copy_journal_conflict'});assert.ok(stolen);assert.equal(f.visible.size,0);
- const target=openFormStore(f.targetHome);try{assert.equal(f.input.projects.flatMap(p=>target.list(f.maps.project(p.id))).length,0);assert.equal(target.replica(f.context('target',f.check)).counts().pending,0);}finally{target.close();}
+ assert.equal(f.copiedRows().length,0);for(const project of f.input.projects){const target=f.copiedForms(project.id);try{assert.equal(target.replica(f.context('target',f.check)).counts().pending,0);}finally{target.close();}}
 });
 
 test('copy revoked after asynchronous preparation cannot publish or write any owner body',async t=>{
  const f=fixture(t);f.input.prepareProject=async(_project,check)=>{await Promise.resolve();f.revoke();check();};
- await assert.rejects(executeProjectCopy(f.input),/ACCOUNT_REVOKED/);assert.equal(f.visible.size,0);const target=openFormStore(f.targetHome);try{assert.equal(f.input.projects.flatMap(p=>target.list(f.maps.project(p.id))).length,0);}finally{target.close();}
+ await assert.rejects(executeProjectCopy(f.input),/ACCOUNT_REVOKED/);assert.equal(f.visible.size,0);assert.equal(f.copiedRows().length,0);
 });
 
 test('copy dependency waits are bounded and preserve the incomplete receipt without publishing',async t=>{
@@ -78,7 +81,7 @@ test('copy journal refuses old format, wrong target account and stale CAS withou
 test('copy restart cannot recreate a partial target that the person subsequently deleted',async t=>{
  const f=fixture(t),targetPort=f.input.target;let interrupted=true;
  const input={...f.input,target(ownerId:string,check:()=>void){const port=targetPort(ownerId,check);return {...port,owner:{...port.owner,apply(asset:Parameters<typeof port.owner.apply>[0]){port.owner.apply(asset);if(interrupted){interrupted=false;throw new Error('INTERRUPTED');}}}};}};
- await assert.rejects(executeProjectCopy(input),/INTERRUPTED/);const target=openFormStore(f.targetHome);try{const row=f.input.projects.flatMap(project=>target.list(f.maps.project(project.id)))[0]!;target.delete(row.id,row.project_id,row.version);}finally{target.close();}
+ await assert.rejects(executeProjectCopy(input),/INTERRUPTED/);{const target=f.input.projects.map(p=>f.copiedForms(p.id));try{const holder=target.find(store=>store.list().length)!,row=holder.list()[0]!;holder.delete(row.id,row.version);}finally{for(const store of target)store.close();}}
  await assert.rejects(executeProjectCopy({...f.input,journal:f.journal()}),/删除或替换历史/);assert.equal(f.visible.size,0);assert.equal(f.journal().get(f.input.operationId)!.state,'copying');
 });
 

@@ -8,7 +8,7 @@ import { registeredPageRoutes } from "./plugin-page-routes.js";
 import { changePageWorkspace } from "./plugin-page-workspaces.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
-import { runningProjectPlatform } from "./project-plugins.js";
+import { projectPluginPlatform, runningProjectPluginState } from "./project-plugins.js";
 import { embeddedStageTextOwners, runtimeStageOwner } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
@@ -29,13 +29,14 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
   const { contribution_id, surface, target_slot_id } = mount as Record<string, unknown>;
   const { localHost } = context;
   const home = await homeStageHalves(localHost.homePlugins);
-  const platform = project ? await localHost.withProject(project, runtime => runningProjectPlatform(runtime.store, project.project_id)) : null;
+  const state = project ? await localHost.withProject(project, runtime => runningProjectPluginState(runtime.store, project.project_id)) : null;
   const pluginId = typeof body.plugin_id === "string" ? body.plugin_id : undefined;
+  const platform = state && pluginId !== undefined ? projectPluginPlatform(state, pluginId) : null;
   const entry = pluginId === undefined ? undefined : builtinPluginByManifestId(pluginId)
     ?? home?.entries.find(item => item.manifest.plugin_id === pluginId);
   const manifest = pluginId === undefined ? undefined : platform?.supervisor.manifest(pluginId);
   const stage = entry ?? (manifest ? { project_plugin_id: manifest.plugin_id, manifest } : undefined);
-  const owner = stage && runtimeStageOwner({ platform }, stage, home).owner;
+  const owner = stage && runtimeStageOwner(state ?? { platform: null }, stage, home).owner;
   if (!owner || owner.view.descriptor.contribution_id !== contribution_id
     || !owner.view.descriptor.surfaces?.some(item => item.surface_id === surface && item.target_slot_id === target_slot_id))
     throw new ActionError("actions.forbidden", "原舞台实例不可用");
@@ -44,7 +45,7 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
     throw new ActionError("actions.provider_changed", "原舞台实例已变化，请重新读取");
   const reader = stageObjectAction(owner.entry.manifest);
   return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation,
-    project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent, embedded: embeddedStageTextOwners(platform, owner),
+    project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent, embedded: embeddedStageTextOwners(state, owner),
     ...(typeof surface === "string" && typeof target_slot_id === "string" && owner.view.descriptor.slots.some(slot => slot.accepts_forms?.length)
       ? { surfaceSlotSource: { contribution_id: owner.view.descriptor.contribution_id, surface, target_slot_id, producer: owner.producer,
         slots: owner.view.descriptor.slots, installation: owner.installation } } : {}),

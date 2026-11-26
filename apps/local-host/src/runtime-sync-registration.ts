@@ -4,6 +4,7 @@ import { partitionedReplica, syncNamespace, type SyncRegistration } from '@molis
 import { readRuntimeSyncValue, runtimeSyncKey, runtimeSyncValue, scopeRuntimeReplica } from './runtime-sync-scope.js';
 import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 import { hasApprovalOutcomes } from './project-approval-sync-links.js';
+import { partitionChanged } from './partition-plugin-host.js';
 
 export interface RuntimeSyncOwner { projectId: string | null; binding: RuntimeSyncCollection }
 
@@ -41,7 +42,14 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
     withReplica(run) { authorize(); if(!owners.some(row=>row.binding.available()))throw new ActionError('actions.plugin_unavailable','同步插件实例已停止'); return run({...partitionedReplica({ home, namespace: syncNamespace(selection), authorize,
       partitions: () => { authorize(); return [...byScope].filter(([, row]) => row.binding.available()).map(([id]) => id); },
       partition: key => JSON.stringify(runtimeSyncKey(key).projectId), projectPartition:id=>JSON.stringify(id),
-      withPartition(id, operation) { const current = owner(id); return operation(scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId })); },
+      withPartition(id, operation) {
+        const current = owner(id), result = operation(scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId }));
+        // What sync wrote into a partition's library is read into the overview on its next open; nothing is started for it (§6.1).
+        const changed = () => { if (current.projectId !== null) partitionChanged(home, current.projectId); };
+        if (result instanceof Promise) return result.then(value => { changed(); return value; }) as typeof result;
+        changed();
+        return result;
+      },
     }),authorizeKey(key,value){const current=scope(key);if(!current.binding.replica.authorizeKey)throw new ActionError('actions.forbidden','同步主人尚未声明标识授权');current.binding.replica.authorizeKey(current.key,value===undefined?undefined:readRuntimeSyncValue(current,value));},hasProjectChanges(projectId){
       authorize();const target=JSON.stringify(projectId),home=byScope.get('null');
       if(byScope.has(target)){const counts=owner(target).binding.replica.counts();if(counts.pending||counts.conflicts){authorize();return true;}}

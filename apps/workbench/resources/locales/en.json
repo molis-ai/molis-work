@@ -4326,6 +4326,8 @@
     "workbench.index.couldn-t-find-where-save": "Couldn’t find where to save it",
     "workbench.index.deleted-project": "a deleted project",
     "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet": "Items from this plugin can’t be copied elsewhere yet",
+    "workbench.index.item-changed-both-places-last-move": "The last move didn’t finish, and this item was changed in both places. Both copies are kept; open both and check them first.",
+    "workbench.index.item-is-being-moved": "This item is being moved right now. Try again once that move finishes.",
     "workbench.index.items-plugin-can-t-be-moved-yet-copy": "Items from this plugin can’t be moved yet; copy them or use them in a project",
     "workbench.index.kind-item-can-t-be-created-here": "This kind of item can’t be created here",
     "workbench.index.kind-item-only-lives-personal-space-can-be": "This kind of item only lives in your personal space; it can be used in a project but not moved",
@@ -10714,7 +10716,13 @@
     "workbench.assistant-error.work-budget-min": "Set a limit of at least 1,000 tokens, or leave it blank for no separate limit.",
     "workbench.assistant-error.work-budget-delegated": "Delegated tasks share the limit of “{title}”. Update the limit in that work instead.",
     "workbench.assistant-error.work-budget-plugin": "This work is run by its plugin, so usage is managed in that plugin’s session.",
-    "workbench.assistant-notice.handoff-auto-limit": "Ran {count} turns on its own and paused for your check-in. Send a message whenever you’re ready for it to continue.",
+    "workbench.assistant-notice.handoff-auto-limit": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Ran {count} turn on its own and paused for your check-in. Send a message whenever you’re ready for it to continue.",
+        "other": "Ran {count} turns on its own and paused for your check-in. Send a message whenever you’re ready for it to continue."
+      }
+    },
     "workbench.skill-catalog.assistant": "Assistant",
     "workbench.skill-catalog.version-label": "v{version}",
     "workbench.automation-candidates.skill-effect": "Makes this installed skill available in matching conversations.",

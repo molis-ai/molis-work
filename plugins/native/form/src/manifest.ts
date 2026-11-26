@@ -38,7 +38,7 @@ export const formManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   // Served under /api/plugins/io.molis.work.form in the project (a route needs a path below the plugin's own); each one only maps
   // the request to its action (plugin.ts).
-  databases: { home: FORM_DATABASE },
+  databases: { partition: FORM_DATABASE },
   routes: [
     { route_id: "form.list", method: "GET", path: "/forms" },
     { route_id: "form.create", method: "POST", path: "/forms", max_body_bytes: FORM_BODY_BYTES },

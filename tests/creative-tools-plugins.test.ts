@@ -72,6 +72,7 @@ function emptyView(): MolisWorkWebView {
     project: { project_id: PROJECT, display_name: "创作工具" },
     projects: [{ project_id: PROJECT, display_name: "创作工具" }],
     route_prefix: `/projects/${PROJECT}`,
+    enabled_plugins: ["form", "dataset", "ppt"],
     demo: false,
     active_goal_id: null,
     goals: [],
@@ -100,14 +101,14 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
-test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
+test("Forms / Dataset / PPT 由项目按分区启用，不再是常开的个人插件（第 107 批做法 A）", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes("functions" as never), false, "判断已迁入系统服务");
-  for (const id of ["form", "dataset", "ppt"]) assert.ok(PERSONAL_PLUGIN_IDS.includes(id));
+  for (const id of ["form", "dataset", "ppt"]) assert.equal(PERSONAL_PLUGIN_IDS.includes(id), false, `${id} 不再常开`);
   assert.equal([...PERSONAL_PLUGIN_IDS, ...PROJECT_SCOPED_PLUGIN_IDS].includes("characters"), false, "角色是宿主设置的一节，不是插件（CHR-1）");
   for (const id of ["form", "dataset", "ppt"]) {
-    assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), false, `${id} 不该要项目添加`);
+    assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), true, `${id} 由项目添加`);
   }
-  const rail = railEntries(["goals", ...PERSONAL_PLUGIN_IDS, "files"]).map((entry) => entry.id);
+  const rail = railEntries(["goals", "form", "dataset", "ppt", ...PERSONAL_PLUGIN_IDS, "files"]).map((entry) => entry.id);
   assert.deepEqual(
     rail.filter((id) => ["form", "dataset", "ppt"].includes(id)),
     ["form", "dataset", "ppt"],
@@ -291,7 +292,7 @@ test("Dataset：删行丢掉，筛选藏着的行留下；页面包用同一合�
 
 test("Forms：建题、预览提交、结果计数，重开还在；出题是本地 stub", async () => {
   await withHome(async (home) => {
-    const store = openFormStore(home);
+    const store = openFormStore(home, PROJECT);
     // Form's routes are its Runtime plugin's now (tests/form-runtime-routes.test.ts); the same steps through its actions.
     const { actions } = formTestPorts(store, PROJECT);
     const created = await actions.invoke(formActions.create, { title: "周报" });
@@ -312,8 +313,8 @@ test("Forms：建题、预览提交、结果计数，重开还在；出题是本
     assert.equal(results.analysis.submission_count, 1);
     store.close();
 
-    const reopened = openFormStore(home);
-    const listed = reopened.list(PROJECT);
+    const reopened = openFormStore(home, PROJECT);
+    const listed = reopened.list();
     assert.equal(listed.length, 1);
     assert.equal(listed[0]?.title, "周报");
     assert.equal(reopened.analyze(id).submission_count, 1);
@@ -323,7 +324,7 @@ test("Forms：建题、预览提交、结果计数，重开还在；出题是本
 
 test("Dataset：行列、CSV、导出、版本回滚，重开还在；加列是本地 stub", async () => {
   await withHome(async (home) => {
-    const store = openDatasetStore(home);
+    const store = openDatasetStore(home, PROJECT);
     const { actions } = datasetTestPorts(store, PROJECT);
     const created = await actions.invoke(datasetActions.create, { title: "成绩" });
     const id = created.dataset.id;
@@ -357,7 +358,7 @@ test("Dataset：行列、CSV、导出、版本回滚，重开还在；加列是�
     assert.match(toCsv(store.get(id)), /95/);
     store.close();
 
-    const reopened = openDatasetStore(home);
+    const reopened = openDatasetStore(home, PROJECT);
     assert.equal(reopened.get(id).rows.length, 2);
     reopened.close();
   });
@@ -365,7 +366,7 @@ test("Dataset：行列、CSV、导出、版本回滚，重开还在；加列是�
 
 test("PPT：多页编辑、主题色、JSON 导出字段，重开还在", async () => {
   await withHome(async (home) => {
-    const store = openPptStore(home);
+    const store = openPptStore(home, PROJECT);
     const { actions } = pptTestPorts(store, PROJECT);
     const created = await actions.invoke(pptActions.create, { title: "季度回顾" });
     const id = created.presentation.id;
@@ -387,7 +388,7 @@ test("PPT：多页编辑、主题色、JSON 导出字段，重开还在", async 
     assert.match(exported.content, /把表格接回来/);
     store.close();
 
-    const reopened = openPptStore(home);
+    const reopened = openPptStore(home, PROJECT);
     assert.equal(reopened.get(id).slides.length, 2);
     reopened.close();
   });
@@ -395,30 +396,29 @@ test("PPT：多页编辑、主题色、JSON 导出字段，重开还在", async 
 
 test("问卷、数据表、演示稿按项目隔离", async () => {
   await withHome(async (home) => {
-    const forms = openFormStore(home);
-    const datasets = openDatasetStore(home);
-    const ppts = openPptStore(home);
-    const formA = forms.create({ project_id: PROJECT, title: "项目甲问卷" });
-    forms.create({ project_id: OTHER, title: "项目乙问卷" });
-    datasets.create({ project_id: PROJECT, title: "项目甲表" });
-    datasets.create({ project_id: OTHER, title: "项目乙表" });
-    ppts.create({ project_id: PROJECT, title: "项目甲演示" });
-    ppts.create({ project_id: OTHER, title: "项目乙演示" });
-    assert.deepEqual(forms.list(PROJECT).map((item) => item.title), ["项目甲问卷"]);
-    assert.deepEqual(forms.list(OTHER).map((item) => item.title), ["项目乙问卷"]);
-    assert.deepEqual(datasets.list(PROJECT).map((item) => item.title), ["项目甲表"]);
-    assert.deepEqual(ppts.list(OTHER).map((item) => item.title), ["项目乙演示"]);
-    assert.throws(() => forms.get(formA.id, OTHER));
+    // Each partition has its own library of each plugin (U2): what one project's store holds, the other's cannot see or reach.
+    const forms = openFormStore(home, PROJECT), otherForms = openFormStore(home, OTHER);
+    const datasets = openDatasetStore(home, PROJECT), otherDatasets = openDatasetStore(home, OTHER);
+    const ppts = openPptStore(home, PROJECT), otherPpts = openPptStore(home, OTHER);
+    const formA = forms.create({ title: "项目甲问卷" });
+    otherForms.create({ title: "项目乙问卷" });
+    datasets.create({ title: "项目甲表" });
+    otherDatasets.create({ title: "项目乙表" });
+    ppts.create({ title: "项目甲演示" });
+    otherPpts.create({ title: "项目乙演示" });
+    assert.deepEqual(forms.list().map((item) => item.title), ["项目甲问卷"]);
+    assert.deepEqual(otherForms.list().map((item) => item.title), ["项目乙问卷"]);
+    assert.deepEqual(datasets.list().map((item) => item.title), ["项目甲表"]);
+    assert.deepEqual(otherPpts.list().map((item) => item.title), ["项目乙演示"]);
+    assert.throws(() => otherForms.get(formA.id));
     // A page asking Forms in one project for another project's forms is refused by the route: tests/form-runtime-routes.test.ts.
-    forms.close();
-    datasets.close();
-    ppts.close();
+    for (const store of [forms, otherForms, datasets, otherDatasets, ppts, otherPpts]) store.close();
   });
 });
 test("RAC-1635: Forms counts a form's title in Unicode characters, as its action schemas do", async () => {
   // create and update in plugins/native/form/src/actions.ts allow an 80-character title; one 🟢 is one character but two UTF-16 units.
   await withHome(async (home) => {
-    const store = openFormStore(home);
+    const store = openFormStore(home, PROJECT);
     try {
       const { actions } = formTestPorts(store, PROJECT);
       const wide = (count: number) => "🟢".repeat(count);
@@ -437,7 +437,7 @@ test("RAC-1635: Forms counts a form's title in Unicode characters, as its action
 test("RAC-1636: a form's description, a question's title and questions.add's prompt are counted in Unicode characters", async () => {
   // update allows a 2000-character description and 200-character question titles; questions.add allows a 200-character prompt, which becomes the new question's title.
   await withHome(async (home) => {
-    const store = openFormStore(home);
+    const store = openFormStore(home, PROJECT);
     try {
       const { actions } = formTestPorts(store, PROJECT);
       const wide = (count: number) => "🟢".repeat(count);
@@ -462,7 +462,7 @@ test("RAC-1636: a form's description, a question's title and questions.add's pro
 test("RAC-1637: an answer is counted in Unicode characters, as submit's schema does", async () => {
   // submit allows an answer of FORM_ANSWER_LIMIT (4000, plugins/native/form/src/fillpage.ts) characters; the package does not export it, so the number is written here.
   await withHome(async (home) => {
-    const store = openFormStore(home);
+    const store = openFormStore(home, PROJECT);
     try {
       const { actions } = formTestPorts(store, PROJECT);
       const wide = (count: number) => "🟢".repeat(count);

@@ -32,12 +32,12 @@ test("FSS-35 FSS-70 PG049-N01 PG049-N02 PG049-N03 saved directory outcomes switc
   };
   const expected = new Map<string, { zh: string; en: string }>();
   const scenarios = [
-    { path: ["inside.md"], outcome: "text", zh: `「${plugin}」读取了你授权的本机目录「${folder}」（你在页面上发起）。可在设置「本机目录」查看记录或撤回。`,
-      en: `“${plugin}” read your authorized local folder “${folder}” (started by you on the page). View the record or revoke access in Settings › Local folders.` },
-    { path: [".."], outcome: "denied", zh: `「${plugin}」尝试读取你授权的本机目录「${folder}」，但被拒绝（你在页面上发起）。可在设置「本机目录」查看记录或撤回。`,
-      en: `“${plugin}” tried to read your authorized local folder “${folder}”, but access was denied (started by you on the page). View the record or revoke access in Settings › Local folders.` },
-    { path: ["absent.md"], outcome: "missing", zh: `「${plugin}」尝试读取你授权的本机目录「${folder}」，但未完成（你在页面上发起）。可在设置「本机目录」查看记录或撤回。`,
-      en: `“${plugin}” tried to read your authorized local folder “${folder}”, but the read did not complete (started by you on the page). View the record or revoke access in Settings › Local folders.` },
+    { path: ["inside.md"], outcome: "text", zh: `你在页面上经「${plugin}」读取了你授权的本机目录「${folder}」。你可以随时在「设置 › 本机目录」查看记录或调整授权。`,
+      en: `Read your authorized folder “${folder}” via “${plugin}” from this page. You can review history or update access in Settings › Local folders.` },
+    { path: [".."], outcome: "denied", zh: `已拦下你在页面上经「${plugin}」读取目录「${folder}」的请求。你可以随时在「设置 › 本机目录」查看记录或调整授权。`,
+      en: `Blocked a request from this page to read “${folder}” via “${plugin}”. You can review history or update access in Settings › Local folders.` },
+    { path: ["absent.md"], outcome: "missing", zh: `你在页面上经「${plugin}」读取本机目录「${folder}」没能完成。你可以随时在「设置 › 本机目录」查看记录或调整授权。`,
+      en: `Reading “${folder}” via “${plugin}” from this page didn’t finish. You can review history or update access in Settings › Local folders.` },
   ];
   for (const scenario of scenarios) {
     request = { grant_id: grant.grant_id, path: scenario.path, kind: "text" };

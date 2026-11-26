@@ -1,4 +1,5 @@
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
+import { PLACEMENT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/placement";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
@@ -283,6 +284,7 @@ const projectPagesAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),
+    placementReader: userActions([PLACEMENT_READ_PERMISSION]),
     readArtifactDisplay,
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },

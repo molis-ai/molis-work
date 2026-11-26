@@ -207,12 +207,33 @@ export interface PluginDatabaseUpgradeStep {
 }
 
 /**
- * The library a Home-level instance is given (`services.database`). With `partition: "project"` it is one library per project:
- * each call is given the library of the project it runs in, which the Host takes from the call (never from an argument), and
- * a call in no project is refused (`actions.project_required`). The Host opens each project's library when it is first used,
- * closes it when idle and when the instance stops, and removes it with the project (specs/archive/plugin-project-partition). Only
- * `databases.home` may say so; the store registry says the same of the library (`HomeStoreDeclaration.library.partition`).
+ * The one table of a plugin's own library whose rows record the 成果 version pinned from them (`services.database.transactionProjectRow` with
+ * `services.artifacts.join`): the row and the version commit together or not at all. The plugin names only its own table and columns; the
+ * Host joins the plugin's library and the partition's main database in one transaction itself, on the same volume, and no author chooses a path
+ * or attaches a library (specs/unified-partition-plugins §7.3). The table has a single-column text key (`id_column`); `version_column` is
+ * the row's revision, raised by one with each pin; `write_columns` are the only other columns a pin may change.
  */
+export interface PluginPinnedRowsDeclaration {
+  readonly table: string;
+  readonly id_column: string;
+  readonly version_column: string;
+  readonly artifact_id_column: string;
+  readonly artifact_version_column: string;
+  readonly write_columns: readonly string[];
+  /** A text column that, while set, says a publication is still under way: such a row is not pinned again until it is cleared. */
+  readonly pending_column?: string;
+}
+
+/** A plugin's own library in each partition (`databases.partition`): a library declaration, and the table its pins are recorded on, if any. */
+export interface PartitionPluginDatabaseDeclaration extends PluginDatabaseDeclaration {
+  readonly pinned_rows?: PluginPinnedRowsDeclaration;
+  /**
+   * What a project's deletion confirmation says goes with this library, and where its step runs among the others, as `project_rows` says
+   * it of a library in the Home. The platform removes the whole file; omitted, the confirmation names the plugin.
+   */
+  readonly deletion?: Pick<PluginProjectRowsDeclaration, "label" | "order">;
+}
+
 /** A top-level relative subdirectory inside a Home store excluded from snapshots (rebuildable cache or machine-local locks). */
 export interface HomeStoreSnapshotExclusion {
   readonly path: string;
@@ -220,9 +241,9 @@ export interface HomeStoreSnapshotExclusion {
   readonly restore?: "preserve" | "reset";
 }
 
+/** The library a Home-level instance is given (`services.database`): one file in the Home, `<home>/<store_name>/<store_name>.db`. */
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
-  readonly partition?: "project";
-  /** The rows of this library that belong to a project, which the platform deletes with the project; never with `partition`. */
+  /** The rows of this library that belong to a project, which the platform deletes with the project. */
   readonly project_rows?: PluginProjectRowsDeclaration;
   /** Top-level transient/lock paths under this store omitted from Home snapshots. */
   readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
@@ -241,15 +262,7 @@ export interface PluginProjectRowsDeclaration {
   /** Children before their parent: a child's rows go by the ids of the parent's rows of the project, so it is cleared first. */
   readonly tables: readonly PluginProjectRowsTable[];
   /** A direct root table eligible for atomic pins with this project's artifact library. Its project column comes from `tables`. */
-  readonly artifact_join?: {
-    readonly table: string;
-    readonly id_column: string;
-    readonly version_column: string;
-    readonly artifact_id_column: string;
-    readonly artifact_version_column: string;
-    readonly write_columns: readonly string[];
-    readonly pending_column?: string;
-  };
+  readonly artifact_join?: PluginPinnedRowsDeclaration;
   /**
    * The plugin's own files (`owner_files`) that these rows name: the platform reads the names before it deletes the rows, and once
    * the rows are gone it removes each named file from the declared directory. It removes only a regular file whose name is one
@@ -286,7 +299,7 @@ export type PluginProjectRowsTable =
  * service (`services.project_database`).
  *
  * `home`: a library in the Home (`services.database`). The Host gives it only when its store registry holds a library of that name
- * as this plugin's own, at this version and `schema`, and partitioned the same way (specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md);
+ * as this plugin's own, at this version and `schema` (specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md);
  * a plugin whose library is not registered does not start.
  */
 export interface PluginManifestDatabases {
@@ -295,11 +308,11 @@ export interface PluginManifestDatabases {
   /**
    * A library of the plugin's own in every partition it is enabled in, the personal space as well as each project
    * (specs/unified-partition-plugins §5, U2): `<partition root>/libraries/<store_name>.db`, given to the (plugin, partition) instance as
-   * `services.database`. Each instance reaches only its own partition's file (S-partition-isolation); deleting a partition deletes the file
-   * with its directory, so there is no `project_rows`. A plugin that declares it is run by the per-partition assembly
-   * (`apps/local-host/src/partition-plugin-assembly.ts`), never by the old ones, and does not also declare `home`.
+   * `services.database`. Each instance reaches only its own partition's file (S-partition-isolation), which the Host derives from the call's
+   * trusted partition, never from an input; deleting a partition deletes the file, so there is no `project_rows`. A plugin that declares it
+   * does not also declare `home` or `project`, and records its pins on `pinned_rows`.
    */
-  readonly partition?: PluginDatabaseDeclaration;
+  readonly partition?: PartitionPluginDatabaseDeclaration;
 }
 
 /**
@@ -313,10 +326,9 @@ export interface HomeStoreDeclaration {
   /** Relative to the Home, `/` between segments: `pages`, `git-operation-details.json`, `config/onboarding.json`. */
   readonly path: string;
   /**
-   * The SQLite library this store is, at its owner's one baseline: `file` in the store's directory (default `<path>.db`). With
-   * `partition: "project"` there is one such file for each project, in `projects/<project>/` under the store's directory.
+   * The SQLite library this store is, at its owner's one baseline: `file` in the store's directory (default `<path>.db`).
    */
-  readonly library?: { readonly baseline: HomeStoreBaseline; readonly file?: string; readonly partition?: "project" };
+  readonly library?: { readonly baseline: HomeStoreBaseline; readonly file?: string };
   /** Top-level transient/lock paths under this store omitted from Home snapshots. */
   readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
 }

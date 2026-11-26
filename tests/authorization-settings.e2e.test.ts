@@ -102,20 +102,21 @@ test("H1/APR-12: the authorization manager shows the original source, revokes th
 test("H1/APR-11: choose Pages permissions, narrow them in the manager, and revoke the remaining scope", { timeout: 240_000 }, async t => {
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    projectPlugins: ["pages"],
     prepareHome: async home => { model = await assistantTextModel(t, home, "准备好了。"); model.finish(); },
   });
   if (!browser) return;
   const { origin, projectId, homeDirectory, click, evaluate, waitFor } = browser;
   assert.ok(projectId);
   const withPages = <T>(read: (store: ReturnType<typeof openPagesStore>) => T): T => {
-    const store = openPagesStore(homeDirectory);
+    const store = openPagesStore(homeDirectory, projectId);
     try { return read(store); } finally { store.close(); }
   };
   const { document, folder } = withPages(store => ({
-    document: store.create({ project_id: projectId, title: "权限测试文档" }),
-    folder: store.createFolder({ project_id: projectId, title: "原计划移入的目录" }),
+    document: store.create({ title: "权限测试文档" }),
+    folder: store.createFolder({ title: "原计划移入的目录" }),
   }));
-  const current = () => withPages(store => store.get(document.id, projectId));
+  const current = () => withPages(store => store.get(document.id));
   const projectPath = `/projects/${projectId}/`;
   const go = (path: string) => browser.navigate(() => browser.command("Page.navigate", { url: origin + path }, browser.sessionId));
   await browser.setViewport(1440, 960);

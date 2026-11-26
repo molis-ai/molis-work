@@ -250,8 +250,8 @@ test("placement journey: the exported fill page works in the filler's language a
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, homeDirectory, projectId } = browser;
-  const forms = openFormStore(homeDirectory);
-  const form = forms.receive(projectId!, "fill-page-e2e", "Beta 用户满意度", [{ id: "why", title: "最希望改进的地方", required: true }]);
+  const forms = openFormStore(homeDirectory, projectId!);
+  const form = forms.receive("fill-page-e2e", "Beta 用户满意度", [{ id: "why", title: "最希望改进的地方", required: true }]);
   forms.close();
   const page = join(homeDirectory, "Beta 用户满意度 · 填写页.html");
   await writeFile(page, formFillPageHtml(form));
@@ -278,10 +278,10 @@ test("placement journey: the exported fill page works in the filler's language a
   }
   // Both files go back into the form; importing them again adds nothing.
   const files = await Promise.all((await readdir(downloads)).filter(entry => entry.endsWith(".molis-answer.json")).map(async entry => ({ name: entry, content: await readFile(join(downloads, entry), "utf8") })));
-  const back = openFormStore(homeDirectory);
+  const back = openFormStore(homeDirectory, projectId!);
   try {
-    assert.equal(back.importAnswers(form.id, files, projectId!).imported, 2);
-    assert.equal(back.importAnswers(form.id, files, projectId!).imported, 0, "the same answer counts once");
-    assert.deepEqual(back.listSubmissions(form.id, projectId!).map(item => item.answers.why).sort(), ["Faster export", "导出更快"]);
+    assert.equal(back.importAnswers(form.id, files).imported, 2);
+    assert.equal(back.importAnswers(form.id, files).imported, 0, "the same answer counts once");
+    assert.deepEqual(back.listSubmissions(form.id).map(item => item.answers.why).sort(), ["Faster export", "导出更快"]);
   } finally { back.close(); }
 });

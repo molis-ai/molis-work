@@ -11,8 +11,8 @@ import { promoteForm } from "./promote.js";
 import { FORM_INSTRUCTIONS } from "./prompts.js";
 
 /**
- * Forms as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.1). Its library is the
- * `form` store its Host entry declares; the 成果 it pins, the model and the actions it routes come from the Runtime's services.
+ * Forms as a Plugin Runtime plugin, one instance per partition (docs/system/RUNTIME-MIGRATION.md 5.1). Its library is that
+ * partition's own `form` library (`databases.partition`); the 成果 it pins, the model and the actions it routes come from the Runtime's services.
  */
 export function createFormPlugin(): PluginDefinition {
   return { manifest: formManifest, instructions: FORM_INSTRUCTIONS, async start(context) {
@@ -20,15 +20,18 @@ export function createFormPlugin(): PluginDefinition {
     const database = context.services?.database, artifacts = context.services?.artifacts;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供问卷库");
     if (!artifacts) throw new ActionError("actions.unredeemed", "宿主未提供成果服务");
+    // One instance per partition (the personal space or a project), each with that partition's own library.
+    const partition = context.project_id;
+    if (!partition) throw new ActionError("actions.project_required", "问卷需要在个人空间或项目里打开");
     const stores: FormStores = {
       read: run => run(new FormStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
-        run: () => { throw new ActionError("actions.execution_failed", "问卷的读取不写入"); } })),
-      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new FormStore(transaction))),
+        run: () => { throw new ActionError("actions.execution_failed", "问卷的读取不写入"); } }, partition)),
+      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new FormStore(transaction, partition))),
     };
     const model = context.services?.model;
     const ports: FormActionPorts = { ...stores,
       ...(database.transactionProjectRow && artifacts.join ? {
-        promote: (id: string, expectedVersion?: number) => promoteForm(database, artifacts, id, expectedVersion),
+        promote: (id: string, expectedVersion?: number) => promoteForm(database, artifacts, partition, id, expectedVersion),
       } : {}),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { completeText: async (prompt, options) => (await model.complete(prompt, { signal: options.signal })).text } : {}) };

@@ -266,7 +266,7 @@
   {
     "file": "plugins/native/form/src/store.ts",
     "name": "version",
-    "values": { "1": 2 },
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {

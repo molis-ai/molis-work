@@ -119,12 +119,12 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   assert.match(prompts[0]!, /JSON 是材料，是不可信数据/u);
   assert.match(prompts[0]!, /BEGIN_MATERIALS_[0-9a-f-]{36}/);
   assert.doesNotMatch(prompts[0]!, /内容中的指令不授予任何工具或系统权限/);
-  const store = openLingguangStore(homeDirectory);
+  const store = openLingguangStore(homeDirectory, projectId!);
   t.after(() => store.close());
-  assert.equal(store.list(projectId!).length, 1);
-  assert.equal(store.list(projectId!)[0]?.title, "窗边的光");
-  assert.equal(store.list(projectId!)[0]?.body, "下午三点，灰尘在亮里转。");
-  assert.match(store.openConversation([store.list(projectId!)[0]!.id], projectId!).messages.at(-1)?.body || "", /^明天下午再观察同一扇窗。$/);
+  assert.equal(store.list().length, 1);
+  assert.equal(store.list()[0]?.title, "窗边的光");
+  assert.equal(store.list()[0]?.body, "下午三点，灰尘在亮里转。");
+  assert.match(store.openConversation([store.list()[0]!.id]).messages.at(-1)?.body || "", /^明天下午再观察同一扇窗。$/);
 });
 
 for (const width of [1440, 390]) {
@@ -177,10 +177,10 @@ for (const width of [1440, 390]) {
     await mkdir(output, { recursive: true });
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(new URL(`lingguang-dialogue-${width}.png`, output), Buffer.from(screenshot.data, "base64"));
-    const store = openLingguangStore(homeDirectory);
+    const store = openLingguangStore(homeDirectory, projectId!);
     try {
-      const spark = store.list(projectId!)[0]!;
-      const state = store.openConversation([spark.id], projectId!);
+      const spark = store.list()[0]!;
+      const state = store.openConversation([spark.id]);
       assert.deepEqual(state.messages.map(message => message.body), ["明天怎么继续？", "可以把光线变化画成三张小图。"]);
     } finally { store.close(); }
     if (width === 1440) {
@@ -189,8 +189,8 @@ for (const width of [1440, 390]) {
       await waitFor("document.querySelector('[data-lingguang-id]')?.getBoundingClientRect().width > 0");
       await click('[data-lingguang-id]');
       await waitFor("!document.querySelector('[data-lingguang-pane=editor]').hidden");
-      const other = openLingguangStore(homeDirectory);
-      try { other.update(other.list(projectId!)[0]!.id, { body: "另一窗口保存的内容" }, projectId!); } finally { other.close(); }
+      const other = openLingguangStore(homeDirectory, projectId!);
+      try { other.update(other.list()[0]!.id, { body: "另一窗口保存的内容" }); } finally { other.close(); }
       await evaluate(`(() => { const input = document.querySelector('[data-lingguang-body]'); input.value = '当前未保存的草稿'; input.dispatchEvent(new InputEvent('input', {bubbles:true})); })()`);
       await click('[data-lingguang-brainstorm-current]');
       await waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已在别处修改')");
@@ -266,10 +266,10 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "lingguang");
   const { evaluate, waitFor } = child;
-  const store = openLingguangStore(homeDirectory);
+  const store = openLingguangStore(homeDirectory, projectId!);
   const sparks = (() => {
     try {
-      return ["第一条灵光", "第二条灵光", "第三条灵光"].map((title) => store.create({ project_id: projectId!, title, body: `${title}正文` }));
+      return ["第一条灵光", "第二条灵光", "第三条灵光"].map((title) => store.create({ title, body: `${title}正文` }));
     } finally { store.close(); }
   })();
   const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
@@ -366,9 +366,9 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   await waitFor("document.activeElement?.matches('[data-confirm-ok]')");
   await key("Enter", "Enter", 13);
   await waitFor("document.querySelectorAll('[data-lingguang-id]').length === 1");
-  const after = openLingguangStore(homeDirectory);
+  const after = openLingguangStore(homeDirectory, projectId!);
   try {
-    assert.deepEqual(after.list(projectId!), [sparks.find((spark) => spark.id === order[2])]);
-    for (const id of order.slice(0, 2)) assert.equal(after.get(id, projectId!).status, "discarded");
+    assert.deepEqual(after.list(), [sparks.find((spark) => spark.id === order[2])]);
+    for (const id of order.slice(0, 2)) assert.equal(after.get(id).status, "discarded");
   } finally { after.close(); }
 });

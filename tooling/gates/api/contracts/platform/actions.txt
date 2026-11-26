@@ -3322,6 +3322,60 @@ export declare const PLACEMENT_COPY_INPUT_TYPE = "molis.placement.copy.input.v1"
 
 export declare const PLACEMENT_COPY_OUTPUT_TYPE = "molis.placement.copy.output.v1";
 
+export declare const PLACEMENT_EXPORT_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly required: readonly ["subject"];
+    readonly additionalProperties: false;
+};
+
+export declare const PLACEMENT_EXPORT_SCHEMA: {
+    type: string;
+    properties: {
+        subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        revision: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        record: {
+            readonly type: "object";
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
 export declare const PLACEMENT_MOVE_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -3355,6 +3409,32 @@ export declare const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1"
 
 export declare const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v1";
 
+export declare const PLACEMENT_PUT_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly kind: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly record: {
+            readonly type: "object";
+        };
+        readonly request_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly target_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+    };
+    readonly required: readonly ["kind", "record", "request_id"];
+    readonly additionalProperties: false;
+};
+
 export declare const PLACEMENT_RELATION_LIMITS: {
     readonly targets: 500;
     readonly name: 120;
@@ -3367,6 +3447,64 @@ export declare const PLACEMENT_RELATION_LIMITS: {
 export declare const PLACEMENT_RELATION_ROLES: readonly ["list", "bind", "release", "candidates", "create"];
 
 export declare const PLACEMENT_RELATION_TYPE = "molis.placement.relation.v1";
+
+export declare const PLACEMENT_REMOVED_SCHEMA: {
+    type: string;
+    properties: {
+        subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        removed: {
+            type: string;
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const PLACEMENT_REMOVE_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        readonly revision: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+    };
+    readonly required: readonly ["subject", "revision"];
+    readonly additionalProperties: false;
+};
+
+export declare const PLACEMENT_REMOVE_INPUT_TYPE = "molis.placement.remove.input.v1";
+
+export declare const PLACEMENT_REMOVE_OUTPUT_TYPE = "molis.placement.remove.output.v1";
 
 export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
@@ -3402,6 +3540,14 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const PUSH_EXPORT_INPUT_TYPE = "molis.push.export.input.v1";
+
+export declare const PUSH_EXPORT_OUTPUT_TYPE = "molis.push.export.output.v1";
+
+export declare const PUSH_PUT_INPUT_TYPE = "molis.push.put.input.v1";
+
+export declare const PUSH_PUT_OUTPUT_TYPE = "molis.push.put.output.v1";
+
 export interface PersonIntake extends DestinationDeclaration {
     readonly intake_id: string;
     readonly title_text?: TextRef;
@@ -3430,10 +3576,29 @@ export interface PlacementCopyInput {
     request_id: string;
 }
 
+export interface PlacementExport {
+    subject: ActionSubject;
+    revision: string;
+    record: PlacementRecord;
+}
+
+export interface PlacementExportInput {
+    subject: ActionSubject;
+}
+
 export interface PlacementMoveInput {
     subject: ActionSubject;
     to_project_id: string;
 }
+
+export interface PlacementPutInput {
+    kind: string;
+    record: PlacementRecord;
+    request_id: string;
+    target_id?: string;
+}
+
+export type PlacementRecord = Record<string, unknown>;
 
 export interface PlacementRelationBindInput extends PlacementRelationTargetInput {
     read?: PlacementRelationRead;
@@ -3496,6 +3661,16 @@ export interface PlacementRelationTarget {
 export interface PlacementRelationTargetInput {
     subject: ActionSubject;
     target: ActionSubject;
+}
+
+export interface PlacementRemoveInput {
+    subject: ActionSubject;
+    revision: string;
+}
+
+export interface PlacementRemoved {
+    subject: ActionSubject;
+    removed: boolean;
 }
 
 export interface PlacementResult {
@@ -6075,7 +6250,13 @@ export declare function defineItemRelatedAction(capabilityId: string, version: n
 
 export declare function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
 
+export declare function defineObjectExportAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementExportInput, PlacementExport>;
+
 export declare function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
+
+export declare function defineObjectPutAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementPutInput, PlacementResult>;
+
+export declare function defineObjectRemoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementRemoveInput, PlacementRemoved>;
 
 export declare function definePlacementRelationAction<R extends PlacementRelationRole>(relation: string, role: R, capabilityId: string, version: number, options: PlacementRelationOptions): ActionDefinition<RelationInput<R>, RelationOutput<R>>;
 
@@ -6202,7 +6383,22 @@ export declare function isObjectCopier(action: {
     output_type?: string;
 }): boolean;
 
+export declare function isObjectExporter(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
 export declare function isObjectMover(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
+export declare function isObjectPutter(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
+export declare function isObjectRemover(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
@@ -6293,6 +6489,8 @@ export declare function runIsMissed(dueAt: string | number, now: number): boolea
 export declare function runsExpiryBounds(window: RunsWindow): RunsExpiryBounds;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
+
+export declare function sameCarriedRecord(here: PlacementRecord, carried: PlacementRecord): boolean;
 
 export declare function sceneConfigurationActions(scene: ActionSceneDefinition): {
     targets: ActionDefinition<{

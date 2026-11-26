@@ -18,6 +18,7 @@ async function fixture(t: any, completeText: HostCompleteText | null = async () 
   const home = await mkdtemp(join(tmpdir(), "pages-cross-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "Pages", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });

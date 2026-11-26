@@ -116,10 +116,10 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a p
   if (!b) return;
   assert.ok(b.projectId);
   const project = `/projects/${b.projectId}`, workbench = project + "/";
-  const page = openPagesStore(b.homeDirectory), decks = openPptStore(b.homeDirectory);
-  const note = page.create({ project_id: b.projectId, title: "保留页面", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开 Pages" }] }] } });
-  const deck = decks.create({ project_id: b.projectId, title: "保留演示稿" });
-  decks.update(deck.id, { slides: [{ id: deck.slides[0]!.id, title: "打开 PPT", bullets: [], notes: "" }] }, b.projectId);
+  const page = openPagesStore(b.homeDirectory, b.projectId), decks = openPptStore(b.homeDirectory, b.projectId);
+  const note = page.create({ title: "保留页面", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开 Pages" }] }] } });
+  const deck = decks.create({ title: "保留演示稿" });
+  decks.update(deck.id, { slides: [{ id: deck.slides[0]!.id, title: "打开 PPT", bullets: [], notes: "" }] });
   page.close(); decks.close();
   const file = await seedOutputFile(b, b.projectId);
   singleHomeAccounts(b);

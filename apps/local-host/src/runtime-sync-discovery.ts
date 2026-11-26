@@ -4,7 +4,7 @@ import { syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-modul
 import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
 import type { HomePluginPlatform } from './home-plugins.js';
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from './project-host.js';
-import { runningProjectPlatform } from './project-plugins.js';
+import { runningProjectPluginPlatforms } from './project-plugins.js';
 import { runtimeSyncRegistration, type RuntimeSyncOwner } from './runtime-sync-registration.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import type { SpaceWebSurface } from './space-web-server.js';
@@ -40,7 +40,8 @@ export async function discoverRuntimeSyncCollections(home: string, spaceId: stri
           publisher_signature: binding.publisher_signature, collection_id: binding.collection.id, schema_version: binding.collection.schema_version });
         // A project activation may hold a Home library. Its journal belongs to that one library,
         // not to whichever project happened to start its current authorized instance first.
-        const homeLibrary = collection.database === 'home' || (!collection.database && manifest?.databases?.home && !manifest.databases.project);
+        // A partition's own library (`databases.partition`) is that partition's, as a project library is.
+        const homeLibrary = collection.database === 'home' || (!collection.database && manifest?.databases?.home && !manifest.databases.project && !manifest.databases.partition);
         if (incompatible.has(key)) return;
         if (homeLibrary) {
           const digest = pluginManifestDigest(manifest!), prior = homeOwners.get(key);
@@ -67,7 +68,8 @@ export async function discoverRuntimeSyncCollections(home: string, spaceId: stri
       const current = await withCatalog({ homeDirectory: home }, catalog => catalog.listPartitions().find(row => row.project_id === project.project_id));
       authorize(); if (!current || current.database_path !== project.database_path) return;
       await host.synchronization.withExistingProject(molisWorkHostProjectReference({ databasePath: current.database_path, projectId: current.project_id }), async runtime => {
-        await collect(await runningProjectPlatform(runtime.store, runtime.project_id), runtime.project_id);
+        // A plugin with a library in each partition syncs from its own instance there (batch 107).
+        for (const platform of await runningProjectPluginPlatforms(runtime.store, runtime.project_id)) await collect(platform, runtime.project_id);
       });
       authorize();
     });

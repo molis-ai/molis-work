@@ -9,14 +9,16 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { probeAction, registerProbe } from "./fixtures/plugin-home-artifact-probe.js";
 
-const id = "dataset-a", otherId = "dataset-b", at = "2026-11-09T18:00:00Z", otherAt = "2026-11-09T18:00:01Z";
+// A row of the project's partition library (U2) and another row of the same library; a library holds one partition's rows, so the
+// row another call cannot reach is one this library does not have.
+const id = "dataset-a", otherId = "dataset-b", missingId = "dataset-missing", at = "2026-11-09T18:00:00Z", otherAt = "2026-11-09T18:00:01Z";
 const isolationSchema = (sql: string) => sql
   .replace("id TEXT PRIMARY KEY", "id TEXT PRIMARY KEY COLLATE NOCASE")
-  .replace("project_id TEXT NOT NULL DEFAULT ''", "project_id TEXT NOT NULL DEFAULT '' COLLATE NOCASE")
   .replace("updated_at TEXT NOT NULL", "updated_at TEXT NOT NULL UNIQUE ON CONFLICT REPLACE")
   + "CREATE TABLE history (source TEXT REFERENCES DATASETS(ID) ON UPDATE CASCADE);";
 
@@ -45,20 +47,20 @@ async function fixture(t: TestContext, projectIdentity?: string) {
   const home = await openTestHome(t);
   const selected = projectIdentity
     ? await catalogProject(home, projectIdentity, "Artifact row fixture")
-    : await home.createProject("Artifact row fixture");
+    : await home.createProject("Artifact row fixture", ["dataset"]);
   const projectId = selected.project_id;
   const person = await home.host.localPersonContext(selected.reference);
   assert.ok(services);
   const project = await home.host.withProject(selected.reference, runtime => runtime.store);
-  const library = openSqliteConnection(homeSqlitePath(home.home, "dataset"), { fileMustExist: true });
+  const library = openSqliteConnection(partitionLibraryFile(home.home, projectId, "dataset"), { fileMustExist: true });
   t.after(() => library.close());
-  const insert = library.prepare("INSERT INTO datasets (id, project_id, title, description, status, columns_json, rows_json, created_at, updated_at, version) VALUES (?, ?, ?, '', 'draft', '[]', '[]', ?, ?, 1)");
-  insert.run(id, projectId, "Owned", at, at);
-  insert.run(otherId, "other-project", "Other", otherAt, otherAt);
+  const insert = library.prepare("INSERT INTO datasets (id, title, description, status, columns_json, rows_json, created_at, updated_at, version) VALUES (?, ?, '', 'draft', '[]', '[]', ?, ?, 1)");
+  insert.run(id, "Owned", at, at);
+  insert.run(otherId, "Other", otherAt, otherAt);
 
   const ports = { db: project.db, appendEvent: project.appendEvent.bind(project), eventCursor: project.eventCursor.bind(project) };
   const artifacts = new ArtifactsModule(ports);
-  const source = () => library.prepare("SELECT id, project_id, artifact_id, artifact_version, version FROM datasets ORDER BY id").all();
+  const source = () => library.prepare("SELECT id, artifact_id, artifact_version, version FROM datasets ORDER BY id").all();
   const sync = pluginSyncNamespace(manifest, manifest.sync!.collections[0]!.id);
   const homeChanges = () => library.prepare<[], { n: number }>(`SELECT count(*) AS n FROM ${sync}_replica_changes`).get()!.n;
   const projectChanges = () => project.db.prepare<[], { n: number }>("SELECT count(*) AS n FROM artifacts_replica_changes").get()!.n;
@@ -77,11 +79,15 @@ async function fixture(t: TestContext, projectIdentity?: string) {
   const put = (name: string, subject = id, revision = 1): PluginArtifactPublishInput => ({ artifact_id: name, version: 1,
     artifact_type_id: manifest.artifacts.produces[0]!.artifact_type_id, schema_version: 1, content: { kind: "inline", payload: { name } },
     ...pinnedArtifact(name, { kind: "dataset", id: subject }, String(revision)) });
+  // Dataset's installation is the Home's (batch 107: it runs per partition), so it is replaced in the Home install table.
   const replaceInstallation = () => {
-    const installs = new SqlitePluginRuntimeRepository(project.db);
-    const install = installs.list().find(record => record.plugin_id === manifest.plugin_id);
-    assert.ok(install);
-    installs.save({ ...install, installation_generation: "replacement" });
+    const db = openSqliteConnection(homeSqlitePath(home.home, "plugin-runtime"), { fileMustExist: true });
+    try {
+      const installs = new SqlitePluginRuntimeRepository(db);
+      const install = installs.list().find(record => record.plugin_id === manifest.plugin_id);
+      assert.ok(install);
+      installs.save({ ...install, installation_generation: "replacement" });
+    } finally { db.close(); }
   };
   return { ...services, source, homeChanges, projectChanges, project, projectId, run, put, abort, replaceInstallation, home, sync,
     latestActivation: () => services,
@@ -114,8 +120,8 @@ test("BSH-02 and BSH-03 · a Home row, new artifact, event and replication commi
   assert.equal(f.version("ordinary-publish"), null);
   assert.equal(f.version("then-publish"), null);
   assert.deepEqual(f.source(), [
-    { id, project_id: projectId, artifact_id: "real-pin", artifact_version: 1, version: 2 },
-    { id: otherId, project_id: "other-project", artifact_id: "", artifact_version: 0, version: 1 },
+    { id, artifact_id: "real-pin", artifact_version: 1, version: 2 },
+    { id: otherId, artifact_id: "", artifact_version: 0, version: 1 },
   ]);
   assert.equal(f.homeChanges(), changes + 1);
   assert.equal(f.projectChanges(), replicated + 2);
@@ -142,9 +148,9 @@ test("BSH-02 and BSH-03 · a swallowed CAS failure, async join and last-moment c
   };
   await assert.rejects(f.run(() => f.database.transaction(async () => {}, tx => f.artifacts.join!(tx, writer => writer.publish(f.put("ordinary-home"))))), { code: "actions.forbidden" });
   clean("ordinary-home");
-  await assert.rejects(f.run(() => f.database.transactionProjectRow!(otherId, row => {
+  await assert.rejects(f.run(() => f.database.transactionProjectRow!(missingId, row => {
     assert.equal(row.read(), null);
-    f.artifacts.join!(row, writer => writer.publish(f.put("foreign-row", otherId)));
+    f.artifacts.join!(row, writer => writer.publish(f.put("foreign-row", missingId)));
     assert.equal(row.compareAndSet(1, {}), false);
   })), { code: "actions.conflict" });
   clean("foreign-row");
@@ -186,7 +192,8 @@ test("BSH-02 · beforeEffect belongs to the trusted action and a replaced instal
     entered.resolve();
     await release.promise;
   });
-  const refused = assert.rejects(result, { code: "actions.forbidden" });
+  // The installation replaced in the Home table is not the one this partition's instance runs (batch 107), so the gate finds it not running.
+  const refused = assert.rejects(result, { code: "actions.plugin_unavailable" });
   try {
     await Promise.race([entered.promise, refused.then(() => assert.fail("the original action never reached its write gate"))]);
     f.replaceInstallation();
@@ -197,18 +204,8 @@ test("BSH-02 · beforeEffect belongs to the trusted action and a replaced instal
 
 test("BSH-02 · a declared collation or unique conflict cannot write or delete a different root row", async t => {
   const f = await fixture(t), { projectId } = f;
-  f.library.prepare("UPDATE datasets SET project_id=? WHERE id=?").run(projectId.toUpperCase(), id);
   const state = () => [f.source(), f.homeChanges(), f.projectChanges(), f.project.eventCursor(projectId)];
-  const wrongCase = state();
-  await assert.rejects(f.run(() => f.database.transactionProjectRow!(id, row => {
-    assert.equal(row.read(), null);
-    f.artifacts.join!(row, writer => writer.publish(f.put("wrong-case")));
-    assert.equal(row.compareAndSet(1, {}), false);
-  })), { code: "actions.conflict" });
-  assert.deepEqual(state(), wrongCase);
-  assert.equal(f.version("wrong-case"), null);
-
-  f.library.prepare("UPDATE datasets SET project_id=?, id=? WHERE id=?").run(projectId, id.toUpperCase(), id);
+  f.library.prepare("UPDATE datasets SET id=? WHERE id=?").run(id.toUpperCase(), id);
   const wrongIdCase = state();
   await assert.rejects(f.run(() => f.database.transactionProjectRow!(id, row => {
     assert.equal(row.read(), null);
@@ -229,7 +226,7 @@ test("BSH-02 · a declared collation or unique conflict cannot write or delete a
   assert.equal(f.version("replace-conflict"), null);
 });
 
-test("BSH-02 · a live Home row handle refuses a different project or another Home with the same project id", async t => {
+test("BSH-02 · a live partition row handle refuses a different project or another Home with the same project id", async t => {
   const f = await fixture(t, "project-onboarding-" + randomUUID());
   const sameHome = await f.home.createProject("Other project in this Home", ["dataset"]);
   await f.home.host.localPersonContext(sameHome.reference);
@@ -252,7 +249,7 @@ test("BSH-02 · a live Home row handle refuses a different project or another Ho
     assert.ok(join);
     assert.notEqual(join, f.artifacts.join);
     const readPeer = () => owner.host.withProject(reference, ({ artifacts, store }) => {
-      const library = openSqliteConnection(homeSqlitePath(owner.home, "dataset"), { readonly: true });
+      const library = openSqliteConnection(partitionLibraryFile(owner.home, reference.project_id, "dataset"), { readonly: true });
       try {
         return [
           artifacts.query.latestArtifactVersion(reference.project_id, name), store.eventCursor(reference.project_id),

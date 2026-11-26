@@ -16,8 +16,8 @@ async function openCommentBox(t: TestContext) {
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const comments = await pluginFrameBrowser(t, browser, "pages", '[data-side-body="plugin:pages/comments"] iframe');
-  const store = openPagesStore(homeDirectory);
-  const page = store.create({ project_id: projectId!, title: "长评论", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "已保存正文" }] }] } }); store.close();
+  const store = openPagesStore(homeDirectory, projectId!);
+  const page = store.create({ title: "长评论", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "已保存正文" }] }] } }); store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === ${JSON.stringify(page.title)}`);
@@ -45,8 +45,8 @@ async function openCommentBox(t: TestContext) {
     },
     /** The comments the document keeps, by length in characters, oldest first: what the store holds, not what the page shows. */
     stored() {
-      const checked = openPagesStore(homeDirectory);
-      try { return checked.comments.list(page.id, projectId!).flatMap(thread => thread.messages).filter(message => message.author === "user").map(message => [...message.body].length); }
+      const checked = openPagesStore(homeDirectory, projectId!);
+      try { return checked.comments.list(page.id).flatMap(thread => thread.messages).filter(message => message.author === "user").map(message => [...message.body].length); }
       finally { checked.close(); }
     },
   };

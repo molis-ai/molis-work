@@ -435,8 +435,8 @@ test("PFG-22 ⌘\\ in a Pages document clears the selection's formatting and lea
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const store = openPagesStore(homeDirectory);
-  const page = (() => { try { return store.create({ project_id: projectId!, title: "Format", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Bold words", marks: [{ type: "strong" }] }] }] } }); } finally { store.close(); } })();
+  const store = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return store.create({ title: "Format", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Bold words", marks: [{ type: "strong" }] }] }] } }); } finally { store.close(); } })();
   const frame = await pluginFrameBrowser(t, browser, "pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));

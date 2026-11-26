@@ -326,6 +326,13 @@ export type {
   ArtifactLinkSubjectsInput, ArtifactLinkSubject, ArtifactLinkSubjectsResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 
+/**
+ * Moving and copying your objects between partitions (a project, the personal space): read one as a record to carry, write a carried
+ * record here, and let the original go once it stands at the target. `sameCarriedRecord` tells an exact replay of a move from a conflict.
+ */
+export { defineObjectExportAction, defineObjectPutAction, defineObjectRemoveAction, sameCarriedRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementExportInput, PlacementExport, PlacementPutInput, PlacementRemoveInput, PlacementRemoved, PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+
 /** Say what an action really does where its id would be misread (a `delete_preview` deletes nothing); `plugin: false` keeps it from generated plugins. */
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 

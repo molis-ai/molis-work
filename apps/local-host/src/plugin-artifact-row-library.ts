@@ -1,12 +1,13 @@
 import { lstatSync, realpathSync, type Stats } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { listProjectRoots, projectDatabasePath } from "@molis-ai/molis-work-module-projects";
+import { listProjectRoots, partitionDatabasePath, partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { homeSqlitePath, readDatabaseSpace, readStorageSpace, snapshotFileStat, withSqliteLibraryTransaction, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ARTIFACT_HOME_SCHEMA, boundArtifactRootRow, type artifactRowReplication } from "./plugin-artifact-row-sql.js";
 import type { ArtifactRootStore } from "./plugin-artifact-row-transaction.js";
 import type { ProjectArtifactRoot } from "./plugin-artifact-root.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
+import { partitionLibraryPath } from "./partition-plugin-assembly.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export interface ArtifactHomeLibrary {
@@ -20,6 +21,8 @@ export interface ArtifactHomeLibrary {
   readonly root: ProjectArtifactRoot;
   readonly triggers: ReadonlyMap<string, string>;
   readonly replication: ReturnType<typeof artifactRowReplication>;
+  /** The partition whose own library this is (`databases.partition`); absent for a Home library shared by every project. */
+  readonly partition_id?: string;
 }
 
 const attached = ARTIFACT_HOME_SCHEMA;
@@ -39,10 +42,13 @@ function assertSpace(db: SqliteDatabase, library: ArtifactHomeLibrary, projectId
 /** The project artifact owner and the joined transaction use exactly the same connection. */
 export function artifactRootStore(project: ProjectLibrary, library: ArtifactHomeLibrary, projectId: string): ArtifactRootStore | undefined {
   const db = project.journal?.writer.db;
-  const path = projectDatabasePath(join(library.home, "projects"), projectId);
+  const path = partitionDatabasePath(library.home, projectId);
+  // A partition's own library joins only its own partition's main database; a Home library is the one file at the Home's store.
+  const libraryPath = library.partition_id === undefined ? homeSqlitePath(library.home, library.storeName)
+    : library.partition_id === projectId ? partitionLibraryPath(partitionRoot(library.home, projectId), library.storeName) : undefined;
   if (!db || db !== project.db || project.journal?.project_id !== projectId || !project.path || project.path === ":memory:"
     || !lstatSync(project.path).isFile() || realpathSync(project.path) !== path || resolve(db.name) !== resolve(project.path)
-    || library.path !== homeSqlitePath(library.home, library.storeName)) return undefined;
+    || library.path !== libraryPath) return undefined;
   const projectFile = snapshotFileStat(path);
   return {
     readPermission: library.readPermission,

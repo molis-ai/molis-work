@@ -6,25 +6,27 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { Worker } from "node:worker_threads";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS, createPluginPlatform, homeStores, projectDeletedHooksFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS, createPluginPlatform, homeStores, openHomePluginStore, partitionPluginScope, projectDeletedHooksFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { assertPluginLocales } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { installIdentity, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { readDatabaseSpace, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 // PG-024 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §2): a library in the Home declares which of its rows belong to a
 // project (`databases.home.project_rows`), and the platform deletes them with the project, on its own connection to that library,
 // running none of the plugin's code.
 
 const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
-const DECLARING = ["dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "work-brief", "workflows"];
+// Pages, PPT, Forms, Dataset, 灵光 and Workflows keep a library in each partition (U2, batch 107), which goes with the partition whole.
+const DECLARING = ["images", "todo", "work-brief"];
 /**
  * The libraries all of whose tables are a project's. Images also keeps the person's connections, which belong to no project; RAC-577 is
  * its. Work Brief also keeps the person's own brief (no project); its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).
@@ -80,7 +82,7 @@ function marks(home: string, library: HomePluginDatabaseDeclaration, projects: r
   } finally { db.close(); }
 }
 
-test("RAC-560 AC-T2-05 deleting a project deletes every row of it in the seven declaring libraries and leaves another project's rows whole", async t => {
+test("RAC-560 AC-T2-05 deleting a project deletes every row of it in the declaring libraries and leaves another project's rows whole", async t => {
   const home = withHome(t);
   const declaring = catalog.filter(entry => entry.manifest.databases?.home?.project_rows);
   assert.deepEqual(declaring.map(entry => entry.project_plugin_id).sort(), DECLARING);
@@ -132,7 +134,6 @@ test("RAC-561 the SDK refuses project_rows that name what is not this library's 
   refused({ ...ROWS, tables: [{ table: "items", column: "project_id" }, { table: "notes", column: "item_id", parent: "items" }] }, /写在它后面/u);
   refused({ ...ROWS, tables: [{ table: "notes", column: "item_id", parent: "ghosts" }, { table: "items", column: "project_id" }] }, /写在它后面/u);
   refused({ ...ROWS, label: "" }, /label/u);
-  refused(ROWS, /不能和 partition/u, { partition: "project" });
 });
 
 const rowsWord = "rowsprobe.project-deletion.data", declarations = { default: "zh", available: ["zh", "en"] } as const;
@@ -187,17 +188,17 @@ test("FSS-36 the same plugin ID in two Homes keeps each registration's deletion 
 
 test("RAC-561 the platform deletes only from the declaring plugin's own library, and refuses a column its schema does not make", async t => {
   const home = withHome(t);
-  const pages = catalog.find(entry => entry.project_plugin_id === "pages")!, dataset = catalog.find(entry => entry.project_plugin_id === "dataset")!;
-  const datasetLibrary = dataset.manifest.databases!.home!;
-  seed(home, datasetLibrary, ["pa"]);
-  const borrowing = (rows: PluginProjectRowsDeclaration): PluginRegistration => ({ ...pages, project_plugin_id: "borrowing",
-    manifest: { ...pages.manifest, databases: { home: { ...pages.manifest.databases!.home!, project_rows: rows } } } });
-  for (const rows of [{ label: "借别家的表", tables: [{ table: "datasets", column: "project_id" }] }, { label: "没有的列", tables: [{ table: "pages", column: "nowhere" }] }]) {
+  const todo = catalog.find(entry => entry.project_plugin_id === "todo")!, brief = catalog.find(entry => entry.project_plugin_id === "work-brief")!;
+  const todoLibrary = todo.manifest.databases!.home!;
+  seed(home, todoLibrary, ["pa"]);
+  const borrowing = (rows: PluginProjectRowsDeclaration): PluginRegistration => ({ ...brief, project_plugin_id: "borrowing",
+    manifest: { ...brief.manifest, databases: { home: { ...brief.manifest.databases!.home!, project_rows: rows } } } });
+  for (const rows of [{ label: "借别家的表", tables: [{ table: "todo_items", column: "project_id" }] }, { label: "没有的列", tables: [{ table: "briefs", column: "nowhere" }] }]) {
     catalog.push(borrowing(rows));
     try { await assert.rejects(projectDeletedHooksFor(home).clear("borrowing", "pa"), { code: "plugin.declaration_invalid" }); }
     finally { catalog.pop(); }
   }
-  assert.ok(marks(home, datasetLibrary, ["pa"]).datasets!.pa! > 0, "the other plugin's library is untouched");
+  assert.ok(marks(home, todoLibrary, ["pa"]).todo_items!.pa! > 0, "the other plugin's library is untouched");
 });
 
 function rowsProbe(label = ROWS.label, id = "com.example.rowsprobe") {
@@ -229,7 +230,17 @@ test("RAC-562 S-暂A a plugin the Host did not ship has its declared rows go wit
   assert.deepEqual(marks(f.home, LIBRARY, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
 });
 
-function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
+/** The per-partition platform of one plugin with a library in each partition (batch 107): the Home's one install table, the demo partition. */
+function partitionPlatform(t: TestContext, home: string, manifest: PluginManifest) {
+  const installs = openHomePluginStore(home);
+  const platform = projectPlatform(t, home, homeStores(), { installDatabase: installs.db,
+    partitionScope: partitionPluginScope(home, DEMO_PROJECT_ID, manifest.plugin_id, installIdentity(manifest)) });
+  // Registered after the platform's own cleanup, which still reads the installs while it stops what runs.
+  t.after(() => installs.db.close());
+  return platform;
+}
+
+function projectPlatform(t: TestContext, home: string, stores = homeStores(), partition: Pick<Parameters<typeof createPluginPlatform>[0], "installDatabase" | "partitionScope"> = {}) {
   const directory = mkdtempSync(join(tmpdir(), "project-rows-board-")), file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
@@ -237,7 +248,7 @@ function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
-    home: { directory: home, completeText: () => undefined, stores } });
+    home: { directory: home, completeText: () => undefined, stores }, ...partition });
   t.after(async () => {
     try {
       for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
@@ -248,24 +259,29 @@ function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
 }
 
 test("RAC-562 an existing catalog project plugin with a declared deletion owner still starts through the real platform", async t => {
-  const home = withHome(t), platform = projectPlatform(t, home), definition = createFormPlugin();
-  const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.home!;
+  const home = withHome(t), definition = createFormPlugin(), platform = partitionPlatform(t, home, definition.manifest);
+  // Forms keeps a library in each partition (batch 107): its deletion step is declared on that library and runs for the partition.
+  const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.partition!;
   assert.ok(catalog.some(entry => entry.manifest === definition.manifest), "the deletion owner reads this same Manifest object");
   assert.deepEqual((await platform.start([{ definition, trust: { level: "host" } }])).running, [definition.manifest.plugin_id]);
   assert.ok(schema.mock.calls.some(call => call.arguments[0] === library.schema), "a supported real startup exercises the observed schema exec");
-  assert.ok(existsSync(homeSqlitePath(home, library.store_name)));
+  assert.ok(existsSync(partitionLibraryFile(home, DEMO_PROJECT_ID, library.store_name)));
   await platform.runtime.stop(platform.runtime.list()[0]!.install_id);
 });
 
-test("RAC-562 the project platform refuses a copied catalog Manifest even with the same plugin id and Host trust", async t => {
-  const home = withHome(t), platform = projectPlatform(t, home), original = createFormPlugin(), calls: string[] = [];
+// Batch 107: a partition's own library needs no catalog owner to be found again. Whatever Manifest object starts it, the library is in
+// the project's directory, and the deletion removes it there; the refusal of a copied Manifest is for `project_rows` only (BL-620 below).
+test("RAC-562 a copied catalog Manifest of a partition library keeps it in the partition, where the project's deletion removes it", async t => {
+  const home = withHome(t), original = createFormPlugin(), calls: string[] = [], platform = partitionPlatform(t, home, original.manifest);
   const definition: PluginDefinition = { ...original, manifest: { ...original.manifest }, async start(context) { calls.push("start"); return original.start(context); } };
-  const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.home!;
-  await assert.rejects(platform.start([{ definition, trust: { level: "host" } }]), { code: "plugin.declaration_invalid" });
-  assert.deepEqual(calls, []);
-  assert.deepEqual(platform.runtime.list(), []);
-  assert.equal(schema.mock.calls.filter(call => call.arguments[0] === library.schema).length, 0);
-  assert.equal(existsSync(join(home, library.store_name)), false);
+  const library = definition.manifest.databases!.partition!, file = partitionLibraryFile(home, DEMO_PROJECT_ID, library.store_name);
+  assert.deepEqual((await platform.start([{ definition, trust: { level: "host" } }])).running, [definition.manifest.plugin_id]);
+  assert.deepEqual(calls, ["start"]);
+  assert.equal(existsSync(file), true, "its library is the partition's");
+  assert.equal(existsSync(join(home, library.store_name)), false, "and none in the Home");
+  await platform.runtime.stop(platform.runtime.list()[0]!.install_id);
+  assert.equal(await projectDeletedHooksFor(home).clear("form", DEMO_PROJECT_ID), true);
+  for (const suffix of ["", "-journal", "-wal", "-shm"]) assert.equal(existsSync(file + suffix), false);
 });
 
 test("RAC-562 BL-620 the project platform refuses project_rows without a catalog deletion owner before schema, installs or plugin effects", async t => {
@@ -346,7 +362,7 @@ test("RAC-563 the label of a plugin the Host did not ship is shown as written be
 });
 
 test("RAC-563 a deletion waits for a write another connection holds on the library, then completes", async t => {
-  const home = withHome(t), pages = catalog.find(entry => entry.project_plugin_id === "pages")!, library = pages.manifest.databases!.home!;
+  const home = withHome(t), todo = catalog.find(entry => entry.project_plugin_id === "todo")!, library = todo.manifest.databases!.home!;
   seed(home, library, ["pa"]);
   const worker = new Worker(`
     const { DatabaseSync } = require("node:sqlite"); const { parentPort, workerData } = require("node:worker_threads");
@@ -357,10 +373,10 @@ test("RAC-563 a deletion waits for a write another connection holds on the libra
   const locked = new Promise<void>(resolve => worker.on("message", message => { events.push(String(message)); if (message === "locked") resolve(); }));
   const exited = new Promise(resolve => worker.on("exit", resolve));
   await locked;
-  assert.equal(await projectDeletedHooksFor(home).clear("pages", "pa"), true);
+  assert.equal(await projectDeletedHooksFor(home).clear("todo", "pa"), true);
   await exited;
   assert.ok(events.includes("released"), "the deletion ran only once the write was let go");
-  assert.equal(marks(home, library, ["pa"]).pages!.pa, 0);
+  assert.equal(marks(home, library, ["pa"]).todo_items!.pa, 0);
 });
 
 test("RAC-577 S-86 the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own", async t => {

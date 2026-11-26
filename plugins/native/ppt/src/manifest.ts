@@ -28,7 +28,7 @@ export const pptManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: [...Object.values(pptActions), ...Object.values(pptContentActions)].map(localizeAction),
-  databases: { home: PPT_DATABASE },
+  databases: { partition: PPT_DATABASE },
   routes: [
     { route_id: "ppt.list", method: "GET", path: "/ppt" },
     { route_id: "ppt.outline_pages", method: "GET", path: "/ppt/outline-pages" },

@@ -5,10 +5,11 @@ import test from "node:test";
 import { placementCallPorts } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
-  ActionError, bindObjectMoveHandler, defineObjectMoveAction, defineSubjectContextAction, subjectContext, type ActionCallContext, type ActionExecutionContext,
+  ActionError, bindObjectMoveHandler, defineObjectExportAction, defineObjectMoveAction, defineObjectPutAction, defineObjectRemoveAction, defineSubjectContextAction, sameCarriedRecord,
+  subjectContext, type ActionCallContext, type ActionExecutionContext,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
-import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
+import { CarrySettling, PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
 
 // S-35: after a plugin has committed a cross-partition move and the round is then refused, the platform may put the object back
 // (user decision 2026-10-17). The move-back goes only to where the object was, and not after the placement service has closed.
@@ -154,4 +155,193 @@ test("S-35 a service that closes while the move-back's authority is awaited does
 
 test("S-35 a service that closes while the mover itself waits before committing the move-back does not put the object back", async () => {
   await closesDuringMoveBack(held => ({ moving: to => to === "personal" ? held.wait() : undefined }));
+});
+
+// S-35, carried moves (batch 107): an object kept in its partition's own library is carried by placement itself, export → put → remove.
+// A refused remove takes back the put; a refused location write carries it back; a cut between the put and the remove is recorded first
+// and settled by what the two partitions hold, never by overwriting either.
+const exporter = defineObjectExportAction("notes.placement.export", 1, ["note"], "笔记", ["notes:read"]);
+const putter = defineObjectPutAction("notes.placement.put", 1, ["note"], "笔记", ["notes:write"]);
+const remover = defineObjectRemoveAction("notes.placement.remove", 1, ["note"], "笔记", ["notes:write"]);
+
+interface CarryOptions {
+  /** Refuses the remove where the note was: a conflict, or a cut (the Host stops: neither the remove nor taking back the put happens). */
+  remove?: (from: string) => "conflict" | "cut" | undefined;
+  /** Awaited inside the put, before it writes. */
+  putting?: () => Promise<void>;
+}
+
+function carryWorld({ remove, putting }: CarryOptions = {}) {
+  const projects = ["personal", "q4", "interview"];
+  const notes = new Map<string, { version: number; body: string }>([["personal", { version: 1, body: "检查清单" }]]);
+  let cut = false, refusing = true;
+  const exports = new Map<string, number>(), removes = new Map<string, number>();
+  const actions = new ActionService();
+  const record = (at: string) => { const note = notes.get(at)!; return { body: note.body, version: note.version }; };
+  for (const project of projects) {
+    actions.registerProvider({ provider: { provider_id: "notes", plugin_id: "notes", title: "笔记", kind: "plugin", project_id: project }, definitions: [reader, exporter, putter, remover],
+      handlers: [
+        { ...reader, handle: caller => {
+          const note = notes.get(caller.project_id!);
+          if (!note) throw new ActionError("notes.not_found", "笔记不存在", { kind: "not_found" });
+          return subjectContext({ subject: { kind: "note", id: "n1" }, revision: String(note.version), title: note.body, content: "", open: { surface: "notes", id: "n1" } });
+        } },
+        { ...exporter, handle: caller => {
+          exports.set(caller.project_id!, (exports.get(caller.project_id!) ?? 0) + 1);
+          if (!notes.has(caller.project_id!)) throw new ActionError("notes.not_found", "笔记不存在", { kind: "not_found" });
+          return { subject: { kind: "note", id: "n1" }, revision: String(notes.get(caller.project_id!)!.version), record: record(caller.project_id!) };
+        } },
+        { ...putter, handle: async (caller, input) => {
+          await putting?.();
+          const { record: carried } = input as { record: { body: string; version: number } };
+          if (notes.has(caller.project_id!)) {
+            if (!sameCarriedRecord(record(caller.project_id!), carried)) throw new ActionError("notes.conflict", "目标位置已经有这份笔记，而且内容不同", { kind: "conflict" });
+          } else notes.set(caller.project_id!, { version: carried.version, body: carried.body });
+          return { subject: { kind: "note", id: "n1" }, project_id: caller.project_id!, revision: String(notes.get(caller.project_id!)!.version) };
+        } },
+        { ...remover, handle: (caller, input) => {
+          const at = caller.project_id!, { revision } = input as { revision: string };
+          removes.set(at, (removes.get(at) ?? 0) + 1);
+          const refusal = cut ? "cut" : refusing ? remove?.(at) : undefined;
+          if (refusal === "cut") { cut = true; throw new Error("宿主停了"); }
+          if (refusal === "conflict") throw new ActionError("notes.conflict", "笔记刚被修改", { kind: "conflict" });
+          if (String(notes.get(at)?.version) !== revision) throw new ActionError("notes.conflict", "笔记刚被修改", { kind: "conflict" });
+          notes.delete(at);
+          return { subject: { kind: "note", id: "n1" }, removed: true };
+        } },
+      ] });
+  }
+  const ledger = createContextLedger(ledgerDatabase(new DatabaseSync(":memory:")), { authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id });
+  const titles = new Map<string, string>();
+  const ports: PlacementPorts = {
+    ledger,
+    spaces: async () => projects.map(id => ({ project_id: id, title: id, kind: id === "personal" ? "personal" as const : "project" as const })),
+    scope: async projectId => ({ client: actions, caller: owner(projectId) }),
+    titles: { get: (kind, id) => titles.get(kind + ":" + id) ?? null, set: (kind, id, title) => { titles.set(kind + ":" + id, title); } },
+  };
+  return { notes, ports, exports, removes, restart: () => { cut = false; refusing = false; }, service: () => new PlacementService(ports) };
+}
+
+test("a carried object is offered to move and copy: its partition's exporter is what offers it, with no mover of the old kind (batch 107)", async () => {
+  const described = await carryWorld().service().describe(old);
+  assert.deepEqual([described.state, described.can.move, described.can.copy], ["ok", true, true]);
+});
+
+test("S-35 a carried move whose remove is refused takes back what it put: the note is only where it was, and no carry is left", async () => {
+  const w = carryWorld({ remove: from => from === "personal" ? "conflict" : undefined });
+  await assert.rejects(w.service().move(old, "q4"), { code: "notes.conflict" });
+  assert.deepEqual([...w.notes.keys()], ["personal"], "the put in q4 was taken back");
+  assert.equal(w.service().pendingCarries(), 0);
+  assert.deepEqual(w.service().locate(old), { object: old, moved: false });
+});
+
+test("S-35 a carried move whose location write is refused is carried back to where it was", async () => {
+  const w = carryWorld();
+  const origin: ActionExecutionContext = { ...owner("personal"), beforeEffect: async () => { if (w.notes.has("q4") && !w.notes.has("personal")) throw new Error("这一轮被取消"); } };
+  await assert.rejects(new PlacementService(placementCallPorts(w.ports, origin, () => true)).move(old, "q4"), /这一轮被取消/u);
+  assert.deepEqual([...w.notes.keys()], ["personal"], "carried back: only in the personal space");
+  assert.equal(w.service().pendingCarries(), 0);
+  assert.deepEqual(w.service().locate(old), { object: old, moved: false });
+});
+
+test("S-35 a carry cut between its put and its remove is finished once the Host is back, even after the target was edited", async () => {
+  const w = carryWorld({ remove: from => from === "personal" ? "cut" : undefined });
+  await assert.rejects(w.service().move(old, "q4"), /宿主停了/u);
+  assert.deepEqual([...w.notes.keys()].sort(), ["personal", "q4"], "cut: it is in both partitions");
+  assert.equal(w.service().pendingCarries(), 1, "the carry was recorded before the put");
+  w.restart();
+  w.notes.set("q4", { version: 2, body: "改过的检查清单" });
+  assert.equal(await w.service().settleCarries(), 0);
+  assert.deepEqual([...w.notes.keys()], ["q4"], "the original went; what was written at the target is kept");
+  assert.equal(w.notes.get("q4")!.body, "改过的检查清单");
+  assert.deepEqual(w.service().locate(old), { object: { ...old, project_id: "q4" }, moved: true });
+  assert.equal(w.service().pendingCarries(), 0);
+});
+
+test("S-35 a cut carry whose original changed since is taken back at the target; one changed in both places is kept in both and refuses the next move", async () => {
+  const w = carryWorld({ remove: from => from === "personal" ? "cut" : undefined });
+  await assert.rejects(w.service().move(old, "q4"), /宿主停了/u);
+  w.restart();
+  w.notes.set("personal", { version: 2, body: "原处改过" });
+  assert.equal(await w.service().settleCarries(), 0);
+  assert.deepEqual([...w.notes.keys()], ["personal"], "the put was taken back; the original with its change stays");
+  assert.equal(w.notes.get("personal")!.body, "原处改过");
+
+  const both = carryWorld({ remove: from => from === "personal" ? "cut" : undefined });
+  await assert.rejects(both.service().move(old, "q4"), /宿主停了/u);
+  both.restart();
+  both.notes.set("personal", { version: 2, body: "原处改过" });
+  both.notes.set("q4", { version: 2, body: "目标改过" });
+  assert.equal(await both.service().settleCarries(), 1, "changed in both: nothing is decided for the person");
+  assert.deepEqual([...both.notes.keys()].sort(), ["personal", "q4"]);
+  await assert.rejects(both.service().move(old, "interview"), { code: "placement.carry_unsettled" });
+  assert.equal(both.notes.get("q4")!.body, "目标改过", "nothing either side wrote was replaced");
+});
+
+test("S-35 a cut carry is not settled while either partition's owner cannot be reached: the record stays, both copies stay, and it is settled once the owner is back", async () => {
+  for (const unreachable of ["personal", "q4"] as const) {
+    const w = carryWorld({ remove: from => from === "personal" ? "cut" : undefined });
+    await assert.rejects(w.service().move(old, "q4"), /宿主停了/u);
+    w.restart();
+    // The partition's directory offers no carry actions right now (the plugin taken out there, switched off, or not starting), or cannot be read.
+    for (const discover of [async () => [], async () => { throw new Error("目录读不出"); }]) {
+      const ports: PlacementPorts = { ...w.ports, scope: async id => {
+        const opened = await w.ports.scope(id);
+        return id === unreachable ? { ...opened, client: { ...opened.client, invoke: opened.client.invoke.bind(opened.client), discover } as never } : opened;
+      } };
+      assert.equal(await new PlacementService(ports).settleCarries(), 1, `${unreachable} unreachable: still unsettled`);
+      assert.equal(new PlacementService(ports).pendingCarries(), 1, "the record stays");
+      assert.deepEqual([...w.notes.keys()].sort(), ["personal", "q4"], "neither copy is touched");
+      assert.deepEqual(new PlacementService(ports).locate(old), { object: old, moved: false });
+    }
+    assert.equal(await w.service().settleCarries(), 0, "the owner is back: settled");
+    assert.deepEqual([...w.notes.keys()], ["q4"]);
+  }
+});
+
+test("S-35 a carry left unsettled is not tried again on every call: the background pass waits for a new carry or the retry interval", async () => {
+  const w = carryWorld({ remove: from => from === "personal" ? "cut" : undefined });
+  await assert.rejects(w.service().move(old, "q4"), /宿主停了/u);
+  w.restart();
+  w.notes.set("personal", { version: 2, body: "原处改过" });
+  w.notes.set("q4", { version: 2, body: "目标改过" });
+  w.exports.clear();
+  let now = 0;
+  const settling = new CarrySettling(w.service(), { now: () => now, retryMs: 1000 });
+  for (let call = 0; call < 5; call++) { settling.kick(); await settling.idle(); }
+  assert.deepEqual(Object.fromEntries(w.exports), { personal: 1, q4: 1 }, "changed in both: one pass reads each side once, then waits");
+  assert.equal(w.service().pendingCarries(), 1, "and the record stays");
+  now = 1500;
+  settling.kick(); await settling.idle();
+  assert.deepEqual(Object.fromEntries(w.exports), { personal: 2, q4: 2 }, "tried again once the interval has passed");
+});
+
+test("S-35 a move under way is not settled from outside: a background pass started between its put and its remove leaves it to finish", async () => {
+  const put = pause();
+  const w = carryWorld({ putting: () => put.wait() });
+  const settling = new CarrySettling(w.service());
+  const moving = w.service().move(old, "q4");
+  await put.reached;
+  assert.equal(w.service().pendingCarries(), 1, "the move has written its record");
+  settling.kick(); await settling.idle();
+  await assert.rejects(w.service().move(old, "interview"), { code: "placement.carry_in_progress" }, "a second move of it waits for the first");
+  put.release();
+  await moving;
+  settling.kick(); await settling.idle();
+  assert.deepEqual([...w.notes.keys()], ["q4"], "only at the target");
+  assert.equal(w.service().pendingCarries(), 0);
+  assert.deepEqual(w.service().locate(old), { object: { ...old, project_id: "q4" }, moved: true });
+  assert.deepEqual(Object.fromEntries(w.removes), { personal: 1 }, "removed once where it was, and the target's copy never");
+});
+
+test("S-35 a put onto an object already at the target accepts only the same record again: a retried put is a replay, an edited target is a conflict", async () => {
+  const w = carryWorld();
+  const q4 = { client: (await w.ports.scope("q4")).client, caller: owner("q4") };
+  const put = (body: string, version: number) => q4.client.invoke(q4.caller, { capability_id: putter.capability_id, version: putter.version },
+    { kind: "note", record: { body, version }, request_id: "r1", target_id: "n1" });
+  await put("检查清单", 1);
+  await put("检查清单", 1);
+  w.notes.set("q4", { version: 2, body: "目标改过" });
+  await assert.rejects(put("检查清单", 1), { code: "notes.conflict" });
+  assert.equal(w.notes.get("q4")!.body, "目标改过");
 });

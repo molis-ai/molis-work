@@ -10,25 +10,25 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { shouldSaveReviewScreenshots, specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 function createAnswers(home: string, project: string): { formId: string; answerTimes: Record<string, string> } {
-  const forms = openFormStore(home);
+  const forms = openFormStore(home, project);
   try {
-    const form = forms.receive(project, "placement-e2e", "活动报名", [{ id: "name", title: "姓名" }, { id: "team", title: '团队, "方向"' }]);
-    forms.submit(form.id, { name: "林一", team: '设计\n"体验"' }, project, { source: "preview", requestId: "a1" });
-    forms.submit(form.id, { name: "周二", team: "工程" }, project, { source: "preview", requestId: "a2" });
-    return { formId: form.id, answerTimes: Object.fromEntries(forms.listSubmissions(form.id, project).map(answer => [answer.answers.name!, answer.submitted_at])) };
+    const form = forms.receive("placement-e2e", "活动报名", [{ id: "name", title: "姓名" }, { id: "team", title: '团队, "方向"' }]);
+    forms.submit(form.id, { name: "林一", team: '设计\n"体验"' }, { source: "preview", requestId: "a1" });
+    forms.submit(form.id, { name: "周二", team: "工程" }, { source: "preview", requestId: "a2" });
+    return { formId: form.id, answerTimes: Object.fromEntries(forms.listSubmissions(form.id).map(answer => [answer.answers.name!, answer.submitted_at])) };
   } finally { forms.close(); }
 }
 function assertAnswerDataset(home: string, project: string, formId: string, tableId: string, answerTimes: Record<string, string>) {
-  const datasets = openDatasetStore(home), forms = openFormStore(home);
+  const datasets = openDatasetStore(home, project), forms = openFormStore(home, project);
   try {
-    const saved = datasets.get(tableId, project);
+    const saved = datasets.get(tableId);
     assert.deepEqual(saved.columns.map(column => column.name), ["request_id", "提交时间", "来源", "姓名", '团队, "方向"']);
     const rows = saved.rows.map(row => saved.columns.map(column => row.cells[column.id]));
     assert.equal(rows.length, 2);
     assert.deepEqual(rows.find(row => row[3] === "林一"), ["a1", answerTimes["林一"], "试填", "林一", '设计；"体验"']);
     assert.deepEqual(rows.find(row => row[3] === "周二"), ["a2", answerTimes["周二"], "试填", "周二", "工程"]);
     // The CSV contract uses semicolons for answer line breaks; the source retains the literal LF.
-    assert.equal(forms.listSubmissions(formId, project).find(answer => answer.answers.name === "林一")!.answers.team, '设计\n"体验"');
+    assert.equal(forms.listSubmissions(formId).find(answer => answer.answers.name === "林一")!.answers.team, '设计\n"体验"');
   } finally { datasets.close(); forms.close(); }
 }
 
@@ -148,9 +148,9 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   assert.ok(source.associations.some(link => link.label.includes("已转成《活动报名 · 答卷》")));
 
   // AC-T2-03: a later click on the Form's actual command still opens the original table.
-  const formStore = openFormStore(homeDirectory);
+  const formStore = openFormStore(homeDirectory, projectId!);
   try {
-    formStore.submit(formId, { name: "宋三", team: "运营" }, projectId!, { source: "preview", requestId: "a3" });
+    formStore.submit(formId, { name: "宋三", team: "运营" }, { source: "preview", requestId: "a3" });
   } finally { formStore.close(); }
   await openPlugin("form", projectId!);
   await press(`[data-form-id="${formId}"]`);
@@ -159,9 +159,9 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   await cardButton("已转成《活动报名 · 答卷》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'dataset'", 15_000);
   await waitFor(`${activeObject}?.id === ${text(table!.id)}`, 15_000);
-  const datasetStore = openDatasetStore(homeDirectory);
+  const datasetStore = openDatasetStore(homeDirectory, projectId!);
   try {
-    const appended = datasetStore.get(table!.id, projectId!);
+    const appended = datasetStore.get(table!.id);
     assert.equal(appended.rows.length, 3);
     assert.ok(appended.rows.some(row => row.cells[appended.columns[0]!.id] === "a3"));
   } finally { datasetStore.close(); }

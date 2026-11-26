@@ -1,9 +1,25 @@
 import { motionCurve, requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, redrawInPlace } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowLinkKind } from "../model.js";
 
 const uiText = globalThis.t;
+
+let wordsOnly = false;
+/** A redraw for a language switch: what `fill` draws keeps its nodes, focus and open folds and takes the new words (FSS-36). */
+export function redrawWords(run: () => void): void {
+  wordsOnly = true;
+  try {
+    run();
+  } finally {
+    wordsOnly = false;
+  }
+}
+/** Draws `html` into `el`; inside `redrawWords` the nodes that keep their shape stay. */
+export function fill(el: Element, html: string): void {
+  if (wordsOnly) redrawInPlace(el, html);
+  else el.innerHTML = html;
+}
 
 export const ico = (name: string) => `<svg aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
 

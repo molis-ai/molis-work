@@ -32,7 +32,7 @@ export const workflowsManifest: PluginManifest = {
   // Each handoff is reported to the work records as this installation (specs/observation-collection/design.md §4「工作流」).
   capabilities: { provides: [], consumes: [observationActions.report.capability_id] },
   actions: localizeManifestActions(WORKFLOWS_ACTIONS),
-  databases: { home: WORKFLOWS_DATABASE },
+  databases: { partition: WORKFLOWS_DATABASE },
   routes: [
     { route_id: "workflows.list", method: "GET", path: "/workflows" },
     { route_id: "workflows.create", method: "POST", path: "/workflows", max_body_bytes: WORKFLOWS_BODY_BYTES },

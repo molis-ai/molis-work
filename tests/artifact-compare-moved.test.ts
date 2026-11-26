@@ -30,21 +30,28 @@ const owners = [
 ];
 
 for (const owner of owners) {
-  test(`${owner.name}: a pinned version of an object that moved to another place is compared with it, not reported deleted`, async t => {
+  test(`${owner.name}: a pinned version of an object carried to another partition compares the same there, and where it left the owner says it is gone`, async t => {
     const home = await mkdtemp(join(tmpdir(), "artifact-compare-moved-"));
     t.after(() => rm(home, { recursive: true, force: true }));
-    const withStore = <T>(run: (store: any) => T): T => { const store = (owner.open as (home: string) => any)(home); try { return run(store); } finally { store.close(); } };
-    const compare = owner.handlers(withStore).find((handler: any) => handler.capability_id === owner.definition.capability_id)!;
-    const object = withStore(store => store.create({ project_id: "project-a", title: "Plan" }));
+    // Each partition has its own library (U2): the owner in a partition reads only that partition's file.
+    const withStore = (partition: string) => <T>(run: (store: any) => T): T => {
+      const store = (owner.open as (home: string, partition: string) => any)(home, partition);
+      try { return run(store); } finally { store.close(); } };
+    const compare = (partition: string) => owner.handlers(withStore(partition)).find((handler: any) => handler.capability_id === owner.definition.capability_id)!;
+    const object = withStore("project-a")(store => store.create({ title: "Plan" }));
     const version = (id: string) => ({ artifact_type_id: owner.type, origin: { kind: "pinned", subject: { kind: owner.kind, id }, revision: String(object.version) },
       payload: JSON.parse(JSON.stringify(object)) });
     const caller = (project: string) => ({ actor_id: "web-user", audience: "user", project_id: project, permissions: [] }) as any;
-    const state = (project: string, id = object.id) => (compare.handle(caller(project), { artifact: version(id) }) as { state: string }).state;
+    const state = (project: string, id = object.id) => (compare(project).handle(caller(project), { artifact: version(id) }) as { state: string }).state;
 
     assert.equal(state("project-a"), "same");
-    withStore(store => store.relocate(object.id, "project-a", "project-b"));
-    assert.equal(state("project-a"), "moved", "it still exists, in the other project");
-    assert.equal(state("project-b"), "same", "and compares as before where it is now");
-    assert.equal(state("project-a", "never-existed"), "missing", "only an object that exists nowhere is gone");
+    // The platform's move: the export put into the other partition's library under the same id, then let go where it was.
+    const carried = withStore("project-a")(store => store.exportRecord(object.id));
+    withStore("project-b")(store => store.putRecord(carried.record, "move:" + object.id, object.id));
+    assert.equal(withStore("project-a")(store => store.removeCarried(object.id, carried.revision)), true);
+    assert.equal(state("project-b"), "same", "it compares as before where it is now");
+    // Where it left, its owner cannot tell a move from a deletion: the 成果库 asks placement, which carried it (artifact-library-http.ts).
+    assert.equal(state("project-a"), "missing");
+    assert.equal(state("project-b", "never-existed"), "missing", "an object that exists nowhere is gone");
   });
 }

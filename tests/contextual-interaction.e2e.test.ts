@@ -37,8 +37,8 @@ for (const width of [1440, 390]) {
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-    const setup = openPagesStore(homeDirectory);
-    const page = (() => { try { return setup.create({ project_id: projectId!, title: "留存分析", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND), paragraph(THIRD)] } }); } finally { setup.close(); } })();
+    const setup = openPagesStore(homeDirectory, projectId!);
+    const page = (() => { try { return setup.create({ title: "留存分析", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND), paragraph(THIRD)] } }); } finally { setup.close(); } })();
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
     await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(THIRD)})`);
     assert.equal(await evaluate("document.querySelector('.mw-ctx').hidden"), true, "nothing in hand, nothing offered");
@@ -112,9 +112,9 @@ for (const width of [1440, 390]) {
       return ps[0] === ${JSON.stringify(FIRST)} && ps[1] === '主因是上手困难：新用户第一周难以完成有价值的操作。' && ps[2] === ${JSON.stringify(THIRD)}; })()`);
     await child.waitFor("!document.querySelector('.pages-pop:not([hidden])')");
     await child.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
-    const saved = openPagesStore(homeDirectory);
+    const saved = openPagesStore(homeDirectory, projectId!);
     try {
-      const body = JSON.stringify(saved.get(page.id, projectId!).body);
+      const body = JSON.stringify(saved.get(page.id).body);
       assert.match(body, /主因是上手困难：新用户第一周/);
       assert.match(body, new RegExp(FIRST));
       assert.doesNotMatch(body, /所以很多人流失了/);
@@ -133,8 +133,8 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await child.click("[data-pages-editor] .ProseMirror p");
@@ -175,8 +175,8 @@ test("SYS-52 P2: a word is looked up in the search palette; a write goes to the 
   const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "术语表", body: { type: "doc", content: [paragraph("“激活”指新用户在第一周内完成至少一次有价值的操作。"), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "术语表", body: { type: "doc", content: [paragraph("“激活”指新用户在第一周内完成至少一次有价值的操作。"), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await child.evaluate("document.addEventListener('molis:surface-focus', event => window.contextualFocus = event.detail)");
@@ -241,8 +241,8 @@ test("contextual actions: a command that cannot run keeps its name on one line a
   const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await child.click("[data-pages-editor] .ProseMirror p");
@@ -267,8 +267,8 @@ test("D0302 the fragment heading path only names what is shown: aria-hidden and 
   const { command, sessionId, evaluate, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "标题路径", body: { type: "doc", content: [paragraph(FIRST)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "标题路径", body: { type: "doc", content: [paragraph(FIRST)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(FIRST)})`);
   // A declared surface of the child's own, holding every hidden shape the path must tell apart. The selection sits

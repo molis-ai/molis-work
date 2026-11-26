@@ -39,7 +39,7 @@ test("W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range a
 });
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const body = (text: string) => ({ type: "doc" as const, content: [paragraph(text)] });
-const readPage = (b: Browser, id: string) => { const store = openPagesStore(b.homeDirectory); try { return store.get(id, b.projectId!); } finally { store.close(); } };
+const readPage = (b: Browser, id: string) => { const store = openPagesStore(b.homeDirectory, b.projectId!); try { return store.get(id); } finally { store.close(); } };
 const open = async (b: Browser, plugin: string, id: string) => {
   await b.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}&${plugin === 'ppt' ? 'openRecord' : 'openItem'}=${id}` }, b.sessionId));
@@ -106,8 +106,8 @@ test("W2-18-PAGES-CALLOUT-01: a callout popup belongs to its original document; 
 test("W2-18-PAGES-READONLY-01: real Back/import/publish/extract never save the empty placeholder; valid replacement reopens", { timeout: 90_000 }, async t => {
   const b = await openContentBrowser(t, "pages", null); if (!b) return;
   const foreign = { type: "doc" as const, content: [{ type: "foreign_node", content: [{ type: "text", text: "Unshowable original evidence" }] }] };
-  const store = openPagesStore(b.homeDirectory);
-  const page = (() => { try { return store.create({ project_id: b.projectId!, title: "Unknown body", body: foreign }); } finally { store.close(); } })();
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const page = (() => { try { return store.create({ title: "Unknown body", body: foreign }); } finally { store.close(); } })();
   await open(b, "pages", page.id);
   await b.frame.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')?.getAttribute('contenteditable') === 'false'");
   await b.frame.click("[data-pages-back]"); await b.frame.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'");
@@ -120,19 +120,19 @@ test("W2-18-PAGES-READONLY-01: real Back/import/publish/extract never save the e
   await open(b, "pages", page.id);
   for (const operation of ["extract", "promote"]) {
     await b.frame.click("[data-pages-more]"); await b.frame.click(`[data-pages-${operation}]`);
-    await b.frame.waitFor("document.querySelector('[data-pages-note]').textContent.includes('暂不支持此操作')");
+    await b.frame.waitFor("document.querySelector('[data-pages-note]').textContent.includes('暂不支持这项操作')");
     assert.deepEqual(readPage(b, page.id), page);
   }
-  const replacement = openPagesStore(b.homeDirectory);
-  try { replacement.update(page.id, { body: body("Supported replacement"), expected_version: page.version }, b.projectId!); } finally { replacement.close(); }
+  const replacement = openPagesStore(b.homeDirectory, b.projectId!);
+  try { replacement.update(page.id, { body: body("Supported replacement"), expected_version: page.version }); } finally { replacement.close(); }
   await b.frame.evaluate("window.dispatchEvent(new Event('focus'))");
   await b.frame.waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('Supported replacement') && document.querySelector('[data-pages-editor] .ProseMirror').getAttribute('contenteditable') !== 'false'");
 });
 
 for (const operation of ["create", "extract"] as const) test(`W2-18-PAGES-CREATE-01: ${operation} reply after new typing preserves the real draft and honest SQL outcome`, { timeout: 90_000 }, async t => {
   const b = await openContentBrowser(t, "pages", null); if (!b) return;
-  const store = openPagesStore(b.homeDirectory);
-  const page = (() => { try { return store.create({ project_id: b.projectId!, title: "Source A", body: { type: "doc", content: [paragraph("Original words"), { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [paragraph("Actual extracted task")] }] }] } }); } finally { store.close(); } })();
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const page = (() => { try { return store.create({ title: "Source A", body: { type: "doc", content: [paragraph("Original words"), { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [paragraph("Actual extracted task")] }] }] } }); } finally { store.close(); } })();
   await open(b, "pages", page.id); await b.frame.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')");
   await holdTimers(b); await holdReply(b, operation === "create" ? "/api/plugins/io.molis.work.pages/pages" : `/api/plugins/io.molis.work.pages/pages/${page.id}/extract`);
   // New is on the list, the page behind an open document (36A-3): a create begun there can still answer after a document
@@ -148,7 +148,7 @@ for (const operation of ["create", "extract"] as const) test(`W2-18-PAGES-CREATE
     assert.match(JSON.stringify(readPage(b, page.id).body), /NEW LOCAL WORDS/);
     assert.equal(readPage(b, committed.document.id).id, committed.document.id);
   } else {
-    await b.frame.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '保存失败'");
+    await b.frame.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '保存没能完成'");
     assert.equal(await b.frame.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('NEW LOCAL WORDS')"), true);
     assert.deepEqual(readPage(b, page.id), committed.document, "the acknowledged extraction stays; unsaved text is kept for explicit conflict resolution");
   }
@@ -157,8 +157,8 @@ for (const operation of ["create", "extract"] as const) test(`W2-18-PAGES-CREATE
 
 test("W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read in the same document uses its mapped anchor", { timeout: 120_000 }, async t => {
   const b = await openContentBrowser(t, "pages", null); if (!b) return;
-  const store = openPagesStore(b.homeDirectory);
-  const [a, c] = (() => { try { return [store.create({ project_id: b.projectId!, title: "A", body: { type: "doc", content: [paragraph("A text"), { type: "task_card", attrs: { title: "A task", status: "todo", description: "A only", due: "" } }] } }), store.create({ project_id: b.projectId!, title: "B", body: { type: "doc", content: [paragraph("Original anchor"), paragraph("Later caret")] } })]; } finally { store.close(); } })();
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const [a, c] = (() => { try { return [store.create({ title: "A", body: { type: "doc", content: [paragraph("A text"), { type: "task_card", attrs: { title: "A task", status: "todo", description: "A only", due: "" } }] } }), store.create({ title: "B", body: { type: "doc", content: [paragraph("Original anchor"), paragraph("Later caret")] } })]; } finally { store.close(); } })();
   await open(b, "pages", a.id);
   await b.frame.evaluate(`(() => { window.contentEditor=document.querySelector('.ProseMirror'); const original=FileReader.prototype.readAsDataURL;FileReader.prototype.readAsDataURL=function(file){this.onloadend=()=>window.contentReadDone=true;window.releaseContentRead=()=>original.call(this,file);};window.restoreContentRead=()=>FileReader.prototype.readAsDataURL=original; })()`);
   const paste = () => b.frame.evaluate(`(() => { window.contentReadDone=false;const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jM1sAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const data=new DataTransfer();data.items.add(new File([bytes],'fixture.png',{type:'image/png'}));document.querySelector('.ProseMirror').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));})()`);
@@ -187,8 +187,8 @@ test("W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read 
 
 test("W2-18-PAGES-ACTIONS-01: real candidate inserts exact unchecked tasks once and refuses a changed frozen passage", { timeout: 120_000 }, async t => {
   const b = await openContentBrowser(t, "pages", async () => "- Ask Alice\n- Publish roadmap"); if (!b) return;
-  const store = openPagesStore(b.homeDirectory);
-  const [a, changed] = (() => { try { return [store.create({ project_id: b.projectId!, title: "Plan", body: body("安排访谈并发布计划。") }), store.create({ project_id: b.projectId!, title: "Changed", body: body("安排采访和后续发布完整计划。") })]; } finally { store.close(); } })();
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const [a, changed] = (() => { try { return [store.create({ title: "Plan", body: body("安排访谈并发布计划。") }), store.create({ title: "Changed", body: body("安排采访和后续发布完整计划。") })]; } finally { store.close(); } })();
   await open(b, "pages", a.id); await chooseActions(b);
   await b.frame.evaluate("window.oldContentApply=document.querySelector('.pages-pop .mw-btn--primary');window.oldContentApply.click();window.oldContentApply.click()");
   await b.frame.waitFor("document.querySelector('.ProseMirror .pages-task-list') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
@@ -216,8 +216,8 @@ test("W2-18-PPT-02: closing a generating dialog protects later typing and a reop
     return "## Generated\n- Old result";
   }); if (!b) return;
   t.after(() => release());
-  const store = openPptStore(b.homeDirectory);
-  const deck = (() => { try { return store.create({ title: "Deck", project_id: b.projectId! }); } finally { store.close(); } })();
+  const store = openPptStore(b.homeDirectory, b.projectId!);
+  const deck = (() => { try { return store.create({ title: "Deck" }); } finally { store.close(); } })();
   await open(b, "ppt", deck.id); await b.frame.click("[data-ppt-outline-open]");
   await b.frame.evaluate(`(() => { const original=window.molisWorkRequest;window.pptCallEnded=false;window.molisWorkRequest=Object.assign(async(url,options)=>{try{return await original(url,options);}finally{if(options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith('/outline-ai'))window.pptCallEnded=true;}},original);window.restorePptFetch=()=>{window.molisWorkRequest=original;};})()`);
   await input(b, "[data-ppt-outline-text]", "Original source"); await b.frame.click('[data-ppt-outline-mode="ai"]');
@@ -233,23 +233,23 @@ test("W2-18-PPT-02: closing a generating dialog protects later typing and a reop
   await b.frame.click("[data-ppt-outline-close]"); await b.frame.evaluate("window.restoreContentTimers()");
   await b.frame.evaluate("document.querySelector('[data-ppt-title]').dispatchEvent(new Event('input',{bubbles:true}))");
   await b.frame.waitFor("document.querySelector('[data-ppt-editor-status]').textContent.includes('已保存')");
-  const after = openPptStore(b.homeDirectory);
-  try { const stored = after.get(deck.id, b.projectId!); assert.equal(stored.slides[0]!.title, "New local heading"); assert.equal(stored.slides.length, 1); } finally { after.close(); }
+  const after = openPptStore(b.homeDirectory, b.projectId!);
+  try { const stored = after.get(deck.id); assert.equal(stored.slides[0]!.title, "New local heading"); assert.equal(stored.slides.length, 1); } finally { after.close(); }
   await b.frame.evaluate("window.restorePptFetch()");
 });
 
 test("W2-18-LINGGUANG-REVISION-01: list metadata from B cannot acknowledge unshown A edits; the real save conflicts", { timeout: 90_000 }, async t => {
   const b = await openContentBrowser(t, "lingguang", null); if (!b) return;
-  const store = openLingguangStore(b.homeDirectory);
-  const [a, other] = (() => { try { return [store.create({ project_id: b.projectId!, title: "A", body: "Original A" }), store.create({ project_id: b.projectId!, title: "B", body: "Original B" })]; } finally { store.close(); } })();
+  const store = openLingguangStore(b.homeDirectory, b.projectId!);
+  const [a, other] = (() => { try { return [store.create({ title: "A", body: "Original A" }), store.create({ title: "B", body: "Original B" })]; } finally { store.close(); } })();
   await open(b, "lingguang", a.id); await b.frame.waitFor("document.querySelector('[data-lingguang-body]').value === 'Original A'");
-  const external = openLingguangStore(b.homeDirectory);
-  const remote = (() => { try { return external.update(a.id, { title: "Remote heading", body: "Remote A", expected_updated_at: a.updated_at }, b.projectId!); } finally { external.close(); } })();
+  const external = openLingguangStore(b.homeDirectory, b.projectId!);
+  const remote = (() => { try { return external.update(a.id, { title: "Remote heading", body: "Remote A", expected_updated_at: a.updated_at }); } finally { external.close(); } })();
   await b.frame.evaluate(`window.dispatchEvent(new CustomEvent('molis:placement-changed',{detail:{mode:'copy',from:{kind:'lingguang_spark',id:${JSON.stringify(other.id)}},to:{kind:'lingguang_spark',id:${JSON.stringify(other.id)}}}}))`);
   await b.frame.waitFor(`document.querySelector('[data-lingguang-id="${a.id}"]').textContent.includes('Remote heading')`);
   await input(b, "[data-lingguang-body]", "Local A must stay");
   await b.frame.waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '保存失败'");
   assert.equal(await b.frame.evaluate("document.querySelector('[data-lingguang-body]').value"), "Local A must stay");
-  const after = openLingguangStore(b.homeDirectory); try { assert.deepEqual(after.get(a.id, b.projectId!), remote); } finally { after.close(); }
+  const after = openLingguangStore(b.homeDirectory, b.projectId!); try { assert.deepEqual(after.get(a.id), remote); } finally { after.close(); }
   await open(b, "lingguang", a.id); await b.frame.waitFor("document.querySelector('[data-lingguang-body]').value === 'Remote A'");
 });

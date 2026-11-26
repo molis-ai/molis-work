@@ -95,7 +95,7 @@ function accepts(text: string): boolean {
 /** A run of the real handlers and store against fake content stations, a fake judgment rule, a fake ticket action (whose input fields can be given) and a receiver. */
 async function setup(options: { properties?: Record<string, unknown>; rule?: boolean } = {}) {
   const home = await mkdtemp(join(tmpdir(), "workflows-bounded-cut-"));
-  const store = openWorkflowsStore(home);
+  const store = openWorkflowsStore(home, PROJECT);
   // `title` and `body` are what the first station holds (empty: made from the item id); `judged` is every text the judgment rule was given.
   const state = { title: "", body: "", failTicket: "", judged: [] as string[] };
   const content = {

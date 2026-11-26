@@ -59,7 +59,7 @@ async function fixture(run: (f: {
     await runtime.start(installed.install_id);
     return installed.install_id;
   };
-  const store = openWorkflowsStore(home);
+  const store = openWorkflowsStore(home, caller.project_id!);
   try {
     const install = await register();
     const ports = createWorkflowContentPorts(bindActionClient(service, () => caller));
@@ -88,9 +88,9 @@ test("unknown Runtime plugin is discovered, saved, run and read through workflow
     assert.equal(done.status, "done");
     assert.deepEqual(await ports.read(done.steps[1]!.item!, done.chain.stations[1]!.content), { title: "交接：原始草稿", body: "材料：本地实际内容" });
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, 2);
-    assert.equal(store.instance(done.instance_id, caller.project_id!).steps[0]!.handoff!.input.body, "本地实际内容");
-    const reopened = openWorkflowsStore(home);
-    try { assert.deepEqual(reopened.instance(done.instance_id, caller.project_id!).chain.stations, done.chain.stations); }
+    assert.equal(store.instance(done.instance_id).steps[0]!.handoff!.input.body, "本地实际内容");
+    const reopened = openWorkflowsStore(home, caller.project_id!);
+    try { assert.deepEqual(reopened.instance(done.instance_id).chain.stations, done.chain.stations); }
     finally { reopened.close(); }
     const mcp = createActionMcpPorts({ service, context: () => ({ ...caller, audience: "mcp" }), serverInfo: { name: "content-test", version: "1" } });
     const result = (await handleMcpMessage({ id: 1, method: "tools/call", params: { name: actionMcpToolName(declarations.read), arguments: { item_id: done.steps[1]!.item!.item_id } } }, mcp))!.result as any;
@@ -108,15 +108,15 @@ test("saved versions survive withdrawal and upgrades; old unbound workflows pin 
   await fixture(async ({ actions, store, runtime, install, register, ports, db }) => {
     const flow = (await actions.invoke(w.create, { title: "固定版本", chain: chain() })).workflow as Workflow;
     // Existing data has only plugin ids, and is left intact while starting snapshots resolved capabilities.
-    const old = store.create({ project_id: caller.project_id!, title: "旧流程", chain: { stations: flow.stations.map(({ content, ...station }) => station), links: flow.links } });
+    const old = store.create({ title: "旧流程", chain: { stations: flow.stations.map(({ content, ...station }) => station), links: flow.links } });
     const run = (await actions.invoke(w.start, { id: old.workflow_id, title: "旧记录" })).instance as WorkflowInstance;
-    assert.equal(store.get(old.workflow_id, caller.project_id!).stations[0]!.content, undefined);
+    assert.equal(store.get(old.workflow_id).stations[0]!.content, undefined);
     assert.equal(run.chain.stations[0]!.content!.actions.read!.version, 1);
     const oldRunning = store.startInstance(old, run.steps[0]!.item!);
     db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("旧实例已编辑的内容", oldRunning.steps[0]!.item!.item_id);
     const advanced = (await actions.invoke(w.continue, { id: oldRunning.instance_id })).instance as WorkflowInstance;
     assert.equal(advanced.status, "done");
-    assert.ok(store.instance(oldRunning.instance_id, caller.project_id!).chain.stations.every(station => station.content?.actions.read?.version === 1));
+    assert.ok(store.instance(oldRunning.instance_id).chain.stations.every(station => station.content?.actions.read?.version === 1));
     await runtime.stop(install);
     const unavailable = (await actions.invoke(w.get, { id: flow.workflow_id })).workflow;
     assert.equal(unavailable.stations[0].availability.available, false);
@@ -126,8 +126,8 @@ test("saved versions survive withdrawal and upgrades; old unbound workflows pin 
     assert.equal((await ports.stations())[0]!.supported, true);
     await assert.rejects(actions.invoke(w.continue, { id: run.instance_id }), /v1 不可用/);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, 2);
-    assert.equal(store.instance(run.instance_id, caller.project_id!).status, "active");
-    assert.deepEqual(store.get(flow.workflow_id, caller.project_id!).stations, flow.stations);
+    assert.equal(store.instance(run.instance_id).status, "active");
+    assert.deepEqual(store.get(flow.workflow_id).stations, flow.stations);
   });
 });
 
@@ -140,7 +140,7 @@ test("W4-6-04 a receive pinned at v2 stays pinned and reports itself unavailable
     // A flow saved before the reset: station 2 holds `receive@2`, the rest are what they were.
     const content = flow.stations[1]!.content!;
     const pinned = { ...content, actions: { ...content.actions, receive: { ...content.actions.receive!, version: 2 } } };
-    const saved = store.create({ project_id: caller.project_id!, title: "旧接收引用", chain: { stations: [flow.stations[0]!, { ...flow.stations[1]!, content: pinned }], links: flow.links } });
+    const saved = store.create({ title: "旧接收引用", chain: { stations: [flow.stations[0]!, { ...flow.stations[1]!, content: pinned }], links: flow.links } });
     const drafts = db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n;
 
     await assert.rejects(actions.invoke(w.start, { id: saved.workflow_id }), /已保存的接收能力 v2 不可用/);
@@ -149,12 +149,12 @@ test("W4-6-04 a receive pinned at v2 stays pinned and reports itself unavailable
     await assert.rejects(actions.invoke(w.continue, { id: running.instance_id }), /已保存的接收能力 v2 不可用/);
     await assert.rejects(ports.receive("unknown-drafts", { title: "x", body: "y" }, "workflow:pinned:1", pinned), /已保存的接收能力 v2 不可用/);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, drafts);
-    assert.equal(store.instance(running.instance_id, caller.project_id!).status, "active");
-    assert.equal(store.get(saved.workflow_id, caller.project_id!).stations[1]!.content!.actions.receive!.version, 2);
-    assert.equal(store.instance(running.instance_id, caller.project_id!).chain.stations[1]!.content!.actions.receive!.version, 2);
+    assert.equal(store.instance(running.instance_id).status, "active");
+    assert.equal(store.get(saved.workflow_id).stations[1]!.content!.actions.receive!.version, 2);
+    assert.equal(store.instance(running.instance_id).chain.stations[1]!.content!.actions.receive!.version, 2);
 
     // Removing the station and adding it back is how it is repaired: the new reference is the current receive.
-    const repaired = store.create({ project_id: caller.project_id!, title: "接收 v1 修好", chain: { stations: saved.stations.map(({ content, ...station }) => station), links: saved.links } });
+    const repaired = store.create({ title: "接收 v1 修好", chain: { stations: saved.stations.map(({ content, ...station }) => station), links: saved.links } });
     const again = (await actions.invoke(w.start, { id: repaired.workflow_id, title: "重新开始" })).instance as WorkflowInstance;
     db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("修好之后的内容", again.steps[0]!.item!.item_id);
     assert.equal(again.chain.stations[1]!.content!.actions.receive!.version, WORKFLOW_CONTENT_VERSIONS.receive);
@@ -220,8 +220,8 @@ test("W5-01-WORKFLOWS-08 a model answer is recorded only while its original call
     const drafts = db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n;
     await assert.rejects(actions.invoke(w.continue, { id: run.instance_id }), { code: "actions.cancelled" });
     assert.equal(answers, 1);
-    assert.equal(store.instance(run.instance_id, caller.project_id!).steps[0]!.pending, undefined, "the refused answer was not kept");
-    assert.equal(store.instance(run.instance_id, caller.project_id!).steps[0]!.handoff ?? null, null);
+    assert.equal(store.instance(run.instance_id).steps[0]!.pending, undefined, "the refused answer was not kept");
+    assert.equal(store.instance(run.instance_id).steps[0]!.handoff ?? null, null);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, drafts, "and nothing was delivered");
     current.value = true;
     const done = (await actions.invoke(w.continue, { id: run.instance_id })).instance as WorkflowInstance;

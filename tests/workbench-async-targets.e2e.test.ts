@@ -84,8 +84,8 @@ for (const first of ["success", "error"] as const) {
 test("W2-18-MARKET-REFRESH-01: reopening the market after a switcher membership change follows the Host and Dock; failed reads leave the last facts and permit retry", { timeout: 120_000 }, async t => {
   const browser = await openAuditBrowser(t); if (!browser) return;
   const projects = async () => (await (await fetch(browser.origin + "/api/settings/project-plugins")).json()).projects as Array<{ project_id: string; plugins: string[]; hidden: string[] }>;
-  // Form is personal: its effective membership also follows the persisted hidden list.
-  const plugin = "form", hasForm = (row: { plugins: string[]; hidden: string[] }) => row.plugins.includes(plugin) || !row.hidden.includes(plugin);
+  // Form is a project plugin (no longer personal, batch 107): it is on where the project lists it.
+  const plugin = "form", hasForm = (row: { plugins: string[]; hidden: string[] }) => row.plugins.includes(plugin);
   const initially = hasForm((await projects()).find(row => row.project_id === browser.projectId)!);
   await browser.click('[data-global-menu] [data-plugin-id="market"]');
   await browser.waitFor("!!document.querySelector('[data-market-project] option') && !document.querySelector('[data-market-add=form]').disabled");

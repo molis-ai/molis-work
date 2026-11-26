@@ -33,7 +33,7 @@ await mkdir(directory, { recursive: true, mode: 0o700 });
 process.env.MOLIS_WORK_HOME = directory;
 process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 delete process.env.MOLIS_WORK_ENCRYPTION_KEY;
-const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, runningProjectPlatform, hostContinuityActions } = await import("@molis-ai/molis-work-app-local-host");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, PLATFORM_PLUGIN_REGISTRATIONS, hostContinuityActions } = await import("@molis-ai/molis-work-app-local-host");
 
 const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
 const databasePath = join(directory, "project.sqlite"), projectId = "continuity-qa", goalId = "mobile-handoff";
@@ -44,11 +44,11 @@ await host.actionClient(ref).invoke({ actor_id: "desktop", actor_kind: "user", a
   { capability_id: "goals.create", version: /* @version action.goals.create */ 1 },
   { goal_id: goalId, title: "让工作在手机上继续", outcome: "查看桌面成果，记录下一步，再回桌面接续。", idempotency_key: "goal" });
 const guide = { artifact_id: "handoff-guide", version: 2 };
-await host.withProject(ref, async ({ store, artifacts }) => {
+await host.withProject(ref, async ({ artifacts }) => {
   // Reopening the QA Home keeps the version already shared with its devices.
   if (artifacts.query.getArtifactVersion(projectId, guide)) return;
-  const platform = await runningProjectPlatform(store, projectId);
-  const pages = platform?.supervisor.manifest(PAGES_PLUGIN_ID);
+  // Pages runs as its own instance in each partition (batch 107); what it declares is the Manifest this Host ships.
+  const pages = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === PAGES_PLUGIN_ID)?.manifest;
   const declaration = pages?.artifacts.produces.find(type => type.artifact_type_id === PAGES_ARTIFACT_TYPE_ID);
   if (!pages || !declaration?.pin) throw Error("The demo needs Pages' declared document artifact");
   const { pin } = declaration;

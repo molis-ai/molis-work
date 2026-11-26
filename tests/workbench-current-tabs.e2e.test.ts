@@ -130,12 +130,12 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     permissions: ["goals:read", ...feedManifest.actions.filter(action => feedReads.has(action.capability_id)).flatMap(action => action.action.permissions)],
   }));
   const { source } = await actions.invoke(feedSourceActions.register, { kind: "web_query", name: "固定观察来源", query: "PR2 fixed source" });
-  const pages = openPagesStore(served.home);
-  const document = pages.create({ project_id: project.project_id, title: "重启前后的固定正文", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "保持正文、ID 与版本" }] }] } });
+  const pages = openPagesStore(served.home, project.project_id);
+  const document = pages.create({ title: "重启前后的固定正文", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "保持正文、ID 与版本" }] }] } });
   pages.close();
   const facts = async () => {
-    const store = openPagesStore(served.home);
-    try { return { goal: await actions.invoke(goalsActions.document, { goal_id: "CORE" }), page: store.get(document.id, project.project_id),
+    const store = openPagesStore(served.home, project.project_id);
+    try { return { goal: await actions.invoke(goalsActions.document, { goal_id: "CORE" }), page: store.get(document.id),
       sources: (await actions.invoke(feedQueryActions.snapshot, {})).sources }; }
     finally { store.close(); }
   };

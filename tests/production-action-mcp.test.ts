@@ -13,7 +13,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 test("production MCP reads persisted scoped grants on every list/call, shares real Pages data and preserves revocation after restart", { timeout: 120_000 }, async t => {
   const clients: Client[] = [];
   const testHome = await openTestHome(t), home = testHome.home;
-  const a = await testHome.createProject("授权项目 A"), b = await testHome.createProject("授权项目 B");
+  const a = await testHome.createProject("授权项目 A", ["pages"]), b = await testHome.createProject("授权项目 B", ["pages"]);
   const diagnostics = new Map<Client, () => string>();
   const connect = async (project: { project_id: string; database_path: string }, actor: string) => {
     changeMcpClientCredential(home, `runtime:${actor}`, "connect");

@@ -57,8 +57,15 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:agent", fact: "agent.subagent.events", entries: ["agent"], state: "unavailable", reason: "child_stream_not_followed" },
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
-  // Partition due-registry timer wakeups (`horizontal/scheduler/src/due-registry.ts`, batch 106): delivery handlers and observation sink join in batch 108.
+  // Partition due-registry timer wakeups (`horizontal/scheduler/src/due-registry.ts`, batch 106; run by the Host since batch 107, which logs a
+  // fired entry it has no delivery for): delivery handlers and observation sink join in batch 108.
   { owner: "service:scheduler", fact: "scheduler.due_wakeup", entries: [SCHEDULE_ENTRY], state: "not_connected", reason: "due_timer_sink_not_wired" },
+  // A per-partition plugin instance's start, stop, idle stop and crash (`apps/local-host/src/partition-plugin-host.ts`, batch 107): a failed
+  // start is in the Host log with the plugin, partition and code; the lifecycle joins the sink with the partition services in batch 108.
+  { owner: "service:home", fact: "home.partition_plugin_lifecycle", entries: ["host"], state: "not_connected", reason: "partition_lifecycle_sink_not_wired" },
+  // The background pass that settles a carry a cut left half done (`placement-actions.ts`, batch 107): the move that started it is the action
+  // exit's record; the pass itself writes the ledger's own history (`placement.carried`, `placement.carry_undone`) and no observation yet.
+  { owner: "service:home", fact: "home.placement_carry_settle", entries: ["background"], state: "not_connected", reason: "carry_settle_sink_not_wired" },
   // Each panel write on an Assistant work, joined to that work; the call's content is the exit's, the rounds it started are the agent's.
   { owner: "service:assistant", fact: "assistant.work", entries: ["workbench"], state: "complete" },
   { owner: "service:home", fact: "home.selection", entries: ["workbench"], state: "complete" },

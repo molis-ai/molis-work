@@ -2,8 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openPagesStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -29,20 +28,20 @@ for (const width of [1440, 390]) {
     await click('[data-pages-editor] .ProseMirror');
     await command("Input.insertText", { text: "本次成果只包含已经确认的研究结论。" }, sessionId);
     await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
-    const pages = openPagesStore(homeDirectory), db = openHomeSqliteDatabase(homeDirectory, "pages");
+    const pages = openPagesStore(homeDirectory, projectId!), db = openPartitionLibraryDatabase(homeDirectory, projectId!, "pages");
     try {
-      const original = pages.list(projectId!)[0]!;
+      const original = pages.list()[0]!;
       // A real constraint interrupts only the final publication write; arbitrary triggers are rightly refused by the SQL port.
-      const sentinel = pages.create({ project_id: projectId!, title: "Published constraint fixture" });
-      pages.update(sentinel.id, { artifact_version: 1 }, projectId!);
+      const sentinel = pages.create({ title: "Published constraint fixture" });
+      pages.update(sentinel.id, { artifact_version: 1 });
       db.exec("CREATE UNIQUE INDEX fail_ui_publication ON pages ((1)) WHERE artifact_version > 0");
       await click('[data-pages-artifact-bar]');
       await waitFor("document.querySelector('[data-pages-note]').textContent.includes('UNIQUE constraint failed') && document.querySelector('[data-pages-artifact-bar]').textContent === '存为固定版本'");
-      assert.equal(pages.get(original.id, projectId!).publication_pending, undefined);
-      assert.equal(pages.get(original.id, projectId!).artifact_version, 0);
+      assert.equal(pages.get(original.id).publication_pending, undefined);
+      assert.equal(pages.get(original.id).artifact_version, 0);
       assert.equal(project.db.prepare("SELECT 1 FROM library_artifact_versions WHERE artifact_id = ?").get("pages-" + original.id), undefined);
       db.exec("DROP INDEX fail_ui_publication");
-      pages.delete(sentinel.id, projectId!);
+      pages.delete(sentinel.id);
       await openPages();
       // Opening Pages again reopens the page that was open (on a phone it fills the stage and the list steps aside).
       await waitFor(`document.querySelector('[data-pages-title]')?.value === '已确认的发布快照'`);
@@ -55,7 +54,7 @@ for (const width of [1440, 390]) {
       await click('[data-pages-artifact-bar]');
       await browser.waitFor("[...document.querySelectorAll('.placement-toast--done')].some(toast => toast.textContent.includes('后续编辑仍在文稿中') && toast.querySelector('small')?.textContent.includes('第 1 版'))");
       await waitFor("document.querySelector('[data-pages-artifact-bar]').textContent === '再存一个固定版本'");
-      const final = pages.get(original.id, projectId!);
+      const final = pages.get(original.id);
       assert.equal(final.title, "后续编辑仍在文稿中"); assert.equal(final.artifact_version, 1); assert.equal(final.publication_pending, undefined);
       const artifact = project.db.prepare("SELECT payload_json FROM library_artifact_versions WHERE artifact_id = ? AND version = 1").get(final.artifact_id) as { payload_json: string };
       assert.equal(JSON.parse(artifact.payload_json).title, "后续编辑仍在文稿中");

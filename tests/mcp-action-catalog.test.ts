@@ -2,7 +2,7 @@ import { MCP_TOOLS, assembleMcpCatalog } from "@molis-ai/molis-work-app-local-ho
 import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { functionsActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
@@ -27,11 +27,13 @@ const creativeViews: ActionView[] = [formManifest, pagesManifest, datasetManifes
 const names = (catalog: { tools: Array<{ name: string }> }) => catalog.tools.map(tool => tool.name);
 
 /** The person's grant, saved through the access settings of a Host that serves the Home for the length of the call (the MCP servers of the Home are closed). */
-async function grantActions(home: string, connection: MolisWorkRuntimeConnection, actions: ActionDefinition[]) {
+async function grantActions(home: string, connection: MolisWorkRuntimeConnection, actions: ActionDefinition[], plugins: readonly string[]) {
   assert.ok(connection.projectId);
   const clientId = "runtime:codex", projectId = connection.projectId;
   const served = await serveTestHost(null, { home });
   try {
+    // A plugin the project does not enable offers nothing to grant (batch 107): the person adds it first.
+    for (const pluginId of plugins) await addProjectPlugin(served.web, projectId, pluginId);
     const offered = (await readMcpActionAccess(served.web, { clientId, projectId })).actions;
     const views = actions.map(action => {
       const view = offered.find(row => row.capability_id === action.capability_id && row.version === action.version);
@@ -160,7 +162,7 @@ test("RAC-2918: an embedded MCP owning its Home restores a bound session and dis
   // Each MCP client is its own process in production; one Home has one Runtime owner per process, so the earlier server closes first.
   const firstConnection = first.runtimeConnection!;
   await first.close();
-  await grantActions(home, firstConnection, [formActions.list]);
+  await grantActions(home, firstConnection, [formActions.list], ["form"]);
   const second = new MolisWorkServer("runtime", null, runtimeHost);
   servers.push(second);
   const secondNames = await listToolNames(second);

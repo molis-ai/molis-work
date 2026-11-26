@@ -34,12 +34,12 @@ async function fixture(t: TestContext) {
   // Git subscribes to workspace changes; a project that does not run it has nobody to tell.
   for (const project of [first, second]) for (const plugin_id of ["git"] as const) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
   catalog.close();
-  const heard: Heard[] = [];
+  const heard: Array<Heard & { host: PluginHostEvents }> = [];
   const original = PluginHostEvents.prototype.broadcast;
   t.mock.method(PluginHostEvents.prototype, "broadcast", function (this: PluginHostEvents, input: Parameters<typeof original>[0]) {
     const queued = original.call(this, input);
     const payload = input.payload as { workspace_id: string; cause: string };
-    heard.push({ workspace_id: payload.workspace_id, cause: payload.cause, queued });
+    heard.push({ host: this, workspace_id: payload.workspace_id, cause: payload.cause, queued });
     return queued;
   });
   let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN }), origin = "";
@@ -66,7 +66,7 @@ async function fixture(t: TestContext) {
     const response = await call(project, `/api/plugins/${GIT}/state`, "GET"), body = await response.text();
     assert.ok(response.status === 200 || response.status === 400 && body.includes("git."), body);
   };
-  const settings = () => heard.filter(item => item.cause === "workspace-settings");
+  const settings = () => announcements(heard.filter(item => item.cause === "workspace-settings"));
   /** The project's inputs and output, read over HTTP as the settings page reads them. */
   const directories = async (project: string) => {
     const response = await call(project, "/api/project-settings/directories", "GET");
@@ -77,6 +77,20 @@ async function fixture(t: TestContext) {
   const change = async (project: string, kind: string, input: Record<string, unknown>, revision?: string) =>
     call(project, "/api/project-settings/directories", "POST", { change: kind, input: { ...input, expected_revision: revision ?? (await directories(project)).revision } });
   return { folders, first: first.project_id, second: second.project_id, call, startPlatform, restart, heard, settings, directories, change, origin: () => origin };
+}
+
+/**
+ * One announcement goes to every platform the project runs on (its own, and each per-partition plugin's instance, batch 107): the
+ * broadcasts of one announcement come one after another, each from another platform, and are one row here, queued for all of them.
+ */
+function announcements(rows: ReadonlyArray<Heard & { host: PluginHostEvents }>): Heard[] {
+  const out: Array<Heard & { hosts: Set<PluginHostEvents> }> = [];
+  for (const { host, ...row } of rows) {
+    const last = out.at(-1);
+    if (last && last.workspace_id === row.workspace_id && last.cause === row.cause && !last.hosts.has(host)) { last.hosts.add(host); last.queued += row.queued; }
+    else out.push({ ...row, hosts: new Set([host]) });
+  }
+  return out.map(({ hosts: _hosts, ...row }) => row);
 }
 
 const outputOf = (folders: ProjectDirectories) => folders.directories.find(item => item.roles.includes("output"))!.workspace_id;

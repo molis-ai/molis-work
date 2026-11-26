@@ -8,7 +8,7 @@ import { webEntryMessage } from "./entry-user-action.js";
 import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-event-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
-import { ensureProjectPlugins, type ProjectPluginPorts } from "./project-plugins.js";
+import { ensureProjectPlugins, projectPluginPlatform, projectPluginPlatforms, type ProjectPluginPorts } from "./project-plugins.js";
 import { announceProjectOpened } from "./workspace-settings-events.js";
 import { sendLocalWebJson } from "./web-http.js";
 
@@ -26,6 +26,8 @@ export interface ProjectPluginHttpPorts extends ProjectPluginPorts {
 export async function pluginEventsPending(ports: ProjectPluginHttpPorts): Promise<number> {
   const record = await ensureProjectPlugins(ports);
   if (!record.platform) throw new Error(record.error ?? "插件运行平台未能启动");
+  // Every platform of the project (its own and each per-partition instance) reads the one event table of this partition's database, so
+  // one of them counts each delivery once; the event management route reads the same one.
   return record.platform.events.recoveries(ports.projectId).length;
 }
 
@@ -42,14 +44,19 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
     return true;
   }
   if (runtimeUpdates) {
-    const updates = record.platform.upgradeCandidates().map(candidate => ({
+    const updates = projectPluginPlatforms(record).flatMap(platform => platform.upgradeCandidates()).map(candidate => ({
       ...candidate,
       project_plugin_id: builtinPluginByManifestId(candidate.plugin_id)?.project_plugin_id ?? null,
     }));
     sendLocalWebJson(response, 200, { updates });
     return true;
   }
-  const pluginId = pluginRoute![1]!, platform = record.platform;
+  const pluginId = pluginRoute![1]!, platform = projectPluginPlatform(record, pluginId);
+  // A plugin with a library in each partition answers from its own instance here; one that did not start is unavailable, not unknown.
+  if (!platform) {
+    sendLocalWebJson(response, 503, { error: record.partitions?.failure(pluginId) ?? "插件已停止" });
+    return true;
+  }
   await announceProjectOpened(platform, ports);
   const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
   const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));

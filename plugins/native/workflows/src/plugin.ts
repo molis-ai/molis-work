@@ -27,8 +27,8 @@ export function createWorkflowsPlugin(): PluginDefinition {
     if (!directory) throw new ActionError("actions.unredeemed", "宿主未提供动作目录");
     const stores: WorkflowsStores = {
       read: run => run(new WorkflowsStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
-        run: () => { throw new ActionError("actions.execution_failed", "流程的读取不写入"); } })),
-      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new WorkflowsStore(transaction))),
+        run: () => { throw new ActionError("actions.execution_failed", "流程的读取不写入"); } }, projectId)),
+      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new WorkflowsStore(transaction, projectId))),
     };
     const model = context.services?.model;
     const ports: WorkflowsActionPorts = { ...stores,

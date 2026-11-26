@@ -41,7 +41,7 @@ test("a judgment link hands content on only for the ticked results and records w
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller = { actor_id: "test-user", project_id: PROJECT, audience: "user" as const, permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, "functions:invoke"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
-  const pages = () => { const store = openPagesStore(home); try { return store.list(PROJECT); } finally { store.close(); } };
+  const pages = () => { const store = openPagesStore(home, PROJECT); try { return store.list(); } finally { store.close(); } };
   try {
     // The rule list comes from the caller's own directory, with the rule's finite answers.
     const { judgments } = await actions.invoke(w.judgments, {});

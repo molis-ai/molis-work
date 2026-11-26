@@ -122,7 +122,7 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
   assert.deepEqual(unknown, { part_id: "model", state: "pending_verification", request_id: initial.adoption_id + ":model" });
   const pendingRow = "(document.querySelector('[data-scene-main] details[open]')?.textContent ?? '')";
   const awaiting = `/待核对|Awaiting verification/i.test(${pendingRow})`;
-  const unavailableHint = `/原设置提供方当前不可用|original settings provider is unavailable/i.test(${pendingRow})`;
+  const unavailableHint = `/原设置功能当前不可用|original settings feature isn’t available/i.test(${pendingRow})`;
   const executable = outcome === "manually changed" ? undefined : locateTestChrome();
   const profile = executable ? await mkdtemp(join(tmpdir(), "molis-work-scene-status-")) : undefined;
   let browser: ChromeHarness | undefined;

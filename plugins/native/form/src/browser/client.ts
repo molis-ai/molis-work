@@ -5,7 +5,7 @@ import { closeEditor, listFailed, loadList, renderList } from "./list.js";
 import { type FormPage, formPage, hasUnsaved } from "./page.js";
 import { fillOptions, retitleQuestions } from "./questions.js";
 import { formRequest } from "./request.js";
-import { importAnswers, loadResults, submitPreview } from "./results.js";
+import { importAnswers, submitPreview } from "./results.js";
 import { queueSave, save } from "./save.js";
 import { draftNote, paintStatus, showNote } from "./status.js";
 import type { FormClientHost } from "./types.js";
@@ -61,8 +61,8 @@ const listen = (page: FormPage) => {
     if (!page.sel) return;
     paintStatus(page, page.sel);
     retitleQuestions(page);
-    if (page.tab === "results") void loadResults(page);
-    else if (page.tab === "preview" && !page.dirty) renderPreview(page, page.sel);
+    // The results already on screen are retitled in place by the page's words (FSS-35): no read, and the rows stay.
+    if (page.tab === "preview" && !page.dirty) renderPreview(page, page.sel);
   };
   document.addEventListener("molis-work:language-changed", onLanguageChanged);
   window.addEventListener("pagehide", () => document.removeEventListener("molis-work:language-changed", onLanguageChanged), { once: true });

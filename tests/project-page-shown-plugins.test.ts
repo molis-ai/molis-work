@@ -1,6 +1,6 @@
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 // W5-02 PR-B: which plugins a project's page shows is the Host's fact, read per request from the project's Catalog (enabled, minus
-// hidden, with the personal plugins), and the page, its refresh and its fragments read that one view. A Goal's 「加输入」 lists a
+// hidden), and the page, its refresh and its fragments read that one view. A Goal's 「加输入」 lists a
 // 「新建」 button for each plugin the page shows that declares one, so the Pages button is where a hidden Pages would leak back in.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -9,7 +9,7 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 const PAGES_CREATE = 'data-placement-create="pages"';
 
 test("RAC-712 a project that hid Pages has no Pages create button in its page, refresh or document fragment; shown again, it has it in all three", { timeout: 60_000 }, async t => {
-  const { origin, request, project } = await serveHomeRuntime(t), current = await project("Shown plugins", ["goals"]);
+  const { origin, request, project } = await serveHomeRuntime(t), current = await project("Shown plugins", ["goals", "pages"]);
   const prefix = `/projects/${encodeURIComponent(current.project_id)}`;
   const created = await request(`${prefix}/api/plugins/io.molis.work.goals/goals`, { method: "POST", body: { title: "Shown plugins goal", idempotency_key: "shown-plugins-goal" } });
   assert.equal(created.status, 201, await created.clone().text());
@@ -27,7 +27,7 @@ test("RAC-712 a project that hid Pages has no Pages create button in its page, r
   });
   const withPages = (all: Record<string, string>) => Object.fromEntries(Object.entries(all).map(([name, body]) => [name, body.includes(PAGES_CREATE)]));
 
-  assert.deepEqual(withPages(await surfaces()), { page: true, refresh: true, document: true }, "Pages is a personal plugin, so a new project shows it");
+  assert.deepEqual(withPages(await surfaces()), { page: true, refresh: true, document: true }, "the project enables Pages, so its page shows it");
 
   const hidden = await request(`/api/settings/projects/${encodeURIComponent(current.project_id)}/plugins`, { method: "DELETE", body: { plugin_id: "pages", expected_revision: await projectPluginRevisionAt(origin, current.project_id) } });
   assert.equal(hidden.status, 200, await hidden.clone().text());

@@ -1,5 +1,4 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   type Workflow,
   type WorkflowChain,
@@ -20,7 +19,6 @@ export { WORKFLOWS_DATABASE };
 
 interface WorkflowRow {
   workflow_id: string;
-  project_id: string;
   title: string;
   chain_json: string;
   revision: number;
@@ -31,7 +29,6 @@ interface WorkflowRow {
 interface InstanceRow {
   instance_id: string;
   workflow_id: string;
-  project_id: string;
   title: string;
   status: string;
   current: number;
@@ -66,8 +63,9 @@ export function ownWorkflowsStores(withStore: <T>(run: (store: WorkflowsStore) =
   return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
 }
 
+/** One partition's workflows: the library is that partition's own, so a record's `project_id` is the partition this store was opened for. */
 export class WorkflowsStore {
-  constructor(private readonly db: WorkflowsSql, private readonly release: () => void = () => {}) {}
+  constructor(private readonly db: WorkflowsSql, readonly partition: string, private readonly release: () => void = () => {}) {}
 
   assertExecutableInstance(instanceId: string): void {
     if (this.db.get("SELECT 1 FROM workflow_imported_instances WHERE instance_id=?", [instanceId]))
@@ -83,25 +81,25 @@ export class WorkflowsStore {
     return this.db.all(sql, parameters) as unknown as T[];
   }
 
-  list(projectId: string): WorkflowSummary[] {
-    return this.rows<WorkflowRow>("SELECT * FROM workflows WHERE project_id = ? AND deleted = 0 ORDER BY updated_at DESC, rowid DESC", [projectId]).map((row) => {
+  list(): WorkflowSummary[] {
+    return this.rows<WorkflowRow>("SELECT * FROM workflows WHERE deleted = 0 ORDER BY updated_at DESC, rowid DESC").map((row) => {
       const count = this.db.get("SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active, MAX(updated_at) AS last FROM instances WHERE workflow_id = ?", [row.workflow_id]);
-      return { ...fromWorkflowRow(row), instance_count: Number(count?.total ?? 0), active_count: Number(count?.active ?? 0),
+      return { ...fromWorkflowRow(row, this.partition), instance_count: Number(count?.total ?? 0), active_count: Number(count?.active ?? 0),
         last_activity_at: typeof count?.last === "string" ? count.last : null };
     });
   }
 
-  get(workflowId: string, projectId: string): Workflow {
+  get(workflowId: string): Workflow {
     const row = this.rows<WorkflowRow>("SELECT * FROM workflows WHERE workflow_id = ? AND deleted = 0", [workflowId])[0];
-    if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这条流程");
-    return fromWorkflowRow(row);
+    if (!row) throw workflowsErrors.not_found("找不到这条流程");
+    return fromWorkflowRow(row, this.partition);
   }
 
-  create(input: { project_id: string; title: string; chain: WorkflowChain }): Workflow {
+  create(input: { title: string; chain: WorkflowChain }): Workflow {
     const now = new Date().toISOString();
     const workflow: Workflow = {
       workflow_id: crypto.randomUUID(),
-      project_id: input.project_id,
+      project_id: this.partition,
       title: normalizeTitle(input.title),
       stations: input.chain.stations,
       links: input.chain.links,
@@ -109,14 +107,14 @@ export class WorkflowsStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.run("INSERT INTO workflows (workflow_id, project_id, title, chain_json, revision, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
-      [workflow.workflow_id, workflow.project_id, workflow.title, chainJson(workflow), workflow.revision, now, now]);
+    this.db.run("INSERT INTO workflows (workflow_id, title, chain_json, revision, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, 0)",
+      [workflow.workflow_id, workflow.title, chainJson(workflow), workflow.revision, now, now]);
     return workflow;
   }
 
   /** Every edit is saved at once; `revision` stops two windows from overwriting each other silently. */
-  update(workflowId: string, projectId: string, patch: { title?: string; chain?: WorkflowChain; revision: number }): Workflow {
-    const current = this.get(workflowId, projectId);
+  update(workflowId: string, patch: { title?: string; chain?: WorkflowChain; revision: number }): Workflow {
+    const current = this.get(workflowId);
     if (patch.revision !== current.revision) throw workflowsErrors.conflict("这条流程在别处改过了，已载入最新的样子");
     const next: Workflow = {
       ...current,
@@ -132,20 +130,20 @@ export class WorkflowsStore {
   }
 
   /** Hidden from the list; its instances keep their history. */
-  delete(workflowId: string, projectId: string): void {
-    this.get(workflowId, projectId);
+  delete(workflowId: string): void {
+    this.get(workflowId);
     this.db.run("UPDATE workflows SET deleted = 1, updated_at = ? WHERE workflow_id = ?", [new Date().toISOString(), workflowId]);
   }
 
-  instances(workflowId: string, projectId: string): WorkflowInstance[] {
-    this.get(workflowId, projectId);
-    return this.rows<InstanceRow>("SELECT * FROM instances WHERE workflow_id = ? ORDER BY created_at DESC, rowid DESC", [workflowId]).map(fromInstanceRow);
+  instances(workflowId: string): WorkflowInstance[] {
+    this.get(workflowId);
+    return this.rows<InstanceRow>("SELECT * FROM instances WHERE workflow_id = ? ORDER BY created_at DESC, rowid DESC", [workflowId]).map(row => fromInstanceRow(row, this.partition));
   }
 
-  instance(instanceId: string, projectId: string): WorkflowInstance {
+  instance(instanceId: string): WorkflowInstance {
     const row = this.rows<InstanceRow>("SELECT * FROM instances WHERE instance_id = ?", [instanceId])[0];
-    if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这一次");
-    return fromInstanceRow(row);
+    if (!row) throw workflowsErrors.not_found("找不到这一次");
+    return fromInstanceRow(row, this.partition);
   }
 
   startInstance(workflow: Workflow, first: WorkflowStepItem): WorkflowInstance {
@@ -163,8 +161,8 @@ export class WorkflowsStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.run("INSERT INTO instances (instance_id, workflow_id, project_id, title, status, current, chain_json, steps_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [instance.instance_id, instance.workflow_id, instance.project_id, instance.title, instance.status, instance.current,
+    this.db.run("INSERT INTO instances (instance_id, workflow_id, title, status, current, chain_json, steps_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [instance.instance_id, instance.workflow_id, instance.title, instance.status, instance.current,
         JSON.stringify(chain), JSON.stringify(instance.steps), now, now]);
     return instance;
   }
@@ -185,9 +183,9 @@ export class WorkflowsStore {
     return { ...saved, updated_at: updatedAt, ...(stopped ? { stopped } : {}) };
   }
 
-  stopInstance(instanceId: string, projectId: string): WorkflowInstance {
+  stopInstance(instanceId: string): WorkflowInstance {
     this.assertExecutableInstance(instanceId);
-    const current = this.instance(instanceId, projectId);
+    const current = this.instance(instanceId);
     if (current.status !== "active") return current;
     const at = new Date().toISOString();
     const pending = current.steps[current.current]?.pending;
@@ -200,7 +198,7 @@ export class WorkflowsStore {
 /** A real returned delivery can settle its original stopped attempt; cancellation never invents a receipt. */
 export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowInstance, from: number,
   arrived: WorkflowStepItem, arrival: NonNullable<Parameters<typeof advanceInstance>[5]>): WorkflowInstance | null {
-  const latest = store.instance(expected.instance_id, expected.project_id);
+  const latest = store.instance(expected.instance_id);
   const pending = expected.steps[from]?.pending;
   const recorded = latest.steps[from]?.pending;
   if (latest.status !== "stopped" || latest.current !== from || !pending || recorded?.key !== pending.key
@@ -223,11 +221,11 @@ function normalizeTitle(value: string): string {
   return title || "未命名流程";
 }
 
-function fromWorkflowRow(row: WorkflowRow): Workflow {
+function fromWorkflowRow(row: WorkflowRow, partition: string): Workflow {
   const chain = JSON.parse(row.chain_json) as WorkflowChain;
   return {
     workflow_id: row.workflow_id,
-    project_id: row.project_id,
+    project_id: partition,
     title: row.title,
     stations: chain.stations ?? [],
     links: chain.links ?? [],
@@ -237,14 +235,14 @@ function fromWorkflowRow(row: WorkflowRow): Workflow {
   };
 }
 
-function fromInstanceRow(row: InstanceRow): WorkflowInstance {
+function fromInstanceRow(row: InstanceRow, partition: string): WorkflowInstance {
   const status = (["active", "done", "stopped"].includes(row.status) ? row.status : "active") as WorkflowInstanceStatus;
   const steps = JSON.parse(row.steps_json) as WorkflowStep[];
   const stopped = stoppedOf(status, steps);
   return {
     instance_id: row.instance_id,
     workflow_id: row.workflow_id,
-    project_id: row.project_id,
+    project_id: partition,
     title: row.title,
     status,
     current: row.current,
@@ -255,6 +253,3 @@ function fromInstanceRow(row: InstanceRow): WorkflowInstance {
     updated_at: row.updated_at,
   };
 }
-
-/** This plugin's store in the Home's store registry (W4-11): `workflows/workflows.db` at its one baseline. */
-export const WORKFLOWS_HOME_STORE: HomeStoreDeclaration = { path: "workflows", library: { baseline: WORKFLOWS_DATABASE } };

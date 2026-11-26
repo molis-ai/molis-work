@@ -1,4 +1,4 @@
-import { escapeHtml, icon, renderAlert, renderBadge, renderButton, renderPopover, renderStatusMark, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, redrawInPlace, renderAlert, renderBadge, renderButton, renderPopover, renderStatusMark, t, takeWordsInPlace } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
@@ -42,7 +42,8 @@ interface HomeHost {
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
   | { kind: "invoked"; stage?: unknown; retry_open?: HomeControl["target"] } | { kind: "enabled" };
 
-export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMarkup: WeakMap<Element, string>) {
+/** With `inPlace` (a language switch), a row drawn in other words keeps its nodes and takes the new words (SCS-12). */
+export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMarkup: WeakMap<Element, string>, inPlace = false) {
   const doc = root.ownerDocument, focus = doc.activeElement;
   const focused = focus && root.contains(focus) ? focus.closest("[data-home-row]") : null;
   const rowKey = focused?.getAttribute("data-home-row");
@@ -72,13 +73,17 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMa
       let node = candidate;
       if (candidate.matches(retained)) {
         if (old && retainedMarkup.get(old) === retainedMarkup.get(candidate)) node = old;
+        else if (old && inPlace) {
+          node = takeWordsInPlace(old, candidate);
+          if (node === old) retainedMarkup.set(old, retainedMarkup.get(candidate)!);
+        }
       } else if (old?.isEqualNode(candidate)) node = old;
       else if (old && id !== null && candidate.matches(branch)) {
         for (const attr of [...old.attributes]) if (!candidate.hasAttribute(attr.name)) old.removeAttribute(attr.name);
         for (const attr of [...candidate.attributes]) if (old.getAttribute(attr.name) !== attr.value) old.setAttribute(attr.name, attr.value);
         patch(old, candidate.children);
         node = old;
-      }
+      } else if (old && inPlace) node = takeWordsInPlace(old, candidate);
       if (node !== next) parent.insertBefore(node, next);
       next = node.nextElementSibling;
     }
@@ -254,9 +259,11 @@ export function mountHome(host: HomeHost) {
     { source: () => ({}), expanded: () => false, visible, displayed: () => display ?? undefined, lookup: key => controls.get(key),
       navigate: async () => { /* Placement offers have no peek navigation. */ } });
   let captionState: [string | undefined, string | undefined] = [undefined, undefined];
-  const caption = (word?: string, button?: string) => {
+  const caption = (word?: string, button?: string, inPlace = false) => {
     captionState = [word, button];
-    status.innerHTML = (word ? "<p>" + escapeHtml(homeWord(word)) + "</p>" : "") + (button ? homeButton(button, homeWord(button === "refresh" ? "retry" : "open-result")) : "");
+    const html = (word ? "<p>" + escapeHtml(homeWord(word)) + "</p>" : "") + (button ? homeButton(button, homeWord(button === "refresh" ? "retry" : "open-result")) : "");
+    if (inPlace) redrawInPlace(status, html);
+    else status.innerHTML = html;
   };
   const closePeek = () => {
     offers.clear();
@@ -283,10 +290,15 @@ export function mountHome(host: HomeHost) {
   }
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
 
-  function paint(result: SurfaceHomeDisplay) {
+  function paint(result: SurfaceHomeDisplay, inPlace = false) {
     const page = renderHome(result, controls, { since: visit.begin(), readAt: new Date().toISOString(), showAll,
       settingsHref: section => host.settingsHref?.(section) ?? "#" }, corrections.rendering(result));
-    reconcileSurfaceRows(groups, page.column, rowMarkup);
+    reconcileSurfaceRows(groups, page.column, rowMarkup, inPlace);
+    if (inPlace) {
+      redrawInPlace(margin, page.margin);
+      if (version) redrawInPlace(version, page.version);
+      return;
+    }
     margin.innerHTML = page.margin;
     if (version) version.innerHTML = page.version;
   }
@@ -455,9 +467,10 @@ export function mountHome(host: HomeHost) {
     leave();
   });
   const onLanguageChanged = () => {
-    if (captionState[0] || captionState[1]) caption(captionState[0], captionState[1]);
+    // The words change, the page does not: what is shown keeps its nodes, focus and open menus (SCS-12).
+    if (captionState[0] || captionState[1]) caption(captionState[0], captionState[1], true);
     if (!display || !visible()) return;
-    paint(display);
+    paint(display, true);
     primary.apply();
     corrections.afterPaint();
     if (peek.open && inspected) {

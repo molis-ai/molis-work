@@ -15,13 +15,13 @@ export function pluginSyncNamespace(manifest: PluginManifest, collectionId: stri
 
 /** A collection is admitted against exactly one declared physical library; two-library plugins must name it. */
 export function pluginSyncLibraryManifest(manifest: PluginManifest, declaration: PluginDatabaseDeclaration): PluginManifest {
-  const home = manifest.databases?.home, project = manifest.databases?.project;
-  const matches = (candidate: PluginDatabaseDeclaration | undefined) => candidate?.store_name === declaration.store_name && candidate.version === declaration.version && candidate.schema === declaration.schema;
-  const database = declaration === home ? 'home' : declaration === project ? 'project'
-    : matches(home) && !matches(project) ? 'home' : matches(project) && !matches(home) ? 'project' : undefined;
+  const libraries = (['home', 'project', 'partition'] as const).flatMap(scope => manifest.databases?.[scope] ? [[scope, manifest.databases[scope]!] as const] : []);
+  const matches = (candidate: PluginDatabaseDeclaration) => candidate.store_name === declaration.store_name && candidate.version === declaration.version && candidate.schema === declaration.schema;
+  const same = libraries.find(([, candidate]) => candidate === declaration), alike = libraries.filter(([, candidate]) => matches(candidate));
+  const database = same?.[0] ?? (alike.length === 1 ? alike[0]![0] : undefined);
   if (!database) throw new Error('SYNC_LIBRARY_NOT_DECLARED');
   const collections = (manifest.sync?.collections ?? []).filter(collection => {
-    if (!collection.database && home && project) throw new Error('SYNC_COLLECTION_LIBRARY_REQUIRED');
+    if (!collection.database && libraries.length > 1) throw new Error('SYNC_COLLECTION_LIBRARY_REQUIRED');
     return (collection.database ?? database) === database;
   });
   return {...manifest, ...(manifest.sync ? {sync: {...manifest.sync, collections}} : {})};
@@ -91,7 +91,8 @@ export function pluginSyncBusinessRecord(manifest: PluginManifest, declaration: 
 
 export function pluginSyncDatabase(db: ReplicaDatabase, namespace: string): ReplicaDatabase {
   const sql = (value: string) => value.replace(/\breplica_/gu, namespace + '_replica_')
-    .replace(/\baggregate_editor_versions\b/gu, namespace + '_aggregate_editor_versions');
+    .replace(/\baggregate_editor_versions\b/gu, namespace + '_aggregate_editor_versions')
+    .replace(/\bsync_context\b/gu, namespace + '_context');
   return { exec: text => db.exec(sql(text)), prepare: text => db.prepare(sql(text)) };
 }
 

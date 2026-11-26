@@ -172,18 +172,18 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     assert.equal(writes, 2);
     await runtime.stop(installed.install_id);
     await evaluate("window.releaseLostOfferResponse()");
-    await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果尚未确认')");
+    await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果还没确认')");
     assert.equal(writes, 2); assert.deepEqual(read(), { tag: "needs-review", revision: 4 });
     assert.equal(await evaluate("!!document.querySelector('[data-home-offer]:not(:disabled)')"), false);
     await capture("mobile-response-unknown");
     await reloadPage();
     await waitForHomeRow(browser, `[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`, "io.molis.work.inbox");
     await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
-    await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果尚未确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找')");
+    await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果还没确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找')");
     assert.equal(writes, 2, "stopping the provider never converts uncertainty into a retry");
     await runtime.start(installed.install_id);
     await click('[data-home-offers-reload]');
-    await waitFor(`!document.querySelector('[data-home-offers]').textContent.includes('执行结果尚未确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找') && !${TAG}`);
+    await waitFor(`!document.querySelector('[data-home-offers]').textContent.includes('执行结果还没确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找') && !${TAG}`);
     assert.equal(writes, 2, "the owner confirms the old offer no longer applies without resubmitting it");
     assert.equal(await evaluate("Array.from({length:sessionStorage.length},(_,index)=>sessionStorage.key(index)).filter(key=>key!==null).some(key=>key.startsWith('molis.home-action:'))"), false);
   } finally { releaseOffers(); await runtime.stop(installed.install_id); }

@@ -1,6 +1,5 @@
 import path from "node:path";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { homeSqlitePartitionDirectory } from "./home-sqlite.js";
 
 export type { HomeStoreDeclaration };
 
@@ -14,8 +13,8 @@ export interface HomeStoreRegistry<Store extends HomeStore = HomeStore> {
   get(storePath: string): Store | undefined;
   /** Where each store is in `homeDirectory`, in registry order. */
   paths(homeDirectory: string): string[];
-  /** The library file of a store that is one: `<home>/<path>/<file>`; of a library partitioned by project, that project's file. */
-  libraryPath(homeDirectory: string, store: HomeStore, projectId?: string): string;
+  /** The library file of a store that is one: `<home>/<path>/<file>`. */
+  libraryPath(homeDirectory: string, store: HomeStore): string;
 }
 
 const SEGMENT = /^[a-z][a-z0-9.-]*$/u;
@@ -42,12 +41,6 @@ export function homeStoreRegistry<Store extends HomeStore>(stores: readonly Stor
     stores: registered,
     get: storePath => byPath.get(storePath),
     paths: homeDirectory => registered.map(store => path.join(homeDirectory, ...store.path.split("/"))),
-    libraryPath: (homeDirectory, store, projectId) => {
-      if ((store.library?.partition === "project") !== (projectId !== undefined)) {
-        throw new Error(projectId === undefined ? `库 ${store.path} 按项目分开，要给出项目` : `库 ${store.path} 不按项目分开`);
-      }
-      const directory = projectId === undefined ? path.join(homeDirectory, store.path) : homeSqlitePartitionDirectory(homeDirectory, store.path, projectId);
-      return path.join(directory, store.library?.file ?? `${store.path}.db`);
-    },
+    libraryPath: (homeDirectory, store) => path.join(homeDirectory, store.path, store.library?.file ?? `${store.path}.db`),
   };
 }

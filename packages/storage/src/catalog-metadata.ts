@@ -67,8 +67,23 @@ export class LocalCatalogMetadata {
     this.db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(version));
   }
 
+  /** A one-time mark another owner keeps beside the catalog's identity; `owner` and `schema_version` are not marks. */
+  mark(key: string): string | null {
+    const row = this.db.prepare("SELECT value FROM catalog_meta WHERE key = ?").get(markKey(key)) as { value: unknown } | undefined;
+    return typeof row?.value === "string" ? row.value : null;
+  }
+  /** Writes a mark once; a mark already there stays as it was. */
+  setMark(key: string, value: string): boolean {
+    return Number(this.db.prepare("INSERT INTO catalog_meta (key, value) VALUES (?, ?) ON CONFLICT DO NOTHING").run(markKey(key), value).changes) > 0;
+  }
+
   setOwner(owner: string): void {
     const changed = Number(this.db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'owner'").run(owner).changes);
     if (changed === 0) this.db.prepare("INSERT INTO catalog_meta (key, value) VALUES (?, ?)").run("owner", owner);
   }
+}
+
+function markKey(key: string): string {
+  if (!/^mark\.[a-z0-9.-]+$/.test(key)) throw new TypeError(`catalog mark key must start with "mark.": ${key}`);
+  return key;
 }

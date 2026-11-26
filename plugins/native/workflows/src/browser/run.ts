@@ -1,7 +1,7 @@
 import { tint } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { arrive, calm, ico, kindName, required, settle, when } from "./dom.js";
+import { arrive, calm, fill, ico, kindName, required, settle, when } from "./dom.js";
 import { dataHtml, handoffKey, renderHandoff } from "./handoff.js";
 import type { WorkflowsPage } from "./page.js";
 import { label, readyState, stnMeta } from "./state.js";
@@ -95,11 +95,11 @@ function patchInstance(page: WorkflowsPage, article: HTMLElement) {
   const run = ui.instance!;
   const index = Math.max(0, Math.min(ui.step, run.chain.stations.length - 1));
   const step = run.steps[index]!;
-  required(article, "[data-wf-run-bar]").innerHTML = runBarHtml(page, run);
+  fill(required(article, "[data-wf-run-bar]"), runBarHtml(page, run));
 
   const vchain = required(article, "[data-wf-vchain]");
   const stepFocus = vchain.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.wfStep : null;
-  vchain.innerHTML = vchainHtml(page, run, index);
+  fill(vchain, vchainHtml(page, run, index));
   const steps: string[] = run.steps.map((_, at) => stepState(run, at));
   const links: string[] = run.chain.links.map((_, at) => linkState(page, run, at));
   const last = page.lastRun;
@@ -109,12 +109,12 @@ function patchInstance(page: WorkflowsPage, article: HTMLElement) {
   }
   last.steps = steps; last.links = links;
   if (stepFocus !== null && stepFocus !== undefined) vchain.querySelector<HTMLElement>(`[data-wf-step="${stepFocus}"]`)?.focus({ preventScroll: true });
-  required(article, "[data-wf-stage-head]").innerHTML = `<span class="wf-stage__step">${esc(uiText.text("workflows.run.step-n", { n: index + 1 }))}</span><span class="wf-station__icon" style="--station-tint:${tint(step.plugin)}">${ico(stnMeta(page, step.plugin).icon)}</span><strong>${esc(label(page, run.chain.stations[index]!))}</strong>`
-    + (step.item && step.plugin !== "action" ? `<span class="wf-muted">${esc(step.item.title)}</span>` : "");
+  fill(required(article, "[data-wf-stage-head]"), `<span class="wf-stage__step">${esc(uiText.text("workflows.run.step-n", { n: index + 1 }))}</span><span class="wf-station__icon" style="--station-tint:${tint(step.plugin)}">${ico(stnMeta(page, step.plugin).icon)}</span><strong>${esc(label(page, run.chain.stations[index]!))}</strong>`
+    + (step.item && step.plugin !== "action" ? `<span class="wf-muted">${esc(step.item.title)}</span>` : ""));
   const handoffBox = required(article, "[data-wf-handoff]");
   const actionFocus = handoffBox.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.wfAction : null;
   const key = handoffKey(page, run, index);
-  handoffBox.innerHTML = renderHandoff(page, run, index);
+  fill(handoffBox, renderHandoff(page, run, index));
   if (handoffBox.dataset.key !== key) { handoffBox.dataset.key = key; settle(handoffBox.firstElementChild); }
   if (actionFocus) handoffBox.querySelector<HTMLElement>(`[data-wf-action="${actionFocus}"]`)?.focus({ preventScroll: true });
 

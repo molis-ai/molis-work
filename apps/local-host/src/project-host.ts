@@ -74,7 +74,7 @@ import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingR
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
 import { computeProjectRestingFingerprint, homeAggregateStoresFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
 import { installedPluginsStarting, releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
+import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPartitionPluginPorts, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
@@ -91,7 +91,7 @@ import { workTerminalActionProvider } from "./work-terminal-service.js";
 import { pluginDataActionProvider } from "./plugin-data-export.js";
 import { stateMachineRegistryProvider } from "./state-machine-registry.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
-import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
+import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins, startPartitionPluginInstance } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -99,6 +99,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type Action
 import type { HostActionClient } from "./local-host-types.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
+import { existingPartitionPluginHost, partitionPluginHostFor } from "./partition-plugin-host.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
 import { isPersonalSpace } from "./personal-space.js";
 import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
@@ -257,6 +258,8 @@ export class MolisWorkLocalHost {
           const clock = options.clock ?? (() => new Date());
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
+            // The per-partition plugins' installation records are the Home install table's, for every reader of this partition (batch 107).
+            if (options.homeDirectory) partitionPluginHostFor(options.homeDirectory, startPartitionPluginInstance).noteStore(store, reference.project_id);
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(surfaceActionProvider({ store, reference, homeDirectory: options.homeDirectory, readCatalog,
               client: this.host.actionClient(reference),
@@ -360,6 +363,13 @@ export class MolisWorkLocalHost {
         open: async project => { const value = reference(project); await this.withProject(value, () => undefined); return value; },
         projectClient: value => this.actionClient(value), homeClient: () => this.homeActionClient(),
         ownerContext });
+      // The per-partition assembly runs while the Host does (batch 107): its due timer and idle sweep start now; a partition a due entry wakes
+      // is opened from the catalog, without starting the project's platform.
+      partitionPluginHostFor(home, startPartitionPluginInstance).startServices(async (partitionId, work) => {
+        const record = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listPartitions().find(project => project.project_id === partitionId)) : undefined;
+        if (!record) throw new ActionError("actions.plugin_unavailable", "这个分区已经不在了");
+        return withPartitionPluginPorts(this.plugins, reference(record), work);
+      });
     }
     } catch (error) {
       // The failed object is never published. Close everything already constructed before relinquishing its lock.
@@ -690,7 +700,7 @@ export class MolisWorkLocalHost {
               };
             });
           await this.host.close();
-        }], ["functions", () => this.systemFunctions?.dispose()],
+        }], ["partition-plugins", () => existingPartitionPluginHost(this.options.homeDirectory)?.close()], ["functions", () => this.systemFunctions?.dispose()],
         ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["sessions", () => this.sessions?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)], ["assistant", () => this.assistantStore?.close()],
         ["resting-readings", async () => {
           if (!openBeforeClose.length) return;

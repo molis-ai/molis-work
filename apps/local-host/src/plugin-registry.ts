@@ -1,4 +1,4 @@
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostSurfaceRegistration, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -245,10 +245,15 @@ export function registeredHostAction<I = unknown, O = unknown>(capabilityId: str
   return undefined;
 }
 
-/** The registry Projects validates against, derived from what this build ships. */
+/**
+ * The registry Projects validates against, derived from what this build ships. A new project starts with the plugins marked
+ * `default_enabled`; the personal space also with every plugin that keeps a library in each partition (`databases.partition`): it is
+ * where the person's own documents, decks, forms, tables, sparks and workflows are kept, and where they are moved to (batch 107).
+ */
 export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
   has: pluginId => PROJECT_SCOPED_PLUGIN_IDS.includes(pluginId),
-  initial: () => PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.default_enabled).map(entry => entry.project_plugin_id),
+  initial: projectId => PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.default_enabled || projectId === PERSONAL_SPACE_PROJECT_ID && entry.manifest.databases?.partition)
+    .map(entry => entry.project_plugin_id),
   companions: pluginId => [...(builtinPluginByProjectKey(pluginId)?.companions ?? []), ...requiredCompanions(pluginId)],
   isPersonal: pluginId => PERSONAL_PLUGIN_IDS.includes(pluginId),
 };

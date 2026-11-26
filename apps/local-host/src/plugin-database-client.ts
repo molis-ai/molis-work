@@ -27,8 +27,6 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   readonly writer: Connection;
   /** Whether the writer is inside a transaction (`isTransaction` on a `DatabaseSync`, `inTransaction` on the storage package's connection). */
   inTransaction(): boolean;
-  /** Asked first on every read and write: a library partitioned by project says why that project's library is gone. */
-  refuse?(): void;
   /** What each statement passes after the keyword filters, on the connection that will run it; a library in the Home has nothing more. */
   perform?<T>(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write", execute: () => T): T;
   check?(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write"): void;
@@ -69,7 +67,6 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
   const { reader, writer } = connections;
   const perform = <T>(db: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write", run: () => T): T => connections.perform ? connections.perform(db, sql, parameters, mode, run) : run();
   const permit = (permission: string) => {
-    connections.refuse?.();
     if (closed()) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     authorize("storage:private"); authorize(permission);
   };

@@ -30,14 +30,14 @@ type Drafted = { status: string; interaction: { interaction_id: string; why: str
 
 async function fixture(t: import("node:test").TestContext, replies: unknown[]) {
   const home = await mkdtemp(join(tmpdir(), "form-draft-"));
-  const forms = openFormStore(home);
+  const forms = openFormStore(home, "p");
   t.after(async () => { forms.close(); await rm(home, { recursive: true, force: true }); });
   const heard: string[] = [];
   const handlers: ActionHandlerBinding[] = createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability: () => ({ available: true }),
     completeText: async prompt => { heard.push(JSON.stringify(prompt)); const next = replies.shift(); return typeof next === "string" ? next : JSON.stringify(next); } });
   const draft = handlers.find(handler => handler.capability_id === formActions.draft.capability_id)!;
   const caller: ActionExecutionContext = { actor_id: "web-user", project_id: "p", audience: "user", permissions: [], beforeEffect: async () => {} };
-  const form = forms.create({ project_id: "p", title: "试用反馈" });
+  const form = forms.create({ title: "试用反馈" });
   return { forms, form, heard, call: (input: Record<string, unknown>) => draft.handle(caller, { id: form.id, prompt: "做一份试用反馈问卷", ...input }) as Promise<Drafted> };
 }
 
@@ -49,7 +49,7 @@ test("AC-09 AC-26 a request that does not say enough is asked about first, in qu
   assert.equal(asked.interaction.why, "先确认问卷给谁填、要几题");
   assert.deepEqual(asked.interaction.questions.map((question: { index: number; type: string; required: boolean }) => [question.index, question.type, question.required]), [[0, "choice", true], [1, "choice", true]]);
   assert.deepEqual(asked.interaction.questions[0].options[0], { index: 0, label: "内部同事", description: "可以用内部说法", recommended: true });
-  assert.equal(f.forms.get(f.form.id, "p").questions.length, 0, "asking writes nothing");
+  assert.equal(f.forms.get(f.form.id).questions.length, 0, "asking writes nothing");
 });
 
 test("AC-09 AC-26 the answer is checked against the questions asked, each field on its own, and then drafting goes on with it", async t => {
@@ -70,7 +70,7 @@ test("AC-09 AC-26 the answer is checked against the questions asked, each field 
 test("AC-26 a form changed while the person answered is asked about afresh, and a made-up interaction is refused", async t => {
   const f = await fixture(t, [ASK]);
   const { interaction } = await f.call({});
-  f.forms.update(f.form.id, { title: "试用反馈（改）", expected_version: f.form.version }, "p");
+  f.forms.update(f.form.id, { title: "试用反馈（改）", expected_version: f.form.version });
   await assert.rejects(f.call({ interaction: { interaction_id: interaction.interaction_id, values: { q0: ["0"], q1: ["0"] } } }), (error: { code?: string }) => error.code === "form.conflict");
   await assert.rejects(f.call({ interaction: { interaction_id: "draft-made-up", values: {} } }), (error: { code?: string }) => error.code === "form.invalid");
   assert.equal(f.heard.length, 1);
@@ -84,7 +84,7 @@ test("AC-26 the model is asked once: after an answer it must draft, and a reply 
     { status: "needs_input", questions: [{ prompt: "问什么？", options: [] }] }, { status: "maybe" }]) {
     const f = await fixture(t, [reply]);
     await assert.rejects(f.call({}), (error: { code?: string }) => error.code === "form.invalid", JSON.stringify(reply));
-    assert.equal(f.forms.get(f.form.id, "p").questions.length, 0);
+    assert.equal(f.forms.get(f.form.id).questions.length, 0);
   }
 });
 
@@ -101,7 +101,7 @@ test("LOGIC-05 questions the form cannot store leave the answers in place, so th
 
 test("LOGIC-05 a failed save keeps the answers until the questions are actually stored", async t => {
   const home = await mkdtemp(join(tmpdir(), "form-draft-"));
-  const forms = openFormStore(home);
+  const forms = openFormStore(home, "p");
   t.after(async () => { forms.close(); await rm(home, { recursive: true, force: true }); });
   const replies = [ASK, DONE, DONE];
   let failWrite = true;
@@ -111,14 +111,14 @@ test("LOGIC-05 a failed save keeps the answers until the questions are actually 
     completeText: async () => JSON.stringify(replies.shift()) });
   const draft = handlers.find(handler => handler.capability_id === formActions.draft.capability_id)!;
   const caller: ActionExecutionContext = { actor_id: "web-user", project_id: "p", audience: "user", permissions: [], beforeEffect: async () => {} };
-  const form = forms.create({ project_id: "p", title: "试用反馈" });
+  const form = forms.create({ title: "试用反馈" });
   const call = (input: Record<string, unknown>) => draft.handle(caller, { id: form.id, prompt: "做一份试用反馈问卷", ...input }) as Promise<Drafted>;
   const { interaction } = await call({});
   const values = { q0: ["0"], q1: ["0"] };
   await assert.rejects(call({ interaction: { interaction_id: interaction.interaction_id, values } }), /落库失败/);
   const done = await call({ interaction: { interaction_id: interaction.interaction_id, values } });
   assert.equal(done.status, "done");
-  assert.equal(forms.get(form.id, "p").questions.length, 3);
+  assert.equal(forms.get(form.id).questions.length, 3);
 });
 
 test("AC-26 「AI 生成题目」 is a well-formed metered model action that waits for the model off the project's queue", () => {
@@ -140,7 +140,7 @@ test("RAC-1667 a drafting request is counted in Unicode characters like the acti
   assert.equal(JSON.parse(fenced[1]!).request, wide(500), "the request goes to the model whole");
   await assert.rejects(f.call({ prompt: wide(501) }), { code: "form.invalid", message: "生成要求须为 1 到 500 个字" }, "501 characters is still past the limit");
   assert.equal(f.heard.length, 1, "the refused request did not reach the model");
-  assert.equal(f.forms.get(f.form.id, "p").questions.length, 3, "and wrote nothing");
+  assert.equal(f.forms.get(f.form.id).questions.length, 3, "and wrote nothing");
 });
 
 test("RAC-1699 the questions it asks first are cut in whole characters: a prompt to 300, a label to 120, an option's description to the 300 UTF-16 units the question rules count", async t => {
@@ -167,7 +167,7 @@ test("RAC-1849 a drafted question's title is counted in Unicode characters like 
   assert.deepEqual(done.form.questions.map((question: { title: string }) => question.title), [wide(200)], "a 200-character title is drafted and kept whole");
   await assert.rejects(f.call({}), { code: "form.invalid", message: "模型没有返回有效题目，请调整提示后重试" }, "201 characters is past the limit, refused by the draft itself");
   assert.equal(f.heard.length, 2, "the second reply did reach the model");
-  assert.equal(f.forms.get(f.form.id, "p").questions.length, 1, "and wrote nothing");
+  assert.equal(f.forms.get(f.form.id).questions.length, 1, "and wrote nothing");
 });
 
 test("RAC-1850 the option labels it drafts are cut in whole characters at 120, and a label of exactly 120 characters is kept whole", async t => {

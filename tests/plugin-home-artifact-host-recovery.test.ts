@@ -8,32 +8,20 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { acquireUpgradedHomeOwner, createHomeSnapshot, homeUpgradeDescriptors, LocalProjectDatabase, molisWorkHostProjectReference, MolisWorkLocalHost, PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncNamespace, restoreHomeSnapshot, runHomeUpgrade, runV1Cli, upgradeFingerprint } from "@molis-ai/molis-work-app-local-host";
+import { acquireUpgradedHomeOwner, createHomeSnapshot, homeUpgradeDescriptors, LocalProjectDatabase, molisWorkHostProjectReference, MolisWorkLocalHost, pluginSyncNamespace, restoreHomeSnapshot, runHomeUpgrade, runV1Cli, upgradeFingerprint } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { DATASET_DATABASE, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
 import { formManifest } from "@molis-ai/molis-work-plugin-form";
 import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, openSqliteConnection, sqliteErrorName } from "@molis-ai/molis-work-storage";
+import { bindDatabaseSpace, ensureStorageSpace, openSqliteConnection, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 import { ADD_TAG, BASELINE_V2, homeIdentityOf, ledgerFile, ledgerOf, notesDescriptor, raiseProjectBaseline, REAL_PROJECT_VERSION, relativeStore, seedStore, stampFile, useDescriptors, versionOf, writeLedger } from "./fixtures/home-upgrade-home.js";
 import { registerProbe } from "./fixtures/plugin-home-artifact-probe.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { runRollbackPair } from "./fixtures/plugin-home-rollback-pair.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
-
-/** The Host reads its real registry; this fixture enables the candidate declaration without changing any shipped action. */
-function optInCandidate(t: TestContext): void {
-  const entries = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
-  const index = entries.findIndex(entry => entry.project_plugin_id === "dataset"), original = entries[index]!;
-  const { manifest } = original, home = manifest.databases!.home!;
-  entries[index] = { ...original, manifest: { ...manifest, databases: { ...manifest.databases, home: { ...home,
-    project_rows: { ...home.project_rows!, artifact_join: { table: "datasets", id_column: "id", version_column: "version",
-      artifact_id_column: "artifact_id", artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" } },
-  } } } };
-  t.after(() => { entries[index] = original; });
-}
 
 async function interruptProjectWrite(t: TestContext, file: string, mode = "host"): Promise<void> {
   const entry = fileURLToPath(new URL("./fixtures/plugin-home-rollback-child.mjs", import.meta.url));
@@ -59,7 +47,6 @@ test("BSH-03 · the real Home owner recovers before its upgrade stamp and offlin
   const stampPath = join(f.home, "upgrade", "state.json"), stamp = readFileSync(stampPath);
   const clean = join(f.area, "before-interruption");
   assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: clean })).status, "created");
-  optInCandidate(t);
 
   const file = project.database_path, journal = file + "-journal";
   await interruptProjectWrite(t, file);
@@ -98,18 +85,18 @@ test("BSH-03 · the real Home owner recovers before its upgrade stamp and offlin
 
 test("BSH-01 · the real owner refuses a nonzero pending library before starting U1", async t => {
   const f = await smallSnapshotHome(t);
-  const space = ensureStorageSpace(f.home), file = homeSqlitePath(f.home, DATASET_DATABASE.store_name);
-  mkdirSync(dirname(file));
+  // Dataset's library in the personal partition (U2): the pending check reads every partition's pinned library.
+  const space = ensureStorageSpace(f.home), file = partitionLibraryFile(f.home, "personal", DATASET_DATABASE.store_name);
+  mkdirSync(dirname(file), { recursive: true });
   const db = openSqliteConnection(file);
   try {
     db.exec(`PRAGMA journal_mode=WAL; PRAGMA user_version=${DATASET_DATABASE.version}; ${DATASET_DATABASE.schema}`);
     bindDatabaseSpace(db, space);
-    db.prepare(`INSERT INTO datasets (id, project_id, title, description, status, columns_json, rows_json, created_at, updated_at, version, publication_pending_json)
-      VALUES ('awaiting-author', '', 'Pending pin', '', 'draft', '[]', '[]', ?, ?, 2, '{"version":1}')`).run("2026-11-09", "2026-11-09");
+    db.prepare(`INSERT INTO datasets (id, title, description, status, columns_json, rows_json, created_at, updated_at, version, publication_pending_json)
+      VALUES ('awaiting-author', 'Pending pin', '', 'draft', '[]', '[]', ?, ?, 2, '{"version":1}')`).run("2026-11-09", "2026-11-09");
   } finally { db.close(); }
   const before = readFileSync(file);
   const stamp = await f.file("upgrade/state.json", "deliberately invalid U1 state");
-  optInCandidate(t);
   const refusal = { code: "actions.conflict", details: { library: "dataset", pending_ids: ["awaiting-author"] } };
   assert.throws(() => acquireUpgradedHomeOwner(f.home), refusal);
   assert.throws(() => runHomeUpgrade(f.home), refusal);
@@ -121,15 +108,17 @@ test("BSH-01 · the real owner refuses a nonzero pending library before starting
   assert.throws(() => runHomeUpgrade(f.home), { code: "actions.input_invalid" });
   assert.deepEqual(readFileSync(external), sentinel);
   rmSync(file + "-shm", { force: true });
-  // A single plugin library newer than this build must not crash assertNoPendingArtifactRows: ensureHomeUpgraded isolates only that plugin.
+  // A partition library newer than this build must not crash assertNoPendingArtifactRows: it is left as it is, for its plugin to refuse
+  // when it starts there; it is no unit of the Home's upgrade.
   const newer = openSqliteConnection(file);
   try {
     newer.prepare("UPDATE datasets SET publication_pending_json = NULL").run();
     newer.exec(`PRAGMA user_version = ${DATASET_DATABASE.version + 1}`);
   } finally { newer.close(); }
+  const newerBytes = readFileSync(file);
   const report = runHomeUpgrade(f.home);
-  const unit = report.units.find(item => item.relative_path === "dataset/dataset.db");
-  assert.equal(unit?.state, "too_new", "too-new plugin library is isolated as too_new instead of crashing whole-Home startup");
+  assert.equal(report.units.some(item => item.relative_path.endsWith("libraries/dataset.db")), false);
+  assert.deepEqual(readFileSync(file), newerBytes, "the too-new partition library is left untouched");
 });
 
 test("BSH-03 · a registered project recovers the WAL mode change; staging stays in WAL and linked SQLite files are refused", { timeout: 20_000 }, async t => {
@@ -137,7 +126,6 @@ test("BSH-03 · a registered project recovers the WAL mode change; staging stays
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   const selected = await catalog.createProject({ display_name: "Mode recovery fixture", actor_id: "fixture" });
   catalog.close();
-  optInCandidate(t);
   const file = selected.database_path, journal = file + "-journal";
   await interruptProjectWrite(t, file, "wal-transition");
   assert.deepEqual([...readFileSync(file).subarray(18, 20)], [2, 2]);
@@ -185,7 +173,6 @@ test("BSH-03 · a Goals CLI snapshot cannot switch a project belonging to anothe
   const file = project.database_path, projectId = project.project_id;
   const modes = () => [...readFileSync(file).subarray(18, 20)];
   assert.deepEqual(modes(), [2, 2]);
-  optInCandidate(t);
   const sourceOwner = acquireUpgradedHomeOwner(source.home);
   const targetOwner = acquireUpgradedHomeOwner(target.home);
   try {
@@ -211,7 +198,6 @@ test("BSH-03 · U1 refuses a linked project SHM before the first SQLite read of 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   const project = await catalog.createProject({ display_name: "First read fixture", actor_id: "fixture" });
   catalog.close();
-  optInCandidate(t);
   raiseProjectBaseline(t);
   const file = project.database_path, shm = file + "-shm", external = join(f.area, "external-shm");
   rmSync(stampFile(f.home), { force: true });
@@ -239,7 +225,6 @@ test("BSH-03 · an interrupted unregistered staging WAL open remains with the pr
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   const project = await catalog.createProject({ display_name: "Registered project", actor_id: "fixture" });
   catalog.close();
-  optInCandidate(t);
   const stage = join(f.home, "projects", ".staging-interrupted", "molis-work.db"), journal = stage + "-journal";
   mkdirSync(dirname(stage));
   await interruptProjectWrite(t, stage, "wal-provision");
@@ -267,7 +252,7 @@ test("BSH-03 · Host startup rolls back a live pair before resuming the same unf
   await home.close();
   await home.host.close();
 
-  const file = selected.database_path, libraryFile = homeSqlitePath(home.home, "dataset");
+  const file = selected.database_path, libraryFile = partitionLibraryFile(home.home, selected.project_id, "dataset");
   const addPadding = (path: string, replication: string) => {
     const db = openSqliteConnection(path, { fileMustExist: true });
     try {
@@ -360,7 +345,7 @@ test("BSH-03 · cold Host opens the registered pair and retries the same pin aft
       return project;
     } finally { catalog.close(); }
   })();
-  const file = realpathSync(project.database_path), libraryFile = homeSqlitePath(home, "form");
+  const file = realpathSync(project.database_path), libraryFile = partitionLibraryFile(home, project.project_id, "form");
   assert.deepEqual([...readFileSync(file).subarray(18, 20)], [2, 2], "the registered project starts in WAL");
   assert.equal(existsSync(libraryFile), false, "the registered Form library is still unopened");
 
@@ -384,7 +369,7 @@ test("BSH-03 · cold Host opens the registered pair and retries the same pin aft
       const library = openSqliteConnection(libraryFile, { readonly: true });
       try {
         return {
-          form: library.prepare("SELECT version, artifact_id, artifact_version, publication_pending_json FROM forms WHERE id=? AND project_id=?").get(form.id, project.project_id),
+          form: library.prepare("SELECT version, artifact_id, artifact_version, publication_pending_json FROM forms WHERE id=?").get(form.id),
           versions: main.prepare< [string], { version: number }>("SELECT version FROM library_artifact_versions WHERE artifact_id=? ORDER BY version").all(artifactId).map(row => row.version),
           events: main.prepare("SELECT object_id FROM events WHERE object_id GLOB ? ORDER BY seq").all(artifactId + "@*"),
           projectChanges: main.prepare<[], { n: number }>("SELECT count(*) AS n FROM artifacts_replica_changes").get()!.n,
@@ -416,7 +401,8 @@ test("BSH-03 · cold Host opens the registered pair and retries the same pin aft
     let failureMs = 0;
     await whileSqliteLocked(t, lock.path, lock.table, async () => {
       const requested = performance.now();
-      await assert.rejects(server!.web.post(pinPath, input), error => isLocalHostHttpError(error) && /database is locked/u.test(error.message));
+      // The person reads the busy store in their words (common.error.storage-busy, #2307), not SQLite's.
+      await assert.rejects(server!.web.post(pinPath, input), error => isLocalHostHttpError(error) && /数据正被另一个窗口或进程占用/u.test(error.message));
       failureMs = performance.now() - requested;
       assert.deepEqual(facts(), old, lock.side + " leaves both databases unchanged");
       assert.equal(existsSync(file + "-journal"), false);

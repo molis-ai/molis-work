@@ -317,10 +317,10 @@ function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: Sqlit
  * store is inspected read-only first (version and structure), so a wrong one is refused before a writable connection, its chmod or a
  * journal file can change anything.
  */
-export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline, projectId?: string): DatabaseSync {
-  const path = homeSqlitePath(homeDirectory, storeName, projectId);
+export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline): DatabaseSync {
+  const path = homeSqlitePath(homeDirectory, storeName);
   const inspected = inspectSqliteBaseline(path, baseline, homeDirectory);
-  const db = openHomeSqliteDatabase(homeDirectory, storeName, projectId, db => applyBaseline(db, path, baseline, inspected, homeDirectory));
+  const db = openHomeSqliteDatabase(homeDirectory, storeName, db => applyBaseline(db, path, baseline, inspected, homeDirectory));
   try {
     applyBaseline(db, path, baseline, inspected, homeDirectory);
     return db;

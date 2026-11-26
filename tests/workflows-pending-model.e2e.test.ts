@@ -30,7 +30,7 @@ test("QEA-64 · a real generated pending handoff can finish after its model is d
   } })).workflow;
   const start = async () => (await b.web.post<{ instance: WorkflowInstance }>(`${path}/${workflow.workflow_id}/instances`, { item_id: item.item_id })).instance;
   const run = await start(), fresh = await start();
-  const store = openWorkflowsStore(b.homeDirectory), pages = openPagesStore(b.homeDirectory); t.after(() => { store.close(); pages.close(); });
+  const store = openWorkflowsStore(b.homeDirectory, project), pages = openPagesStore(b.homeDirectory, project); t.after(() => { store.close(); pages.close(); });
   const receive = run.chain.stations[1]!.content!.actions.receive!, invoke = ActionService.prototype.invoke;
   let deliveries = 0;
   t.mock.method(ActionService.prototype, "invoke", async function (this: ActionService, ...args: Parameters<typeof invoke>) {
@@ -62,9 +62,9 @@ test("QEA-64 · a real generated pending handoff can finish after its model is d
   };
   await open(run.instance_id);
   await frame.click("[data-wf-action=continue]"); await frame.waitFor("document.querySelector('[data-wf-toast]')?.dataset.tone === 'error'");
-  const pending = store.instance(run.instance_id, project).steps[0]!.pending!;
+  const pending = store.instance(run.instance_id).steps[0]!.pending!;
   assert.ok(pending); assert.equal(pending.output.body, "这一份生成正文只交付一次。");
-  assert.equal(deliveries, 1); assert.equal(pages.list(project).length, 1);
+  assert.equal(deliveries, 1); assert.equal(pages.list().length, 1);
   const calls = model.requests.length; assert.ok(calls > 0, "the real SDK actually requested the generated content");
   await b.web.post("/api/settings/models/workflow-model", { display_name: "fixture", base_url: model.base, api_format: "anthropic-messages",
     enabled: false, prompt_cache: "off", models: [{ model_id: "fixture", enabled: true }], check_connection: true });
@@ -77,13 +77,13 @@ test("QEA-64 · a real generated pending handoff can finish after its model is d
   assert.match(await frame.evaluate<string>("document.querySelector('[data-wf-vlink]').innerText"), /正在交接/);
   assert.equal(model.requests.length, calls);
   releaseSecond.resolve(); await frame.waitFor("document.querySelector('.wf-run__status')?.dataset.mwState === 'done'");
-  const finished = store.instance(run.instance_id, project);
+  const finished = store.instance(run.instance_id);
   assert.equal(finished.steps[0]!.handoff?.key, pending.key); assert.deepEqual(finished.steps[0]!.handoff?.output, pending.output);
-  assert.equal(deliveries, 2); assert.equal(pages.list(project).length, 1); assert.equal(model.requests.length, calls);
+  assert.equal(deliveries, 2); assert.equal(pages.list().length, 1); assert.equal(model.requests.length, calls);
   await frame.click("[data-wf-action=back-to-flow]"); await frame.waitFor(`document.querySelector('[data-wf-open-instance="${fresh.instance_id}"]')`);
   await frame.click(`[data-wf-open-instance="${fresh.instance_id}"]`); await frame.waitFor(`document.querySelector('.wf-run')?.dataset.id === '${fresh.instance_id}'`);
   assert.equal(await frame.evaluate("Boolean(document.querySelector('[data-wf-action=continue]'))"), false, "an unprepared AI link still needs its model");
   assert.match(await frame.evaluate<string>("document.querySelector('[data-wf-handoff]').innerText"), /模型/);
-  assert.equal(store.instance(fresh.instance_id, project).steps[0]!.pending, undefined);
-  assert.equal(model.requests.length, calls); assert.equal(pages.list(project).length, 1);
+  assert.equal(store.instance(fresh.instance_id).steps[0]!.pending, undefined);
+  assert.equal(model.requests.length, calls); assert.equal(pages.list().length, 1);
 });

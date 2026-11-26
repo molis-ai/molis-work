@@ -175,7 +175,7 @@ test("source and built CLI without --source use the product root even from anoth
     assert.equal(installedPackage.version, sourcePackage.version);
     assert.equal(await readFile(join(installed.release_directory, "dist", "cli", "main.js"), "utf8"),
       await readFile(join(productRoot, "dist", "cli", "main.js"), "utf8"));
-    const help = await execFileAsync(installed.launchers.cli, ["--help"], { cwd: directory });
+    const help = await execFileAsync(installed.launchers.cli, ["--help"], { cwd: directory, env: { ...process.env, MOLIS_WORK_LOCALE: "en" } });
     assert.match(help.stdout, /Molis Work commands/);
     assert.match(help.stdout, /molis-work plugin/);
     const again = await execFileAsync(process.execPath, [

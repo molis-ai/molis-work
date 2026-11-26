@@ -171,7 +171,7 @@ test("BL-browser-socket-close-pending-bind: a refused project check still answer
   sendTo(ws, { type: "watch", project_id: "missing" });
   sendTo(ws, { type: "visible", visible: true });
   await until(() => messages.some(message => message.type === "error"), "the refusal");
-  assert.deepEqual(messages.filter(message => message.type === "error"), [{ type: "error", message: "项目不存在" }]);
+  assert.deepEqual(messages.filter(message => message.type === "error"), [{ type: "error", message: "找不到这项内容，可能已被删除或移动。" }]);
   await settle();
   assert.equal(h.pages.get("missing"), undefined, "a refused binding drops what follows (S-04)");
   assert.equal(h.host.existingPage("missing"), undefined);

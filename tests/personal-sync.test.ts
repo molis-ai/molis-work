@@ -10,7 +10,7 @@ import {readdirSync,readFileSync} from 'node:fs';
 
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
-import {homeSqlitePath,openBaselineHomeSqlite,namespacedReplicaDatabase} from '@molis-ai/molis-work-storage';
+import { openBaselineHomeSqlite, namespacedReplicaDatabase } from '@molis-ai/molis-work-storage';
 
 import {PersonalSync,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 
@@ -23,15 +23,16 @@ import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {ArtifactsModule,createArtifactReplication} from '@molis-ai/molis-work-module-artifacts';
 
 import {newStation} from '@molis-ai/molis-work-plugin-workflows';
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 const body=(text:string)=>({type:'doc' as const,content:[{type:'paragraph',content:[{type:'text',text}]}]});
 
 test('PERSAF-02 per-document replication works beyond the project snapshot limit and leaves unrelated editor versions untouched',async t=>{
-  const f=fixture(t);const ids=f.withStore(0,s=>Array.from({length:170},(_,i)=>s.create({project_id:'project',title:'Document '+i,body:body('x'.repeat(100000))}).id));
+  const f=fixture(t);const ids=f.withStore(0,s=>Array.from({length:170},(_,i)=>s.create({title:'Document '+i,body:body('x'.repeat(100000))}).id));
   await f.enable();
   for(let i=0;i<6;i++){await f.clients[0].run();await f.clients[1].run();}
   assert.equal(f.clients[0].status().error,null);assert.equal(f.clients[1].status().error,null);
-  assert.equal(f.withStore(1,s=>s.list('project').length),170);
+  assert.equal(f.withStore(1,s=>s.list().length),170);
   const unchanged=f.withStore(1,s=>s.get(ids[1]!).version);
   f.withStore(0,s=>s.update(ids[0]!,{title:'Changed only one'}));await f.clients[0].run();await f.clients[1].run();
   assert.equal(f.withStore(1,s=>s.get(ids[0]!).title),'Changed only one');
@@ -39,15 +40,15 @@ test('PERSAF-02 per-document replication works beyond the project snapshot limit
 });
 
 for(const concurrent of [false,true])test('PCSYNC-10 full quota keeps uploads queued while independent deletes and downloads continue '+concurrent,async t=>{
-  const f=fixture(t),old=f.withStore(0,s=>s.create({project_id:'project',title:'delete me'}));
+  const f=fixture(t),old=f.withStore(0,s=>s.create({title:'delete me'}));
   await f.enable();await f.clients[1].run();
-  const pending=f.withStore(0,s=>s.create({project_id:'project',title:'retained locally'}));
+  const pending=f.withStore(0,s=>s.create({title:'retained locally'}));
   f.withStore(0,s=>s.delete(old.id));
   if(concurrent)f.afterQuotaSnapshot(()=>f.used(100000000));else f.used(100000000);
   await f.clients[0].run();assert.match(f.clients[0].status().error??'',/100 MB/);
   assert.equal(f.clients[0].status().collections[0].pending,1);
   assert.equal(f.withStore(0,s=>s.get(pending.id).title),'retained locally');
-  await f.clients[1].run();assert.equal(f.withStore(1,s=>s.list('project').length),0);
+  await f.clients[1].run();assert.equal(f.withStore(1,s=>s.list().length),0);
   f.afterQuotaSnapshot(()=>{});f.used(0);await f.clients[0].run();await f.clients[1].run();
   assert.equal(f.clients[0].status().error,null);assert.equal(f.withStore(1,s=>s.get(pending.id).title),'retained locally');
 });
@@ -61,7 +62,7 @@ for (const reserved of [false, true]) test('Host binding receives Pages in '+(re
     const p=reserved ? await catalog.ensurePersonalSpace('alice') : await catalog.createProject({display_name:'跨设备项目',actor_id:'alice'});
     catalog.addProjectPlugin({project_id:p.project_id,plugin_id:'pages',actor_id:'alice'});return p;
   });
-  const page=f.withStore(0,s=>s.create({project_id:project.project_id,title:'完整正文',body:body('Shared content')}));
+  const page=f.withStore(0,s=>s.create({title:'完整正文',body:body('Shared content')}),project.project_id);
   let active=true;const check=()=>{if(!active)throw new Error('REVOKED');};
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async catalog=>{
     const target=reserved?await catalog.ensurePersonalSpace('alice'):await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check);
@@ -71,7 +72,7 @@ for (const reserved of [false, true]) test('Host binding receives Pages in '+(re
   const [a,b]=runtimes.map(runtime=>runtime.sync);
   await a.save({spaceId:f.space.spaceId,revision:0,selections:[selection]});await a.run();assert.equal(a.status().error,null);
   await b.run();assert.equal(b.status().error,null);
-  assert.equal(f.withStore(1,s=>s.get(page.id).title),'完整正文');
+  assert.equal(f.withStore(1,s=>s.get(page.id).title,project.project_id),'完整正文');
   await runtimes[1]!.withCatalog({homeDirectory:f.homes[1]},catalog=>{
     assert.equal(catalog.listPartitions().find(p=>p.project_id===project.project_id)?.display_name,reserved?'个人空间':'跨设备项目');
     assert.ok(catalog.listPartitions().some(row=>row.project_id===project.project_id),'synchronization retains the explicit destination project');
@@ -93,7 +94,7 @@ test('Host sync: delayed fixed Artifact versions restore a waiting document with
     for(const version of [1,2])owner.commands.registerVersion({project_id:project.project_id,artifact_id:'linked-artifact',version,actor_id:'alice',artifact_type_id:'io.molis.work.document',schema_version:1,origin:{kind:'imported',file_name:'report.json'},title:'Report',media_type:'application/json',producer:{plugin_id:'io.molis.work.pages',plugin_version:'1.0.0',binding_signature:'official-pages-binding'},content:{kind:'inline',payload:{title:'固定成果',version,text:'完整正文'}}});
     owner.commands.archiveVersion({project_id:project.project_id,artifact_id:'linked-artifact',version:1,actor_id:'alice'});
   }finally{store.close();}
-  const page=f.withStore(0,s=>{const p=s.create({project_id:project.project_id,title:'有成果的文档',body:body('完整正文')});return s.update(p.id,{artifact_id:'linked-artifact',artifact_version:1});});
+  const page=f.withStore(0,s=>{const p=s.create({title:'有成果的文档',body:body('完整正文')});return s.update(p.id,{artifact_id:'linked-artifact',artifact_version:1});},project.project_id);
   const check=()=>{};
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async catalog=>{await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check);catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'pages',actor_id:'alice'});});
   const runtimes=await Promise.all(f.homes.map(home=>runtimePersonalSync(home,f.space,check)));runtimes.forEach(runtime=>f.closeWith(()=>runtime.close()));
@@ -101,12 +102,12 @@ test('Host sync: delayed fixed Artifact versions restore a waiting document with
   await a.save({spaceId:f.space.spaceId,revision:0,selections:[selection]});await a.run();await b.run();assert.equal(b.status().error,null);
   const waiting=b.status().collections.find(c=>c.selection.plugin_id===selection.plugin_id)!.conflicts;
   assert.equal(waiting.length,1);assert.equal(waiting[0].waiting,true);assert.match(waiting[0].reason,/成果/);
-  assert.equal(f.withStore(1,s=>s.list(project.project_id).length),0);
+  assert.equal(f.withStore(1,s=>s.list().length,project.project_id),0);
   await assert.rejects(()=>b.resolve(syncNamespace(selection),waiting[0].key,'local'),/尚未到达/);
   // Artifact history is a platform owner; selecting it does not install or enable a plugin.
   await a.save({...a.policy(),selections:[selection,artifactSyncSelection]});await a.run();assert.equal(a.status().error,null);
   await b.run();assert.equal(b.status().error,null);
-  const restored=f.withStore(1,s=>s.get(page.id));assert.equal(restored.artifact_id,'linked-artifact');assert.equal(restored.artifact_version,1);assert.deepEqual(restored.body,body('完整正文'));
+  const restored=f.withStore(1,s=>s.get(page.id),project.project_id);assert.equal(restored.artifact_id,'linked-artifact');assert.equal(restored.artifact_version,1);assert.deepEqual(restored.body,body('完整正文'));
   await runtimes[1]!.withCatalog({homeDirectory:f.homes[1]},c=>{
     const p=c.listProjects().find(p=>p.project_id===project.project_id)!;const db=new LocalProjectDatabase(p.database_path);
     try{const owner=new ArtifactsModule({db:db.db,appendEvent:e=>db.appendEvent(e)});assert.equal(owner.query.listArtifactVersions(p.project_id,'linked-artifact').length,2);assert.equal(owner.query.getArtifactVersion(p.project_id,{artifact_id:'linked-artifact',version:1})!.lifecycle_state,'archived');}finally{db.close();}
@@ -118,15 +119,15 @@ test('Host sync: delayed fixed Artifact versions restore a waiting document with
 });
 
 test('logout during a download cannot apply a late response or advance its cursor',async t=>{
-  const f=fixture(t);const page=f.withStore(0,s=>s.create({project_id:'project',title:'late'}));await f.enable();
+  const f=fixture(t);const page=f.withStore(0,s=>s.create({title:'late'}));await f.enable();
   f.beforeDownload(f.revoke);await f.clients[1].run();
-  assert.equal(f.withStore(1,s=>s.list('project').some(p=>p.id===page.id)),false);
-  const db=new DatabaseSync(homeSqlitePath(f.homes[1],'pages'));
+  assert.equal(f.withStore(1,s=>s.list().some(p=>p.id===page.id)),false);
+  const db=new DatabaseSync(partitionLibraryFile(f.homes[1],'project','pages'));
   try{assert.equal(namespacedReplicaDatabase(db,pluginSyncNamespace(pagesManifest,'documents')).prepare('SELECT cursor FROM replica_state WHERE id=1').get()!.cursor,0);}finally{db.close();}
 });
 
 test('an unavailable collection does not block unrelated selected collections',async t=>{
-  const f=fixture(t);const page=f.withStore(0,s=>s.create({project_id:'project',title:'Still syncs'}));await f.enable();
+  const f=fixture(t);const page=f.withStore(0,s=>s.create({title:'Still syncs'}));await f.enable();
   // Enable through the synthetic server, as another device may have selected this known collection.
   await f.transport('http://127.0.0.1:8788/v1/policy',{method:'PUT',body:JSON.stringify({...f.clients[0].policy(),selections:[selection,artifactSyncSelection]})});
   const good:SyncRegistration={selection,title:'文档与文件夹',refresh:async()=>{},prepare:async()=>{},withReplica:run=>f.withReplica(1,run)};
@@ -165,8 +166,8 @@ test('S-140 PCSYNC-14 Host refuses malformed fixed content before creating any t
 
 test('two devices: durable offline edits, per-item deltas, folders, deletion and no echo',async t=>{
   const f=fixture(t);
-  const folder=f.withStore(0,s=>s.createFolder({project_id:'project',title:'资料'}));
-  const page=f.withStore(0,s=>s.create({project_id:'project',title:'初稿',folder_id:folder.id,body:body('one')}));
+  const folder=f.withStore(0,s=>s.createFolder({title:'资料'}));
+  const page=f.withStore(0,s=>s.create({title:'初稿',folder_id:folder.id,body:body('one')}));
   await f.clients[0].run();assert.equal(f.events.length,0,'default off');
   await f.enable();await f.clients[1].run();
   assert.equal(f.withStore(1,s=>s.get(page.id).title),'初稿');
@@ -179,13 +180,13 @@ test('two devices: durable offline edits, per-item deltas, folders, deletion and
   assert.equal(f.events.length,baseline+1,'one changed item, not whole collection');
   assert.equal(f.withStore(1,s=>s.get(page.id).title),'离线修改');
   f.withStore(0,s=>s.delete(page.id));await f.clients[0].run();await f.clients[1].run();
-  assert.equal(f.withStore(1,s=>s.list('project').length),0);
+  assert.equal(f.withStore(1,s=>s.list().length),0);
   assert.equal(f.events.at(-1)!.value,null);
 });
 
 test('lost upload receipt retries exactly once and does not overwrite a newer local edit',async t=>{
   const f=fixture(t);await f.enable();
-  const page=f.withStore(0,s=>s.create({project_id:'project',title:'v1'}));
+  const page=f.withStore(0,s=>s.create({title:'v1'}));
   f.drop();await f.clients[0].run();assert.equal(f.events.length,1);
   f.withStore(0,s=>s.update(page.id,{title:'v2'}));
   await f.clients[0].run();await f.clients[1].run();
@@ -194,7 +195,7 @@ test('lost upload receipt retries exactly once and does not overwrite a newer lo
 });
 
 test('simultaneous same-item edits preserve both versions and explicit resolution uses latest remote base',async t=>{
-  const f=fixture(t);const page=f.withStore(0,s=>s.create({project_id:'project',title:'base'}));
+  const f=fixture(t);const page=f.withStore(0,s=>s.create({title:'base'}));
   await f.enable();await f.clients[1].run();
   f.withStore(0,s=>s.update(page.id,{title:'A'}));f.withStore(1,s=>s.update(page.id,{title:'B'}));
   await f.clients[0].run();await f.clients[1].run();
@@ -204,11 +205,11 @@ test('simultaneous same-item edits preserve both versions and explicit resolutio
   await f.clients[1].resolve(syncNamespace(selection),conflict.key,'local');await f.clients[1].run();await f.clients[0].run();
   assert.equal(pinned,true);assert.deepEqual(f.retained,[],'the already-uploaded remote branch is pinned, not duplicated');
   assert.equal(f.withStore(0,s=>s.get(page.id).title),'B');
-  const db=new DatabaseSync(homeSqlitePath(f.homes[1],'pages'));try{assert.equal(namespacedReplicaDatabase(db,pluginSyncNamespace(pagesManifest,'documents')).prepare('SELECT COUNT(*) AS n FROM replica_resolutions').get()!.n,1);}finally{db.close();}
+  const db=new DatabaseSync(partitionLibraryFile(f.homes[1],'project','pages'));try{assert.equal(namespacedReplicaDatabase(db,pluginSyncNamespace(pagesManifest,'documents')).prepare('SELECT COUNT(*) AS n FROM replica_resolutions').get()!.n,1);}finally{db.close();}
 });
 
 async function conflictedPages(t:TestContext){
-  const f=fixture(t),page=f.withStore(0,s=>s.create({project_id:'project',title:'base'}));
+  const f=fixture(t),page=f.withStore(0,s=>s.create({title:'base'}));
   await f.enable();await f.clients[1].run();
   f.withStore(0,s=>s.update(page.id,{title:'remote A'}));f.withStore(1,s=>s.update(page.id,{title:'local B'}));
   await f.clients[0].run();await f.clients[1].run();
@@ -370,18 +371,18 @@ for(const change of ['edit','device-stop'] as const)test('PCSYNC-15 delayed rete
 });
 
 test('disable retains data; stale policy fails; account revocation blocks late writes',async t=>{
-  const f=fixture(t);f.withStore(0,s=>s.create({project_id:'project',title:'keep'}));await f.enable();await f.clients[1].run();
+  const f=fixture(t);f.withStore(0,s=>s.create({title:'keep'}));await f.enable();await f.clients[1].run();
   const old=f.clients[1].policy();await f.clients[0].save({...f.clients[0].policy(),selections:[]});await f.clients[0].run();
   await assert.rejects(()=>f.clients[1].save(old));
-  f.withStore(0,s=>s.create({project_id:'project',title:'not uploaded'}));await f.clients[0].run();
-  assert.equal(f.events.length,1);assert.equal(f.withStore(1,s=>s.list('project').length),1);
+  f.withStore(0,s=>s.create({title:'not uploaded'}));await f.clients[0].run();
+  assert.equal(f.events.length,1);assert.equal(f.withStore(1,s=>s.list().length),1);
   f.revoke();assert.throws(()=>f.withReplica(0,r=>r.next()),/REVOKED/);
 });
 
 test('business SQL rollback rolls back the outbox too',async t=>{
   const f=fixture(t);f.withStore(0,()=>{});
-  const db=new DatabaseSync(homeSqlitePath(f.homes[0],'pages'));
-  try{db.exec("BEGIN; INSERT INTO folders VALUES ('f','project','Temp','2026-09-30T00:00:00Z','2026-09-30T00:00:00Z'); ROLLBACK;");assert.equal(namespacedReplicaDatabase(db,pluginSyncNamespace(pagesManifest,'documents')).prepare('SELECT COUNT(*) AS n FROM replica_changes').get()!.n,0);}finally{db.close();}
+  const db=new DatabaseSync(partitionLibraryFile(f.homes[0],'project','pages'));
+  try{db.exec("BEGIN; INSERT INTO folders VALUES ('f','Temp','2026-09-30T00:00:00Z','2026-09-30T00:00:00Z'); ROLLBACK;");assert.equal(namespacedReplicaDatabase(db,pluginSyncNamespace(pagesManifest,'documents')).prepare('SELECT COUNT(*) AS n FROM replica_changes').get()!.n,0);}finally{db.close();}
 });
 
 test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled policy, and covering sync_heads index',()=>{
@@ -408,14 +409,14 @@ test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled p
 test('PCSYNC-20 aggregate and workflow owners report only their own project changes without exporting content',t=>{
  const f=fixture(t),context={spaceId:f.space.spaceId,authorize(){},project:(id:string)=>({title:id}),canUploadProject:()=>false,hasArtifact:()=>false};
  for(const open of [openFormStore,openDatasetStore,openPptStore,openLingguangStore]){
-  const store=open(f.homes[0]);try{
-   store.create({project_id:'project-a',title:'Unsent'});const replica=store.replica(context);
+  const store=open(f.homes[0],'project-a');try{
+   store.create({title:'Unsent'});const replica=store.replica(context);
    assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),false);
    assert.equal(replica.next(),null,'disabled upload must not hide unsynced project content from lifecycle inspection');
   }finally{store.close();}
  }
- const store=openWorkflowsStore(f.homes[0]);try{
-  store.create({project_id:'project-a',title:'Unsent workflow',chain:{stations:[newStation('pages')],links:[]}});
+ const store=openWorkflowsStore(f.homes[0],'project-a');try{
+  store.create({title:'Unsent workflow',chain:{stations:[newStation('pages')],links:[]}});
   const replica=store.replica(context);assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),false);
  }finally{store.close();}
 });
@@ -449,12 +450,12 @@ test('PCSYNC-20 newer Todo v2 is refused without changing original rows or bytes
 
 // PCSYNC-14/23: source-only derived exports do not block incoming records or another healthy project/key.
 test('upload preparation runs only for selected uploads and isolates an unavailable derived-history key',async t=>{
- const f=fixture(t),a=f.withStore(0,store=>store.create({project_id:'project',title:'waiting archive'})),b=f.withStore(0,store=>store.create({project_id:'project',title:'healthy archive'}));let preparations=0,maintenance=0,waiting=true;
+ const f=fixture(t),a=f.withStore(0,store=>store.create({title:'waiting archive'})),b=f.withStore(0,store=>store.create({title:'healthy archive'}));let preparations=0,maintenance=0,waiting=true;
  const key=JSON.stringify(['project','document',a.id]);
  const registration:SyncRegistration={selection,title:'derived exports',refresh:async()=>{},prepare:async()=>{},withReplica:run=>f.withReplica(0,replica=>run({...replica,maintain(){maintenance++;}})),prepareUploads:async()=>{preparations++;return waiting?[{key,error:new Error('SDK history still active')}]:[];}};
  const client=new PersonalSync({home:f.homes[0],spaceId:f.space.spaceId,endpoint:'http://127.0.0.1:8788',fetch:f.transport,authority:{signal:new AbortController().signal,assertCurrent(){},accessToken:async()=>'synthetic-only'},registrations:[registration]});t.after(()=>client.close());
  await client.run();assert.equal(preparations,0,'an unselected owner does not export histories or initialize a Runtime');assert.equal(maintenance,0,'unselected owners do not collect files');
  await client.save({...client.policy(),selections:[selection]});await client.run();assert.ok(preparations>0);assert.ok(maintenance>0,'selected owners run bounded cleanup after processing uploads');assert.match(client.status().error!,/SDK history still active/);await f.clients[1].run();
- assert.equal(f.withStore(1,store=>store.get(b.id).title),'healthy archive');assert.equal(f.withStore(1,store=>store.list('project').some(page=>page.id===a.id)),false);assert.ok(f.withReplica(0,replica=>replica.counts().pending)>0);
+ assert.equal(f.withStore(1,store=>store.get(b.id).title),'healthy archive');assert.equal(f.withStore(1,store=>store.list().some(page=>page.id===a.id)),false);assert.ok(f.withReplica(0,replica=>replica.counts().pending)>0);
  waiting=false;await client.run();await f.clients[1].run();assert.equal(f.withStore(1,store=>store.get(a.id).title),'waiting archive');
 });

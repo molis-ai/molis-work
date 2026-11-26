@@ -1,3 +1,4 @@
+import { redrawInPlace } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escText, escapeAttr } from "./dom.js";
 import { actIdFor, agentMissing, ai, actionOrder, batch, hasFile, hiddenActions, recipeFor, runtime, shortcutFor, stageBusy } from "./model.js";
 import { opSvg } from "./rows.js";
@@ -91,18 +92,18 @@ function barActions(page: ShelfPage, kind: BarKind): string[] {
   return actionOrder(page).map((slot) => actionChip(page, slot, picked, hidden)).filter(Boolean);
 }
 
-export function renderBar(page: ShelfPage, kind: BarKind): void {
+/** With `inPlace` (a language switch) the bar keeps its actions' nodes and only takes the new words (FSS-35). */
+export function renderBar(page: ShelfPage, kind: BarKind, inPlace = false): void {
   const { bar } = page;
   if (!page.lifetime.alive) return;
   page.lastBarKind = kind;
   paintHint(page, kind);
-  if (kind === "empty") {
-    bar.innerHTML = actButton(page, uiText.text("shelf.bar.new"), "pick", true);
-    return;
-  }
-  bar.innerHTML = '<div class="shelf-bar-scroll">' + barActions(page, kind).join("") + "</div>"
-    + '<span class="shelf-act-rule" data-shelf-act-rule aria-hidden="true"></span>'
-    + actButton(page, uiText.text("shelf.bar.conversation"), "talk", true, uiText.text("shelf.bar.open-the-terminal-session-this"))
-    + moreButton(page);
+  const html = kind === "empty" ? actButton(page, uiText.text("shelf.bar.new"), "pick", true)
+    : '<div class="shelf-bar-scroll">' + barActions(page, kind).join("") + "</div>"
+      + '<span class="shelf-act-rule" data-shelf-act-rule aria-hidden="true"></span>'
+      + actButton(page, uiText.text("shelf.bar.conversation"), "talk", true, uiText.text("shelf.bar.open-the-terminal-session-this"))
+      + moreButton(page);
+  if (inPlace) redrawInPlace(bar, html);
+  else bar.innerHTML = html;
 }
 

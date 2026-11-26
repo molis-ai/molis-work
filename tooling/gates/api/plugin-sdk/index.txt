@@ -340,12 +340,18 @@ export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id"> & Par
 
 export type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PersonMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementExport } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementExportInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementPutInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCandidates } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCreateInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationSubjectInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationTargetInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRemoveInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PlacementRemoved } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -854,7 +860,10 @@ export { defineItemNextAction } from "@molis-ai/molis-work-contracts/platform/ac
 export { defineItemRelatedAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineObjectExportAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineObjectMoveAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineObjectPutAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineObjectRemoveAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { definePlacementRelationAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function definePlugin(definition: PluginDefinition): PluginDefinition;
@@ -1101,6 +1110,7 @@ export { runHasExpired } from "@molis-ai/molis-work-contracts/platform/actions";
 export { runIsMissed } from "@molis-ai/molis-work-contracts/platform/actions";
 export { runsExpiryBounds } from "@molis-ai/molis-work-contracts/platform/actions";
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
+export { sameCarriedRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const sandboxActionId: (buildId: string, operationId: string) => string;
 

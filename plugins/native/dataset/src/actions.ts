@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindWorkflowContentHandlers, defineObjectExportAction, defineObjectPutAction, defineObjectRemoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_ARTIFACT_TYPE_ID, DATASET_ARTIFACT_SCHEMA_VERSION, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "./contract.js";
 import type { promoteDataset } from "./promote.js";
 import { toCsv, type DatasetStores } from "./store.js";
@@ -52,8 +52,13 @@ export const datasetActions = {
   subject: datasetSearchActions.subject,
   files: datasetSearchActions.files,
   fileContent: datasetSearchActions.fileContent,
-  move: defineObjectMoveAction("dataset.placement.move", /* @version action.dataset.placement.move */ 1, ["dataset"], "数据表", write),
-  copy: defineObjectCopyAction("dataset.placement.copy", /* @version action.dataset.placement.copy */ 1, ["dataset"], "数据表", write),
+  /**
+   * Where a table lives (specs/archive/work-placement): each partition keeps its own library, so placement carries a table across
+   * (export here, put there, then remove here for a move); the platform rolls the carry back if a step fails.
+   */
+  placementExport: defineObjectExportAction("dataset.placement.export", /* @version action.dataset.placement.export */ 1, ["dataset"], "数据表", read),
+  placementPut: defineObjectPutAction("dataset.placement.put", /* @version action.dataset.placement.put */ 1, ["dataset"], "数据表", write),
+  placementRemove: defineObjectRemoveAction("dataset.placement.remove", /* @version action.dataset.placement.remove */ 1, ["dataset"], "数据表", write),
 };
 /** A table is a workflow content station: it hands its CSV on, and makes a new table from CSV it receives (a form's responses). */
 export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: { title: "数据表", title_text: { key: "dataset.create.kind-title" } }, subject_kind: "dataset",
@@ -79,16 +84,16 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       const ai = ports.modelAvailability();
       const permitted = datasetActions.generateAi.action.permissions.every(permission => caller.permissions.includes(permission))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(datasetActions.generateAi.capability_id));
-      return { datasets: store.list(project(caller)), ai_available: ai.available && permitted,
+      return { datasets: store.list(), ai_available: ai.available && permitted,
         ai_unavailable_reason: !permitted ? "当前调用方未获 AI 加列权限" : !ai.available ? ai.reason : null };
     })),
-    bind(datasetActions.get, (input, caller) => read(store => ({ dataset: store.get(input.id, project(caller)) }))),
-    bind(datasetActions.create, (input, caller) => write(caller, store => ({ dataset: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(datasetActions.update, (input, caller) => write(caller, store => ({ dataset: store.update(input.id, input, project(caller)) }))),
-    bind(datasetActions.delete, (input, caller) => write(caller, store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
-    bind(datasetActions.generate, (input, caller) => write(caller, store => ({ dataset: store.generateColumn(input.id, input.prompt, project(caller), input.expected_version) }))),
+    bind(datasetActions.get, (input) => read(store => ({ dataset: store.get(input.id) }))),
+    bind(datasetActions.create, (input, caller) => write(caller, store => ({ dataset: store.create(input) }))),
+    bind(datasetActions.update, (input, caller) => write(caller, store => ({ dataset: store.update(input.id, input) }))),
+    bind(datasetActions.delete, (input, caller) => write(caller, store => { store.delete(input.id, input.expected_version); return { ok: true }; })),
+    bind(datasetActions.generate, (input, caller) => write(caller, store => ({ dataset: store.generateColumn(input.id, input.prompt, input.expected_version) }))),
     bind(datasetActions.generateAi, async (input, caller) => {
-      const current = read(store => store.get(input.id, project(caller)));
+      const current = read(store => store.get(input.id));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw datasetErrors.conflict("数据表已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
@@ -96,52 +101,51 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       caller.signal?.throwIfAborted();
       if (!name || [...name].length > 80 || /[\r\n]/.test(name)) throw datasetErrors.invalid("模型没有返回有效列名，请调整提示后重试");
       await caller.beforeEffect();
-      return write(caller, store => ({ dataset: store.generateColumn(input.id, name, project(caller), current.version) }));
+      return write(caller, store => ({ dataset: store.generateColumn(input.id, name, current.version) }));
     }, { availability: () => ports.modelAvailability() }),
-    bind(datasetActions.import, (input, caller) => write(caller, store => ({ dataset: store.importCsv(input.id, input.csv, project(caller), input.expected_version) }))),
-    bind(datasetActions.export, (input, caller) => read(store => { const dataset = store.get(input.id, project(caller)); return { dataset, csv: toCsv(dataset) }; })),
-    bind(datasetActions.versions, (input, caller) => read(store => ({ versions: store.listVersions(input.id, project(caller)) }))),
-    bind(datasetActions.snapshot, (input, caller) => write(caller, store => ({ version: store.saveVersion(input.id, input.note, project(caller), input.expected_version) }))),
-    bind(datasetActions.rollback, (input, caller) => write(caller, store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
+    bind(datasetActions.import, (input, caller) => write(caller, store => ({ dataset: store.importCsv(input.id, input.csv, input.expected_version) }))),
+    bind(datasetActions.export, (input) => read(store => { const dataset = store.get(input.id); return { dataset, csv: toCsv(dataset) }; })),
+    bind(datasetActions.versions, (input) => read(store => ({ versions: store.listVersions(input.id) }))),
+    bind(datasetActions.snapshot, (input, caller) => write(caller, store => ({ version: store.saveVersion(input.id, input.note, input.expected_version) }))),
+    bind(datasetActions.rollback, (input, caller) => write(caller, store => ({ dataset: store.rollback(input.id, input.version_id, input.expected_version) }))),
     bind(datasetActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), { availability: publishable }),
     bind(datasetActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, { availability: publishable }),
     bindArtifactContinue(datasetActions.artifactContinue, [DATASET_ARTIFACT_TYPE_ID], (artifact, caller) => write(caller, store => {
-      const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
-      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });
+      const payload = (artifact.payload ?? {}) as Record<string, unknown>;
+      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title });
       // A version the editor cannot take leaves no empty 数据表 behind.
-      try { store.update(created.id, Object.fromEntries(["description", "columns", "rows"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]])), at); }
-      catch (error) { store.delete(created.id, at); throw error; }
+      try { store.update(created.id, Object.fromEntries(["description", "columns", "rows"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]]))); }
+      catch (error) { store.delete(created.id); throw error; }
       return { surface: DATASET_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
-    bindArtifactCompare(datasetActions.artifactCompare, DATASET_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => read(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"]),
-      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
-      id => read(store => objectOrMissing(() => store.get(id)) !== null)),
+    // A table moved to another partition is not in this library: the 成果库 asks placement whether it moved (`artifact-library-http.ts`).
+    bindArtifactCompare(datasetActions.artifactCompare, DATASET_ARTIFACT_TYPE_ID, id => objectOrMissing(() => read(store => store.get(id))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"])),
     ...createDatasetSearchHandlers(read),
-    bindObjectMoveHandler(datasetActions.move, (input, caller) => write(caller, store => {
-      const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
-      return { subject: { kind: "dataset", id: dataset.id }, project_id: dataset.project_id, revision: String(dataset.version) };
-    })),
-    bindObjectCopyHandler(datasetActions.copy, (input, caller) => write(caller, store => {
-      const dataset = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
-      return { subject: { kind: "dataset", id: dataset.id }, project_id: dataset.project_id, revision: String(dataset.version) };
-    })),
+    bind(datasetActions.placementExport, input => read(store => store.exportRecord(input.subject.id))),
+    bind(datasetActions.placementPut, (input, caller) => {
+      if (input.kind !== "dataset") throw datasetErrors.invalid("这里只能放数据表");
+      return write(caller, store => {
+        const dataset = store.putRecord(input.record, input.request_id, input.target_id);
+        return { subject: { kind: "dataset", id: dataset.id }, project_id: dataset.project_id, revision: String(dataset.version) };
+      });
+    }),
+    bind(datasetActions.placementRemove, (input, caller) => write(caller, store => ({ subject: input.subject, removed: store.removeCarried(input.subject.id, input.revision) }))),
   ];
 }
 
 /** The table as a workflow content station: hands its rows on as CSV and turns CSV it receives into a table. */
 export function createDatasetContentHandlers(stores: DatasetStores): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const { read, write } = stores;
   return bindWorkflowContentHandlers(datasetContentActions, {
-    list: caller => read(store => store.list(project(caller)).map(dataset => ({ item_id: dataset.id, title: dataset.title, caption: dataset.rows.length + " 行", at: dataset.updated_at }))),
-    read: ({ item_id }, caller) => read(store => { const dataset = store.get(item_id, project(caller)); return { title: dataset.title, body: toCsv(dataset), source: "数据表" }; }),
+    list: () => read(store => store.list().map(dataset => ({ item_id: dataset.id, title: dataset.title, caption: dataset.rows.length + " 行", at: dataset.updated_at }))),
+    read: ({ item_id }) => read(store => { const dataset = store.get(item_id); return { title: dataset.title, body: toCsv(dataset), source: "数据表" }; }),
     receive: ({ title, body, request_id, url }, caller) => write(caller, store => {
       const sourceKey = url?.trim();
-      const dataset = store.receiveCsv(project(caller), request_id, title, body,
+      const dataset = store.receiveCsv(request_id, title, body,
         sourceKey?.startsWith("molis-source://form/") && sourceKey.length > "molis-source://form/".length ? sourceKey : undefined);
       return { subject: { kind: "dataset", id: dataset.id }, title: dataset.title };
     }),
-    create: ({ title }, caller) => write(caller, store => { const dataset = store.create({ title, project_id: project(caller) }); return { subject: { kind: "dataset", id: dataset.id }, title: dataset.title }; }),
+    create: ({ title }, caller) => write(caller, store => { const dataset = store.create({ title }); return { subject: { kind: "dataset", id: dataset.id }, title: dataset.title }; }),
   });
 }

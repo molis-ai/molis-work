@@ -22,7 +22,7 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   // The Home is served so that the project and the MCP client's grant are made the way a person makes them; this file keeps its own host (it needs `src` types of the directory).
   const served = await serveTestHost(t, { home, host });
-  const project = await served.createProject("外部 MCP", ["feed"]);
+  const project = await served.createProject("外部 MCP", ["feed", "workflows"]);
   await writeFile(join(home, "server.mjs"), MCP_FIXTURE);
   let directoryAllowed = true;
   const openAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.external-mcp-test", appVersion: "1.0.0" }, reviewQueue: new AgentReviewQueue(),

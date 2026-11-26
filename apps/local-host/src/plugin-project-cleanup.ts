@@ -1,10 +1,8 @@
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { namedProjectDataLabel, projectDataLabel } from "./project-deletion-words.js";
-import { rm } from "node:fs/promises";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { homeSqlitePartitionDirectory } from "@molis-ai/molis-work-storage";
 import { hasPluginBackground } from "./plugin-background-service.js";
 import { clearProjectRows } from "./plugin-project-rows.js";
 import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
@@ -36,23 +34,17 @@ export function assertProjectCleanupEntries(entries: readonly Pick<PluginProject
   }
 }
 
-/**
- * What the deletion asks of the executor (`HomePluginExecutor`): stop the installation's background executions accepted in the project,
- * and close and refuse its library of the project.
- */
+/** What the deletion asks of the executor (`HomePluginExecutor`): stop the installation's background executions accepted in the project. */
 export interface PluginProjectLibraries {
   stopProjectBackground(installId: string, projectId: string): Promise<void> | undefined;
-  blockProjectLibrary(installId: string, projectId: string): () => void;
-  clearProjectLibrary(installId: string, projectId: string): () => void;
 }
 
 /**
  * The wrapper lives until all activations stop; each delivery reads the currently installed record. In one turn, as the deletion needs
  * (W5-01-RPC-01): the platform stops the background executions the installation accepted in the project (PG-038), then its data of the
  * project goes: the rows its library declares, deleted by the platform on its own connection, waiting for a write the instance has in
- * progress; or, for a library partitioned by project, the library is closed and refused to every call already under way and the
- * project's library is removed, and only then may a call begun after the deletion open
- * it again (specs/archive/plugin-project-partition §2.5). A plugin with background work and no data of a project gets a step of its own that
+ * progress. A plugin with its own library in each partition (`databases.partition`) has no step here: the library goes with the partition's
+ * directory. A plugin with background work and no data of a project gets a step of its own that
  * only stops that work; the confirmation lists the work that will stop.
  */
 export function registerPluginProjectCleanup(home: string, runtime: PluginRuntime, entries: readonly PluginProjectCleanupEntry[],
@@ -64,7 +56,7 @@ export function registerPluginProjectCleanup(home: string, runtime: PluginRuntim
       const record = runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === signature && item.state !== "uninstalled");
       return { record, settled: record ? libraries.stopProjectBackground(record.install_id, projectId) : undefined };
     };
-    const owner = cleanupOwner(home, entry, stopBackground, libraries);
+    const owner = cleanupOwner(home, entry, stopBackground);
     return owner ? [hooks.register(owner)] : [];
   });
   return () => { for (const release of dispose.reverse()) release(); };
@@ -72,25 +64,9 @@ export function registerPluginProjectCleanup(home: string, runtime: PluginRuntim
 
 type StopBackground = (projectId: string) => { record: PluginInstanceRecord | undefined; settled: Promise<void> | undefined };
 
-function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackground: StopBackground, libraries: PluginProjectLibraries): ProjectDeletedOwner | null {
+function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackground: StopBackground): ProjectDeletedOwner | null {
   const { manifest } = entry.definition, library = manifest.databases?.home;
   if (library?.project_rows) return declaredRowsOwner(home, entry, library, stopBackground);
-  if (library?.partition === "project") {
-    const store = library.store_name;
-    return {
-      id: entry.project_data?.owner_id ?? manifest.plugin_id, ...namedProjectDataLabel("workbench.project-deletion.partition", manifest, entry.localePacks),
-      async clear(projectId) {
-        const { record, settled } = stopBackground(projectId);
-        // Keep the same-turn refusal even while a cancelled activation job is still unwinding.
-        const unblock = settled && record ? libraries.blockProjectLibrary(record.install_id, projectId) : undefined;
-        try {
-          if (settled) await settled;
-          const release = record ? libraries.clearProjectLibrary(record.install_id, projectId) : undefined;
-          try { await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true }); } finally { release?.(); }
-        } finally { unblock?.(); }
-      },
-    };
-  }
   return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, ...namedProjectDataLabel("workbench.project-deletion.background", manifest, entry.localePacks), async clear(projectId) { await stopBackground(projectId).settled; } } : null;
 }
 

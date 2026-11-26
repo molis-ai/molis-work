@@ -49,7 +49,7 @@ for (const fault of ["wrong frame", "synthetic after a previous trusted move", "
     };
     child = await pluginFrameBrowser(t, {...b,command}, "lingguang");
     b.server.on("request", request => { if (request.method === "POST" && request.url?.endsWith("/api/plugins/io.molis.work.lingguang/sparks")) posts++; });
-    const count = () => { const store=openLingguangStore(b.homeDirectory); try { return store.list(b.projectId!).length; } finally { store.close(); } };
+    const count = () => { const store=openLingguangStore(b.homeDirectory, b.projectId!); try { return store.list().length; } finally { store.close(); } };
     // Keep the emulation-only geometry of plugin-small-ux; no native resize or Chrome configuration workaround.
     await b.command("Emulation.setDeviceMetricsOverride", {width:1280,height:900,deviceScaleFactor:1,mobile:false}, b.sessionId);
     await b.navigate(() => b.command("Page.navigate", {url:`${b.origin}/projects/${b.projectId}/`}, b.sessionId));
@@ -124,7 +124,7 @@ for (const fault of ["before final guard", "immediately before press"] as const)
     };
     child = await pluginFrameBrowser(t, {...b,command}, "lingguang");
     b.server.on("request", request => { if (request.method === "POST" && request.url?.endsWith("/api/plugins/io.molis.work.lingguang/sparks")) posts++; });
-    const count = () => { const store=openLingguangStore(b.homeDirectory); try { return store.list(b.projectId!).length; } finally { store.close(); } };
+    const count = () => { const store=openLingguangStore(b.homeDirectory, b.projectId!); try { return store.list().length; } finally { store.close(); } };
     await b.command("Emulation.setDeviceMetricsOverride", {width:1280,height:900,deviceScaleFactor:1,mobile:false}, b.sessionId);
     await b.navigate(() => b.command("Page.navigate", {url:`${b.origin}/projects/${b.projectId}/`}, b.sessionId));
     await b.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')",20_000);
@@ -194,8 +194,8 @@ test("plugin frame input receipt keeps its ordinary CDP budget for a delayed rea
   assert.equal(presses, 1); assert.equal(releases, 1); assert.equal(posts, 1);
   assert.equal(await pointerListeners(child, true), listenersBefore, "the original real receipt's listeners were disposed");
   assert.equal(await child.evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "true");
-  const store = openLingguangStore(b.homeDirectory);
-  try { assert.equal(store.list(b.projectId!).length, 1, "one input made one real item"); } finally { store.close(); }
+  const store = openLingguangStore(b.homeDirectory, b.projectId!);
+  try { assert.equal(store.list().length, 1, "one input made one real item"); } finally { store.close(); }
 });
 
 test("plugin frame input receipt preserves input and both cleanup failures", {timeout:60_000}, async t => {
@@ -250,6 +250,6 @@ test("plugin frame input receipt preserves input and both cleanup failures", {ti
   assert.equal(await pointerListeners(child, true), listenersBefore, "disposal removed the real receipt listeners");
   assert.equal(await child.evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false");
   assert.equal(posts, 0); assert.equal(modelCalls, 0);
-  const store = openLingguangStore(b.homeDirectory);
-  try { assert.equal(store.list(b.projectId!).length, 0); } finally { store.close(); }
+  const store = openLingguangStore(b.homeDirectory, b.projectId!);
+  try { assert.equal(store.list().length, 0); } finally { store.close(); }
 });

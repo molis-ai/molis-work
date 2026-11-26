@@ -45,7 +45,8 @@ function dateTimeLocale(locale: WebLocale = currentLocale()): string {
 }
 
 function listJoin(values: readonly string[], locale: WebLocale = currentLocale()): string {
-  return new Intl.ListFormat(dateTimeLocale(locale), { style: "short", type: "unit" }).format(values);
+  // A plain list with the language's own separator and no "and": a unit list has none in Chinese ("ab"), Japanese only a space.
+  return new Intl.ListFormat(dateTimeLocale(locale), { style: "narrow", type: "conjunction" }).format(values);
 }
 
 

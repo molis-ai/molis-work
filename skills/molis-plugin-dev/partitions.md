@@ -2,19 +2,29 @@
 
 个人空间（`personal`）和每个项目是同构的「分区」（[统一工作分区](../../specs/unified-partition-plugins/spec.md)）。一个插件装一次（Home 一张安装表），在哪个分区启用就在那个分区有自己的一份数据。本页四节写插件怎样声明；字段都在 Manifest，类型在 `@molis-ai/molis-work-contracts/platform/plugin`，由 SDK 的 `partitionDeclarationProblems` 检查（`parsePluginManifest`／`assertManifest` 与安装都会跑它，写错了装不上）。
 
-> 现状（第 106 批，只加不删）：这些字段和 SDK 帮手已经可以写、会被检查；平台的读取方（总览界面、到期投递、推送、随启用）在第 107–111 批随插件迁移接上。**宿主在第 107 批接上按分区装配之前，声明了 `databases.partition` 的插件装得上但不会启动**，所以 107 合入前先别给要上线的插件声明它；第三方沙箱包到第 109 批才开放（[PLUGIN-DEVELOPMENT](../../docs/platform/PLUGIN-DEVELOPMENT.md)）。新写法以本页为准，不要再用旧的「个人插件 / 项目插件」两套写法。
+> 现状（第 107 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows 已经用 `databases.partition`，由宿主的按分区装配在每个启用它们的分区各跑一个实例（安装记录在 Home 一张安装表，运行状态按「安装 × 分区」分开记）；到期定时器随宿主起停，同步写入与恢复后标记总览待重读。平台的其他读取方（总览界面、到期投递、推送、随启用）在第 108–111 批随插件迁移接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。注意：从产品入口装的签名包眼下仍由项目平台按项目装、按项目跑（第 109 批接到按分区装配）；这之前带 `databases.partition` 的签名包在项目里起不来（项目平台拒绝替它开分区库），内置插件以外先别用。
 
 ## 分区存储
 
 - **一份库在每个分区**：在 `databases.partition` 写一份库声明（`store_name`、`version`、`schema`、`read_permission`、`write_permission`，与 `databases.home` 同一种写法）。平台在 `<分区根>/libraries/<store_name>.db` 给每个启用你的分区开一份，分区根只由平台求（个人空间是 `<Home>/personal-space/`，项目是 `<Home>/projects/<id>/`）。
 - **你拿不到别的分区**：插件实例按（插件, 分区）起，只看得到自己分区的库和 `plugin-files/<安装>/`；路径写 `..`、链接或别的分区一律被拒（`S-partition-isolation`）。不要在输入里收 `partition_id` 或 `project_id` 来决定读哪份——分区由调用上下文给。
+- **删项目与确认框**：删项目时平台把这个分区的整份库删掉，插件不跑自己的代码；确认框里这一行写在 `databases.partition.deletion`（`label` 写无参词键或一行文字，`order` 定先后），不写就是「{插件名} 在这个项目里的数据」。
+- **固定成果版本**：要把对象的某一版存进成果库（`artifacts.produces`），在 `databases.partition.pinned_rows` 写记版本的那张表（`table`、`id_column`、`version_column`、`artifact_id_column`、`artifact_version_column`、`write_columns`，可选 `pending_column`）。平台把这一行和成果库的那一版放进**同一个事务**提交，你不自己附库、不写跨库语句；附进来的只会是本分区的主库。
+- **跨分区移动、复制**：由平台搬（放置服务读出、在目标分区放入、再去掉原来那份），你只声明三个动作，类型帮手在 `@molis-ai/molis-work-contracts/platform/actions`：
+  - `defineObjectExportAction`：把一个对象读成一条自含的记录（`record`）和它现在的修订号（`revision`）；只在本分区有意义的东西（文件夹、Goal、固定的版本）不放进记录。
+  - `defineObjectPutAction`：把带来的记录放进本分区。带 `target_id`（移动）就用原 id；这个 id 在本分区已有对象时，只认完全相同的一份（`sameCarriedRecord`，同一次移动的重试），不同就报冲突、绝不覆盖。不带（复制）就建新对象，同一个 `request_id` 总是同一份。
+  - `defineObjectRemoveAction`：移动后去掉原来那份，只在仍是读出时的修订号时去；改过了就报冲突，平台把放进去的那份撤回。
+  - 不要在动作输入里收目标项目，也不要自己去打开别的分区的库。这三个动作只给本人用（`audiences: ["user"]`）。
 - **库结构只有现行一版**：`schema` 写完整的当前结构；不写兼容读取，旧数据怎样处理先问（[CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
 - **随本人走的设置不放分区库**：本人在任何分区都一样的偏好（默认服务、上次用的文件夹）声明在 `person_settings.keys`：每个键写 `key` 和 `kind`（`preference`、`secret_ref`、`connection_ref`、`local_path`）。只有 `preference` 能写 `portable: true`，跟着本人同步到他的其他设备；密钥引用、连接引用、本机路径标 `portable` 会被拒（`S-person-settings-private`）。这些设置只给本机本人和你自己的后台读写，项目 Agent、助理和别的插件都读不到。
 
 ```json
 {
   "databases": { "partition": { "store_name": "todo", "version": 1, "schema": "CREATE TABLE todos (...);\n<OVERVIEW_TABLE_SQL>",
-    "read_permission": "todo:read", "write_permission": "todo:write" } },
+    "read_permission": "todo:read", "write_permission": "todo:write",
+    "deletion": { "label": { "key": "todo.project-deletion.data" }, "order": 10 },
+    "pinned_rows": { "table": "todos", "id_column": "id", "version_column": "version", "artifact_id_column": "artifact_id",
+      "artifact_version_column": "artifact_version", "write_columns": ["updated_at"] } } },
   "person_settings": { "keys": [
     { "key": "default_list", "kind": "preference", "portable": true },
     { "key": "export_folder", "kind": "local_path" }
@@ -48,7 +58,7 @@ await services.database.transaction(caller.beforeEffect, tx => {
 个人空间里的对象可以推一份到项目（第 111 批落地）。现在先声明 `push.kinds`，每种写：
 
 - `kind`：对象种类；
-- `export_action` / `put_action`：你自己的两个动作，分别是导出（动作类型 `molis.push.export.v1`）和在目标分区放入（`molis.push.put.v1`），只能写你自己 Manifest 里的动作；
+- `export_action` / `put_action`：你自己的两个动作，就是上面跨分区搬运用的那两个（`defineObjectExportAction` 与 `defineObjectPutAction`，输入类型 `molis.push.export.input.v1`、`molis.push.put.input.v1`），只能写你自己 Manifest 里的动作；
 - `revision`：导出记录里递增版本的 JSON 指针（如 `/revision`）；
 - `local_refs`：只在源分区有意义的字段（指针 + `strip` 去掉或 `remap` 改指推过去的副本）；
 - `children`：导出时一起带走的子记录。
@@ -66,6 +76,7 @@ await services.database.transaction(caller.beforeEffect, tx => {
 ## 自查
 
 - [ ] 业务数据在 `databases.partition`，没有按输入里的 `project_id` 选库
+- [ ] 能移动的对象声明了读出、放入、去掉三个动作；放入遇到已有的同一对象只认完全相同的一份
 - [ ] 声明了 `overview_projection` 的，`schema` 里有 `OVERVIEW_TABLE_SQL`，业务写入和 `overviewRows` 在同一个事务
 - [ ] 提醒写在总览表的 `remind_at`，没有自己再造定时器
 - [ ] `person_settings` 里只有 `preference` 标了 `portable`

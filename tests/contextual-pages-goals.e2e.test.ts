@@ -37,8 +37,8 @@ async function openPagesSelection(t: TestContext, blocks: object[], goalId?: str
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t,browser,"pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const owner = openPagesStore(homeDirectory);
-  const source = (() => { try { return owner.create({ project_id: projectId!, title, goal_id: goalId, body: { type: "doc", content: blocks } }); } finally { owner.close(); } })();
+  const owner = openPagesStore(homeDirectory, projectId!);
+  const source = (() => { try { return owner.create({ title, goal_id: goalId, body: { type: "doc", content: blocks } }); } finally { owner.close(); } })();
   await command("Page.addScriptToEvaluateOnNewDocument", {source:`(() => { const original = window.fetch; window.created = []; window.focusSeen = null;window.refusals=0;window.refuseRun=false;window.placedCard=null;
     window.fetch = async (url, options) => {
       if(String(url).includes('/cards/') && String(url).endsWith('/run') && window.refuseRun){window.refusals++;return new Response(JSON.stringify({error:'fixture permission refusal'}),{status:403,headers:{'content-type':'application/json'}});}
@@ -56,7 +56,7 @@ async function openPagesSelection(t: TestContext, blocks: object[], goalId?: str
     const range = document.createRange(); range.selectNodeContents(editor.querySelectorAll('p')[${index}].firstChild);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`);
-  const documents = () => { const reader = openPagesStore(homeDirectory); try { return reader.list(projectId!); } finally { reader.close(); } };
+  const documents = () => { const reader = openPagesStore(homeDirectory, projectId!); try { return reader.list(); } finally { reader.close(); } };
   return { ...browser, child, source, select, documents };
 }
 
@@ -141,8 +141,8 @@ test("S2 W4-2-08 contextual Pages: the bar recommends another plugin's entry and
   assert.equal(documents().length, 2, "once per request");
 
   // Edited elsewhere since: 撤销 is refused by Pages, and the document stays as edited.
-  const editor = openPagesStore(browser.homeDirectory);
-  try { editor.update(made.id, { title: "改过的文档", expected_version: made.version }, projectId!); } finally { editor.close(); }
+  const editor = openPagesStore(browser.homeDirectory, projectId!);
+  try { editor.update(made.id, { title: "改过的文档", expected_version: made.version }); } finally { editor.close(); }
   assert.equal((await undo(first.out.undo_token!)).ok, false, "refused");
   assert.deepEqual(documents().map(item => item.title).sort(), ["改过的文档", SOURCE].sort(), "not removed, not changed again");
 

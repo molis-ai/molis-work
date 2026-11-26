@@ -6,7 +6,7 @@
 - **衔接**：模板转换（按定好的规则转换，不问人）、AI（整理后送过去，整理结果留在记录里）、手动（人看完决定交不交、交什么）。没配好的衔接显示为未接上，不能走。
 - **一次实例**：同一条流程可以走很多次，每次带自己的内容；实例保留当时的链、走到哪一步、每段交接留下的内容。
 
-本包只负责流程与实例的数据、链的编辑规则、交接的纯计算、界面、Manifest 声明的路由与 Plugin Runtime 入口（`createWorkflowsPlugin`）。它由 Plugin Runtime 装配，每个项目一个实例，库仍是 `{home}/workflows/workflows.db`。内容站从系统动作目录发现并调用：插件通过 `defineWorkflowContentActions` 声明列表、读取、接收及可选空白创建，兑现对应处理器。Feed、Inbox、Pages、灵光各自拥有这些业务实现，Host 只组合存储、可信调用上下文与模型。
+本包只负责流程与实例的数据、链的编辑规则、交接的纯计算、界面、Manifest 声明的路由与 Plugin Runtime 入口（`createWorkflowsPlugin`）。它由宿主的按分区装配（`apps/local-host/src/partition-plugin-host.ts`）在每个启用它的分区（个人空间与项目）各起一个实例，库在分区根的 `libraries/workflows.db`，表里不再有 `project_id` 列。内容站从系统动作目录发现并调用：插件通过 `defineWorkflowContentActions` 声明列表、读取、接收及可选空白创建，兑现对应处理器。Feed、Inbox、Pages、灵光各自拥有这些业务实现，Host 只组合存储、可信调用上下文与模型。
 
 保存和开始实例会固定能力 ID、版本及提供方。旧链仍能读取，首次保存或开始时解析引用；旧实例在继续前固定尚未固定的站点。能力撤回、失权或升级导致原版本不可用时，保留原引用并显示原因，不自动换成同名新能力。`kind: "function"` 仅作为存量模板转换的存储值保留，不代表系统判断规则。
 
@@ -46,7 +46,7 @@
   - 能力撤回、失权或升级使原版本不可用时，保留原引用并显示原因，不自动换成同名新能力。
   - 只有目录在交给提供方之前拒绝的调用才算没执行；其他错误按可能已执行处理。
   - 每次交接（成功、被判断拦下、站点已发出却失败）由插件以自己的安装身份报进工作记录（`io.molis.work.native.workflows.step`，`src/observation.ts`；Manifest 消费 `observation.report@1`，这是插件唯一自己调用、不经 `directory` 的动作）：与这次 `continue` 同一调用号，交接正文只给 `<实例>:<步>` 的引用不复制；上报在业务写完之后、出错吞掉，不决定交接成败。
-  - 项目被删除时平台按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签与要删的表）删掉流程（含已隐藏的）与它们的运行实例；插件的代码不参与，平台在自己的连接上删，库不存在时不创建，重复运行没有副作用（PG-024）。
+  - 项目被删除时平台删掉这个分区自己的整份库（`<分区根>/libraries/<库名>.db` 与它的日志），也就删掉了流程（含已隐藏的）与它们的运行实例；确认框里的说法与顺序来自 Manifest 的 `databases.partition.deletion`（`src/database.ts`）。插件的代码不参与，库不存在时不创建，重复运行没有副作用（PG-024，第 107 批起）。
 - 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/workflows-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `WORKFLOWS_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `WorkflowsPage` 对象里（`page.ts`），各部分是拿它当第一个参数的函数：`nav.ts`（列表、流程、运行之间的切换与记住）、`flow.ts` 与 `list.ts`（画链）、`save.ts`（保存队列、撤销、拖动与删除）、`popover.ts`、`link.ts`、`step.ts`（浮层里的交接设置与动作步骤）、`run.ts` 与 `handoff.ts`（运行视图与交接）、`dialog.ts`、`click.ts`、`pop-events.ts`、`root-events.ts`、`drag.ts`（事件）；请求只经工作台的 `molisWorkRequest`（`request.ts`，路径在 `/workflows` 之后，路由由 `host.pluginRoute` 按 Manifest 身份与当前项目给出）。
 - 界面文字用 `workflows.*` 稳定键，在 Manifest 的 `ui.locales` 声明 [中文](locales/zh.json)和[英文](locales/en.json)词包，服务端和浏览器共用。 动作目录名、结果摘要、外部拒绝原因和用户填写的内容按原值显示。改动后跑 `tests/workflows-client-bundle.test.ts`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/workflows-plugin.test.ts tests/workflows-action-steps.test.ts tests/workflows-handoff-idempotency.test.ts tests/workflows-step-directory.test.ts tests/workflow-content-actions.test.ts tests/workflow-station-kinds.test.ts tests/workflows-client-bundle.test.ts tests/workflows-judgment-link.test.ts tests/workflows-stop-and-token.test.ts tests/workflows-stop-effects.test.ts tests/workflows-delegation.test.ts tests/workflows-project-deletion.test.ts tests/workflows-store.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/builtin-plugin-assembly-gate.test.ts tests/observation-workflow-steps.test.ts`

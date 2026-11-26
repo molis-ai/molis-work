@@ -34,7 +34,7 @@ export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from ".
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
 export { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
-export { openPluginDatabase } from "./plugin-home-database-client.js";
+export { openPartitionPluginDatabase, openPluginDatabase } from "./plugin-home-database-client.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 export { installedLibrarySnapshots } from "./installed-plugin-libraries.js";
@@ -295,7 +295,9 @@ export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPlugi
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { handlePluginTrustHttp } from "./plugin-trust-http.js";
 export { collectRetained } from "./uninstall-retained.js";
-export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform, startPartitionPluginInstance } from "./project-plugins.js";
+export { ensureProjectPlugins, projectPluginPlatform, projectPluginProblem, refreshRunningProjectPlugins, releaseProjectPlugins, runningPluginPlatform, runningProjectPlatform, runningProjectPluginState, startPartitionPluginInstance } from "./project-plugins.js";
+export { existingPartitionPluginHost, partitionChanged, type PartitionPluginInstance } from "./partition-plugin-host.js";
+export { pluginInstallRecords } from "./plugin-install-records.js";
 export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginScope, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 export { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, PartitionPlatformServices, partitionOverviewLibraries, personSettingsInstallations, type OverviewInstallation, type PartitionPlatformServicesOptions } from "./partition-platform-services.js";
 export { openHomePluginStore } from "./home-plugin-store.js";

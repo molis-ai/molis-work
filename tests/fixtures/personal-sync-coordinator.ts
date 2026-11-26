@@ -22,7 +22,8 @@ export function personalSyncFixture(t:TestContext){
   let active=true;
   const authorize=()=>{if(!active)throw new Error('REVOKED');};
   const context={spaceId:space.spaceId,canUploadProject:()=>true,hasArtifact:()=>true,hasReference:()=>true,authorize,conflictState:createSyncConflictState,project:()=>({title:'文档项目',context:{spaceId:space.spaceId,projectId:'project',authorize,hasReference:()=>true}})};
-  const withStore=<T>(i:number,run:(store:ReturnType<typeof openPagesStore>)=>T)=>{const store=openPagesStore(homes[i]);try{return run(store);}finally{store.close();}};
+  /** Pages' library on Home i in a partition: the fixture's own 'project' unless a test names another (U2). */
+  const withStore=<T>(i:number,run:(store:ReturnType<typeof openPagesStore>)=>T,partition='project')=>{const store=openPagesStore(homes[i],partition);try{return run(store);}finally{store.close();}};
   const withReplica=<T>(i:number,run:(r:ReturnType<ReturnType<typeof openPagesStore>['replica']>)=>T)=>withStore(i,s=>run(s.replica(context)));
   const registrations=homes.map((_,i):SyncRegistration=>({selection,title:'文档与文件夹',refresh:async()=>{},prepare:async()=>{},withReplica:run=>withReplica(i,run)}));
   const events:SyncEvent[]=[];const namespaces=new WeakMap<SyncEvent,string>();let revision=0,online=true,drop=false,usedBytes=0;

@@ -269,6 +269,30 @@ const measurePartitionPathScans = (snapshot, { isSource }) => {
   return result;
 };
 
+// G3, the SQL half (specs/plugin-specials-demotion implementation plan §8, batches 107–109): a plugin's data lives in its partition, so its business
+// SQL needs no `project_id` filter and its tables no `project_id` column. Counted per plugin source, so each file may only fall: a comparison of
+// `project_id` with a bound parameter (`project_id = ?`, `project_id IN (?…`, `project_id = :name` / `@name` / `$name`) and a `project_id`
+// column declared `TEXT` or `INTEGER`. The text is read as written, so SQL built from pieces (a column name in a variable) is not seen; review
+// reads it by the rule. Exported for tests.
+const PARTITION_PROJECT_ID_SQL_PATTERNS = [
+  /\bproject_id\s*(?:=|\bIN\s*\(?)\s*(?:\?|[:@$][A-Za-z_]\w*)/gi,
+  /\bproject_id\s+(?:TEXT|INTEGER)\b/gi,
+];
+const PLUGIN_SOURCE = /^plugins\//;
+export const countPartitionProjectIdSql = (file, text) => {
+  if (!PLUGIN_SOURCE.test(file) || typeof text !== "string") return 0;
+  return PARTITION_PROJECT_ID_SQL_PATTERNS.reduce((count, pattern) => count + (text.match(pattern) ?? []).length, 0);
+};
+const measurePartitionProjectIdSql = (snapshot, { isSource }) => {
+  const result = {};
+  for (const file of snapshot.files) {
+    if (!isSource(file) || !PLUGIN_SOURCE.test(file)) continue;
+    const count = countPartitionProjectIdSql(file, snapshot.read(file));
+    if (count) result[file] = count;
+  }
+  return result;
+};
+
 const platformNamePasses = new WeakMap();
 const measurePlatformPluginNames = (snapshot, { isSource }) => {
   let result = platformNamePasses.get(snapshot);
@@ -314,4 +338,8 @@ export const SOURCE_COUNT_RULES = [...[
     what: "platform loops over partitions that list projects/ or iterate listProjects()",
     hint: "walk listPartitions() and take each root from partitionRoot(); listProjects() is only the person's own list of projects",
     measure: (snapshot, scope) => measurePartitionPathScans(snapshot, scope) },
+  { id: "partitionProjectIdSql", title: "project_id filters and columns in plugin SQL (G3 SQL half)", summary: "project_id in plugin SQL",
+    what: "project_id filters or columns in a plugin's SQL",
+    hint: "a plugin's database belongs to one partition: drop the project_id column and filter, and take the project from the call when it is needed",
+    measure: (snapshot, scope) => measurePartitionProjectIdSql(snapshot, scope) },
 ];

@@ -13,14 +13,15 @@ export const JELLY_STYLES = `
   .jelly-tabs { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-control); background: var(--control-fill); }
   .jelly-tab { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: calc(var(--r-control) - 2px); background: transparent; color: var(--ink-soft); font: inherit; font-weight: 500; cursor: pointer; }
   .jelly-tab[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
-  .jelly-tab svg, .jelly-sec svg, .jelly-ev svg, .jelly-row svg, .jelly-quick svg, .jelly-hint svg, .jelly-date-chip svg, .jelly-nrow svg, .jelly-line > svg { width: 14px; height: 14px; flex: none; }
+  .jelly-tab svg, .jelly-sec svg, .jelly-ev svg, .jelly-row svg, .jelly-quick svg, .jelly-empty-hint svg, .jelly-date-chip svg, .jelly-nrow svg, .jelly-line > svg { width: 14px; height: 14px; flex: none; }
   .jelly-sub { display: flex; align-items: center; gap: 8px; flex: none; padding: 8px 16px; }
   .jelly-search { width: 220px; }
   .jelly-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
   .jelly-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; box-shadow: inset 0 0 0 1px var(--line); }
   .jelly-chip[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); box-shadow: none; }
   .jelly-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--jelly-c, var(--muted)); }
-  .jelly-hint { display: flex; align-items: center; gap: 8px; margin: 0 16px 8px; color: var(--muted); font-size: 12px; }
+  .jelly-empty-hint { display: flex; align-items: flex-start; gap: 8px; margin: 0 16px 8px; color: var(--muted); font-size: 12px; line-height: 18px; }
+  .jelly-empty-hint svg { margin-top: 2px; }
   .jelly-body { flex: 1; min-height: 0; display: flex; }
   .jelly-main { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 0 16px 16px; }
   .jelly-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 30px; grid-auto-rows: minmax(104px, 1fr); min-height: 560px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -124,4 +125,6 @@ export const JELLY_STYLES = `
     .jelly-panel { top: auto; left: 8px; width: auto; max-height: 85%; }
   }
   @media (min-width: 721px) { .jelly-narrow { display: none; } }
+  /* Where the design system raises inputs to 16px (no zoom on focus), the mark beside the quick-add input grows with it. */
+  @media (max-width: 760px), (pointer: coarse) { .jelly-quick svg { width: 16px; height: 16px; } }
 `;

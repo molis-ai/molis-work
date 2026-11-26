@@ -113,7 +113,7 @@ export function renderHeader(state: JellyState): string {
   </header>
   <div class="jelly-sub">
     <label class="mw-input-group jelly-search jelly-wide">${icon("search")}<input class="mw-input" type="search" data-jelly-search value="${esc(state.query)}" placeholder="${uiText("jelly.search.placeholder")}" aria-label="${uiText("jelly.search.placeholder")}"></label>
-    <div class="jelly-chips" role="group" aria-label="${uiText("jelly.category.filter")}">${chips}</div>
+    <div class="jelly-chips" role="group" aria-label="${uiText("jelly.category.filter")}" data-jelly-category-filters>${chips}</div>
     <span class="jelly-grow"></span>${button("jelly.category.manage", { "data-jelly-act": "categories" }, { icon: "tag" })}
   </div>`;
 }
@@ -261,7 +261,7 @@ export function renderCalendar(state: JellyState, noteDays: ReadonlySet<string>)
   const view = state.mode === "week" ? week(state) : state.mode === "list" ? list(state) : month(state, noteDays);
   const empty =
     !state.occurrences.length && !state.query && !state.filter.size && state.mode !== "list"
-      ? `<p class="jelly-hint" data-jelly-empty-hint>${icon("sparkles")}${uiText("jelly.empty.hint")}</p>`
+      ? `<p class="jelly-empty-hint" data-jelly-empty-hint>${icon("sparkles")}${uiText("jelly.empty.hint")}</p>`
       : "";
   return `${empty}<div class="jelly-body"><div class="jelly-main">${view}</div>${state.mode === "list" ? "" : rail(state)}</div>`;
 }

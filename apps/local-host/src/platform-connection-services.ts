@@ -12,7 +12,7 @@ export const PLATFORM_CONNECTION_SERVICES: readonly PluginConnectionServiceDecla
     service_id: "model-api", title: { key: "workbench.connection-service.model-api.title" }, group_id: "work", auth_kind: "token",
     summary: { key: "workbench.connection-service.model-api.summary" },
     auth: { methods: [{ kind: "token", label: { key: "workbench.connection-service.model-api.token" }, placeholder: "sk-…" }] },
-    capabilities: [live("workbench.connection-service.model-api.inference")],
+    capabilities: [live("workbench.connection-service.model-api.inference"), live("workbench.connection-service.model-api.choose")],
   },
   {
     service_id: "typesafe", title: "TypeSafe", group_id: "work", auth_kind: "token",

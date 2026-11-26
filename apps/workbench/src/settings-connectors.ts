@@ -58,7 +58,7 @@ export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsS
     if (["image-api", "mcp-bearer", "model-api"].includes(connectorId)) return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="light" aria-hidden="true">${designIcon(symbol)}</span>`;
     return `<span class="settings-connector-mark settings-connector-mark--fallback" data-connector-mark="${escapeHtml(connectorId)}" aria-hidden="true">${escapeHtml(connectorId.slice(0, 2).toUpperCase())}</span>`;
   }
-  return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="${mark.on}" aria-hidden="true"><img src="data:image/svg+xml,${encodeURIComponent(mark.svg)}" alt="" width="24" height="24"></span>`;
+  return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="light" aria-hidden="true"><img src="data:image/svg+xml,${encodeURIComponent(mark)}" alt="" width="24" height="24"></span>`;
 }
 
 function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly ConnectorConnectionView[], plugins: RuntimePluginDirectory, p: ConnectorsSettingsPrimitives): string {

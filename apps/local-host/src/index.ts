@@ -205,10 +205,7 @@ export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } fro
 export { createPeriodicTasks } from "./periodic-tasks.js";
 
 
-export { createCatalogConnector } from "./catalog-connector.js";
 export { stdioMcpLaunch } from "./stdio-mcp-launch.js";
-export { createGithubConnector } from "./github-connector.js";
-export { createGmailConnector } from "./gmail-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
 export { connectorDirectory, connectorLoginReady, homeConnectorDirectory } from "./connector-directory.js";
@@ -483,6 +480,7 @@ export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
+export { integrationDriverDirectory } from "./builtin-drivers.js";
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
 export { offerProjectAutomation } from "./automation-proactive.js";
 // A project's installed signed packages as pages and calls (47-1: the platform's), and the trials the studio answers for its drafts.

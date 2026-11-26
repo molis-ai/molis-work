@@ -93,6 +93,7 @@ export {
 export { selectorNames, splitPluginStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
+export { installConnectorMarks } from "./connector-marks.js";
 export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 export { renderMolisWorkMainlineClientScript } from "./page-assets.js";

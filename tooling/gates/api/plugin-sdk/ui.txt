@@ -1529,7 +1529,7 @@ interface MwInputOptions {
     attrs?: Record<string, AttrValue>;
 }
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & {
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "integrations" | "databases"> & {
     readonly permissions?: PluginManifest["permissions"];
     readonly read_groups?: PluginManifest["read_groups"];
     readonly actions?: PluginManifest["actions"];

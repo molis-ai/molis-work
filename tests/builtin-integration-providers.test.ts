@@ -4,9 +4,12 @@ import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { AccountDriver, CliDriver, DocumentDriver, IntegrationDrivers, MailboxDriver, WebSearchDriver } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { completeApiOAuth, connectorProtocolSecrets, createCatalogConnector, createGithubConnector, createGmailConnector, homeIntegrationRegistry, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { catalogConnectorIds } from "@molis-ai/molis-work-integration-catalog";
+import { createGithubProvider } from "@molis-ai/molis-work-integration-github";
+import { createGmailProvider } from "@molis-ai/molis-work-integration-gmail";
+import { completeApiOAuth, connectorProtocolSecrets, homeIntegrationRegistry, integrationDriverDirectory, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { catalogConnectorIds, createCatalogProvider } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { connectorControl } from "./fixtures/connector-control.js";
 import { withIntegrationHome } from "./fixtures/integration-home.js";
@@ -64,8 +67,8 @@ test("RAC-2661 every built-in integration reads through the connector of its own
     const offline = (async (input: RequestInfo | URL) => { calls.push(String(input)); throw new Error("offline"); }) as typeof fetch;
     await withFetch(offline, async () => {
       const registry = await homeIntegrationRegistry(home.directory);
-      const direct = (id: string): IntegrationProviderPort => id === "github" ? createGithubConnector({ allowFixture: false })
-        : id === "gmail" ? createGmailConnector({ allowFixture: false }) : createCatalogConnector({ connectorId: id });
+      const direct = (id: string): IntegrationProviderPort => id === "github" ? createGithubProvider({ allowFixture: false, resolveToken: async () => null })
+        : id === "gmail" ? createGmailProvider({ allowFixture: false, resolveUsableToken: async () => ({ ok: false, status: "none" }) }) : createCatalogProvider({ connectorId: id });
       assert.ok(served(registry).length > 3, "the Host serves github, gmail and several catalog connectors");
       for (const id of served(registry)) {
         const bound = await registry.bind(id, "source", binding({ source_id: `source-${id}` }));
@@ -294,4 +297,32 @@ test("RAC-2862 Gmail's 401 without refresh material is not retried, and a refuse
     }
     assert.equal(oauth.sent.filter(call => call.grant === "refresh_token").length, 1);
   });
+});
+
+test("44C-2 PSD-08 the Host does not start on two integrations that declare the same service's driver, the same return address, or two of a single driver", () => {
+  const cli: CliDriver = { binary: "one", login: ["login"], identity: ["whoami"], install: "https://example.com/install" };
+  const account: AccountDriver = { check: "identity" };
+  const search: WebSearchDriver = { search: async () => [], failure: () => null };
+  const documents: DocumentDriver = { read: async () => { throw new Error("not read"); }, refused: () => false };
+  const mailbox: MailboxDriver = { service: "mail-a", title: "Mail", account_title: "Mail account", origin: "https://mail.example.com/", readRecent: async () => [] };
+  const feed = () => { throw new Error("made at start"); };
+  const declared: ReadonlyArray<readonly [Omit<IntegrationDrivers, "order">, RegExp]> = [
+    [{ cli: { "service-a": cli } }, /two integrations declare the CLI of service-a/u],
+    [{ accounts: { "service-a": account } }, /two integrations declare the account of service-a/u],
+    [{ web_search: { "service-a": search } }, /two integrations declare the web search of service-a/u],
+    [{ marks: { "service-a": "<svg/>" } }, /two integrations declare the mark of service-a/u],
+    [{ local_mcp_servers: { "service-a": { endpoint: "http://127.0.0.1:1/mcp", loopback: true } } }, /two integrations declare the local MCP server of service-a/u],
+    [{ oauth_callback_aliases: [{ service: "service-a", path: "/oauth/a", project: false }] }, /two integrations declare the OAuth return address \/oauth\/a/u],
+    [{ documents }, /two integrations declare the document driver/u],
+    [{ mailbox }, /two integrations declare the mailbox driver/u],
+    [{ public_feed: feed }, /two integrations declare the public-feed driver/u],
+    [{ repository: { read: async () => { throw new Error("not read"); } } }, /two integrations declare the repository driver/u],
+  ];
+  for (const [driver, refused] of declared) {
+    assert.doesNotThrow(() => integrationDriverDirectory([{ order: 1, ...driver }, { order: 2 }]), "one declaration is taken as it is");
+    assert.throws(() => integrationDriverDirectory([{ order: 1, ...driver }, { order: 2, ...driver }]), refused);
+  }
+  const other = integrationDriverDirectory([{ order: 1, cli: { "service-a": cli } }, { order: 2, cli: { "service-b": cli } }]);
+  assert.deepEqual(Object.keys(other.cli()), ["service-a", "service-b"], "different services stand side by side");
+  assert.throws(() => other.mailbox(), /no integration declares a mailbox driver/u);
 });

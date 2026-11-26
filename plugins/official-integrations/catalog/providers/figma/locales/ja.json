@@ -8,6 +8,7 @@
     "figma.connection.summary": "デザインと注釈。",
     "figma.connection.token-label": "Figma Personal Access Token",
     "figma.connection.token-placeholder": "figu_… または figd_…",
+    "figma.connection.purpose": "公式デザインツールを接続し、許可したデザインデータをAIが読み取って扱えるようにします。",
     "figma.guide.mcp-link": "Figma 公式 MCP を見る",
     "figma.guide.mcp-note": "デスクトップ MCP は Figma 側で有効にする必要があります。クラウド MCP は承認済みクライアント限定です。",
     "figma.guide.oauth-link": "Figma OAuth アプリを見る",

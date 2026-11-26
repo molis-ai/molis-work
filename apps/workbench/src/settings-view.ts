@@ -1,6 +1,6 @@
 import type { ModelSettingsModel } from "./settings-models.js";
 import type { ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
-import type { ConnectorConnectionStatus, ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorCardView, ConnectorConnectionStatus, ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: ConnectorConnectionStatus; project_id?: string; revision?: string; reauth_note?: string };
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -111,6 +111,8 @@ export interface ConnectorSettingsCardView {
   readonly auth_help?: string;
   readonly setup_links?: readonly ConnectorSetupLink[];
   readonly method_options?: readonly ConnectorMethodOption[];
+  /** What the service's declaration says its card shows or asks beyond the shared shape. */
+  readonly card?: ConnectorCardView;
   /** The plugin that declared the card (its id and the name its Manifest gives it); null when the platform declares the service. */
   readonly declared_by?: { readonly plugin_id: string; readonly title: string } | null;
   /** What the service can be used for, read from its declarations (§13.7 ①B); absent for a service that declares no use. */

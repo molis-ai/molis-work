@@ -3,10 +3,10 @@ import {
   WEB_SEARCH_BUILTIN_SOURCE, WEB_SEARCH_MAX_RESULTS, type WebSearchQueryResponse, type WebSearchResult, type WebSearchSettingsView,
   type WebSearchSourceView,
 } from "@molis-ai/molis-work-contracts/services/web-search";
-import { CatalogLiveError, getCatalogSpec, isCatalogConnectorId, searchCatalogWeb } from "@molis-ai/molis-work-integration-catalog";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { applySqliteBaseline, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, openSqliteConnection, runWithMolisWorkHome, type EvidenceContentStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { webSearchDriver } from "./builtin-drivers.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { listConnectorConnectionViews, readConnectorConnectionView } from "./connector-connection-views.js";
 import { resolveApiConnection } from "./connector-access.js";
@@ -113,8 +113,9 @@ async function finishSearch(home: string, source: WebSearchSourceView, results: 
 
 async function connectedSearch(home: string, source: WebSearchSourceView, query: string, count: number, call: SearchCall): Promise<WebSearchQueryResponse> {
   const id = source.source_id, serviceId = source.service_id!;
-  if (!isCatalogConnectorId(serviceId)) throw webSearchErrors.source_unusable(`${source.title} 的搜索还不能由平台调用`);
-  const maximum = getCatalogSpec(serviceId).web_search?.max_query_characters;
+  const driver = webSearchDriver(serviceId);
+  if (!driver) throw webSearchErrors.source_unusable(`${source.title} 的搜索还不能由平台调用`);
+  const maximum = driver.max_query_characters;
   if (maximum && [...query].length > maximum) throw webSearchErrors.query_invalid(`${source.title} 每次最多搜索 ${maximum} 个字符，请缩短搜索词`);
   const revision = withConnectorConnections(home, store => store.require(id, serviceId).updated_at, "required");
   const current = () => {
@@ -139,20 +140,21 @@ async function connectedSearch(home: string, source: WebSearchSourceView, query:
     if (!access) throw webSearchErrors.needs_auth(`${source.title} 的密钥用不了，请在服务连接里换一把`);
     let results: WebSearchResult[];
     try {
-      results = await searchCatalogWeb(serviceId, { token: access.token, query, count, fetch: controlledConnectorFetch(access.fetchImpl ?? globalThis.fetch, { ...control, signal }) });
+      results = await driver.search({ token: access.token, query, count, fetch: controlledConnectorFetch(access.fetchImpl ?? globalThis.fetch, { ...control, signal }) });
     } catch (error) {
       // A call stopped or no longer allowed fails inside the service's request too, which reads it as a network failure: say it as it is.
       current(); await call.beforeEffect(); signal.throwIfAborted(); current();
-      if (!(error instanceof CatalogLiveError)) throw webSearchErrors.network(`没连上 ${source.title}，稍后再试`);
-      if (error.kind === "needs_auth") {
-        if (error.status === 401) rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "failed",
+      const failure = driver.failure(error);
+      if (!failure) throw webSearchErrors.network(`没连上 ${source.title}，稍后再试`);
+      if (failure.kind === "needs_auth") {
+        if (failure.status === 401) rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "failed",
           authorization: "required", code: SEARCH_AUTH_REFUSED });
-        throw webSearchErrors.needs_auth(`${source.title} 拒绝了这把密钥（${error.status ?? ""}），请在服务连接里换一把`);
+        throw webSearchErrors.needs_auth(`${source.title} 拒绝了这把密钥（${failure.status ?? ""}），请在服务连接里换一把`);
       }
-      if (error.kind === "rate_limited") throw webSearchErrors.rate_limited(`${source.title} 说查得太快了${error.retryAfterAt ? `，${error.retryAfterAt} 之后再试` : "，稍后再试"}`);
-      if (error.status === 402) throw webSearchErrors.provider(`${source.title} 账户余额不足，充值后再搜`);
-      if (error.kind === "network") throw webSearchErrors.network(`没连上 ${source.title}，稍后再试`);
-      throw webSearchErrors.provider(`${source.title} 没能完成这次搜索（${error.status ?? "无效回复"}），稍后再试`);
+      if (failure.kind === "rate_limited") throw webSearchErrors.rate_limited(`${source.title} 说查得太快了${failure.retryAfterAt ? `，${failure.retryAfterAt} 之后再试` : "，稍后再试"}`);
+      if (failure.status === 402) throw webSearchErrors.provider(`${source.title} 账户余额不足，充值后再搜`);
+      if (failure.kind === "network") throw webSearchErrors.network(`没连上 ${source.title}，稍后再试`);
+      throw webSearchErrors.provider(`${source.title} 没能完成这次搜索（${failure.status ?? "无效回复"}），稍后再试`);
     }
     return finishSearch(home, source, results, { ...call, signal }, current);
   });

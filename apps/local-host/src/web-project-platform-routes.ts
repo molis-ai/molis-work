@@ -323,7 +323,7 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     && await handleContextualHttp(context.request, context.response, context.url, contextualPorts(context)) },
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost, hostReference }) => Boolean(serverOptions.homeDirectory)
     && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory!, {
-      actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
+      actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "functions:manage"]),
     }) },
 ];
 

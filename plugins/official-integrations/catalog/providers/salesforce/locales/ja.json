@@ -7,6 +7,8 @@
     "salesforce.connection.inbound": "Feed で CRM レコードを取得",
     "salesforce.connection.summary": "CRM オブジェクトとレコード。",
     "salesforce.connection.token-label": "Salesforce インスタンスとアクセストークン",
+    "salesforce.credential.instance-url": "インスタンスURL",
+    "salesforce.credential.access-token": "アクセストークン",
     "salesforce.guide.cli-link": "Salesforce CLI のログインを見る",
     "salesforce.guide.cli-note": "Salesforce CLI で組織にログインしてデータを照会できますが、Molis Work はローカルの組織認証を読み取りません。",
     "salesforce.guide.mcp-connected-note": "Hosted MCP は企業設定や Flex Credits の消費が必要な場合があります。",

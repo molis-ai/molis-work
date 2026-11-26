@@ -28,6 +28,7 @@ Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡
 
 - 一个 id 先到先得：后装的插件声明已被占的 `service_id` 或 `integration_id`，启用失败（`plugin.integration_declaration_conflict`，写明 id 与持有者），已登记的不受影响。平台自己的卡先于插件。
 - 声明不给连接权：有卡不等于能读这个服务已有的连接与凭据；要读连接走 `services.connections`，按安装逐个授权。
+- 卡上和通用形状不一样的地方写在 `card`（每项可省）：`purpose` 连它做什么用，`provider` 登录的账号是谁家的，`preferred_method` 先摆出哪种方式（`cli` 装了官方客户端就先用，`mcp`、`token` 在没有一键登录时用），`credential` 一份密钥由哪几格拼成（`separator` 为 `:` 或 `|`，2 到 4 格，每格 `label` 与 `type`），`own_app` 工具服务要先备好自己的应用，`client_note` 用官方客户端登录时的一句话。文字写法同卡上的其他字。文档来源在选单里的名字与服务名不同时，在 `document_import` 上写 `title`。
 - `auth.methods` 里 `token` 要写 `label`（可写 `placeholder`）；`oauth` 写完整流程声明；远程 `mcp` 写下节的服务配置，`cli` 与本机 MCP 保留只写 `kind` 的槽。
 
 `createProvider` 返回的 port 负责 `health` 和 `sync`（cursor、`normal` / `rebuild_cursor`）。真实 `health` 可以返回 `account: { login, account_id? }`，只有经过认证的服务响应中已验证的身份才填写；有稳定账号 id 时一并返回，显示名称和本地保存的标签不能替代身份。未返回时保持未知，不能从 message 文案解析账号。SDK 把它收成 Connector Driver 的 `poll` 和 Signal Adapter 的 `toSignalDraft`。不要在 Native 插件里直接 fetch GitHub。

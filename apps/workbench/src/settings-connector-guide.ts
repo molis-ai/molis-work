@@ -28,18 +28,20 @@ export function loginReady(method?: ConnectorMethodOption): boolean {
 
 export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMethodOption | undefined {
   const methods = card.method_options ?? [];
-  if (card.connector_id === "feishu") {
-    const cli = methods.find(m => m.kind === "cli" && m.cli?.installed);
-    if (cli) return cli;
-  }
+  const preferred = card.card?.preferred_method;
+  const client = preferred === "cli" && methods.find(m => m.kind === "cli" && m.cli?.installed);
+  if (client) return client;
   const direct = methods.find(m => m.kind === "oauth" && loginReady(m))
     ?? methods.find(m => m.kind === "mcp" && m.login_ready);
   if (direct) return direct;
   if (methods.length === 1 && methods[0]?.kind === "token" && methods[0].support === "paste") return methods[0];
-  if (card.connector_id === "figma") return methods.find(m => m.mcp);
-  if (["model-api", "image-api", "typesafe", "mcp-bearer", "wechat"].includes(card.connector_id)) return methods.find(m => m.kind === "token" && m.support === "paste");
+  if (preferred === "mcp") return methods.find(m => m.mcp);
+  if (preferred === "token" || PLATFORM_KEYS.includes(card.connector_id)) return methods.find(m => m.kind === "token" && m.support === "paste");
   return undefined;
 }
+
+/** The platform's own keys (the Host's `platform-connection-services.ts`): no account is behind them and nothing but a key connects them. */
+const PLATFORM_KEYS: readonly string[] = ["model-api", "image-api", "typesafe", "mcp-bearer"];
 
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 
@@ -56,20 +58,18 @@ export function requestGuideVariant(method: ConnectorMethodOption): "main" | "fu
   return method.oauth && !loginReady(method) ? "full" : "main";
 }
 
-const CONNECTOR_PURPOSE: Record<string, string> = {
-  github: "workbench.settings-connector-guide.bring-unread-git-hub-notifications-into-project-keep",
-  gmail: "workbench.settings-connector-guide.bring-email-into-project-sort-out-work-threads",
+/** What each of the platform's own keys is for. */
+const PLATFORM_PURPOSE: Record<string, string> = {
   "model-api": "workbench.settings-connector-guide.choose-text-models-molis-jelly-can-use",
   "image-api": "workbench.settings-connector-guide.use-own-image-generation-service-images",
   typesafe: "workbench.settings-connector-guide.let-functions-use-type-safe-account",
   "mcp-bearer": "workbench.settings-connector-guide.save-key-remote-tool-service-choose-coding",
-  loom: "workbench.settings-connector-guide.reach-authorized-content-through-atlassian-rovo-s-official",
-  figma: "workbench.settings-connector-guide.connect-official-design-tools-so-agent-can-read",
 };
 
-/** What a connector is for: the workbench's own sentence where it has one, else the catalog's summary (the catalog's words are its own; specs/font-and-skin-system FSS-36). */
+/** What a connector is for: the sentence its declaration gives for it, else its summary (its words are its own; specs/font-and-skin-system FSS-36). */
 export function connectorPurpose(card: ConnectorSettingsCardView, _readText: Translate): string {
-  return Object.hasOwn(CONNECTOR_PURPOSE, card.connector_id) ? uiText.text(CONNECTOR_PURPOSE[card.connector_id]!) : card.summary;
+  if (Object.hasOwn(PLATFORM_PURPOSE, card.connector_id)) return uiText.text(PLATFORM_PURPOSE[card.connector_id]!);
+  return card.card?.purpose ?? card.summary;
 }
 
 export function officialLinks(links: readonly ConnectorSetupLink[], p: ConnectorPrimitives): string {
@@ -80,21 +80,10 @@ export function officialLinks(links: readonly ConnectorSetupLink[], p: Connector
   }).map(link => `<a href="${p.escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" data-connector-method-link>${p.icon("link")}${p.escapeHtml(link.label)}</a>`).join("")}</nav>`;
 }
 
-const COMPOSITE: Record<string, { separator: string; fields: readonly [string, string, string?][] }> = {
-  feishu: { separator: ":", fields: [["workbench.connector-credential.app-id", "text", "cli_…"], ["workbench.connector-credential.app-secret", "password"]] },
-  lark: { separator: ":", fields: [["workbench.connector-credential.app-id", "text", "cli_…"], ["workbench.connector-credential.app-secret", "password"]] },
-  wechat: { separator: ":", fields: [["workbench.connector-credential.corp-id", "text", "ww…"], ["workbench.connector-credential.corp-secret", "password"]] },
-  bitbucket: { separator: ":", fields: [["workbench.connector-credential.atlassian-email", "email"], ["workbench.connector-credential.api-token", "password"]] },
-  jira: { separator: "|", fields: [["workbench.connector-credential.site-domain", "text", "your-site.atlassian.net"], ["workbench.connector-credential.atlassian-email", "email"], ["workbench.connector-credential.api-token", "password"]] },
-  confluence: { separator: "|", fields: [["workbench.connector-credential.site-domain", "text", "your-site.atlassian.net"], ["workbench.connector-credential.atlassian-email", "email"], ["workbench.connector-credential.api-token", "password"]] },
-  salesforce: { separator: "|", fields: [["workbench.connector-credential.instance-url", "url", "https://your.my.salesforce.com"], ["workbench.connector-credential.access-token", "password"]] },
-  adobe: { separator: "|", fields: [["workbench.connector-credential.client-key", "text"], ["workbench.connector-credential.access-token", "password"]] },
-};
-
 export function credentialInputs(card: ConnectorSettingsCardView, p: ConnectorPrimitives): { fields: string; separator?: string } {
   const { escapeHtml: e } = p;
-  const composite = Object.hasOwn(COMPOSITE, card.connector_id) ? COMPOSITE[card.connector_id] : undefined;
-  const fields = composite ? composite.fields.map(([label, type, placeholder]) => `<label class="settings-connector-field"><span>${uiText(label)}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
+  const composite = card.card?.credential;
+  const fields = composite ? composite.fields.map(({ label, type, placeholder }) => `<label class="settings-connector-field"><span>${e(label)}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
     : `<label class="settings-connector-field"><span>${card.token_label ? e(card.token_label) : uiText("workbench.settings-connector-guide.api-key-access-token")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${e(card.connector_id)}" placeholder="${e(card.token_placeholder || "")}" required></label>`;
   return { fields, separator: composite?.separator };
 }
@@ -107,7 +96,7 @@ function tokenGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOpti
     <li><strong>${uiText("workbench.settings-connector-guide.come-back-here-enter-credentials")}</strong>${fields}</li></ol>
     ${card.auth_help || option.note ? `<details class="settings-connector-help"><summary>${uiText("workbench.settings-connector-guide.permission-requirements-help-filling")}</summary><p>${e((card.auth_help || option.note))}</p></details>` : ""}
     <p>${uiText("workbench.settings-connector-guide.credentials-stored-only-computer-not-shown-again-after")}</p>
-    <button class="mw-btn mw-btn--primary" type="submit">${uiText(["model-api", "image-api", "typesafe", "mcp-bearer"].includes(card.connector_id) ? "workbench.settings-connector-guide.save-continue" : "workbench.settings-connector-guide.save-check-connection")}</button>
+    <button class="mw-btn mw-btn--primary" type="submit">${uiText(PLATFORM_KEYS.includes(card.connector_id) ? "workbench.settings-connector-guide.save-continue" : "workbench.settings-connector-guide.save-check-connection")}</button>
     <div data-protocol-result role="status" aria-live="polite" hidden></div></form>`;
 }
 
@@ -130,7 +119,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
     const ready = dedicated || Boolean(option.login_ready);
     // An own app always needs its fields; the full guide needs them only while the product's own app is not ready.
     const own = variant === "own" || !ready;
-    const provider = card.connector_id === "gmail" ? "Google" : card.title;
+    const provider = card.card?.provider ?? card.title;
     const start = (label: string) => primary(`data-protocol-start="oauth"${dedicated && variant === "main" ? ` data-device-login="${e(provider)}"` : ""}`, label);
     if (variant === "main") body = `<ol class="settings-connector-steps"><li><strong>${e(uiText.text("workbench.settings-connector-guide.sign-name-browser-agree", { name: provider }))}</strong><p>${uiText("workbench.settings-connector-guide.come-back-here-yourself-nothing-copy")}</p></li></ol>
       ${option.oauth.note ? `<p>${e(option.oauth.note)}</p>` : ""}${start(uiText.text("workbench.settings-connector-guide.connect-name", { name: card.title }))}${manualReturn}`;
@@ -142,7 +131,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
       ${start(uiText.text("workbench.settings-connector-guide.sign-app"))}${manualReturn}`;
   } else if (option.mcp) {
     const custom = card.connector_id === "mcp-bearer";
-    const manual = custom || !option.login_ready && (option.mcp.client_registration === "manual" || ["feishu", "lark"].includes(card.connector_id));
+    const manual = custom || !option.login_ready && (option.mcp.client_registration === "manual" || card.card?.own_app);
     const select = (key: string, label: string, values: Array<[string, string]>, selected?: string) => `<label class="settings-connector-field"><span>${e(uiText.text(label))}</span><select class="mw-input" data-protocol-field="${key}">${values.map(([value, text]) => `<option value="${value}"${value === selected ? " selected" : ""}>${e(text)}</option>`).join("")}</select></label>`;
     const fixed = ["authentication", "transport"].map(key => { const value = setup?.[key as "authentication" | "transport"]; return value ? `<input type="hidden" data-protocol-field="${key}" value="${e(value)}">` : ""; }).join("");
     const start = primary('data-protocol-start="mcp"', uiText.text("workbench.settings-connector-guide.connect-name-tools", { name: card.title }));
@@ -153,7 +142,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
       ${field("endpoint", uiText.text("workbench.settings-connector-guide.official-tool-service-address"), option.mcp.endpoint)}${custom ? select("authentication", "workbench.settings-connector-guide.authentication", [["oauth", "OAuth"], ["none", uiText.text("workbench.settings-connector-guide.no-authentication")], ["bearer", "Bearer Token"]], setup?.authentication) + select("transport", "workbench.settings-connector-guide.transport", [["http", "Streamable HTTP"], ["sse", "SSE"]], setup?.transport) : fixed}${field("client_id", uiText.text("workbench.settings-connector-guide.app-client-id-app-id-enter-if-service"))}${field("client_secret", uiText.text("workbench.settings-connector-guide.client-secret-app-secret-enter-if-service-requires"), "", true)}${field("token", uiText.text("workbench.settings-connector-guide.access-token-optional-if-service-supports"), "", true)}<div class="settings-connector-copy"><code data-mcp-callback></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${uiText("workbench.settings-connector-guide.copy-callback")}</button></div>${field("redirect_uri", uiText.text("workbench.settings-connector-guide.registered-https-callback-optional"))}
       ${variant === "own" ? primary('data-protocol-start="mcp"', uiText.text("workbench.settings-connector-guide.connect-these-settings")) : start}${manualReturn}`;
   } else if (option.cli) {
-    body = `<p>${e(uiText.text(card.connector_id === "feishu" ? "workbench.settings-connector-guide.sign-user-account-local-client-connection-checked-automatically" : "workbench.settings-connector-guide.sign-installed-official-client-check-account-connection-can"))}</p>
+    body = `<p>${e(card.card?.client_note ?? uiText.text("workbench.settings-connector-guide.sign-installed-official-client-check-account-connection-can"))}</p>
       <p data-cli-availability>${e(option.cli.binary)} · ${uiText(option.cli.installed ? "workbench.settings-connector-guide.installed" : "workbench.settings-connector-guide.not-installed")}</p>
       ${officialLinks([{ label: uiText.text("workbench.settings-connector-guide.official-installation"), url: option.cli.install_url }], p)}
       ${(option.cli.environment_fields ?? []).map(input => field(`setting:${input.name}`, input.label, "", input.secret)).join("")}
@@ -182,7 +171,7 @@ export function renderConnectorConnect(card: ConnectorSettingsCardView, p: Conne
   if (card.availability === "placeholder") return `<div class="settings-connector-pending"><p>${e(card.unavailable_reason || uiText.text("workbench.settings-connector-guide.service-isn-t-integrated-yet-can-read-official"))}</p>${officialLinks(card.setup_links ?? [], p)}</div>`;
   const recommended = recommendedMethod(card);
   if (recommended) return `${renderCapabilities(card, p)}${renderMethodGuide(card, recommended, p, undefined, undefined, "main")}`;
-  const provider = card.connector_id === "gmail" ? "Google" : card.title;
+  const provider = card.card?.provider ?? card.title;
   const ways = [...new Set((card.method_options ?? []).map(m => m.kind))].filter(kind => Object.hasOwn(WAY, kind)).map(kind => uiText.text(WAY[kind]!, { provider }));
   return `<div class="settings-connector-pending"><p>${e(uiText.text("workbench.settings-connector-guide.not-one-click-yet-molis-work-hasn-t", { name: card.title }))}</p>
     <p>${e(ways.length ? uiText.text("workbench.settings-connector-guide.what-works-now-ways-all-under-advanced-below", { ways: ways.join(uiText.text("common.list.separator")) }) : uiText.text("workbench.settings-connector-guide.there-no-other-way-yet-can-connect-another"))}</p></div>

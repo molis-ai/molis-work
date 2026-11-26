@@ -45,13 +45,13 @@ async function ensurePowerShell(home: string, source: NativeToolSource, control:
   return executable;
 }
 
-/** Save the fixed authentication module into the connection's own module path using PowerShell's package manager. */
-export async function installGraphConnectorTool(home: string, source: PowerShellToolSource, directory: string, environment: Record<string, string>, control: ToolInstallControl) {
+/** Save the source's fixed module into the connection's own module path using PowerShell's package manager. */
+export async function installPowerShellModule(home: string, source: PowerShellToolSource, directory: string, environment: Record<string, string>, control: ToolInstallControl) {
   const executable = await ensurePowerShell(home, source.runtime, control), modules = join(directory, "modules");
   mkdirSync(modules, { mode: 0o700 });
   const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
   await runToolInstallProcess(executable, ["-NoProfile", "-NonInteractive", "-Command",
-    `Save-Module -Name Microsoft.Graph.Authentication -RequiredVersion ${quote(source.version)} -LiteralPath ${quote(modules)} -Repository PSGallery -AcceptLicense -Force -ErrorAction Stop`],
-    { ...control, cwd: directory, env: { ...environment, ...powerShellEnvironment(directory, executable) }, stage: "安装 Microsoft Graph 认证模块" });
+    `Save-Module -Name ${quote(source.package)} -RequiredVersion ${quote(source.version)} -LiteralPath ${quote(modules)} -Repository PSGallery -AcceptLicense -Force -ErrorAction Stop`],
+    { ...control, cwd: directory, env: { ...environment, ...powerShellEnvironment(directory, executable) }, stage: `安装 ${source.package}` });
   return { executable, runtime_path: [dirname(executable)] };
 }

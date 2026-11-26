@@ -8,6 +8,8 @@
     "bitbucket.connection.summary": "仓库与 PR。",
     "bitbucket.connection.token-label": "Bitbucket 令牌",
     "bitbucket.connection.token-placeholder": "email:api-token 或 OAuth 访问令牌",
+    "bitbucket.credential.atlassian-email": "Atlassian 邮箱",
+    "bitbucket.credential.api-token": "API Token",
     "bitbucket.guide.mcp-connected-note": "Bitbucket 工作区需关联 Atlassian 组织。",
     "bitbucket.guide.mcp-link": "查看 Atlassian Rovo MCP",
     "bitbucket.guide.mcp-note": "Bitbucket 工作区需关联 Atlassian 组织；Molis Work 暂未接入。",

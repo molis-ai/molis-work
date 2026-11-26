@@ -236,14 +236,14 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
     "P1-4: settings/projects transfer button matches shell help-tab availability",
   );
 
-  // P1-4: standalone Home plugin page (/plugins/jelly; Todo moved to partitions in batch 108) carries sideHelpAvailable="0" so Help omits the broken side-pane button.
-  const todoFrame = await pluginFrameBrowser(t, b, "jelly");
-  await navigate(() => command("Page.navigate", { url: origin + "/plugins/jelly" }, sessionId));
-  await todoFrame.waitFor("document.body.dataset.sideHelpAvailable === '0' && !!document.querySelector('[data-mw-help-trigger]')");
-  await todoFrame.evaluate("document.querySelector('[data-mw-help-trigger]')?.click()");
-  await todoFrame.waitFor("!!document.querySelector('.mw-help-card')");
+  // P1-4: standalone Home plugin page (/plugins/work-brief; Todo and Jelly moved to partitions in batch 108) carries sideHelpAvailable="0" so Help omits the broken side-pane button.
+  const homeFrame = await pluginFrameBrowser(t, b, "work-brief");
+  await navigate(() => command("Page.navigate", { url: origin + "/plugins/work-brief" }, sessionId));
+  await homeFrame.waitFor("document.body.dataset.sideHelpAvailable === '0' && !!document.querySelector('[data-mw-help-trigger]')");
+  await homeFrame.evaluate("document.querySelector('[data-mw-help-trigger]')?.click()");
+  await homeFrame.waitFor("!!document.querySelector('.mw-help-card')");
   assert.equal(
-    await todoFrame.evaluate<boolean>("!!document.querySelector('.mw-help-card [data-mw-help-to-side]')"),
+    await homeFrame.evaluate<boolean>("!!document.querySelector('.mw-help-card [data-mw-help-to-side]')"),
     false,
     "P1-4: standalone Home plugin page hides broken side-pane transfer button",
   );

@@ -49,7 +49,8 @@ test("RAC-740 the Home plugins the Host ships say so in their Manifests, and the
   const home = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry => entry.project_plugin_id).sort();
   // Goals left this list in batch 41 (41-2): its Home half was the method library, which is a system Skill pack now. Shelf left it in
   // batch 44B (PR2b): it is a platform part the runtime hosts (`system.shelf`, `modules/shelf/src/surface`), not a catalog plugin.
-  assert.deepEqual(home, ["feed", "jelly", "work-brief"]);
+  // Jelly left it in batch 108: it keeps a library in each partition.
+  assert.deepEqual(home, ["feed", "work-brief"]);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     assert.equal(entry.runtime !== undefined, entry.manifest.runtime?.scope === "home", `${entry.project_plugin_id}: the registration's runtime (the code) and the Manifest's runtime.scope go together`);
     assert.equal("scope" in (entry.runtime ?? {}), false, `${entry.project_plugin_id}: the registration no longer says where the plugin runs`);

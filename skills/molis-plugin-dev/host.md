@@ -24,7 +24,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 每个分区一份的数据写分区独立库 `databases.partition`（[partitions.md](partitions.md)）；原先 `databases.home` 的 `partition: "project"` 复用器已随第 107 批删除，不要再写。数据放在同一个库里、按列记项目的，在 `databases.home` 写 `project_rows`（标签、要删的表与列；行里记着自己文件名的，再写 `files` 指到 `owner_files` 的目录），删项目时平台照声明删行和这些文件（别的项目的行仍点名的文件留着），插件不写清除代码；写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「Home 消费者的模型配置、生图与项目清理」。
 
-`personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
+Home Runtime（`runtime.scope: "home"`）的业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
 Home 的 `services.storage` 是 Home Runtime 库里的安装隔离 KV；升级校验只读，候选失败恢复原值，停止/撤权/重装后的旧句柄失效。业务数据继续在插件原 SQLite，不迁到 KV。Home 的动作与场景若声明项目 scope，必须经真实项目客户端；Home HTTP 不带项目前缀时没有项目；带真实项目前缀时，Host 核对项目存在且显示该插件，发出的执行控制使动作保留该项目；不得从 body/query 自报项目。通用 operations 保留控制令牌、断开取消、beforeEffect、client_reported 页面上下文与上传限额，不借项目文件/wiring 钩子。库失败不挡 Goals；普通读取不自行重试，显式 POST retry 共用一次启动。
 
@@ -117,7 +117,7 @@ Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }
 8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `web-request.ts` 的路由表加条目；构建期 HTTP 例外表 `NATIVE_PLUGIN_HTTP_FILES` 已清空。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。舞台通过 Manifest `views`、`stage_data` 与 `registration.workbench.contributions` 声明，Runtime 从运行中的实例绘制，外壳按贡献描述通用挂载（同第 5 步），不再以手写 `render<X>Contribution` 作为新增插件步骤。要把内容放进别的插件的页面，就在它的描述符里声明 `slots`，被嵌入的插件在 Manifest `ui.embedded_plugins` 里列出，并用 `target_slot_id` 指向那个槽（Coding 的目录与阅读器里的 Git、Diff）。
 9. **界面语言**：插件以 Manifest 的 `ui.locales` 声明 `locales/<语言>.json`。用 SDK 的 `t`、`say` 和 `format` 取字。页面与客户端从同一准确来源读取；插件不能借同名安装或接管平台词。
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
-11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
+11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/内置插件名单 `BUILTIN_PLUGIN_IDS`）、`tests/creative-tools-plugins.test.ts` 的市场分类、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 12. **动作定义**：用 SDK 的 `defineAction` 写一份定义，同一份既进 Manifest 的 `actions`，也绑定运行实例的 `actions` 处理器（`packages/plugin-sdk/README.md`）；注册后自动进共同目录，UI、编排、Agent、MCP 共用它，没有另外的适配。
 13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；插件的客户端包是 `/assets/` 下的新文件，在 `tooling/gates/page-asset-allowances/` 写本任务的独立增长许可，新增资源先问用户（`scripts/gates/page-assets.mjs`）。
 

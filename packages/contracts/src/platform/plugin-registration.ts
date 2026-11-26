@@ -165,11 +165,6 @@ export interface PluginRegistration {
   /** Position in the catalog, unique across the build; the derived lists keep this order. */
   readonly catalog_order: number;
   readonly manifest: PluginManifest;
-  /**
-   * On in every project unless the person hid it there; not offered for enabling. Trusted: the Host reads it from this
-   * registration only, never from a Manifest or an installed package.
-   */
-  readonly personal?: true;
   /** Product setup choice for new projects; stored as ordinary membership and freely removable afterwards. */
   readonly default_enabled?: true;
   /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */

@@ -32,7 +32,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 人盯着一份正在编的文档/表/问卷。工作台是编辑器，不是「新消息该去哪」。
 
-- catalog `personal: true`。plugin-stage 列表 + 编辑面 + `CLIENT_FACTORY_SCRIPT`。
+- 分区独立库 `databases.partition`，按分区启用。plugin-stage 列表 + 编辑面 + `CLIENT_FACTORY_SCRIPT`。
 - MCP：`list/get/create/update/…`，默认项目 scope，Host 注入 `project_id`。新工具默认关。
 - `pages.promote` 走 MCP 和工作台按钮，进 Agent，不进 Feed/Inbox 事件池。
 - 判断场景用 `action_scenes`（`inbox.next`），不再有 `function_scenes`。私人库用 `storage:private`。

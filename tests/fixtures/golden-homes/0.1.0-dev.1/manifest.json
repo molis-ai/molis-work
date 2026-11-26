@@ -304,30 +304,6 @@
       "sha256": "1f3f595fabf5876e42ca3c1148f91c7a60e32a3d47b6fd9222f74b6e4e36e7fc"
     },
     {
-      "path": "jelly/jelly.db",
-      "owner": "io.molis.work.jelly",
-      "mode": 384,
-      "payload": "stores/jelly/jelly.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "jelly_categories": 0,
-        "jelly_items": 0,
-        "jelly_notes": 1,
-        "jelly_series": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_context": 1,
-        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
-        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
-      },
-      "sha256": "f91d0419a9d3211d22250f18640ed1e311b795622d3cb2a762957b906cdfe815"
-    },
-    {
       "path": "knowledge/knowledge.db",
       "owner": "packages/storage",
       "mode": 384,
@@ -483,6 +459,31 @@
         "sync_547a53110031b73814823e489835_replica_state": 1
       },
       "sha256": "c69f3ddf8151864ac510c27921b68e8be270bc9a137767f3b7588c0e342b3634"
+    },
+    {
+      "path": "personal-space/libraries/jelly.db",
+      "owner": "io.molis.work.jelly",
+      "mode": 384,
+      "payload": "stores/personal-space/libraries/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 1,
+        "jelly_series": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
+      },
+      "sha256": "c66f5c0f9e11be06f35b4a6224064365eb568403a3861a2d4d1a2097a2c4dee4"
     },
     {
       "path": "personal-space/libraries/pages.db",

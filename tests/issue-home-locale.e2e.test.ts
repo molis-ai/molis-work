@@ -17,11 +17,11 @@ const sideOpen = "document.body.dataset.sideOpen === 'true'";
 const issueGlyph = '[data-side-tab="plugin:issues/capture"]';
 
 /**
- * The standalone Home page (`/plugins/<id>`), its model settings dialog and its startup retry: Jelly's is the built-in one left after Issues moved
- * to the partitions in batch 108.
+ * The standalone Home page (`/plugins/<id>`), its model settings dialog and its startup retry: Work Brief's is the built-in one left after Issues and
+ * Jelly moved to the partitions in batch 108 (the standalone Home pages go with the Home runtime in batch 109-3).
  */
-async function jellyHomeView(t: TestContext, b: IssueBrowser) {
-  const frame = await pluginFrameBrowser(t, b, "jelly");
+async function homePageView(t: TestContext, b: IssueBrowser) {
+  const frame = await pluginFrameBrowser(t, b, "work-brief");
   return {
     frame, ask: <T = unknown>(body: string) => frame.evaluate<T>(body),
     viewport: (width: number, height = 900) => b.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, b.sessionId),
@@ -69,7 +69,7 @@ test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while 
 });
 
 // Issues runs in the personal space since batch 108: its settings link opens the workbench's settings in place, as every partition plugin's does
-// (S-47, tests/security-invariants-plugin-pages.e2e.test.ts). The standalone Home page's own settings dialog is tested on Jelly's page below.
+// (S-47, tests/security-invariants-plugin-pages.e2e.test.ts). The standalone Home page's own settings dialog is tested on Work Brief's page below.
 test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture in the personal space offers English model settings in place and keeps the manual draft", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-home-locale");
@@ -104,11 +104,11 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture in the personal space offe
   assert.equal(stored.title, "删除"); assert.equal(stored.description, "问题描述"); assert.equal(stored.entered_via, "manual");
 });
 
-// The standalone Home page's settings dialog (S-47, HOME-SET-02): Jelly's is the built-in Home page left after batch 108's Issues moved to the partitions.
+// The standalone Home page's settings dialog (S-47, HOME-SET-02): Work Brief's is the built-in Home page left after batch 108's Issues and Jelly moved to the partitions.
 test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens English model settings in place, retries a failed load and keeps the page", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const v = await jellyHomeView(t, b);
-  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fjelly");
+  const v = await homePageView(t, b);
+  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fwork-brief");
   await v.frame.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
   // HOME-SET-02: the standalone consumer cannot turn an invalid settings request into navigation or I/O.
   assert.deepEqual(await b.evaluate(`(() => {
@@ -121,9 +121,9 @@ test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens 
       return { requests, open: document.querySelector('[data-home-model-settings]').open, samePage: location.href === before };
     } finally { window.fetch = fetch; }
   })()`), { requests: 0, open: false, samePage: true });
-  const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=jelly]'))})";
-  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'jelly-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=jelly]'); return ${ownerState}; })()`);
-  await v.ask("globalThis.__settingsDraftMarker = 'original-jelly-frame'");
+  const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=work-brief]'))})";
+  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'home-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=work-brief]'); return ${ownerState}; })()`);
+  await v.ask("globalThis.__settingsDraftMarker = 'original-home-frame'");
   // W2-18-HOME-LOCALE-01 / S-47: the standalone Home host receives the opaque page's settings request in place.
   // Only fail delivery of this settings document; the retry uses the real Host and its empty model catalog.
   await b.evaluate(`(() => { const fetch = window.fetch; window.__failModelLoad = true;
@@ -184,7 +184,7 @@ test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens 
   assert.equal(await b.evaluate(readModelInput), "Unsaved provider");
   assert.deepEqual(await b.evaluate(`window.__modelSettingsLoads.slice(${priorLoads})`), ["interrupted", 200]);
   await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
-  assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-jelly-frame", "the Jelly execution context was not reloaded");
+  assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-home-frame", "the plugin's execution context was not reloaded");
   t.diagnostic(JSON.stringify({ firstFailure, cachedFailure, notice, loads: await b.evaluate("window.__modelSettingsLoads") }));
   assert.equal(notice.inView, true, "returning to a cached model form brings the existing error and Retry into view");
   for (const message of [firstFailure, cachedFailure]) {
@@ -193,20 +193,20 @@ test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens 
   }
 });
 
-// A Home plugin ledger this version cannot read: Jelly's standalone page offers the Home startup retry (Issues runs in the partitions since batch 108).
+// A Home plugin ledger this version cannot read: Work Brief's standalone page offers the Home startup retry (Issues and Jelly run in the partitions since batch 108).
 test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language through the real HTTP error route", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", async path => {
     await seedDemoGoals(path); const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
     const db = new DatabaseSync(join(directory, "plugin-runtime.db")); db.exec("PRAGMA user_version=9"); db.close();
   }, null);
   if (!b) return;
-  const v = await jellyHomeView(t, b);
-  await v.go("/locale?lang=en&next=%2Fplugins%2Fjelly");
+  const v = await homePageView(t, b);
+  await v.go("/locale?lang=en&next=%2Fplugins%2Fwork-brief");
   await b.waitFor("document.querySelector('[data-home-lifecycle=retry]')");
   assert.equal(await b.evaluate("document.documentElement.lang"), "en");
   assert.equal(await b.evaluate("document.querySelector('[data-home-lifecycle=retry]').textContent"), "Retry startup");
-  assert.match(await b.evaluate<string>("document.querySelector('[role=alert]').textContent"), /Jelly Unavailable/);
-  await v.go("/locale?lang=zh&next=%2Fplugins%2Fjelly");
+  assert.match(await b.evaluate<string>("document.querySelector('[role=alert]').textContent"), /Work Brief Unavailable/);
+  await v.go("/locale?lang=zh&next=%2Fplugins%2Fwork-brief");
   assert.equal(await b.evaluate("document.documentElement.lang"), "zh-CN");
   assert.equal(await b.evaluate("document.querySelector('[data-home-lifecycle=retry]').textContent"), "重试启动");
 });

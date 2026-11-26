@@ -18,7 +18,7 @@ process.env.MOLIS_WORK_HOME = home;
 process.env.MOLIS_WORK_SECRET_BACKEND = 'file';
 const { openMolisWorkProjectCatalog, createDesktopWebCore } = await import('@molis-ai/molis-work-app-desktop');
 const { seedDemoBoard } = await import('@molis-ai/molis-work-app-local-host');
-const { PROJECT_SCOPED_PLUGIN_IDS } = await import('@molis-ai/molis-work-app-local-host');
+const { BUILTIN_PLUGIN_IDS } = await import('@molis-ai/molis-work-app-local-host');
 const { ChromeHarness } = await import('@molis-ai/molis-work-test-kit/browser');
 const round = value => Math.round(value * 100) / 100;
 const sockets = new Set();
@@ -47,7 +47,7 @@ async function main() {
   let project;
   try {
     project = await catalog.createProject({ display_name: '视觉性能基线', actor_id: 'isolated-baseline' });
-    for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: 'isolated-baseline' });
+    for (const plugin_id of BUILTIN_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: 'isolated-baseline' });
   } finally { catalog.close(); }
   for (const suffix of ['', '-wal', '-shm']) await rm(project.database_path + suffix, { force: true });
   seedDemoBoard(project.database_path, project.project_id);

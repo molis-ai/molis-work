@@ -8,6 +8,7 @@ store	owner	version	structure	upgrades
 <partition>/libraries/form.db	io.molis.work.form	1	6d4bff6666020499	-
 <partition>/libraries/images.db	io.molis.work.images	1	5e44d34cf5e15e2a	-
 <partition>/libraries/issues.db	io.molis.work.issues	1	09d4e287095bc580	-
+<partition>/libraries/jelly.db	io.molis.work.jelly	1	680355108d487208	-
 <partition>/libraries/lingguang.db	io.molis.work.lingguang	1	2754a7e58c64524e	-
 <partition>/libraries/pages.db	io.molis.work.pages	1	955d3684f92605b9	-
 <partition>/libraries/ppt.db	io.molis.work.ppt	1	650579fc784ea1cf	-
@@ -35,7 +36,6 @@ external-sessions/external-sessions.db	horizontal/sessions	1	eabec6a25b46795b	-
 feed-content/feed-content.db	io.molis.work.feed	1	0a6d43d10416d5ee	-
 functions/functions.db	modules/functions	1	e8e455da5a281ae8	-
 home-pages/home-pages.db	horizontal/home	1	b9566d6fb909a746	-
-jelly/jelly.db	io.molis.work.jelly	1	07e620872874959d	-
 knowledge/knowledge.db	packages/storage	1	2adbf0ecde034d1b	-
 mainline/mainline.db	horizontal/mainline	1	24e9f4a4fef41aca	-
 memory/memory.db	packages/storage	2	17c9d78d1f64f5b8	1

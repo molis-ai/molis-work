@@ -5,7 +5,7 @@ import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
@@ -80,9 +80,9 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     const { projects } = await home.web.get<{ projects: Array<{ project_id: string; plugins: string[]; hidden: string[] }> }>("/api/settings/project-plugins");
     const row = projects.find(entry => entry.project_id === project.project_id);
     assert.ok(row);
-    return shownProjectPlugins(row.plugins, row.hidden);
+    return row.plugins;
   };
-  for (const id of PROJECT_SCOPED_PLUGIN_IDS) if (!(await enabled()).includes(id)) await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+  for (const id of BUILTIN_PLUGIN_IDS) if (!(await enabled()).includes(id)) await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const start = await enabled();
   assert.deepEqual(builtins.filter(id => !start.includes(id)), [], "the project starts with all 20");
   const person = await home.host.localPersonContext(project.reference);

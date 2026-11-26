@@ -179,7 +179,7 @@ async function auditDataset(t: TestContext, b: Browser) {
 async function auditJelly(t: TestContext, b: Browser) {
   const frame = await pluginFrameBrowser(t, b, "jelly");
   const items = () => {
-    const store = openJellyStore(b.homeDirectory);
+    const store = openJellyStore(b.homeDirectory, b.projectId!);
     try { return store.read(rows => rows.items("2000-01-01", "2100-12-31")); } finally { store.close(); }
   };
   const field = (name: string) => `[data-jelly-form] [name="${name}"]`;

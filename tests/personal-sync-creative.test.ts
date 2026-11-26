@@ -39,9 +39,9 @@ test('Host exposes and transfers all registered creative collections through the
   t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_LOCAL;else process.env.MOLIS_WORK_SYNC_LOCAL=previous;});t.mock.method(globalThis,'fetch',f.transport);
   const project=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},async c=>{
     const p=await c.createProject({display_name:'多插件项目',actor_id:'alice'});
-    for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed','todo'])c.addProjectPlugin({project_id:p.project_id,plugin_id,actor_id:'alice'});return p;
+    for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed','todo','jelly'])c.addProjectPlugin({project_id:p.project_id,plugin_id,actor_id:'alice'});return p;
   });
-  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async c=>{await c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed','todo'])c.addProjectPlugin({project_id:project.project_id,plugin_id,actor_id:'alice'});});
+  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async c=>{await c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed','todo','jelly'])c.addProjectPlugin({project_id:project.project_id,plugin_id,actor_id:'alice'});});
   const sourceRuntime=await runtimePersonalSync(f.homes[0],f.space),targetRuntime=await runtimePersonalSync(f.homes[1],f.space);f.closeWith(()=>sourceRuntime.close());f.closeWith(()=>targetRuntime.close());const a=sourceRuntime.sync,b=targetRuntime.sync;
   const factories=[openFormStore,openDatasetStore,openPptStore,openLingguangStore];
   const ids=factories.map(open=>{const s=open(f.homes[0],project.project_id);try{return s.create({title:'跨设备业务内容'}).id;}finally{s.close();}});
@@ -49,8 +49,8 @@ test('Host exposes and transfers all registered creative collections through the
     const flow=s.create({title:'跨设备流程',chain:{stations:[newStation('pages'),newStation('inbox')],links:[manualLink()]}});
     return {id:flow.workflow_id,instance:s.startInstance(flow,{plugin:'pages',item_id:'source',title:'资料'}).instance_id};
   }finally{s.close();}})();
-  const jelly=(()=>{const s=openJellyStore(f.homes[0]);try{const now=new Date().toISOString();return s.write(store=>store.insert('note',{id:'sync-note',title:'跨设备笔记',body:'同步内容',day:null,revision:1,created_at:now,updated_at:now})).id;}finally{s.close();}})();
-  // Todo keeps a library in each partition since batch 108: this one is the project's.
+  const jelly=(()=>{const s=openJellyStore(f.homes[0],project.project_id);try{const now=new Date().toISOString();return s.write(store=>store.insert('note',{id:'sync-note',title:'跨设备笔记',body:'同步内容',day:null,revision:1,created_at:now,updated_at:now})).id;}finally{s.close();}})();
+  // Todo and Jelly keep a library in each partition since batch 108: these are the project's.
   const todo=(()=>{const s=openTodoStore(f.homes[0],undefined,project.project_id);try{return s.create({title:'跨设备待办'},{projectId:null,projectIds:[],actor:'user',actorId:'alice'}).item.id;}finally{s.close();}})();
   const character=(()=>{const s=openCharacters(f.homes[0],LOCAL_PERSON_ACTOR_ID);try{
     return s.service.create({title:'跨设备角色',instructions:'核对事实',host_tools:null}).character_id;
@@ -73,7 +73,7 @@ test('Host exposes and transfers all registered creative collections through the
     assert.equal(received.instance(workflow.instance).title,'资料');
     assert.throws(()=>received.assertExecutableInstance(workflow.instance),/仅可查看/);
   }finally{received.close();}
-  const receivedJelly=openJellyStore(f.homes[1]);try{
+  const receivedJelly=openJellyStore(f.homes[1],project.project_id);try{
     assert.equal(receivedJelly.read(store=>store.get('note',jelly))?.title,'跨设备笔记');
   }finally{receivedJelly.close();}
   const receivedTodo=openTodoStore(f.homes[1],undefined,project.project_id);try{

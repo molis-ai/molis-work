@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUGIN_IDS, molisWorkHostProjectReference, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_REGISTRY, BUILTIN_PLUGIN_IDS, molisWorkHostProjectReference, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 
@@ -68,7 +68,7 @@ export function registerProjectCopy(host: MolisWorkLocalHost, home: string, with
       copy = record.database_path;
       mkdirSync(dirname(copy), { recursive: true }); copyFileSync(databasePath, copy);
       projects.lifecycle.register(record, "project.created", "fixture-restore");
-      for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "fixture-restore" });
+      for (const plugin_id of BUILTIN_PLUGIN_IDS) projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "fixture-restore" });
     } finally { storage.close(); }
     assert.equal(catalog.getProject(projectId).database_path, copy);
     return copy;

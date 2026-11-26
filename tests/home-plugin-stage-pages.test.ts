@@ -74,11 +74,10 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
   assert.equal(entry(local)?.group, null, "a package a project runs is not the person's own");
   const plus = clientPluginDirectory(directory);
   assert.deepEqual([notes, books, local].map(id => plus.find(item => item.id === id)?.personal === true), [true, true, false], "＋ lists the two Home packages with the person's own");
-  // The built-ins by the same rule, from the Host's own registrations (registered personal and run in the Home): only Jelly is left, until
-  // it moves too; Cognia, Images, Issue and Todo run in each partition they are added to since batch 108, as 灵光, Pages, PPT, Dataset, Forms
-  // and Workflows have since batch 107. Goals and Feed (dual, not personal) and the studio are not the person's own either.
+  // The built-ins by the same rule: none is the person's own since batch 108. Jelly, Cognia, Images, Issues and Todo run in each partition
+  // they are added to, as 灵光, Pages, PPT, Dataset, Forms and Workflows have since batch 107; Goals and Feed (dual) and the studio are not either.
   const own = builtinMarketDirectory().filter(isPersonalPlugin).map(item => item.id).sort();
-  assert.deepEqual(own, ["jelly"]);
+  assert.deepEqual(own, []);
 });
 
 test("BL-912 an installed stage tells the tab strip the icon its package picked, and says nothing when it picked none", () => {

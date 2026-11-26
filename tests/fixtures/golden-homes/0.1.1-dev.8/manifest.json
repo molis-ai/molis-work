@@ -207,10 +207,6 @@
       "mode": 448
     },
     {
-      "path": "jelly",
-      "mode": 448
-    },
-    {
       "path": "knowledge",
       "mode": 448
     },
@@ -404,10 +400,6 @@
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/interface",
-      "mode": 448
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly",
       "mode": 448
     },
     {
@@ -704,30 +696,6 @@
       "sha256": "f610f8444962e4d11c135daf919bf5f7060d4aa1d66bf6fad98c6823e8bfe916"
     },
     {
-      "path": "jelly/jelly.db",
-      "owner": "io.molis.work.jelly",
-      "mode": 384,
-      "payload": "stores/jelly/jelly.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "jelly_categories": 0,
-        "jelly_items": 0,
-        "jelly_notes": 1,
-        "jelly_series": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_context": 1,
-        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
-        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
-      },
-      "sha256": "5f27401991b48cef8ef6117d4c3ec16b36f88da73ed5a62991c7a8ccef84c760"
-    },
-    {
       "path": "knowledge/knowledge.db",
       "owner": "packages/storage",
       "mode": 384,
@@ -883,6 +851,31 @@
         "sync_547a53110031b73814823e489835_replica_state": 1
       },
       "sha256": "d4c33f8b81a6b52d95f248600c93a539f6daee00aa188a8a919c7a7c3ab3b046"
+    },
+    {
+      "path": "personal-space/libraries/jelly.db",
+      "owner": "io.molis.work.jelly",
+      "mode": 384,
+      "payload": "stores/personal-space/libraries/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 1,
+        "jelly_series": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
+      },
+      "sha256": "78fddb8186e08e63c7a9afb1a4e6f3e349e49a33b94b60afc4625b04abb6cc94"
     },
     {
       "path": "personal-space/libraries/pages.db",
@@ -2269,30 +2262,6 @@
       "sha256": "1a9db11224588525ed4bdcbc10082f2b697832ca5dd4bd39659f2b5e8b5ebeae"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db",
-      "owner": "io.molis.work.jelly",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "jelly_categories": 0,
-        "jelly_items": 0,
-        "jelly_notes": 1,
-        "jelly_series": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_context": 1,
-        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
-        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
-      },
-      "sha256": "f618bd449fd411af79afcbf42387b5a516766baa665b95fcfa11ae8e3be11583"
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db",
       "owner": "packages/storage",
       "mode": 384,
@@ -2448,6 +2417,31 @@
         "sync_547a53110031b73814823e489835_replica_state": 1
       },
       "sha256": "13cf1524e84e8177979a57890960d76d825227d81eedc22270aa6b0adeeaffca"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/jelly.db",
+      "owner": "io.molis.work.jelly",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 1,
+        "jelly_series": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
+      },
+      "sha256": "9eead309f0a49129f25771af14a1b69fb3de920e48e8b30ea8fabf4acd89a481"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/pages.db",

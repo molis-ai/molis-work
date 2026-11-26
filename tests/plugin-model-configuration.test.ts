@@ -21,8 +21,8 @@ async function fixture() {
   const view = { configured: false, providers: [], connections: [], source: "none" as const };
   let operation: () => unknown = () => undefined, registration!: ActionProviderRegistration;
   const actions = [probeActions.modelSettings, probeActions.saveModelSettings, probeActions.modelPlan];
-  // A Home plugin's Manifest with only these three actions and no library, read groups or sync of its own.
-  const { summary_text: _summary, settings_entries: _preferences, databases: _databases, sync: _sync, ...home } = jellyManifest;
+  // A Home plugin's Manifest with only these three actions and no library, read groups, sync or overview of its own.
+  const { summary_text: _summary, settings_entries: _preferences, databases: _databases, sync: _sync, overview_projection: _overview, ...home } = jellyManifest;
   const manifest = { ...home, plugin_id: `com.example.config${crypto.randomUUID().replaceAll("-", "")}`, ui: { contributions: [] }, routes: [], actions, read_groups: undefined,
     permissions: [...grants].map(permission => ({ permission, required: permission === "storage:private", reason: permission })) };
   const definition = { manifest, async start() { return { kind: "app" as const, actions: actions.map(action => ({ ...action, handle: () => operation() })) }; } };

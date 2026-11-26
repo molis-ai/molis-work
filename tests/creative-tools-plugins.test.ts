@@ -27,7 +27,7 @@ import {
   renderMolisWorkWorkbenchWithPluginStylesheets,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-creative-tools";
@@ -102,20 +102,18 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 }
 
 test("Forms / Dataset / PPT 由项目按分区启用，不再是常开的个人插件（第 107 批做法 A）", () => {
-  assert.equal(PERSONAL_PLUGIN_IDS.includes("functions" as never), false, "判断已迁入系统服务");
-  for (const id of ["form", "dataset", "ppt"]) assert.equal(PERSONAL_PLUGIN_IDS.includes(id), false, `${id} 不再常开`);
-  assert.equal([...PERSONAL_PLUGIN_IDS, ...PROJECT_SCOPED_PLUGIN_IDS].includes("characters"), false, "角色是宿主设置的一节，不是插件（CHR-1）");
+  assert.equal(BUILTIN_PLUGIN_IDS.includes("functions" as never), false, "判断已迁入系统服务");
+  assert.equal([...BUILTIN_PLUGIN_IDS].includes("characters"), false, "角色是宿主设置的一节，不是插件（CHR-1）");
   for (const id of ["form", "dataset", "ppt"]) {
-    assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), true, `${id} 由项目添加`);
+    assert.equal(BUILTIN_PLUGIN_IDS.includes(id), true, `${id} 由项目添加`);
   }
-  const rail = railEntries(["goals", "form", "dataset", "ppt", ...PERSONAL_PLUGIN_IDS, "files"]).map((entry) => entry.id);
+  const rail = railEntries(["goals", "form", "dataset", "ppt", "files"]).map((entry) => entry.id);
   assert.deepEqual(
     rail.filter((id) => ["form", "dataset", "ppt"].includes(id)),
     ["form", "dataset", "ppt"],
   );
   const market = pluginMarketCards(builtinMarketDirectory());
-  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id),
-    [...PERSONAL_PLUGIN_IDS]);
+  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id), [], "no built-in is a personal plugin since batch 108");
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 

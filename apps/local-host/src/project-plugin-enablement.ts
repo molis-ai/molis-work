@@ -9,7 +9,7 @@ import { cachedProjectReachablePlugins, pluginReachable, projectMembershipReach,
 import { homePluginsOutsideBuild } from "./home-registration.js";
 
 function enablementMap(reachable: ReadonlySet<string>): ReadonlyMap<string, boolean> {
-  return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
+  return new Map(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
 }
 
 /** The catalog remains the only project enablement fact; standalone fixtures have no such catalog. */
@@ -23,8 +23,8 @@ export async function projectPluginEnablement(home: string | undefined, projectI
 }
 
 /**
- * The plugins of `pluginIds` this partition enables now, by the same reach its actions and routes are judged by (PG-013): a personal plugin
- * is enabled unless the partition hid it, any other unless the partition does not list it. One outside the build's catalog (a test fixture)
+ * The plugins of `pluginIds` this partition enables now, by the same reach its actions and routes are judged by (PG-013): those the
+ * partition lists. One outside the build's catalog (a test fixture)
  * is enabled; without a catalog, all are.
  */
 export async function partitionPluginMembers(home: string, partitionId: string, pluginIds: readonly string[]): Promise<readonly string[]> {
@@ -42,7 +42,7 @@ export function changedProjectPluginEnablement(before: ProjectPluginMembership, 
   const previous = projectMembershipReach(before), saved = projectMembershipReach(after);
   const changed = new Map<string, boolean>();
   for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
-    if (!entry.project_runtime || entry.personal) continue;
+    if (!entry.project_runtime) continue;
     const desired = pluginReachable(entry, saved);
     if (desired !== pluginReachable(entry, previous)) changed.set(entry.manifest.plugin_id, desired);
   }

@@ -220,9 +220,9 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
 // W2-18-HOME-LOCALE-01: the standalone Home settings host consumes the same restricted request.
 test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept the existing connection pages", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  // Jelly's is the built-in standalone Home page left after Issues moved to the partitions (batch 108).
-  const child = await pluginFrameBrowser(t, b, "jelly");
-  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fjelly` }, b.sessionId));
+  // Work Brief's is the built-in standalone Home page left after Issues and Jelly moved to the partitions (batch 108).
+  const child = await pluginFrameBrowser(t, b, "work-brief");
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fwork-brief` }, b.sessionId));
   await child.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
   const address = await b.evaluate("location.href");
   const refuse = () => b.evaluate(`(async () => {
@@ -326,9 +326,9 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
 test("S-ui-text-page FSS-08 a replacement document before first connection never receives the frame port", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty", undefined, null); if (!browser) return;
   const { command, sessionId, origin, waitFor, evaluate, navigate } = browser;
-  // A standalone Home page: Jelly's since Issues moved to the partitions (batch 108).
-  const child = await pluginFrameBrowser(t, browser, "jelly");
-  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/jelly${search}` }, sessionId));
+  // A standalone Home page: Work Brief's since Issues and Jelly moved to the partitions (batch 108).
+  const child = await pluginFrameBrowser(t, browser, "work-brief");
+  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/work-brief${search}` }, sessionId));
   await open();
   await child.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
   const forged = `<!doctype html><title>Replacement frame</title><script>
@@ -341,18 +341,18 @@ test("S-ui-text-page FSS-08 a replacement document before first connection never
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `if (window===top) {
     window.frameHandshakeTrace=[];
     addEventListener('message', event => {
-      const frame = document.querySelector('iframe[data-plugin-frame=jelly]');
+      const frame = document.querySelector('iframe[data-plugin-frame=work-brief]');
       if (event.source===frame?.contentWindow && event.origin==='null' && event.data?.type==='frame-handshake-test') frameHandshakeTrace.push(event.data.detail);
     });
     const actual = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc');
     Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...actual, set(source) {
-      if (this.dataset.pluginFrame !== 'jelly') { actual.set.call(this, source); return; }
+      if (this.dataset.pluginFrame !== 'work-brief') { actual.set.call(this, source); return; }
       this.src = URL.createObjectURL(new Blob([${JSON.stringify(forged)}], {type:'text/html'}));
     } });
   }` }, sessionId);
   await open("?frame-handshake=replaced");
   await waitFor("frameHandshakeTrace.includes('replacement-loaded')", 12_000);
-  await waitFor("!document.querySelector('iframe[data-plugin-frame=jelly]')", 15_000);
+  await waitFor("!document.querySelector('iframe[data-plugin-frame=work-brief]')", 15_000);
   assert.deepEqual(await evaluate("frameHandshakeTrace"), ["replacement-loaded"], "loading at the current frame window is insufficient to receive any config or port");
 });
 

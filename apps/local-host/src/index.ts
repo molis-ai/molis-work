@@ -120,8 +120,8 @@ export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-del
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { ownerLabel } from "./web-project-deletion.js";
 export {
-  BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
-  availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, requiredCompanions, shownProjectPlugins, type ProjectRuntimeDeclaration,
+  BUILTIN_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS,
+  availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, requiredCompanions, type ProjectRuntimeDeclaration,
 } from "./plugin-registry.js";
 export { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";

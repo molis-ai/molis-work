@@ -76,8 +76,6 @@ function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefi
 
 /** The project keys of the plugins this build turns on in a new project. */
 export const shippedDefaultPlugins = (): string[] => BUILTIN_PLUGIN_CATALOG.filter(entry => entry.default_enabled === true).map(entry => entry.project_plugin_id);
-/** The person's plugins this build ships (`personal` on their registration), on in every project unless the person hides them there. */
-export const shippedPersonalPlugins = (): string[] => BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true).map(entry => entry.project_plugin_id);
 
 /** Surface aliases declared by built-in plugins (`alias -> canonical project_plugin_id`). */
 export function pluginSurfaceAliases(): Readonly<Record<string, string>> {
@@ -115,7 +113,7 @@ const SURFACE_ALIAS_MAP = pluginSurfaceAliases();
 
 function shippedDirectoryIds(): string[] {
   const shipped = BUILTIN_PLUGIN_CATALOG
-    .filter((entry) => entry.personal === true || Boolean(entry.manifest.summary))
+    .filter((entry) => Boolean(entry.manifest.summary))
     .map((entry) => entry.project_plugin_id);
   const market = builtinPlacementDirectory();
   const ids = navigationEntries(shipped, market).map(entry => entry.id);

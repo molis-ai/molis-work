@@ -5,14 +5,14 @@ import { assertPptVersion, fromRow } from "./store.js";
 import { pptManifest } from "./manifest.js";
 import { pptErrors } from "./error.js";
 
-export async function promotePpt(database: PluginDatabase, artifacts: PluginArtifactClient, id: string, expectedVersion?: number):
+export async function promotePpt(database: PluginDatabase, artifacts: PluginArtifactClient, partition: string, id: string, expectedVersion?: number):
   Promise<{ presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
   if (!database.transactionProjectRow || !artifacts.join) throw pptErrors.unavailable("当前环境不能发出成果");
   const join = artifacts.join;
   return database.transactionProjectRow(id, row => {
     const source = row.read();
     if (!source) throw pptErrors.not_found("找不到这份演示稿");
-    const current = fromRow(source as Parameters<typeof fromRow>[0]);
+    const current = fromRow(source as Parameters<typeof fromRow>[0], partition);
     assertPptVersion(current, expectedVersion);
     const artifactId = "ppt-" + id;
     return join(row, writer => {

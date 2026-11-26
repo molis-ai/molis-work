@@ -7,8 +7,8 @@ import test from "node:test";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withCallId } from "@molis-ai/molis-work-kernel";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { pagesActions, PAGES_ACTION_PERMISSIONS, PAGES_HOME_STORE, PAGES_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-plugin-pages";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { pagesActions, PAGES_ACTION_PERMISSIONS, PAGES_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-plugin-pages";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // QA-015 (AC-P03, Q05; context-program §21.8 B1; AGENTS, a call cancelled or revoked writes no business record): an MCP
@@ -70,7 +70,7 @@ for (const withdrawn of ["revoked", "cancelled", null] as const) test(withdrawn 
   const pages = bindActionClient(home.host.actionClient(project.reference), () => owner);
   const { document } = await pages.invoke(pagesActions.create, { title: "Notes", body: { type: "doc", content: [paragraph("Hello world")] } });
   const input = { id: document.id, expected_version: document.version, anchor: 6, head: 6, text: TEXT };
-  const library = homeSqlitePath(home.home, PAGES_HOME_STORE.path);
+  const library = partitionLibraryFile(home.home, project.project_id, "pages");
   const callLog = () => readFileSync(join(home.home, "logs/action-calls.jsonl"), "utf8");
 
   const view = (await home.inspect(CLIENT, project.project_id)).find(row => row.capability_id === TARGET) as ActionView;

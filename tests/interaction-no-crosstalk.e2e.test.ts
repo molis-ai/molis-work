@@ -496,8 +496,8 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store, setViewport } = browser;
   const child=await pluginFrameBrowser(t,browser,"pages");
   await setViewport(1440, 950);
-  const pages = openPagesStore(homeDirectory);
-  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return pages.create({ title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   const selectScript = (index: number) => `(() => {

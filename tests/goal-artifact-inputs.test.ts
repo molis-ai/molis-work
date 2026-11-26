@@ -74,7 +74,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
 test("a document taken as a Goal's input 「固定这一版」 is pinned by Pages and listed with the Goal's other inputs", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: 'molis-work-goal-inputs-pin-', actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: 'molis-work-goal-inputs-pin-', actor_id: "test" }); for (const plugin_id of ["goals", "pages"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);

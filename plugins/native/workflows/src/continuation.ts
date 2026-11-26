@@ -74,7 +74,7 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
       return d.changed({ instance: advanced });
     } catch (error) {
       await original.beforeEffect(); original.assert_authority_current?.(); original.signal?.throwIfAborted();
-      const latest = d.read(store => store.instance(current.instance_id, d.projectId));
+      const latest = d.read(store => store.instance(current.instance_id));
       original.assert_authority_current?.(); original.signal?.throwIfAborted();
       if (latest.steps[from]?.handoff?.key === recorded.key) return { instance: latest };
       throw error;
@@ -91,7 +91,7 @@ function stillCurrent(call: ActionExecutionContext): boolean {
 
 /** The attempt the store holds for step `from`, or none when the run is no longer there. */
 function storedAttempt<Reach>(d: Dependencies<Reach>, instanceId: string, from: number): Pending | undefined {
-  try { return d.read(store => store.instance(instanceId, d.projectId)).steps[from]?.pending; }
+  try { return d.read(store => store.instance(instanceId)).steps[from]?.pending; }
   catch { return undefined; /* the run was deleted under the call: there is no attempt to report */ }
 }
 

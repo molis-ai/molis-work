@@ -552,20 +552,21 @@ test("点到正文下面的空白会落到一个空段落", () => {
   assert.match(mounted, /handleDOMEvents: \{ \.\.\.pagesDomEvents/);
 });
 
-test("Pages 是个人插件，不进项目启用名单", () => {
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(PAGES_PROJECT_PLUGIN_ID), true);
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("pages"), false);
-  const rail = railEntries(["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"]);
+test("Pages 是分区插件（第 107 批起），按分区启用，不再是个人插件", () => {
+  assert.equal(PERSONAL_PLUGIN_IDS.includes(PAGES_PROJECT_PLUGIN_ID), false);
+  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("pages"), true);
+  const rail = railEntries(["goals", "pages", "artifacts"]);
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
   const market = runWithLocale("zh", () => pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "pages"));
-  assert.equal(market?.personal, true);
+  assert.equal(market?.personal, false);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
-  const owner = runWithLocale("zh", () => renderMolisWorkWeb(withHostPluginFacts(emptyView())));
+  // The project shows Pages because it turned it on (batch 107: a partition plugin, no longer personal).
+  const owner = runWithLocale("zh", () => renderMolisWorkWeb(withHostPluginFacts({ ...emptyView(), enabled_plugins: ["goals", "pages"] })));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="pages"/);
   assert.match(html, /data-pages="workbench"/);
@@ -762,7 +763,7 @@ test("工作台客户端保存不重挂内核", () => {
 
 test("Pages：新建、改标题和正文、重开还在", async () => {
   await withHome(async (home) => {
-    const store = openPagesStore(home);
+    const store = openPagesStore(home, PROJECT);
     const { actions } = pagesTestPorts(store, PROJECT);
     const { document } = await actions.invoke(pagesActions.create, { title: "周记" });
     assert.equal(document.project_id, PROJECT);
@@ -778,8 +779,8 @@ test("Pages：新建、改标题和正文、重开还在", async () => {
     await actions.invoke(pagesActions.update, { id: document.id, title: "周记 · 改过", body });
     store.close();
 
-    const reopened = openPagesStore(home);
-    const listed = reopened.list(PROJECT);
+    const reopened = openPagesStore(home, PROJECT);
+    const listed = reopened.list();
     assert.equal(listed.length, 1);
     assert.equal(listed[0]?.title, "周记 · 改过");
     assert.equal(JSON.stringify(listed[0]?.body), JSON.stringify(body));
@@ -789,28 +790,30 @@ test("Pages：新建、改标题和正文、重开还在", async () => {
 
 test("文档按项目隔离，缺项目拒绝，跨项目找不到", async () => {
   await withHome(async (home) => {
-    const store = openPagesStore(home);
-    const pageA = store.create({ project_id: PROJECT, title: "项目甲" });
-    store.create({ project_id: OTHER, title: "项目乙" });
-    assert.deepEqual(store.list(PROJECT).map((item) => item.title), ["项目甲"]);
-    assert.deepEqual(store.list(OTHER).map((item) => item.title), ["项目乙"]);
-    assert.throws(() => store.get(pageA.id, OTHER));
+    // Each partition has its own Pages library (U2): one project's store neither lists nor reads the other's documents.
+    const store = openPagesStore(home, PROJECT), other = openPagesStore(home, OTHER);
+    const pageA = store.create({ title: "项目甲" });
+    const pageB = other.create({ title: "项目乙" });
+    assert.deepEqual(store.list().map((item) => item.title), ["项目甲"]);
+    assert.deepEqual(other.list().map((item) => item.title), ["项目乙"]);
+    assert.throws(() => other.get(pageA.id));
     // The project a caller works in is the bound one: it reads its own page and gets the other project's page as missing.
     const { actions } = pagesTestPorts(store, PROJECT);
     assert.deepEqual((await actions.invoke(pagesActions.list, {})).documents.map((item) => item.title), ["项目甲"]);
-    await assert.rejects(() => actions.invoke(pagesActions.get, { id: store.list(OTHER)[0]!.id }), { code: "pages.not_found" });
+    await assert.rejects(() => actions.invoke(pagesActions.get, { id: pageB.id }), { code: "pages.not_found" });
     store.close();
+    other.close();
   });
 });
 
 test("文件夹删了之后文档回到未分类，收藏和模板会落库", async () => {
   await withHome(async (home) => {
-    const store = openPagesStore(home);
-    const folder = store.createFolder({ project_id: PROJECT, title: "产品" });
-    store.createFolder({ project_id: OTHER, title: "别的项目" });
-    assert.deepEqual(store.listFolders(PROJECT).map((item) => item.title), ["产品"]);
+    const store = openPagesStore(home, PROJECT), other = openPagesStore(home, OTHER);
+    const folder = store.createFolder({ title: "产品" });
+    other.createFolder({ title: "别的项目" });
+    other.close();
+    assert.deepEqual(store.listFolders().map((item) => item.title), ["产品"]);
     const created = store.create({
-      project_id: PROJECT,
       folder_id: folder.id,
       template_id: "meeting-notes",
       starred: true,
@@ -819,20 +822,20 @@ test("文件夹删了之后文档回到未分类，收藏和模板会落库", as
     assert.equal(created.starred, true);
     assert.equal(created.title, "会议纪要");
     assert.equal(created.body.content?.[0]?.type, "toc");
-    store.deleteFolder(folder.id, PROJECT);
-    const after = store.get(created.id, PROJECT);
+    store.deleteFolder(folder.id);
+    const after = store.get(created.id);
     assert.equal(after.folder_id, "");
     assert.equal(after.starred, true);
-    assert.throws(() => store.create({ project_id: PROJECT, template_id: "no-such" }));
+    assert.throws(() => store.create({ template_id: "no-such" }));
     const templateIds = [
       "meeting-notes", "weekly-report", "project-plan", "prd", "sprint-retro",
       "user-interview", "okr", "postmortem", "tech-design", "competitor",
     ];
-    const createdIds = templateIds.map((id) => store.create({ project_id: PROJECT, template_id: id }).id);
+    const createdIds = templateIds.map((id) => store.create({ template_id: id }).id);
     store.close();
-    const reopened = openPagesStore(home);
+    const reopened = openPagesStore(home, PROJECT);
     for (const id of createdIds) {
-      const page = reopened.get(id, PROJECT);
+      const page = reopened.get(id);
       pagesSchema.nodeFromJSON(page.body);
       assert.ok(page.title.length > 0);
     }
@@ -5235,7 +5238,7 @@ test("WI3 块进 schema，十份模板都能被内核吃进去", () => {
 
 test("动作能从模板新建、改收藏，搜和文件夹入口挂在工作台", async () => {
   await withHome(async (home) => {
-    const store = openPagesStore(home);
+    const store = openPagesStore(home, PROJECT);
     const { actions } = pagesTestPorts(store, PROJECT);
     assert.equal((await actions.invoke(pagesActions.templates, {})).templates.length, 10);
     const { document } = await actions.invoke(pagesActions.create, { template_id: "weekly-report" });
@@ -5345,12 +5348,12 @@ test("BSH-01 AI 缺模型拒绝，配置模型返回候选，Promote 经统一�
   assert.equal(ai.text, "先写目标，再写范围。");
 
   await withHome(async (home) => {
-    const store = openPagesStore(home);
-    const page = store.create({ project_id: PROJECT, title: "只挂" });
+    const store = openPagesStore(home, PROJECT);
+    const page = store.create({ title: "只挂" });
     const { actions } = pagesTestPorts(store, PROJECT);
     await assert.rejects(actions.invoke(pagesActions.promote, { id: page.id, goal_id: "GOAL-ONLY" }), { code: "pages.unavailable" });
 
-    assert.notEqual(store.get(page.id, PROJECT).goal_id, "GOAL-ONLY");
+    assert.notEqual(store.get(page.id).goal_id, "GOAL-ONLY");
     store.close();
   });
 });

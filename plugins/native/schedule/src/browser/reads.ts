@@ -102,6 +102,24 @@ export function markChanged(page: SchedulePage, taskId: string, state: UiTaskGra
   }
 }
 
+const rowTaskIds = (page: SchedulePage): string[] =>
+  [...page.list.querySelectorAll<HTMLElement>("[data-schedule-row][data-schedule-task-id]")].map(row => row.dataset.scheduleTaskId ?? "");
+
+/**
+ * The rows were redrawn for new words only: what the tasks read is said again from the last answer. It is asked again when there
+ * is none, or when a row's task was not on the list when it was asked (made elsewhere since, so the answer cannot say what it
+ * reads). A change made elsewhere to a task already listed is said at the next read.
+ */
+export function sayTaskReads(page: SchedulePage): void {
+  const last = page.taskReads;
+  if (!last || rowTaskIds(page).some(taskId => !last.rows.has(taskId))) {
+    void readTaskReads(page);
+    return;
+  }
+  apply(page, last.known, page.ready);
+  for (const [taskId, change] of page.changes) markChanged(page, taskId, change.state);
+}
+
 /**
  * Reads what the tasks may read (the platform's grants, `/grants`) once for the whole page, and, only when a task reads project files,
  * whether the project has a workspace (`/readiness`); then says it on the rows and details. A later read replaces an earlier one
@@ -110,12 +128,14 @@ export function markChanged(page: SchedulePage, taskId: string, state: UiTaskGra
 export async function readTaskReads(page: SchedulePage): Promise<void> {
   if (!page.list.querySelector("[data-schedule-task-id]")) return;
   const reading = ++page.reading;
+  const rows = new Set(rowTaskIds(page));
   const tasks = await read<{ tasks: TaskReads[] }>(page.host, "/grants").then(answer => answer.tasks, () => null);
   const known = tasks ? new Map(tasks.map(item => [item.task_id, item])) : null;
   const readsFiles = known !== null && [...page.list.querySelectorAll<HTMLElement>("[data-schedule-row][data-schedule-task-id]")].some(row => !known.has(row.dataset.scheduleTaskId ?? ""));
   const ready = readsFiles ? await read<Readiness>(page.host, "/readiness").catch(() => undefined) : undefined;
   if (reading !== page.reading) return;
   if (ready) page.ready = ready;
+  if (known) page.taskReads = { known, rows };
   apply(page, known, ready ?? page.ready);
   // A change the person made in the area while this list was on its way is newer than the list: it is said again over it.
   for (const [taskId, change] of [...page.changes]) {

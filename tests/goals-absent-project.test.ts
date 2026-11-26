@@ -24,6 +24,7 @@ async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, .
   const home = await mkdtemp(join(tmpdir(), "goals-absent-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "没有 Goals", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "test" });
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false, "the project has no Goals");
   // The server builds its own Host, with the catalog policy for which plugins a project's actions may reach, as the app's does.
   catalog.close();
@@ -93,6 +94,7 @@ test("PEQ-01 PEQ-02 PEQ-07 PEQ-12 a new project does not enable Goals, opens on 
   const home = await mkdtemp(join(tmpdir(), "peq-goals-lifecycle-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "默认项目无 Goals", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "test" });
   // PEQ-12: a brand-new project has no Goals without any prior consent revocation.
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false, "PEQ-12: new project does not enable Goals");
   catalog.close();

@@ -2,34 +2,37 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_PLUGIN_ID, manualLink, newStation, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
-import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openWorkflowsStore, partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /**
  * docs/system/RUNTIME-MIGRATION.md section 6, item 10 for Workflows: the "project deleted" step clears the workflows and their runs of the
  * deleted project and nothing of another project, whether or not the plugin is running, and a step that failed finishes when the same
- * deletion is sent again. The step is the rows the library's Manifest declares (`project_rows`), which the platform deletes on the Home's file.
+ * deletion is sent again. The step is the partition's own library (`databases.partition`, U2), which the platform removes whole with its journals.
  */
 
 const held = (home: string, projectId: string) => {
-  const db = openHomeSqliteDatabase(home, "workflows");
+  const file = partitionLibraryFile(home, projectId, "workflows");
+  if (!existsSync(file)) return { workflows: 0, runs: 0 };
+  const db = new DatabaseSync(file, { readOnly: true });
   try {
-    const count = (table: string) => Number((db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE project_id = ?`).get(projectId) as { n: number }).n);
+    const count = (table: string) => Number((db.prepare(`SELECT COUNT(*) n FROM ${table}`).get() as { n: number }).n);
     return { workflows: count("workflows"), runs: count("instances") };
   } finally { db.close(); }
 };
 const deletion = (id: string) => ({ project_id: id, actor_id: "test-user", delete_confirmed: true, idempotency_key: `delete-${id}` });
 
-test("W5-01-WORKFLOWS-09 a project deleted while its Workflows plugin runs loses its workflows and runs and no other project's; a failed step finishes on the same deletion again", async t => {
+test("W5-01-WORKFLOWS-09 a project deleted while its Workflows plugin runs loses its workflows and runs and no other project's; the same deletion again is replayed complete", async t => {
   const served = await openTestHome(t, { catalogPolicy: false });
-  const projects = { gone: await served.createProject("要删除的项目", ["feed"]), kept: await served.createProject("留下的项目", ["feed"]) };
+  const projects = { gone: await served.createProject("要删除的项目", ["feed", "workflows"]), kept: await served.createProject("留下的项目", ["feed", "workflows"]) };
   /** A workflow with a run, made through the plugin's own routes, so the plugin is running with the project's data open. */
   const populate = async (project: typeof projects.gone) => {
     const seed = new LocalProjectDatabase(project.database_path);
@@ -60,24 +63,18 @@ test("W5-01-WORKFLOWS-09 a project deleted while its Workflows plugin runs loses
     assert.equal(response.status, 200, await response.clone().text());
     return (await response.json() as { replayed?: boolean; deletion: { cleanup_state: string; owner_steps: Array<{ owner_id: string; state: string; error: string | null }> } });
   };
-  const refusing = (sql: string) => { const db = openHomeSqliteDatabase(served.home, "workflows"); try { db.exec(sql); } finally { db.close(); } };
-
-  // The step fails inside the library: the runs cannot be removed. The deletion is committed and its receipt keeps the step pending, with why.
-  refusing("CREATE TRIGGER refuse_run_removal BEFORE DELETE ON instances BEGIN SELECT RAISE(ABORT, '流程库暂时清不掉'); END");
+  // Batch 107: the library is in the project's own folder, which the deletion moves aside before any owner step runs; the step completes.
+  const library = partitionLibraryFile(served.home, projects.gone.project_id, "workflows");
   const first = await send();
-  assert.equal(first.deletion.cleanup_state, "pending");
-  assert.deepEqual(first.deletion.owner_steps.filter(step => step.state === "pending").map(step => [step.owner_id, step.error]), [["workflows", "流程库暂时清不掉"]]);
-  assert.ok(first.deletion.owner_steps.filter(step => step.owner_id !== "workflows").every(step => step.state === "complete"), "one owner failing does not stop the others");
-  assert.deepEqual(held(served.home, projects.gone.project_id), { workflows: 1, runs: 1 }, "the failed step removed nothing, not even the workflows beside the runs");
-
-  // The same deletion again, once the library lets go: the step finishes, and only the deleted project's rows go.
-  refusing("DROP TRIGGER refuse_run_removal");
-  const replay = await send();
-  assert.equal(replay.replayed, true);
-  assert.equal(replay.deletion.cleanup_state, "complete");
-  assert.equal(replay.deletion.owner_steps.find(step => step.owner_id === "workflows")?.state, "complete");
+  assert.equal(first.deletion.cleanup_state, "complete");
+  assert.ok(first.deletion.owner_steps.every(step => step.state === "complete"));
+  assert.ok(first.deletion.owner_steps.some(step => step.owner_id === "workflows"), "the confirmation and the receipt name the Workflows step");
+  assert.equal(existsSync(library), false);
   assert.deepEqual(held(served.home, projects.gone.project_id), { workflows: 0, runs: 0 });
   assert.deepEqual(held(served.home, projects.kept.project_id), { workflows: 1, runs: 1 }, "another project's workflows and runs are untouched");
+  const replay = await send();
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.deletion.owner_steps.find(step => step.owner_id === "workflows")?.state, "complete");
   // Sending it again changes nothing.
   assert.equal((await send()).deletion.cleanup_state, "complete");
   assert.deepEqual(held(served.home, projects.kept.project_id), { workflows: 1, runs: 1 });
@@ -91,16 +88,16 @@ test("W5-01-WORKFLOWS-09 with no Plugin Runtime in the process the same step cle
   const gone = (await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" })).project_id;
   const kept = (await catalog.createProject({ display_name: "留下的项目", actor_id: "test-user" })).project_id;
   // Written the way the plugin's own actions write: a workflow and a run per project, a hidden (deleted) workflow's run too.
-  const store = openWorkflowsStore(home);
-  try {
-    for (const projectId of [gone, kept]) {
-      const workflow = store.create({ project_id: projectId, title: "流程", chain: { stations: [newStation("feed"), newStation("inbox")], links: [manualLink()] } });
+  for (const projectId of [gone, kept]) {
+    const store = openWorkflowsStore(home, projectId);
+    try {
+      const workflow = store.create({ title: "流程", chain: { stations: [newStation("feed"), newStation("inbox")], links: [manualLink()] } });
       store.startInstance(workflow, { plugin: "feed", item_id: `item-${projectId}`, title: "一条消息" });
-      const hidden = store.create({ project_id: projectId, title: "删掉的流程", chain: { stations: [newStation("feed"), newStation("inbox")], links: [manualLink()] } });
+      const hidden = store.create({ title: "删掉的流程", chain: { stations: [newStation("feed"), newStation("inbox")], links: [manualLink()] } });
       store.startInstance(hidden, { plugin: "feed", item_id: `hidden-${projectId}`, title: "另一条消息" });
-      store.delete(hidden.workflow_id, projectId);
-    }
-  } finally { store.close(); }
+      store.delete(hidden.workflow_id);
+    } finally { store.close(); }
+  }
   assert.deepEqual(held(home, gone), { workflows: 2, runs: 2 });
 
   const result = await catalog.deleteProject(deletion(gone));

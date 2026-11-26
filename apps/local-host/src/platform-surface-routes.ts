@@ -1,3 +1,4 @@
+import { PLACEMENT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/placement";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_SURFACES, type PlatformSurfaceId } from "@molis-ai/molis-work-ui-host";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
@@ -29,6 +30,7 @@ const SURFACE_HTTP: Readonly<Record<PlatformSurfaceId, PlatformSurfaceHttp>> = {
       offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
       // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
       ownerActions: permissions => userActions(permissions),
+      placementReader: userActions([PLACEMENT_READ_PERMISSION]),
       readArtifactDisplay,
       desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
     }),

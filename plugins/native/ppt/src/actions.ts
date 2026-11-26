@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, retainActionAuthority, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, retainActionAuthority, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, defineObjectExportAction, defineObjectPutAction, defineObjectRemoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
@@ -63,8 +63,13 @@ export const pptActions = {
   outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }>; unavailable_reason: string | null }>("outline_pages", /* @version action.ppt.outline_pages */ 1, "可做成大纲的文档",
     "列出当前项目里已装的文档内容站中可拿来生成大纲的文档（以调用者自己的权限按角色发现读取）；无可用内容站或无权读取时返回空列表与原因", "query", object({}),
     object({ documents: array(object({ id, title: text, updated_at: { type: ["string", "null"] } })), unavailable_reason: { type: ["string", "null"] } }, ["documents"]), read),
-  move: defineObjectMoveAction("ppt.placement.move", /* @version action.ppt.placement.move */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
-  copy: defineObjectCopyAction("ppt.placement.copy", /* @version action.ppt.placement.copy */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
+  /**
+   * Where a deck lives (specs/archive/work-placement): each partition keeps its own library, so placement carries a deck across
+   * (export here, put there, then remove here for a move); the platform rolls the carry back if a step fails.
+   */
+  placementExport: defineObjectExportAction("ppt.placement.export", /* @version action.ppt.placement.export */ 1, [PPT_SUBJECT_KIND], "演示稿", read),
+  placementPut: defineObjectPutAction("ppt.placement.put", /* @version action.ppt.placement.put */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
+  placementRemove: defineObjectRemoveAction("ppt.placement.remove", /* @version action.ppt.placement.remove */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
   searchEntries: pptSearchActions.entries,
   files: pptSearchActions.files,
   subject: pptSearchActions.subject,
@@ -88,15 +93,15 @@ function assertRoomForOutline(deck: PptRecord, replace: boolean | undefined): vo
   if (!replace && !isBlank(deck) && deck.slides.length >= SLIDE_LIMIT) throw pptErrors.invalid(`这份演示稿已有 ${SLIDE_LIMIT} 页，放不下更多；可以改为替换现有页`);
 }
 /** Slides parsed from an outline join the deck after its pages, or replace them; a deck that is still one blank page is simply filled. */
-function applyOutline(store: PptStore, input: { id: string; expected_version?: number; replace?: boolean }, projectId: string, markdown: string): { presentation: PptRecord; slide_count: number } {
-  const current = store.get(input.id, projectId);
+function applyOutline(store: PptStore, input: { id: string; expected_version?: number; replace?: boolean }, markdown: string): { presentation: PptRecord; slide_count: number } {
+  const current = store.get(input.id);
   if (input.expected_version !== undefined && current.version !== input.expected_version) throw pptErrors.conflict("演示稿已改变，请重新读取后生成");
   assertRoomForOutline(current, input.replace);
   const parsed = slidesFromMarkdown(markdown, current.title);
   const kept = input.replace || isBlank(current) ? [] : current.slides.map(slide => ({ id: slide.id, title: slide.title, bullets: slide.bullets, notes: slide.notes }));
   const slides = [...kept, ...parsed.slides].slice(0, SLIDE_LIMIT);
   const untitled = current.title === "未命名演示稿" && parsed.title && parsed.title !== current.title;
-  const presentation = store.update(input.id, { slides, ...(untitled ? { title: parsed.title } : {}), expected_version: current.version }, projectId);
+  const presentation = store.update(input.id, { slides, ...(untitled ? { title: parsed.title } : {}), expected_version: current.version });
   return { presentation, slide_count: Math.min(parsed.slides.length, SLIDE_LIMIT - kept.length) };
 }
 
@@ -124,34 +129,33 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     bind(pptActions.list, (_, caller) => {
       const ai = modelAvailability(), permitted = pptActions.outlineAi.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(pptActions.outlineAi.capability_id));
-      return ports.read(store => ({ presentations: store.list(project(caller)), ai_available: ai.available && permitted,
+      return ports.read(store => ({ presentations: store.list(), ai_available: ai.available && permitted,
         ai_unavailable_reason: !permitted ? t.text("ppt.actions.model-unavailable-permission") : ai.available ? null : ai.reason ?? t.text("ppt.actions.configure-model-first") }));
     }),
-    bind(pptActions.get, (input, caller) => ports.read(store => ({ presentation: store.get(input.id, project(caller)) }))),
-    bind(pptActions.create, (input, caller) => ports.write(caller, store => ({ presentation: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(pptActions.update, (input, caller) => ports.write(caller, store => ({ presentation: store.update(input.id, input, project(caller)) }))),
-    bind(pptActions.delete, (input, caller) => ports.write(caller, store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
-    bind(pptActions.export, (input, caller) => ports.read(store => {
-      const presentation = store.get(input.id, project(caller));
+    bind(pptActions.get, (input) => ports.read(store => ({ presentation: store.get(input.id) }))),
+    bind(pptActions.create, (input, caller) => ports.write(caller, store => ({ presentation: store.create(input) }))),
+    bind(pptActions.update, (input, caller) => ports.write(caller, store => ({ presentation: store.update(input.id, input) }))),
+    bind(pptActions.delete, (input, caller) => ports.write(caller, store => { store.delete(input.id, input.expected_version); return { ok: true }; })),
+    bind(pptActions.export, (input) => ports.read(store => {
+      const presentation = store.get(input.id);
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw pptErrors.conflict("演示稿已改变，请重新读取后导出");
       return { filename: presentation.title.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_") + ".json", mime_type: "application/json" as const, content: JSON.stringify(presentation, null, 2) };
     })),
     bind(pptActions.promote, async (input, caller) => await promote(input.id, caller, input.expected_version), publishable),
     bind(pptActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
     bindArtifactContinue(pptActions.artifactContinue, [PPT_ARTIFACT_TYPE_ID], (artifact, caller) => ports.write(caller, store => {
-      const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
-      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });
+      const payload = (artifact.payload ?? {}) as Record<string, unknown>;
+      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title });
       // A version the editor cannot take leaves no empty 演示稿 behind.
-      try { store.update(created.id, Object.fromEntries(["description", "color_primary", "color_background", "color_text", "slides"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]])), at); }
-      catch (error) { store.delete(created.id, at); throw error; }
+      try { store.update(created.id, Object.fromEntries(["description", "color_primary", "color_background", "color_text", "slides"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]]))); }
+      catch (error) { store.delete(created.id); throw error; }
       return { surface: PPT_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
-    bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.read(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"]),
-      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
-      id => ports.read(store => objectOrMissing(() => store.get(id)) !== null)),
-    bind(pptActions.pptx, (input, caller) => ports.read(store => {
-      const presentation = store.get(input.id, project(caller));
+    // A deck moved to another partition is not in this library: the 成果库 asks placement whether it moved (`artifact-library-http.ts`).
+    bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, id => objectOrMissing(() => ports.read(store => store.get(id))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"])),
+    bind(pptActions.pptx, (input) => ports.read(store => {
+      const presentation = store.get(input.id);
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw pptErrors.conflict("演示稿已改变，请重新读取后导出");
       return { filename: pptxFilename(presentation.title), mime_type: PPTX_MIME_TYPE, content_base64: Buffer.from(buildPptx(presentation)).toString("base64"), slide_count: presentation.slides.length };
     })),
@@ -161,15 +165,15 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       catch (error) { return { documents: [], unavailable_reason: error instanceof Error ? error.message : t.text("ppt.actions.pages-unreadable") }; }
     }),
     bind(pptActions.outline, async (input, caller) => {
-      const current = ports.read(store => store.get(input.id, project(caller)));
+      const current = ports.read(store => store.get(input.id));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw pptErrors.conflict("演示稿已改变，请重新读取后生成");
       assertRoomForOutline(current, input.replace);
       const source = await outlineSource(input, caller);
       caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
-      return ports.write(caller, store => applyOutline(store, { ...input, expected_version: current.version }, project(caller), source));
+      return ports.write(caller, store => applyOutline(store, { ...input, expected_version: current.version }, source));
     }),
     bind(pptActions.outlineAi, async (input, caller) => {
-      const current = ports.read(store => store.get(input.id, project(caller)));
+      const current = ports.read(store => store.get(input.id));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw pptErrors.conflict("演示稿已改变，请重新读取后生成");
       assertRoomForOutline(current, input.replace);
       const source = await outlineSource(input, caller);
@@ -180,16 +184,17 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       const markdown = result.text.trim();
       if (!markdown) throw pptErrors.invalid("模型没有返回大纲，请调整文字后重试");
       caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
-      return ports.write(caller, store => { result.validateResult(); return applyOutline(store, { ...input, expected_version: current.version }, project(caller), markdown); });
+      return ports.write(caller, store => { result.validateResult(); return applyOutline(store, { ...input, expected_version: current.version }, markdown); });
     }, () => modelAvailability()),
-    bindObjectMoveHandler(pptActions.move, (input, caller) => ports.write(caller, store => {
-      const presentation = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
-      return { subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
-    })),
-    bindObjectCopyHandler(pptActions.copy, (input, caller) => ports.write(caller, store => {
-      const presentation = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
-      return { subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
-    })),
+    bind(pptActions.placementExport, input => ports.read(store => store.exportRecord(input.subject.id))),
+    bind(pptActions.placementPut, (input, caller) => {
+      if (input.kind !== PPT_SUBJECT_KIND) throw pptErrors.invalid("这里只能放演示稿");
+      return ports.write(caller, store => {
+        const presentation = store.putRecord(input.record, input.request_id, input.target_id);
+        return { subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
+      });
+    }),
+    bind(pptActions.placementRemove, (input, caller) => ports.write(caller, store => ({ subject: input.subject, removed: store.removeCarried(input.subject.id, input.revision) }))),
     ...createPptSearchHandlers(ports.read),
   ];
 }

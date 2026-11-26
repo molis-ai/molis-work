@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstallationClient, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
-import { pluginInstallRecords } from "./plugin-install-records.js";
+import { partitionInstallDatabase, pluginInstallRecords } from "./plugin-install-records.js";
 import { pluginInstalledProjects } from "./plugin-installed-projects.js";
 import { PLUGINS_READ_PERMISSION } from "./plugin-service-permissions.js";
 
@@ -29,7 +29,9 @@ export function openPluginInstallationDirectory(db: PluginRuntimeDatabase, recor
 }
 
 /** The Manifest an installation was installed with: a running platform's, else its stored release. */
-function declaredManifest(db: PluginRuntimeDatabase, record: PluginInstanceRecord): PluginManifest | undefined {
+function declaredManifest(given: PluginRuntimeDatabase, record: PluginInstanceRecord): PluginManifest | undefined {
+  // A plugin that runs per partition keeps its installation, and the builds it ran, in the Home install table (batch 107).
+  const db = partitionInstallDatabase(given, record.plugin_id) ?? given;
   for (const read of readers.get(db) ?? []) { const candidate = read(record.plugin_id); if (candidate?.version === record.version) return candidate; }
   return new SqlitePluginRuntimeReleaseArtifactRepository(db).get(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest)?.manifest;
 }

@@ -71,13 +71,13 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   assert.equal(refused.error, "找不到要移到的位置");
   const unchanged = await before.call<Description>("/api/placement/describe", { object: brief.object });
   assert.deepEqual([unchanged.state, unchanged.location?.title, unchanged.moved_from?.title], ["ok", q4Title, "个人空间"], "the rejected move leaves the persisted placement unchanged before restart");
-  const forms = openFormStore(home);
+  const forms = openFormStore(home, q4.project_id);
   let formId: string;
   try {
-    const form = forms.receive(q4.project_id, "restart-form", "发布日满意度", [{ id: "score", title: "满意度" }]);
+    const form = forms.receive("restart-form", "发布日满意度", [{ id: "score", title: "满意度" }]);
     formId = form.id;
-    forms.submit(form.id, { score: "5" }, q4.project_id, { source: "preview", requestId: "one" });
-    forms.submit(form.id, { score: "4" }, q4.project_id, { source: "preview", requestId: "two" });
+    forms.submit(form.id, { score: "5" }, { source: "preview", requestId: "one" });
+    forms.submit(form.id, { score: "4" }, { source: "preview", requestId: "two" });
   } finally { forms.close(); }
   await before.stop();
 
@@ -97,8 +97,8 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   // The old reference (from before the move) still finds the brief, where it now is, and says where it came from.
   const moved = await after.call<Description>("/api/placement/describe", { object: brief.object });
   assert.deepEqual([moved.state, moved.location?.title, moved.moved_from?.title], ["ok", q4Title, "个人空间"], "the refused move changed nothing");
-  const reopened = openFormStore(home);
-  try { assert.equal(reopened.listSubmissions(formId, q4.project_id).length, 2, "collected answers are still there"); }
+  const reopened = openFormStore(home, q4.project_id);
+  try { assert.equal(reopened.listSubmissions(formId).length, 2, "collected answers are still there"); }
   finally { reopened.close(); }
   const form = await after.call<Description>("/api/placement/describe", { object: { kind: "form", id: formId, project_id: q4.project_id } });
   assert.deepEqual([form.state, form.location?.title], ["ok", q4Title]);
@@ -154,7 +154,7 @@ for (const operation of ["link", "convert"] as const) for (const stop of ["cance
       assert.equal((database.prepare("SELECT count(*) AS count FROM context_edges").get() as { count: number }).count, 0);
       assert.equal((database.prepare("SELECT count(*) AS count FROM placement_titles").get() as { count: number }).count, 0);
     } finally { database.close(); }
-    // Pages keeps its documents in the Home's Pages store (openPagesStore), not in the project's database: no document was made.
-    const pages = openPagesStore(home);
-    try { assert.deepEqual(pages.list(project.project_id), []); } finally { pages.close(); }
+    // Pages keeps its documents in the project's own Pages library (openPagesStore), not in the project's database: no document was made.
+    const pages = openPagesStore(home, project.project_id);
+    try { assert.deepEqual(pages.list(), []); } finally { pages.close(); }
   });

@@ -92,7 +92,7 @@ test("S-99 Goals takes the person only from the source owner's delegation: anoth
 /** A project with a Feed item, and the Workflows plugin's own page routes: the production path of the person's press of continue. */
 async function workflowsHome(t: TestContext) {
   const served = await openTestHome(t, { catalogPolicy: false });
-  const project = await served.createProject("Goals person", ["goals", "feed"]);
+  const project = await served.createProject("Goals person", ["goals", "feed", "workflows"]);
   const seed = new LocalProjectDatabase(project.database_path);
   try {
     const source = createLocalFeedSourceService(seed.db, project.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;

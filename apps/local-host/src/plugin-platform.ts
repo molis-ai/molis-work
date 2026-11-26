@@ -143,6 +143,11 @@ export interface PluginPlatformOptions {
 
 export interface PluginPlatform {
   readonly runtime: PluginRuntime;
+  /**
+   * The installation records this platform reads and writes. A per-partition instance's keep its lifecycle in memory and hand durable facts to
+   * the Home install table, so the partition's other readers read this instance's record through them (`plugin-install-records.ts`).
+   */
+  readonly installRecords: PluginRuntimeRepository;
   invokeOwnedAction<Input, Output>(expected: { actor_id: string; project_id: string; plugin_id: string; install_id: string; installation_generation: string },
     reference: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference, input: Input,
     control: import("@molis-ai/molis-work-contracts/platform/plugin").PluginExecutionControl): Promise<Output>;
@@ -263,6 +268,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // and signed release packages there with it, while keeping its own per-partition runtime state (`running`/`crashed`/idle stop) in
   // memory so stopping or crashing partition B never corrupts partition A's running state or skips A's cleanup.
   const installDb = options.installDatabase ?? options.db;
+  // A per-partition instance reads the Home's one install table, and only for the partition it was started for.
+  if (options.partitionScope && (!options.installDatabase || options.installDatabase === options.db || options.partitionScope.partition_id !== options.project_id)) {
+    throw new Error("分区插件实例要用 Home 的安装表，且只在它自己的分区里运行");
+  }
   const records = options.installDatabase && options.partitionScope
     ? partitionInstanceInstallRecords(installDb)
     : pluginInstallRecords(installDb);
@@ -328,7 +337,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     wiring.revoke(pluginId); wiring.evaluate(pluginId); void events.resume(options.project_id);
   });
   return {
-    runtime, invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
+    runtime, installRecords: records,
+    invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
     supervisor, events, hostEvents, wiring, invalidateView, viewRevision, waitForView,
     stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
     hasProjectWork: projectId => executor.hasProjectWork(projectId),

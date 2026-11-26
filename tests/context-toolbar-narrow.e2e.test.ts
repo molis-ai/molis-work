@@ -55,8 +55,8 @@ for (const locale of ["zh", "en"] as const) {
     const child = await pluginFrameBrowser(t, browser, "pages");
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: long.scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-    const pages = openPagesStore(homeDirectory);
-    const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
+    const pages = openPagesStore(homeDirectory, projectId!);
+    const page = (() => { try { return pages.create({ title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
     const next = `/projects/${projectId}/?openPlugin=pages&openItem=${page.id}`;
     await navigate(() => command("Page.navigate", { url: locale === "en" ? `${origin}/locale?lang=en&next=${encodeURIComponent(next)}` : `${origin}${next}` }, sessionId));
     await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
@@ -91,7 +91,7 @@ for (const locale of ["zh", "en"] as const) {
       const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-    })()`);
+    })()`, undefined, "person");
     const lengthened = `document.querySelector(${JSON.stringify(`${BAR} [data-key]`)}) && ${JSON.stringify(long.titles)}.includes(document.querySelector(${JSON.stringify(`${BAR} [data-key] > span`)}).textContent)`;
     await select();
     // Ranked by the rules, then by the judgment (not connected in this Home, so the same plan again): measured once both are in.

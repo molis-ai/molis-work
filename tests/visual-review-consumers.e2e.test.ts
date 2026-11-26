@@ -46,9 +46,9 @@ test("VUX-19: Pages' code block copy says done only when the clipboard took it, 
   const child = await pluginFrameBrowser(t,browser,"pages");
   const { evaluate, waitFor } = child;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const pages = openPagesStore(homeDirectory);
+  const pages = openPagesStore(homeDirectory, projectId!);
   const code = "const answer = 42;\nconsole.log(answer);";
-  const page = pages.create({ project_id: projectId!, title: "代码复制", body: { type: "doc", content: [{ type: "code_block", attrs: { language: "typescript" }, content: [{ type: "text", text: code }] }] } });
+  const page = pages.create({ title: "代码复制", body: { type: "doc", content: [{ type: "code_block", attrs: { language: "typescript" }, content: [{ type: "text", text: code }] }] } });
   pages.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));

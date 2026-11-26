@@ -13,7 +13,7 @@ import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
-import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
+import { projectPluginPlatform, projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { activeLocale, runWithRegisteredText, DEFAULT_WEB_LOCALE } from "./web-locale.js";
@@ -115,7 +115,7 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
     if (options.views && !Object.hasOwn(options.views, key)) continue;
     if (!options.views && home?.dualInstance(pluginId)) {
       const half = home.half(pluginId, contributionId);
-      if (dualStageOwner(half, { running: Boolean(state.platform?.supervisor.contribution(pluginId)), view: Boolean(stageView(state, pluginId, contributionId)) }) === "home") {
+      if (dualStageOwner(half, { running: Boolean(projectPluginPlatform(state, pluginId)?.supervisor.contribution(pluginId)), view: Boolean(stageView(state, pluginId, contributionId)) }) === "home") {
         if (!half.view) unavailable.push(home.unavailable(entry));
         continue;
       }
@@ -135,7 +135,7 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
 
 /** The view of the project instance that draws this stage: the contribution the Manifest names, with its `workbench` surface. */
 function stageView(state: ProjectPluginState, pluginId: string, contributionId: string): UiContribution | undefined {
-  const contribution = state.platform?.supervisor.contribution(pluginId);
+  const contribution = projectPluginPlatform(state, pluginId)?.supervisor.contribution(pluginId);
   return contribution?.kind === "app" ? contribution.views?.find(item => item.descriptor.contribution_id === contributionId
     && item.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
 }
@@ -143,12 +143,12 @@ function stageView(state: ProjectPluginState, pluginId: string, contributionId: 
 function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, entry: StageEntry, contributionId: string,
   model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared: PreparedStageView | null | undefined, homeDirectory: string | undefined): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
   const pluginId = entry.manifest.plugin_id;
-  const contribution = state.platform?.supervisor.contribution(pluginId);
+  const platform = projectPluginPlatform(state, pluginId), contribution = platform?.supervisor.contribution(pluginId);
   if (!contribution) {
-    const active = state.platform?.supervisor.state(pluginId);
-    const running = active?.status === "running" && active.install_id && state.platform?.runtime.get(active.install_id).state === "running";
+    const active = platform?.supervisor.state(pluginId);
+    const running = active?.status === "running" && active.install_id && platform?.runtime.get(active.install_id).state === "running";
     const refusal = homeDirectory ? projectPluginDatabaseRefusal(store.db, pluginId) : null;
-    const record = active?.install_id ? state.platform?.runtime.get(active.install_id) : undefined;
+    const record = active?.install_id ? platform?.runtime.get(active.install_id) : undefined;
     const upgradeRefusal = refusal instanceof ActionError ? refusal : record?.last_error_code ? { code: record.last_error_code } : undefined;
     const upgrade = homeDirectory && upgradeRefusal ? describePluginTablesRefusal(homeDirectory, pluginId, store.path, upgradeRefusal) : undefined;
     if (upgrade) return { ...unavailableStage(state, entry, refusal?.message ?? ""), restart: null,
@@ -161,11 +161,11 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
   if (!view) return unavailableStage(state, entry, uiText.text("workbench.project-plugin-stages.plugin-page-not-registered"));
   try {
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
-    const manifest = state.platform?.supervisor.manifest(pluginId) ?? entry.manifest;
-    const viewRevision = prepared?.viewRevision ?? state.platform?.viewRevision(pluginId);
+    const manifest = platform?.supervisor.manifest(pluginId) ?? entry.manifest;
+    const viewRevision = prepared?.viewRevision ?? platform?.viewRevision(pluginId);
     return renderStagePage(view, nested ? { ...own as Record<string, unknown>, nested } : own, entry.project_plugin_id, pageOwner,
       request => view.render(request), { manifest, rendered: drawn, client: entry.workbench,
-        producer: prepared?.producer ?? captureRuntimeStageOwner(state.platform, "project", entry)?.producer,
+        producer: prepared?.producer ?? captureRuntimeStageOwner(platform, "project", entry)?.producer,
         ...(viewRevision ? { viewRevision } : {}) });
   } catch (error) {
     hostLog.warn("plugins", "project_stage_failed", error, { plugin_id: pluginId });
@@ -178,9 +178,9 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
  * (W5-06 余项 3, BL-430). The Host decides the offer from the instance, never from the page: the shell's button only names it.
  */
 function unavailableStage(state: ProjectPluginState, entry: StageEntry, reason: string): UnavailablePluginStage {
-  const pluginId = entry.manifest.plugin_id, active = state.platform?.supervisor.state(pluginId);
+  const pluginId = entry.manifest.plugin_id, platform = projectPluginPlatform(state, pluginId), active = platform?.supervisor.state(pluginId);
   return { surface: entry.project_plugin_id, label: entry.manifest.name, reason, scope: "project", plugin_id: pluginId,
-    ...(active && active.status !== "running" && active.code !== "plugin.revoked" ? { status: active.status, code: active.code } : {}), restart: restartOffer(state, active) };
+    ...(active && active.status !== "running" && active.code !== "plugin.revoked" ? { status: active.status, code: active.code } : {}), restart: restartOffer(platform, active) };
 }
 
 /**
@@ -188,9 +188,9 @@ function unavailableStage(state: ProjectPluginState, entry: StageEntry, reason: 
  * of these states). A plugin the person switched off or whose consent was withdrawn (`plugin.revoked`), one the Runtime blocks, one
  * that was only stopped and one that was uninstalled get no button: a restart must never turn a switched-off plugin back on.
  */
-function restartOffer(state: ProjectPluginState, active: PluginSupervisorState | null | undefined): PluginRestartOffer | null {
-  if (!state.platform || !active?.install_id || (active.status === "blocked" || active.status === "starting") || active.code === "plugin.revoked") return null;
-  const installed = state.platform.runtime.get(active.install_id).state;
+function restartOffer(platform: ProjectPluginState["platform"], active: PluginSupervisorState | null | undefined): PluginRestartOffer | null {
+  if (!platform || !active?.install_id || (active.status === "blocked" || active.status === "starting") || active.code === "plugin.revoked") return null;
+  const installed = platform.runtime.get(active.install_id).state;
   if (installed === "quarantined") return "release-quarantine";
   return installed !== "uninstalled" && (installed === "crashed" || active.status === "failed") ? "restart" : null;
 }
@@ -216,16 +216,18 @@ function embeddedViews(platform: ProjectPluginState["platform"], embeddedId: str
 }
 
 function embeddedFragments(state: ProjectPluginState, embeddedId: string, slot: UiSlotDescriptor, model: unknown): string[] {
-  return embeddedViews(state.platform, embeddedId, slot).flatMap(({ view, surface }) => {
+  return embeddedViews(projectPluginPlatform(state, embeddedId), embeddedId, slot).flatMap(({ view, surface }) => {
     try { return [view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: withoutPagePublisher(model) })]; }
     catch (error) { hostLog.warn("plugins", "embedded_surface_failed", error, { plugin_id: embeddedId, surface: surface.surface_id }); return []; }
   });
 }
 
 /** The same project instances as the nested renderer, captured before any further page-open awaits. */
-export function embeddedStageTextOwners(platform: ProjectPluginState["platform"], owner: RuntimeStageOwner) {
-  if (!platform || owner.scope !== "project") return [];
+export function embeddedStageTextOwners(state: Pick<ProjectPluginState, "platform" | "partitions"> | null, owner: RuntimeStageOwner) {
+  if (!state || owner.scope !== "project") return [];
   return [...new Set(owner.entry.manifest.ui.embedded_plugins ?? [])].flatMap(plugin_id => {
+    const platform = projectPluginPlatform(state, plugin_id);
+    if (!platform) return [];
     const active = platform.supervisor.state(plugin_id), contribution = platform.supervisor.contribution(plugin_id);
     if (active?.status !== "running" || !active.install_id || !contribution || !owner.view.descriptor.slots.some(slot => embeddedViews(platform, plugin_id, slot).length)) return [];
     const record = platform.runtime.get(active.install_id);
@@ -288,10 +290,11 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
 
 /** The chosen half, without reading either half's data or rendering it. */
 export function runtimeStageOwner(state: ProjectPluginState, entry: StageEntry, home?: HomeStageHalves): { scope: RuntimeStageOwner["scope"]; owner?: RuntimeStageOwner } {
-  const project = captureRuntimeStageOwner(state.platform, "project", entry), fromHome = home?.owner(entry);
+  const platform = projectPluginPlatform(state, entry.manifest.plugin_id);
+  const project = captureRuntimeStageOwner(platform, "project", entry), fromHome = home?.owner(entry);
   if (home?.dualInstance(entry.manifest.plugin_id)) {
     const id = stageContributionId(entry.manifest) ?? "";
-    const scope = dualStageOwner(home.half(entry.manifest.plugin_id, id), { running: Boolean(state.platform?.supervisor.contribution(entry.manifest.plugin_id)), view: Boolean(project) });
+    const scope = dualStageOwner(home.half(entry.manifest.plugin_id, id), { running: Boolean(platform?.supervisor.contribution(entry.manifest.plugin_id)), view: Boolean(project) });
     return { scope, owner: scope === "home" ? fromHome : project };
   }
   return project ? { scope: "project", owner: project } : fromHome ? { scope: "home", owner: fromHome }
@@ -361,7 +364,7 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
     try { stageSurfaceDescriptors(owner.entry.manifest, owner.view); }
     catch (error) { hostLog.warn("plugins", "stage_surface_invalid", error, { plugin_id: entry.manifest.plugin_id }); continue; }
     try {
-      const viewRevision = selected.scope === "project" ? state.platform?.viewRevision(owner.entry.manifest.plugin_id) : undefined;
+      const viewRevision = selected.scope === "project" ? projectPluginPlatform(state, owner.entry.manifest.plugin_id)?.viewRevision(owner.entry.manifest.plugin_id) : undefined;
       const result = await readRuntimeStageOwner(owner, bind, requests[entry.project_plugin_id] ?? {}, false, false);
       owner.assertCurrent();
       if (result === undefined && stageDataAction(owner.entry.manifest)) continue;

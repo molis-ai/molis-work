@@ -1,4 +1,4 @@
-import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormQuestionInput, FormRecord } from "./contract.js";
 import { formErrors } from "./error.js";
 import { FORM_QUESTION_LIMIT, FORM_TITLE_LIMIT, type FormStores } from "./store.js";
@@ -29,15 +29,14 @@ export function questionsFromText(text: string): FormQuestionInput[] {
 }
 
 export function createFormContentHandlers({ read, write }: FormStores): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw formErrors.invalid("缺少项目"); return caller.project_id; };
   return bindWorkflowContentHandlers(formContentActions, {
-    list: caller => read(store => store.list(project(caller)).map(form => ({ item_id: form.id, title: form.title, caption: form.questions.length + " 题", at: form.updated_at }))),
-    read: ({ item_id }, caller) => read(store => { const form = store.get(item_id, project(caller)); return { title: form.title, body: formMarkdown(form), source: "问卷" }; }),
+    list: () => read(store => store.list().map(form => ({ item_id: form.id, title: form.title, caption: form.questions.length + " 题", at: form.updated_at }))),
+    read: ({ item_id }) => read(store => { const form = store.get(item_id); return { title: form.title, body: formMarkdown(form), source: "问卷" }; }),
     receive: ({ title, body, request_id }, caller) => write(caller, store => {
       // A hand-over is shaped to what a form holds (a long headline, a long list): refused, it could never be delivered.
-      const form = store.receive(project(caller), request_id, [...title.trim()].slice(0, FORM_TITLE_LIMIT).join(""), questionsFromText(body));
+      const form = store.receive(request_id, [...title.trim()].slice(0, FORM_TITLE_LIMIT).join(""), questionsFromText(body));
       return { subject: { kind: "form", id: form.id }, title: form.title };
     }),
-    create: ({ title }, caller) => write(caller, store => { const form = store.create({ title, project_id: project(caller) }); return { subject: { kind: "form", id: form.id }, title: form.title }; }),
+    create: ({ title }, caller) => write(caller, store => { const form = store.create({ title }); return { subject: { kind: "form", id: form.id }, title: form.title }; }),
   });
 }

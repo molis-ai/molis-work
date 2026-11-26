@@ -17,8 +17,8 @@ test("VUX-04: the board, the project page, a Pages document with long paths, lin
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const children = { pages: await pluginFrameBrowser(t,browser,"pages"), coding: await pluginFrameBrowser(t,browser,"coding") };
-  const pages = openPagesStore(homeDirectory);
-  const page = (() => { try { return pages.create({ project_id: projectId!, title: "第四季度视觉细节与 UI 性能的完整验收记录（含真实场景与本人验收的逐项对照）", body: { type: "doc", content: [
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return pages.create({ title: "第四季度视觉细节与 UI 性能的完整验收记录（含真实场景与本人验收的逐项对照）", body: { type: "doc", content: [
     { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "为什么这次要把项目页准备路径上的动作目录只算一次" }] },
     { type: "paragraph", content: [{ type: "text", text: `原始数据在 ${PATH}，对照 ${LINK}。${WORD} 是模型起的名字。` }] },
     { type: "paragraph", content: [{ type: "text", text: "这一段用来看最后一行会不会只剩一个字，所以写得长一点，让它在常见的阅读宽度下换到第二行或者第三行才结束了。" }] },

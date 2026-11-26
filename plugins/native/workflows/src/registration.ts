@@ -9,7 +9,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID, catalog_order: 20,
   manifest: workflowsManifest,
   project_runtime: { create: createWorkflowsPlugin, package_name: "@molis-ai/molis-work-plugin-workflows", factory_export: "createWorkflowsPlugin" },
-  personal: true,
   observation: {
     coverage: [
       // Each handoff of a run, reported by Workflows as itself: the handoff's text stays in the run and is named, the action a station ran is

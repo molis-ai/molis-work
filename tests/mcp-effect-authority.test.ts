@@ -21,14 +21,14 @@ const wrapper: ActionDefinition = { ...peer, capability_id: "fixture.form.wrappe
 } };
 
 function facts(home: string, projectId: string, formId: string) {
-  const store = openFormStore(home);
-  try { return { form: store.get(formId, projectId), forms: store.list(projectId), submissions: store.listSubmissions(formId, projectId) }; }
+  const store = openFormStore(home, projectId);
+  try { return { form: store.get(formId), forms: store.list(), submissions: store.listSubmissions(formId) }; }
   finally { store.close(); }
 }
 
 for (const additional of [false, true]) test(`ACA005-03/07 accepted MCP background ${additional ? "permission source" : "action"} keeps its original grant generation`,
   { timeout: 30_000 }, async t => {
-    const home = await openTestHome(t), project = await home.createProject("Retained MCP grant");
+    const home = await openTestHome(t), project = await home.createProject("Retained MCP grant", ["form"]);
     const accept: ActionDefinition = { ...wrapper, capability_id: "fixture.form.retain", action: {
       ...wrapper.action, permissions: ["form:read"], output_schema: { type: "null" },
     } };

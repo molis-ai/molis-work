@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdir, readFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MolisWorkLocalHost, PLATFORM_PLUGIN_REGISTRATIONS, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, PLATFORM_PLUGIN_REGISTRATIONS, molisWorkHostProjectReference, openHomePluginStore } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import test from "node:test";
@@ -298,9 +298,12 @@ test("RAC-571 a project's Runtime installs every registration's project_runtime,
   try {
     await host.localPersonContext(reference);
     const records = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list());
+    // A plugin with a library in each partition (batch 107) is installed once in the Home's install table, and runs in each partition.
+    const installs = openHomePluginStore(home);
+    const homeRecords = (() => { try { return new SqlitePluginRuntimeRepository(installs.db).list(); } finally { installs.db.close(); } })();
     for (const [id, packageName] of RUNTIME_ASSEMBLED) {
-      const pluginId = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === id)!.manifest.plugin_id;
-      const installed = records.filter(record => record.plugin_id === pluginId && record.state !== "uninstalled");
+      const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === id)!.manifest, pluginId = manifest.plugin_id;
+      const installed = (manifest.databases?.partition ? homeRecords : records).filter(record => record.plugin_id === pluginId && record.state !== "uninstalled");
       assert.equal(installed.length, 1, `${id} (${packageName}) is installed once in the project`);
       assert.equal(installed[0]!.publisher_trust, "host", `${id} ships with the Host`);
     }

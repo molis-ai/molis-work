@@ -179,7 +179,7 @@ test("public document clients isolate requests and keep Host callbacks, failure 
   assert.equal(result.bareReplaced, true);
   assert.equal(result.siblingKept, true);
   assert.deepEqual(result.calls, ["b:before:initial-b", "b:after:V1", "a:before:initial-a", "a:after:CORE", "a:before:CORE", "a:after:RELEASE"]);
-  assert.deepEqual(result.errors, ["无法读取这条 Goal 正文"]);
+  assert.deepEqual(result.errors, ["无法读取这条目标正文"]);
   assert.deepEqual(result.caches, Array(5).fill("no-store"));
   const after = boardSnapshot(store, DEMO_PROJECT_ID);
   for (const key of ["goals", "relations"] as const) assert.deepEqual(after[key], before[key]);

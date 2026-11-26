@@ -4,9 +4,10 @@ import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallCo
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { goalsActions, goalsArtifactInputActions, goalsDeliverableActions, GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
 import { openTestHome } from "./fixtures/test-home.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (const phase of ["before_dispatch", "after_pin"] as const)
   for (const interruption of ["revoke_parent", "cancel", "disable_parent", "archive_goal"] as const) {
@@ -42,8 +43,8 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
         const subject = { kind: "pages_document", id: created.document.id }, artifactId = "pages-" + created.document.id;
         // The parent must check again once Pages commits its own atomic pin.
         const pagesReturned = () => {
-          const pages = openSqliteConnection(homeSqlitePath(home, "pages"), { readonly: true });
-          try { return pages.prepare("SELECT artifact_version FROM pages WHERE id=? AND project_id=?").get(created.document.id, projectId)?.artifact_version === 1; }
+          const pages = openSqliteConnection(partitionLibraryFile(home, projectId, "pages"), { readonly: true });
+          try { return pages.prepare("SELECT artifact_version FROM pages WHERE id=?").get(created.document.id)?.artifact_version === 1; }
           finally { pages.close(); }
         };
         const assertGrant = (target?: ActionReference) => {

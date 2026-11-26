@@ -280,7 +280,7 @@ test("a plugin-owned database declaration has a listed literal baseline with the
 
 test("only the typed Host connection bridge forwards a plugin declaration; other baseline calls remain checked", () => {
   put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
-  const bridge = "export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration, partition?: { project_id: string }) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }";
+  const bridge = "export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration) { return openBaselineHomeSqlite(home, declaration.store_name, declaration); }";
   put("apps/local-host/src/plugin-database.ts", bridge); assert.equal(run().code, 0, run().out);
   put("apps/local-host/src/plugin-database.ts", bridge.replace("openPluginDatabaseConnection", "openPluginDatabase"));
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
@@ -292,7 +292,8 @@ test("only the typed Host connection bridge forwards a plugin declaration; other
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with an inline baseline");
   put("apps/local-host/src/plugin-database.ts", bridge.replace("declaration: PluginDatabaseDeclaration", "declaration: unknown"));
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
-  put("apps/local-host/src/plugin-database.ts", bridge.replace("partition?.project_id)", "partition?.project_id, extra)"));
+  // Batch 107: the bridge forwards no project any more; passing one again is not the exempt call.
+  put("apps/local-host/src/plugin-database.ts", bridge.replace("declaration);", "declaration, projectId);"));
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
   put("apps/local-host/src/plugin-database.ts", bridge + "\nexport function rogue(home: string, declaration: any, partition?: any) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }");
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");

@@ -197,7 +197,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     const runtimeBackup = join(item.home, "runtime-config-backups", "codex", "before-molis-work.bak");
     await mkdir(dirname(runtimeBackup), { recursive: true });
     await writeFile(runtimeBackup, "runtime config backup\n");
-    for (const storeName of ["images", "jelly", "pages", "form", "dataset", "ppt", "lingguang", "todo", "functions"]) {
+    for (const storeName of ["images", "jelly", "todo", "functions"]) {
       await mkdir(join(item.home, storeName), { recursive: true });
       await writeFile(join(item.home, storeName, `${storeName}.db`), "personal-store\n");
     }
@@ -227,7 +227,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     }
     assert.ok(plan.changes.some((change) => change.target === join(item.home, "runtime-config-backups")));
     assert.ok(plan.changes.some((change) => change.target === join(item.home, "server")), "purge 要删讨论库 server/");
-    for (const storeName of ["images", "jelly", "pages", "form", "dataset", "ppt", "lingguang", "todo", "functions"]) {
+    for (const storeName of ["images", "jelly", "todo", "functions"]) {
       assert.ok(
         plan.changes.some((change) => change.target === join(item.home, storeName)),
         `purge 要删 ${storeName} 个人库`,

@@ -12,7 +12,7 @@ const RULE = { capability_id: "functions.published.worth-handling", version: 1, 
 /** A run of the real handlers and store against fake content stations, a fake judgment rule and a receiver that can be made to fail. */
 async function setup() {
   const home = await mkdtemp(join(tmpdir(), "workflows-stop-token-"));
-  const store = openWorkflowsStore(home);
+  const store = openWorkflowsStore(home, PROJECT);
   const state = { failReceive: false, choice: "skip", received: [] as Array<{ step: number; title: string }> };
   const content = {
     stations: async () => ["feed", "pages", "inbox"].map(plugin => ({ plugin, label: plugin, icon: "x", supported: true, can_start_blank: false, receives: true })),
@@ -73,8 +73,8 @@ test("a run a judgment held back keeps its reason and verdict when it is read ag
     assert.deepEqual(listed.stopped, held.stopped, "workflows.get lists the same reason");
 
     // A store opened afresh from the same file says the same, and what the save returned is what a reload gives.
-    const reopened = openWorkflowsStore(home);
-    try { assert.deepEqual(reopened.instance(instance.instance_id, PROJECT), held); } finally { reopened.close(); }
+    const reopened = openWorkflowsStore(home, PROJECT);
+    try { assert.deepEqual(reopened.instance(instance.instance_id), held); } finally { reopened.close(); }
 
     // A person ending a run needs no reason: nothing is invented for it.
     const manual = { kind: "manual", title_template: "", body_template: "", instructions: "" };
@@ -97,7 +97,7 @@ test("every save moves the run's concurrency token, so a stale continue is refus
     const { instance } = await call(w.start, { id: workflow.workflow_id, item_id: "feed-item" });
 
     // The store: a write never keeps the token it was computed from.
-    const raw = store.instance(instance.instance_id, PROJECT);
+    const raw = store.instance(instance.instance_id);
     const touched = store.saveInstance(raw, { ...raw });
     assert.notEqual(touched.updated_at, raw.updated_at);
     assert.ok(Date.parse(touched.updated_at) > Date.parse(raw.updated_at), "and never moves backwards");
@@ -107,7 +107,7 @@ test("every save moves the run's concurrency token, so a stale continue is refus
     const probe = (await call(w.start, { id: workflow.workflow_id, item_id: "probe-item" })).instance;
     const future = store.saveInstance(probe, { ...probe, updated_at: "2026-10-07T11:00:00.000Z" });
     assert.equal(future.updated_at, "2026-10-07T11:00:00.000Z", "a later stamp is kept as given");
-    assert.equal(store.instance(probe.instance_id, PROJECT).updated_at, future.updated_at, "and what was returned is what is stored");
+    assert.equal(store.instance(probe.instance_id).updated_at, future.updated_at, "and what was returned is what is stored");
 
     // The first handoff fixes its output, then the receiver fails.
     state.failReceive = true;

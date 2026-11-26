@@ -18,7 +18,8 @@ import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-h
 const REPORT = { artifact_id: "coding-report:session-a:run-1", version: 1 };
 const BODY = "## 完整原文\r\n含 ``` 与 <script>。\n最后一行🌲";
 const OWNER = "web-user";
-const shelfPermission = shelfManifest.permissions.filter(row => row.permission === "artifact:read");
+// What Shelf declares, without Shelf's own words for the reason: a fixture plugin may only name its own keys, common ones or plain text.
+const shelfPermission = shelfManifest.permissions.filter(row => row.permission === "artifact:read").map(({ reason_text: _shelfWords, ...row }) => ({ ...row, reason: "读取成果" }));
 const refused = (code: string) => (error: unknown) => { assert.equal((error as { code?: string }).code, code); return true; };
 
 async function seed(home: TestHome, project: TestProject) {

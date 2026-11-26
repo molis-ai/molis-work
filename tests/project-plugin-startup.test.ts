@@ -211,8 +211,10 @@ test("RAC-1453 RAC-1922 RAC-1923 another installation's unreadable record fails 
     const gone = running.find(plugin => offered(before, plugin).length > 0);
     assert.ok(gone, "a running plugin offers actions");
     // The unreadable one comes after the gone one in the loop's order, and another plugin after it, when the order allows.
-    const later = running.slice(running.indexOf(gone) + 1, -1);
-    const broken = later[0] ?? running.find(plugin => plugin !== gone)!;
+    // It offers no action: the directory read after the close asks every provider still registered for its record, and this one stays.
+    const later = running.slice(running.indexOf(gone) + 1, -1).filter(plugin => offered(before, plugin).length === 0);
+    const broken = later[0] ?? running.find(plugin => plugin !== gone && offered(before, plugin).length === 0)!;
+    assert.ok(broken, "a running plugin that offers no action");
     const rest = running.filter(plugin => plugin !== gone && plugin !== broken);
     saved = store.db.prepare("SELECT * FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install) as Record<string, unknown>;
     corrupt = store.db.prepare("SELECT install_id, record_json FROM plugin_runtime_installs WHERE install_id = ?").get(broken.install) as typeof corrupt;

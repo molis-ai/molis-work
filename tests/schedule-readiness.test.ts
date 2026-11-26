@@ -126,7 +126,7 @@ test("the new-task form carries two hidden hints, one per missing thing, and not
   }
   assert.match(form, /还没有设置可用的 AI 模型/);
   assert.match(form, /还没有添加文件夹/);
-  assert.match(form, /你仍可先建好任务/, "says the task can still be created");
+  assert.match(form, /你可以先建好任务/, "says the task can still be created");
   assert.match(form, /<button class="mw-btn mw-btn--primary" type="submit">/);
   assert.doesNotMatch(form, /type="submit"[^>]*disabled/);
 });
@@ -193,6 +193,8 @@ async function scheduleDialog() {
     querySelector: (selector: string) => selector === "[data-schedule-workbench]" ? workbench : selector === "[data-schedule-list]" ? list : null,
     addEventListener: (type: string, fn: Listener) => { (documentListeners[type] ??= []).push(fn); },
   } });
+  // The page listens on its own document for a change of language.
+  Object.assign(workbench, { ownerDocument: (globalThis as { document?: unknown }).document });
   Object.defineProperty(globalThis, "sessionStorage", { value: { getItem: () => null, removeItem() {} }, configurable: true, writable: true });
   globalThis.fetch = (async (url: string) => {
     // What each task reads is read once when the page starts; this page has no task rows to mark, so its answer does not matter.

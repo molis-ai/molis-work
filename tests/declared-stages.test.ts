@@ -177,18 +177,18 @@ test("W5-06 a plugin the project does not show has no stage, and one a host path
   const todo = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo")!;
   const view = {
     ...emptyView(),
-    enabled_plugins: ["goals"],
+    enabled_plugins: ["goals", "pages"],
     hidden_plugins: ["dataset", "ppt"],
     plugin_stage_surfaces: [{ contribution_id: stageContributionId(todo.manifest)!, surface: "workbench" }],
     plugin_stages: ['<section data-work-surface="todo" data-stage="host"></section>'],
   } as MolisWorkWebView;
   const owner = draw(view);
-  assert.equal(stages(owner, "dataset"), 0, "a hidden personal plugin has no stage");
-  assert.equal(stages(owner, "ppt"), 0, "a hidden personal plugin has no stage");
+  assert.equal(stages(owner, "dataset"), 0, "a hidden plugin has no stage");
+  assert.equal(stages(owner, "ppt"), 0, "a hidden plugin has no stage");
   assert.equal(stages(owner, "schedule"), 0, "a project plugin the project has not added has no stage");
   assert.equal(stages(owner, "inbox"), 0, "a project plugin the project has not added has no stage");
   assert.equal(stages(owner, "sources"), 0, "RAC-2508 an unshown Feed owner does not draw its Sources stage");
-  assert.equal(stages(owner, "pages"), 1, "a shown personal plugin keeps its stage");
+  assert.equal(stages(owner, "pages"), 1, "a shown plugin keeps its stage");
   assert.equal(stages(owner, "todo"), 1, "the host's stage is the only one");
   assert.match(owner + pluginDocuments(owner).join("\n"), /data-stage="host"/);
 });

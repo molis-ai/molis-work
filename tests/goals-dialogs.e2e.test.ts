@@ -95,7 +95,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await evaluate("(() => { const form=" + dom("[data-create-form]") + "; form.elements.parent_goal_id.value='V1'; form.elements.parent_goal_id.dispatchEvent(new Event('change',{bubbles:true})); const dependency=form.querySelector('[name=dependency_goal_ids][value=INTERFACES]'); dependency.checked=true; dependency.dispatchEvent(new Event('change',{bubbles:true})); return true; })()");
   const parentTitle = before.goals.find(item => item.goal_id === "V1")!.title;
   const dependencyTitle = before.goals.find(item => item.goal_id === "INTERFACES")!.title;
-  assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新目标归在「" + parentTitle + "」名下（仅作目录分级，无需等它先完成）。");
+  assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新目标归在「" + parentTitle + "」名下（只用于层级归类，不用等它先完成）。");
   assert.equal(await evaluate(dom("[data-dependency-preview]") + ".textContent"), "关系预览：新目标需等待 「" + dependencyTitle + "」 完成后才能收尾（平时记进展、做准备不受影响）。");
   await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/goals"] }, sessionId);
   const createSubmit = '[data-create-form] button[type="submit"]';

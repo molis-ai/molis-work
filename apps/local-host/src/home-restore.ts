@@ -7,6 +7,8 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { readHomeRestoreArchive } from "./home-restore-archive.js";
 import { prepareRestoreMemory, assertCompleteRestoreMemory } from "./home-restore-memory.js";
 import { isHomeRestoreCleanupFailure, type HomeRestoreCleanupFailure, type HomeRestoreCatalogInspector, type HomeRestoreControl, type HomeRestoreResult } from "./home-restore-contract.js";
+import { homeRestored } from "./partition-plugin-host.js";
+import { hostLog } from "./host-log.js";
 import { assertRestoreDependencies } from "./home-restore-dependencies.js";
 import { verifyCommittedHomeRestore } from "./home-restore-finish.js";
 import { homeRestoreErrors } from "./home-restore-input.js";
@@ -86,7 +88,7 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
       assertRestoreDependencies(home, inputs.registry, stores.dependencies); control.assertCurrent();
     };
     releaseHeldHomeSqlite(home);
-    return await publishHomeRestore(home, inputs, target, control, { assertCurrent: lease }, async journal => {
+    const restored = await publishHomeRestore(home, inputs, target, control, { assertCurrent: lease }, async journal => {
       if (journal) verifyCommittedHomeRestore(journal, target.registry, options.inspectCatalog, control);
       assertRestoreDependencies(home, inputs.registry, stores.dependencies);
       await inspectRestoreOwnerContents(home, home, inputs.registry, journal ? [...journal.files, ...journal.directories].map(node => node.path)
@@ -96,6 +98,9 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
       const retained = await retainHomeRestoreMemory({ journal, registry: target.registry, retention, storageOwner: owner, control });
       return retainHomeRestoreSessions({ journal: retained, registry: target.registry, sessions, control });
     });
+    // The restored libraries are read into the overview on the next open (§6.1); the restore itself is done whether or not this mark lands.
+    try { homeRestored(home); } catch (error) { hostLog.warn("home", "restore_overview_mark_failed", error); }
+    return restored;
   } catch (error) {
     if (isHomeRestoreCleanupFailure(error)) {
       cleanupOwnsLease = true; throw retainFailedCleanup(error, () => owner.release());

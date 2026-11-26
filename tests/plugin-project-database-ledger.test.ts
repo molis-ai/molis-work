@@ -144,10 +144,9 @@ test("PLIB-03 tried on the scratch database, a declaration may make only its own
     "CREATE TABLE notes_items (project_id TEXT REFERENCES project_root, note_id TEXT PRIMARY KEY); CREATE TABLE notes_tags (note_id TEXT REFERENCES notes_items);" } }).created, true);
 });
 
-test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a Home library, each with a store name, a positive version, statements and declared permissions; only the Home one may be partitioned by project", () => {
+test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a Home library, each with a store name, a positive version, statements and declared permissions; a Home library is never split by project (batch 107: a library in each partition is `databases.partition`)", () => {
   assert.deepEqual(parsePluginManifest(manifest({ project: NOTES })).databases, { project: NOTES });
   assert.deepEqual(parsePluginManifest(manifest({ home: NOTES })).databases, { home: NOTES });
-  assert.deepEqual(parsePluginManifest(manifest({ home: { ...NOTES, partition: "project" } })).databases, { home: { ...NOTES, partition: "project" } });
   assert.deepEqual(parsePluginManifest(manifest({ project: NOTES, home: { ...NOTES, store_name: "notes-home" } })).databases, { project: NOTES, home: { ...NOTES, store_name: "notes-home" } });
   assert.equal(parsePluginManifest(manifest(undefined)).databases, undefined);
   for (const [databases, mentions] of [
@@ -162,7 +161,7 @@ test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a H
     [{ home: { ...NOTES, schema: "  " } }, /databases\.home\.schema/u],
     [{ home: { ...NOTES, read_permission: "notes:read" } }, /databases\.home\.read_permission/u],
     [{ home: { ...NOTES, write_permission: undefined } }, /databases\.home\.write_permission/u],
-    [{ home: { ...NOTES, partition: "whole" } }, /databases\.home\.partition 只能是 "project"/u],
+    [{ home: { ...NOTES, partition: "project" } }, /databases\.home 不认这些字段：partition/u],
     [{ project: { ...NOTES, partition: "project" } }, /databases\.project 不认这些字段：partition/u],
     [{ project: "notes" }, /databases\.project 必须为对象/u],
     [{ project: { ...NOTES, tables: ["notes_items"] } }, /不认这些字段：tables/u],

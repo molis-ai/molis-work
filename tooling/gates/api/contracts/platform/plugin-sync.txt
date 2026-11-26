@@ -44,7 +44,7 @@ export interface PluginSyncCollection {
     readonly id: string;
     readonly title: string;
     readonly schema_version: number;
-    readonly database?: "home" | "project";
+    readonly database?: "home" | "project" | "partition";
     readonly requires: readonly string[];
     readonly tracking?: readonly SyncTrackedTable[];
     readonly sections?: import("platform/plugin-sync-sections").SyncSectionsDeclaration;

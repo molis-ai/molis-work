@@ -1,23 +1,13 @@
-import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
- * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its forms go with every
- * answer people gave them, and the receipts of copies made into it.
+ * The Form baseline. Each partition (the personal space or a project) has its own copy of this library (`<partition>/libraries/form.db`),
+ * read with `form:read` and written with `form:write` via `services.database`; no row names its project, and deleting a project takes its
+ * whole library with every answer in it. A pinned version is recorded on the form it came from.
  */
-const FORM_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "form.project-deletion.data" }, order: 20,
-  artifact_join: { table: "forms", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
-    artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" },
-  tables: [
-  { table: "submissions", column: "form_id", parent: "forms" },
-  { table: "forms", column: "project_id" },
-  { table: "form_copies", column: "project_id" },
-] };
-/**
- * The Form baseline defines the schema for new stores and the expected version and column order for existing stores.
- * The running plugin reads this library with `form:read` and writes it with `form:write` via `services.database`.
- * The store's own connection for deletion and tests opens the same file at the same baseline.
- */
-export const FORM_DATABASE: HomePluginDatabaseDeclaration = { project_rows: FORM_PROJECT_ROWS, store_name: "form", version: /* @version database.form_database */ 1, read_permission: "form:read", write_permission: "form:write", schema: `
+export const FORM_DATABASE: PartitionPluginDatabaseDeclaration = { store_name: "form", deletion: { label: { key: "form.project-deletion.data" }, order: 20 }, version: /* @version database.form_database */ 1, read_permission: "form:read", write_permission: "form:write",
+  pinned_rows: { table: "forms", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
+    artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" }, schema: `
   CREATE TABLE forms (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -28,7 +18,6 @@ export const FORM_DATABASE: HomePluginDatabaseDeclaration = { project_rows: FORM
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     version INTEGER NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
     artifact_id TEXT NOT NULL DEFAULT '',
     artifact_version INTEGER NOT NULL DEFAULT 0,
     publication_pending_json TEXT
@@ -44,5 +33,5 @@ export const FORM_DATABASE: HomePluginDatabaseDeclaration = { project_rows: FORM
     source TEXT NOT NULL
   );
   CREATE UNIQUE INDEX submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL;
-  CREATE TABLE form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+  CREATE TABLE form_copies (request_id TEXT PRIMARY KEY, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL);
 ` };

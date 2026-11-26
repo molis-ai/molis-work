@@ -9,7 +9,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: FORM_PROJECT_PLUGIN_ID, catalog_order: 16,
   manifest: formManifest,
   project_runtime: { create: createFormPlugin, package_name: "@molis-ai/molis-work-plugin-form", factory_export: "createFormPlugin" },
-  personal: true,
   workbench: {
     order: 10,
     contributions: [formUiContribution],

@@ -16,13 +16,14 @@ import { pagesSkills } from "./skills.js";
 import { PAGES_INSTRUCTIONS } from "./prompts.js";
 
 /**
- * Pages as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
- * `pages` store its Host entry declares; the 成果 it pins, the model and the uploaded-file reader come from the Runtime's services.
+ * Pages as a Plugin Runtime plugin, one instance per partition (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is that partition's
+ * own (`databases.partition`); the 成果 it pins, the model and the uploaded-file reader come from the Runtime's services.
  */
 export function createPagesPlugin(): PluginDefinition {
   return { manifest: pagesManifest, instructions: PAGES_INSTRUCTIONS, methods: pagesSkills, async start(context) {
     for (const permission of pagesManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
-    const database = context.services?.database, artifacts = context.services?.artifacts, actions = context.services?.actions;
+    const database = context.services?.database, artifacts = context.services?.artifacts, actions = context.services?.actions, partition = context.project_id;
+    if (!partition) throw new ActionError("actions.project_required", "文档只在个人空间或项目里打开");
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供文档库");
     if (!artifacts) throw new ActionError("actions.unredeemed", "宿主未提供成果服务");
     if (!actions) throw new ActionError("actions.unredeemed", "宿主未提供动作服务");
@@ -31,14 +32,14 @@ export function createPagesPlugin(): PluginDefinition {
     const readOnly: PagesSql = { get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
       run: () => { throw new ActionError("actions.execution_failed", "文档的读取不写入"); } };
     const stores: PagesStores = {
-      read: run => run(new PagesStore(readOnly, attempts)),
-      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new PagesStore(transaction, attempts))),
+      read: run => run(new PagesStore(readOnly, partition, attempts)),
+      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new PagesStore(transaction, partition, attempts))),
     };
     const model = context.services?.model;
     const ports: PagesActionPorts = { ...stores,
       readFixedVersion: (id, version) => readFixedVersion(artifacts, id, version),
       ...(database.transactionProjectRow && artifacts.join ? {
-        promote: (id: string, expectedVersion?: number, goalId?: string) => promotePagesDocument(database, artifacts, id, expectedVersion, goalId),
+        promote: (id: string, expectedVersion?: number, goalId?: string) => promotePagesDocument(database, artifacts, partition, id, expectedVersion, goalId),
       } : {}),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型，再使用写作助手" },
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch?.(); return model.complete(prompt, { signal: options.signal }); } } : {}),

@@ -164,7 +164,7 @@ test("B27-FF01 B27-FF02 Feed tells a refused, malformed, and interrupted pull ap
   assert.match(observations[0]!.copy, /拒绝.*访问/);
   assert.match(observations[1]!.copy, /RSS.*Atom/);
   assert.match(observations[2]!.copy, /检查.*来源设置/);
-  assert.match(observations[3]!.copy, /暂时.*重试/);
+  assert.match(observations[3]!.copy, /暂时.*再试/);
   assert.doesNotMatch(observations[3]!.copy, /拒绝.*访问/);
   assert.doesNotMatch(rendered.map(run => run.copy).join(" "), /protocol_invalid|feed_unavailable|provider_interrupted/);
   assert.ok(rendered.some(run => run.state === "error" && run.ring === "interrupted" && /重试/.test(run.copy) && !/新增/.test(run.copy)));
@@ -317,5 +317,5 @@ test("B27-FF04 Feed preserves a filter, source selection, and source draft after
   assert.equal(requests - failedRequests, 2);
   assert.equal(feedback.length, 1);
   assert.equal(feedback[0]![1], true);
-  assert.match(feedback[0]![0], /当前输入已保留.*重试/);
+  assert.match(feedback[0]![0], /你填的内容都保留着.*重试/);
 });

@@ -26,10 +26,10 @@ const SHIPPED: Record<string, Shipped> = {
       return web.post(`${routes}/commands`, { expected_revision: state.revision, command: { type: "item.create", item: { title, start_date: day } } });
     },
     titles: async (web, routes) => titlesOf((await web.get<{ state: { items: Array<{ title: string }> } }>(`${routes}/`)).state.items) },
-  pages: { key: "pages", plugin_id: "io.molis.work.pages", scope: "project",
+  pages: { key: "pages", plugin_id: "io.molis.work.pages", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/pages`, { title, markdown: "第一稿" }),
     titles: async (web, routes) => titlesOf((await web.get<{ documents: Array<{ title: string }> }>(`${routes}/pages`)).documents) },
-  lingguang: { key: "lingguang", plugin_id: "io.molis.work.lingguang", scope: "project",
+  lingguang: { key: "lingguang", plugin_id: "io.molis.work.lingguang", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/sparks`, { title, body: "材料" }),
     titles: async (web, routes) => titlesOf((await web.get<{ sparks: Array<{ title: string }> }>(`${routes}/sparks`)).sparks) },
   // PEQ-01/PEQ-02/PEQ-12: Goals is a regular project plugin (not always_on): added, removed, re-added with data kept, revoked, upgraded and uninstalled.
@@ -89,9 +89,9 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
   const home = await mkdtemp(join(tmpdir(), "shipped-lifecycle-restart-"));
   let served = await serve(home);
   try {
-    const project = await served.createProject("Restart");
+    const project = await served.createProject("Restart", ["pages"]);
     const settings = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
-    // Schedule is in a new project by its plugin list (not personal); Pages is personal.
+    // Schedule is in a new project by its plugin list; Pages is added when the project is made (batch 107: no longer personal).
     const schedule: Shipped = { key: "schedule", plugin_id: "io.molis.work.schedule", scope: "project", write: async () => undefined, titles: async () => [] };
     const pages = SHIPPED.pages!;
     let scheduleAt = viewOf(served, project, schedule), pagesAt = viewOf(served, project, pages);
@@ -116,7 +116,8 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     await running.runtime.stop(scheduleInstall.install_id);
     await running.runtime.uninstall(scheduleInstall.install_id, { retain_private_data: false });
     // Root choice A: reproduce the disabled record old project shutdown left; this is not a project-side user disable entry.
-    await running.runtime.stop(pagesInstall.install_id);
+    // Pages runs as its own instance in the project (batch 107), so it is stopped there.
+    await (await pagesAt.platform()).runtime.stop(pagesInstall.install_id);
 
     await served.shut();
     served = await serve(home);

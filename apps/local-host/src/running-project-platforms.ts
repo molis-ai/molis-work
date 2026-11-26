@@ -12,7 +12,7 @@ export interface AnnouncedPlatform {
 /** A project platform as it is opened: its Home and project, and the state it settles in (no platform: it failed or was refused). */
 export interface OpenedProject {
   readonly ports: { readonly homeDirectory?: string | undefined; readonly projectId: string };
-  readonly ready: Promise<{ readonly platform: AnnouncedPlatform | null }>;
+  readonly ready: Promise<{ readonly platform: AnnouncedPlatform | null; readonly partitions?: { platforms(): AnnouncedPlatform[] } }>;
 }
 
 /** Weak, so the registry keeps no platform alive; `opened` is how a Home-wide event finds the projects that run. */
@@ -33,6 +33,8 @@ export async function runningProjectPlatforms(homeDirectory: string): Promise<{ 
     if (project.ports.homeDirectory !== homeDirectory) continue;
     const state = await project.ready.catch(() => null);
     if (state?.platform) running.push({ projectId: project.ports.projectId, platform: state.platform });
+    // A plugin with a library in each partition runs as its own instance there (batch 107), and hears what the project's plugins hear.
+    for (const platform of state?.partitions?.platforms() ?? []) running.push({ projectId: project.ports.projectId, platform });
   }
   return running;
 }

@@ -27,6 +27,7 @@ test("Artifacts share real records through Host and production MCP, preserving f
   try {
     await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "Artifact actions", actor_id: "owner" });
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
       assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }),
         (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found", "the platform has no project Plugin membership");
 
@@ -96,8 +97,7 @@ test("Artifacts share real records through Host and production MCP, preserving f
         assert.equal((await sdk.callTool({ name: molisWorkActionToolName(a.importFile), arguments: { ...input, content: "撤权后不能保存" } })).isError, true);
         assert.equal((await bound.invoke(a.browser, {})).versions.length, 2);
         // RAC-1044 (PG-077, D1): the project's plugin list gates the plugins' actions and no longer the 成果库's, which the platform provides.
-        // The witness is a personal plugin the project hides: since FI-6 Feed and Inbox run only in projects that enable them, so a project
-        // without them has no Feed or Inbox action to refuse, while a hidden personal plugin keeps running and is refused here.
+        // The witness is Pages, which this project added (batch 107: no longer personal) and then takes out: its actions are refused here.
         const isPages = (row: { provider: { plugin_id?: string } }) => row.provider.plugin_id === "io.molis.work.pages";
         const shown = (await client.discover({ ...caller, permissions: LOCAL_OWNER_PERMISSIONS })).filter(row => isPages(row) && row.availability.available).map(row => row.capability_id);
         assert.throws(() => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }),
@@ -106,8 +106,9 @@ test("Artifacts share real records through Host and production MCP, preserving f
         const without = await client.discover({ ...caller, permissions: LOCAL_OWNER_PERMISSIONS });
         assert.ok(without.filter(row => row.provider.provider_id === ARTIFACTS_PROVIDER_ID).every(row => row.availability.available), "every 成果库 action is still available");
         assert.deepEqual((await bound.invoke(a.read, { reference: exact })).selected, mcpRecord);
-        const hidden = without.filter(row => isPages(row) && shown.includes(row.capability_id));
-        assert.ok(shown.length > 0 && hidden.length === shown.length && hidden.every(row => !row.availability.available && row.availability.code === "actions.plugin_disabled"),
+        // Taken out, its instance in this partition stops (batch 107): what is left of it in the directory is refused as disabled.
+        const left = without.filter(row => isPages(row) && shown.includes(row.capability_id));
+        assert.ok(shown.length > 0 && left.every(row => !row.availability.available && row.availability.code === "actions.plugin_disabled"),
           "a plugin's own action in the same project is still refused: the plugin list gates plugins");
         catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
         assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }),

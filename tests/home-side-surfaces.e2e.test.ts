@@ -56,7 +56,7 @@ async function keyboardGroups(browser: Browser, child: Child, where: string, fou
       const typing = 'input:not([type=button], [type=checkbox], [type=radio]), textarea, select';
       document.activeElement?.blur?.();
       const stop = items.find(item => item.tabIndex >= 0 && !item.matches(typing)) ?? items.find(item => !item.matches(typing));
-      stop?.focus({ preventScroll: true }); return stop?.dataset.kbdItem ?? null; })()`);
+      stop?.focus({ preventScroll: true }); return stop?.dataset.kbdItem ?? null; })()`, undefined, "person");
     if (start === null) continue;
     tested++;
     if (group.stops !== 1) found.push(`${label}: ${group.stops} tab stops`);
@@ -100,7 +100,7 @@ test("VUX-16 (fallback): the fields on the Home Issue page, the Issue side view 
   // conversation pane is opened. That is the path a person takes: 记下 → 头脑风暴.
   await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang-title]')?.getClientRects().length", 20_000);
-  await lingguang.evaluate("(() => { const title = document.querySelector('[data-lingguang-title]'); title.focus(); title.value = '侧栏里的一条灵光'; title.dispatchEvent(new Event('input', { bubbles: true })); })()");
+  await lingguang.evaluate("(() => { const title = document.querySelector('[data-lingguang-title]'); title.focus(); title.value = '侧栏里的一条灵光'; title.dispatchEvent(new Event('input', { bubbles: true })); })()", undefined, "person");
   await lingguang.waitFor("document.querySelector('[data-lingguang-save-status]')?.textContent === '已保存'", 20_000);
   await lingguang.click("[data-lingguang-brainstorm-current]");
   await lingguang.waitFor("!document.querySelector('[data-lingguang-pane=chat]').hidden && document.querySelector('textarea[data-lingguang-chat-input][data-fit]')?.getClientRects().length", 30_000);

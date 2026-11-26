@@ -26,7 +26,7 @@ const input = (quotes: number) => ({ request_id: `t360-${quotes}`, request_hash:
   inputs: materials(quotes) });
 
 async function fixture(t: test.TestContext) {
-  const home = await mkdtemp(join(tmpdir(), "pages-prompt-budget-")), store = openPagesStore(home);
+  const home = await mkdtemp(join(tmpdir(), "pages-prompt-budget-")), store = openPagesStore(home, PROJECT);
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   const prompts: InstructedPrompt[] = [];
   const { actions } = pagesTestPorts(store, PROJECT, { complete: async prompt => {
@@ -71,5 +71,5 @@ test("RAC-2739/RAC-2740 one more character of materials JSON is refused before t
   await assert.rejects(f.actions.invoke(pagesActions.generate, input(quotes + 1)), { code: "pages.invalid", message: /材料过长/ },
     "one character over the Pages budget is refused before the model is asked");
   assert.equal(f.prompts.length, 0, "the refused request never built or sent a prompt");
-  assert.equal(f.store.generation(PROJECT, `t360-${quotes + 1}`), null, "and it leaves no generation record");
+  assert.equal(f.store.generation(`t360-${quotes + 1}`), null, "and it leaves no generation record");
 });

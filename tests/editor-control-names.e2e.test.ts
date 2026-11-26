@@ -33,7 +33,7 @@ async function keyboard(b: Browser, key: keyof typeof keys) {
 }
 
 async function focus(frame: Frame, selector: string) {
-  await frame.evaluate(`${node(selector)}.focus()`);
+  await frame.evaluate(`${node(selector)}.focus()`, undefined, "person");
   await frame.waitFor(`document.hasFocus() && document.activeElement === ${node(selector)}`).catch(async error => {
     const focusState = await frame.evaluate(`({ focused: document.hasFocus(), active: document.activeElement?.tagName,
       targetIsActive: document.activeElement === ${node(selector)}, targetIsVisible: ${node(selector)}?.checkVisibility() })`);
@@ -136,8 +136,8 @@ async function auditForm(t: TestContext, b: Browser) {
 async function auditDataset(t: TestContext, b: Browser) {
   const frame = await pluginFrameBrowser(t, b, "dataset");
   const read = () => {
-    const store = openDatasetStore(b.homeDirectory);
-    try { return store.list(b.projectId!)[0]!; } finally { store.close(); }
+    const store = openDatasetStore(b.homeDirectory, b.projectId!);
+    try { return store.list()[0]!; } finally { store.close(); }
   };
   const title = "[data-dataset-title]";
   const more = "[data-dataset-stage-workspace] .plugin-stage-more > summary";
@@ -394,8 +394,8 @@ test("AEC-01 B27-NAMES-02 B27-NAMES-03 · PPT color names and saved selection", 
   if (!b) return;
   const frame = await pluginFrameBrowser(t, b, "ppt");
   const read = () => {
-    const store = openPptStore(b.homeDirectory);
-    try { return store.list(b.projectId!)[0]!; } finally { store.close(); }
+    const store = openPptStore(b.homeDirectory, b.projectId!);
+    try { return store.list()[0]!; } finally { store.close(); }
   };
   await b.setViewport(1440, 900);
   await navigate(b, frame, "ppt");
@@ -465,9 +465,9 @@ test("AEC-01 B27-NAMES-02 B27-NAMES-03 · PPT color names and saved selection", 
   });
 
   await t.test("B27-NAMES-03 · an out-of-date color edit stays in the draft until confirmed reload", async () => {
-    const other = openPptStore(b.homeDirectory);
+    const other = openPptStore(b.homeDirectory, b.projectId!);
     const description = "An update from another editor";
-    try { other.update(id, { description }, b.projectId!); } finally { other.close(); }
+    try { other.update(id, { description }); } finally { other.close(); }
     await enterPptEditor(frame);
     await activate(b, frame, defaultText);
     await frame.waitFor("document.querySelector('[data-ppt-editor-status]').dataset.mwState === 'failed'");

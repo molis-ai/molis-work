@@ -405,7 +405,7 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} fixed Session
   syncBuiltinESMExports();
   try {
     await j.page.click("[data-memory-confirm-yes]");
-    await j.page.wait(`document.querySelector('${active} [data-memory-retry]') && !document.querySelector('${active} [data-memory-error]').hidden && document.querySelector('${active} [data-memory-clear-status]')?.textContent.includes('尚未确认')`);
+    await j.page.wait(`document.querySelector('${active} [data-memory-retry]') && !document.querySelector('${active} [data-memory-error]').hidden && document.querySelector('${active} [data-memory-clear-status]')?.textContent.includes('清理结果还没确认')`);
     assert.equal(reached, true, "the original Host call hit this Home's actual directory sync");
     assert.equal(deliveries().length, 1); assert.deepEqual(deliveries()[0]!.body, { preview_id: previewId });
     assert.equal(facts().length, 1, "one durable group exists even though the HTTP result is unknown");
@@ -451,7 +451,7 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} fixed Session
     const fault = t.mock.method(capability, "withCaller", (...args: Parameters<typeof bind>) => interrupted(bind(...args)));
     try {
       await j.page.click(active + " [data-memory-retry]");
-      await j.page.wait(`document.querySelector('${active} [data-memory-clear-status]')?.textContent.includes('本次清理尚未完成') && document.querySelectorAll('${active} [data-memory-session-item]').length === 2`); await ready(j.page);
+      await j.page.wait(`document.querySelector('${active} [data-memory-clear-status]')?.textContent.includes('这次清理还没完成') && document.querySelectorAll('${active} [data-memory-session-item]').length === 2`); await ready(j.page);
       assert.equal(deliveries().length, 2); assert.equal(deliveries()[1]!.rawBody, originalBody);
       const partial = await lastReply<MemorySessionClearResult>(j, base + "/clear/apply"); assert.equal(partial.status, 200);
       assert.deepEqual(partial.value, { complete: false, items: [

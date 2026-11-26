@@ -14,7 +14,7 @@ import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 
 // A Home plugin's part of deleting a project is what its Manifest declares (`databases.home.project_rows`, PG-024), deleted by the
 // platform: the plugin is called for none of it (PG-106). Its background work in the project is stopped by the platform (PG-038;
-// tests/plugin-database-partition-deletion.test.ts). Todo is the shipped Home plugin whose library declares its rows.
+// tests/security-invariants-plugin-background.test.ts). Todo is the shipped Home plugin whose library declares its rows.
 
 function fixture(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "home-project-cleanup-"));

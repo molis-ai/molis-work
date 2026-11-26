@@ -66,8 +66,8 @@ export type ProjectPluginId = string;
  */
 export interface ProjectPluginRegistry {
   has(pluginId: ProjectPluginId): boolean;
-  /** Initial memberships for a new project; never applied when reading or reopening an existing project. */
-  initial?(): readonly ProjectPluginId[];
+  /** Initial memberships for a new partition (a project, or the personal space); never applied when reading or reopening an existing one. */
+  initial?(projectId: string): readonly ProjectPluginId[];
   /** Plugins that must be enabled together with this one. */
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
   /** Plugins on in every project that a project may hide. Absent means none are personal. */

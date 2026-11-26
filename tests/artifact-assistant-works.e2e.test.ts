@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 
 // 「被谁引用」 lists the Assistant's works on a 成果 version (artifact-positioning 五.1), next to the Goals, and opens them.
 test("a 成果 version lists the Assistant work that started from it, and opens that work in the Assistant", { timeout: 120_000 }, async t => {
@@ -33,9 +33,9 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   const { document: citing } = await b.web.post<{ document: { id: string } }>(`/projects/${projectId}/api/plugins/io.molis.work.pages/pages`, {
     title: "引用需求的周报", markdown: `本周见[需求说明](${b.origin}${version})。`,
   });
-  const pages = openHomeSqliteDatabase(b.homeDirectory, "pages");
+  const pages = openPartitionLibraryDatabase(b.homeDirectory, projectId!, "pages");
   t.after(() => pages.close());
-  const original = String(pages.prepare("SELECT body_json FROM pages WHERE id = ?").get(citing.id)!.body_json);
+  const original = String((pages.prepare("SELECT body_json FROM pages WHERE id = ?").get(citing.id) as { body_json: string }).body_json);
   const saveBody = (value: string) => pages.prepare("UPDATE pages SET body_json = ? WHERE id = ?").run(value, citing.id);
   const pagesLink = await fetch(b.origin + version, { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.ok((await pagesLink.text()).includes(`data-workbench-item-id="${citing.id}"`), "the stored document links to this exact version before the fault");

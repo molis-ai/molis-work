@@ -5,10 +5,10 @@ import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platf
 
 
 export const formAggregates:readonly SyncAggregateDefinition[]=[{
-  kind:'form',copy:{kind:'io.molis.work.form:form',references(value,projectId){return value.record.artifact_id?[{kind:'system.artifacts:artifact',id:String(value.record.artifact_id),projectId}]:[];},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('system.artifacts:artifact',String(value.record.artifact_id));value.record.share_id=null;}},table:'forms',columns:['id','project_id','title','description','status','share_id','questions_json','created_at','updated_at','artifact_id','artifact_version'],
+  kind:'form',copy:{kind:'io.molis.work.form:form',references(value,projectId){return value.record.artifact_id?[{kind:'system.artifacts:artifact',id:String(value.record.artifact_id),projectId}]:[];},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('system.artifacts:artifact',String(value.record.artifact_id));value.record.share_id=null;}},table:'forms',columns:['id','title','description','status','share_id','questions_json','created_at','updated_at','artifact_id','artifact_version'],
   children:[{table:'submissions',parent:'form_id',columns:['id','form_id','answers_json','submitted_at','form_version','questions_json','request_id','source'],orderBy:'submitted_at,id'}],versionColumn:'version',busyColumn:'publication_pending_json',
   validate({record:r,children}){
-    for(const k of ['id','project_id','title','description','questions_json','artifact_id'])check(typeof r[k]==='string');
+    for(const k of ['id','title','description','questions_json','artifact_id'])check(typeof r[k]==='string');
     check(String(r.title).length>0&&String(r.title).length<=80&&String(r.description).length<=2000);
     check(['draft','published','closed'].includes(String(r.status))&&(r.share_id===null||typeof r.share_id==='string'));
     for(const k of ['created_at','updated_at'])check(typeof r[k]==='string'&&Number.isFinite(Date.parse(r[k])));

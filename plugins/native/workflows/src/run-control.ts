@@ -2,7 +2,7 @@ import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-c
 import type { WorkflowsStores } from "./store.js";
 
 /** Transient controls for calls on this provider. Durable instance status fences commits after restart as well. */
-export function createWorkflowRunControls(projectId: string, read: WorkflowsStores["read"]) {
+export function createWorkflowRunControls(read: WorkflowsStores["read"]) {
   const running = new Map<string, Set<AbortController>>();
   return {
     acquire(id: string, original: ActionExecutionContext) {
@@ -14,7 +14,7 @@ export function createWorkflowRunControls(projectId: string, read: WorkflowsStor
         original.assert_authority_current?.(reference, requiredPermissions); signal.throwIfAborted();
       }, beforeEffect: async () => {
         await original.beforeEffect(); signal.throwIfAborted();
-        const status = read(store => store.instance(id, projectId).status);
+        const status = read(store => store.instance(id).status);
         if (status === "stopped") throw new ActionError("actions.cancelled", "这一次已结束，未提交的步骤已取消");
         original.assert_authority_current?.(); signal.throwIfAborted();
       } };

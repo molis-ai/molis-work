@@ -115,9 +115,9 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
   const content = [paragraph("Find target at the start"),
     ...Array.from({ length: 54 }, (_, index) => paragraph(`Paragraph ${index + 1} in a long document.`)),
     paragraph("Find target at the end")];
-  const store = openPagesStore(b.homeDirectory);
+  const store = openPagesStore(b.homeDirectory, projectId);
   const record = (() => {
-    try { return store.create({ project_id: projectId, title: "Find and replace journey", body: { type: "doc", content } }); }
+    try { return store.create({ title: "Find and replace journey", body: { type: "doc", content } }); }
     finally { store.close(); }
   })();
   const url = `${b.origin}/projects/${projectId}/?openPlugin=pages`;
@@ -223,9 +223,9 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
   await command("Input.insertText", { text: "Saved replacement" }, sessionId);
   await frame.click(one);
   await frame.waitFor("document.querySelector('[data-pages-editor-status]')?.dataset.mwState === 'saved'");
-  const after = openPagesStore(b.homeDirectory);
+  const after = openPagesStore(b.homeDirectory, projectId);
   try {
-    assert.deepEqual(after.get(record.id, projectId).body.content, [paragraph("Saved replacement at the start"), ...content.slice(1)]);
+    assert.deepEqual(after.get(record.id).body.content, [paragraph("Saved replacement at the start"), ...content.slice(1)]);
   } finally { after.close(); }
   await closeFind();
   await b.reloadPage();

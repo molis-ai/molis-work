@@ -22,10 +22,6 @@ export const PLUGIN_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
  * baseline: so `uninstall --purge-user-data` reaches it, and a library another owner registered (the Host's, a module's, another
  * plugin's) or any other entry of the Home (`config`, `agent-runtime`, another plugin's store, ...) is refused. It is the same service as the
  * Home-level instances have (`openPluginDatabase`). Sandboxed definitions and platforms that reach no Home cannot be given one.
- *
- * A library partitioned by project (`partition: "project"`) is only for a Home-level plugin (`scope`): a project's plugin keeps its
- * data in that project already. The Manifest and the registry have to agree on it, so the files uninstall and project deletion
- * remove are the ones the plugin writes.
  */
 export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null, scope: "home" | "project"): void {
   assertProjectRowsEntries(entries, scope);
@@ -50,10 +46,6 @@ export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], h
     if (store.library.baseline.version !== database.version || store.library.baseline.schema !== database.schema) {
       throw new Error(`插件 ${id} 声明的库 ${name} 与登记的基线不同`);
     }
-    if (database.partition !== undefined && (scope !== "home" || database.partition !== "project")) {
-      throw new Error(`插件 ${id} 的库只有 Home 级插件能按项目分开：项目里的插件本来就把数据放在项目里`);
-    }
-    if (store.library.partition !== database.partition) throw new Error(`插件 ${id} 声明的库 ${name} 与登记的分区方式不同`);
     if (taken.has(name)) throw new Error(`库 ${name} 被同一份启动名单里的两个插件声明，库归属重复`);
     taken.add(name);
     const declared = new Set(definition.manifest.permissions.map(item => item.permission));

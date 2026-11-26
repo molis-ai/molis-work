@@ -164,7 +164,7 @@ test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localiz
     throw error;
   }
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(undo)})?.textContent`), "Undo");
-  assert.deepEqual(await browser.evaluate(categoryWords), ["Reminders", "This project’s reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due"]);
+  assert.deepEqual(await browser.evaluate(categoryWords), ["Reminders", "This project’s reminders: what they say (including reminders other plugins set), which plugin set them, and when they’re next due"]);
   assert.deepEqual(await browser.evaluate(`tgaKeys.slice(${areaRequests})`), [first], "language reads the current task once");
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(control)}).dataset.status`), "granted");
   // Undo takes it back, and the mark with it.
@@ -209,4 +209,16 @@ test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localiz
   await browser.waitFor(`${status} === 'Changed elsewhere; refreshed'`);
   const after = (await browser.web.post<TaskGrantListResult>(endpoint, { mode: "list" })).subjects.find(item => item.key === first);
   assert.deepEqual(after, changed, "the outdated undo cannot change permissions written elsewhere");
+
+  // TGA-22: a task made elsewhere is not in the last answer, so the words-only redraw asks again instead of saying it reads files.
+  // The page's own refresh for the new task fails its grants read, so the language change is the first chance to say it.
+  await browser.evaluate("window.tgaFailGrantList = true");
+  const third = await made("Night check");
+  await child.waitFor(`!!document.querySelector(${JSON.stringify(row(third))})`);
+  await browser.waitFor("window.tgaFailGrantList === false");
+  // A task that holds nothing yet is set with an empty revision, under the same installation.
+  await browser.web.post(endpoint, { mode: "set", plugin_install_id: subject.plugin_install_id, key: third, expected_revision: "",
+    categories: [{ provider_id: "io.molis.work.schedule", group_id: "reminders" }] });
+  await choose("zh");
+  await child.waitFor(`document.querySelector(${JSON.stringify(row(third) + " [data-schedule-kind-mark]")})?.dataset.scheduleKindMark === "data"`);
 });

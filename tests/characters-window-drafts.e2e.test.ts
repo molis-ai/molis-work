@@ -44,7 +44,7 @@ test("RAC-1607 RAC-1608: Characters keeps a tab's unsaved edit across a reload, 
   await openPage(); await openRow();
   assert.equal(await value("[data-character-title]"), "窗口里的名字", "RAC-1607: loading the page again brings the edit back");
   assert.equal(await value("[data-character-instructions]"), "窗口里的做法");
-  assert.equal(await text("[data-character-notice]"), "已恢复此窗口未保存的修改。");
+  assert.equal(await text("[data-character-notice]"), "已恢复这个窗口未保存的修改。");
   assert.equal(await evaluate("document.querySelector('[data-roles-drawer=save]').disabled"), false, "RAC-1607: the edit brought back can be saved");
 
   // RAC-1608: another window saves version 2 while this tab's edit was typed over version 1.
@@ -65,7 +65,7 @@ test("RAC-1607 RAC-1608: Characters keeps a tab's unsaved edit across a reload, 
   assert.equal(await evaluate(CONFLICT), false);
   await openPage(); await openRow();
   assert.equal(await value("[data-character-title]"), "另一个窗口的名字", "RAC-1608: a dropped edit does not come back");
-  assert.notEqual(await text("[data-character-notice]"), "已恢复此窗口未保存的修改。");
+  assert.notEqual(await text("[data-character-notice]"), "已恢复这个窗口未保存的修改。");
 
   // A save that meets a newer version saved while the drawer was open is refused by the Host: the edit stays, nothing is overwritten.
   await fill("[data-character-instructions]", "抽屉里的做法");

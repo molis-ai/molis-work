@@ -5,11 +5,13 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { bindDatabaseSpace, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, sqliteBaselineTriggers, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { openPluginDatabase, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
+import { openPartitionPluginDatabase, openPluginDatabase, partitionPluginScope, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import { PAGES_DATABASE, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { FORM_DATABASE, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { ISSUES_DATABASE, issuesManifest } from "@molis-ai/molis-work-plugin-issues";
 
+// Pages and Form keep a library in each partition (batch 107), opened there; Issues keeps its one Home library.
+const PARTITION = "project-clean";
 const cases = [
   { declaration: PAGES_DATABASE, manifest: pagesManifest, table: "pages", seed: "INSERT INTO pages (id,title,body_json,created_at,updated_at,version) VALUES ('kept','title','{}','t','t',1)" },
   { declaration: FORM_DATABASE, manifest: formManifest, table: "forms", seed: "INSERT INTO forms (id,title,description,status,questions_json,created_at,updated_at,version) VALUES ('kept','title','description','draft','[]','t','t',1)" },
@@ -19,10 +21,14 @@ const instance = { install_id: "isolated-current", installation_generation: "1" 
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 for (const { declaration, manifest, table, seed } of cases) {
   const baseline = pluginSyncDatabaseDeclaration(manifest, declaration);
-  const open = (home: string, authorize: (permission: string) => void) => openPluginDatabase(home, baseline, authorize, instance, undefined, manifest);
+  const partitioned = manifest.databases?.partition === declaration;
+  const scope = (home: string) => partitionPluginScope(home, PARTITION, manifest.plugin_id, instance.install_id);
+  const open = (home: string, authorize: (permission: string) => void) => partitioned
+    ? openPartitionPluginDatabase(scope(home), home, manifest, authorize, instance) : openPluginDatabase(home, baseline, authorize, instance, manifest);
+  const where = (home: string) => partitioned ? scope(home).libraryPath(declaration.store_name) : join(home, declaration.store_name, `${declaration.store_name}.db`);
   const name = declaration.store_name, sql = readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8");
   test(`RAC-2368 ${name} opens and reopens its current complete declared schema at 1`, () => {
-    const home = mkdtempSync(join(tmpdir(), `clean-home-${name}-`)), file = join(home, name, `${name}.db`), permissions: string[] = [];
+    const home = mkdtempSync(join(tmpdir(), `clean-home-${name}-`)), file = where(home), permissions: string[] = [];
     try {
       assert.equal(declaration.version, 1);
       assert.equal(declaration.read_permission, `${name}:read`); assert.equal(declaration.write_permission, `${name}:write`);
@@ -42,7 +48,7 @@ for (const { declaration, manifest, table, seed } of cases) {
     } finally { rmSync(home, { recursive: true, force: true }); }
   });
   test(`RAC-2369 ${name} refuses current schema and a real row at version 2 without changing the file`, () => {
-    const home = mkdtempSync(join(tmpdir(), `clean-home-${name}-refusal-`)), file = join(home, name, `${name}.db`);
+    const home = mkdtempSync(join(tmpdir(), `clean-home-${name}-refusal-`)), file = where(home);
     try {
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
       const raw = new DatabaseSync(file); raw.exec(sql); bindDatabaseSpace(raw,ensureStorageSpace(home)); raw.exec(seed); raw.exec("PRAGMA user_version = 2"); raw.close(); chmodSync(file, 0o600);

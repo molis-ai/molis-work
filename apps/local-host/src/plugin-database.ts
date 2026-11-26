@@ -5,16 +5,15 @@ import { homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase } from "
 import { assertSqliteLibraryReady } from "@molis-ai/molis-work-storage";
 
 /** A Home library joined into project artifacts must start in WAL at the real path. */
-function prepareHomePluginDatabasePath(home: string, declaration: HomePluginDatabaseDeclaration,
-  partition?: { readonly project_id: string }): string {
+function prepareHomePluginDatabasePath(home: string, declaration: HomePluginDatabaseDeclaration): string {
   if (!declaration.project_rows?.artifact_join) return home;
   const real = realpathSync(home);
-  const path = homeSqlitePath(real, declaration.store_name, partition?.project_id);
+  const path = homeSqlitePath(real, declaration.store_name);
   assertSqliteLibraryReady(path);
   const existing = lstatSync(path, { throwIfNoEntry: false });
   if (!existing || existing.size === 0) {
     // Establish the space in WAL before the fresh file receives any business schema.
-    openHomeSqliteDatabase(real, declaration.store_name, partition?.project_id, db => {
+    openHomeSqliteDatabase(real, declaration.store_name, db => {
       if (db.prepare("PRAGMA journal_mode=WAL").get()?.journal_mode !== "wal") throw new ActionError("actions.service_unavailable", "插件库初始化日志模式暂不可用");
       db.exec("PRAGMA synchronous=FULL");
     }).close();
@@ -23,12 +22,10 @@ function prepareHomePluginDatabasePath(home: string, declaration: HomePluginData
 }
 
 /** The single typed declaration bridge used by the authorized Host client and the bounded SQL worker. */
-function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration,
-  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
-  return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
+function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration): ReturnType<typeof openBaselineHomeSqlite> {
+  return openBaselineHomeSqlite(home, declaration.store_name, declaration);
 }
 
-export function openHomePluginDatabaseConnection(home: string, declaration: HomePluginDatabaseDeclaration,
-  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
-  return openPluginDatabaseConnection(prepareHomePluginDatabasePath(home, declaration, partition), declaration, partition);
+export function openHomePluginDatabaseConnection(home: string, declaration: HomePluginDatabaseDeclaration): ReturnType<typeof openBaselineHomeSqlite> {
+  return openPluginDatabaseConnection(prepareHomePluginDatabasePath(home, declaration), declaration);
 }

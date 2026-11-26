@@ -818,6 +818,8 @@ export declare const processFold: (scope: string, { group, groupBody, step, step
     stepBody: string;
 }) => string;
 
+export declare function redrawInPlace(target: Element, html: string): void;
+
 export declare function refuseLocaleProblems(problems: readonly LocaleSetProblem[]): void;
 
 export declare function refuseSharedTextPrefix(taken: string | null | undefined, owner: string): void;
@@ -1487,6 +1489,8 @@ export declare function stateRingGeometry(id: StateRingFamily, t: number, progre
 
 export declare const t: UiTextTool;
 
+export declare function takeWordsInPlace(current: Element, next: Element): Element;
+
 export declare function textArgs(args: TextArgs): TextArg[];
 
 export declare const textKeyPrefix: (owner: string) => string;
@@ -1529,7 +1533,7 @@ interface MwInputOptions {
     attrs?: Record<string, AttrValue>;
 }
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "integrations" | "databases"> & {
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & {
     readonly permissions?: PluginManifest["permissions"];
     readonly read_groups?: PluginManifest["read_groups"];
     readonly actions?: PluginManifest["actions"];

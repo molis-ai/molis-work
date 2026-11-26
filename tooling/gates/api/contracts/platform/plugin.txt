@@ -3211,7 +3211,6 @@ export interface HomePageSubject {
 }
 
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
-    readonly partition?: "project";
     readonly project_rows?: PluginProjectRowsDeclaration;
     readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
 }
@@ -3235,7 +3234,6 @@ export interface HomeStoreDeclaration {
     readonly library?: {
         readonly baseline: HomeStoreBaseline;
         readonly file?: string;
-        readonly partition?: "project";
     };
     readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
 }
@@ -3292,13 +3290,6 @@ export interface HostWorkspaceChangedPayload {
     cause: "plugin-operation" | "agent-change" | "workspace-settings" | "project-opened";
 }
 
-export declare const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, {
-    readonly input_type: string;
-    readonly output_type: string;
-}>;
-
-export declare const IMAGE_GENERATION_ROLES: readonly ["services.list", "generate", "generations.get", "image.read"];
-
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
 export declare const ITEM_DECLARATION_LIMITS: {
@@ -3311,8 +3302,6 @@ export declare const ITEM_DECLARATION_LIMITS: {
     readonly start_title: 80;
     readonly hint: 200;
 };
-
-export type ImageGenerationRole = (typeof IMAGE_GENERATION_ROLES)[number];
 
 export type InferActionInput<S> = S extends {
     readonly const: infer C;
@@ -3696,6 +3685,60 @@ export declare const PLACEMENT_COPY_INPUT_TYPE = "molis.placement.copy.input.v1"
 
 export declare const PLACEMENT_COPY_OUTPUT_TYPE = "molis.placement.copy.output.v1";
 
+export declare const PLACEMENT_EXPORT_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly required: readonly ["subject"];
+    readonly additionalProperties: false;
+};
+
+export declare const PLACEMENT_EXPORT_SCHEMA: {
+    type: string;
+    properties: {
+        subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        revision: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        record: {
+            readonly type: "object";
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
 export declare const PLACEMENT_MOVE_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -3729,6 +3772,32 @@ export declare const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1"
 
 export declare const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v1";
 
+export declare const PLACEMENT_PUT_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly kind: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly record: {
+            readonly type: "object";
+        };
+        readonly request_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly target_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+    };
+    readonly required: readonly ["kind", "record", "request_id"];
+    readonly additionalProperties: false;
+};
+
 export declare const PLACEMENT_RELATION_LIMITS: {
     readonly targets: 500;
     readonly name: 120;
@@ -3741,6 +3810,64 @@ export declare const PLACEMENT_RELATION_LIMITS: {
 export declare const PLACEMENT_RELATION_ROLES: readonly ["list", "bind", "release", "candidates", "create"];
 
 export declare const PLACEMENT_RELATION_TYPE = "molis.placement.relation.v1";
+
+export declare const PLACEMENT_REMOVED_SCHEMA: {
+    type: string;
+    properties: {
+        subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        removed: {
+            type: string;
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const PLACEMENT_REMOVE_INPUT_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        readonly revision: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+    };
+    readonly required: readonly ["subject", "revision"];
+    readonly additionalProperties: false;
+};
+
+export declare const PLACEMENT_REMOVE_INPUT_TYPE = "molis.placement.remove.input.v1";
+
+export declare const PLACEMENT_REMOVE_OUTPUT_TYPE = "molis.placement.remove.output.v1";
 
 export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
@@ -3926,7 +4053,20 @@ export declare const PLUGIN_SCENE_SCHEMA: {
 
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
 
+export declare const PUSH_EXPORT_INPUT_TYPE = "molis.push.export.input.v1";
+
+export declare const PUSH_EXPORT_OUTPUT_TYPE = "molis.push.export.output.v1";
+
 export declare const PUSH_POINTER_PATTERN: RegExp;
+
+export declare const PUSH_PUT_INPUT_TYPE = "molis.push.put.input.v1";
+
+export declare const PUSH_PUT_OUTPUT_TYPE = "molis.push.put.output.v1";
+
+export interface PartitionPluginDatabaseDeclaration extends PluginDatabaseDeclaration {
+    readonly pinned_rows?: PluginPinnedRowsDeclaration;
+    readonly deletion?: Pick<PluginProjectRowsDeclaration, "label" | "order">;
+}
 
 export interface PersonIntake extends DestinationDeclaration {
     readonly intake_id: string;
@@ -3964,10 +4104,29 @@ export interface PlacementCopyInput {
     request_id: string;
 }
 
+export interface PlacementExport {
+    subject: ActionSubject;
+    revision: string;
+    record: PlacementRecord;
+}
+
+export interface PlacementExportInput {
+    subject: ActionSubject;
+}
+
 export interface PlacementMoveInput {
     subject: ActionSubject;
     to_project_id: string;
 }
+
+export interface PlacementPutInput {
+    kind: string;
+    record: PlacementRecord;
+    request_id: string;
+    target_id?: string;
+}
+
+export type PlacementRecord = Record<string, unknown>;
 
 export interface PlacementRelationBindInput extends PlacementRelationTargetInput {
     read?: PlacementRelationRead;
@@ -4030,6 +4189,16 @@ export interface PlacementRelationTarget {
 export interface PlacementRelationTargetInput {
     subject: ActionSubject;
     target: ActionSubject;
+}
+
+export interface PlacementRemoveInput {
+    subject: ActionSubject;
+    revision: string;
+}
+
+export interface PlacementRemoved {
+    subject: ActionSubject;
+    removed: boolean;
 }
 
 export interface PlacementResult {
@@ -5021,7 +5190,7 @@ export interface PluginManifest {
 export interface PluginManifestDatabases {
     readonly project?: PluginDatabaseDeclaration;
     readonly home?: HomePluginDatabaseDeclaration;
-    readonly partition?: PluginDatabaseDeclaration;
+    readonly partition?: PartitionPluginDatabaseDeclaration;
 }
 
 export type PluginMarketCategory = (typeof PLUGIN_MARKET_CATEGORIES)[number];
@@ -5342,6 +5511,16 @@ export interface PluginPersonSettingsDeclaration {
     readonly keys: readonly PersonSettingDeclaration[];
 }
 
+export interface PluginPinnedRowsDeclaration {
+    readonly table: string;
+    readonly id_column: string;
+    readonly version_column: string;
+    readonly artifact_id_column: string;
+    readonly artifact_version_column: string;
+    readonly write_columns: readonly string[];
+    readonly pending_column?: string;
+}
+
 export type PluginPortArtifactBindingInput = Pick<PluginPortArtifactBindingRecord, "target_plugin_id" | "target_port" | "artifact_id" | "version" | "actor_id">;
 
 export interface PluginPortArtifactBindingRecord {
@@ -5457,15 +5636,7 @@ export interface PluginProjectRowsDeclaration {
     readonly label: string | TextRef;
     readonly order?: number;
     readonly tables: readonly PluginProjectRowsTable[];
-    readonly artifact_join?: {
-        readonly table: string;
-        readonly id_column: string;
-        readonly version_column: string;
-        readonly artifact_id_column: string;
-        readonly artifact_version_column: string;
-        readonly write_columns: readonly string[];
-        readonly pending_column?: string;
-    };
+    readonly artifact_join?: PluginPinnedRowsDeclaration;
     readonly files?: readonly PluginProjectRowsFiles[];
 }
 
@@ -5694,7 +5865,7 @@ export type PluginSqlValue = string | number | bigint | Uint8Array | null;
 export interface PluginStartContext {
     install_id: string;
     readonly installation_generation: string;
-    readonly provider_id: string;
+    readonly provider_id?: string;
     plugin_id: string;
     version: string;
     deployment: PluginDeployment;
@@ -5751,7 +5922,7 @@ export interface PluginSyncCollection {
     readonly id: string;
     readonly title: string;
     readonly schema_version: number;
-    readonly database?: "home" | "project";
+    readonly database?: "home" | "project" | "partition";
     readonly requires: readonly string[];
     readonly tracking?: readonly SyncTrackedTable[];
     readonly sections?: import("platform/plugin-sync-sections").SyncSectionsDeclaration;
@@ -8856,7 +9027,13 @@ export declare function defineItemRelatedAction(capabilityId: string, version: n
 
 export declare function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
 
+export declare function defineObjectExportAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementExportInput, PlacementExport>;
+
 export declare function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
+
+export declare function defineObjectPutAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementPutInput, PlacementResult>;
+
+export declare function defineObjectRemoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementRemoveInput, PlacementRemoved>;
 
 export declare function definePlacementRelationAction<R extends PlacementRelationRole>(relation: string, role: R, capabilityId: string, version: number, options: PlacementRelationOptions): ActionDefinition<RelationInput<R>, RelationOutput<R>>;
 
@@ -8916,8 +9093,6 @@ export declare function fileEntriesPage(entries: readonly FileEntry[], input: Fi
 export declare function findSubjectReader(views: readonly ActionView[], kind: string): SubjectReaderLookup;
 
 export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
-
-export declare function imageGenerationRoleOf(action: TypedActionShape): ImageGenerationRole | null;
 
 export declare const inputSchemaFor: <I>() => <const S extends ActionSchema>(schema: S & InputMatches<I, S>) => ActionSchema;
 
@@ -8997,7 +9172,22 @@ export declare function isObjectCopier(action: {
     output_type?: string;
 }): boolean;
 
+export declare function isObjectExporter(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
 export declare function isObjectMover(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
+export declare function isObjectPutter(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
+export declare function isObjectRemover(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
@@ -9215,6 +9405,8 @@ export declare function runIsMissed(dueAt: string | number, now: number): boolea
 export declare function runsExpiryBounds(window: RunsWindow): RunsExpiryBounds;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
+
+export declare function sameCarriedRecord(here: PlacementRecord, carried: PlacementRecord): boolean;
 
 export declare function sceneConfigurationActions(scene: ActionSceneDefinition): {
     targets: ActionDefinition<{

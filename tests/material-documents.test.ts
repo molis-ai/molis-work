@@ -54,7 +54,7 @@ test("transport validation precedes parsing and BOM decoding is opt-in for docum
 
 for (const mode of ["cancelled", "revoked", "replaced"] as const) for (const preview of [false, true]) {
   test(`Pages ${preview ? "preview" : "import"} rejects ${mode} after real parsing without committing a partial batch`, async () => {
-    const home = await mkdtemp(join(tmpdir(), "pages-import-authority-")), store = openPagesStore(home), service = new ActionService();
+    const home = await mkdtemp(join(tmpdir(), "pages-import-authority-")), store = openPagesStore(home, "a"), other = openPagesStore(home, "b"), service = new ActionService();
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let permitted = true, pause = true, controller = new AbortController();
     const register = () => service.registerProvider({ provider: { provider_id: pagesManifest.plugin_id, title: "Pages", kind: "plugin", project_id: "a" },
@@ -74,22 +74,22 @@ for (const mode of ["cancelled", "revoked", "replaced"] as const) for (const pre
       pending = service.invoke(caller(), preview ? pagesActions.previewImport : pagesActions.import, preview ? { files } : input);
       const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : { code: mode === "revoked" ? "actions.revoked" : "actions.provider_changed" });
       await Promise.race([entered.promise, pending.then(() => { throw new Error("parser gate was bypassed"); })]);
-      assert.equal(store.list("a").length, 0);
+      assert.equal(store.list().length, 0);
       if (mode === "cancelled") controller.abort();
       if (mode === "revoked") permitted = false;
       if (mode === "replaced") { dispose(); dispose = register(); }
       pause = false; release.resolve(); await rejected;
-      assert.equal(store.list("a").length, 0); assert.equal(store.list("b").length, 0);
+      assert.equal(store.list().length, 0); assert.equal(other.list().length, 0);
       permitted = true; controller = new AbortController();
-      await service.invoke(caller(), pagesActions.previewImport, { files }); assert.equal(store.list("a").length, 0);
+      await service.invoke(caller(), pagesActions.previewImport, { files }); assert.equal(store.list().length, 0);
       const first = await service.invoke(caller(), pagesActions.import, input) as { documents: { id: string }[] };
       const id = first.documents[0]!.id;
-      store.update(id, { title: "用户后续编辑" }, "a");
+      store.update(id, { title: "用户后续编辑" });
       const replay = await service.invoke(caller(), pagesActions.import, input) as { documents: { id: string; title: string }[] };
       assert.equal(replay.documents[0]!.id, id); assert.equal(replay.documents[0]!.title, "用户后续编辑");
-      assert.equal(store.list("a").length, 1); assert.equal(store.list("b").length, 0);
+      assert.equal(store.list().length, 1); assert.equal(other.list().length, 0);
       await assert.rejects(service.invoke({ ...caller(), project_id: "b" }, pagesActions.import, input), { code: "actions.scope_mismatch" });
-    } finally { release.resolve(); await pending?.catch(() => {}); dispose(); store.close(); await rm(home, { recursive: true, force: true }); }
+    } finally { release.resolve(); await pending?.catch(() => {}); dispose(); store.close(); other.close(); await rm(home, { recursive: true, force: true }); }
   });
 }
 

@@ -1,14 +1,14 @@
 import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesBody, PagesFolder, PagesRecord } from "./contract.js";
+import { ActionError, sameCarriedRecord, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PagesBody, PagesCommentThread, PagesFolder, PagesRecord } from "./contract.js";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 import { pagesErrors } from "./error.js";
 import { PagesGenerationStore } from "./store-generations.js";
 import { pagesTemplateById } from "./templates.js";
 import { PAGES_DATABASE } from "./database.js";
-import { readPagesPresentation } from "./presentation.js";
+import { PAGES_SUBJECT_KIND as PAGES_DOCUMENT_KIND, readPagesPresentation } from "./presentation.js";
+import { createHash } from "node:crypto";
 import type { PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { PAGES_DATABASE };
 
@@ -33,7 +33,6 @@ export function ownPagesStores(withStore: <T>(run: (store: PagesStore) => T) => 
 }
 
 export interface PagesImportDocumentsInput {
-  readonly project_id: string;
   readonly request_id: string;
   readonly request_hash: string;
   readonly folder_id?: string;
@@ -53,6 +52,10 @@ interface PagesReplay {
 
 const IMPORT_REPLAY: PagesReplay = { changed: "这次导入的文件、选择或文件夹已改变，请重新预览后导入", removed: "这批导入已完成，但部分文档已删除；不会重新创建" };
 
+/**
+ * The Pages library of one partition (`databases.partition`): `<partition root>/libraries/pages.db`, that partition's documents and
+ * nothing else, so no row names its project. `partition` is the instance's own partition, which the Host gave it; records say it.
+ */
 export class PagesStore extends PagesGenerationStore {
   readonly comments: PagesComments;
   /**
@@ -60,40 +63,36 @@ export class PagesStore extends PagesGenerationStore {
    * runs one business operation as a unit (the Runtime adapter binds the Store inside its one `database.transaction`, so it is
    * the identity there); `release` closes what the Store opened.
    */
-  constructor(db: PagesSql, attempts = new Map<string, boolean>(),
+  constructor(db: PagesSql, readonly partition: string, attempts = new Map<string, boolean>(),
     atomically: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {
     super(db, attempts, atomically);
-    this.comments = new PagesComments(db, atomically, (id, project) => this.get(id, project));
+    this.comments = new PagesComments(db, atomically, id => this.get(id));
   }
 
   close(): void {
     this.release();
   }
 
-  list(projectId: string): PagesRecord[] {
-    return this.db.all("SELECT * FROM pages WHERE project_id = ? ORDER BY starred DESC, datetime(updated_at) DESC, title COLLATE NOCASE", [projectId]).map(fromPageRow);
+  list(): PagesRecord[] {
+    return this.db.all("SELECT * FROM pages ORDER BY starred DESC, datetime(updated_at) DESC, title COLLATE NOCASE").map(row => fromPageRow(row, this.partition));
   }
 
-  listFolders(projectId: string): PagesFolder[] {
-    return this.db.all("SELECT * FROM folders WHERE project_id = ? ORDER BY title COLLATE NOCASE", [projectId]).map(fromFolderRow);
+  listFolders(): PagesFolder[] {
+    return this.db.all("SELECT * FROM folders ORDER BY title COLLATE NOCASE").map(row => fromFolderRow(row, this.partition));
   }
 
-  presentationValues(projectId: string, input: PresentationValuesInput) {
-    return readPagesPresentation(this.db, projectId, input);
+  presentationValues(input: PresentationValuesInput) {
+    return readPagesPresentation(this.db, input);
   }
 
-  get(id: string, projectId?: string): PagesRecord {
+  get(id: string): PagesRecord {
     const row = this.db.get("SELECT * FROM pages WHERE id = ?", [id]);
     if (!row) throw pagesErrors.not_found("找不到这篇文档");
-    if (projectId && row.project_id !== projectId) {
-      throw pagesErrors.not_found("找不到这篇文档");
-    }
-    return fromPageRow(row);
+    return fromPageRow(row, this.partition);
   }
 
   create(input: {
     title?: string;
-    project_id: string;
     folder_id?: string;
     starred?: boolean;
     goal_id?: string;
@@ -103,11 +102,11 @@ export class PagesStore extends PagesGenerationStore {
     const now = new Date().toISOString();
     const template = input.template_id ? pagesTemplateById(input.template_id) : undefined;
     if (input.template_id && !template) throw pagesErrors.invalid("找不到这份模板");
-    const folder_id = normalizeFolderId(input.folder_id, this, input.project_id);
+    const folder_id = normalizeFolderId(input.folder_id, this);
     const rawBody = input.body ?? template?.body ?? { type: "doc", content: [...(EMPTY_PAGES_BODY.content ?? [])] };
     const record: PagesRecord = {
       id: crypto.randomUUID(),
-      project_id: input.project_id,
+      project_id: this.partition,
       title: normalizeTitle(input.title ?? template?.title ?? "未命名文档"),
       body: parsePagesBody(JSON.parse(JSON.stringify(rawBody))),
       folder_id,
@@ -120,8 +119,8 @@ export class PagesStore extends PagesGenerationStore {
       version: 1,
     };
     this.db.run(
-      "INSERT INTO pages (id, project_id, title, body_json, folder_id, starred, goal_id, artifact_id, artifact_version, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [record.id, record.project_id, record.title, JSON.stringify(record.body),
+      "INSERT INTO pages (id, title, body_json, folder_id, starred, goal_id, artifact_id, artifact_version, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [record.id, record.title, JSON.stringify(record.body),
         record.folder_id, record.starred ? 1 : 0, record.goal_id, record.artifact_id, record.artifact_version,
         record.created_at, record.updated_at, record.version],
     );
@@ -132,13 +131,13 @@ export class PagesStore extends PagesGenerationStore {
   importDocuments(input: PagesImportDocumentsInput): PagesRecord[] {
     if (!input.documents.length || input.documents.length > 100) throw pagesErrors.invalid("请选择 1 到 100 篇文档");
     return this.atomically(() => {
-      const prior = this.db.get("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?", [input.project_id, input.request_id]);
+      const prior = this.db.get("SELECT request_hash, document_ids_json FROM page_imports WHERE request_id = ?", [input.request_id]);
       if (prior) {
         const replay = input.replay ?? IMPORT_REPLAY;
         if (prior.request_hash !== input.request_hash) throw pagesErrors.unavailable(replay.changed);
         const ids = JSON.parse(String(prior.document_ids_json)) as string[];
         const documents = ids.map((id) => {
-          try { return this.get(id, input.project_id); }
+          try { return this.get(id); }
           catch (error) {
             if (error instanceof ActionError && error.code === "pages.not_found") {
               throw pagesErrors.unavailable(replay.removed);
@@ -149,14 +148,13 @@ export class PagesStore extends PagesGenerationStore {
         replay.onReplay?.();
         return documents;
       }
-      const folder_id = normalizeFolderId(input.folder_id, this, input.project_id);
+      const folder_id = normalizeFolderId(input.folder_id, this);
       const documents = input.documents.map((document) => this.create({
-        project_id: input.project_id,
         folder_id,
         ...document,
       }));
-      this.db.run("INSERT INTO page_imports (project_id, request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?, ?)",
-        [input.project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString()]);
+      this.db.run("INSERT INTO page_imports (request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?)",
+        [input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString()]);
       return documents;
     });
   }
@@ -170,15 +168,15 @@ export class PagesStore extends PagesGenerationStore {
     artifact_id?: string;
     artifact_version?: number;
     expected_version?: number;
-  }, projectId?: string): PagesRecord {
-    const current = this.get(id, projectId);
+  }): PagesRecord {
+    const current = this.get(id);
     if (patch.expected_version !== undefined && patch.expected_version !== current.version) throw pagesErrors.conflict("文档已被其他窗口修改，请重新读取后保存");
     const next: PagesRecord = {
       ...current,
       title: patch.title !== undefined ? normalizeTitle(patch.title) : current.title,
       body: patch.body !== undefined ? parsePagesBody(patch.body) : current.body,
       folder_id: patch.folder_id !== undefined
-        ? normalizeFolderId(patch.folder_id, this, current.project_id)
+        ? normalizeFolderId(patch.folder_id, this)
         : current.folder_id,
       starred: patch.starred !== undefined ? Boolean(patch.starred) : current.starred,
       goal_id: patch.goal_id !== undefined ? normalizeGoalId(patch.goal_id) : current.goal_id,
@@ -198,31 +196,61 @@ export class PagesStore extends PagesGenerationStore {
   }
 
   /**
-   * Move one document to another partition (the personal space or a project). Its id stays, so every link and
-   * reference still finds it. What only meant something in the old project is let go: its folder, its Goal (Goals
-   * belong to one project) and the numbering of fixed versions (those versions stay in the old project's results).
+   * One document as the record placement carries to another partition (`placement.export`): what it says and its comments. Its folder,
+   * Goal and pinned versions only mean something here, so the record does not carry them.
    */
-  relocate(id: string, from: string, to: string): PagesRecord {
+  exportRecord(id: string): PlacementExport {
+    const current = this.get(id);
+    const comments = this.db.all("SELECT body FROM page_comments WHERE page_id = ? ORDER BY created_at, thread_id", [id]).map(row => String(row.body));
+    return { subject: { kind: PAGES_DOCUMENT_KIND, id }, revision: String(current.version),
+      record: { title: current.title, body: current.body, starred: current.starred, created_at: current.created_at, updated_at: current.updated_at,
+        version: current.version, comments } };
+  }
+
+  /**
+   * Writes a carried document here (`placement.put`). With `targetId` (a move) it keeps its id and version, so every link and recorded
+   * version still finds it; finding it already there, it accepts only the same record again (a retried move) and refuses anything else; without (a copy) it is a new document, and the same
+   * request makes the same one. It arrives at the top level, with no Goal and no pinned versions: those belonged to where it came from.
+   */
+  putRecord(record: PlacementRecord, requestId: string, targetId?: string): PagesRecord {
+    const carried = carriedDocument(record);
+    if (targetId === undefined) {
+      return this.importDocuments({ request_id: "copy:" + requestId, request_hash: "copy:" + createHash("sha256").update(JSON.stringify(record)).digest("hex"),
+        documents: [{ title: carried.title, body: carried.body, starred: carried.starred }] })[0]!;
+    }
     return this.atomically(() => {
-      const current = this.get(id, from);
-      if (current.publication_pending) throw pagesErrors.publication_pending("上次成果保存还没完成，请先在原位置继续保存，再移动");
-      // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.run("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?",
-        [to, id, current.version]);
-      if (result.changes !== 1) throw pagesErrors.conflict("文档刚被修改，请重新读取后再移动");
-      return this.get(id, to);
+      // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept (conflict).
+      if (this.db.get("SELECT 1 FROM pages WHERE id = ?", [targetId])) {
+        // Compared with what this put would write (its own normalizing included), so a retry of the same move is found the same.
+        if (sameCarriedRecord(this.exportRecord(targetId).record, { ...record, title: normalizeTitle(carried.title), body: carried.body })) return this.get(targetId);
+        throw pagesErrors.conflict("目标位置已经有这份文档，而且内容不同；没有覆盖它");
+      }
+      this.db.run("DELETE FROM page_comments WHERE page_id = ?", [targetId]);
+      this.db.run("INSERT INTO pages (id, title, body_json, folder_id, starred, goal_id, artifact_id, artifact_version, created_at, updated_at, version) VALUES (?, ?, ?, '', ?, '', '', 0, ?, ?, ?)",
+        [targetId, normalizeTitle(carried.title), JSON.stringify(carried.body), carried.starred ? 1 : 0, carried.created_at, carried.updated_at, carried.version]);
+      for (const thread of carried.comments) {
+        this.db.run("INSERT INTO page_comments (page_id, thread_id, body, created_at) VALUES (?, ?, ?, ?)",
+          [targetId, thread.thread_id, JSON.stringify({ ...thread, page_id: targetId }), new Date().toISOString()]);
+      }
+      return this.get(targetId);
     });
   }
 
-  /** An independent copy in another partition; the same request always returns the same copy. */
-  duplicate(id: string, from: string, to: string, requestId: string): PagesRecord {
-    const source = this.get(id, from);
-    const documents = [{ title: source.title, body: source.body }];
-    return this.importDocuments({ project_id: to, request_id: "copy:" + requestId, request_hash: "copy:" + id + ":" + source.version, documents })[0]!;
+  /** Lets a document that went to another partition go from here (`placement.remove`), only while it is still the version carried. */
+  removeCarried(id: string, revision: string): boolean {
+    return this.atomically(() => {
+      const row = this.db.get("SELECT version, publication_pending_json FROM pages WHERE id = ?", [id]);
+      if (!row) return false;
+      if (row.publication_pending_json) throw pagesErrors.publication_pending("上次成果保存还没完成，请先在原位置继续保存，再移动");
+      if (String(row.version) !== revision) throw pagesErrors.conflict("文档刚被修改，请重新读取后再移动");
+      this.db.run("DELETE FROM page_changes WHERE page_id = ?", [id]);
+      this.db.run("DELETE FROM pages_editor_versions WHERE id = ?", [id]);
+      return this.db.run("DELETE FROM pages WHERE id = ? AND version = ?", [id, row.version as number]).changes === 1;
+    });
   }
 
-  delete(id: string, projectId?: string): void {
-    this.get(id, projectId);
+  delete(id: string): void {
+    this.get(id);
     this.db.run("DELETE FROM pages WHERE id = ?", [id]);
   }
 
@@ -232,61 +260,58 @@ export class PagesStore extends PagesGenerationStore {
   }
 
   /** Take one kept edit back: the document returns to what it was before, only if no one changed it since. */
-  revertChange(changeId: string, projectId?: string): PagesRecord {
+  revertChange(changeId: string): PagesRecord {
     const row = this.db.get("SELECT page_id, to_version, before_json FROM page_changes WHERE change_id = ?", [changeId]);
     if (!row) throw pagesErrors.not_found("这次修改已经撤销过，或记录已过期（保留 14 天）");
-    const current = this.get(String(row.page_id), projectId);
+    const current = this.get(String(row.page_id));
     if (current.version !== Number(row.to_version)) throw pagesErrors.conflict(`《${current.title || "未命名"}》在这次修改之后又改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己改回`);
     const before = JSON.parse(String(row.before_json)) as Pick<PagesRecord, "title" | "body" | "folder_id" | "starred" | "goal_id">;
-    const restored = this.update(String(row.page_id), { ...before, expected_version: current.version }, projectId);
+    const restored = this.update(String(row.page_id), { ...before, expected_version: current.version });
     this.db.run("DELETE FROM page_changes WHERE change_id = ?", [changeId]);
     return restored;
   }
 
   /** Take back a document just created: removed only while it is still the version it was created at, so no later edit is lost. */
-  discard(id: string, expectedVersion: number, projectId?: string): void {
-    const current = this.get(id, projectId);
+  discard(id: string, expectedVersion: number): void {
+    const current = this.get(id);
     if (current.version !== expectedVersion) throw pagesErrors.conflict(`《${current.title || "未命名"}》在新建之后改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己删除`);
     const result = this.db.run("DELETE FROM pages WHERE id = ? AND version = ?", [id, expectedVersion]);
     if (result.changes !== 1) throw pagesErrors.conflict("文档刚被修改，没有撤销");
   }
 
-  extract(id: string, projectId: string): { document: PagesRecord; cards: number; created: PagesRecord[] } {
+  extract(id: string): { document: PagesRecord; cards: number; created: PagesRecord[] } {
     return this.atomically(() => {
-      const current = this.get(id, projectId);
+      const current = this.get(id);
       const extracted = extractFromPagesBody(current.title, current.body);
-      const document = this.update(id, { body: extracted.body, expected_version: current.version }, projectId);
-      const created = unpublishedKnowledgePages(this.list(projectId).map(page => page.title), extracted.knowledge)
-        .map(page => this.create({ ...page, project_id: projectId, folder_id: current.folder_id }));
+      const document = this.update(id, { body: extracted.body, expected_version: current.version });
+      const created = unpublishedKnowledgePages(this.list().map(page => page.title), extracted.knowledge)
+        .map(page => this.create({ ...page, folder_id: current.folder_id }));
       return { document, cards: extracted.cards, created };
     });
   }
 
-  createFolder(input: { title?: string; project_id: string }): PagesFolder {
+  createFolder(input: { title?: string }): PagesFolder {
     const now = new Date().toISOString();
     const folder: PagesFolder = {
       id: crypto.randomUUID(),
-      project_id: input.project_id,
+      project_id: this.partition,
       title: normalizeFolderTitle(input.title ?? "未命名文件夹"),
       created_at: now,
       updated_at: now,
     };
-    this.db.run("INSERT INTO folders (id, project_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-      [folder.id, folder.project_id, folder.title, folder.created_at, folder.updated_at]);
+    this.db.run("INSERT INTO folders (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+      [folder.id, folder.title, folder.created_at, folder.updated_at]);
     return folder;
   }
 
-  getFolder(id: string, projectId?: string): PagesFolder {
+  getFolder(id: string): PagesFolder {
     const row = this.db.get("SELECT * FROM folders WHERE id = ?", [id]);
     if (!row) throw pagesErrors.not_found("找不到这个文件夹");
-    if (projectId && row.project_id !== projectId) {
-      throw pagesErrors.not_found("找不到这个文件夹");
-    }
-    return fromFolderRow(row);
+    return fromFolderRow(row, this.partition);
   }
 
-  updateFolder(id: string, patch: { title?: string }, projectId?: string): PagesFolder {
-    const current = this.getFolder(id, projectId);
+  updateFolder(id: string, patch: { title?: string }): PagesFolder {
+    const current = this.getFolder(id);
     const next: PagesFolder = {
       ...current,
       title: patch.title !== undefined ? normalizeFolderTitle(patch.title) : current.title,
@@ -296,9 +321,9 @@ export class PagesStore extends PagesGenerationStore {
     return next;
   }
 
-  deleteFolder(id: string, projectId?: string): void {
+  deleteFolder(id: string): void {
     this.atomically(() => {
-      this.getFolder(id, projectId);
+      this.getFolder(id);
       this.db.run("UPDATE pages SET folder_id = '', version = version + 1, updated_at = ? WHERE folder_id = ?", [new Date().toISOString(), id]);
       this.db.run("DELETE FROM folders WHERE id = ?", [id]);
     });
@@ -314,11 +339,11 @@ function keepPagesChange(db: PagesSql, before: PagesRecord, after: PagesRecord):
   return changeId;
 }
 
-export function fromPageRow(row: SqlRow): PagesRecord {
+export function fromPageRow(row: SqlRow, partition: string): PagesRecord {
   const pending = row.publication_pending_json ? JSON.parse(String(row.publication_pending_json)) as NonNullable<PagesRecord["publication_pending"]> : null;
   return {
     id: String(row.id),
-    project_id: String(row.project_id ?? ""),
+    project_id: partition,
     title: String(row.title),
     body: parsePagesBody(JSON.parse(String(row.body_json))),
     folder_id: String(row.folder_id ?? ""),
@@ -333,10 +358,10 @@ export function fromPageRow(row: SqlRow): PagesRecord {
   };
 }
 
-function fromFolderRow(row: SqlRow): PagesFolder {
+function fromFolderRow(row: SqlRow, partition: string): PagesFolder {
   return {
     id: String(row.id),
-    project_id: String(row.project_id),
+    project_id: partition,
     title: String(row.title),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -363,14 +388,27 @@ export function normalizeGoalId(value: string | undefined): string {
   return id;
 }
 
-function normalizeFolderId(value: string | undefined, store: PagesStore, projectId: string): string {
+function normalizeFolderId(value: string | undefined, store: PagesStore): string {
   if (value === undefined || value === null) return "";
   if (typeof value !== "string") throw pagesErrors.invalid("文件夹须为文字");
   const id = value.trim();
   if (!id) return "";
-  store.getFolder(id, projectId);
+  store.getFolder(id);
   return id;
 }
 
-/** This plugin's store in the Home's store registry (W4-11): `pages/pages.db` at its one baseline. */
-export const PAGES_HOME_STORE: HomeStoreDeclaration = { path: "pages", library: { baseline: PAGES_DATABASE } };
+/** A carried document's record, as `exportRecord` wrote it; anything else is refused before a row is written. */
+function carriedDocument(record: PlacementRecord): { title: string; body: PagesBody; starred: boolean; created_at: string; updated_at: string; version: number;
+  comments: Array<Omit<PagesCommentThread, "detached">> } {
+  const { title, body, starred, created_at, updated_at, version, comments } = record;
+  const invalid = () => pagesErrors.invalid("带来的文档内容不完整");
+  if (typeof title !== "string" || typeof starred !== "boolean" || typeof created_at !== "string" || typeof updated_at !== "string"
+    || !Number.isSafeInteger(version) || (version as number) < 1 || !Array.isArray(comments) || comments.some(comment => typeof comment !== "string")) throw invalid();
+  const threads = (comments as string[]).map(comment => {
+    let thread: unknown;
+    try { thread = JSON.parse(comment); } catch { throw invalid(); }
+    if (!thread || typeof thread !== "object" || typeof (thread as { thread_id?: unknown }).thread_id !== "string") throw invalid();
+    return thread as Omit<PagesCommentThread, "detached">;
+  });
+  return { title, body: parsePagesBody(body), starred, created_at, updated_at, version: version as number, comments: threads };
+}

@@ -25,7 +25,6 @@ import { SandboxPackageStore } from "./sandbox-package-store.js";
 import { noteRetained } from "./uninstall-retained.js";
 import { openInstalledPluginLibrary, removeInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
-import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { declaresProjectHalf } from "./plugin-project-coordination.js";
 import { homePluginArtifactsFor, type HomeProjectArtifactStores } from "./plugin-home-artifacts.js";
@@ -59,10 +58,8 @@ import { join } from "node:path";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients (`declaresProjectCoordination`, PG-025). */
 export class HomePluginExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, { context: PluginStartContext; execution: PluginStopExecution; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
+  private readonly sessions = new Map<string, { context: PluginStartContext; execution: PluginStopExecution; revoke(): void; dispose(): void;
     background?: ReturnType<typeof pluginBackgroundFor> }>();
-  /** Per installation, not per instance: a project deletion under way outlives a restart of the instance (`PartitionDeletions`). */
-  private readonly partitionDeletions = new Map<string, PartitionDeletions>();
   /** A stopped sandbox library's process exit, by installation: what an uninstall waits for before it removes the library (BL-915). */
   private readonly libraryExits = new Map<string, Promise<void>>();
   /** Service calls each instance's code made after it stopped, each doing nothing (BL-411). */
@@ -117,7 +114,6 @@ export class HomePluginExecutor implements PluginExecutor {
       { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active(), draw: draw => runWithPluginText(context, draw) });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let sandboxLibrary: Awaited<ReturnType<typeof openSandboxHomeLibrary>> | undefined;
-    let partitions: PartitionedPluginDatabase | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
     let terminal: ReturnType<typeof pluginTerminalFor>;
     let withdrawAgentDefinitions: (() => void) | undefined;
@@ -129,7 +125,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const failures: unknown[] = [];
       try { terminal?.dispose(); disposeWorkTerminalsForOwner({ home: this.options.home, install_id: context.install_id }); } catch (error) { failures.push(error); }
       withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.();
-      for (const release of [() => database?.close(), () => { if (sandboxLibrary) { sandboxLibrary.close(); this.libraryExits.set(context.install_id, sandboxLibrary.exited()); } }, () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
+      for (const release of [() => database?.close(), () => { if (sandboxLibrary) { sandboxLibrary.close(); this.libraryExits.set(context.install_id, sandboxLibrary.exited()); } }, () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -139,16 +135,13 @@ export class HomePluginExecutor implements PluginExecutor {
       const home = pluginHomeFor(this.options.home);
       if (record && installedHomeUpgradeBlocked(this.options.home, record)) throw pluginErrors.upgrade_validation_failed("等待 Home 插件库完成恢复");
       const library = homeLibraryFor(definition, this.options.database(definition), record);
-      const declaration = library?.declaration;
+
       if (library && definition.execution === "sandbox") {
         // The package's code is not in this process: its statements run in a process the Host can kill, over a library the ledger made for it (BL-490).
         sandboxLibrary = await openSandboxHomeLibrary(this.options.home, library.installed!, library.declaration, home.stores, authorize, context);
       }
-      else if (declaration?.partition === "project") {
-        partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
-      }
       else if (library) {
-        const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context, undefined, manifest);
+        const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context, manifest);
         database = library.installed ? openInstalledPluginLibrary(this.options.home, library.installed, library.declaration, home.stores, open) : open();
       }
       // A sandboxed package is installed, not on the start list: its files are its installation's folder of the Home (S-64), the same client over the same port.
@@ -184,7 +177,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor({ home: this.options.home, manifest, context: authorized, ownerFiles: ownerFiles?.client, assertActive });
       const hosted: PluginStartContext = Object.freeze({ ...authorized, ...(home.startedAt ? { host_started_at: home.startedAt } : {}), actor_id: this.options.actorId, sync: syncActivation(this.options.home, manifest, authorized, assertActive), copy: copyActivation(this.options.home, manifest, authorized, assertActive), services: Object.freeze({
-        ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}), ...(artifacts ? { artifacts } : {}),
+        ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: database?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}), ...(artifacts ? { artifacts } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller }),
       }) });
       // What a connection card binds an image target under (§13.5 C2): the namespace this instance's own image service binds under, nothing when it has none.
@@ -209,7 +202,7 @@ export class HomePluginExecutor implements PluginExecutor {
         },
         requireGrant: permission => authorize(permission),
       });
-      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; this.options.wakeView(manifest.plugin_id); withdrawText?.(); try { terminal?.dispose(); disposeWorkTerminalsForOwner({ home: this.options.home, install_id: context.install_id }); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
+      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; this.options.wakeView(manifest.plugin_id); withdrawText?.(); try { terminal?.dispose(); disposeWorkTerminalsForOwner({ home: this.options.home, install_id: context.install_id }); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, background });
       return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }
@@ -224,22 +217,9 @@ export class HomePluginExecutor implements PluginExecutor {
     finally { try { session?.dispose(); } finally { this.sessions.delete(context.install_id); } }
   }
 
-  /**
-   * The executor's part of deleting a project, when the installation's library is partitioned by project: the running instance closes
-   * the project's library (`PartitionedPluginDatabase.clearProject`); running or not, the project is refused to every call begun so far
-   * and, until the returned function says the files are gone, to an instance started meanwhile too.
-   */
-  clearProjectLibrary(installId: string, projectId: string): () => void {
-    return this.sessions.get(installId)?.partitions?.clearProject(projectId) ?? beginPartitionClearing(this.deletionsOf(installId), projectId);
-  }
-
   /** The executor's first part of deleting a project: the running instance's background executions accepted in the project stop. */
   stopProjectBackground(installId: string, projectId: string): Promise<void> | undefined {
     return this.sessions.get(installId)?.background?.stopProject(projectId);
-  }
-
-  blockProjectLibrary(installId: string, projectId: string): () => void {
-    return beginPartitionClearing(this.deletionsOf(installId), projectId);
   }
 
   /** A project closing: every running instance's jobs kept in that project stop (PG-038); its bounded executions go on. */
@@ -257,12 +237,6 @@ export class HomePluginExecutor implements PluginExecutor {
     let count = 0;
     for (const session of this.sessions.values()) count += session.background?.activeWorkCount() ?? 0;
     return count;
-  }
-
-  private deletionsOf(installId: string): PartitionDeletions {
-    let deletions = this.partitionDeletions.get(installId);
-    if (!deletions) this.partitionDeletions.set(installId, deletions = partitionDeletions());
-    return deletions;
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }

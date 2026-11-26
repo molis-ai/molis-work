@@ -15,15 +15,26 @@ import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fix
 import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 import { GoalProjectApplication, boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
 const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<script>importAttack()</script>\n";
 
-async function fixture(t: test.TestContext) {
+/** `pages`: the project is a catalog project that enables Pages (batch 107: a database with no project list runs no per-partition plugin). */
+async function fixture(t: test.TestContext, { pages = false } = {}) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-import-"));
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  const databasePath = join(directory, "fixture.db");
-  seedBoard(databasePath);
+  let databasePath = join(directory, "fixture.db"), projectId = DEMO_PROJECT_ID;
+  if (pages) {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+    try {
+      const created = await catalog.createProject({ display_name: "Import project", actor_id: "fixture-user" });
+      catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: "fixture-user" });
+      ({ database_path: databasePath, project_id: projectId } = created);
+    } finally { catalog.close(); }
+  }
+  seedBoard(databasePath, projectId);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   let server: ReturnType<typeof createMolisWorkWebServer>;
@@ -32,7 +43,7 @@ async function fixture(t: test.TestContext) {
     if (server?.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   };
   const start = async () => {
-    server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
+    server = createMolisWorkWebServer({ databasePath, projectId, homeDirectory: directory, controlToken });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     assert.ok(address && typeof address === "object");
@@ -54,7 +65,7 @@ async function fixture(t: test.TestContext) {
   });
   // The 成果 surface as the workbench reads it; a person's direct visit is redirected into the workbench (checked below).
   const get = (path: string, extraHeaders: Record<string, string> = {}) => fetch(origin + path, { headers: { "accept-language": "zh", "x-molis-work-fragment": "artifact-workbench", ...extraHeaders } });
-  return { store, coordinator, library, post, rawPost, get, headers, origin, directory, restart: async () => { await stop(); await start(); } };
+  return { store, coordinator, library, post, rawPost, get, headers, origin, directory, projectId, restart: async () => { await stop(); await start(); } };
 }
 
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
@@ -145,8 +156,8 @@ test("QEA-79: HTML import extracts readable content, preserves its source and ne
 });
 
 test("QEA-80: a schema 1 import stays exact through restart, download and reimport as schema 2", async t => {
-  const { store, library, post, get, headers, origin, restart } = await fixture(t);
-  const artifacts = library.artifacts, project_id = DEMO_PROJECT_ID, filename = "snapshot.html", source_id = "fixed-html-source";
+  const { store, library, post, get, headers, origin, restart, projectId } = await fixture(t, { pages: true });
+  const artifacts = library.artifacts, project_id = projectId, filename = "snapshot.html", source_id = "fixed-html-source";
   const original = "<!doctype html><title>Fixed snapshot</title><p>Fixed body</p>";
   const sourceFile = { filename, mime: "text/html", data_base64: Buffer.from(original).toString("base64") };
   const importedId = (source: string) => `document-${createHash("sha256").update(JSON.stringify([project_id, "file", source])).digest("hex")}`;
@@ -373,7 +384,9 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
   });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const alpha = await catalog.createProject({ display_name: "Alpha imports", actor_id: "fixture-user" });
+  catalog.addProjectPlugin({ project_id: alpha.project_id, plugin_id: "pages", actor_id: "fixture-user" });
   const beta = await catalog.createProject({ display_name: "Beta imports", actor_id: "fixture-user" });
+  catalog.addProjectPlugin({ project_id: beta.project_id, plugin_id: "pages", actor_id: "fixture-user" });
   for (const project of [alpha, beta]) {
     assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "fixture-user" }),
       (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
@@ -446,12 +459,12 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
 
 test("any file imports as a 成果 with its original bytes and real media type; a text version continues in Pages", async t => {
   // specs/artifact-positioning A3: one import entry for any file; Pages starts documents from a version, not its own import.
-  const { library, post, get, origin, headers } = await fixture(t);
+  const { library: versions, post, get, origin, headers, projectId, directory } = await fixture(t, { pages: true });
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
   const imageResponse = await post({ source: "file", filename: "封面.png", original_file: { filename: "封面.png", mime: "image/png", data_base64: png.toString("base64") } });
   assert.equal(imageResponse.status, 201);
   const image = await imageResponse.json() as { artifact_id: string; version: number };
-  const record = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, image)!;
+  const record = versions.artifacts.query.getArtifactVersion(projectId, image)!;
   assert.equal(record.media_type, "image/png");
   assert.equal(record.title, "封面");
   assert.deepEqual(record.origin, { kind: "imported", file_name: "封面.png" });
@@ -477,8 +490,11 @@ test("any file imports as a 成果 with its original bytes and real media type; 
   assert.equal(continued.status, 201, await continued.clone().text());
   const result = await continued.json() as { open: { surface: string; id: string; title: string } };
   assert.deepEqual([result.open.surface, result.open.title], ["pages", "接着写"]);
-  const pages = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
-  assert.deepEqual(pages.filter(document => document.title === "接着写").map(document => document.id), [result.open.id], "exactly one document, the one that opens");
+  // Read in the project's own Pages library (batch 107): this single-database server serves no project's plugin routes by name.
+  const library = openSqliteConnection(partitionLibraryFile(directory, projectId, "pages"), { readonly: true });
+  try {
+    assert.deepEqual(library.prepare("SELECT id FROM pages WHERE title = ?").all("接着写").map(row => (row as { id: string }).id), [result.open.id], "exactly one document, the one that opens");
+  } finally { library.close(); }
   const refused = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image, plugin_id: "io.molis.work.pages" }) });
   assert.equal(refused.status, 400);
   await refused.text();
@@ -685,6 +701,7 @@ test("RAC-2426 the document import reads the Home registry's document_import int
     process.env.MOLIS_WORK_HOME = otherHome;
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const project = await catalog.createProject({ display_name: "Registry imports", actor_id: "fixture-user" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "fixture-user" });
     // PG-077: Artifacts is a platform provider; the project needs no plugin opt-in.
     catalog.close();
     host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

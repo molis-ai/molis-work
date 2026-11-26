@@ -1,10 +1,10 @@
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { localWebActionContext } from "./local-web-actions.js";
@@ -86,7 +86,7 @@ export function connectionChoice(connection: import("@molis-ai/molis-work-contra
 async function installationsHere(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined) {
   const home = (host.homePlugins?.installations() ?? []).filter(record => record.state !== "uninstalled")
     .flatMap(record => { const manifest = host.homePlugins?.manifest(record.plugin_id); return manifest ? [{ record, manifest }] : []; });
-  const project = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()
+  const project = reference ? await host.withProject(reference, runtime => pluginInstallRecords(runtime.store.db).list()
     .filter(record => record.state !== "uninstalled").flatMap(record => installedPluginManifest(runtime.store.db, record.install_id) ?? [])) : [];
   const seen = new Set<string>();
   return [...home, ...project].filter(({ record }) => !seen.has(record.install_id) && Boolean(seen.add(record.install_id))) as Array<{ record: PluginInstanceRecord; manifest: PluginManifest }>;
@@ -135,7 +135,7 @@ type Refusal = { status: number; error: string };
  */
 async function recordSlotInstallation(host: MolisWorkLocalHost, reference: LocalHostProjectReference, plugin_id: string): Promise<string | Refusal> {
   const live = (record: PluginInstanceRecord) => record.plugin_id === plugin_id && record.state !== "uninstalled";
-  const project = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list().filter(live));
+  const project = await host.withProject(reference, runtime => pluginInstallRecords(runtime.store.db).list().filter(live));
   const found = project.length ? project : (host.homePlugins?.installations() ?? []).filter(live);
   if (found.length > 1) return { status: 409, error: "这个项目里同一个插件有多个安装，无法确定是哪一个" };
   return found[0]?.install_id ?? { status: 404, error: "这个项目没有安装这个插件" };

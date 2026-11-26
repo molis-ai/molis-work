@@ -484,10 +484,31 @@ test("A Coding changeset is a process item: it never shows in the 成果库, and
 
 test("each visible type is previewed by its owner: Pages renders its own version, named as Pages declares it", async (t) => {
   // specs/artifact-positioning A4: the type's owner declares its display name and preview; the 成果库 renders what it returns.
-  const { library, surface } = await fixture(t);
+  // Batch 107: Pages is a project plugin; its preview answers in a catalog project that added it (a project with no catalog record
+  // reaches only personal plugins).
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-pages-preview-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  const project = await catalog.createProject({ display_name: "Pages results", actor_id: "fixture-user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "fixture-user" });
+  catalog.close();
+  const store = new LocalProjectDatabase(project.database_path);
+  const library = openProjectVersionStores(store);
+  installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.molis.work.pages.document"] });
+  const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "artifact-pages-preview-control-token-0123456789" });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const prefix = `http://127.0.0.1:${address.port}/projects/${project.project_id}`;
+  const surface = (path: string) => fetch(prefix + path, { headers: { "accept-language": "zh", "x-molis-work-fragment": "artifact-workbench" } });
+  const inProject = (overrides: Partial<RegisterArtifactVersionInput>) => registration({ project_id: project.project_id, ...overrides });
   const body = { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "季度目标" }] },
     { type: "paragraph", content: [{ type: "text", text: "保持每周发布。<script>attack()</script>" }] }] };
-  library.artifacts.commands.registerVersion(registration({ artifact_id: "pages-page-q3", artifact_type_id: "io.molis.work.pages.document",
+  library.artifacts.commands.registerVersion(inProject({ artifact_id: "pages-page-q3", artifact_type_id: "io.molis.work.pages.document",
     producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
     content: { kind: "inline", payload: { title: "季度计划", page_id: "page-q3", goal_id: "", body } },
     origin: { kind: "pinned", subject: { kind: "pages_document", id: "page-q3" }, revision: "4" }, title: "季度计划", media_type: "application/json" }));
@@ -502,7 +523,7 @@ test("each visible type is previewed by its owner: Pages renders its own version
   assert.match(html, /原对象已经删除，这里仍保留第 1 版/);
   assert.doesNotMatch(html, /在 Pages 打开原对象|openItem=page-q3/);
   // A version of the type that Pages did not produce gets no Pages preview.
-  library.artifacts.commands.registerVersion(registration({ artifact_id: "pages-forged", artifact_type_id: "io.molis.work.pages.document",
+  library.artifacts.commands.registerVersion(inProject({ artifact_id: "pages-forged", artifact_type_id: "io.molis.work.pages.document",
     content: { kind: "inline", payload: { title: "伪造", body } } }));
   assert.doesNotMatch(await (await surface("/artifacts/pages-forged/versions/1")).text(), /data-artifact-business-preview/);
 });

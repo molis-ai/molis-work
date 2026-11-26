@@ -24,9 +24,9 @@ const deferred = () => { let resolve!: () => void; const promise = new Promise<v
 type Completion = (prompt: Parameters<NonNullable<PagesActionPorts["complete"]>>[0], options: Parameters<NonNullable<PagesActionPorts["complete"]>>[1]) => Promise<string>;
 async function owners(t: TestContext, completion?: Completion) {
   const home = await mkdtemp(join(tmpdir(), "content-owner-"));
-  const pages = openPagesStore(home), forms = openFormStore(home), datasets = openDatasetStore(home), ppt = openPptStore(home);
-  t.after(async () => { pages.close(); forms.close(); datasets.close(); ppt.close(); await rm(home, { recursive: true, force: true }); });
   const project = "content-project", service = new ActionService();
+  const pages = openPagesStore(home, project), forms = openFormStore(home, project), datasets = openDatasetStore(home, project), ppt = openPptStore(home, project);
+  t.after(async () => { pages.close(); forms.close(); datasets.close(); ppt.close(); await rm(home, { recursive: true, force: true }); });
   const modelAvailability = () => completion ? { available: true as const } : { available: false as const, code: "actions.connection_required", reason: "No test model" };
   const provider = (manifest: Pick<typeof pagesManifest, "plugin_id" | "name">) => ({ provider_id: manifest.plugin_id, title: manifest.name, kind: "plugin" as const, project_id: project });
   service.registerProvider({ provider: provider(pagesManifest), definitions: pagesManifest.actions!, handlers: [
@@ -62,19 +62,19 @@ test("W2-18-DATASET-SCHEMA-01: rejected CSV keeps the nonempty table and its pub
 test("W2-18-DATASET-SCHEMA-02: legal large/long-title Forms refuse conversion atomically and keep answers and CSV", async t => {
   const f = await owners(t);
   for (const questions of [[{ id: "long", title: "L".repeat(81) }], Array.from({ length: 40 }, (_, index) => ({ id: `q${index}`, title: `Question ${index + 1}` }))]) {
-    const form = f.forms.receive(f.project, "form-" + questions.length, "Original form", questions);
-    f.forms.submit(form.id, Object.fromEntries(questions.map(question => [question.id, "kept answer"])), f.project, { source: "preview", requestId: "answers-" + questions.length });
-    const answers = f.forms.listSubmissions(form.id, f.project), csv = formResultsCsv(form, answers);
+    const form = f.forms.receive("form-" + questions.length, "Original form", questions);
+    f.forms.submit(form.id, Object.fromEntries(questions.map(question => [question.id, "kept answer"])), { source: "preview", requestId: "answers-" + questions.length });
+    const answers = f.forms.listSubmissions(form.id), csv = formResultsCsv(form, answers);
     const file = join(f.home, `answers-${questions.length}.csv`); await writeFile(file, csv);
-    const before = f.datasets.list(f.project);
+    const before = f.datasets.list();
     const input = { title: "Responses", body: csv, source: "Form", request_id: `workflow:instance-${questions.length}:0` };
     await assert.rejects(f.bound.invoke(datasetContentActions.receive, input), { code: "dataset.invalid" });
-    assert.deepEqual(f.datasets.list(f.project), before);
-    assert.deepEqual(f.forms.listSubmissions(form.id, f.project), answers);
+    assert.deepEqual(f.datasets.list(), before);
+    assert.deepEqual(f.forms.listSubmissions(form.id), answers);
     assert.equal(await readFile(file, "utf8"), csv);
     // The same request id remains usable (W4-6-02): a refusal left neither a table nor a receipt behind.
     const received = await f.bound.invoke(datasetContentActions.receive, { ...input, body: "Name,Answer\nAlice,usable" });
-    const table = f.datasets.get(received.subject.id, f.project);
+    const table = f.datasets.get(received.subject.id);
     assert.deepEqual(table.columns.map(column => column.name), ["Name", "Answer"]);
     assert.deepEqual(Object.values(table.rows[0]!.cells), ["Alice", "usable"]);
   }
@@ -82,10 +82,10 @@ test("W2-18-DATASET-SCHEMA-02: legal large/long-title Forms refuse conversion at
 
 test("AC-T2-01 AC-T2-02 AC-T2-03 AC-T2-04: sending another batch of form responses appends unique rows to its original table", async t => {
   const f = await owners(t);
-  const form = f.forms.receive(f.project, "form-batches", "回访问卷", [{ id: "name", title: "姓名" }]);
+  const form = f.forms.receive("form-batches", "回访问卷", [{ id: "name", title: "姓名" }]);
   const submit = (name: string, requestId?: string) =>
-    f.forms.submit(form.id, { name }, f.project, { source: "preview", requestId });
-  const csv = () => formResultsCsv(form, f.forms.listSubmissions(form.id, f.project));
+    f.forms.submit(form.id, { name }, { source: "preview", requestId });
+  const csv = () => formResultsCsv(form, f.forms.listSubmissions(form.id));
   const receive = (requestId: string, body = csv()) => f.bound.invoke(datasetContentActions.receive, {
     title: "答卷", body, url: "molis-source://form/" + form.id, request_id: requestId,
   });
@@ -93,7 +93,7 @@ test("AC-T2-01 AC-T2-02 AC-T2-03 AC-T2-04: sending another batch of form respons
   submit("甲", "answer-1");
   submit("乙", "answer-2");
   const { subject: { id } } = await receive("first-batch");
-  assert.deepEqual(f.datasets.list(f.project).map(table => table.id), [id]);
+  assert.deepEqual(f.datasets.list().map(table => table.id), [id]);
   const first = await get(id);
   const requestId = first.columns[0]!;
   assert.equal(requestId.name, "request_id");
@@ -116,14 +116,14 @@ test("AC-T2-01 AC-T2-02 AC-T2-03 AC-T2-04: sending another batch of form respons
   assert.deepEqual(appended.rows.slice(0, 2), annotated.rows);
   assert.deepEqual(appended.rows.map(row => row.cells[requestId.id]).sort(), ["answer-1", "answer-2", "answer-3", fallback.id].sort());
   assert.deepEqual(appended.rows.slice(2).map(row => row.cells[manual.id]), ["", ""]);
-  assert.deepEqual(f.datasets.list(f.project).map(table => table.id), [id]);
+  assert.deepEqual(f.datasets.list().map(table => table.id), [id]);
 
   assert.equal((await receive("no-new-answers")).subject.id, id);
   assert.equal((await get(id)).version, appended.version);
   await f.bound.invoke(datasetActions.delete, { id, expected_version: appended.version });
   const rebuilt = (await receive("after-delete")).subject.id;
   assert.notEqual(rebuilt, id);
-  assert.deepEqual(f.datasets.list(f.project).map(table => table.id), [rebuilt]);
+  assert.deepEqual(f.datasets.list().map(table => table.id), [rebuilt]);
   assert.equal((await receive("after-rebuild")).subject.id, rebuilt);
 });
 
@@ -133,11 +133,11 @@ test("W2-18-FORM-ANSWER-01: the owner keeps the 4000 bound and checks required a
   const configured = (await f.bound.invoke(formActions.update, { id: form.id, questions: [{ id: "constructor", title: "Required text", required: true }] })).form;
   await assert.rejects(f.bound.invoke(formActions.submit, { id: configured.id, answers: {}, source: "preview", request_id: "missing" }), { code: "form.invalid" });
   await assert.rejects(f.bound.invoke(formActions.submit, { id: configured.id, answers: { constructor: "x".repeat(4001) }, source: "preview", request_id: "oversized" }), { code: "actions.input_invalid" });
-  assert.equal(f.forms.listSubmissions(form.id, f.project).length, 0);
+  assert.equal(f.forms.listSubmissions(form.id).length, 0);
   await f.bound.invoke(formActions.submit, { id: configured.id, answers: { constructor: "x".repeat(4000) }, source: "preview", request_id: "valid" });
   await f.bound.invoke(formActions.submit, { id: configured.id, answers: { constructor: "x".repeat(4000) }, source: "preview", request_id: "valid" });
-  assert.equal(f.forms.listSubmissions(form.id, f.project).length, 1);
-  assert.equal(f.forms.listSubmissions(form.id, f.project)[0]!.answers.constructor, "x".repeat(4000));
+  assert.equal(f.forms.listSubmissions(form.id).length, 1);
+  assert.equal(f.forms.listSubmissions(form.id)[0]!.answers.constructor, "x".repeat(4000));
 });
 
 test("W2-18-PAGES-EXPORT-01: the public content consumer receives every cell paragraph and card/mention fact", async t => {
@@ -158,8 +158,8 @@ test("W2-18-PAGES-EXPORT-01: the public content consumer receives every cell par
 test("W2-18-PAGES-SOURCES-01: prepared clipped snapshots generate once, disclose their boundary and link real Pages", async t => {
   let prompt = "", calls = 0;
   const f = await owners(t, async (input, control) => { await control.beforeDispatch?.(); prompt = JSON.stringify(input); calls++; return "# Combined\nOnly adopted evidence."; });
-  const a = f.pages.create({ project_id: f.project, title: "A".repeat(80), body: paragraph("Prefix A " + "a".repeat(1700) + " OMITTED_A") });
-  const b = f.pages.create({ project_id: f.project, title: "B".repeat(80), body: paragraph("Prefix B " + "b".repeat(1700) + " OMITTED_B") });
+  const a = f.pages.create({ title: "A".repeat(80), body: paragraph("Prefix A " + "a".repeat(1700) + " OMITTED_A") });
+  const b = f.pages.create({ title: "B".repeat(80), body: paragraph("Prefix B " + "b".repeat(1700) + " OMITTED_B") });
   const snapshots = [a, b];
   const prepared = await f.bound.invoke(pagesActions.fragmentOffers, { request_id: "confirmed-sources", fragment: {
     object: { kind: "pages_document", id: a.id, version: a.version, title: a.title }, granularity: "objects",
@@ -172,12 +172,12 @@ test("W2-18-PAGES-SOURCES-01: prepared clipped snapshots generate once, disclose
   await f.service.invoke(f.caller, offer.action, offer.input);
   assert.equal(calls, 1);
   assert.match(JSON.parse(prompt).data, /"truncated":true/); assert.doesNotMatch(prompt, /OMITTED_A|OMITTED_B/);
-  const generated = f.pages.list(f.project).find(record => record.id !== a.id && record.id !== b.id)!;
+  const generated = f.pages.list().find(record => record.id !== a.id && record.id !== b.id)!;
   const text = (await f.bound.invoke(pagesContentActions.read, { item_id: generated.id })).body;
   assert.match(text, /已截断的节选，并非完整原文/);
   for (const source of snapshots) assert.ok(text.includes(`openPlugin=pages&openItem=${source.id}`));
   assert.doesNotMatch(text, /openPlugin=inbox&openItem=pages/);
-  assert.deepEqual(f.pages.get(a.id, f.project), a); assert.deepEqual(f.pages.get(b.id, f.project), b);
+  assert.deepEqual(f.pages.get(a.id), a); assert.deepEqual(f.pages.get(b.id), b);
 });
 
 test("W2-18-COGNIA-EFFECT-01: only the originating grant is revoked during real IO; no staged preview is written", async t => {
@@ -229,30 +229,30 @@ for (const refusal of ["revoke", "cancel", "disable", "edit"] as const) test(`W2
       entered.resolve(); await release.promise; return { title: page.title, body: page.body };
     },
   }) });
-  const source = f.pages.create({ project_id: f.project, title: "Source", body: paragraph("## Generated slide\n- exact bullet") });
-  const original = f.ppt.create({ project_id: f.project, title: "Original" });
+  const source = f.pages.create({ title: "Source", body: paragraph("## Generated slide\n- exact bullet") });
+  const original = f.ppt.create({ title: "Original" });
   const pending = bindActionClient(f.service, () => context).invoke(pptActions.outline, { id: original.id, page_id: source.id });
   await entered.promise;
-  const expected = refusal === "edit" ? f.ppt.update(original.id, { description: "External draft", expected_version: original.version }, f.project) : original;
+  const expected = refusal === "edit" ? f.ppt.update(original.id, { description: "External draft", expected_version: original.version }) : original;
   if (refusal === "revoke") revoked = true;
   if (refusal === "cancel") controller.abort();
   if (refusal === "disable") stop();
   release.resolve(); await assert.rejects(pending);
-  assert.deepEqual(f.ppt.get(original.id, f.project), expected);
-  assert.deepEqual(f.pages.get(source.id, f.project), source);
+  assert.deepEqual(f.ppt.get(original.id), expected);
+  assert.deepEqual(f.pages.get(source.id), source);
 });
 
 test("W2-18-PPT-03: title-only slides survive append; a genuinely empty starter and explicit replace still work", async t => {
   const f = await owners(t);
   f.service.registerProvider({ provider: f.provider(pptManifest), definitions: Object.values(pptActions), handlers: createPptActionHandlers({ ...ownPptStores(run => run(f.ppt)) }) });
-  const created = f.ppt.create({ title: "Deck", project_id: f.project });
-  const titled = f.ppt.update(created.id, { slides: [{ id: created.slides[0]!.id, title: "Original heading", bullets: [], notes: "" }] }, f.project);
+  const created = f.ppt.create({ title: "Deck" });
+  const titled = f.ppt.update(created.id, { slides: [{ id: created.slides[0]!.id, title: "Original heading", bullets: [], notes: "" }] });
   const appended = await f.bound.invoke(pptActions.outline, { id: titled.id, text: "## Added\n- bullet", replace: false });
   assert.equal(appended.presentation.slides[0]!.id, titled.slides[0]!.id);
   assert.equal(appended.presentation.slides[0]!.title, "Original heading"); assert.equal(appended.presentation.slides.length, 2);
   const replaced = await f.bound.invoke(pptActions.outline, { id: titled.id, text: "## Replacement\n- one", replace: true });
   assert.deepEqual(replaced.presentation.slides.map(slide => slide.title), ["Replacement"]);
-  const empty = f.ppt.create({ title: "Empty", project_id: f.project });
+  const empty = f.ppt.create({ title: "Empty" });
   const filled = await f.bound.invoke(pptActions.outline, { id: empty.id, text: "## First\n- one", replace: false });
   assert.equal(filled.presentation.slides.length, 1); assert.equal(filled.presentation.slides[0]!.title, "First");
 });

@@ -24,10 +24,10 @@ export function createPagesDocument(store: PagesStore, fields: NewDocument, requ
     const document = store.create(fields);
     return { document, created_version: document.version };
   }
-  const { project_id, folder_id, ...document } = fields;
+  const { folder_id, ...document } = fields;
   const request_hash = createHash("sha256").update(JSON.stringify(fields)).digest("hex");
   let replayed = false;
   const replay = { changed: "同一个请求的内容已改变，请重新发起", removed: "这个请求已完成，但其中的文档已被删除；不会重新创建", onReplay: () => { replayed = true; } };
-  const [made] = store.importDocuments({ project_id, request_id: requestId, request_hash, ...(folder_id === undefined ? {} : { folder_id }), documents: [document], replay });
+  const [made] = store.importDocuments({ request_id: requestId, request_hash, ...(folder_id === undefined ? {} : { folder_id }), documents: [document], replay });
   return replayed ? { document: made! } : { document: made!, created_version: made!.version };
 }

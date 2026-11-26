@@ -76,10 +76,7 @@ export async function productRows() {
   const rows = [
     row("projects/catalog.db", "apps/local-host", host.CATALOG_BASELINE),
     row("<partition>/molis-work.db", "apps/local-host", host.PROJECT_DATABASE_BASELINE),
-    ...host.homeStores().stores.filter(store => store.library).map(store => {
-      const name = store.library.file ?? `${store.path}.db`;
-      return row(store.library.partition ? `${store.path}/projects/*/${name}` : `${store.path}/${name}`, store.owner, store.library.baseline);
-    }),
+    ...host.homeStores().stores.filter(store => store.library).map(store => row(`${store.path}/${store.library.file ?? `${store.path}.db`}`, store.owner, store.library.baseline)),
     ...pluginPartitionRows(host.PLATFORM_PLUGIN_REGISTRATIONS, describeSqliteSchema),
   ];
   return rows.sort((left, right) => (left.store < right.store ? -1 : left.store > right.store ? 1 : 0));

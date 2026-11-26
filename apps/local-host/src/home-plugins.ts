@@ -1,4 +1,5 @@
 import { assembledPerPartition } from "./partition-plugin-assembly.js";
+import { perPartitionPlugins } from "./partition-plugin-host.js";
 import type { InstalledPackageRepair } from './installed-plugin-common.js';
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { renderHomePackageDocument } from "./installed-plugin-http.js";
@@ -222,7 +223,9 @@ export class HomePluginHost {
       if (this.startFailure !== undefined) throw this.startFailure;
       throw new ActionError("actions.plugin_unavailable", this.closed ? "Home 插件宿主已关闭" : "Home 插件正在启动，请稍候", { kind: "unavailable" });
     }
-    return includeSurfaceSlots ? withSurfaceSlots(platform, platform.runtime.list()) : platform.runtime.list();
+    // A plugin with a library in each partition is installed in this table too, but runs in each partition, not here (batch 107).
+    const partitioned = perPartitionPlugins(this.options.home), records = platform.runtime.list().filter(record => !partitioned.has(record.plugin_id));
+    return includeSurfaceSlots ? withSurfaceSlots(platform, records) : records;
   }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)

@@ -122,7 +122,7 @@ export function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]):
     for (const name of names) {
       if (!name || registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
       own.set(name, { path: name, owner: entry.definition.manifest.plugin_id,
-        ...(database?.store_name === name ? { library: { baseline: database, ...database.partition ? { partition: database.partition } : {} } } : {}) });
+        ...(database?.store_name === name ? { library: { baseline: database } } : {}) });
     }
   }
   return own.size ? homeStoreRegistry([...registry.stores, ...own.values()]) : registry;

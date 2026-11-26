@@ -53,7 +53,7 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   await waitFor(`[...document.querySelectorAll('[data-assistant-context]')].some(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object?.kind === 'pages_document')`, 12_000);
   const doc = await current();
   assert.equal(doc?.kind, "pages_document");
-  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`, undefined, "person");
   await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 12_000);
   await bar("个人空间");
   const personal = { kind: doc!.kind, id: doc!.id, project_id: "personal" };
@@ -89,7 +89,7 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   await waitFor("location.pathname === '/projects/personal/'", 15_000);
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === '上线前检查清单'`, 15_000);
   assert.equal((await current())?.id, doc!.id, "the same document, not a copy");
-  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单（第二版）'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单（第二版）'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`, undefined, "person");
   await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 12_000);
 
   // 4. Organized later: moved into the project, the same identity; the old reference still finds it.

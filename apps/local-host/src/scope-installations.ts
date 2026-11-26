@@ -11,7 +11,7 @@ import type { KitSource } from "@molis-ai/molis-work-contracts/platform/kit-repo
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { pluginManifestDigest, type PluginHostLifecycle } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginTextReader, projectDirectoryWords, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
-import { runningProjectPlatform } from "./project-plugins.js";
+import { runningProjectPluginPlatforms } from "./project-plugins.js";
 import { directoryWordResolver } from "./ui-text-provider.js";
 
 /** One installation a call's scope reaches: the Home's, or the calling project's, with a check that it is still the one read. */
@@ -75,10 +75,10 @@ async function collectInstallations(source: ProjectPluginHost, homeRows: Install
   const project = reference ? await source.host.withExistingRuntime(reference, async runtime => {
     const records = pluginInstallRecords(runtime.store.db);
     // Built-in and installed plugins run on the project's one platform (47-1 B).
-    const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
+    const platforms = await runningProjectPluginPlatforms(runtime.store, runtime.project_id);
     return (preparedProjectRows ?? installedPluginEntries(runtime.store.db)).map((row): ScopeInstallation => ({
       ...row, scope: "project",
-      readLocalePacks: () => currentWords(row.record, [platform?.supervisor]),
+      readLocalePacks: () => currentWords(row.record, platforms.map(platform => platform.supervisor)),
       assertCurrent: currentInstallation(row.record, () => records.get(row.record.install_id)),
     }));
   }) : null;

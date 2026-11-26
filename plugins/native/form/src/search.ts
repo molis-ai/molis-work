@@ -1,4 +1,4 @@
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_PROJECT_PLUGIN_ID, type FormRecord } from "./contract.js";
 import type { FormStore } from "./store.js";
 import { formErrors } from "./error.js";
@@ -20,15 +20,14 @@ function formSearchContent(form: FormRecord): string {
 }
 
 export function createFormSearchHandlers(withStore: <T>(run: (store: FormStore) => T) => T): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   return [
-    bindSearchEntriesHandler(formSearchActions.entries, caller => withStore(store => store.list(project(caller)).map(form => ({
+    bindSearchEntriesHandler(formSearchActions.entries, () => withStore(store => store.list().map(form => ({
       subject: { kind: "form", id: form.id }, revision: String(form.version), title: form.title, summary: searchText(form.description, 400),
       updated_at: form.updated_at, content: "context" as const, open: { surface: FORM_PROJECT_PLUGIN_ID, id: form.id } })))),
-    { ...formSearchActions.subject, handle: (caller, input) => withStore(store => {
+    { ...formSearchActions.subject, handle: (_caller, input) => withStore(store => {
       const id = (input as { subject_id: string }).subject_id;
       let form: FormRecord;
-      try { form = store.get(id, project(caller)); }
+      try { form = store.get(id); }
       catch (error) {
         if (error && typeof error === "object" && (error as { code?: string }).code === "form.not_found") throw formErrors.not_found("问卷已删除");
         throw error;

@@ -216,9 +216,19 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "路由表", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "ppt", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "dataset", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "lingguang", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "workflows", actor_id: "test" });
   // Inbox and Goals are plugins of the project's Runtime: the pages and routes under test are the project's only when it has them.
   for (const plugin_id of ["goals", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const missing = await catalog.createProject({ display_name: "没有库", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: missing.project_id, plugin_id: "pages", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: missing.project_id, plugin_id: "ppt", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: missing.project_id, plugin_id: "dataset", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: missing.project_id, plugin_id: "lingguang", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: missing.project_id, plugin_id: "workflows", actor_id: "test" });
   const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   t.after(async () => {
     await new Promise<void>(resolve => web.close(() => resolve()));

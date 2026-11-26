@@ -35,7 +35,7 @@ function scan(fixture: TestHome, project: TestProject): Promise<AutomationReport
 // AUT-03, AUT-04 and AUT-05 are proven by the gap, de-duplication and availability cases in this file.
 test("AUT-01–05: cold project uses its authorized folder, a bounded parser and a read-only action", { timeout: 40_000 }, async t => {
   const fixture = await openTestHome(t);
-  const project = await fixture.createProject("Report project");
+  const project = await fixture.createProject("Report project", ["pages"]);
   const own = join(fixture.home, "own"), unrelated = join(fixture.home, "other");
   await mkdir(join(own, ".claude"), { recursive: true });
   await mkdir(unrelated);
@@ -65,7 +65,7 @@ test("AUT-01–05: cold project uses its authorized folder, a bounded parser and
   assert.equal(await readFile(join(own, "package.json"), "utf8"), packageText);
 
   // Onboarding binds the chosen workspace via set_output (without adding an input role); recommendations must still scan it.
-  const onboarded = await fixture.createProject("Onboarding output workspace project");
+  const onboarded = await fixture.createProject("Onboarding output workspace project", ["pages"]);
   const onboardFolder = join(fixture.home, "onboard-output");
   await mkdir(onboardFolder);
   await writeFile(join(onboardFolder, "package.json"), JSON.stringify({ devDependencies: { vitest: "1.0.0" } }));

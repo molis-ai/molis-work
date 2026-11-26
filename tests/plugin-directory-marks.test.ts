@@ -23,22 +23,23 @@ test("RAC-711 the Host marks each built-in from its own registration: personal, 
 });
 
 test("RAC-711 a running plugin gets the marks only when it is the built-in itself: same plugin id and the same publisher", () => {
-  const pages = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "pages")!;
+  // Todo is a personal built-in (the six partition plugins no longer are, batch 107).
+  const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
   const manifests = new Map([
-    [pages.manifest.plugin_id, pages.manifest],
+    [todo.manifest.plugin_id, todo.manifest],
     ["io.example.notes", { plugin_id: "io.example.notes", name: "Notes", publisher: { signature: "unsigned:io.example" }, ui: { views: [] } }],
   ]);
   const source = (signature: string): DirectorySource => ({
     enabledPluginIds: () => [...manifests.keys()],
     state: () => ({ status: "running" }),
-    manifest: id => id === pages.manifest.plugin_id ? { ...pages.manifest, publisher: { signature } } : manifests.get(id),
+    manifest: id => id === todo.manifest.plugin_id ? { ...todo.manifest, publisher: { signature } } : manifests.get(id),
   });
-  const [builtin, other] = runningPluginDirectory(source(pages.manifest.publisher.signature));
-  assert.deepEqual([builtin!.id, builtin!.chosen, builtin!.personal], ["pages", true, true]);
+  const [builtin, other] = runningPluginDirectory(source(todo.manifest.publisher.signature));
+  assert.deepEqual([builtin!.id, builtin!.chosen, builtin!.personal], ["todo", true, true]);
   assert.deepEqual([other!.id, other!.chosen, "personal" in other!, "companions" in other!], ["io.example.notes", false, false, false]);
   // A package that takes a built-in's plugin id under another publisher is not that built-in: keyed by its own id, no marks.
   const [impostor] = runningPluginDirectory(source("unsigned:io.example"));
-  assert.deepEqual([impostor!.id, impostor!.chosen, "personal" in impostor!], [pages.manifest.plugin_id, false, false]);
+  assert.deepEqual([impostor!.id, impostor!.chosen, "personal" in impostor!], [todo.manifest.plugin_id, false, false]);
 });
 
 test("RAC-710 forged marks are refused: honest changes still bring companions and hide personal plugins, and a platform part is no plugin to remove", { timeout: 60_000 }, async t => {
@@ -62,9 +63,9 @@ test("RAC-710 forged marks are refused: honest changes still bring companions an
   assert.ok(membership.plugins.includes("feed") && membership.plugins.includes("inbox"), "Inbox comes along whatever the page says");
   assert.deepEqual(membership.hidden, []);
 
-  const removed = await change("DELETE", "pages", { personal: false });
+  const removed = await change("DELETE", "todo", { personal: false });
   assert.equal(removed.status, 200);
-  assert.ok((await removed.json() as { hidden: string[] }).hidden.includes("pages"));
+  assert.ok((await removed.json() as { hidden: string[] }).hidden.includes("todo"));
 
   // Shelf is a platform part (44B): whatever the page claims, there is no project plugin of that name to remove.
   const forged = await change("DELETE", "shelf", { personal: true });

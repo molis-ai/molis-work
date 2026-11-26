@@ -142,7 +142,7 @@ test("Form: author, fill and export through the real Host in both languages and 
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
   const { click, evaluate, waitFor } = frame;
   const read = <T>(operation: (store: ReturnType<typeof openFormStore>) => T): T => {
-    const store = openFormStore(homeDirectory);
+    const store = openFormStore(homeDirectory, projectId!);
     try { return operation(store); }
     finally { store.close(); }
   };
@@ -183,14 +183,14 @@ test("Form: author, fill and export through the real Host in both languages and 
   for (const n of [1, 3]) await click(`${question(n)} [data-question-required]`);
   await saved();
   await click("[data-form-publish]"); await idle();
-  const record = read(store => store.list(projectId!)[0]!);
+  const record = read(store => store.list()[0]!);
   assert.equal(record.status, "published");
   assert.equal(record.title, title);
   assert.deepEqual(record.questions.map(q => [q.title, q.required]), questions.map((q, i) => [q, i !== 1]));
   const [first, optional, choice] = record.questions;
   assert.ok(first && optional && choice);
-  const stored = () => read(store => store.get(record.id, projectId!));
-  const answers = () => read(store => store.listSubmissions(record.id, projectId!));
+  const stored = () => read(store => store.get(record.id));
+  const answers = () => read(store => store.listSubmissions(record.id));
 
   for (const [locale, expected] of Object.entries(words)) {
     await command("Network.setCookie", { name: "molis_work_locale", value: locale, url: origin }, sessionId);

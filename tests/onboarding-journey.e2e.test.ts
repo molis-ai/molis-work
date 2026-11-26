@@ -141,7 +141,7 @@ test("FSS-37 a new person's first run: the opening, two questions, materials, a 
   await waitFor("document.documentElement.lang === 'en' && document.querySelector('.welcome')?.dataset.step === 'language'");
   assert.deepEqual(await evaluate("[firstArrival === document.body, firstWelcome === document.querySelector('.welcome'), document.querySelector('#ob-title').textContent, document.querySelector('.ob-greeting strong').textContent]"), [true, true, "Language", "Hello."]);
   assert.equal(await evaluate("document.querySelector('#cx-exit').textContent.trim()"), "Not now");
-  assert.deepEqual(await evaluate("document.body.innerText.replace('简体中文', '').match(/\\p{Script=Han}/gu)"), null, "nothing is left in Chinese but the language's own name");
+  assert.deepEqual(await evaluate("document.body.innerText.replace('简体中文', '').replace('日本語', '').match(/\\p{Script=Han}/gu)"), null, "nothing is left in Chinese but the languages' own names");
   assert.deepEqual(await evaluate(`[
     document.activeElement === firstEnglishChoice,
     firstEnglishChoice.getAttribute('aria-current'),

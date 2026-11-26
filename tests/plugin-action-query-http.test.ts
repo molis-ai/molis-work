@@ -51,10 +51,11 @@ test("AQD-04 standalone database root does not manufacture a catalog Runtime plu
   });
   await new Promise<void>(resolve => root.listen(0, "127.0.0.1", resolve));
   const address = root.address(); assert.ok(address && typeof address === "object");
-  const client = host.actionClient(molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath }));
-  const page = await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["pages:write"] }, pagesActions.create,
-    { title: "Root material", markdown: "Root Pages delegation" }) as { document: { id: string } };
-  const response = await request({ origin: `http://127.0.0.1:${address.port}`, controlToken }, `/api/plugins/${probe.id}/read`, { item_id: page.document.id });
+  // Open the project's runtime, so the probe runs; a database with no catalog project runs no per-partition plugin (batch 107), so
+  // the item named is only an id: nothing reads it.
+  await host.actionClient(molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath }))
+    .discover({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: DEMO_PROJECT_ID, permissions: [] });
+  const response = await request({ origin: `http://127.0.0.1:${address.port}`, controlToken }, `/api/plugins/${probe.id}/read`, { item_id: "root-material" });
   // Single-database mode has no catalog project; the existing route policy refuses before any plugin action.
   assert.equal(response.status, 403); assert.equal((await response.json()).code, "actions.plugin_disabled");
   assert.equal(probe.seen.length, 0); assert.equal(probe.contexts.at(-1)!.services!.storage!.get("delivered"), null);
@@ -116,7 +117,7 @@ for (const scope of ["home", "project"] as const) test(`AQD-07 ${scope} HTTP dis
     }) };
   };
   const f = await serveHomeRuntime(t, { pluginFixtures: { [scope]: [probe.definition] } });
-  const project = scope === "project" ? await f.project("Before acceptance") : undefined;
+  const project = scope === "project" ? await f.project("Before acceptance", ["pages"]) : undefined;
   const abort = new AbortController();
   const pending = f.request(`${project ? `/projects/${project.project_id}` : ""}/api/plugins/${probe.id}/background`, { method: "POST", body: { id: "early" }, signal: abort.signal });
   const rejected = assert.rejects(pending);

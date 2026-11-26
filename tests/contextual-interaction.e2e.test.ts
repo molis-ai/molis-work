@@ -37,8 +37,8 @@ for (const width of [1440, 390]) {
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-    const setup = openPagesStore(homeDirectory);
-    const page = (() => { try { return setup.create({ project_id: projectId!, title: "留存分析", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND), paragraph(THIRD)] } }); } finally { setup.close(); } })();
+    const setup = openPagesStore(homeDirectory, projectId!);
+    const page = (() => { try { return setup.create({ title: "留存分析", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND), paragraph(THIRD)] } }); } finally { setup.close(); } })();
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
     await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(THIRD)})`);
     assert.equal(await evaluate("document.querySelector('.mw-ctx').hidden"), true, "nothing in hand, nothing offered");
@@ -47,7 +47,7 @@ for (const width of [1440, 390]) {
       if (!await child.evaluate<boolean>("document.hasFocus()")) await child.click(`[data-pages-editor] .ProseMirror p:${index === 2 ? "first" : "last"}-of-type`);
       await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
-      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
     };
     // As many of the plan's first actions as the bar has room for: three in a wide window; in a narrow one at most two, and what
     // does not fit goes to 更多's 推荐 rather than being squeezed under its text (context-toolbar §6, QA-014).
@@ -112,9 +112,9 @@ for (const width of [1440, 390]) {
       return ps[0] === ${JSON.stringify(FIRST)} && ps[1] === '主因是上手困难：新用户第一周难以完成有价值的操作。' && ps[2] === ${JSON.stringify(THIRD)}; })()`);
     await child.waitFor("!document.querySelector('.pages-pop:not([hidden])')");
     await child.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
-    const saved = openPagesStore(homeDirectory);
+    const saved = openPagesStore(homeDirectory, projectId!);
     try {
-      const body = JSON.stringify(saved.get(page.id, projectId!).body);
+      const body = JSON.stringify(saved.get(page.id).body);
       assert.match(body, /主因是上手困难：新用户第一周/);
       assert.match(body, new RegExp(FIRST));
       assert.doesNotMatch(body, /所以很多人流失了/);
@@ -133,14 +133,14 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await child.click("[data-pages-editor] .ProseMirror p");
   await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === 3`);
   // “更多” lists every action for this passage regardless of the ranking, grouped by purpose.
   await click(MORE);
@@ -155,7 +155,7 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   // The person clicks into the frozen text (the editor takes focus) and types a character there.
   await child.click(".pages-focus-frozen");
   await child.evaluate(`(() => { document.querySelector('[data-pages-editor] .ProseMirror').focus(); const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
-    range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
+    range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`, undefined, "person");
   await command("Input.insertText", { text: "改" }, sessionId);
   await child.evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);
   await child.waitFor("document.querySelector('.pages-pop .pages-pop-error')?.textContent.includes('没有写入')");
@@ -175,8 +175,8 @@ test("SYS-52 P2: a word is looked up in the search palette; a write goes to the 
   const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "术语表", body: { type: "doc", content: [paragraph("“激活”指新用户在第一周内完成至少一次有价值的操作。"), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "术语表", body: { type: "doc", content: [paragraph("“激活”指新用户在第一周内完成至少一次有价值的操作。"), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await child.evaluate("document.addEventListener('molis:surface-focus', event => window.contextualFocus = event.detail)");
@@ -184,7 +184,7 @@ test("SYS-52 P2: a word is looked up in the search palette; a write goes to the 
     if (!await child.evaluate<boolean>("document.hasFocus()")) await child.click("[data-pages-editor] .ProseMirror p");
     await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to === undefined ? "text.length" : to});
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); window.expectedContextText = selection.toString(); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); window.expectedContextText = selection.toString(); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
     await child.waitFor("window.contextualFocus?.targets.map(part => part.text).join('\\n\\n') === window.expectedContextText");
     return child.evaluate<string>("contextualFocus.context_id");
   };
@@ -241,14 +241,14 @@ test("contextual actions: a command that cannot run keeps its name on one line a
   const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await child.click("[data-pages-editor] .ProseMirror p");
   await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 8000);
   await click(MORE);
   await waitFor("document.querySelectorAll('.mw-ctx-menu button[disabled]').length >= 3", 8000);
@@ -267,8 +267,8 @@ test("D0302 the fragment heading path only names what is shown: aria-hidden and 
   const { command, sessionId, evaluate, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "标题路径", body: { type: "doc", content: [paragraph(FIRST)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "标题路径", body: { type: "doc", content: [paragraph(FIRST)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(FIRST)})`);
   // A declared surface of the child's own, holding every hidden shape the path must tell apart. The selection sits

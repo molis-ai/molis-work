@@ -1036,7 +1036,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
 
     const completedParentPage = await (await webFetch(`${origin}${prefix}/goals/TUI-PARENT`)).text();
     assert.match(completedParentPage, /data-tui-read-only="true"/);
-    assert.match(completedParentPage, /下属子目标已完成执行/);
+    assert.match(completedParentPage, /子目标都已完成，不用为上层目标打开终端/);
     assert.match(completedParentPage, /data-tui-add[^>]*disabled/);
 
     const completedListed = await webFetch(parentPanelsUrl);

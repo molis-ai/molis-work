@@ -19,7 +19,7 @@ import { PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions } from "./plugin-insta
 import { availableProjectPluginIds, PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "./plugin-registry.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { currentProjectPlatform } from "./project-plugins.js";
+import { currentProjectPluginState, projectPluginPlatform } from "./project-plugins.js";
 import { projectHomeRailOrder, projectHomeStageLocation, runtimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
 
 export type SurfaceHomeCatalogReader = <Result>(operation: (catalog: MolisWorkProjectCatalog) => Result) => Result | undefined;
@@ -126,7 +126,7 @@ function homePackageRoute(home: HomePluginHost | undefined, id: string, manifest
 function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
   const { store, reference: { project_id }, home } = ports;
   const membership = homeMembership(ports);
-  const project = currentProjectPlatform(store, project_id), installed = currentInstalledPluginHost(store, project_id);
+  const project = currentProjectPluginState(store, project_id), installed = currentInstalledPluginHost(store, project_id);
   const halves = currentHomeStageHalves(home);
   const entries = [
     ...installedPluginEntries(store.db).map(item => ({ ...item, scope: "project" as const })),
@@ -147,10 +147,10 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
     if (builtin && !wanted && !removed || !builtin && !fromHome && !sandbox) return [];
     const exact = installedManifestMatches(record, manifest) ? manifest : undefined;
     if (exact && exact.kind !== "app" && exact.kind !== "native") return [];
-    const platform = scope === "home" ? home?.surfacePlatform() : sandbox ? installed?.platform : project;
+    const platform = scope === "home" ? home?.surfacePlatform() : sandbox ? installed?.platform : project && projectPluginPlatform(project, id);
     const activation = platform?.supervisor.state(id);
     const active = record.state === "running" && activation?.status === "running" && activation.install_id === record.install_id && !!exact;
-    const owner = active && stage && !sandbox ? runtimeStageOwner({ platform: project }, stage, halves).owner : undefined;
+    const owner = active && stage && !sandbox ? runtimeStageOwner(project ?? { platform: null }, stage, halves).owner : undefined;
     const route = active && exact ? sandbox
       ? scope === "project" ? projectPackageRoute(record, exact, installed)
         : homePackageRoute(home, id, exact)

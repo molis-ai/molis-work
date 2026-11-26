@@ -36,7 +36,8 @@ export const INTERACTION_OPTION_STYLES = `
 /** The card, its fields, option groups, banners, the footer and an answered summary: every page that shows a question or a card takes it. */
 export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-card { container: mw-ix / inline-size; display: grid; gap: 12px; padding: 14px 16px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); text-align: left; }
-.mw-ix-question { grid-template-columns: minmax(0, 1fr); }
+/* One column as wide as the card: a long word or a translated label wraps inside it instead of widening the card. */
+.mw-ix-question, .mw-ix-operation { grid-template-columns: minmax(0, 1fr); }
 .mw-ix-card [hidden] { display: none; }
 .mw-ix-head { display: flex; align-items: flex-start; gap: 10px; }
 /* The title leads its own line and the kind of card sits beside it as a tag, so the heading is one line, not a stack. */

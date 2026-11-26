@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-plugin-lingguang/contract";
 import { lingguangActions as actions, LINGGUANG_ACTION_PERMISSIONS, createLingguangActionHandlers } from "@molis-ai/molis-work-plugin-lingguang";
 import { jellyContentActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 const fixture = serveLingguang;
 const lines = async (response: Response) => (await response.text()).trim().split("\n").map(line => JSON.parse(line) as Record<string, any>);
 
@@ -19,8 +20,10 @@ test("reading a file streams its progress and text; nothing is kept until the pe
   assert.equal(events[0]!.type, "progress");
   assert.deepEqual(events.at(-1), { type: "result", result: { text: "验证素材来源与笔记之间的联系。", file_name: "检查.txt" } });
   assert.deepEqual((await f.bound.invoke(actions.list, {})).sparks, [], "reading keeps no spark");
-  // Nothing of the upload is kept: no raw copy under 灵光 (or Jelly) that no one reads and nothing cleans up.
-  assert.deepEqual(readdirSync(join(f.home, "lingguang")).filter(name => !name.startsWith("lingguang.db")), []);
+  // Nothing of the upload is kept: no raw copy under 灵光 (or Jelly) that no one reads and nothing cleans up. 灵光 keeps only its library
+  // in the project's partition (U2), and nothing in the Home.
+  assert.equal(existsSync(join(f.home, "lingguang")), false);
+  assert.deepEqual(readdirSync(dirname(partitionLibraryFile(f.home, f.project.project_id, "lingguang"))).filter(name => !/\.db(-journal|-wal|-shm)?$/u.test(name)), []);
   assert.equal(existsSync(join(f.home, "jelly", "imports")), false);
   const refused = (await lines(await f.request("/material", { file_name: "bad.exe", data_base64: "AA==" }))).at(-1)!;
   // The error event is written by the SDK from the failure's kind. The file reader's refusals have kinds since W3-02-F: 415 misdescribes who failed and has none, so a

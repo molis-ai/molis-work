@@ -2,19 +2,18 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openFormStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openFormStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("FSS-35 an open Form response retitles its seconds and preserves the original answer", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser?.projectId) return;
   const project = browser.projectId, title = "原始问卷", question = "原始问题 <raw>", answer = "原始回答 <raw>";
-  const store = openFormStore(browser.homeDirectory);
+  const store = openFormStore(browser.homeDirectory, project);
   const { form, submission } = (() => {
     try {
-      const form = store.receive(project, "form-response-language", title, [{ id: "original", title: question, type: "text" }]);
-      return { form, submission: store.submit(form.id, { original: answer }, project) };
+      const form = store.receive("form-response-language", title, [{ id: "original", title: question, type: "text" }]);
+      return { form, submission: store.submit(form.id, { original: answer }) };
     } finally { store.close(); }
   })();
   const child = await pluginFrameBrowser(t, browser, "form");
@@ -51,7 +50,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
     :{status:"needs_input",why:"先确认问卷给谁填",questions:[{id:"audience",prompt:"给谁填？",options:[{label:"内部同事",recommended:true},{label:"外部客户"}]}]});});if(!browser)return;
   const {evaluate,waitFor,click}=await pluginFrameBrowser(t,browser,"form");
   const {command,sessionId,navigate,reloadPage,origin,projectId,homeDirectory}=browser;
-  const read=()=>{const store=openFormStore(homeDirectory);try{const forms=store.list(projectId!);return {forms,submissions:forms[0]?store.listSubmissions(forms[0].id,projectId!):[]};}finally{store.close();}};
+  const read=()=>{const store=openFormStore(homeDirectory,projectId!);try{const forms=store.list();return {forms,submissions:forms[0]?store.listSubmissions(forms[0].id):[]};}finally{store.close();}};
   const idle=()=>waitFor("document.querySelector('[data-form=workbench]').getAttribute('aria-busy') === 'false'");
   const saved=()=>waitFor("['已保存','已发布'].includes(document.querySelector('[data-form-editor-status]').textContent)");
   const input=async(selector:string,value:string)=>evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -146,7 +145,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   assert.equal(read().forms[0]!.questions.at(-1)!.title,'你最常用的工具是什么？');
   await click('[data-form-publish]');await idle();const share=read().forms[0]!.share_id;assert.ok(share);
   // Saving a stale editor keeps local input and cannot publish or navigate away.
-  const editorOther=openFormStore(homeDirectory);try{editorOther.update(id,{title:'编辑冲突远端版本'},projectId!);}finally{editorOther.close();}
+  const editorOther=openFormStore(homeDirectory,projectId!);try{editorOther.update(id,{title:'编辑冲突远端版本'});}finally{editorOther.close();}
   const remoteVersion=read().forms[0]!.version;
   await input('[data-form-description]','必须保留的本地编辑');
   await waitFor("document.querySelector('[data-form-editor-status]').textContent === '保存失败'");
@@ -170,14 +169,14 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true);
   // A stale preview is not submitted against a different questionnaire.
   await click('[data-form-tab=preview]');await idle();await input(answer('text'),'尚未提交的答案');
-  const other=openFormStore(homeDirectory);try{other.update(id,{title:'其他客户端修改'},projectId!);}finally{other.close();}
+  const other=openFormStore(homeDirectory,projectId!);try{other.update(id,{title:'其他客户端修改'});}finally{other.close();}
   await click('[data-form-submit]');await idle();assert.equal(read().submissions.length,1);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(answer('text'))}).value`),'尚未提交的答案');
   await screenshot('conflict');
   await moreClick('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");await click('[data-form-confirm] [data-confirm-ok]');await idle();
   await click('[data-form-tab=editor]');await idle();
   // The root-program guard refuses this trigger before either write. This exercises the failure UI and explicit retry.
-  const db=openHomeSqliteDatabase(homeDirectory,'form');
+  const db=openPartitionLibraryDatabase(homeDirectory,projectId!,'form');
   try{
     db.exec("CREATE TRIGGER fail_form_ui BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
     await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.publication_pending,undefined);assert.equal(read().forms[0]!.artifact_version,0);
@@ -244,8 +243,8 @@ test("BSH-01 Form reads its only fixed version after losing the committed HTTP r
   await click('[data-form-new]');
   await idle();
   const read = () => {
-    const library = openFormStore(homeDirectory);
-    try { return library.list(projectId)[0]!; }
+    const library = openFormStore(homeDirectory,projectId!);
+    try { return library.list()[0]!; }
     finally { library.close(); }
   };
   const form = read(), artifactId = "form-" + form.id;

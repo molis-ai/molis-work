@@ -6,7 +6,7 @@ import { memoryErrors, type MemoryService, type MemoryServicePorts, type MemoryC
 import { currentPluginAction, currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { runningProjectPlatform } from "../project-plugins.js";
+import { runningPluginPlatform } from "../project-plugins.js";
 import type { PluginPlatform } from "../plugin-platform.js";
 import { verifiedCaller } from "../plugin-callers.js";
 import { controlledMemoryService } from "./memory-effect.js";
@@ -77,7 +77,7 @@ export function pluginMemoryLearning(input: {
     if (reaches(owner.plugin_id) === false) throw memoryErrors.forbidden("项目已关闭这个来源插件");
     // A queued run can be the first call after Host restart. Start the same project runtime directly;
     // an enqueue already comes from its running installation.
-    const platform = await input.localHost.withProject(reference, runtime => runningProjectPlatform(runtime.store, owner.project_id), { activatePlugins });
+    const platform = await input.localHost.withProject(reference, runtime => runningPluginPlatform(runtime.store, owner.project_id, owner.plugin_id), { activatePlugins });
     assertAlive();
     if (!platform) throw memoryErrors.unavailable("当前项目来源主人尚未就绪");
     return { reference, platform };

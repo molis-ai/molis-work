@@ -36,19 +36,15 @@ export const pagesCommentActions = {
 const CONTEXT_PART_UNITS = 30000;
 
 export function createPagesCommentHandlers(stores: PagesStores): ActionHandlerBinding[] {
-  const project = (caller: ActionExecutionContext): string => {
-    if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
-    return caller.project_id;
-  };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
   });
   return [
-    bind(pagesCommentActions.list, (input, caller) => stores.read(store => ({ threads: store.comments.list(input.page_id, project(caller)) }))),
-    bind(pagesCommentActions.append, (input, caller) => stores.write(caller, store => ({ thread: store.comments.append(input, project(caller)) }))),
-    bind(pagesCommentActions.context, (input, caller) => stores.read(store => {
-      const page = store.get(input.subject_id, project(caller));
-      const found = store.comments.get(input.subject_id, input.thread_id, project(caller));
+    bind(pagesCommentActions.list, (input) => stores.read(store => ({ threads: store.comments.list(input.page_id) }))),
+    bind(pagesCommentActions.append, (input, caller) => stores.write(caller, store => ({ thread: store.comments.append(input) }))),
+    bind(pagesCommentActions.context, (input) => stores.read(store => {
+      const page = store.get(input.subject_id);
+      const found = store.comments.get(input.subject_id, input.thread_id);
       const request = found.messages.find(message => message.message_id === input.message_id && message.author === "user");
       if (!request) throw pagesErrors.not_found("找不到要回复的用户消息");
       if (input.draft && input.draft.revision !== String(page.version)) throw pagesErrors.conflict("正文已改变，请保存后重新发起评论");
@@ -64,7 +60,7 @@ export function createPagesCommentHandlers(stores: PagesStores): ActionHandlerBi
       const delivery = caller.assistant_reply;
       if (!delivery || delivery.target.provider_id !== "io.molis.work.pages" || delivery.target.subject_kind !== "pages_document"
         || delivery.target.subject_id !== input.subject_id || delivery.target.thread_id !== input.thread_id) throw new ActionError("actions.forbidden", "只能由宿主投递这条评论已完成的助理回复");
-      return stores.write(caller, store => ({ thread: store.comments.reply(input.subject_id, input.thread_id, project(caller), {
+      return stores.write(caller, store => ({ thread: store.comments.reply(input.subject_id, input.thread_id, {
         message_id: randomUUID(), author: "assistant", body: delivery.body, reply_to: delivery.message_id,
         request_id: delivery.request_id, work_id: delivery.work_id, run_id: delivery.run_id, created_at: new Date().toISOString(),
       }) }));

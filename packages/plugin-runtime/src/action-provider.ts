@@ -1,4 +1,4 @@
-import { type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginActionAvailability, pluginReadOnlyCallback } from "./action-availability.js";
 import { currentPluginInvocation, pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
@@ -92,6 +92,25 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       return { available: true };
     },
   };
+}
+
+const OFF_HERE = { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" } as const satisfies ActionAvailability;
+
+/**
+ * What a plugin offers in a project that does not enable it, where it runs one instance per project and none is started there (BL-088,
+ * batch 107): the actions its Manifest declares, under the provider id its instance there would register, each listed as off here and
+ * refused as such before anything of the plugin runs. Withdrawn by the returned function, before its own instance registers.
+ */
+export function registerPluginOffHere(registry: ActionRegistryPort, manifest: PluginManifest,
+  provider: { readonly provider_id: string; readonly plugin_install_id: string; readonly project_id: string }): () => void {
+  const refuse = () => { throw new ActionError(OFF_HERE.code, OFF_HERE.reason); };
+  const actions = manifest.actions ?? [];
+  return registry.registerProvider({
+    provider: { ...provider, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin" },
+    definitions: actions,
+    handlers: actions.map(definition => ({ capability_id: definition.capability_id, version: definition.version, handle: refuse, availability: () => OFF_HERE })),
+    availability: () => OFF_HERE,
+  });
 }
 
 /**

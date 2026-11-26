@@ -46,7 +46,7 @@ const titleOf = (input: unknown): string | undefined => (typeof input === "objec
 /** A project with a Feed item, the three fixture targets, and the page's own routes of the Workflows plugin: the production path of a request. */
 async function setup(t: TestContext) {
   const served = await openTestHome(t, { catalogPolicy: false });
-  const project = await served.createProject("Workflows delegation", ["feed"]);
+  const project = await served.createProject("Workflows delegation", ["feed", "workflows"]);
   const projectId = project.project_id;
   const seed = new LocalProjectDatabase(project.database_path);
   try {

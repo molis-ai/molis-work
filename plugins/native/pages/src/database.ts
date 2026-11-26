@@ -1,11 +1,10 @@
-import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** The Pages baseline defines the schema for new stores and the expected version and column order for existing stores. */
 const PAGES_SCHEMA = `
  CREATE TABLE pages_editor_versions(id TEXT PRIMARY KEY,version INTEGER NOT NULL);
   CREATE TABLE pages (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     body_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
@@ -21,31 +20,21 @@ const PAGES_SCHEMA = `
   CREATE TABLE page_comments (page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE, thread_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(page_id,thread_id));
   CREATE TABLE folders (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
-  CREATE TABLE page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
+  CREATE TABLE page_generations (request_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, record_json TEXT NOT NULL);
   -- What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
   CREATE TABLE page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL);
-  CREATE TABLE page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
+  CREATE TABLE page_imports (request_id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL);
 `;
 /**
- * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its documents and folders go
- * (their comments with them), with the generation and import receipts and the edits that could still be taken back.
+ * Pages' library in each partition it is enabled in (`databases.partition`, U2): `<partition root>/libraries/pages.db`, given to that
+ * partition's instance as `services.database`. Deleting the partition deletes the file. A document's pinned 成果 version is recorded on its
+ * row in the same commit as the 成果 itself (`pinned_rows`).
  */
-const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "pages.project-deletion.data" }, order: 10,
-  artifact_join: { table: "pages", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
-    artifact_version_column: "artifact_version", write_columns: ["updated_at", "goal_id"], pending_column: "publication_pending_json" },
-  tables: [
-  { table: "page_changes", column: "page_id", parent: "pages" },
-  { table: "pages_editor_versions", column: "id", parent: "pages" },
-  { table: "pages", column: "project_id" },
-  { table: "folders", column: "project_id" },
-  { table: "page_generations", column: "project_id" },
-  { table: "page_imports", column: "project_id" },
-] };
-/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PAGES_PROJECT_ROWS, store_name: "pages", version: /* @version database.pages_database */ 1,
-  read_permission: "pages:read", write_permission: "pages:write", schema: PAGES_SCHEMA };
+export const PAGES_DATABASE: PartitionPluginDatabaseDeclaration = { store_name: "pages", deletion: { label: { key: "pages.project-deletion.data" }, order: 10 }, version: /* @version database.pages_database */ 1,
+  read_permission: "pages:read", write_permission: "pages:write", schema: PAGES_SCHEMA,
+  pinned_rows: { table: "pages", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
+    artifact_version_column: "artifact_version", write_columns: ["updated_at", "goal_id"], pending_column: "publication_pending_json" } };

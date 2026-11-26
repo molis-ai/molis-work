@@ -12,10 +12,11 @@ const libraryOf = (probe: ReturnType<typeof ownerFilesProbe>, extra: Record<stri
 
 /** The reasons RAC-323 adds; the others only have to refuse before anything opens. */
 const REASON: Partial<Record<string, RegExp>> = { "registered-library": /里的数据库不是插件 .* 的 Manifest 声明的/u, "other-database": /不能同时用于其他插件的数据库|已归|冲突|重复/u,
-  "library-file": /库自己的文件/u, "library-journal": /库自己的文件/u, "partition-directory": /库自己的文件/u };
+  "library-file": /库自己的文件/u, "library-journal": /库自己的文件/u };
+// A Home library split by project kept a `projects/` directory in the plugin's root; batch 107 deleted that split, so the case went with it.
 
 test("SHF-IO-S01 all trusted declaration failures precede managed Home stores", () => {
-  for (const invalid of ["shelf-owner", "registered-library", "other-database", "library-file", "library-journal", "partition-directory", "duplicate-store", "no-home", "project", "sandbox", "permission", "storage", "root", "empty", "duplicate-name", "nested-name", "kind"] as const) {
+  for (const invalid of ["shelf-owner", "registered-library", "other-database", "library-file", "library-journal", "duplicate-store", "no-home", "project", "sandbox", "permission", "storage", "root", "empty", "duplicate-name", "nested-name", "kind"] as const) {
     const home = mkdtempSync(join(tmpdir(), "owner-files-entry-")), probe = ownerFilesProbe(), good = ownerFilesProbe("goodowner"), thief = ownerFilesProbe("thiefowner");
     const entry = probe.entry();
     if (invalid === "shelf-owner") Object.assign(probe.owner_files, { store_name: "shelf" });
@@ -26,9 +27,9 @@ test("SHF-IO-S01 all trusted declaration failures precede managed Home stores", 
     }
     // Another plugin's library in the root, however it got there, is refused; the plugin's own is not (RAC-323).
     if (invalid === "other-database") thief.definition.manifest = { ...thief.definition.manifest, databases: { home: libraryOf(probe, { read_permission: thief.read, write_permission: thief.write }) } };
-    if (invalid === "library-file" || invalid === "library-journal" || invalid === "partition-directory") {
-      probe.definition.manifest = { ...probe.definition.manifest, databases: { home: libraryOf(probe, invalid === "partition-directory" ? { partition: "project" } : {}) } };
-      Object.assign(probe.owner_files, { entries: [{ name: { "library-file": `${probe.owner_files.store_name}.db`, "library-journal": `${probe.owner_files.store_name}.db-wal`, "partition-directory": "projects" }[invalid], kind: invalid === "partition-directory" ? "directory" : "file" }] });
+    if (invalid === "library-file" || invalid === "library-journal") {
+      probe.definition.manifest = { ...probe.definition.manifest, databases: { home: libraryOf(probe) } };
+      Object.assign(probe.owner_files, { entries: [{ name: { "library-file": `${probe.owner_files.store_name}.db`, "library-journal": `${probe.owner_files.store_name}.db-wal` }[invalid], kind: "file" }] });
     }
     if (invalid === "sandbox") probe.definition.execution = "sandbox";
     if (invalid === "permission" || invalid === "storage") probe.definition.manifest = { ...probe.definition.manifest,

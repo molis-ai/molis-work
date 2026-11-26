@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomePluginDatabaseDeclaration, PluginManifest, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseDeclaration, PluginManifest, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { sqliteRowAuthorizerCodes, type SqliteAuthorizer, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ArtifactRootRow } from "./plugin-artifact-row-transaction.js";
 import type { ProjectArtifactRoot } from "./plugin-artifact-root.js";
@@ -10,7 +10,7 @@ const denied = () => new ActionError("actions.forbidden", "固定成果事务越
 const quoted = (name: string) => `"${name.replaceAll('"', '""')}"`;
 
 /** The already compiled platform triggers are the only programs that can reach these tables. */
-export function artifactRowReplication(manifest: PluginManifest, library: HomePluginDatabaseDeclaration, root: string) {
+export function artifactRowReplication(manifest: PluginManifest, library: PluginDatabaseDeclaration, root: string) {
   const reads = new Map<string, ReadonlySet<string>>(), inserts = new Set<string>(), updates = new Map<string, string>();
   const revision = (table: string, column: string, keys: readonly string[]) => {
     reads.set(table, new Set([...keys, column]));
@@ -20,6 +20,8 @@ export function artifactRowReplication(manifest: PluginManifest, library: HomePl
   for (const collection of pluginSyncLibraryManifest(manifest, library).sync?.collections ?? []) {
     const namespace = pluginSyncNamespace(manifest, collection.id);
     reads.set(`${namespace}_replica_state`, new Set(["id", "applying"]));
+    // A partition's own library names its partition in a change key from the collection's context row, not from a column of the row.
+    reads.set(`${namespace}_context`, new Set(["id", "project_id"]));
     inserts.add(`${namespace}_replica_changes`);
     if (collection.aggregates?.some(item => item.table === root && item.versionColumn)) {
       revision(`${namespace}_aggregate_editor_versions`, "version", ["key"]);
@@ -60,14 +62,16 @@ function rowAuthorizer(codes: NonNullable<typeof sqliteRowAuthorizerCodes>, root
   };
 }
 
-/** SQL and schema names come exclusively from the checked Manifest. Every caller value is bound to this one project and row. */
+/** SQL and schema names come exclusively from the checked Manifest. Every caller value is bound to this one row, of this one project in a shared library. */
 export function boundArtifactRootRow(db: SqliteDatabase, root: ProjectArtifactRoot, expected: ReadonlyMap<string, string>, replication: Replication,
   projectId: string, id: string): ArtifactRootRow {
   const codes = sqliteRowAuthorizerCodes;
   if (!codes) throw new ActionError("actions.service_unavailable", "当前宿主缺少 SQLite 原生语句授权");
   const { table, id_column, version_column, artifact_id_column, artifact_version_column, write_columns, pending_column } = root.declaration;
   const programs = rootPrograms(db, table, expected);
-  const where = `${quoted(root.projectColumn)} COLLATE BINARY=? AND ${quoted(id_column)} COLLATE BINARY=?`;
+  // A Home library shared by every project names the row's project; a partition's own library is that partition's alone.
+  const where = (root.projectColumn === undefined ? "" : `${quoted(root.projectColumn)} COLLATE BINARY=? AND `) + `${quoted(id_column)} COLLATE BINARY=?`;
+  const keys = root.projectColumn === undefined ? [id] : [projectId, id];
   const guarded = <T>(run: () => T, columns?: ReadonlySet<string>): T => {
     db.setAuthorizer(rowAuthorizer(codes, root, programs, replication, columns));
     try { return run(); } finally { db.setAuthorizer(null); }
@@ -75,7 +79,7 @@ export function boundArtifactRootRow(db: SqliteDatabase, root: ProjectArtifactRo
   return {
     get inTransaction() { return db.inTransaction; },
     read() {
-      const row = guarded(() => db.prepare<[string, string], PluginSqlRow>(`SELECT * FROM ${ARTIFACT_HOME_SCHEMA}.${quoted(table)} WHERE ${where}`).get(projectId, id));
+      const row = guarded(() => db.prepare<string[], PluginSqlRow>(`SELECT * FROM ${ARTIFACT_HOME_SCHEMA}.${quoted(table)} WHERE ${where}`).get(...keys));
       if (row && pending_column && row[pending_column] !== null) throw new ActionError("actions.conflict", "原发布仍待恢复，请从原入口完成后再固定");
       return row ?? null;
     },
@@ -89,7 +93,7 @@ export function boundArtifactRootRow(db: SqliteDatabase, root: ProjectArtifactRo
       const sql = `UPDATE OR ABORT ${ARTIFACT_HOME_SCHEMA}.${quoted(table)} SET ${assignments.map(([column]) => `${quoted(column)}=?`).join(", ")}, ${revision}=${revision}+1`
         + ` WHERE ${where} AND ${revision}=?${pending}`;
       check();
-      return guarded(() => db.prepare(sql).run(...assignments.map(([, value]) => value), projectId, id, version).changes === 1, writes);
+      return guarded(() => db.prepare(sql).run(...assignments.map(([, value]) => value), ...keys, version).changes === 1, writes);
     },
   };
 }

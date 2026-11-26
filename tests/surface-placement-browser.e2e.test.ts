@@ -12,7 +12,8 @@ test("IUI-07 IUI-08 IUI-26: a real Home card can choose a project and a receiver
   const { projectId } = b;
   assert.ok(projectId);
   const prefix = "/projects/" + projectId;
-  await addProjectPlugin(b.web, projectId, "goals");
+  // Goals is the card's owner; Pages and Dataset are the receivers it hands off to (none is on in a new project, batch 107).
+  for (const plugin of ["goals", "pages", "dataset"]) await addProjectPlugin(b.web, projectId, plugin);
   const title = "Keep this original Goal in place", target = await createProject(b.web, "Use the original here");
   const { goal } = await b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/io.molis.work.goals/goals", {
     title, outcome: "A real original Goal in this project", idempotency_key: randomUUID(),
@@ -62,8 +63,8 @@ test("IUI-07 IUI-08 IUI-26: a real Home card can choose a project and a receiver
   await select(choice, "Pages");
   await b.click(dialog + ' [data-position-offer="confirm"]');
   await b.waitFor(`${q("[data-toast]")}?.textContent.includes("已转成") && !${q(dialog)}`);
-  const pages = openPagesStore(b.homeDirectory);
-  try { assert.ok(pages.list(projectId).some(page => page.title === title)); } finally { pages.close(); }
+  const pages = openPagesStore(b.homeDirectory, projectId);
+  try { assert.ok(pages.list().some(page => page.title === title)); } finally { pages.close(); }
   assert.ok(await b.evaluate(`${q(row)}?.textContent.includes(${JSON.stringify(title)})`));
   assert.deepEqual(confirms, [prefix + "/api/host/surface-home", prefix + "/api/host/surface-home"]);
 });

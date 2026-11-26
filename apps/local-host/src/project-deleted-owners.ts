@@ -1,12 +1,15 @@
 import { forgetAutomationOffers, forgetAutomationPreferences } from "@molis-ai/molis-work-service-automation-recommender";
 import { shippedParts } from "./plugin-registry.js";
 import { forgetPartitionPlatformRecords } from "./partition-platform-services.js";
+import { partitionLibraryPath } from "./partition-plugin-assembly.js";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-judgment-rules";
 import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { rm, rmdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
 import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
 import { AdoptionStore } from "@molis-ai/molis-work-service-blueprints";
@@ -16,7 +19,7 @@ import { HOME_PAGES_HOME_STORE, openHomePagesDatabase, purgeHomePagesProject } f
 import { clearExternalSessionsProjectFile, sessionsProjectData } from "@molis-ai/molis-work-service-sessions";
 import { randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -83,13 +86,25 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 /**
  * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. A built-in plugin's
  * library says which of its rows belong to a project (`databases.home.project_rows` in its Manifest) and the platform deletes those
- * rows itself, with the files of its own (`owner_files`) the rows name, running no code of the plugin's (PG-024); a library
- * partitioned by project goes whole. Both come from the catalog without the Host naming the plugin. The modules that are no plugin,
+ * rows itself, with the files of its own (`owner_files`) the rows name, running no code of the plugin's (PG-024). A partition's own
+ * library (`databases.partition`) lives in the project's directory and goes with it. These come from the catalog without the Host naming the plugin. The modules that are no plugin,
  * Functions, Characters and the 成果库's originals, export a declaration of what they keep (`ProjectDataDeclaration`), and the Host
  * names them here. They run in the order the declarations
  * ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
 type DeclaredOwner = ProjectDeletedOwner & { order?: number };
+
+/** Removes a directory only when nothing is in it; false when it holds something or is not there. */
+async function removeIfEmpty(directory: string): Promise<boolean> {
+  try {
+    await rmdir(directory);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+    if ((error as NodeJS.ErrnoException).code === "ENOTEMPTY" || (error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  }
+}
 
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: DeclaredOwner[] = [
@@ -99,10 +114,18 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
         return [{ id: entry.project_plugin_id, ...projectDataLabel(library.project_rows.label, entry.manifest, registeredBuiltinText(entry.manifest)), order: library.project_rows.order,
           clear: (projectId: string) => clearProjectRows(home, library, pluginId, projectId, entry.manifest.owner_files) }];
       }
-      if (!entry.runtime || library?.partition !== "project") return [];
-      const store = library.store_name;
-      return [{ id: entry.project_plugin_id, ...namedProjectDataLabel("workbench.project-deletion.partition", entry.manifest, registeredBuiltinText(entry.manifest)),
-        clear: (projectId: string) => rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true }) }];
+      const partition = entry.manifest.databases?.partition;
+      if (!partition) return [];
+      // A partition's own library (U2): its file and journals, so the confirmation lists the plugin and nothing of it outlives the project.
+      const text = registeredBuiltinText(entry.manifest);
+      return [{ id: entry.project_plugin_id, order: partition.deletion?.order,
+        ...partition.deletion ? projectDataLabel(partition.deletion.label, entry.manifest, text) : namedProjectDataLabel("workbench.project-deletion.partition", entry.manifest, text),
+        clear: async (projectId: string) => {
+          const root = partitionRoot(home, projectId), file = partitionLibraryPath(root, partition.store_name);
+          await Promise.all(["", "-journal", "-wal", "-shm"].map(suffix => rm(file + suffix, { force: true })));
+          // A partition with no catalog row (a fixed-id demo made again) must not keep the folders the library was in: only empty ones go.
+          for (const directory of [dirname(file), root]) if (!await removeIfEmpty(directory)) break;
+        } }];
     }),
     // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
     ownerOf(home, "characters", charactersProjectData),

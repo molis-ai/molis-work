@@ -206,7 +206,7 @@ test("ONB-22/30: change an unavailable Jelly model in the review and read the re
   await waitFor("document.querySelector('[data-scene-main] details summary')");
   assert.equal(await evaluate("document.querySelector('[data-scene-main] input[type=checkbox]')===null"), true);
   await click("[data-scene-aside] button:nth-of-type(2)");
-  await waitFor("document.querySelector('[data-scene-main]').innerText.match(/仅此设备|This device only/i)");
+  await waitFor("document.querySelector('[data-scene-main]').innerText.match(/仅限本机|This device only/i)");
   assert.match(await evaluate<string>("document.querySelector('[data-scene-main] h2').textContent"), /拖放轮盘|Drop wheel/i);
   assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /开启|\bOn\b/i);
   assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /关闭|\bOff\b/i);

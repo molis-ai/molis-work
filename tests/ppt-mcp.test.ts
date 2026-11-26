@@ -4,9 +4,8 @@ import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { PPT_ACTION_PERMISSIONS, PPT_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-plugin-ppt";
-import { openPptStore } from "./fixtures/plugin-home-stores.js";
+import { openPptStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
@@ -41,7 +40,7 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
     assert.equal(edits.filter(result=>!result.isError).length,1);assert.equal(edits.filter(result=>result.isError).length,1);
     presentation=(await call(reader,'get',{id})).presentation;assert.equal(presentation.version,2);
     assert.deepEqual(JSON.parse((await call(reader,'export',{id,expected_version:2})).content),presentation);
-    const db=openHomeSqliteDatabase(home,'ppt');
+    const db=openPartitionLibraryDatabase(home,projects.a.project_id,'ppt');
     try{
       const sentinel = (await call(writer, 'create', { title: 'Constraint fixture' })).presentation;
       const fixedSentinel = (await call(writer, 'promote', { id: sentinel.id, expected_version: sentinel.version })).presentation;
@@ -60,7 +59,7 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
     try{const library=openProjectVersionStores(project);assert.equal((library.artifacts.query.getArtifactVersion(projects.a.project_id,recovered.artifact)!.payload as any).title,'Later edit');
       assert.equal(library.artifacts.query.getArtifactVersion(projects.a.project_id,{...recovered.artifact,version:2}),null);
     }finally{project.close();}
-    const store=openPptStore(home);try{assert.deepEqual(store.get(id,projects.a.project_id),recovered.presentation);}finally{store.close();}
+    const store=openPptStore(home, projects.a.project_id);try{assert.deepEqual(store.get(id),recovered.presentation);}finally{store.close();}
     const exported=await call(reader,'export',{id});assert.deepEqual(JSON.parse(exported.content),recovered.presentation);
     await call(restarted,'delete',{id,expected_version:recovered.presentation.version});assert.deepEqual((await call(reader,'list')).presentations,[]);
   }finally{await Promise.all(clients.map(client=>client.close()));}

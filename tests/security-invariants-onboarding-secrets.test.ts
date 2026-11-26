@@ -134,10 +134,10 @@ test("S-onboarding-secret-hold unapproved secret-like files stay held locally an
     body: ready.summary!.body,
   });
   assert.equal(adopted.phase, "complete");
-  const store = openPagesStore(dir);
+  const store = openPagesStore(dir, adopted.project_id);
   try {
-    for (const page of store.list(adopted.project_id)) {
-      const full = JSON.stringify(store.get(page.id, adopted.project_id).body);
+    for (const page of store.list()) {
+      const full = JSON.stringify(store.get(page.id).body);
       assert.equal(full.includes(SECRET_TOKEN_A), false);
       assert.equal(full.includes(SECRET_TOKEN_B), false);
     }
@@ -186,9 +186,9 @@ test("S-onboarding-secret-hold strip redacts secret values while keeping variabl
     body: secondPass.summary!.body,
   });
   assert.equal(adopted.phase, "complete");
-  const store = openPagesStore(dir);
+  const store = openPagesStore(dir, adopted.project_id);
   try {
-    const allBodies = store.list(adopted.project_id).map(p => JSON.stringify(store.get(p.id, adopted.project_id).body)).join("\n");
+    const allBodies = store.list().map(p => JSON.stringify(store.get(p.id).body)).join("\n");
     assert.equal(allBodies.includes(SECRET_TOKEN_A), false, "Pages document must not contain raw secret");
     assert.equal(allBodies.includes("OPENAI_API_KEY=<REDACTED>"), true, "Pages document stores stripped content");
   } finally {

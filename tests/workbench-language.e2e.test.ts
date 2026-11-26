@@ -474,13 +474,13 @@ test("FSS-35 FSS-36 FSS-38 the open Artifact library retitles exact saved versio
   const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
   const project = b.projectId, prefix = "/projects/" + project;
   const visit = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + path }, b.sessionId));
-  const pages = openPagesStore(b.homeDirectory), decks = openPptStore(b.homeDirectory);
+  const pages = openPagesStore(b.homeDirectory, project), decks = openPptStore(b.homeDirectory, project);
   const marker = "固定正文校验标记", excerpt = marker + " & <示例>";
   const body = { type: "doc", content: Array.from({ length: 40 }, (_, index) => ({
     type: "paragraph", content: [{ type: "text", text: String(index) + " " + (excerpt + " ").repeat(5) }],
   })) };
-  const note = pages.create({ project_id: project, title: "文档", body });
-  const deck = decks.create({ project_id: project, title: "演示稿 · Original" });
+  const note = pages.create({ title: "文档", body });
+  const deck = decks.create({ title: "演示稿 · Original" });
   t.after(() => { pages.close(); decks.close(); });
   await b.setViewport(1440, 950);
   const pageFrame = await pluginFrameBrowser(t, b, "pages"), deckFrame = await pluginFrameBrowser(t, b, "ppt");
@@ -496,7 +496,7 @@ test("FSS-35 FSS-36 FSS-38 the open Artifact library retitles exact saved versio
   await deckFrame.waitFor("document.querySelector('[data-ppt-artifact-bar]')?.textContent.includes('再存一个固定版本')");
   const importText = "# 导入原文\n保留 & bytes\n";
   const imported = await b.web.post<{ artifact_id: string; version: number }>(prefix + "/api/artifacts/import", { source: "file", filename: "原始文件.md", content: importText });
-  const saved = [pages.get(note.id, project), decks.get(deck.id, project)].map(value => {
+  const saved = [pages.get(note.id), decks.get(deck.id)].map(value => {
     assert.ok(value.artifact_id);
     return { artifact_id: value.artifact_id, version: value.artifact_version };
   });
@@ -686,7 +686,7 @@ test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 s
   const document = `document.querySelector('[data-coding-method-document]')`;
   await frame.waitFor(`${document}?.querySelector('p')?.textContent.includes('保留正文 · Original')`);
   await frame.evaluate(`void (()=>{window.methodRows=${builtins};window.methodDialog=${dialog};window.methodDocument=${document};
-    window.methodButton=${original}.querySelector('button');methodButton.focus();})()`);
+    window.methodButton=${original}.querySelector('button');methodButton.focus();})()`, undefined, "person");
   const retained = `[methodRows.every((node,index)=>node===${builtins}[index]),methodDialog===${dialog},methodDialog.open,
     methodDocument===${document},methodButton===document.activeElement,methodDocument.querySelector('h3').textContent,methodDocument.querySelector('p').textContent]`;
   const originalExcerpt = await frame.evaluate<string>(`${document}.querySelector('p').textContent`);
@@ -864,9 +864,9 @@ test("FSS-35 a Pages editor retitles its controls in place without rewriting the
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
   const projectId = b.projectId, title = "保留原文 · Draft", original = "复制代码 — 这句话属于用户。";
   const paragraph = (value: string) => ({ type: "paragraph", content: [{ type: "text", text: value }] });
-  const store = openPagesStore(b.homeDirectory);
+  const store = openPagesStore(b.homeDirectory, projectId);
   const record = (() => { try {
-    return store.create({ project_id: projectId, title, body: { type: "doc", content: [
+    return store.create({ title, body: { type: "doc", content: [
       { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "目录（用户正文）" }] },
       paragraph(original), { type: "toc" }, { type: "calendar" }, { type: "code_block" },
       ...Array.from({ length: 55 }, (_, index) => paragraph("Original paragraph " + (index + 1))),
@@ -904,8 +904,8 @@ test("FSS-35 a Pages editor retitles its controls in place without rewriting the
   await child.waitFor("codeCopy.title === 'Copy code' && contents.querySelector('.pages-toc-label')?.textContent === 'Table of contents'");
   assert.deepEqual(await child.evaluate(snapshot), expected(true));
   const read = () => {
-    const persisted = openPagesStore(b.homeDirectory);
-    try { return persisted.get(record.id, projectId); } finally { persisted.close(); }
+    const persisted = openPagesStore(b.homeDirectory, projectId);
+    try { return persisted.get(record.id); } finally { persisted.close(); }
   };
   await new Promise(resolve => setTimeout(resolve, 550)); // The editor schedules saves after 400ms.
   assert.deepEqual(read(), record, "the language switch did not queue an autosave");
@@ -1242,7 +1242,7 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
     window.savedStudioDetail=document.querySelector('[data-detail-open] .pc-detail-pane');window.savedStudioDetailWord=savedStudioDetail.querySelector('.pc-detail-meta span');
     window.savedStudioExcerpt=document.querySelector('[data-pc-description]');
     field.value='unfinished 摘录';field.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-pc-value=team]').click();
-    field.focus();field.setSelectionRange(1,6,'backward');})()`);
+    field.focus();field.setSelectionRange(1,6,'backward');})()`, undefined, "person");
   const opened = await b.evaluate<string>(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`);
   assert.ok(opened);
   const tab = `.tab-item[data-tab-kind=plugin][data-plugin=${JSON.stringify(surface)}]`;
@@ -1336,7 +1336,7 @@ test("FSS-20 FSS-74 the Studio canvas switches the current and previous design's
   await child.click(`[data-as-open="${build.id}"]`);
   await child.waitFor("document.querySelector('[data-as-plugin] h1')?.textContent === '读书摘记'");
   await child.evaluate(`(()=>{const root=window.studioCanvas=document.querySelector('[data-as-plugin]'),field=window.studioCanvasField=root.querySelector('[data-field=text]');
-    field.value='Canvas 草稿';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();field.setSelectionRange(1,5,'backward');})()`);
+    field.value='Canvas 草稿';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();field.setSelectionRange(1,5,'backward');})()`, undefined, "person");
   await chooseEnglishInSettings(t, b);
   await child.waitFor("studioCanvas.querySelector('h1')?.textContent === 'Reading notes'");
   assert.deepEqual(await child.evaluate(`[studioCanvas===document.querySelector('[data-as-plugin]'),studioCanvasField===studioCanvas.querySelector('[data-field=text]'),

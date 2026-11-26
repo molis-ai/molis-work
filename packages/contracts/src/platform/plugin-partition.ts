@@ -57,9 +57,9 @@ export interface PluginPushDeclaration {
 }
 export interface PluginPushKindDeclaration {
   readonly kind: string;
-  /** One of this plugin's actions, of action type `molis.push.export.v1`. */
+  /** One of this plugin's actions, declared with `defineObjectExportAction` (input `molis.push.export.input.v1`, `PUSH_EXPORT_INPUT_TYPE`). */
   readonly export_action: string;
-  /** One of this plugin's actions, of action type `molis.push.put.v1`. */
+  /** One of this plugin's actions, declared with `defineObjectPutAction` (input `molis.push.put.input.v1`, `PUSH_PUT_INPUT_TYPE`). */
   readonly put_action: string;
   readonly revision: string;
   readonly local_refs?: readonly { readonly path: string; readonly on_push: "strip" | "remap" }[];

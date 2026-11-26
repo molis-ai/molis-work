@@ -66,8 +66,8 @@ test("RAC-2265: an import preview cuts by whole characters, so a two-unit charac
 /** A Pages document whose body is `body`, open in the project; the comments side view is opened with `openPanel` or by a comment itself. */
 async function openComments(t: TestContext, browser: Browser, pages: Child, title: string, body: object, openPanel = true) {
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const store = openPagesStore(homeDirectory);
-  const page = store.create({ project_id: projectId!, title, body }); store.close();
+  const store = openPagesStore(homeDirectory, projectId!);
+  const page = store.create({ title, body }); store.close();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === ${JSON.stringify(title)}`);
   if (!openPanel) return { comments: null, pageId: page.id };
@@ -102,7 +102,7 @@ test("RAC-2267: the quote sent to the comments side cuts by whole characters at 
   // Focus the editor, take the whole marked text with the keyboard, then run the bar's own comment tool: the side receives that text as the quote.
   await pages.waitFor("Boolean(document.querySelector('mark[data-pages-comment]'))", 15_000);
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === "引文"`);
-  await pages.evaluate("window.__tools = null; document.addEventListener('molis:context-tools', event => { window.__tools = event.detail; }); document.querySelector('.ProseMirror')?.focus();");
+  await pages.evaluate("window.__tools = null; document.addEventListener('molis:context-tools', event => { window.__tools = event.detail; }); document.querySelector('.ProseMirror')?.focus();", undefined, "person");
   await pages.click(".ProseMirror");
   // The editor's "Mod-a" is Command on macOS and Ctrl elsewhere (prosemirror-keymap follows the platform); Linux has no Meta+A in the editor.
   for (const type of ["keyDown", "keyUp"]) await browser.command("Input.dispatchKeyEvent", { type, key: "a", code: "KeyA", modifiers: process.platform === "darwin" ? 4 : 2 }, browser.sessionId);

@@ -187,7 +187,7 @@ function builtinAggregateHomeStoreNames(): readonly string[] {
     const names = new Set<string>();
     for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
       const homeDb = entry.manifest.databases?.home;
-      if (!homeDb || homeDb.partition) continue;
+      if (!homeDb) continue;
       if ((entry.manifest.actions ?? []).some(action => action.action.home_aggregate === true)) {
         names.add(homeDb.store_name);
       }
@@ -203,7 +203,7 @@ function fixtureAggregateHomeStoreNames(fixtures: MolisWorkLocalHostOptions["plu
   for (const entry of fixtures.home) {
     const manifest = ("manifest" in entry ? entry : entry.definition).manifest;
     const homeDb = manifest.databases?.home;
-    if (!homeDb || homeDb.partition) continue;
+    if (!homeDb) continue;
     if ((manifest.actions ?? []).some(action => action.action.home_aggregate === true)) {
       names.push(homeDb.store_name);
     }

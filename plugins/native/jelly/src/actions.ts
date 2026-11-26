@@ -185,6 +185,12 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
           return [];
         }
         const now = store.get(kind, row.id);
+        // A category named like another one made since stays out, as saving it would.
+        const named = kind === "category" && "name" in row && store.categories().some(category => category.id !== row.id && category.name.trim().toLocaleLowerCase() === String(row.name).trim().toLocaleLowerCase());
+        if (named) {
+          skipped.push(row.id);
+          return [];
+        }
         try {
           if (!now) return [store.insert(kind, { ...row, revision: row.revision + 1 })];
           if (now.revision !== row.revision + 1) store.conflict(kind, row.id);

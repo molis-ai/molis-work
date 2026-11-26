@@ -152,9 +152,10 @@ export function changeJellySeries(series: JellySeries, date: string, scope: Jell
   const kept = scope === "thisAndFuture" ? endBefore(series, date) : null;
   if (!patch) return { series: kept && touched(kept), created: null };
   const { start_date: _start, end_date: _end, ...rest } = fields;
-  // The edited occurrence's new length, against what it was, changes every occurrence's length alike.
+  // The edited occurrence's new length, against what it was, changes every occurrence's length alike; an occurrence stretched on its own and
+  // shortened back cannot take the series below one day.
   const resized = jellyDaysBetween(fields.start_date ?? current.start_date, fields.end_date ?? current.end_date) - jellyDaysBetween(current.start_date, current.end_date);
-  const length = jellyDaysBetween(series.start_date, series.end_date) + resized;
+  const length = Math.max(0, jellyDaysBetween(series.start_date, series.end_date) + resized);
   const weekdays = patch.weekdays !== undefined && !sameDays(patch.weekdays, series.weekdays) ? [...patch.weekdays] : rotate(series.weekdays, moved);
   const from = scope === "all" ? series.start_date : date, start = jellyAddDays(from, moved);
   const own = (day: string) => scope === "all" || day >= date;

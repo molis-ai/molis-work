@@ -102,6 +102,11 @@ test("deleting a category moves its entries, including a single date's change, t
   assert.equal(back.items.find(entry => entry.id === item.id)?.category_id, category.id);
   assert.equal(back.items.find(entry => entry.id === `${series.id}@2026-09-14`)?.category_id, category.id);
   assert.deepEqual(back.items.filter(entry => entry.id === other.id).map(entry => [entry.category_id, entry.title]), [["uncategorized", "另一件（改过）"]]);
+  // A category deleted and then made again under the same name: the old one stays out, as saving it would.
+  const { category: again } = await f.bound.invoke(a.saveCategory, { name: "家里" });
+  const { restore: home } = await f.bound.invoke(a.deleteCategory, { id: again.id, expected_revision: 1 });
+  await f.bound.invoke(a.saveCategory, { name: "家里" });
+  assert.deepEqual((await f.bound.invoke(a.restore, { rows: home })).skipped, [again.id]);
   // 「未分类」 is never put back through restore, so it cannot be renamed that way.
   const renamed = await f.bound.invoke(a.restore, { rows: { categories: [{ ...recolored, name: "别的", revision: recolored.revision - 1 }] } });
   assert.deepEqual(renamed.skipped, ["uncategorized"]);

@@ -96,5 +96,9 @@ test("an Assistant's series edits: an earlier end drops what is after it, an end
   assert.deepEqual([longer.start_date, longer.end_date], ["2026-09-21", "2026-09-22"]);
   const moved = changeJellySeries(series({ end_date: "2026-09-22" }), "2026-09-23", "onlyThis", { start_date: "2026-09-25" }, at, "x").series!;
   assert.deepEqual(moved.exceptions["2026-09-23"]?.patch, { start_date: "2026-09-25", end_date: "2026-09-26" });
-  validateJellySeries(shorter, categories); validateJellySeries(longer, categories); validateJellySeries(moved, categories);
+  // One occurrence stretched to three days on its own, then set back to one day for all: the series stays one day long.
+  const stretched = changeJellySeries(series(), "2026-09-23", "onlyThis", { end_date: "2026-09-25" }, at, "x").series!;
+  const back = changeJellySeries(stretched, "2026-09-23", "all", { start_date: "2026-09-23", end_date: "2026-09-23" }, at, "x").series!;
+  assert.deepEqual([back.start_date, back.end_date, back.exceptions["2026-09-23"]?.patch], ["2026-09-21", "2026-09-21", { start_date: "2026-09-23", end_date: "2026-09-23" }]);
+  validateJellySeries(shorter, categories); validateJellySeries(longer, categories); validateJellySeries(moved, categories); validateJellySeries(back, categories);
 });

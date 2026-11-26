@@ -1,5 +1,6 @@
 import {CODING_HISTORY_SCHEMA_SQL,readCodingSavedHistory} from './saved-history.js';
-import type { PluginDatabase, PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginOverviewClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { codingOverviewRow } from "./home-background.js";
 import { codingStoreErrors } from "./store-errors.js";
 import {CodingInputStore,CODING_INPUTS_SCHEMA_SQL} from './inputs.js';
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
@@ -135,8 +136,17 @@ const planIn = (reader: PluginDatabaseReader, projectId: string, sessionId: stri
  */
 export class CodingSessionStore {
   readonly inputs: CodingInputStore;
-  constructor(private readonly db: PluginDatabase) {
+  /** `overview` is the platform's summary table in the partition's main database (V17); without it (a test's bare store) no row is kept. */
+  constructor(private readonly db: PluginDatabase, private readonly overview?: PluginOverviewClient) {
     this.inputs = new CodingInputStore(db);
+  }
+
+  /** Writes the session's overview row, or removes it when the list of background work has nothing to show for it, in the session's transaction. */
+  private summed(tx: PluginDatabaseTransaction, projectId: string, sessionId: string): void {
+    if (!this.overview) return;
+    const row = tx.get("SELECT session_id, runtime_session_id, title, state, updated_at, steps_json, background_json, archived FROM coding_sessions WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
+    const session = row && Number(row.archived) === 0 ? backgroundSessionsOf([row])[0] : undefined;
+    this.overview.join(tx, rows => session ? rows.upsert("background_task", codingOverviewRow(session)) : rows.remove("background_task", sessionId));
   }
 
   savedHistory(projectId:string,sessionId:string):string[] {const record=this.get(projectId,sessionId);return readCodingSavedHistory(this.db,projectId,sessionId,record.runtime_session_id);}
@@ -242,6 +252,7 @@ export class CodingSessionStore {
   async setSteps(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, steps: CodingStepHolders | null): Promise<void> {
     await this.db.transaction(beforeEffect, tx => {
       tx.run("UPDATE coding_sessions SET steps_json = ? WHERE project_id = ? AND session_id = ?", [steps ? JSON.stringify(steps) : null, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
     });
   }
 
@@ -249,6 +260,7 @@ export class CodingSessionStore {
   async setBackground(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, running: CodingRunningCommand[] | null): Promise<void> {
     await this.db.transaction(beforeEffect, tx => {
       tx.run("UPDATE coding_sessions SET background_json = ? WHERE project_id = ? AND session_id = ?", [running?.length ? JSON.stringify(running) : null, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
     });
   }
 
@@ -267,6 +279,7 @@ export class CodingSessionStore {
       guard?.();
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET state = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [state, at, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
   }
@@ -281,6 +294,7 @@ export class CodingSessionStore {
       const record = sessionIn(tx, projectId, sessionId);
       if (rename && record.title === rename.from) tx.run("UPDATE coding_sessions SET title = ? WHERE project_id = ? AND session_id = ?", [rename.to, projectId, sessionId]);
       tx.run("UPDATE coding_sessions SET state = 'running', updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
   }
@@ -289,6 +303,7 @@ export class CodingSessionStore {
     return this.db.transaction(beforeEffect, tx => {
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [title, at, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
   }
@@ -299,6 +314,7 @@ export class CodingSessionStore {
       // Archiving an archived session (or restoring an active one) is refused, never a silent success.
       if (sessionIn(tx, projectId, sessionId).archived === archived) throw codingStoreErrors.session_unknown(archived ? "会话已归档" : "会话没有归档");
       tx.run("UPDATE coding_sessions SET archived = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [archived ? 1 : 0, at, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
   }
@@ -310,6 +326,7 @@ export class CodingSessionStore {
       guard?.();
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET goal_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [goalId, at, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
   }
@@ -321,6 +338,7 @@ export class CodingSessionStore {
         throw codingStoreErrors.session_binding_conflict("原执行会话已经固定，不能改绑或清空");
       if (current.runtime_session_id === runtimeSessionId) return current;
       tx.run("UPDATE coding_sessions SET runtime_session_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [runtimeSessionId, at, projectId, sessionId]);
+      this.summed(tx, projectId, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
   }

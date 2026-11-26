@@ -1,11 +1,17 @@
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabase, PluginDatabaseTransaction, PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt, PluginScheduleClient, PluginScheduleWriter, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDatabaseTransaction, PluginNotificationClient, PluginOverviewClient, PluginNotificationInput, PluginNotificationReceipt, PluginScheduleClient, PluginScheduleWriter, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleTaskDatabase } from "./tasks.js";
 import type { ScheduleJobPort } from "./wakeup.js";
 import { scheduleWakeupActions } from "./background-actions.js";
+import { writeScheduleRunRows } from "./missed-runs.js";
 
 /** Synchronous domain stores borrow the public transaction for exactly one write body. */
-export function scheduleRuntimeDatabase(database: PluginDatabase, scheduler: PluginScheduleClient, notifications: PluginNotificationClient) {
+/**
+ * `overview`, when the platform gives it (V17), keeps Schedule's runs in the partition's overview: written again at the end of every write,
+ * in the same transaction, so the Home's runs panel never asks a project. `projectId` and `now` are the partition's and the clock.
+ */
+export function scheduleRuntimeDatabase(database: PluginDatabase, scheduler: PluginScheduleClient, notifications: PluginNotificationClient,
+  overview?: { readonly client: PluginOverviewClient; readonly projectId: string; readonly now?: () => number }) {
   let active: { transaction: PluginDatabaseTransaction; schedule: PluginScheduleWriter; receipts: PluginNotificationReceipt[] } | undefined;
   const current = () => {
     if (!active) throw new ActionError("actions.forbidden", "定时任务写入需要当前插件事务");
@@ -43,8 +49,11 @@ export function scheduleRuntimeDatabase(database: PluginDatabase, scheduler: Plu
     const committed = await database.transaction(beforeEffect, transaction => scheduler.join(transaction, writer => {
       if (active) throw new ActionError("actions.forbidden", "定时任务事务不能重入");
       const state = { transaction, schedule: writer, receipts: [] as PluginNotificationReceipt[] }; active = state;
-      try { const value = operation(); requireSynchronous(value); return { value, receipts: state.receipts }; }
-      finally { active = undefined; }
+      try {
+        const value = operation(); requireSynchronous(value);
+        overview?.client.join(transaction, rows => writeScheduleRunRows(rows, db, scheduler.list(), overview.projectId, overview.now?.() ?? Date.now()));
+        return { value, receipts: state.receipts };
+      } finally { active = undefined; }
     }));
     for (const receipt of committed.receipts) await receipt.settle();
     return committed.value;

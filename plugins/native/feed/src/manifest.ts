@@ -47,6 +47,8 @@ export const feedManifest: PluginManifest = {
   sync: feedSync,
   runtime: { scope: "home" },
   databases: { project: FEED_PROJECT_DATABASE, home: FEED_HOME_DATABASE },
+  // Its scheduled and missed pulls, as rows of the platform's summary table in the partition's main database (V17).
+  overview_projection: { kinds: ["scheduled_run"] },
   // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault. Both are the person's Inbox: Feed writes them under
   // its own plugin id, and the platform lists an owned entry in the Inbox only for the kinds its owner declares there (PG-094 S12).
   attention: {

@@ -157,6 +157,13 @@ test("PA-41 the page saves through the route against the version read; a stale o
     assert.equal(invalid.body?.code, "agent.write_checker_invalid");
     assert.match(JSON.stringify(invalid.body), /检查器「Node 语法」的参数里要有一个、也只能有一个 \{file\}/, "the action's own words reach the page");
 
+    // Every language names the rule, not the generic "check your input".
+    for (const [locale, says] of [["en", /enter the program as a name found on PATH/], ["ja", /プログラム名（PATH 上で検索）/]] as const) {
+      const refused = await f.request(f.project, ROUTE, { workspace_id: app, expected_version: 1, checkers: [{ ...NODE, executable: "/tmp/not-a-program-name" }] }, TOKEN, { cookie: `molis_work_locale=${locale}` });
+      assert.equal(refused.status, 400, refused.text);
+      assert.match(String(refused.body?.error), says, locale);
+    }
+
     const bare = await f.save({ workspace_id: app, expected_version: 1, checkers: [] }, null);
     assert.equal(bare.status, 403, bare.text);
     assert.equal(bare.body?.code, "host.request_refused", "the local control guard refuses it before the route");

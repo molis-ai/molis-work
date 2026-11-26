@@ -78,6 +78,8 @@ export interface PluginHostServices {
   readonly projects?: import("./plugin-projects.js").PluginProjectsClient;
   /** The project's Attention entries (the Inbox's); present with `attention:read` or `attention:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
   readonly attention?: import("./plugin-attention.js").PluginAttentionClient;
+  /** The overview rows of a plugin that keeps its data in the partition's main database and declares `overview_projection` (V17, batch 108). */
+  readonly overview?: import("./plugin-overview.js").PluginOverviewClient;
   /** The project's Context Ledger edges; present with `context-ledger:read` or `context-ledger:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
   readonly contextLedger?: import("./plugin-attention.js").PluginContextLedgerClient;
   /** The consumption scenes this plugin's Manifest declares (`action_scenes`); present with `scenes:use`, only inside the plugin's own running action (S-89). */

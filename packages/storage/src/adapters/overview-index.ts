@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, rmSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
-import { OVERVIEW_KINDS, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewKind } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_KINDS, OVERVIEW_MAIN_TABLE, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewKind } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { OverviewIndexLibrary, OverviewIndexPort, OverviewIndexStoredRow, OverviewTableRow } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openHomeSqliteDatabase, openHomeSqliteFile } from "../home-sqlite.js";
 import { TEXT_SEARCH_STORE } from "./text-search-index.js";
@@ -90,11 +90,17 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
         return null;
       }
       try {
-        const table = source.prepare("SELECT 1 AS found FROM sqlite_schema WHERE type = 'table' AND name = ?").get(OVERVIEW_TABLE);
+        const main = library.table === "main", name = main ? OVERVIEW_MAIN_TABLE : OVERVIEW_TABLE;
+        const table = source.prepare("SELECT 1 AS found FROM sqlite_schema WHERE type = 'table' AND name = ?").get(name);
         if (!table) return [];
         const rows: OverviewTableRow[] = [];
-        const select = source.prepare(`SELECT * FROM ${OVERVIEW_TABLE} WHERE kind = ? ORDER BY row_id LIMIT ?`);
-        for (const kind of kinds) rows.push(...select.all(kind, OVERVIEW_ROW_LIMIT) as OverviewTableRow[]);
+        // In the main database every plugin's rows share the table: only this installation's are read, and the column naming it is not kept.
+        const select = main ? source.prepare(`SELECT * FROM ${name} WHERE install_id = ? AND kind = ? ORDER BY row_id LIMIT ?`)
+          : source.prepare(`SELECT * FROM ${name} WHERE kind = ? ORDER BY row_id LIMIT ?`);
+        for (const kind of kinds) {
+          const read = (main ? select.all(library.install_id, kind, OVERVIEW_ROW_LIMIT) : select.all(kind, OVERVIEW_ROW_LIMIT)) as Record<string, string | number | null>[];
+          rows.push(...read.map(row => { const { install_id: _install, ...columns } = row; return columns; }));
+        }
         return rows;
       } catch {
         return null;

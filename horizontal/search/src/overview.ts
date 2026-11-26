@@ -153,16 +153,16 @@ function reachMap(reach: OverviewReach): Map<string, Set<string>> {
 
 /** A row read back from a library as its kind's columns, or null when it is not a valid row of its kind. */
 function checkedColumns(row: OverviewTableRow): OverviewTableRow | null {
-  let tags: unknown;
-  if (typeof row.tags_json === "string") {
-    try {
-      tags = JSON.parse(row.tags_json);
-    } catch {
-      return null;
-    }
+  let tags: unknown, needs: unknown;
+  try {
+    if (typeof row.tags_json === "string") tags = JSON.parse(row.tags_json);
+    if (typeof row.needs_json === "string") needs = JSON.parse(row.needs_json);
+  } catch {
+    return null;
   }
-  const allDay = row.all_day === null || row.all_day === undefined ? undefined : row.all_day === 1 ? true : row.all_day === 0 ? false : row.all_day;
-  const checked = checkOverviewRow(row.kind, { ...row, tags: tags ?? undefined, all_day: allDay });
+  const flag = (value: unknown) => value === null || value === undefined ? undefined : value === 1 ? true : value === 0 ? false : value;
+  const open = typeof row.open_surface === "string" || typeof row.open_id === "string" ? { surface: row.open_surface, id: row.open_id } : null;
+  const checked = checkOverviewRow(row.kind, { ...row, tags: tags ?? undefined, needs: needs ?? undefined, all_day: flag(row.all_day), waiting: flag(row.waiting), open });
   if ("problem" in checked) return null;
   const columns: Record<string, string | number | null> = {};
   for (const [column, value] of Object.entries(checked.columns)) if (typeof value === "string" || typeof value === "number" || value === null) columns[column] = value;
@@ -173,8 +173,10 @@ function storedRow(library: OverviewLibrary, row: OverviewTableRow): OverviewInd
   const fields: Record<string, unknown> = {};
   for (const field of OVERVIEW_SUMMARY_FIELDS) {
     const value = field === "tags" ? (typeof row.tags_json === "string" ? JSON.parse(row.tags_json) as unknown : null)
-      : field === "all_day" ? (row.all_day === null || row.all_day === undefined ? null : Number(row.all_day) === 1)
-        : row[field];
+      : field === "needs" ? (typeof row.needs_json === "string" ? JSON.parse(row.needs_json) as unknown : null)
+        : field === "all_day" || field === "waiting" ? (row[field] === null || row[field] === undefined ? null : Number(row[field]) === 1)
+          : field === "open" ? (typeof row.open_surface === "string" && typeof row.open_id === "string" ? { surface: row.open_surface, id: row.open_id } : null)
+            : row[field];
     if (value !== null && value !== undefined) fields[field] = value;
   }
   return { partition_id: library.partition_id, install_id: library.install_id, plugin_id: library.plugin_id, kind: String(row.kind) as OverviewKind,

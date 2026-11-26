@@ -1,4 +1,6 @@
 import { realpathSync } from "node:fs";
+import { pluginOverviewFor } from "./plugin-overview-service.js";
+import { mainOverviewLibrary, runningPartitionPlatformServices } from "./partition-platform-services.js";
 import { installHostUiText } from "./ui-text-provider.js";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
 import { savedHistoryFor } from "./saved-history-host.js";
@@ -270,7 +272,11 @@ function projectServices(options: PluginHostExecutorOptions, manifest: PluginMan
   const record = () => options.record?.(context.install_id) ?? null;
   const attention = pluginAttentionFor(manifest, context, database, ports, assertActive, record);
   const contextLedger = pluginContextLedgerFor(manifest, context, database, ports, assertActive, record);
-  return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}) };
+  const home = options.home?.directory;
+  const overview = pluginOverviewFor(manifest, context, database, ports.connection, assertActive, record, installId => {
+    if (home) runningPartitionPlatformServices(home)?.partitionChanged(options.project_id, installId, [mainOverviewLibrary(home, options.project_id, installId, manifest)]);
+  });
+  return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}), ...(overview ? { overview } : {}) };
 }
 
 /** `services.scenes` (PG-032 P1, S-89) and `services.judgments` (P2, S-90): the plugin's own consumption scenes and their judgment ledger, in the project the activation runs in. */

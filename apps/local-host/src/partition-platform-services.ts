@@ -7,6 +7,7 @@ import { PERSON_SETTINGS_STORE, openPersonSettings, type PersonSettingsInstallat
 import { OverviewService, overviewReach, type OverviewGrant, type OverviewLibrary } from "@molis-ai/molis-work-service-search";
 import { homeSqlitePath, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
 import { partitionPluginScope, type PartitionPluginLease } from "./partition-plugin-assembly.js";
+import { partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
 
 /**
  * The platform services the unified partitions add in the Home (specs/unified-partition-plugins §4.1, §5, §6.1, batch 106), put together
@@ -32,7 +33,9 @@ export interface OverviewInstallation {
 export function partitionOverviewLibraries(home: string, partitions: readonly { readonly partition_id: string; readonly plugins: readonly OverviewInstallation[] }[]): OverviewLibrary[] {
   return partitions.flatMap(partition => partition.plugins.flatMap(({ install_id, manifest }) => {
     const declaration = manifest.databases?.partition, kinds = manifest.overview_projection?.kinds;
-    if (!declaration || !kinds?.length) return [];
+    if (!kinds?.length) return [];
+    // A plugin that keeps its data in the partition's main database has its rows in the platform's table there (V17).
+    if (!declaration) return manifest.databases?.project ? [mainOverviewLibrary(home, partition.partition_id, install_id, manifest)] : [];
     const scope = partitionPluginScope(home, partition.partition_id, manifest.plugin_id, install_id);
     let path: string;
     try {
@@ -44,6 +47,12 @@ export function partitionOverviewLibraries(home: string, partitions: readonly { 
     }
     return [{ partition_id: partition.partition_id, install_id, plugin_id: manifest.plugin_id, path, kinds }];
   }));
+}
+
+/** One main-database plugin's overview rows in one partition: the platform's table in that partition's `molis-work.db`, read by installation. */
+export function mainOverviewLibrary(home: string, partitionId: string, installId: string, manifest: Pick<PluginManifest, "plugin_id" | "overview_projection">): OverviewLibrary {
+  return { partition_id: partitionId, install_id: installId, plugin_id: manifest.plugin_id, path: partitionDatabasePath(realpathSync(home), partitionId),
+    kinds: manifest.overview_projection?.kinds ?? [], table: "main" };
 }
 
 export interface PartitionPlatformServicesOptions {

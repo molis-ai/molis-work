@@ -61,8 +61,10 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // Removing `overview.lead` (decision 62 ③) took the home's empty lead box (`data-home-lead`) out of the same 16 pages, and only it:
 // drawn on the 36A-6 branch and on this one and compared token by token, each page loses that one element, a uniform -56 characters
 // in both languages; the other records are byte for byte the same. The 16 were recorded again.
+// Batch 112-1 took the speech-transcription words out of the workbench's text table, which every page carries (and changed the
+// attachment and import lines): each page shrinks by that table's change alone, -630 characters in Chinese and -634 in English. They were recorded again.
 // Batch 112-2 changed the model-API words in the workbench's text table, which every page carries (Jelly is no longer named, a
-// "choose in model settings" line replaces Jelly's): each page changes by that alone, +2 characters in Chinese and -10 in English. Recorded again.
+// "choose in model settings" line replaces Jelly's): on top of 112-1, each page changes by that alone, +2 characters in Chinese and -10 in English. Recorded again.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

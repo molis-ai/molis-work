@@ -64,7 +64,6 @@
     "tests/artifact-browser.test.ts": 2,
     "tests/artifact-consumes-file.test.ts": 2,
     "tests/artifact-document-import.test.ts": 18,
-    "tests/artifact-import-model-download.test.ts": 2,
     "tests/artifact-links.test.ts": 16,
     "tests/artifact-search-summary.test.ts": 4,
     "tests/artifact-source-and-links.test.ts": 3,

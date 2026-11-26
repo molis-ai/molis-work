@@ -132,9 +132,9 @@
 | [44B](reference/batches/44b.md) | [P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则](reference/batches/44b.md#batch-44b-item-0)（已合入 [#2262](https://github.com/molis-ai/molis-work/pull/2262) `de25e3090d`，[决定 66](reference/decisions.md#decision-66)） |
 |  | [合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）](reference/batches/44b.md#batch-44b-item-1)（已随 [#2294](https://github.com/molis-ai/molis-work/pull/2294) `b57fd115ff` 合入） |
 |  | [Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零](reference/batches/44b.md#batch-44b-item-2)（已随 [#2279](https://github.com/molis-ai/molis-work/pull/2279)、[#2294](https://github.com/molis-ai/molis-work/pull/2294) `b57fd115ff` 及独立复核修复 [#2308](https://github.com/molis-ai/molis-work/pull/2308) 合入；两项测试补缺移交 [106](reference/batches/106.md)） |
-| [44C](reference/batches/44c.md) | [统一提供方身份与平台登记](reference/batches/44c.md#batch-44c-item-1)（2026-11-24 加，44B 两轮复核的余项，用户定一次做完） |
-|  | [集成驱动收尾与厂商分支清零](reference/batches/44c.md#batch-44c-item-2) |
-|  | [签名样例、G1 终点与验证欠账](reference/batches/44c.md#batch-44c-item-3) |
+| [44C](reference/batches/44c.md) | [统一提供方身份与平台登记](reference/batches/44c.md#batch-44c-item-1)（2026-11-24 加，44B 两轮复核的余项，用户定一次做完；三项一起已随 [#2333](https://github.com/molis-ai/molis-work/pull/2333) `56a094ec0e` 合入，2026-11-26） |
+|  | [集成驱动收尾与厂商分支清零](reference/batches/44c.md#batch-44c-item-2)（已合入；偏离 D3 用户 2026-11-26 认可） |
+|  | [签名样例、G1 终点与验证欠账](reference/batches/44c.md#batch-44c-item-3)（已合入；PSD-01、PSD-02、PSD-03、PSD-06 部分达成，余项见批次文件） |
 | [45](reference/batches/45.md) | [首次／项目／个人空间场景闭环（支持个人空间直接采用或新建项目，接帮助往返 VUX-57 与 `packs.save` 三语报错）](reference/batches/45.md#batch-45-item-1) |
 |  | [官方签名场景包：行业观察与写作（`Feed+Pages`）、写代码（`Coding+Git+Diff+Todo` 四插件一次配齐）](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [情境 W4 创建与准备声明（W4-3～W4-7，Lucide 顶栏槽、懒加载守 `context-toolbar` 上限与当前分区候选隔离）](reference/batches/46.md#batch-46-item-1)（单 PR 等 45 合入后推进） |

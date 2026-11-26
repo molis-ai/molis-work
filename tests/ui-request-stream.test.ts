@@ -44,7 +44,7 @@ test("RAC-35 stream uses the common POST controls, protects their casing and nev
 });
 
 test("RAC-35 HTTP and streamed failures retain code, status, details and body call_id", async () => {
-  const body = { error: "需要下载语音模型", code: "material.model_required", call_id: "diagnostic-1", details: { approximate_bytes: 626000000 } };
+  const body = { error: "提取正文超过容量上限", code: "material.output_too_large", call_id: "diagnostic-1", details: { max_characters: 2000000 } };
   for (const response of [new Response(JSON.stringify(body), { status: 400 }), new Response(line({ type: "error", status: 400, ...body }))]) {
     await assert.rejects(fixture(response).request.stream("/read"), error => {
       assert.ok(error instanceof Error && "body" in error);

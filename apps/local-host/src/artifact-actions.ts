@@ -67,9 +67,6 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
         artifacts: runtime.artifacts, signal: caller.signal,
         // A file the Host was given for this import: only on the person's own call, and only one offered to the 成果库 itself.
         ...input.source === "file" && caller.audience === "user" && caller.original_file?.install_id === ARTIFACTS_PLUGIN_ID ? { offeredPath: caller.original_file.path } : {},
-        // Downloading the speech model is the person's own yes: an Agent, MCP client, workflow or plugin passing true downloads nothing (S-39, PMAT-48).
-        allowModelDownload: caller.audience === "user" && input.source === "file" && input.allow_model_download === true,
-        ...caller.on_progress ? { onProgress: caller.on_progress } : {},
         beforeDispatch: () => caller.beforeEffect(),
         beforeSave: () => caller.beforeEffect(),
       })),

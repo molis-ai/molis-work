@@ -22,7 +22,7 @@ Commands you run in the terminal panel, commands the host runs after you approve
 | 8 | On this machine | Loopback addresses | Never leaves your computer |
 | 9 | Plugin studio build check | `registry.npmjs.org` | **Dependency package names and versions** |
 | 10 | Public DNS fallback for host names | `dns.google`, `dns.alidns.com` | **Site names** (only where a proxy hands out placeholder addresses) |
-| 11 | On-device transcription model download | A model host (usually Hugging Face) | The model download request (about 626 MB, only if you explicitly allow it) |
+| 11 | (No longer used) On-device transcription model download | — | Removed with on-device transcription in batch 112; the number is not reused |
 | 12 | Side-panel browser | The pages you or the assistant open | Ordinary browser visits |
 | 13 | Feed research-library source | `github.com` | `git fetch` |
 | 14 | Account avatars | `*.googleusercontent.com`, `avatars.githubusercontent.com` | Browser image requests when showing linked account avatars; no Auth token and no referrer |
@@ -72,8 +72,8 @@ All three exist so that the product still works in unusual environments. Only a 
 ### 4. Pages and links you name
 
 - **When:** material import reads a web page; Jelly reads a source you give.
-- **Where to:** the http(s) address you give. Jelly's Bilibili adapter also contacts the fixed `api.bilibili.com` and downloads the subtitle and audio addresses it returns; the Xiaoyuzhou and Xiaohongshu adapters download the audio, video or image addresses the page lists (public https only).
-- **Limits:** material import is an explicit fetch you asked for: no credentials, 12 seconds, 4 MiB, at most 5 redirects, and **local and internal addresses are not blocked** (local pages included). Jelly accepts public addresses only, re-checks each hop, pins the resolved address, sends only public headers and no cookies; pages and APIs up to 4 million bytes, audio, video and images up to 25 MiB each.
+- **Where to:** the http(s) address you give. Jelly's Bilibili adapter also contacts the fixed `api.bilibili.com` and downloads the subtitle addresses it returns; the Xiaohongshu adapter downloads the image addresses the note lists (public https only). Audio and video are neither downloaded nor transcribed.
+- **Limits:** material import is an explicit fetch you asked for: no credentials, 12 seconds, 4 MiB, at most 5 redirects, and **local and internal addresses are not blocked** (local pages included). Jelly accepts public addresses only, re-checks each hop, pins the resolved address, sends only public headers and no cookies; pages and APIs up to 4 million bytes, images up to 25 MiB each.
 
 ### 5. Plugins made in the plugin studio
 
@@ -103,9 +103,9 @@ See cases 2 and 3 above.
 - **10a (model, image, judgement services and AnySearch):** only when a proxy variable is set and the system lookup returns a placeholder address, A and AAAA records are asked from `https://dns.google/resolve` and `https://dns.alidns.com/resolve`; the resolver that answered last time goes first and the other is tried only if the transport fails. Only the site name and record type are sent; 8 seconds; answers are not cached; every returned address still has to pass the public-address check.
 - **10b (Jelly page reading):** when the system lookup returns only placeholder addresses, A records are asked from `https://dns.google/resolve` (Google only). Only the site name of the page being read is sent; 6 seconds; the answer must be a fully public IPv4; cached for 60 seconds; the returned address still has to pass the public-address check.
 
-### 11. On-device transcription model download
+### 11. (No longer used)
 
-When Jelly imports audio or video and you explicitly allow the download, the on-device speech-to-text component downloads a model of about 626 MB (repository id `argmaxinc/whisperkit-coreml`, usually from Hugging Face). Without your permission the component refuses to go online.
+Class 11 was the on-device speech-to-text component downloading a model of about 626 MB; batch 112 removed on-device transcription, and audio and video are now kept as originals only. The number is kept and not given to another class.
 
 ### 12. Side-panel browser
 

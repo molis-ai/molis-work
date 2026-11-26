@@ -112,14 +112,14 @@ test("S-60 RAC-235 a read of bytes needs materials: read in the operation's effe
 
 test("S-60 RAC-235 the plugin's bytes reach the reader decoded and its choices as given, and nothing of the Host's own options is the plugin's", async () => {
   const r = rig();
-  await r.call(operation("command", READ), "materials.extract", [FILE, { textFormat: "markdown", pdfMode: "ocr", ocrLanguages: ["zh-Hant"], timeoutMs: 7000 }]);
+  await r.call(operation("command", READ), "materials.extract", [FILE, { textFormat: "markdown", pdfMode: "ocr", ocrLanguages: ["zh-Hant", "ja-JP"], timeoutMs: 7000 }]);
   const read = r.reads.at(-1)!;
   assert.equal(read.bytes!.toString("utf8"), "# 标题\n正文");
   assert.equal(read.options.textFormat, "markdown");
   assert.equal(read.options.pdfMode, "ocr");
-  assert.deepEqual(read.options.ocrLanguages, ["zh-Hant"]);
+  assert.deepEqual(read.options.ocrLanguages, ["zh-Hant", "ja-JP"]);
   assert.equal(read.options.timeoutMs, 7000);
-  assert.equal(read.options.allowModelDownload, false, "a model download is a person's explicit choice, never an operation's");
+  assert.equal(Object.hasOwn(read.options, "allowModelDownload"), false, "no model download exists to ask for");
   assert.equal(read.options.limits, undefined, "the Host's own limits stand");
   assert.ok(read.options.signal instanceof AbortSignal);
 });

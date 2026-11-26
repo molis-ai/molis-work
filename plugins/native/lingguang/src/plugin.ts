@@ -30,13 +30,10 @@ export function createLingguangPlugin(): PluginDefinition {
       ...(model ? { completeText: async (prompt, options) => (await model.complete(prompt, { signal: options.signal, onText: options.onText })).text } : {}),
       ...(materials?.extract ? { readFile: async (input, caller) => {
         const source = decodeMaterialUpload(input);
-        const material = await materials.extract!(source, { pdfMode: "ocr", allowModelDownload: input.allow_model_download,
-          signal: caller.signal });
+        const material = await materials.extract!(source, { pdfMode: "ocr", signal: caller.signal });
         return { text: material.text, coverage: material.coverage, file_name: source.file_name };
       } } : {}),
-      ...(materials?.readSource ? { readSource: (input, caller) => materials.readSource!(input.url, {
-        allowModelDownload: input.allow_model_download, signal: caller.signal,
-      }) } : {}),
+      ...(materials?.readSource ? { readSource: (input, caller) => materials.readSource!(input.url, { signal: caller.signal }) } : {}),
     };
     return { kind: "app", sync: syncBindings(context), views: [lingguangUiContribution],
       actions: [...createLingguangActionHandlers(ports), ...createLingguangContentHandlers(actions)], routes: lingguangRoutes(context) };

@@ -2,7 +2,7 @@
 
 状态：2026-09-27 按 main（8b609527）之后的代码整理，此后随功能改动逐段更新（含 2026-10-10 的提示词登记 W3-04、2026-10-12 Runtime 插件 `services.model` 与时限表 W3-06 E、2026-10-16 第二部分「AI 行为设计与质量」[`specs/ai-development-handbook`](../../specs/ai-development-handbook/spec.md)，以及 2026-11-23/24 随第 44B 批 `#2294`［Shelf 纯平台化、旧 Alchemist 删除、`packages/system-skills`］与决定 67 `#2301`［四类 Prompt 统一治理、双缓存域五层动态拼装、逐调用点 AST 门禁、`s1..sN` 全量技能句柄、`instruction_prompt_id` 解析与 `fencedMaterials` 迁移］的同步校准）；示例与文件位置均为实际代码。执行时的步骤清单在 Skill：[`skills/molis-prologue-ai/SKILL.md`](../../skills/molis-prologue-ai/SKILL.md)；本文解释架构、调用链和为什么。插件的通用写法仍以 [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md) 为准。
 
-用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Jelly 本机 OCR/Whisper、外部 CLI Runtime 暂不纳入。
+用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Host 本机 OCR（`molis-material`）、外部 CLI Runtime 暂不纳入。
 
 **这份手册分两部分，是 Molis Work 做 AI 能力的唯一手册。**
 

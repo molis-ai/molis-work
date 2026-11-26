@@ -30,7 +30,7 @@ import type { ShelfActionPorts } from "@molis-ai/molis-work-module-shelf/surface
 //   4. a body that is too large answers 413 and one that is not JSON 400, a failure with no code of ours 500 `actions.execution_failed`, except Images, whose
 //      edge keeps its own generic sentence for the unexpected (`images.internal`); Images used to answer its own codes for the body (FAILS there);
 //   5. the failed Shelf job still comes back with the shelf beside the error, and Jelly's streamed error event keeps the code and the details Lingguang reads
-//      (a model download is asked for by code, its size from the details) with the status of the kind (FAILS there: 400);
+//      (a conflict with its details) with the status of the kind (FAILS there: 400);
 //   6. nothing of the old shape is left: no error class, no mapper, no `mapError`, no `readBody`, no owner code raised without its declaration, and no bare
 //      `new Error(` for a caller's mistake in the owners' server sources.
 
@@ -302,9 +302,9 @@ test("the Shelf subject and file readers answer a code that ends in .not_found f
 test("Jelly's streamed error event keeps the code and the details, and carries the status of the kind", async t => {
   const edge = await failingEdge("jelly", t);
   try {
-    const download = new ActionError("material.model_required", "需要下载语音模型", { kind: "conflict", details: { approximate_bytes: 626_000_000, variant: "base" } });
+    const changed = new ActionError("jelly.source_changed", "来源已更改", { kind: "conflict", details: { source_id: "src-1" } });
     for (const [error, status, code, details, atStore] of [
-      [download, 409, "material.model_required", { approximate_bytes: 626_000_000, variant: "base" }, false],
+      [changed, 409, "jelly.source_changed", { source_id: "src-1" }, false],
       [new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled", undefined, false],
       [new Error("没有码"), 500, "actions.execution_failed", undefined, true],
       [new Error("模型失败"), 502, "plugin.model_failed", undefined, false],

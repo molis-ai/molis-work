@@ -7,49 +7,25 @@ const uiText = globalThis.t;
 
 const FILE_LIMIT = 25 * 1024 * 1024;
 
-/** Reading a file or a page into a spark: the progress dialog, the link question, the local-model question and the import. */
+/** Reading a file or a page into a spark: the progress dialog, the link question and the import. */
 export function installMaterial(page: LingguangPage): void {
   const { el, s, request, api } = page;
-  const stageText = (stage: string) => {
-    switch (stage) {
-      case "extracting": return uiText.text("lingguang.reading.stage-extracting");
-      case "fetching": return uiText.text("lingguang.reading.stage-fetching");
-      case "downloading": case "model_download": return uiText.text("lingguang.reading.stage-downloading");
-      case "transcribing": return uiText.text("lingguang.reading.stage-transcribing");
-      case "loading": return uiText.text("lingguang.reading.stage-loading");
-      case "ocr": return uiText.text("lingguang.reading.stage-ocr");
-      case "frames": case "frame_ocr": return uiText.text("lingguang.reading.stage-frames");
-      default: return uiText.text("lingguang.reading.loading");
-    }
-  };
-
   /** Read a file or a page with its progress shown; closing the dialog stops it. The reading, or null when stopped. */
   page.readMaterial = async (path, payload) => {
     const controller = new AbortController();
     const dialog = el.readingDialog;
-    const stage = required(dialog, "[data-lingguang-reading-text]"), bar = required<HTMLProgressElement>(dialog, "[data-lingguang-reading-progress]");
-    stage.textContent = uiText.text("lingguang.reading.loading");
-    bar.value = 0;
+    required(dialog, "[data-lingguang-reading-text]").textContent = uiText.text("lingguang.reading.loading");
     const onClose = () => controller.abort();
     dialog.addEventListener("close", onClose);
     dialog.showModal();
     let result: Reading | null = null, failure: Failure | null = null;
     try {
-      result = await molisWorkRequest.stream<Reading | null>(page.host.pluginRoute(path), { body: payload, signal: controller.signal, scope: page.life, onProgress: (event) => {
-        stage.textContent = stageText(event.stage);
-        if (typeof event.progress === "number") bar.value = Math.max(0, Math.min(1, event.progress));
-      } });
+      result = await molisWorkRequest.stream<Reading | null>(page.host.pluginRoute(path), { body: payload, signal: controller.signal, scope: page.life });
       if (!result) throw new Error(uiText.text("lingguang.reading.empty"));
     } catch (error) { failure = error as Failure; }
     finally { dialog.removeEventListener("close", onClose); if (dialog.open) dialog.close(); }
     if (failure) {
       if (isAbort(failure)) { page.showNote(uiText.text("lingguang.reading.stopped")); return null; }
-      // Transcription needs a local speech model: downloaded only on the person's yes, then the reading starts again.
-      if (failure.code === "material.model_required") {
-        const bytes = Number(failure.body?.details?.approximate_bytes);
-        const question = bytes > 0 ? uiText.text("lingguang.reading.model-prompt-size", { mb: Math.round(bytes / 1024 / 1024) }) : uiText.text("lingguang.reading.model-prompt");
-        return await page.ask(question, uiText.text("lingguang.reading.model-ok")) ? page.readMaterial(path, { ...payload, allow_model_download: true }) : null;
-      }
       throw failure;
     }
     return result;

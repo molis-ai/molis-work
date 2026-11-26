@@ -266,7 +266,6 @@ export type { KitVersion } from "@molis-ai/molis-work-contracts/platform/kit-rep
 export declare const MATERIAL_EXTENSIONS: {
     readonly text: readonly [".txt", ".md", ".markdown", ".html", ".htm", ".csv", ".json", ".log"];
     readonly image: readonly [".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".gif"];
-    readonly media: readonly [".mp3", ".wav", ".m4a", ".aac", ".aiff", ".aif", ".flac", ".mp4", ".mov", ".m4v", ".webm"];
     readonly document: readonly [".pdf"];
 };
 

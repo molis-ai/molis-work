@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-122 | 不再适用并删除 | 2026-11-26：它要把 `jelly-whisper` 的 SwiftPM 包构建改成挡合并；第 112-1 批连根删除了 `jelly-whisper`（WhisperKit、626 MB 语音模型下载链）和 CI 里那一步 `continue-on-error`，Swift 检查只剩挡合并的类型检查（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |
+| BL-398 | 不再适用并删除 | 2026-11-26：关对话框停不下本机语音模型的下载与转写；第 112-1 批删除了本机转写与模型下载，音视频导入只保存原件，这条下载不再存在（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |
 | BL-639 | 不再适用并删除 | 2026-11-25：它问的是 `databases.home` 按项目拆的分区库升级后怎么办；第 107 批删掉了那个复用器，分区库改为每个分区一份 `databases.partition`，版本按库声明的一份现行结构开（[107](../specs/post-anticorruption-roadmap/reference/batches/107.md)） |
 | BL-1055 | 已完成并删除 | SDK 与设计系统共用折叠组件，Images、Goals 已接入，Files 旧面板随 #2009 退役。[SCF-01](../specs/archive/shared-ui-folds/spec.md#验收标准) |
 | BL-1061 | 已完成并删除 | 连接行、原处连接卡和设计系统的自然高度折叠共用选择器函数。[SCF-02](../specs/archive/shared-ui-folds/spec.md#验收标准) |

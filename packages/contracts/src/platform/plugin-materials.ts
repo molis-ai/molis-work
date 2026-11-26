@@ -3,9 +3,9 @@ import type { MaterialRef } from "./project-materials.js";
 
 export type { MaterialSourceContent } from "../services/materials.js";
 
-/** Authority comes from the running action. Only a user call can approve a model download. */
+/** Authority comes from the running action. */
 export type PluginMaterialRequest = MaterialExtractionOptions;
-export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress"> & {
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal"> & {
   /**
    * Exact lowercase host names the read may contact, from the first request through every redirect and every page, API or media file the
    * source's reader follows to; a request to any other host is refused (`material.source.domain_not_allowed`) before it is looked up or sent.

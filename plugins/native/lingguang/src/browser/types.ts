@@ -17,7 +17,7 @@ export interface LingguangHost extends Pick<UiPluginClientHost<HTMLElement, HTML
 }
 
 /** A failed request: the Host's plain Error with its `code`, HTTP `status` and parsed `body` (the extra detail a refusal carries). */
-export type Failure = Error & { status?: number; code?: string; body?: { details?: { approximate_bytes?: unknown } } | null };
+export type Failure = Error & { status?: number; code?: string };
 
 /** One request to 灵光's routes (`path` is under the plugin: `/sparks`) or to a platform route (a path that starts with `/api/`). */
 export type LingguangRequest = <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>) => Promise<T>;

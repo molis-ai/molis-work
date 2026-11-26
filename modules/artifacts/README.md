@@ -25,7 +25,7 @@ ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/
 
 ## 接入与边界
 
-导入回执的 `text_available` 只由本次固定版本的正文推导。原件保存成功可以没有正文；转写消费者必须据此判断是否完成，不能用缺少 `model_required` 推断提取成功。模型下载需求只属于本次调用，不落入成果版本。失败后重试仍走同一导入、同正文版本复用（QEA-27/28）。
+导入回执的 `text_available` 只由本次固定版本的正文推导。原件保存成功可以没有正文（音视频只保存原件，不转写正文）；消费者必须据此判断是否读到正文。失败后重试仍走同一导入、同正文版本复用（QEA-27/28）。
 
 `artifacts.import.file/external@1` 的 `warnings` 为绑定了 Workbench 词包的 `OwnedTextRef[]`，页面在显示时翻译。导入的固定成果现在写 schema 2，payload 只存键与参数。已有 schema 1 保留原 payload 和内容摘要，可继续预览、下载及交给声明支持的插件。本人重导旧来源会追加 schema 2，随后相同的当前格式可复用。验收见 [QEA-79/80](../../specs/quality-experience-audit/spec.md#第三十四批导入警告按显示语言呈现固定版本保留原文qf-15)。
 

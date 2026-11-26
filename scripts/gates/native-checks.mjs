@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Static checks for the code that is not TypeScript (specs/archive/repository-anti-corruption §4.16, slice W1-09): the Rust of the
-// desktop shell and sync Worker, the Swift of the native material extractors, the shell scripts and any Python file. The TypeScript is checked by the health
+// desktop shell and sync Worker, the Swift of the native material extractor and computer helper, the shell scripts and any Python file. The TypeScript is checked by the health
 // gates (scripts/gates/lint.mjs). These checks are not numbers: they pass or they fail, and every warning is an error, so
 // there is no baseline. The tools are the ones the language ships with.
 //
@@ -9,9 +9,7 @@
 //                                                 (--target wasm32-unknown-unknown); each crate uses its own edition
 //                                                 Desktop Rust tests also run after clippy.
 //   node scripts/gates/native-checks.mjs swift    swiftc -typecheck of the standalone Swift file, and of the computer
-//                                                 helper's sources together (one executable, same frameworks as its build.sh);
-//                                                 with --package also `swift build` of the SwiftPM package (needs the network on
-//                                                 the first run and a Swift that reads its swift-tools-version, 6.2; about 7 minutes cold)
+//                                                 helper's sources together (one executable, same frameworks as its build.sh)
 //   node scripts/gates/native-checks.mjs shell    shellcheck --severity=warning on every tracked .sh file and every tracked file
 //                                                 whose first line is a sh/bash shebang
 //   node scripts/gates/native-checks.mjs python  every tracked .py file parses (python3 -I, nothing is written)
@@ -24,8 +22,7 @@
 // used, and a newer one may report a lint the pinned one does not.
 // Exit codes: 0 passed, 1 a check failed, 2 the command or the environment is unusable (a missing tool is exit 2, never a pass).
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import os from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isMainScript } from "../script-paths.mjs";
@@ -37,11 +34,9 @@ export const RUST_CRATES = [
   { root: "apps/sync-worker", manifest: "apps/sync-worker/Cargo.toml", target: "wasm32-unknown-unknown" },
   { root: "server/src/sync", manifest: "server/Cargo.toml", target: "wasm32-unknown-unknown" },
 ];
-/** The Swift files and what checks them: `typecheck` (a standalone file), `executable` (sources typechecked together), or `package` (compiled by a SwiftPM package). */
+/** The Swift files and what checks them: `typecheck` (a standalone file) or `executable` (sources typechecked together). */
 export const SWIFT_UNITS = [
-  { file: "apps/local-host/native/materials/JellyMaterial.swift", check: "typecheck", target: "macosx14.0" },
-  { file: "apps/local-host/native/materials/whisper/Sources/JellyWhisper/JellyWhisper.swift", check: "package", package: "apps/local-host/native/materials/whisper" },
-  { file: "apps/local-host/native/materials/whisper/Package.swift", check: "package", package: "apps/local-host/native/materials/whisper" },
+  { file: "apps/local-host/native/materials/MolisMaterial.swift", check: "typecheck", target: "macosx14.0" },
   // The computer helper is one executable: the four sources typecheck together, the same way build.sh compiles them.
   {
     check: "executable",
@@ -57,7 +52,7 @@ export const SWIFT_UNITS = [
 ];
 const SHELL_SHEBANG = /^#!\s*(?:\/usr\/bin\/env\s+)?(?:\/\S*\/)?(?:ba|da|k|z)?sh\b/;
 
-const USAGE = "usage: native-checks.mjs rust|swift|shell|python [--package] [--root <dir>]";
+const USAGE = "usage: native-checks.mjs rust|swift|shell|python [--root <dir>]";
 export class Unusable extends Error {}
 const unusable = (message) => { throw new Unusable(message); };
 
@@ -103,7 +98,7 @@ export const checkRust = (root, files = trackedFiles(root)) => {
   return { problems, summary: `${sources.length} Rust files formatted, clippy clean, tests pass` };
 };
 
-export const checkSwift = (root, { withPackages = false } = {}, files = trackedFiles(root)) => {
+export const checkSwift = (root, files = trackedFiles(root)) => {
   const sources = files.filter((file) => file.endsWith(".swift"));
   if (!sources.length) return { problems: [], summary: "no Swift files" };
   const known = new Set(SWIFT_UNITS.flatMap((unit) => unit.files ?? [unit.file]));
@@ -120,20 +115,9 @@ export const checkSwift = (root, { withPackages = false } = {}, files = trackedF
     const result = run("swiftc", ["-typecheck", "-swift-version", "5", "-target", `${arch}-apple-${unit.target}`, ...unit.frameworks.flatMap((framework) => ["-framework", framework]), ...unit.files], { cwd: root });
     if (result.status !== 0) problems.push(`swiftc -typecheck ${unit.files.join(" ")} failed:\n${tail(result.stderr + result.stdout)}`);
   }
-  const packages = [...new Set(SWIFT_UNITS.filter((unit) => unit.check === "package" && sources.includes(unit.file)).map((unit) => unit.package))];
-  if (withPackages) {
-    for (const directory of packages) {
-      const scratch = mkdtempSync(path.join(os.tmpdir(), "molis-swift-build-"));
-      try {
-        const result = run("swift", ["build", "--package-path", directory, "--scratch-path", scratch], { cwd: root });
-        if (result.status !== 0) problems.push(`swift build --package-path ${directory} failed:\n${tail(result.stderr + result.stdout)}`);
-      } finally { rmSync(scratch, { recursive: true, force: true }); }
-    }
-  }
-  const built = withPackages ? "; the SwiftPM package builds" : "; the SwiftPM package is built only with --package";
   const executables = SWIFT_UNITS.filter((unit) => unit.check === "executable" && unit.files.every((file) => sources.includes(file))).length;
   const executableNote = executables ? `, ${executables} executable typechecks together` : "";
-  return { problems, summary: `${sources.length} Swift files known, the standalone one typechecks${executableNote}${built}` };
+  return { problems, summary: `${sources.length} Swift files known, the standalone one typechecks${executableNote}` };
 };
 
 export const checkShell = (root, files = trackedFiles(root)) => {
@@ -165,23 +149,21 @@ export const checkPython = (root, files = trackedFiles(root)) => {
 const main = () => {
   const args = process.argv.slice(2);
   const languages = [];
-  const options = { root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".."), package: false };
+  const options = { root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..") };
   for (let index = 0; index < args.length; index++) {
     const [name, inline] = args[index].split(/=(.*)/s);
     if (["rust", "swift", "shell", "python"].includes(name)) languages.push(name);
-    else if (name === "--package") options.package = true;
     else if (name === "--root") { options.root = path.resolve(inline ?? args[++index] ?? ""); }
     else { console.error(`unknown argument ${args[index]}\n${USAGE}`); process.exit(2); }
   }
   if (!languages.length) { console.error(USAGE); process.exit(2); }
-  if (options.package && !languages.includes("swift")) { console.error(`--package goes with swift\n${USAGE}`); process.exit(2); }
   const files = trackedFiles(options.root);
   let failed = false;
   for (const language of languages) {
     let result;
     try {
       result = language === "rust" ? checkRust(options.root, files)
-        : language === "swift" ? checkSwift(options.root, { withPackages: options.package }, files)
+        : language === "swift" ? checkSwift(options.root, files)
         : language === "python" ? checkPython(options.root, files) : checkShell(options.root, files);
     } catch (error) {
       if (error instanceof Unusable) { console.error(`${language}: ${error.message}`); process.exit(2); }

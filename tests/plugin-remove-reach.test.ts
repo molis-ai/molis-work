@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -98,7 +98,7 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
   };
   // Whose actions are whose: the removal must take effect, not only leave the pages answering.
   const pluginIdOf = new Map(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
-  const offered = async (id: string) => (await client.discover(assistant))
+  const offered = async (id: string) => (await client.discover(assistant) as ActionView[])
     .filter(view => view.provider.plugin_id === pluginIdOf.get(id) && view.availability.available).map(view => view.capability_id).sort();
   const left: Record<string, string[]> = {}, back: Record<string, string[]> = {};
   for (const id of builtins) {

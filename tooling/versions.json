@@ -689,6 +689,7 @@
     "action.mainline.items.move": 1,
     "action.mainline.items.remove": 1,
     "action.mainline.items.rename": 1,
+    "action.mainline.line.contains": 1,
     "action.mainline.line.read": 1,
     "action.mainline.place": 1,
     "action.mainline.read": 1,

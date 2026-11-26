@@ -30,9 +30,9 @@ export function handleMainlineEventSurfacesHttp(request: IncomingMessage, respon
       || !wanted || typeof wanted !== "object" || Object.keys(wanted).some(name => name !== "kind" && name !== "id") || !named(wanted.kind) || !named(wanted.id))
       throw new ActionError("actions.input_invalid", "事件卡请求无效");
     const subject: ActionSubject = { kind: wanted.kind, id: wanted.id }, reads = mainlineAttention(request, host, reference);
-    const line = reads ? await reads.line() : null;
+    const membership = await reads?.contains(subject, signal);
     signal.throwIfAborted();
-    if (!line?.events.some(event => key(event.subject) === key(subject))) throw new ActionError("actions.subject_unavailable", "事项线上没有这个事件，或你读不到它");
+    if (!membership?.on_line) throw new ActionError("actions.subject_unavailable", "事项线上没有这个事件，或你读不到它");
     const click = surfaceClick(body.click), intent = positionOfferIntent(body.offer), correction = positionCorrection(body.correct), recovery = positionRecovery(body.recovery);
     const scope = positionOfferScope(reference.project_id, "line-event", key(subject));
     if (intent) {

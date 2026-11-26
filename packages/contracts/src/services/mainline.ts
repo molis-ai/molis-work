@@ -273,6 +273,7 @@ export const WORK_LINE_EVENT_SCHEMA = { ...WORK_EVENT_SCHEMA, properties: { ...W
 const ITEM_ID_SCHEMA = { type: "string", minLength: 1, maxLength: 200 } as const;
 /** The line of one project, or with `item` only what is in that work item (contract-design §5). */
 export type WorkLineReadRequest = WorkEventWindow & { item?: string };
+export interface WorkLineContainsRequest { subject: ActionSubject; window: WorkEventWindow }
 const WORK_LINE_READ_SCHEMA = { ...WORK_EVENT_WINDOW_SCHEMA, properties: { ...WORK_EVENT_WINDOW_SCHEMA.properties, item: ITEM_ID_SCHEMA } } as const;
 
 const metadata = { scope: "project" as const, scheduling: "concurrent" as const, subject_kinds: [] };
@@ -289,6 +290,12 @@ export const mainlineActions = {
     kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
     input_schema: inputSchemaFor<WorkLineReadRequest>()(WORK_LINE_READ_SCHEMA),
     output_schema: { type: "object", properties: { events: { type: "array", items: WORK_LINE_EVENT_SCHEMA }, table: TASK_TABLE_SCHEMA, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["events", "table", "issues"], additionalProperties: false } } } as ActionDefinition<WorkLineReadRequest, WorkLineReadResult>,
+  contains: { capability_id: "mainline.line.contains", version: /* @version action.mainline.line.contains */ 1, operation: "query", action: { ...metadata,
+    title: "核对事项线事件", description: "核对这个对象是否仍在本人当前时间范围内可读的事项线上。",
+    kind: "query", effect: "read", audiences: ["user"], permissions: [MAINLINE_READ_PERMISSION],
+    input_schema: inputSchemaFor<WorkLineContainsRequest>()({ type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, window: WORK_EVENT_WINDOW_SCHEMA },
+      required: ["subject", "window"], additionalProperties: false }),
+    output_schema: { type: "object", properties: { on_line: { type: "boolean" } }, required: ["on_line"], additionalProperties: false } } } as ActionDefinition<WorkLineContainsRequest, { on_line: boolean }>,
   /**
    * What waits on the person, merged at read time from the line and the task table of the same call, each object once. What the
    * Attention entries and missed runs say reaches it through their registrants and task providers, not through a read of its own.

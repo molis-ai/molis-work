@@ -7,8 +7,13 @@ import { dirname, join } from "node:path";
 import ts from "typescript";
 import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-module-shelf/surface";
 import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { BUILTIN_INSTRUCTIONS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
+import { BUILTIN_INSTRUCTIONS } from "../apps/local-host/dist/agent-definitions/builtin-instructions.js";
+
+import { homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { openTestHome, createPackageProject } from "./fixtures/test-home.js";
+import { newPublisher } from "./fixtures/sandbox-package.js";
+import { CONTENT_PLUGIN_ID, signedContentPackage } from "./fixtures/content-package.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -197,6 +202,22 @@ test("RAC-194 a Plugin's instructions reach the register through its own definit
   assert.deepEqual(BUILTIN_INSTRUCTIONS.filter(prompt => declared.has(key(prompt))).map(key), [], "not in both");
   assert.ok(declared.size >= 12, `only ${declared.size} definition instructions found, check the scan`);
   for (const id of ["choose.capability", "choose.component"]) assert.ok(keys.includes(`io.molis.work.plugin-builder/${id}`), `${id} is the platform's, in the Host list`);
+});
+
+test("BL-b47-prompt-register-newest-fallback a content package held in two projects switches editions on upgrade and disable", async t => {
+  const h = await openTestHome(t), a = await createPackageProject(h, "Content A"), b = await createPackageProject(h, "Content B");
+  const publisher = newPublisher(), v1 = signedContentPackage(publisher);
+  const listed = () => homeAgentDefinitions(h.home).methods().filter(row => row.owner_id === CONTENT_PLUGIN_ID).map(row => row.skill_id).sort();
+  await a.install(v1);
+  await b.install(v1);
+  await b.install(signedContentPackage(publisher, { version: "2.0.0", compatibleFrom: ["1.0.0"], skills: [{ id: "new-only" }] }));
+  assert.deepEqual(listed(), ["new-only"]);
+  await b.disable(CONTENT_PLUGIN_ID);
+  assert.deepEqual(listed(), ["meeting-notes"]);
+  await b.uninstall(CONTENT_PLUGIN_ID);
+  assert.deepEqual(listed(), ["meeting-notes"]);
+  await a.disable(CONTENT_PLUGIN_ID);
+  assert.deepEqual(listed(), [], "a stopped content package offers no method");
 });
 
 test("a Plugin, Module or Horizontal model port takes registered instructions, not a raw prompt string", () => {

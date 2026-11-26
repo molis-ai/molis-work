@@ -122,7 +122,7 @@ export type BuiltinSyncBinding = ({
     readonly locate?: (key: string) => string | null;
 };
 
-export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "home_store" | "observation">;
+export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "project_runtime" | "home_store" | "observation">;
 
 export interface PluginBoardSpecimen {
     readonly id: string;
@@ -178,6 +178,7 @@ export interface PluginRegistration {
         readonly create: () => PluginDefinition;
         readonly package_name: string;
         readonly factory_export: string;
+        readonly keys?: string;
     };
     readonly home_store?: HomeStoreDeclaration;
     readonly workbench: PluginWorkbenchRegistration;

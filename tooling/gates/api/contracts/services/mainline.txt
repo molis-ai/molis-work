@@ -665,7 +665,6 @@ export interface BackgroundTasksReadResult {
 export interface HomeBackgroundTaskRow extends BackgroundTaskRow {
     project_id: string;
     project_name: string;
-    resting?: true;
 }
 
 export interface HomeBackgroundTasksReadResult {

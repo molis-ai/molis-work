@@ -8,6 +8,7 @@ export interface OverviewIndexLibrary {
     readonly plugin_id: string;
     readonly path: string;
     readonly kinds: readonly import("platform/plugin-overview").OverviewKind[];
+    readonly table?: "library" | "main";
 }
 
 export interface OverviewIndexPort {

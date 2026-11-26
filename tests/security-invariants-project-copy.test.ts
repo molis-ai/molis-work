@@ -22,7 +22,7 @@ function homes(t:import('node:test').TestContext){
 }
 
 for(const [name,open] of [['form',openFormStore],['dataset',openDatasetStore],['ppt',openPptStore],['lingguang',openLingguangStore]] as const)test('project copy '+name+' uses the local owner, independent IDs, stable retry and rejects an edited target',t=>{
- const f=homes(t),source=open(f.source,'original'),target=open(f.target,'copied');t.after(()=>{source.close();target.close();});const original=source.create({title:'Original'});source.create({title:'Must stay local'});
+ const f=homes(t),source=open(f.source,'original'),unselected=open(f.source,'unselected'),target=open(f.target,'copied');t.after(()=>{source.close();unselected.close();target.close();});const original=source.create({title:'Original'});unselected.create({title:'Must stay local'});
  source.update(original.id,{title:'Keep literal source ID '+original.id});
  const a=source.copy(f.context('source')),b=target.copy(f.context('target')),before=readFileSync(partitionLibraryFile(f.source,'original',name));assert.throws(()=>source.replica(f.context('source')),/同步空间不匹配/,'copy does not enable personal sync on a local Home');
  const exported=a.snapshot('original');assert.equal(exported.length,1);assert.throws(()=>a.snapshot('unselected'),/FOREIGN_PROJECT/);const copied=a.fork(exported[0]!,f.identity),again=a.fork(exported[0]!,f.identity);assert.deepEqual(copied,again);const wire=copied.value as Wire;

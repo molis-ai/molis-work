@@ -113,14 +113,27 @@ async function runningHome(t: TestContext) {
   const store = new LocalProjectDatabase(join(home, "project.sqlite")), actions = pluginActions(store, DEMO_PROJECT_ID);
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions,
     capabilities: { async invoke<I, O>(): Promise<O> { return { workspaces: [], selected: null } as O; } } };
-  const broadcasts: { project: string | null; event: string; payload: unknown }[] = [];
+  const heard: { host: PluginHostEvents; project: string | null; event: string; payload: unknown }[] = [];
   const original = PluginHostEvents.prototype.broadcast;
   t.mock.method(PluginHostEvents.prototype, "broadcast", function (this: PluginHostEvents, input: Parameters<typeof original>[0]) {
-    if (input.event_type_id === HOST_CONNECTION_CHANGED_EVENT) broadcasts.push({ project: DEMO_PROJECT_ID, event: input.event_type_id, payload: input.payload });
+    if (input.event_type_id === HOST_CONNECTION_CHANGED_EVENT) heard.push({ host: this, project: DEMO_PROJECT_ID, event: input.event_type_id, payload: input.payload });
     return original.call(this, input);
   });
+  /**
+   * One announcement reaches every platform the project runs on (its own, and each per-partition plugin's instance, batch 107), one
+   * broadcast each, one after another: they are one row here, and no platform hears one announcement twice.
+   */
+  const announced = () => {
+    const rows: { hosts: Set<PluginHostEvents>; item: { project: string | null; event: string; payload: unknown } }[] = [];
+    for (const { host, ...item } of heard) {
+      const last = rows.at(-1);
+      if (last && JSON.stringify(last.item) === JSON.stringify(item) && !last.hosts.has(host)) last.hosts.add(host);
+      else rows.push({ hosts: new Set([host]), item });
+    }
+    return rows.map(row => row.item);
+  };
   t.after(async () => { await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
-  return { home, host, ports, store, broadcasts };
+  return { home, host, ports, store, get broadcasts() { return announced(); } };
 }
 
 test("RAC-493a S-54 a connection change is announced to the projects of that Home whose platform runs, starts none, and tells a released or another Home's nothing", async t => {

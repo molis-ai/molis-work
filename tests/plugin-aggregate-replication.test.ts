@@ -120,8 +120,9 @@ test('Invalid fields, wrong space, cross-project collisions and oversized payloa
   }
   assert.throws(()=>b.replica({...f.context,spaceId:'other'}),/空间/);
   // The library is one partition's: once bound to another, an asset keyed to this one is refused before anything is written.
-  const db=new DatabaseSync(partitionLibraryFile(f.homes[1]!,'project','ppt'));try{db.prepare("UPDATE sync_context SET project_id='another-project' WHERE id=1").run();}finally{db.close();}
-  assert.throws(()=>rb.resolve(rb.conflicts()[0]!.key,'remote'),/其他分区/);
+  const conflicted=rb.conflicts()[0]!.key;
+  const db=new DatabaseSync(partitionLibraryFile(f.homes[1]!,'project','ppt'));try{const context=(db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'sync\\_%\\_context' ESCAPE '\\'").get() as {name:string}).name;db.prepare(`UPDATE ${context} SET project_id='another-project' WHERE id=1`).run();}finally{db.close();}
+  assert.throws(()=>rb.resolve(conflicted,'remote'),/其他分区/);
 });
 
 test('Disabled project and revoked account never yield queued uploads; local Home is not admitted',t=>{

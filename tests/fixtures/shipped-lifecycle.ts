@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, projectActionAvailability, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, projectActionAvailability, runningPluginPlatform, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -46,6 +46,13 @@ export interface Shipped {
   write(web: Web, routes: string, title: string): Promise<unknown>;
   titles(web: Web, routes: string): Promise<string[]>;
 }
+
+/**
+ * A plugin that keeps a library in each partition (`databases.partition`) runs as its own instance in each partition (batch 107): its
+ * installation is the Home's, and its running state is that instance's. Taken out of a project, the instance there stops and the
+ * installation stays as it was installed.
+ */
+export const partitioned = (pluginId: string) => !!BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId)?.manifest.databases?.partition;
 
 /** What the person's own list shows of a thing: its title. */
 export const titlesOf = (items: ReadonlyArray<{ title: string }>) => items.map(item => item.title);
@@ -84,9 +91,12 @@ export function viewOf(served: Served, project: TestProject, plugin: Pick<Shippe
   const routes = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/${plugin.plugin_id}`;
   const platform = async () => plugin.scope === "home" ? await served.host.homePlugins!.ready()
     : await served.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, project.project_id));
+  /** The platform the plugin runs on in the project: its own instance there when it is partitioned, else the one above. */
+  const own = async () => partitioned(plugin.plugin_id)
+    ? await served.host.withProject(project.reference, (runtime: { store: Parameters<typeof runningPluginPlatform>[0] }) => runningPluginPlatform(runtime.store, project.project_id, plugin.plugin_id)) : await platform();
   return {
     routes,
-    platform: async () => { const running = await platform(); assert.ok(running, `${plugin.key}: the ${plugin.scope} platform runs`); return running; },
+    platform: async () => { const running = await own(); assert.ok(running, `${plugin.key}: the ${plugin.scope} platform runs`); return running; },
     /** The plugin's actions the person may call in the project now: those of the half the walk follows, or of the scope asked for. */
     async callable(scope: "home" | "project" | undefined = plugin.dual ? "home" : undefined) {
       const views = await served.host.actionClient(project.reference).discover(await served.host.localPersonContext(project.reference));
@@ -126,7 +136,7 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.removed_by ?? plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
     assert.equal(await answer(plugin.titles(served.web, at.routes)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
     assert.deepEqual(await at.callable(), [], `${plugin.key}: nothing of it to call in the project`);
-    assert.equal((await at.installation())?.state, plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);
+    assert.equal((await at.installation())?.state, partitioned(plugin.plugin_id) ? "installed" : plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);
     // Added back: what was written is there, in the same installation.
     assert.equal(await answer(served.web.post(settings, { plugin_id: plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
     assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: added back, with its data`);
@@ -147,7 +157,7 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
 
     // Upgrade: the Home last ran an older build of the plugin. The next start moves the same installation onto this build.
     await served.shut();
-    const db = new DatabaseSync(plugin.scope === "home" ? homeSqlitePath(home, "plugin-runtime") : project.database_path);
+    const db = new DatabaseSync(plugin.scope === "home" || partitioned(plugin.plugin_id) ? homeSqlitePath(home, "plugin-runtime") : project.database_path);
     try {
       const records = new SqlitePluginRuntimeRepository(db), stored = records.get(first.install_id);
       assert.ok(stored);

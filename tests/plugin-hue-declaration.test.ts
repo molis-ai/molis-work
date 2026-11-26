@@ -111,7 +111,7 @@ test("RAC-707 the icon inventory on the board keeps the platform surfaces and th
   const glyphs = Object.entries(pluginTabGlyphs());
   assert.ok(glyphs.length > 20);
   assert.equal(pluginTabGlyphs().artifacts, "package", "the platform Artifact surface keeps its glyph");
-  assert.ok(board.includes("<strong>成果</strong>"), "the platform Artifact surface remains on the component board");
+  assert.ok(board.includes("<strong>成果库</strong>"), "the platform Artifact surface remains on the component board");
   for (const [, glyph] of glyphs) assert.ok(board.includes(`<code>${glyph}</code>`), `${glyph} is listed`);
   for (const entry of builtinPluginDirectory().filter(item => pluginTabGlyphs()[item.id])) assert.ok(board.includes(`<strong>${entry.name}</strong>`), entry.name);
 });

@@ -167,6 +167,11 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
 test("effect guard rechecks the actual Catalog installation after an asynchronous call, then permits reactivation", { timeout: 15_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "catalog-install-effect-")), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Installation lifecycle", actor_id: "owner" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "ppt", actor_id: "owner" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "form", actor_id: "owner" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "dataset", actor_id: "owner" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "lingguang", actor_id: "owner" });
   // Schedule: an ordinary project plugin, switched off and on here.
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   const entered = gate(), release = gate();

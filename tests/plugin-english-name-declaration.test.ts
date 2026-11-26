@@ -102,7 +102,7 @@ test("FSS-36 RAC-1725 RAC-1728 the built-in names, market summaries and tab name
       if (pluginMarketCards(directory).some(card => card.id === id)) assert.ok(market.includes(`<h2>${name}</h2>`), id);
     }
     assert.equal(pluginMarketCards(directory).find(entry => entry.id === "todo")?.copy, locale === "en"
-      ? "Write down what needs doing, what is for today, and who you are waiting for." : "记下要做的事，分清今天、在等谁。");
+      ? "Write down what needs doing, what’s for today, and who you’re waiting on." : "记下要做的事，分清今天、在等谁。");
     assert.equal(t.text("workbench.documents-state.expand-directory"), locale === "en" ? "Expand directory" : "展开目录");
   });
 });

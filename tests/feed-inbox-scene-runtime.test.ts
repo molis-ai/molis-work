@@ -135,7 +135,7 @@ test("FI-1 RAC-482 Inbox lists a rule only when its capability can run the scene
   const compatible = inboxRuntime({ capabilities: [action(FUNCTION)] });
   const zhUnbound = await read(compatible, "zh"), enUnbound = await read(compatible, "en");
   assert.deepEqual(zhUnbound.functions, [{ function_key: "rule-a", name: "规则 A" }]);
-  assert.deepEqual({ key: zhUnbound.function_key, reason: zhUnbound.summary.reason }, { key: null, reason: "尚未绑定规则" });
+  assert.deepEqual({ key: zhUnbound.function_key, reason: zhUnbound.summary.reason }, { key: null, reason: "还没绑定规则" });
   assert.deepEqual({ key: enUnbound.function_key, reason: enUnbound.summary.reason }, { key: null, reason: "No rule is bound yet" },
     "the fixed sentence comes from Inbox's own words in the language of the read");
   const incompatible = inboxRuntime({ capabilities: [action(FUNCTION)], views: [sceneView(INBOX_NEXT_SCENE_ID, 1, false)] });

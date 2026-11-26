@@ -44,6 +44,7 @@ async function fixture(t: TestContext, homePlugins: readonly PluginDefinition[] 
   await runWithMolisWorkHome(home, () => seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]));
   const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "Permission project", actor_id: person });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: person });
     catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: PAGES_PROJECT_PLUGIN_ID, actor_id: person });
     catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: TODO_PROJECT_PLUGIN_ID, actor_id: person });
     return created;

@@ -35,7 +35,7 @@ test("ASR-07 page storage scopes isolate identical installations and projects by
 });
 
 test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and do not receive Runtime services", { timeout: 30_000 }, async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("Registered pages"), other = await f.project("Other registered pages");
+  const f = await serveHomeRuntime(t), project = await f.project("Registered pages", ["pages"]), other = await f.project("Other registered pages", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
   const open = async (pluginId: string) => {
     const response = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: pluginId } });
@@ -94,7 +94,7 @@ test("SYS-15 S-47 page authority allows declared routes and refuses other plugin
 });
 
 test("SYS-15 S-47 project page cannot switch project or Home and deletion invalidates its authority", async t => {
-  const f = await serveHomeRuntime(t), p = await f.project("Page owner"), q = await f.project("Other page");
+  const f = await serveHomeRuntime(t), p = await f.project("Page owner", ["pages"]), q = await f.project("Other page", ["pages"]);
   const prefix = `/projects/${p.project_id}`;
   const response = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.cognia" } });
   assert.equal(response.status, 200, await response.clone().text());
@@ -125,7 +125,7 @@ test("SYS-15 S-47 closing a page cancels a running command without revoking the 
 });
 
 test("SYS-15 S-47 toolbar callbacks retain the exact page, project and lifetime; an ordinary page cannot call them", async t => {
-  const f = await serveHomeRuntime(t), p = await f.project("Toolbar owner"), q = await f.project("Other toolbar");
+  const f = await serveHomeRuntime(t), p = await f.project("Toolbar owner", ["pages"]), q = await f.project("Other toolbar", ["pages"]);
   const prefix = `/projects/${p.project_id}`;
   const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.cognia" } });
   assert.equal(opened.status, 200);
@@ -158,7 +158,7 @@ test("SYS-15 S-47 toolbar callbacks retain the exact page, project and lifetime;
 });
 
 test("SYS-15-U14 S-47 object placement uses the owner's declared scope and rejects forged projects and kinds", async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("Object scope");
+  const f = await serveHomeRuntime(t), project = await f.project("Object scope", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
   const open = async (id: string) => {
     const response = await f.request(prefix + "/api/host/plugin-pages", {method:"POST",body:{plugin_id:id}});
@@ -275,7 +275,7 @@ test("RAC-2516 S-47 own object presentation checks exactly the selected declarat
     const value = await start(context); if (value.kind !== "app") throw new Error("Expected app");
     return { ...value, actions: [...value.actions ?? [], { ...reader, handle: () => { reads++; return {}; } }], views: [{ descriptor: { contribution_id, kind: "embedded", label: "Object presentation", surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }, { surface_id: "detail", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] }, render: () => "<section>Object presentation</section>" }] };
   };
-  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Object presentation");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Object presentation", ["pages"]);
   const prefix = `/projects/${project.project_id}`, mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
   const open = async () => {
     const response = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
@@ -310,7 +310,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
     if (block && caller.allowed_actions && view.capability_id === probe.state.capability_id) { entered.resolve(); await release.promise; } return { available: true };
   } });
   await grantHomeProbe(f.host, probe);
-  const project = await f.project("External page visibility"), prefix = `/projects/${project.project_id}`;
+  const project = await f.project("External page visibility", ["pages"]), prefix = `/projects/${project.project_id}`;
   const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
   assert.equal(shown.status, 200, await shown.clone().text());
   const mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
@@ -351,7 +351,7 @@ for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transp
 
 
 test("SYS-15-U5 S-47 Coding and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
+  const f = await serveHomeRuntime(t), project = await f.project("Companion page previews", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
   for (const plugin_id of ["coding", "git", "diff"]) {
     const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) }});
@@ -845,7 +845,7 @@ test("A4-M S-47 memory settings retain only their four declared session navigati
 });
 
 test("S-skill-authoring a plugin page cannot call the authored Skills routes through its page authority", async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("Skills authoring page");
+  const f = await serveHomeRuntime(t), project = await f.project("Skills authoring page", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
   const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.plugin-builder" } });
   assert.equal(opened.status, 200, await opened.clone().text());

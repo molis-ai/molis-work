@@ -15,7 +15,7 @@ const answerFile = (form: FormRecord, answerId: string, value: string) => ({ nam
 
 test("W4-04-03 the page reaches Forms through the project's Runtime routes: edit, collect, results, files and two pins", { timeout: 90_000 }, async t => {
   const home = await openTestHome(t);
-  const project = await home.createProject("Forms on the Runtime");
+  const project = await home.createProject("Forms on the Runtime", ["form"]);
   const forms = `/projects/${project.project_id}/api/plugins/io.molis.work.form/forms`;
   const { form: created } = await home.web.post<{ form: FormRecord }>(forms, { title: "周报", project_id: project.project_id });
   assert.equal(created.project_id, project.project_id);
@@ -51,7 +51,7 @@ test("W4-04-03 the page reaches Forms through the project's Runtime routes: edit
 
 test("W4-04-04 a page asking one project's Forms about another project is refused, and an answer file still comes in after collection stops", { timeout: 90_000 }, async t => {
   const home = await openTestHome(t);
-  const project = await home.createProject("Forms here"), other = await home.createProject("Forms elsewhere");
+  const project = await home.createProject("Forms here", ["form"]), other = await home.createProject("Forms elsewhere", ["form"]);
   const forms = `/projects/${project.project_id}/api/plugins/io.molis.work.form/forms`;
   await home.web.post(`/projects/${other.project_id}/api/plugins/io.molis.work.form/forms`, { title: "别处的问卷" });
   await assert.rejects(home.web.get(`${forms}?project_id=${encodeURIComponent(other.project_id)}`), { code: "actions.scope_mismatch" });
@@ -74,7 +74,7 @@ test("W4-04-05 「AI 生成题目」 asks first through the Runtime route: the H
     return JSON.stringify(/内部同事/u.test(prompt) ? { status: "done", questions: [{ title: "你最常用的工具是什么？", type: "text" }] }
       : { status: "needs_input", why: "先确认问卷给谁填", questions: [{ id: "audience", prompt: "给谁填？", options: [{ label: "内部同事", recommended: true }, { label: "外部客户" }] }] });
   } } });
-  const project = await home.createProject("Forms drafting");
+  const project = await home.createProject("Forms drafting", ["form"]);
   const forms = `/projects/${project.project_id}/api/plugins/io.molis.work.form/forms`;
   const { form } = await home.web.post<{ form: FormRecord }>(forms, { title: "工具调研" });
   const asked = await home.web.post<{ status: string; interaction: { interaction_id: string; html: string } }>(`${forms}/${form.id}/draft-questions`,

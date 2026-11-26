@@ -72,6 +72,7 @@ function emptyView(): MolisWorkWebView {
     project: { project_id: PROJECT, display_name: "创作工具" },
     projects: [{ project_id: PROJECT, display_name: "创作工具" }],
     route_prefix: `/projects/${PROJECT}`,
+    enabled_plugins: ["form", "dataset", "ppt"],
     demo: false,
     active_goal_id: null,
     goals: [],
@@ -100,14 +101,14 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
-test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
+test("Forms / Dataset / PPT 由项目按分区启用，不再是常开的个人插件（第 107 批做法 A）", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes("functions" as never), false, "判断已迁入系统服务");
-  for (const id of ["form", "dataset", "ppt"]) assert.ok(PERSONAL_PLUGIN_IDS.includes(id));
+  for (const id of ["form", "dataset", "ppt"]) assert.equal(PERSONAL_PLUGIN_IDS.includes(id), false, `${id} 不再常开`);
   assert.equal([...PERSONAL_PLUGIN_IDS, ...PROJECT_SCOPED_PLUGIN_IDS].includes("characters"), false, "角色是宿主设置的一节，不是插件（CHR-1）");
   for (const id of ["form", "dataset", "ppt"]) {
-    assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), false, `${id} 不该要项目添加`);
+    assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), true, `${id} 由项目添加`);
   }
-  const rail = railEntries(["goals", ...PERSONAL_PLUGIN_IDS, "files"]).map((entry) => entry.id);
+  const rail = railEntries(["goals", "form", "dataset", "ppt", ...PERSONAL_PLUGIN_IDS, "files"]).map((entry) => entry.id);
   assert.deepEqual(
     rail.filter((id) => ["form", "dataset", "ppt"].includes(id)),
     ["form", "dataset", "ppt"],

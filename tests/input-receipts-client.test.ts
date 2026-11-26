@@ -514,9 +514,9 @@ test("RCPT-367, 3e-1: the list's closing words are whole sentences, the count's 
   };
   assert.equal(read(undefined, ["run-1"]), "AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 1 轮");
   assert.equal(read(undefined, ["run-1", "run-2"]), "AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 2 轮");
-  assert.equal(read("en", ["run-1"]), "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. Only the latest turn was read.",
+  assert.equal(read("en", ["run-1"]), "Noted by AI and not verified by the system. Open the original item to send a correction. Only the latest turn was read.",
     "RCPT-367 one turn reads as one turn");
-  assert.equal(read("en", ["run-1", "run-2"]), "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. Only the latest 2 turns were read.",
+  assert.equal(read("en", ["run-1", "run-2"]), "Noted by AI and not verified by the system. Open the original item to send a correction. Only the latest 2 turns were read.",
     "RCPT-367 the count is filled into the translated sentence, not glued to pieces of it");
   assert.equal(pagePack("workbench", "zh").messages[" 轮"], undefined, "RCPT-367 no fragment is left to translate on its own");
   assert.equal(pagePack("workbench", "zh").messages["AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 "], undefined, "RCPT-367 nor the sentence cut before its count");

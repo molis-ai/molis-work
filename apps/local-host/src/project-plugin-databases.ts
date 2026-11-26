@@ -60,9 +60,10 @@ export function upgradePluginTables(db: PluginRuntimeDatabase, path: string, man
 }
 
 /** A plugin's own library in the Home on `db`, by the same function (§2.4): the plugin's steps, and the library's complete statements as the platform composes them. */
-export function upgradePluginLibrary(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest, control?: { beforeSteps?: () => void; beforeCommit: () => void }) {
-  const declaration = manifest.databases?.home;
-  if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明 Home 库`);
+export function upgradePluginLibrary(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest, control?: { beforeSteps?: () => void; beforeCommit: () => void },
+  library: "home" | "partition" = "home") {
+  const declaration = manifest.databases?.[library];
+  if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明${library === "home" ? " Home 库" : "分区独立库"}`);
   return upgradePluginHomeLibrary(db, { plugin_id: manifest.plugin_id, declaration, schema: pluginSyncDatabaseDeclaration(manifest, declaration).schema },
     pluginLibraryUpgradeInspector, { path, ...control, preparePlatform: () => preparePluginSyncUpgrade(db as ReplicaDatabase, manifest, declaration) });
 }

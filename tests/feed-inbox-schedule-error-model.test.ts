@@ -161,7 +161,7 @@ test("a failure with no code of ours is a bug or an outage: 500 actions.executio
   for (const owner of ["feed", "inbox", "schedule"] as const) {
     const edge = await failingEdge(owner);
     // Feed's routes are the Runtime's like the others' (FI-7), so its uncoded failures are hidden behind the same sentence.
-    const hidden = "请求未能完成，请重试。";
+    const hidden = "这次没能完成，请稍后再试。";
     try {
       assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: hidden, code: "actions.execution_failed" } }, `${owner}: a plain Error`);
       assert.deepEqual(await edge.fail(Object.assign(new Error("没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: hidden, code: "actions.execution_failed" } }, `${owner}: a system error code`);
@@ -269,7 +269,7 @@ const BROWSER_CODE = /^(.*[\\/])src[\\/]browser[\\/]/u;
 //     public feed that fails): they are recorded on the task, the job or the source run and never answered to a caller as they are;
 // The internal deletion contract is declared as internal, rather than exempted here.
 const STAYS_BARE: readonly RegExp[] = [
-  /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u,
+  /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Unknown )?(?:Feed|Inbox|Schedule) UI surface[ :]/u,
   /^"定时执行尚未登记本次持久记录"/u, /^"本次执行结果未知，不能自动重跑"/u, /^"定时操作已暂停、取消或改变"/u, /^"定时操作的安装身份已改变"/u, /^"本次定时执行已被处理"/u,
   /^"提醒的原安装身份已不可用，记录已保留/u, /^"定时任务已暂停或改变，本轮结果未保存"/u, /^"定时操作的安装执行入口已改变"/u,
   /^"(?:还没有配置到点执行的 Agent|闹钟叫醒没有项目现场|提醒没有项目现场|定时操作没有项目现场)"/u,

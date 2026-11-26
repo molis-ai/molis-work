@@ -101,11 +101,13 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   answer.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };
   answer.design.operations[0].examples = [{ input: {}, output: { items: [] } }];
   answer.design.pages[0].parts[2].read = { op: 'notes.list', show: 'items' };
-  const words: Record<'zh' | 'en', Record<string, string>> = {
+  const words: Record<'zh' | 'en' | 'ja', Record<string, string>> = {
     zh: { 'plugin/name': '共享清单', 'page/home/title': '共享清单', 'region/home/main/title': '共享清单',
       'part/title/title': '共享清单', 'part/editor/submitLabel': '添加', 'field/notes.add/text/label': '笔记' },
     en: { 'plugin/name': 'Shared checklist', 'page/home/title': 'Shared checklist', 'region/home/main/title': 'Shared checklist',
       'part/title/title': 'Shared checklist', 'part/editor/submitLabel': 'Add', 'field/notes.add/text/label': 'Note' },
+    ja: { 'plugin/name': '共有チェックリスト', 'page/home/title': '共有チェックリスト', 'region/home/main/title': '共有チェックリスト',
+      'part/title/title': '共有チェックリスト', 'part/editor/submitLabel': '追加', 'field/notes.add/text/label': 'メモ' },
   };
   answer.design.uiText = { default: 'zh', locales: words };
   setup.configure?.(answer);
@@ -157,7 +159,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
       const key = url.searchParams.get('acceptance');
       if (key && !trialKeys.includes(key)) {
         trialKeys.push(key);
-        if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /本轮界面验收已结束/).catch(error => { trialProbeErrors.push(error); }));
+        if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /本轮界面检查已结束/).catch(error => { trialProbeErrors.push(error); }));
       }
       return pluginPagesFor(f.home).bind(request, url).then(async release => {
         if (release) response.once('close', release);
@@ -209,6 +211,7 @@ test('RAC-2931 RAC-2932 real Host revision preserves shared sources and operatio
   f.answer.design.operations.reverse(); f.answer.design.pages[0].parts[2].props.emptyText = '新空态';
   f.words.zh['part/notes/emptyText'] = '新空态';
   f.words.en['part/notes/emptyText'] = 'New empty state';
+  f.words.ja['part/notes/emptyText'] = '新しい空の状態';
   let revised = await f.revise(); f.passed(revised);
   assert.equal(f.coded.length, 2, 'a pure UI revision never invokes coder');
   const directory = f.rootFor(revised);
@@ -1698,6 +1701,7 @@ test('RAC-2935 RAC-2936 RAC-2937 real Host negative trials use native refusal, o
     answer.design.pages.push({ id: 'away', title: '另页', parts: [{ id: 'offscreen', intent: 'collection', purpose: '另一页读取', props: { idField: 'id', titleField: 'text' }, read: { op: 'notes.list', show: 'items' } }] });
     Object.assign(answer.design.uiText.locales.zh, { 'part/editor/requiredText': '正文不能为空', 'part/notes/emptyText': '清单还是空的', 'page/away/title': '另页', 'region/away/main/title': '另页' });
     Object.assign(answer.design.uiText.locales.en, { 'part/editor/requiredText': 'Text is required', 'part/notes/emptyText': 'The checklist is still empty', 'page/away/title': 'Another page', 'region/away/main/title': 'Another page' });
+    Object.assign(answer.design.uiText.locales.ja, { 'part/editor/requiredText': '本文は必須です', 'part/notes/emptyText': 'チェックリストはまだ空です', 'page/away/title': '別のページ', 'region/away/main/title': '別のページ' });
     answer.design.acceptance = [
       { id: 'blocked', description: '真实必填拒绝且没有业务写入', steps: [
         'fill editor.text = ""', { action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' },
@@ -1719,7 +1723,7 @@ test('RAC-2935 RAC-2936 RAC-2937 real Host negative trials use native refusal, o
   assert.deepEqual(await f.send('/builds/' + f.current.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [] } });
   await assert.rejects(f.send('/builds/' + f.current.id + '/call', { componentId: 'notes', binding: 'faultRead', payload: {} }), /未知的组件操作/);
   assert.ok(f.trialKeys.length > 0);
-  for (const key of f.trialKeys) await assert.rejects(f.send('/builds/' + f.current.id + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /本轮界面验收已结束/);
+  for (const key of f.trialKeys) await assert.rejects(f.send('/builds/' + f.current.id + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /本轮界面检查已结束/);
 });
 
 test('RAC-2934 batch repair receives all actual failures once and isolation failure never requests a repair', async () => {
@@ -1770,6 +1774,7 @@ test('RAC-2937 a held real trial call cannot write or create a runner after its 
     answer.design.pages[0].parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = '清单还是空的';
     answer.design.uiText.locales.zh['part/notes/emptyText'] = '清单还是空的';
     answer.design.uiText.locales.en['part/notes/emptyText'] = 'The checklist is still empty';
+    answer.design.uiText.locales.ja['part/notes/emptyText'] = 'チェックリストはまだ空です';
     answer.design.acceptance = ['first', 'after-reset'].map(id => ({ id, description: '独立清单保持为空', steps: [{ action: 'expectWord', componentId: 'notes', word: 'emptyText' }] }));
   }, async trialPage(key, buildId, send) {
     if (++visits === 1) {

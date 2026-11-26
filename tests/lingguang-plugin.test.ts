@@ -74,6 +74,7 @@ function emptyView(): MolisWorkWebView {
     project: { project_id: PROJECT, display_name: "灵光" },
     projects: [{ project_id: PROJECT, display_name: "灵光" }],
     route_prefix: `/projects/${PROJECT}`,
+    enabled_plugins: ["lingguang"],
     demo: false,
     active_goal_id: null,
     goals: [],
@@ -93,16 +94,16 @@ function emptyView(): MolisWorkWebView {
   } as MolisWorkWebView;
 }
 
-test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图标用 idea", () => {
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(LINGGUANG_PROJECT_PLUGIN_ID), true);
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("lingguang"), false);
-  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "files"] as const;
+test("灵光由项目按分区启用（第 107 批做法 A），岛上叫灵光、图标用 idea", () => {
+  assert.equal(PERSONAL_PLUGIN_IDS.includes(LINGGUANG_PROJECT_PLUGIN_ID), false);
+  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("lingguang"), true);
+  const enabled = ["goals", LINGGUANG_PROJECT_PLUGIN_ID, ...PERSONAL_PLUGIN_IDS, "files"] as const;
   assert.equal(railEntries([...enabled]).some((item) => item.id === "lingguang"), false);
   const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");
   assert.equal(entry?.glyph, "idea");
   const market = pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "lingguang");
-  assert.equal(market?.personal, true);
+  assert.notEqual(market?.personal, true);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.ok(lingguangManifest.ui.views?.some(view => view.slot === "stage" && view.view_id === "workbench"));

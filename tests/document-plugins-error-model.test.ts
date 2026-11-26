@@ -174,7 +174,7 @@ const MISSING = "00000000-0000-4000-8000-000000000000";
 /** Forms on the Plugin Runtime (W4-04): a project in a test Home, reached under its `/api/plugins/io.molis.work.form/forms`, as the page reaches it. */
 async function formRoutes(t: test.TestContext) {
   const home = await openTestHome(t);
-  const project = await home.createProject("Form error model");
+  const project = await home.createProject("Form error model", ["form"]);
   const forms = `/projects/${project.project_id}/api/plugins/io.molis.work.form/forms`;
   /** One request as the page sends it, with its raw body; the answer as it comes back. */
   const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
@@ -188,7 +188,7 @@ async function formRoutes(t: test.TestContext) {
 /** Dataset on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.dataset/datasets`. */
 async function datasetRoutes(t: test.TestContext) {
   const home = await openTestHome(t);
-  const project = await home.createProject("Dataset error model");
+  const project = await home.createProject("Dataset error model", ["dataset"]);
   const base = `/projects/${project.project_id}/api/plugins/io.molis.work.dataset/datasets`;
   const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
     const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
@@ -201,7 +201,7 @@ async function datasetRoutes(t: test.TestContext) {
 /** Workflows on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.native.workflows/workflows`. */
 async function workflowsRoutes(t: test.TestContext) {
   const home = await openTestHome(t);
-  const project = await home.createProject("Workflows error model");
+  const project = await home.createProject("Workflows error model", ["workflows"]);
   const base = `/projects/${project.project_id}/api/plugins/io.molis.work.native.workflows/workflows`;
   const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
     const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
@@ -214,7 +214,7 @@ async function workflowsRoutes(t: test.TestContext) {
 /** PPT on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.ppt/ppt`. */
 async function pptRoutes(t: test.TestContext) {
   const home = await openTestHome(t);
-  const project = await home.createProject("PPT error model");
+  const project = await home.createProject("PPT error model", ["ppt"]);
   const base = `/projects/${project.project_id}/api/plugins/io.molis.work.ppt/ppt`;
   const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
     const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
@@ -227,7 +227,7 @@ async function pptRoutes(t: test.TestContext) {
 /** Pages on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.pages/pages`. */
 async function pagesRoutes(t: test.TestContext) {
   const home = await openTestHome(t);
-  const project = await home.createProject("Pages error model");
+  const project = await home.createProject("Pages error model", ["pages"]);
   const base = `/projects/${project.project_id}/api/plugins/io.molis.work.pages/pages`;
   const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
     const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
@@ -255,8 +255,8 @@ test("real routes: a record that is not there is 404 <owner>.not_found at Pages,
 
 test("BSH-09 Runtime document routes reject mismatching query or body project fields without writing", async t => {
   const home = await openTestHome(t);
-  const project = await home.createProject("Document request project");
-  const other = await home.createProject("Other document project");
+  const project = await home.createProject("Document request project", ["pages", "ppt", "dataset", "form", "workflows", "lingguang"]);
+  const other = await home.createProject("Other document project", ["pages", "ppt", "dataset", "form", "workflows", "lingguang"]);
   const owners = [
     ["dataset", "datasets", "数据表"], ["form", "forms", "问卷"], ["pages", "pages", "文档"],
     ["ppt", "ppt", "演示稿"], ["lingguang", "sparks", "请求"],

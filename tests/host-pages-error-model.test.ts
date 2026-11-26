@@ -295,13 +295,14 @@ test("the artifact edge answers by kind: a plugin that is off is 403, and the co
   assert.deepEqual([uncoded.status, uncoded.body], [500, { error: "读取失败", code: "actions.execution_failed" }]);
 });
 
-test("the artifact edge preserves the original action refusal in both languages", async t => {
+// Since #2307 the Web edge keeps a refusal written in the page's language and says one written in another language in the page's own words (ui-error-words).
+test("the artifact edge keeps the original action refusal in its language and says it in the page's language otherwise", async t => {
   const failure: { current: unknown } = { current: new ActionError("actions.missing", "外部来源拒绝原文") };
   const edge = await artifactEdge(t, failure);
   const english = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench", "accept-language": "en" } });
   const chinese = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.equal(chinese.body.error, "外部来源拒绝原文");
-  assert.equal(english.body.error, "外部来源拒绝原文");
+  assert.equal(english.body.error, "Couldn’t find this item. It may have been deleted or moved.");
   assert.equal(english.body.code, "actions.missing");
 });
 

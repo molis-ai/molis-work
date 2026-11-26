@@ -6,14 +6,14 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { Worker } from "node:worker_threads";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS, createPluginPlatform, homeStores, projectDeletedHooksFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS, createPluginPlatform, homeStores, openHomePluginStore, partitionPluginScope, projectDeletedHooksFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { assertPluginLocales } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { installIdentity, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { readDatabaseSpace, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -230,7 +230,17 @@ test("RAC-562 S-暂A a plugin the Host did not ship has its declared rows go wit
   assert.deepEqual(marks(f.home, LIBRARY, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
 });
 
-function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
+/** The per-partition platform of one plugin with a library in each partition (batch 107): the Home's one install table, the demo partition. */
+function partitionPlatform(t: TestContext, home: string, manifest: PluginManifest) {
+  const installs = openHomePluginStore(home);
+  const platform = projectPlatform(t, home, homeStores(), { installDatabase: installs.db,
+    partitionScope: partitionPluginScope(home, DEMO_PROJECT_ID, manifest.plugin_id, installIdentity(manifest)) });
+  // Registered after the platform's own cleanup, which still reads the installs while it stops what runs.
+  t.after(() => installs.db.close());
+  return platform;
+}
+
+function projectPlatform(t: TestContext, home: string, stores = homeStores(), partition: Pick<Parameters<typeof createPluginPlatform>[0], "installDatabase" | "partitionScope"> = {}) {
   const directory = mkdtempSync(join(tmpdir(), "project-rows-board-")), file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
@@ -238,7 +248,7 @@ function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
-    home: { directory: home, completeText: () => undefined, stores } });
+    home: { directory: home, completeText: () => undefined, stores }, ...partition });
   t.after(async () => {
     try {
       for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
@@ -249,7 +259,7 @@ function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
 }
 
 test("RAC-562 an existing catalog project plugin with a declared deletion owner still starts through the real platform", async t => {
-  const home = withHome(t), platform = projectPlatform(t, home), definition = createFormPlugin();
+  const home = withHome(t), definition = createFormPlugin(), platform = partitionPlatform(t, home, definition.manifest);
   // Forms keeps a library in each partition (batch 107): its deletion step is declared on that library and runs for the partition.
   const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.partition!;
   assert.ok(catalog.some(entry => entry.manifest === definition.manifest), "the deletion owner reads this same Manifest object");
@@ -262,7 +272,7 @@ test("RAC-562 an existing catalog project plugin with a declared deletion owner 
 // Batch 107: a partition's own library needs no catalog owner to be found again. Whatever Manifest object starts it, the library is in
 // the project's directory, and the deletion removes it there; the refusal of a copied Manifest is for `project_rows` only (BL-620 below).
 test("RAC-562 a copied catalog Manifest of a partition library keeps it in the partition, where the project's deletion removes it", async t => {
-  const home = withHome(t), platform = projectPlatform(t, home), original = createFormPlugin(), calls: string[] = [];
+  const home = withHome(t), original = createFormPlugin(), calls: string[] = [], platform = partitionPlatform(t, home, original.manifest);
   const definition: PluginDefinition = { ...original, manifest: { ...original.manifest }, async start(context) { calls.push("start"); return original.start(context); } };
   const library = definition.manifest.databases!.partition!, file = partitionLibraryFile(home, DEMO_PROJECT_ID, library.store_name);
   assert.deepEqual((await platform.start([{ definition, trust: { level: "host" } }])).running, [definition.manifest.plugin_id]);

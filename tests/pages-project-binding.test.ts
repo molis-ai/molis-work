@@ -38,7 +38,9 @@ test("W5-01-PAGES-02 Host 路由里的项目与 query/body 不一致时，发布
   const home = await mkdtemp(join(tmpdir(), "pages-project-binding-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "项目 A", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: first.project_id, plugin_id: "pages", actor_id: "test" });
   const second = await catalog.createProject({ display_name: "项目 B", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: second.project_id, plugin_id: "pages", actor_id: "test" });
   catalog.close();
   const server = await listen(home);
   try {

@@ -67,7 +67,7 @@ test("OCL-02 OCL-09: the board renders #kind-mark and #category-bar in order, in
   assert.match(sectionOf(board, "category-bar"), /分类条/);
 
   const english = withPageText("en", [], () => renderPrimitiveCatalog());
-  assert.match(sectionOf(english, "kind-mark"), /Kind-coloured mark/);
+  assert.match(sectionOf(english, "kind-mark"), /Kind-colored mark/);
   assert.match(sectionOf(english, "category-bar"), /Category bar/);
   for (const id of SECTIONS) {
     const plain = sectionOf(english, id).replace(/<style>[\s\S]*?<\/style>/gu, "");

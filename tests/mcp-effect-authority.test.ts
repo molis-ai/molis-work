@@ -28,7 +28,7 @@ function facts(home: string, projectId: string, formId: string) {
 
 for (const additional of [false, true]) test(`ACA005-03/07 accepted MCP background ${additional ? "permission source" : "action"} keeps its original grant generation`,
   { timeout: 30_000 }, async t => {
-    const home = await openTestHome(t), project = await home.createProject("Retained MCP grant");
+    const home = await openTestHome(t), project = await home.createProject("Retained MCP grant", ["form"]);
     const accept: ActionDefinition = { ...wrapper, capability_id: "fixture.form.retain", action: {
       ...wrapper.action, permissions: ["form:read"], output_schema: { type: "null" },
     } };

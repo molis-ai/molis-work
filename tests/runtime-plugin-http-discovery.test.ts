@@ -9,7 +9,7 @@ import test, { type TestContext } from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, openProjectVersionStores, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
-import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
+import { ensureProjectPlugins, releaseProjectPlugins, runningPluginPlatform, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -48,7 +48,7 @@ for (const mode of ["stop", "revoke", "restart", "caller-revoke"] as const) {
     const refused = assert.rejects(pending);
     try {
       await entered.promise;
-      const platform = await f.host.withProject(f.project.reference, runtime => runningProjectPlatform(runtime.store, f.project.project_id));
+      const platform = await f.host.withProject(f.project.reference, runtime => runningPluginPlatform(runtime.store, f.project.project_id, "io.molis.work.lingguang"));
       assert.ok(platform);
       const plugin = "io.molis.work.lingguang", installId = platform.supervisor.state(plugin)!.install_id!;
       if (mode === "stop") await platform.runtime.stop(installId);
@@ -370,7 +370,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running
     return stage;
   };
   assert.match(await page(), /data-form-new/u);
-  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  const platform = await host.withProject(one.reference, runtime => runningPluginPlatform(runtime.store, one.project_id, FORM_PLUGIN_ID));
   assert.ok(platform);
   const pagePath = `/projects/${one.project_id}/api/host/plugin-pages`;
   const opened = await request(pagePath, { method: "POST", body: { plugin_id: FORM_PLUGIN_ID } });
@@ -426,7 +426,7 @@ test("RAC-612 RAC-613 RAC-614 a failed or crashed project plugin's placeholder s
   const { host, project, request } = await serveHomeRuntime(t);
   const one = await project("Project placeholder restart");
   await request(`/projects/${one.project_id}`); // opening the project page starts its plugin platform
-  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  const platform = await host.withProject(one.reference, runtime => runningPluginPlatform(runtime.store, one.project_id, FORM_PLUGIN_ID));
   assert.ok(platform);
   const installId = platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!;
   const placeholder = async (locale = "zh") => {
@@ -502,7 +502,7 @@ test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a
   const { localHost, projectId, databasePath, evaluate, click, waitFor, reloadPage, navigate } = browser;
   assert.ok(localHost && projectId);
   await navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${projectId}/` }, browser.sessionId));
-  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId }), runtime => runningProjectPlatform(runtime.store, projectId));
+  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId }), runtime => runningPluginPlatform(runtime.store, projectId, FORM_PLUGIN_ID));
   assert.ok(platform);
   const installId = platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!;
   const stage = '[data-work-surface="form"][data-project-plugin-unavailable]';
@@ -805,7 +805,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 the real Form frame stays usable after a stoppe
   const loaded = "document.querySelector('[data-form-new]') && document.querySelector('[data-form-ai-reason] a[href=\"/settings/models\"]')";
   await frame.waitFor(loaded);
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const platform = await localHost.withProject(reference, runtime => runningProjectPlatform(runtime.store, projectId));
+  const platform = await localHost.withProject(reference, runtime => runningPluginPlatform(runtime.store, projectId, FORM_PLUGIN_ID));
   assert.ok(platform);
   const original = platform.supervisor.contribution.bind(platform.supervisor), form = original(FORM_PLUGIN_ID);
   assert.ok(form?.kind === "app");

@@ -118,8 +118,10 @@ test("deletion preserves editor high-water marks, recovery is explicit, and reop
 });
 test("cross-project collisions and unbound local replicas are rejected without changing content",t=>{
  const f=fixture(t),page=f.a.create({title:'source'}),event=f.source.next()!;
- const altered={...event,key:JSON.stringify(['other','document',page.id]),value:{...(event.value as object),project:{id:'other',title:'Other'}}};f.target.receive({...altered,revision:1});assert.equal(f.b.get(page.id).title,'source');
- f.target.receive({...event,revision:2});assert.equal(f.target.conflicts().length,1);assert.equal(f.b.list().length,0);
+ const altered={...event,key:JSON.stringify(['other','document',page.id]),value:{...(event.value as object),project:{id:'other',title:'Other'}}};
+ // The library is one partition's (batch 107): a key of another partition is refused before anything is written, so no collision can form.
+ assert.throws(()=>f.target.receive({...altered,revision:1}),/不属于这个位置/);assert.equal(f.b.list().length,0);assert.deepEqual(f.target.conflicts(),[]);
+ f.target.receive({...event,revision:2});assert.equal(f.target.conflicts().length,0);assert.equal(f.b.get(page.id).title,'source');
  const local=openPagesStore(join(f.root,'local'),'project');try{assert.throws(()=>local.replica(f.context),/空间不匹配/);}finally{local.close();}
 });
 test("references, unfinished publication and local-only links block without discarding content",t=>{

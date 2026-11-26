@@ -180,7 +180,8 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
     const html = await response.text();
-    assert.ok(html.startsWith(`<!doctype html><html><body data-board-view="${collection}">\n    `));
+    // The document carries the page's language (the three-language copy, #2307).
+    assert.ok(html.startsWith(`<!doctype html><html lang="zh-CN"><body data-board-view="${collection}">\n    `), html.slice(0, 120));
     assert.ok(html.endsWith("\n  </body></html>"));
     assert.equal((html.match(/<!doctype\b/giu) ?? []).length, 1);
     assert.equal((html.match(/<\/?html\b/giu) ?? []).length, 2);

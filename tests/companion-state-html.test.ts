@@ -114,8 +114,8 @@ test("PG062-01, PG062-02: a page's diff.state carries the plugin's own markup, i
     const english = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale: "en" });
     assert.deepEqual(english.view, chinese.view, "the localized HTML does not change the comparison result");
     assert.deepEqual([english.view.mismatch, english.view.rows, english.view.before?.workspace_id, english.view.after?.workspace_id,
-      english.view.message, english.view.recovery], [true, [], "ws", "another-workspace", "这两个文件版本来自不同的项目文件夹，无法直接对比", "回到文件阅读区，重新固定对比前和对比后"]);
-    assert.match(chinese.html, /这两个文件版本来自不同的项目文件夹，无法直接对比<\/strong><p>回到文件阅读区，重新固定对比前和对比后/);
+      english.view.message, english.view.recovery], [true, [], "ws", "another-workspace", "这两个文件版本来自不同的项目文件夹，不能直接对比", "回到文件阅读区，重新固定对比前和对比后"]);
+    assert.match(chinese.html, /这两个文件版本来自不同的项目文件夹，不能直接对比<\/strong><p>回到文件阅读区，重新固定对比前和对比后/);
     assert.match(english.html, /These two file versions come from different project folders and can’t be compared<\/strong><p>Go back to the file reader and pin a before and an after again/);
   });
 });

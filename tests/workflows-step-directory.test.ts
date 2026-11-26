@@ -14,6 +14,8 @@ test("the workflow editor offers every native plugin's workflow commands, derive
   const home = path.join(directory, ".molis-work");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "流程步骤", actor_id: "user" });
+  // The plugins whose steps are checked below run in each project that enables them (batch 107).
+  for (const plugin_id of ["workflows", "dataset", "form", "ppt"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
   catalog.close();
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

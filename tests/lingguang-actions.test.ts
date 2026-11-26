@@ -153,6 +153,7 @@ test("RAC-31 real Runtime HTTP shares Host actions, rejects project tampering an
   const home = await mkdtemp(join(tmpdir(), "lingguang-http-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "Lingguang", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "lingguang", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -235,6 +236,7 @@ test("a streamed reply shows the model's text as it comes; closing the request s
   const home = await mkdtemp(join(tmpdir(), "lingguang-stream-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "Lingguang", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "lingguang", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const halfway = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
   let calls = 0, stopped = false;

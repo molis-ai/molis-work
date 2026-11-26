@@ -133,7 +133,13 @@ export class HostAvailability {
     if (!definition?.action || !definition.action_provider) return;
     admitPluginCall(caller, definition.capability_id, definition.action);
     const availability = this.capabilities.availability(caller, definition);
-    if (!availability.available) return;
+    if (!availability.available) {
+      // Off in this project is the Host's own answer about the project, given before authority as the project's list gives it below
+      // (BL-088): a per-partition plugin's stand-in in a project that does not enable it says so itself. Any other refusal is the
+      // dispatcher's, after authority.
+      if (availability.code === "actions.plugin_disabled") throw new ActionError(availability.code, availability.reason);
+      return;
+    }
     const state = await this.resolve(caller, { ...definition, operation: definition.operation, action: definition.action, provider: definition.action_provider, availability });
     if (!state.available) throw new ActionError(state.code, state.reason);
   }

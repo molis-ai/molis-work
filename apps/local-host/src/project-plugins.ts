@@ -359,10 +359,14 @@ export async function startPartitionPluginInstance(ports: ProjectPluginPorts, sc
   };
   updateObservers();
   try {
-    const report = await platform.start([{ ...entry, enabled: true }]);
+    // As on the project's platform, only an uninstall keeps it from running (BL-755): the instance is there, and its routes and actions
+    // answer that it is not installed.
+    const uninstalled = installationSwitchedOff(platform, scope.plugin_id);
+    const report = await platform.start([{ ...entry, enabled: !uninstalled }]);
     // A start the platform recorded as failed is no instance: the assembly forgets it and the next use tries again.
-    const failed = report.failed.find(item => item.plugin_id === scope.plugin_id) ?? report.blocked.find(item => item.plugin_id === scope.plugin_id);
-    if (failed || !report.running.includes(scope.plugin_id)) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没能启动", { details: { plugin_id: scope.plugin_id, code: failed?.code ?? null } });
+    // An uninstalled one is held back (`plugin.revoked`), which is not a failed start.
+    const failed = uninstalled ? undefined : report.failed.find(item => item.plugin_id === scope.plugin_id) ?? report.blocked.find(item => item.plugin_id === scope.plugin_id);
+    if (failed || (!uninstalled && !report.running.includes(scope.plugin_id))) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没能启动", { details: { plugin_id: scope.plugin_id, code: failed?.code ?? null } });
   } catch (error) {
     stopObservers();
     await stopProjectPlugins(platform, ports.projectId).catch(() => {});

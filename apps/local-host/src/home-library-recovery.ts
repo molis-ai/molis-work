@@ -1,6 +1,7 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import {
   assertStorageOwner, homeSqlitePath, readDatabaseSpace, readStorageSpace, readUpgradeStore, recoverSqliteRollbackJournals, sqliteRollbackSidecars, upgradeStepsProblem,
@@ -13,6 +14,7 @@ import { partitionLibraryPath } from "./partition-plugin-assembly.js";
 import { homeLibraryRollbackSidecars, assertArtifactProjectIdentity, wrongArtifactSpace } from "./artifact-row-storage-policy.js";
 import { assertSqliteLibraryReady, pendingSqliteRecovery } from "@molis-ai/molis-work-storage";
 import { homeStores } from "./home-stores.js";
+import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
@@ -51,6 +53,12 @@ export function recoverHomeLibraryTransactions(home: string, owner: StorageOwner
   };
   const registry = homeStores();
   const owners = new Map(files.map(file => [file.path, file]));
+  let installs: readonly PluginInstanceRecord[] | undefined;
+  const homeInstallRecords = () => installs ??= (() => {
+    const store = openReadOnlyHomePluginStore(root);
+    if (!store) return [];
+    try { return readPluginRuntimeRecords(store); } finally { store.close(); }
+  })();
   const libraries: RollbackLibrary[] = files.map(({ declaration: { manifest, library, scope }, path }) => {
     if (scope === "partition") {
       const baseline = { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} };
@@ -68,7 +76,8 @@ export function recoverHomeLibraryTransactions(home: string, owner: StorageOwner
       if (!peer) return;
       const file = owners.get(peer.path), manifest = file?.declaration.manifest;
       if (!manifest || file.partitionId !== undefined && file.partitionId !== id
-        || !readPluginRuntimeRecords(db).some(record => record.execution === "host" && record.state !== "uninstalled"
+        // A per-partition plugin's installation is the Home's (batch 107): its record is in the Home install table, not the project's.
+        || !(file.partitionId !== undefined ? homeInstallRecords() : readPluginRuntimeRecords(db)).some(record => record.execution === "host" && record.state !== "uninstalled"
         && record.plugin_id === manifest.plugin_id && record.publisher_id === manifest.publisher.publisher_id
         && record.publisher_signature === manifest.publisher.signature)) throw pendingSqliteRecovery();
     } };

@@ -151,7 +151,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.match(inboxDirectory, /data-inbox-row/);
   assert.match(inboxDirectory, new RegExp(`data-inbox-entry-id="${entryId}"`));
   assert.match(page, /inbox-attention-next/);
-  assert.match(inboxDirectory, /你手工加入|Inbox · 手工加入/);
+  assert.match(inboxDirectory, /你手动加入|Inbox · 手动加入/);
   assert.doesNotMatch(inboxDirectory, /正文里包含需要核对的事实/);
   assert.doesNotMatch(inboxDirectory, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.match(page, /data-inbox-open-feed="inbox-plugin-item"/);

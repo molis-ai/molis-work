@@ -26,7 +26,9 @@ export interface ProjectPluginHttpPorts extends ProjectPluginPorts {
 export async function pluginEventsPending(ports: ProjectPluginHttpPorts): Promise<number> {
   const record = await ensureProjectPlugins(ports);
   if (!record.platform) throw new Error(record.error ?? "插件运行平台未能启动");
-  return projectPluginPlatforms(record).reduce((sum, platform) => sum + platform.events.recoveries(ports.projectId).length, 0);
+  // Every platform of the project (its own and each per-partition instance) reads the one event table of this partition's database, so
+  // one of them counts each delivery once; the event management route reads the same one.
+  return record.platform.events.recoveries(ports.projectId).length;
 }
 
 export async function handleProjectPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ProjectPluginHttpPorts): Promise<boolean> {

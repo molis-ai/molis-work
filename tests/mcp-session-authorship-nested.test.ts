@@ -27,6 +27,7 @@ async function fixture(t: TestContext) {
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "署名", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "workflows", actor_id: "user" });
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });

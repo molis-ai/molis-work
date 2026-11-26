@@ -81,6 +81,7 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
     await runWithMolisWorkHome(home, async () => {
       const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
         const project = await catalog.createProject({ display_name: "线程最后检查", actor_id: "owner" });
+        catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
         await catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
         const endpoint = "http://127.0.0.1:" + address.port;
         const connection = withConnectorConnections(home, store => { const saved = store.createToken({ serviceId: "model-api", displayName: "fixture", token: randomUUID() }); store.assertTarget(saved.connection_id, "model-api", endpoint); return saved; });
@@ -185,6 +186,7 @@ test("PAS-04 PAS-05 PAS-10 BL-974: real Host and Prologue keep replies in the or
   try { await runWithMolisWorkHome(home, async () => {
     const project = await withCatalog({ homeDirectory: home }, async catalog => {
       const p = await catalog.createProject({ display_name: "评论联动", actor_id: "owner" });
+      catalog.addProjectPlugin({ project_id: p.project_id, plugin_id: "pages", actor_id: "owner" });
       await catalog.addProjectPlugin({ project_id: p.project_id, plugin_id: "pages", actor_id: "owner" });
       return p;
     });

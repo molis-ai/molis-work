@@ -272,7 +272,12 @@ function carriedDeck(record: PlacementRecord): Omit<PptRecord, "id" | "project_i
     || !Number.isSafeInteger(version) || (version as number) < 1) throw pptErrors.invalid("带来的演示稿内容不完整");
   let slides: unknown;
   try { slides = JSON.parse(slides_json); } catch { throw pptErrors.invalid("带来的演示稿内容不完整"); }
-  return { title: normalizeTitle(title), description: normalizeDescription(description), color_primary: normalizeColor(color_primary),
-    color_background: normalizeColor(color_background), color_text: normalizeColor(color_text), slides: normalizeSlides(slides as PptSlideInput[]),
+  // A carried colour is checked by the edit rule but kept as written: a deck moves as it is (the defaults are upper case, an edit lower case).
+  const color = (value: string) => {
+    normalizeColor(value);
+    return value;
+  };
+  return { title: normalizeTitle(title), description: normalizeDescription(description), color_primary: color(color_primary),
+    color_background: color(color_background), color_text: color(color_text), slides: normalizeSlides(slides as PptSlideInput[]),
     created_at, updated_at, version: version as number };
 }

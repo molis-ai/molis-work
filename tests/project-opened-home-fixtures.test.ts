@@ -79,7 +79,7 @@ for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {
       [" ".repeat(1_000_001), 413, "请求内容过大", "actions.input_too_large"],
       ["{not json", 400, "请求不是有效 JSON", "actions.input_invalid"],
     ] as const) {
-      const project = await f.project(`cold ${status}`), before = openingIds.length;
+      const project = await f.project(`cold ${status}`, ["pages"]), before = openingIds.length;
       outputs.push(outputOf(await directories(f, project.project_id)).workspace_id);
       const response = await post(f, pagesPath(project.project_id), raw);
       assert.deepEqual([response.status, await response.json()], [status, { error, code }]);
@@ -96,7 +96,7 @@ for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {
 
   test(`RAC-463-FIXTURE-01 ${fixture}: a folder made the output over HTTP is read and announced once`, async t => {
     const { opened, openingIds, logs } = observe(t), workspace = await folder(t, "catalog-note"), f = await open(t, fixture);
-    const project = await f.project("linked Catalog");
+    const project = await f.project("linked Catalog", ["pages"]);
     const added = { workspace: outputOf(await changeDirectories(f, project.project_id, "set_output", { workspace_path: workspace.canonical_path })) };
     assert.equal(added.workspace.canonical_path, workspace.canonical_path);
     assert.deepEqual(opened, [], "settings are not a plugin route opening");
@@ -124,7 +124,7 @@ for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {
       if (failed) return Promise.reject(new ActionError("actions.connection_required", "single folder unavailable"));
       return Promise.resolve(current);
     } });
-    const project = await f.project("single folder");
+    const project = await f.project("single folder", ["pages"]);
     // The catalog's folders are the project's setting; which folders the Host's reads reach is the supplied port's.
     const linked = (await changeDirectories(f, project.project_id, "add_input", { workspace_path: catalog.canonical_path })).directories.find(row => row.canonical_path === catalog.canonical_path)!;
     const actions = f.host.actionClient(project.reference), caller = person(["workspace:read"], project.project_id);
@@ -143,7 +143,7 @@ for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {
     observe(t);
     const supplied = await folder(t, "multi-port");
     const f = await open(t, fixture, { workspacesFor: () => [supplied], workspaceFor: () => { throw new Error("the single-folder port must not replace the explicit list"); } });
-    const project = await f.project("multi folder");
+    const project = await f.project("multi folder", ["pages"]);
     const read = await f.host.actionClient(project.reference).invoke(person(["workspace:read"], project.project_id), workspaceReadActions.file,
       { workspace_id: supplied.workspace_id, path: ["note.txt"], kind: "text" }) as { outcome: string; text: string };
     assert.deepEqual([read.outcome, read.text], ["text", "multi-port"], "the explicit list answers the read; the single-folder port is never asked");
@@ -157,7 +157,7 @@ for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {
     test(`RAC-463-FIXTURE-03 ${fixture}: an intentionally ${fault} opening dependency remains traceable in the actual request log`, async t => {
       const { opened } = observe(t);
       const f = await open(t, fixture);
-      const project = await f.project("opening diagnostic"), base = pagesPath(project.project_id);
+      const project = await f.project("opening diagnostic", ["pages"]), base = pagesPath(project.project_id);
       const code = "actions.connection_required", original = MolisWorkProjectCatalog.prototype.projectDirectories;
       t.mock.method(MolisWorkProjectCatalog.prototype, "projectDirectories", function (this: MolisWorkProjectCatalog, projectId: string) {
         if (projectId === project.project_id) throw new ActionError(code, "directory unavailable");

@@ -28,6 +28,7 @@ import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { shippedParts } from "./plugin-registry.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
+import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
 
 const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = `${PARTITION_PATTERN}/molis-work.db`;
 
@@ -63,6 +64,27 @@ export function upgradePluginLibraryFile(file: string, manifest: PluginManifest)
   const db = openSqliteConnection(file);
   try { upgradePluginLibrary(db, label(file, 2), manifest); }
   finally { db.close(); }
+}
+
+/**
+ * A plugin's own library in each partition (`databases.partition`, batch 107): one unit per partition that has the file, at
+ * `<partition>/libraries/<store>.db`, upgraded by the plugin's checks the way a Home library is. A partition where the plugin never
+ * opened has no file and nothing to upgrade; a too-new catalog lists no partition, and reports itself.
+ */
+export function partitionLibraryDescriptor(manifest: PluginManifest): HomeUpgradeDescriptor {
+  const declared = manifest.databases!.partition!, library = pluginSyncDatabaseDeclaration(manifest, declared);
+  const file = join("libraries", `${declared.store_name}.db`);
+  return {
+    owner: manifest.plugin_id, block: { kind: "plugin", plugin_id: manifest.plugin_id }, pattern: `${PARTITION_PATTERN}/${file}`,
+    paths: home => projectDatabases(home).map(main => join(dirname(main), file)).filter(path => entryAt(join(home, path))),
+    baseline: { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} },
+    open: path => openHomeSqliteFile(path),
+    upgrade: path => {
+      const db = openSqliteConnection(path);
+      try { upgradePluginLibrary(db, label(path, 3), manifest, undefined, "partition"); }
+      finally { db.close(); }
+    },
+  };
 }
 
 /**
@@ -184,6 +206,7 @@ export function platformUpgradeDescriptors(): readonly HomeUpgradeDescriptor[] {
     { owner: "apps/local-host", block: { kind: "project" }, pattern: PROJECT_LIBRARY, baseline: PROJECT_DATABASE_BASELINE, open: file => openSqliteConnection(file), paths: projectDatabases },
     ...projectDatabasePlugins().map(manifest => pluginTablesDescriptor(manifest)),
     ...homeStores().stores.filter(store => store.library !== undefined).map(libraryDescriptor),
+    ...shippedParts().map(entry => entry.manifest).filter(manifest => manifest.databases?.partition).map(partitionLibraryDescriptor),
     ...platformFiles(),
   ];
 }

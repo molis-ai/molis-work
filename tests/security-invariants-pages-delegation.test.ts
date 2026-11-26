@@ -119,7 +119,9 @@ test("APR-08: Pages presentation reads names once, excludes bodies and other pro
   const f = fixture(); t.after(() => f.close());
   const documents = Array.from({ length: 25 }, (_, i) => f.store.create({ title: `Draft ${i}`, body: body("Secret body") }));
   const folders = Array.from({ length: 25 }, (_, i) => f.store.createFolder({ title: `Folder ${i}` }));
-  const foreign = f.store.create({ title: "Secret foreign title" });
+  // Another partition's page is in that partition's own library, never in this one.
+  const other = fixture(); t.after(() => other.close());
+  const foreign = other.store.create({ title: "Secret foreign title" });
   const subjects = [...documents.map(row => ({ kind: PAGES_SUBJECT_KIND, id: row.id })), ...folders.map(row => ({ kind: PAGES_FOLDER_KIND, id: row.id }))];
   f.reads.length = 0;
   const result = await f.bound.invoke(pagesActions.presentation, { subjects, fields: ["title", "body"] });
@@ -158,7 +160,8 @@ test("APR-07/08: publication cannot apply a stale association, and a current exp
 test("APR-07/08: actual Pages writes still reject wrong targets, stale versions and undeclared fields without side effects", async t => {
   const f = fixture(); t.after(() => f.close());
   const document = (await f.bound.invoke(pagesActions.create, { title: "Original", markdown: "Original" })).document;
-  const foreignFolder = f.store.createFolder({ title: "Private" });
+  const other = fixture(); t.after(() => other.close());
+  const foreignFolder = other.store.createFolder({ title: "Private" });
   for (const input of [
     { id: document.id, folder_id: foreignFolder.id }, { id: document.id, folder_id: "removed" },
   ]) await assert.rejects(f.bound.invoke(pagesActions.update, input), { code: "pages.not_found" });

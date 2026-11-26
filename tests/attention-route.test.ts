@@ -300,5 +300,5 @@ test("S-home-page-authority generated home-page session header is refused with 4
   });
   assert.equal(res.status, 403, "GET /api/attention/events with x-molis-home-page must be refused with 403");
   const body = (await res.json()) as { error?: string };
-  assert.equal(body.error, "forbidden");
+  assert.equal(body.error, "当前没有这项操作的权限，可以在设置里检查授权。", "the refusal is said in the person's words, not as a code");
 });

@@ -2,7 +2,7 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import { PERSONAL_SPACE_DIRECTORY, partitionRootsOnDisk } from "@molis-ai/molis-work-module-projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
+import { installIdentity, isHostTrust, registerPluginOffHere } from "@molis-ai/molis-work-plugin-runtime";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import { hostLog } from "./host-log.js";
 import { assembledPerPartition, PartitionPluginAssembly, type PartitionPluginLease, type PartitionWakeReason } from "./partition-plugin-assembly.js";
@@ -23,7 +23,8 @@ import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
  * - **Who runs**: the plugins a partition enables (`partition_plugins`, read as the project's plugin list); an instance is started when its
  *   partition is opened (an `open` lease held while it stays open), when a due entry fires, or when a push or a synchronized write arrives.
  * - **Idle**: an instance with no lease stops after `PARTITION_PLUGIN_IDLE_MS`; a sweep runs while the Host does.
- * - **Membership**: a plugin taken out of a partition stops there, and its due entries and overview rows there go (`pluginDisabled`).
+ * - **Membership**: a plugin taken out of a partition stops there, and its due entries and overview rows there go (`pluginDisabled`). While
+ *   the partition is open, the actions of a plugin it does not enable are still listed there and answer that it is off here (BL-088, `registerPluginOffHere`).
  * - **What an instance reaches**: its own partition's library and files (S-partition-isolation), and installation records from the Home's one
  *   install table, with its lifecycle kept by that instance alone, in memory per (install, partition).
  */
@@ -112,13 +113,16 @@ export function homeRestored(home: string): void {
   }
 }
 
+/** The provider its instance in a partition registers: a plugin that ships with the Host under its plugin_id, any other under its installation. */
+const providerOf = (entry: PluginPlatformEntry) => entry.trust && isHostTrust(entry.trust) ? entry.definition.manifest.plugin_id : installIdentity(entry.definition.manifest);
+
 export class PartitionPluginHost {
   readonly assembly: PartitionPluginAssembly<PartitionPluginInstance>;
   services: PartitionPlatformServices | undefined;
   closed = false;
   private readonly entries = new Map<string, PluginPlatformEntry>();
   /** Ports of the partitions opened now, with the `open` lease each enabled plugin holds there. */
-  private readonly open = new Map<string, { ports: ProjectPluginPorts; leases: Map<string, PartitionPluginLease> }>();
+  private readonly open = new Map<string, { ports: ProjectPluginPorts; leases: Map<string, PartitionPluginLease>; off: Map<string, () => void> }>();
   /** Why a plugin did not start in a partition the last time it was asked to; cleared when it starts. */
   private readonly failures = new Map<string, string>();
   private installs: ReturnType<typeof openHomePluginStore> | undefined;
@@ -159,7 +163,7 @@ export class PartitionPluginHost {
 
   /** A partition's database is open: its per-partition plugins' installation records are read from the Home install table from now on. */
   noteStore(partition: LocalProjectDatabase, partitionId: string): void {
-    notePartitionInstalls(partition.db, this.installDatabase(), () => this.partitionPlugins(), pluginId => this.platform(pluginId, partitionId)?.installRecords);
+    notePartitionInstalls(partition.db, () => this.installDatabase(), () => this.partitionPlugins(), pluginId => this.platform(pluginId, partitionId)?.installRecords);
   }
 
   /** The Host starts the services (due timer, overview) and the idle sweep, and says how a partition that is not open is opened. */
@@ -225,7 +229,7 @@ export class PartitionPluginHost {
     const partitionId = ports.projectId;
     this.noteStore(ports.store, ports.projectId);
     const opened = this.open.get(partitionId);
-    if (opened) { opened.ports = ports; } else this.open.set(partitionId, { ports, leases: new Map() });
+    if (opened) { opened.ports = ports; } else this.open.set(partitionId, { ports, leases: new Map(), off: new Map() });
     await this.refresh(partitionId);
   }
 
@@ -251,6 +255,9 @@ export class PartitionPluginHost {
       const key = JSON.stringify([pluginId, partitionId]);
       const held = opened.leases.get(pluginId);
       if (members.has(pluginId)) {
+        // Its own instance answers from now on.
+        opened.off.get(pluginId)?.();
+        opened.off.delete(pluginId);
         if (held && this.assembly.started(pluginId, partitionId)) continue;
         held?.release();
         opened.leases.delete(pluginId);
@@ -277,12 +284,19 @@ export class PartitionPluginHost {
       const running = held !== undefined || this.assembly.started(pluginId, partitionId) !== undefined;
       held?.release();
       opened.leases.delete(pluginId);
-      if (!running) continue;
-      try {
-        await this.assembly.stopPlugin(pluginId, partitionId);
-        this.pluginDisabled(pluginId, partitionId);
-      } catch (error) {
-        unfinished.push({ plugin_id: pluginId, desired_enabled: false, reason: error instanceof Error ? error.message : String(error) });
+      if (running) {
+        try {
+          await this.assembly.stopPlugin(pluginId, partitionId);
+          this.pluginDisabled(pluginId, partitionId);
+        } catch (error) {
+          unfinished.push({ plugin_id: pluginId, desired_enabled: false, reason: error instanceof Error ? error.message : String(error) });
+          continue;
+        }
+      }
+      const entry = this.entries.get(pluginId);
+      if (entry && !opened.off.has(pluginId) && this.open.get(partitionId) === opened) {
+        opened.off.set(pluginId, registerPluginOffHere(opened.ports.actions.registry, entry.definition.manifest,
+          { provider_id: providerOf(entry), plugin_install_id: installIdentity(entry.definition.manifest), project_id: partitionId }));
       }
     }
     return unfinished;
@@ -302,6 +316,7 @@ export class PartitionPluginHost {
     const opened = this.open.get(partitionId);
     this.open.delete(partitionId);
     for (const lease of opened?.leases.values() ?? []) lease.release();
+    for (const withdraw of opened?.off.values() ?? []) withdraw();
     for (const key of [...this.failures.keys()]) if ((JSON.parse(key) as string[])[1] === partitionId) this.failures.delete(key);
     await this.assembly.stopPartition(partitionId);
     // Made by a bare project platform (no Host started the services): nothing keeps it once its last partition closed.
@@ -321,6 +336,7 @@ export class PartitionPluginHost {
     if (this.closed) return;
     this.closed = true;
     if (this.sweep) clearInterval(this.sweep);
+    for (const opened of this.open.values()) for (const withdraw of opened.off.values()) withdraw();
     this.open.clear();
     const failures: unknown[] = [];
     await this.assembly.close().catch(error => { failures.push(error); });

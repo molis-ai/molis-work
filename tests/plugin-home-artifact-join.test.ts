@@ -8,7 +8,7 @@ import { molisWorkHostProjectReference, pluginSyncNamespace } from "@molis-ai/mo
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
@@ -47,7 +47,7 @@ async function fixture(t: TestContext, projectIdentity?: string) {
   const home = await openTestHome(t);
   const selected = projectIdentity
     ? await catalogProject(home, projectIdentity, "Artifact row fixture")
-    : await home.createProject("Artifact row fixture");
+    : await home.createProject("Artifact row fixture", ["dataset"]);
   const projectId = selected.project_id;
   const person = await home.host.localPersonContext(selected.reference);
   assert.ok(services);
@@ -79,11 +79,15 @@ async function fixture(t: TestContext, projectIdentity?: string) {
   const put = (name: string, subject = id, revision = 1): PluginArtifactPublishInput => ({ artifact_id: name, version: 1,
     artifact_type_id: manifest.artifacts.produces[0]!.artifact_type_id, schema_version: 1, content: { kind: "inline", payload: { name } },
     ...pinnedArtifact(name, { kind: "dataset", id: subject }, String(revision)) });
+  // Dataset's installation is the Home's (batch 107: it runs per partition), so it is replaced in the Home install table.
   const replaceInstallation = () => {
-    const installs = new SqlitePluginRuntimeRepository(project.db);
-    const install = installs.list().find(record => record.plugin_id === manifest.plugin_id);
-    assert.ok(install);
-    installs.save({ ...install, installation_generation: "replacement" });
+    const db = openSqliteConnection(homeSqlitePath(home.home, "plugin-runtime"), { fileMustExist: true });
+    try {
+      const installs = new SqlitePluginRuntimeRepository(db);
+      const install = installs.list().find(record => record.plugin_id === manifest.plugin_id);
+      assert.ok(install);
+      installs.save({ ...install, installation_generation: "replacement" });
+    } finally { db.close(); }
   };
   return { ...services, source, homeChanges, projectChanges, project, projectId, run, put, abort, replaceInstallation, home, sync,
     latestActivation: () => services,
@@ -188,7 +192,8 @@ test("BSH-02 · beforeEffect belongs to the trusted action and a replaced instal
     entered.resolve();
     await release.promise;
   });
-  const refused = assert.rejects(result, { code: "actions.forbidden" });
+  // The installation replaced in the Home table is not the one this partition's instance runs (batch 107), so the gate finds it not running.
+  const refused = assert.rejects(result, { code: "actions.plugin_unavailable" });
   try {
     await Promise.race([entered.promise, refused.then(() => assert.fail("the original action never reached its write gate"))]);
     f.replaceInstallation();

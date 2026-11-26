@@ -17,7 +17,7 @@ const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", con
 const pagesListTool = `molis_work_v1_action_${pagesActions.list.capability_id}__v1`;
 
 test("RAC-1116 BL-088 removing Pages from a project takes it out of the project's search, actions, assistant and MCP; adding it back brings all of it back with the documents intact", { timeout: 120_000 }, async t => {
-  const home = await openTestHome(t), project = await home.createProject("移除 Pages");
+  const home = await openTestHome(t), project = await home.createProject("移除 Pages", ["pages"]);
   const projectPlugins = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
   const person = await home.host.localPersonContext(project.reference);
   const assistant: ActionCallContext = { ...person, audience: "agent" };

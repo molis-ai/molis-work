@@ -180,7 +180,7 @@ test("UPP-06 S-partition-isolation the old project platform refuses to run a plu
 
 test("UPP-06 S-31 S-partition-isolation the project platform gives a plugin with a library in each partition the library of the project it runs in; a call naming another project or none is refused and makes no library", async t => {
   const f = await serveHomeRuntime(t);
-  const a = await f.project("分区 A"), b = await f.project("分区 B");
+  const a = await f.project("分区 A", ["dataset"]), b = await f.project("分区 B", ["dataset"]);
   const caller = runtimePerson(DATASET_ACTION_PERMISSIONS, a.project_id), inA = f.host.actionClient(a.reference);
   await inA.invoke(caller, datasetActions.create, { title: "A 的表" });
   const aLibrary = partitionLibraryFile(f.home, a.project_id, "dataset"), bLibrary = partitionLibraryFile(f.home, b.project_id, "dataset");
@@ -204,7 +204,7 @@ test("UPP-06 S-18 S-52 deleting a project stops its plugin's instance and remove
     await new Promise<void>(resolve => { if (options?.signal?.aborted) resolve(); else options?.signal?.addEventListener("abort", () => resolve(), { once: true }); });
     return "截止日期";
   } });
-  const gone = await f.project("要删的项目"), kept = await f.project("留下的项目");
+  const gone = await f.project("要删的项目", ["dataset"]), kept = await f.project("留下的项目", ["dataset"]);
   const client = f.host.actionClient(gone.reference), caller = runtimePerson(DATASET_ACTION_PERMISSIONS, gone.project_id);
   const { dataset } = await client.invoke(caller, datasetActions.create, {}) as { dataset: { id: string } };
   await f.host.actionClient(kept.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, kept.project_id), datasetActions.create, { title: "留下" });
@@ -400,7 +400,7 @@ const DATASET = "io.molis.work.dataset";
 
 test("UPP-21 batch 107 the Host runs a plugin with a library in each partition as its own instance per partition; one crashing leaves the other and the Home's installation as they were; the Home store and the instances share no stale record", async t => {
   const f = await serveHomeRuntime(t);
-  const a = await f.project("分区 A"), b = await f.project("分区 B");
+  const a = await f.project("分区 A", ["dataset"]), b = await f.project("分区 B", ["dataset"]);
   for (const p of [a, b]) await f.host.actionClient(p.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, p.project_id), datasetActions.create, { title: p.project_id });
   const stateOf = (p: typeof a) => f.host.withProject(p.reference, runtime => runningProjectPluginState(runtime.store, p.project_id));
   const inA = await stateOf(a), inB = await stateOf(b);

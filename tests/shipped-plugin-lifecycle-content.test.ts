@@ -7,16 +7,16 @@ import test from "node:test";
 import { titlesOf, walk, type Shipped } from "./fixtures/shipped-lifecycle.js";
 
 const CONTENT: Record<string, Shipped> = {
-  dataset: { key: "dataset", plugin_id: "io.molis.work.dataset", scope: "project",
+  dataset: { key: "dataset", plugin_id: "io.molis.work.dataset", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/datasets`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ datasets: Array<{ title: string }> }>(`${routes}/datasets`)).datasets) },
-  ppt: { key: "ppt", plugin_id: "io.molis.work.ppt", scope: "project",
+  ppt: { key: "ppt", plugin_id: "io.molis.work.ppt", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/ppt`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ presentations: Array<{ title: string }> }>(`${routes}/ppt`)).presentations) },
-  form: { key: "form", plugin_id: "io.molis.work.form", scope: "project",
+  form: { key: "form", plugin_id: "io.molis.work.form", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/forms`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ forms: Array<{ title: string }> }>(`${routes}/forms`)).forms) },
-  workflows: { key: "workflows", plugin_id: "io.molis.work.native.workflows", scope: "project",
+  workflows: { key: "workflows", plugin_id: "io.molis.work.native.workflows", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/workflows`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ workflows: Array<{ title: string }> }>(`${routes}/workflows`)).workflows) },
   // In every new project by its plugin list; a daily task is what the person writes here.

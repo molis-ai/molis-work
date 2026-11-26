@@ -14,7 +14,7 @@ async function json<T>(response: Response, status = 200): Promise<T> {
 }
 
 test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the original message and require both current authorities", { timeout: 60_000 }, async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("Discussion references"), prefix = "/projects/" + project.project_id;
+  const f = await serveHomeRuntime(t), project = await f.project("Discussion references", ["ppt"]), prefix = "/projects/" + project.project_id;
   const http = (...args: Parameters<typeof f.request>) => f.request(...args).catch(cause => {
     throw new Error("Transport refused " + (args[1]?.method ?? "GET") + " " + args[0], { cause });
   });

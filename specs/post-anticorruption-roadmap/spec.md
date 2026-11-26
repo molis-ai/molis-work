@@ -12,7 +12,7 @@
 
 <a id="execution-batches"></a>
 
-## 01～111
+## 01～112
 
 2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md)（决定 54）并随后合并全产品界面／布局／行为反馈打磨与开发指引收口，拆成紧邻双段 [91（91A）](reference/batches/91.md) 与 [91B](reference/batches/91b.md)（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 55](reference/decisions.md#decision-55)）。
 
@@ -20,7 +20,9 @@
 
 2026-11-20 按全仓体检与决定 57 两轮红队终校调整（[决定 58](reference/decisions.md#decision-58)）：不砍任何既有批次、不做大规模拆迁、100% 保留全部 AI Harness 与 RSI 工程优化；按最大批号追加 6 个横向修复与硬化正式批次 [100](reference/batches/100.md)～[105](reference/batches/105.md)（按各自真实前置开工，**不等 38～89**），同步校准 [91](reference/batches/91.md)、[91B](reference/batches/91b.md)、[62](reference/batches/62.md) 等批次的红队护栏，第 90 批仍为整条路线最终交付对账。
 
-2026-11-22 按「特殊逻辑平民化 + 统一工作分区」终审合并拍板（[决定 66](reference/decisions.md#decision-66)；决定 64/65 规格已由 `#2259` 确立，`91-0c` 代码实现 PR 仍待在 `91-4` 与 `91B` 之前合入）：新增 [44B](reference/batches/44b.md)（已随 `#2262`/`#2279`/`#2294`/`#2308` 合入：特殊逻辑平民化，Shelf 剥离插件壳收归纯平台 `modules/shelf` / `system.shelf`、彻底删旧 Alchemist 与 `better-sqlite3`、官方集成驱动化、G1 门禁；两轮复核余项于 2026-11-24 随 `#2311` 增开 [44C](reference/batches/44c.md)，与 `106` 并行）与按 V1 先加后迁再删的 6 个统一工作分区正式批次 [106](reference/batches/106.md)～[111](reference/batches/111.md)（20 个平等内置插件，零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1、G1～G5 门禁）。在途待合前置 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`）均已合入消费；`44B`、`44C` 与 `106`～`111` 排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前，[第 90 批](reference/batches/90.md)仍为整条路线最终交付对账。
+2026-11-22 按「特殊逻辑平民化 + 统一工作分区」终审合并拍板（[决定 66](reference/decisions.md#decision-66)；决定 64/65 规格已由 `#2259` 确立，`91-0c` 代码实现 PR 排在 `111` 之后、`91A` 与 `91B` 之前合入）：新增 [44B](reference/batches/44b.md)（已随 `#2262`/`#2279`/`#2294`/`#2308` 合入：特殊逻辑平民化，Shelf 剥离插件壳收归纯平台 `modules/shelf` / `system.shelf`、彻底删旧 Alchemist 与 `better-sqlite3`、官方集成驱动化、G1 门禁；两轮复核余项于 2026-11-24 随 `#2311` 增开 [44C](reference/batches/44c.md)）与按 V1 先加后迁再删的 6 个统一工作分区正式批次 [106](reference/batches/106.md)～[111](reference/batches/111.md)（20 个平等内置插件，零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1、G1～G5 门禁）。在途待合前置 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`）及 `106`（`#2314`～`#2323`）、`107`（`#2325`／`#2329`）均已合入消费；`44B`、`44C` 与 `106`～`112` 排在 `91-0c`、`91A`、`91B`、`104`、`105`、`45`～`90`、`REL-4`、`SRV` 之前，[第 90 批](reference/batches/90.md)仍为整条路线最终交付对账。
+
+2026-11-25 按全量待推进批次逐批方案优化与拍板（[决定 68](reference/decisions.md#decision-68)）：专项新增 [112](reference/batches/112.md)（`112-1` 彻底删除 `jelly-whisper` 与 626 MB Whisper 模型下载链并更名 `molis-material` 补日文 OCR；`112-2` 将 `Jelly` 瘦身为 4 张关系表：日历＋极简随手记，砍除私有 AI 与独立模型台，排在 `108` 与 `54` 之前），结清决定 16（`BL-128`）、决定 18、QA 7 项待定与 `BL-812`，在 [63-2](reference/batches/63.md#batch-63-item-2) 增设按需懒加载的图形化「`设置 › 评测`」后台，并按清晰子 PR 校准阶段 2～4、`REL-1`～`5`（M1 `1.0.0` Apple Silicon `arm64` 单架构）及 `SRV-1`～`8` 全线方案。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -187,10 +189,6 @@
 |  | [`64-1/6/7` · 主动发现／周期报告、防抖预算门控材料触发／历史回查与安静准备／观察试用（PR 2，建议不弹窗、采纳按轻重分级）](reference/batches/64.md#batch-64-item-1) |
 |  | [`64-2` · 智能组合第三片：跨插件／MCP／Skill 动态拼操作面与纯文本形态（PR 3，等 `62-2/3`）](reference/batches/64.md#batch-64-item-2) |
 |  | [`64-3` · 主线建议与消费 `108` `overview_projection` 的跨项目个人主线视图（PR 4，零休眠唤醒）](reference/batches/64.md#batch-64-item-3) |
-|  | [初始场景 Skill 与默认配置](reference/batches/64.md#batch-64-item-4) |
-|  | [访谈初始化与工作记忆](reference/batches/64.md#batch-64-item-5) |
-|  | [回执阶段 5](reference/batches/64.md#batch-64-item-6) |
-|  | [安静准备与观察试用](reference/batches/64.md#batch-64-item-7) |
 | [65](reference/batches/65.md) | [`65-0` · Prologue 窗口 C 双平台 OS 真沙箱与兼容 fake-IP 本地出站域控代理换包（串行 3 PR，PR 1，经用户确认提交）](reference/batches/65.md#batch-65-item-0) |
 |  | [`65-1/2` · 公共搜索联网开关、真沙箱命令规则、隔离依赖下载与默认关闭的 AI 低风险代批（PR 2，复用共用原语零插件样式增长）](reference/batches/65.md#batch-65-item-1) |
 |  | [`65-3` · 带脚本内容指纹锁的用户 Hooks 生命周期与第 `61` 批 `G-09` 自动化建议收口（PR 3）](reference/batches/65.md#batch-65-item-3) |

@@ -99,7 +99,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type Action
 import type { HostActionClient } from "./local-host-types.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
-import { existingPartitionPluginHost, partitionPluginHostFor, partitionPluginWrote } from "./partition-plugin-host.js";
+import { existingPartitionPluginHost, partitionPluginHostFor } from "./partition-plugin-host.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
 import { isPersonalSpace } from "./personal-space.js";
 import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
@@ -218,7 +218,7 @@ export class MolisWorkLocalHost {
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
   readonly homePlugins?: HomePluginHost;
-  private readonly callReports = hostCallReports(this, () => this.personalPlanningHome ?? this.options.homeDirectory);
+  private readonly callReports = hostCallReports(this);
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     if (options.homeDirectory !== undefined) {
@@ -751,16 +751,13 @@ function hostCatalogOwner(host: MolisWorkLocalHost, home: string) {
   return {canonicalHome, storageOwner: ensureHomeStorageOwner(host, canonicalHome, preflightMemoryHome)};
 }
 
-function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins" | "observation">, home: () => string | undefined): Required<CallReports> {
+function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins" | "observation">): Required<CallReports> {
   return { observed: (caller, action, observation) => host.observation?.observed(caller, action, observation), settled: (caller, action, outcome) => {
     host.callLog?.record(caller, action, outcome);
     // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
     const provider = action.provider_id;
     if (outcome.ok && action.operation === "command" && provider) {
       host.search?.changed(provider, caller.project_id);
-      // A plugin of each partition wrote there: its overview rows (and their reminder times) are read again, waking nothing.
-      const directory = home();
-      if (directory && caller.project_id) partitionPluginWrote(directory, caller.project_id, provider);
       refreshAfterScheduledAction(caller, action, () => host.homePlugins?.invalidateView(provider));
     }
   } };

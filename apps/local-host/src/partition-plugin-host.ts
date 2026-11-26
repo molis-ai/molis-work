@@ -8,7 +8,7 @@ import { hostLog } from "./host-log.js";
 import { assembledPerPartition, PartitionPluginAssembly, type PartitionPluginLease, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 import { notePartitionInstalls } from "./plugin-install-records.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { forgetInstallationPlatformRecords, markPartitionChanged, PartitionPlatformServices, partitionOverviewLibraries } from "./partition-platform-services.js";
+import { forgetInstallationPlatformRecords, markPartitionChanged, PartitionPlatformServices } from "./partition-platform-services.js";
 import type { PluginPlatform, PluginPlatformEntry } from "./plugin-platform.js";
 import { partitionPluginMembers, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -91,14 +91,6 @@ export function partitionChanged(home: string, partitionId: string, installId?: 
 }
 
 /**
- * A command of a plugin's instance in a partition finished (batch 108): its overview there is marked changed and read again at once, on a
- * read-only connection that wakes nothing, so a reminder time it just wrote arms the due timer. Nothing for a plugin with no overview there.
- */
-export function partitionPluginWrote(home: string, partitionId: string, providerId: string): void {
-  existingPartitionPluginHost(home)?.written(partitionId, providerId);
-}
-
-/**
  * A membership write took a plugin out of a partition: its due entries and overview rows there go now, whether or not the partition is open
  * (an open one also stops its instance on the refresh that follows). Nothing for a plugin that does not run per partition.
  */
@@ -165,15 +157,6 @@ export class PartitionPluginHost {
 
   /** The Manifest of a plugin this Host runs per partition, when it was declared here. */
   manifestOf(pluginId: string): PluginPlatformEntry["definition"]["manifest"] | undefined { return this.entries.get(pluginId)?.definition.manifest; }
-
-  /** See `partitionPluginWrote`: `providerId` is what the instance registers its actions under (`providerOf`). */
-  written(partitionId: string, providerId: string): void {
-    const entry = [...this.entries.values()].find(candidate => providerOf(candidate) === providerId);
-    if (!entry || !this.services) return;
-    const manifest = entry.definition.manifest, installId = installIdentity(manifest);
-    if (!manifest.overview_projection?.kinds.length || !manifest.databases?.partition) return;
-    this.services.partitionChanged(partitionId, installId, partitionOverviewLibraries(this.home, [{ partition_id: partitionId, plugins: [{ install_id: installId, manifest }] }]));
-  }
 
   /**
    * Every plugin whose installation is this Home's and whose lifecycle is each partition's: the built-in ones that keep a library in each

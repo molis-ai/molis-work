@@ -1082,7 +1082,7 @@ test("S-ui-text-page FSS-08 stopping the real plugin during the opening locale b
   await b.web.delete(`/api/settings/projects/${PERSONAL_SPACE_PROJECT_ID}/plugins`, { plugin_id: "issues", expected_revision: await projectPluginRevision(b.web, PERSONAL_SPACE_PROJECT_ID) });
   finish.resolve();
   await b.waitFor("!document.querySelector('iframe[data-plugin-frame=issues]')", 15000);
-  console.log("FSS-08 probe", await b.evaluate("JSON.stringify([...document.querySelectorAll('[data-work-surface],[data-ui-client-state]')].map(e=>[e.tagName,e.dataset.workSurface,e.dataset.uiClientState,e.hidden]))"));
+  assert.equal(await b.evaluate("document.querySelector('[data-work-surface=issues]').dataset.uiClientState"), "failed", "the frame is denied its config and says so");
 });
 
 test("FSS-20 FSS-37 a frame still opening when Settings changes the language draws all its words before running the plugin", { timeout: 120_000 }, async t => {

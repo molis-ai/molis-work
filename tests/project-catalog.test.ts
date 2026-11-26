@@ -1131,6 +1131,11 @@ test("UPP-18 UPP-03 an older Home's partitions keep the six former personal plug
       } finally { db.close(); }
     };
     const before = facts();
+    // Exactly the six: the fix takes them by declaration (databases.partition, no plugin names in platform source), so a later batch
+    // that moves another plugin to a partition library fails here and has to decide what this one-time fix does with it.
+    assert.deepEqual([...new Set((before.rows as { plugin_id: string; enabled_by: string }[])
+      .filter(row => row.enabled_by === "upgrade:former-personal-plugins").map(row => row.plugin_id))].sort(), six,
+      "the one-time fix writes exactly the six former personal plugins, nothing a later batch moved");
     assert.ok((before.rows as { plugin_id: string; enabled_by: string }[]).filter(row => six.includes(row.plugin_id)).every(row => row.enabled_by === "upgrade:former-personal-plugins"), "the platform's upgrade wrote them, not the person");
 
     const again = await openMolisWorkProjectCatalog({ homeDirectory: home });

@@ -246,7 +246,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
         field.focus();
         return dialog.matches(':modal') && dialog.querySelector('form').getAttribute('aria-busy') === 'true'
           && document.activeElement !== field && document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) !== field;
-      })()`), "the pending confirmed read leaves the draft editor inert");
+      })()`, undefined, "person"), "the pending confirmed read leaves the draft editor inert");
       await b.command("Fetch.fulfillRequest", { requestId, responseCode: 503,
         responseHeaders: [{ name: "Content-Type", value: "application/json" }],
         body: Buffer.from(JSON.stringify({ error: failure, code: "actions.unavailable" })).toString("base64"),

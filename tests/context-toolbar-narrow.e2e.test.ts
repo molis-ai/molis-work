@@ -91,7 +91,7 @@ for (const locale of ["zh", "en"] as const) {
       const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-    })()`);
+    })()`, undefined, "person");
     const lengthened = `document.querySelector(${JSON.stringify(`${BAR} [data-key]`)}) && ${JSON.stringify(long.titles)}.includes(document.querySelector(${JSON.stringify(`${BAR} [data-key] > span`)}).textContent)`;
     await select();
     // Ranked by the rules, then by the judgment (not connected in this Home, so the same plan again): measured once both are in.

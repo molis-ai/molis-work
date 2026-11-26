@@ -76,7 +76,7 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = doc.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range);
-  })()`);
+  })()`, undefined, "person");
   await waitFor(`window.landings.some(item => item.detail?.position === 'cursor' && item.detail?.targets?.[0]?.anchor === 4 && item.paneId === (${PANE})?.dataset.tabPane)`, 10_000);
   const landing = await evaluate<{ detail: { object: { id: string }; targets: { anchor: number }[] }; paneId: string }>(`window.landings.findLast(item => item.detail?.position === 'cursor' && item.detail?.targets?.[0]?.anchor === 4 && item.paneId === (${PANE})?.dataset.tabPane)`);
   assert.equal(landing.detail.object.id, left.id);

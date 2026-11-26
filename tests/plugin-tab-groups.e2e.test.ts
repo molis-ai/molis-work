@@ -494,7 +494,7 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   assert.equal(await child.evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
 
   // Clear the mouse picks, then pick both sources and invoke the existing synthesis action entirely by keyboard.
-  await child.evaluate("document.querySelector('[data-pages-search]').focus()");
+  await child.evaluate("document.querySelector('[data-pages-search]').focus()", undefined, "person");
   await key("Tab", "Tab", 9);
   await key("Home", "Home", 36);
   await key("Home", "Home", 36, 2);

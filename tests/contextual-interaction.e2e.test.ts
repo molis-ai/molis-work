@@ -47,7 +47,7 @@ for (const width of [1440, 390]) {
       if (!await child.evaluate<boolean>("document.hasFocus()")) await child.click(`[data-pages-editor] .ProseMirror p:${index === 2 ? "first" : "last"}-of-type`);
       await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
-      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
     };
     // As many of the plan's first actions as the bar has room for: three in a wide window; in a narrow one at most two, and what
     // does not fit goes to 更多's 推荐 rather than being squeezed under its text (context-toolbar §6, QA-014).
@@ -140,7 +140,7 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   await child.click("[data-pages-editor] .ProseMirror p");
   await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === 3`);
   // “更多” lists every action for this passage regardless of the ranking, grouped by purpose.
   await click(MORE);
@@ -155,7 +155,7 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   // The person clicks into the frozen text (the editor takes focus) and types a character there.
   await child.click(".pages-focus-frozen");
   await child.evaluate(`(() => { document.querySelector('[data-pages-editor] .ProseMirror').focus(); const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
-    range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
+    range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`, undefined, "person");
   await command("Input.insertText", { text: "改" }, sessionId);
   await child.evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);
   await child.waitFor("document.querySelector('.pages-pop .pages-pop-error')?.textContent.includes('没有写入')");
@@ -184,7 +184,7 @@ test("SYS-52 P2: a word is looked up in the search palette; a write goes to the 
     if (!await child.evaluate<boolean>("document.hasFocus()")) await child.click("[data-pages-editor] .ProseMirror p");
     await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to === undefined ? "text.length" : to});
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); window.expectedContextText = selection.toString(); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); window.expectedContextText = selection.toString(); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
     await child.waitFor("window.contextualFocus?.targets.map(part => part.text).join('\\n\\n') === window.expectedContextText");
     return child.evaluate<string>("contextualFocus.context_id");
   };
@@ -248,7 +248,7 @@ test("contextual actions: a command that cannot run keeps its name on one line a
   await child.click("[data-pages-editor] .ProseMirror p");
   await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 8000);
   await click(MORE);
   await waitFor("document.querySelectorAll('.mw-ctx-menu button[disabled]').length >= 3", 8000);

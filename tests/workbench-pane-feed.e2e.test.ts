@@ -194,7 +194,7 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   await child.evaluate("document.querySelector('[data-feed-sources-dialog] [data-feed-sources-close]').click()");
   assert.equal(await child.evaluate("document.querySelector('[data-feed-add-form] [data-feed-source-value=custom_rss]').value"), "https://example.com/draft.xml");
   // Focus still resolves the surviving Feed pane.
-  await child.evaluate("document.querySelector('[data-feed-search]').focus()");
+  await child.evaluate("document.querySelector('[data-feed-search]').focus()", undefined, "person");
   assert.equal(await evaluate("document.querySelector('.tab-pane.is-focused').dataset.tabPane===sourcePane"), true);
 });
 

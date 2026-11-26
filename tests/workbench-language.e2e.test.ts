@@ -7,7 +7,7 @@ import { ASSISTANT_STORE_NAME, AssistantStore, homeAgentDefinitions, hostTextPro
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { ISSUES_PAGE, personalIssues } from "./fixtures/issue-browser.js";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -1014,8 +1014,9 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
     window.liveIssueFrame = document.querySelector('iframe[data-plugin-frame=issues]'); window.wordsRequests = [];
     const transport = window.molisWorkUiTransport;
     window.molisWorkUiTransport = (url, init) => {
-      const path = new URL(url);
-      if (path.pathname === '/api/ui/locales') {
+      const path = new URL(typeof url === 'string' ? url : url.url, location.href);
+      // The frame's words come from its partition's route (/projects/personal/api/ui/locales for the personal space's Issues, batch 108).
+      if (path.pathname.endsWith('/api/ui/locales')) {
         wordsRequests.push([path.searchParams.get('locale'), path.searchParams.getAll('page').length]);
         if (path.searchParams.get('locale') === 'en') return fetch(url, init).then(async response => {
           if (!response.ok) return response;
@@ -1028,9 +1029,13 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
   })()`);
   const described = Promise.withResolvers<void>();
   void described.promise.catch(() => undefined);
+  // Only the page's own words get the fixture's conventions. The personal space's Issue capture view, preloaded beside the page in its own
+  // document since batch 108, loads the same asset and takes it as served.
+  const { frameTree } = await b.command<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree", {}, b.sessionId);
   const stop = b.on("Fetch.requestPaused", (event, session) => {
     if (session !== b.sessionId) return;
     const requestId = String(event.requestId);
+    if (event.frameId !== frameTree.frame.id) { void b.command("Fetch.continueRequest", { requestId }, session).catch(() => undefined); return; }
     void (async () => {
       const result = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, session);
       const source = result.base64Encoded ? Buffer.from(result.body, "base64").toString("utf8") : result.body;
@@ -1928,6 +1933,8 @@ test("FSS-20 FSS-34 FSS-35 FSS-36 full live zh → en → ja → zh switching ac
   // 2. Full Project Workbench: Shell + Side Panel + Split-Pane Clone + IM + Plugin Stage (issues) + Non-ja fallback plugin (shelf).
   const select = await openLanguageSettings(t, b);
   const issuesFrame = await pluginFrameBrowser(t, b, "issues");
+  // Issues runs in each partition since batch 108: the project's own Issues is its plugin stage.
+  await addProjectPlugin(b.web, b.projectId!, "issues");
   const projectPath = `/projects/${b.projectId}/?desktop=1&openPlugin=issues`;
   await b.navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=" + encodeURIComponent(projectPath) }, sessionId));
   await waitFor("document.documentElement.lang === 'zh-CN' && !!document.querySelector('[data-side-tabs]') && !!document.querySelector('[data-tab-pane]')", 25_000);

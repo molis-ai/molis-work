@@ -1,45 +1,48 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { seedDemoBoard, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { issueView } from "./fixtures/issue-browser.js";
+import { ISSUES_PAGE, issueView, personalIssues } from "./fixtures/issue-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 
 const create = (title: string, type: "bug" | "experience" | "feature", description: string) => ({ title, type, description });
 
-test("ISSUE-01 the failed Home page retries only on click and recovers without restarting Work", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "empty", async path => {
-    seedDemoBoard(path);
-    await seedDemoGoals(path);
-    const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
-    const db = new DatabaseSync(join(directory, "plugin-runtime.db")); db.exec("PRAGMA user_version=9"); db.close();
-  }, null);
+// Batch 108: Issues runs in the personal space, not as a Home plugin with its own page and its start/stop buttons. When the Home's plugin
+// ledger (where its installation is kept) cannot be read, the space's page is the "暂不可用" card with the plugins the space had saved; it
+// writes nothing and the bad file is kept as it is.
+test("ISSUE-01 a plugin ledger this version cannot read shows the card in the personal space, runs no plugin and keeps the file", { timeout: 60_000 }, async t => {
+  let ledger = "";
+  const browser = await openGoalBrowser(t, "empty", async path => { seedDemoBoard(path); await seedDemoGoals(path); }, null, undefined, undefined, {
+    prepareHome: async home => {
+      const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+      try { catalog.addProjectPlugin({ project_id: PERSONAL_SPACE_PROJECT_ID, plugin_id: "issues", actor_id: "browser-test" }); } finally { catalog.close(); }
+      ledger = join(home, "plugin-runtime", "plugin-runtime.db"); mkdirSync(dirname(ledger), { recursive: true });
+      const db = new DatabaseSync(ledger); db.exec("PRAGMA user_version=9"); db.close();
+    },
+  });
   if (!browser) return;
-  const { origin, sessionId, command, navigate, click, waitFor, homeDirectory } = browser;
-  const child = await pluginFrameBrowser(t, browser, "issues");
-  const path = join(homeDirectory, "plugin-runtime", "plugin-runtime.db"), original = await readFile(path);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/?openPlugin=issues` }, sessionId));
-  await waitFor("document.querySelector('[data-home-lifecycle=retry]')?.textContent === '重试启动'");
-  await click("[data-home-lifecycle=retry]");
-  await waitFor("!document.querySelector('[data-home-status]').hidden && !document.querySelector('[data-home-lifecycle]').disabled");
-  assert.deepEqual(await readFile(path), original);
-  await rename(path, path + ".rejected");
-  await navigate(() => click("[data-home-lifecycle=retry]"));
-  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
-  await child.waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有记录')");
-  assert.ok(await child.evaluate("document.querySelector('[data-issue-list]').textContent.includes('随手记一笔')"));
-  assert.deepEqual(await readFile(path + ".rejected"), original);
-  await navigate(() => click("[data-home-lifecycle=disable]"));
-  await waitFor("document.querySelector('[data-home-lifecycle=enable]')?.textContent === '启用插件'");
-  await navigate(() => click("[data-home-lifecycle=enable]"));
-  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const { origin, sessionId, command, navigate, waitFor } = browser;
+  const original = await readFile(ledger);
+  const open = () => navigate(() => command("Page.navigate", { url: `${origin}${ISSUES_PAGE}` }, sessionId));
+  await open();
+  await waitFor("document.body.hasAttribute('data-home-plugin-store-unavailable') && Boolean(document.querySelector('[data-owner-unavailable]'))");
+  assert.ok(await browser.evaluate("Boolean(document.querySelector('[data-stored-project-plugin=issues]'))"), "the space's saved plugins are still listed");
+  assert.equal(await browser.evaluate("document.querySelectorAll('iframe[data-plugin-frame]').length"), 0, "no plugin runs while its ledger is unreadable");
+  await open();
+  await waitFor("Boolean(document.querySelector('[data-owner-unavailable]'))");
+  assert.deepEqual(await readFile(ledger), original, "opening the page again writes nothing to the refused file");
+  // A ledger from a newer version stays refused for as long as this Work runs (the card says to install the newer one); the Home plugins'
+  // retry button is the Home plugin page's (tests/status-ring.e2e.test.ts, tests/home-plugin-locale.test.ts).
+  assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-home-lifecycle]'))"), false, "a partition plugin has no Home start/stop button");
 });
 
 test("ISSUE-06 ISSUE-18 a record opens read-only; edits save or cancel; a conflict merges the person's changes; delete asks first", { timeout: 120_000 }, async t => {
@@ -186,6 +189,7 @@ test("ISSUE-10 ISSUE-43 dropped screenshots preview, save and reopen; a late imp
 
 test("ISSUE-06 hidden and removed Issue views stop refreshing; one remount keeps one listener", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty"); if (!browser) return;
+  await personalIssues(browser);
   const { origin, sessionId, command, navigate } = browser;
   const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "issues");
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/?openPlugin=issues` }, sessionId));

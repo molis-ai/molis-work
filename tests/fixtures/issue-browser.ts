@@ -11,6 +11,11 @@ import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http"
 export type IssueBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 export const ISSUE_FRAME = '[data-side-body="plugin:issues/capture"] iframe';
 /**
+ * The capture window only while it is shown. In the personal space its frame can be mounted hidden beside the Issues page (batch 108), so a
+ * test on the page reaches the page's own frame, and a test on the capture window the window once it opens.
+ */
+const SHOWN_ISSUE_FRAME = '[data-side-panel]:not([hidden]) [data-side-body="plugin:issues/capture"]:not([hidden]) iframe';
+/**
  * Issues runs in each partition since batch 108; the chord and the Home's tab open the personal space's (R14). Its routes and its own page
  * are the personal space's.
  */
@@ -27,7 +32,7 @@ export async function personalIssues(b: Pick<IssueBrowser, "web">): Promise<void
 /** Real input in the opaque Issue view; a side panel retains its own trusted outer document. */
 export async function issueView(t: TestContext, b: IssueBrowser, evidence = "issue-capture") {
   await personalIssues(b);
-  const child = await pluginFrameBrowser(t, b, "issues", ISSUE_FRAME);
+  const child = await pluginFrameBrowser(t, b, "issues", SHOWN_ISSUE_FRAME);
   const within = (body: string) => `(() => { const d = document, $ = q => d.querySelector(q); return (${body}); })()`;
   const ask = <T = unknown>(body: string) => child.evaluate<T>(within(body));
   const until = (body: string, timeout = 8000) => child.waitFor(within(body), timeout);

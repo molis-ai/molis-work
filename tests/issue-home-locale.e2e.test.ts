@@ -1,18 +1,38 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { issueView } from "./fixtures/issue-browser.js";
+import { ISSUES_PAGE, issueView, type IssueBrowser } from "./fixtures/issue-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 const composer = "[data-issue-composer] [name=description]";
 const editor = "[data-issue-editor]";
 const sideOpen = "document.body.dataset.sideOpen === 'true'";
 // Issue opens from its glyph on the right side of the titlebar (its titlebar button left in 07-1 S4b).
 const issueGlyph = '[data-side-tab="plugin:issues/capture"]';
+
+/**
+ * The standalone Home page (`/plugins/<id>`), its model settings dialog and its startup retry: Jelly's is the built-in one left after Issues moved
+ * to the partitions in batch 108.
+ */
+async function jellyHomeView(t: TestContext, b: IssueBrowser) {
+  const frame = await pluginFrameBrowser(t, b, "jelly");
+  return {
+    frame, ask: <T = unknown>(body: string) => frame.evaluate<T>(body),
+    viewport: (width: number, height = 900) => b.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, b.sessionId),
+    go: (path: string) => b.navigate(() => b.command("Page.navigate", { url: `${b.origin}${path}` }, b.sessionId)),
+    async shot(name: string) {
+      const image = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, b.sessionId);
+      const directory = resolve(".impeccable/qa/review", "issue-home-locale"); await mkdir(directory, { recursive: true });
+      await writeFile(resolve(directory, `${name}.png`), Buffer.from(image.data, "base64"));
+    },
+  };
+}
 
 test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while Chinese drafts and records stay verbatim", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
@@ -48,10 +68,12 @@ test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while 
   assert.deepEqual(await v.read(record.id), record, "locale switches and opening editors do not write the stored record");
 });
 
-test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, retries a failed load and keeps the manual draft", { timeout: 90_000 }, async t => {
+// Issues runs in the personal space since batch 108: its settings link opens the workbench's settings in place, as every partition plugin's does
+// (S-47, tests/security-invariants-plugin-pages.e2e.test.ts). The standalone Home page's own settings dialog is tested on Jelly's page below.
+test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture in the personal space offers English model settings in place and keeps the manual draft", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-home-locale");
-  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fissues");
+  await v.viewport(1440); await v.go(`/locale?lang=en&next=${encodeURIComponent(ISSUES_PAGE)}`);
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press(composer); await v.type("问题描述"); await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-state=attention]')", 30_000); await v.press("[data-state=attention]");
@@ -59,6 +81,35 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, re
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
   assert.equal(await v.ask("$('[data-issue-flag] a[href=\"/settings/models\"]')?.textContent"), "Models");
   assert.doesNotMatch(await v.ask<string>("$('[data-issue-flag]').textContent"), /[\u3400-\u9fff]/u);
+  const opened = "Boolean(document.querySelector('[data-work-surface=settings] [data-model-settings]') || document.querySelector('[data-directory-panel=settings] [data-settings-section=models][aria-current]'))";
+  const owner = "({ marker: window.__ownerMarker, frame: Boolean(window.__issueFrame?.isConnected && window.__issueFrame === document.querySelector('iframe[data-plugin-frame=issues]')) })";
+  await b.evaluate("window.__ownerMarker = 'issue-settings-owner'; window.__issueFrame = document.querySelector('iframe[data-plugin-frame=issues]'); true");
+  await v.ask("globalThis.__settingsDraftMarker = 'original-issue-frame'");
+  await v.press('[data-issue-flag] a[href="/settings/models"]');
+  await b.waitFor(opened, 15_000);
+  assert.deepEqual(await b.evaluate(owner), { marker: "issue-settings-owner", frame: true }, "the settings link keeps the owner document and the original plugin frame");
+  assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-issue-frame", "the Issue execution context was not reloaded");
+  assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
+  assert.equal((await v.list()).items.length, 0, "opening settings does not save the Issue");
+  await v.go(`/locale?lang=en&next=${encodeURIComponent(ISSUES_PAGE)}`);
+  await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await v.until("$('[data-state=attention]')", 30_000); await v.press("[data-state=attention]");
+  await v.until(`!$('${editor}').hidden`);
+  assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述", "the manual draft is still there");
+  await v.press(`${editor} [name=title]`); await v.type("删除");
+  await v.press(`${editor} [data-type=bug]`); await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
+  const { items } = await v.list(); assert.equal(items.length, 1);
+  const stored = await v.read(items[0]!.id);
+  assert.equal(stored.title, "删除"); assert.equal(stored.description, "问题描述"); assert.equal(stored.entered_via, "manual");
+});
+
+// The standalone Home page's settings dialog (S-47, HOME-SET-02): Jelly's is the built-in Home page left after batch 108's Issues moved to the partitions.
+test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens English model settings in place, retries a failed load and keeps the page", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const v = await jellyHomeView(t, b);
+  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fjelly");
+  await v.frame.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
   // HOME-SET-02: the standalone consumer cannot turn an invalid settings request into navigation or I/O.
   assert.deepEqual(await b.evaluate(`(() => {
     const fetch = window.fetch, before = location.href; let requests = 0;
@@ -70,10 +121,9 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, re
       return { requests, open: document.querySelector('[data-home-model-settings]').open, samePage: location.href === before };
     } finally { window.fetch = fetch; }
   })()`), { requests: 0, open: false, samePage: true });
-  assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
-  const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=issues]'))})";
-  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'issue-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=issues]'); return ${ownerState}; })()`);
-  await v.ask("globalThis.__settingsDraftMarker = 'original-issue-frame'");
+  const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=jelly]'))})";
+  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'jelly-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=jelly]'); return ${ownerState}; })()`);
+  await v.ask("globalThis.__settingsDraftMarker = 'original-jelly-frame'");
   // W2-18-HOME-LOCALE-01 / S-47: the standalone Home host receives the opaque page's settings request in place.
   // Only fail delivery of this settings document; the retry uses the real Host and its empty model catalog.
   await b.evaluate(`(() => { const fetch = window.fetch; window.__failModelLoad = true;
@@ -88,7 +138,9 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, re
       }
       return fetch.call(this, url, init);
     }; return true; })()`);
-  await v.press('[data-issue-flag] a[href="/settings/models"]');
+  // The page's own settings link: a scripted click carries no gesture, so the page suppresses the navigation and reports the address.
+  await v.ask(`(() => { const link = document.createElement("a"); link.setAttribute("href", "/settings/models"); link.textContent = "Models";
+    document.body.append(link); link.click(); link.remove(); return true; })()`);
   await b.waitFor("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-home-model-retry]').hidden");
   assert.deepEqual(await b.evaluate("({ lang: document.documentElement.lang, title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
     // A dropped connection is said by the shared request helper, in English here (W3-10), after the settings' own sentence (B27-FF06).
@@ -132,15 +184,7 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, re
   assert.equal(await b.evaluate(readModelInput), "Unsaved provider");
   assert.deepEqual(await b.evaluate(`window.__modelSettingsLoads.slice(${priorLoads})`), ["interrupted", 200]);
   await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
-  assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-issue-frame", "the Issue execution context was not reloaded");
-  assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
-  assert.equal((await v.list()).items.length, 0, "opening settings does not save the Issue");
-  await v.press(`${editor} [name=title]`); await v.type("删除");
-  await v.press(`${editor} [data-type=bug]`); await v.press("[data-issue-save]");
-  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
-  const { items } = await v.list(); assert.equal(items.length, 1);
-  const stored = await v.read(items[0]!.id);
-  assert.equal(stored.title, "删除"); assert.equal(stored.description, "问题描述"); assert.equal(stored.entered_via, "manual");
+  assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-jelly-frame", "the Jelly execution context was not reloaded");
   t.diagnostic(JSON.stringify({ firstFailure, cachedFailure, notice, loads: await b.evaluate("window.__modelSettingsLoads") }));
   assert.equal(notice.inView, true, "returning to a cached model form brings the existing error and Retry into view");
   for (const message of [firstFailure, cachedFailure]) {
@@ -149,19 +193,20 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, re
   }
 });
 
+// A Home plugin ledger this version cannot read: Jelly's standalone page offers the Home startup retry (Issues runs in the partitions since batch 108).
 test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language through the real HTTP error route", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", async path => {
     await seedDemoGoals(path); const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
     const db = new DatabaseSync(join(directory, "plugin-runtime.db")); db.exec("PRAGMA user_version=9"); db.close();
   }, null);
   if (!b) return;
-  const v = await issueView(t, b, "issue-home-locale");
-  await v.go("/locale?lang=en&next=%2Fplugins%2Fissues");
+  const v = await jellyHomeView(t, b);
+  await v.go("/locale?lang=en&next=%2Fplugins%2Fjelly");
   await b.waitFor("document.querySelector('[data-home-lifecycle=retry]')");
   assert.equal(await b.evaluate("document.documentElement.lang"), "en");
   assert.equal(await b.evaluate("document.querySelector('[data-home-lifecycle=retry]').textContent"), "Retry startup");
-  assert.match(await b.evaluate<string>("document.querySelector('[role=alert]').textContent"), /Issue Unavailable/);
-  await v.go("/locale?lang=zh&next=%2Fplugins%2Fissues");
+  assert.match(await b.evaluate<string>("document.querySelector('[role=alert]').textContent"), /Jelly Unavailable/);
+  await v.go("/locale?lang=zh&next=%2Fplugins%2Fjelly");
   assert.equal(await b.evaluate("document.documentElement.lang"), "zh-CN");
   assert.equal(await b.evaluate("document.querySelector('[data-home-lifecycle=retry]').textContent"), "重试启动");
 });
@@ -169,7 +214,7 @@ test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language
 test("RAC-138 English Home translates the server refusal for a missing Issue", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-home-locale");
-  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fissues");
+  await v.viewport(1440); await v.go(`/locale?lang=en&next=${encodeURIComponent(ISSUES_PAGE)}`);
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await b.evaluate("document.querySelector('[data-work-surface=issues]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: 'missing-issue-locale' } }))");
   await v.until("$('[data-issue-gone]')?.textContent === 'This issue doesn’t exist or was deleted'", 20_000);

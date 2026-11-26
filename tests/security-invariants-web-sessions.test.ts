@@ -26,7 +26,8 @@ test("WAS-01 WAS-02 real workbench pages exclude Host credentials and require bo
   assert.ok(a.cookie); assert.match(a.cookies[0]!, /HttpOnly; SameSite=Strict/);
   assert.notEqual(a.proof, f.token); assert.notEqual(a.proof, b.proof);
   const project = await f.project("Session HTML coverage");
-  for (const path of ["/", "/settings/appearance", "/settings/models", `/projects/${project.project_id}/`, `/projects/${project.project_id}/settings`, "/plugins/issues"]) {
+  for (const path of ["/", "/settings/appearance", "/settings/models", `/projects/${project.project_id}/`, `/projects/${project.project_id}/settings`, "/plugins/jelly"]) {
+    // A standalone Home page: Jelly's since Issues moved to the partitions (batch 108).
     const page = await readPage(f.origin, a.cookie, path);
     assert.ok(!page.html.includes(f.token), path + " must not contain the Host control token");
     assert.doesNotMatch(page.html, /<meta[^>]+name=["']molis-work-control-token["']/);

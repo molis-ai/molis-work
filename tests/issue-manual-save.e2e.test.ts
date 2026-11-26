@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { issueView, type IssueBrowser } from "./fixtures/issue-browser.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const description = "  切换页面后输入消失。\n原文保留。\n";
 const title = "切换页面后输入消失";
@@ -26,7 +27,7 @@ async function manual(t: TestContext) {
 }
 
 function stored(b: IssueBrowser) {
-  const db = new DatabaseSync(join(b.homeDirectory, "issues", "issues.db"), { readOnly: true });
+  const db = new DatabaseSync(partitionLibraryFile(b.homeDirectory, PERSONAL_SPACE_PROJECT_ID, "issues"), { readOnly: true });
   try { return db.prepare("SELECT id, title, description, images_json, version FROM issues").all(); }
   finally { db.close(); }
 }

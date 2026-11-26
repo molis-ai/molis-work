@@ -19,7 +19,9 @@ test("W2-18-HOME-LOCALE-01: the Home document uses its request locale before mou
   assert.match(english, /<html lang="en"/);
   assert.match(english, /id="home-model-title">Models<\/h2>/);
   assert.match(english, /data-home-model-close autofocus>Close<\/button>/);
-  assert.deepEqual(pluginDocuments(english), [content], "owner content is passed through; this renderer only translates its own chrome");
+  // The plugin's own stylesheet goes ahead of its content (Jelly's, the Home view left after batch 108 moved Issues to the partitions).
+  const ownContent = (html: string) => pluginDocuments(html).map(document => document.replace(/^(?:<link rel="stylesheet" href="\/assets\/molis-work-plugins\/[a-z0-9-]+\.css">)*/u, ""));
+  assert.deepEqual(ownContent(english), [content], "owner content is passed through; this renderer only translates its own chrome");
   assert.match(english, /translate:globalThis\.t\.text/);
   assert.equal(english.split(UI_REQUEST_CLIENT_SCRIPT).length - 1, 1);
   assert.ok(english.indexOf("data-ui-language-resource") < english.indexOf(UI_REQUEST_CLIENT_SCRIPT));
@@ -28,7 +30,7 @@ test("W2-18-HOME-LOCALE-01: the Home document uses its request locale before mou
   const chinese = draw("zh", content, null, false, true);
   assert.match(chinese, /<html lang="zh-CN"/);
   assert.match(chinese, /id="home-model-title">模型设置<\/h2>/);
-  assert.deepEqual(pluginDocuments(chinese), [content]);
+  assert.deepEqual(ownContent(chinese), [content]);
 });
 
 test("W2-18-HOME-LOCALE-01: unavailable Home chrome and recovery controls follow the request language", () => {

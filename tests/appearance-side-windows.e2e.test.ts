@@ -116,6 +116,8 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a p
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
   assert.ok(b.projectId);
+  // Issues is a personal-space plugin (batch 108): the person has it there, and each window preloads its capture view.
+  await personalIssues(b);
   const project = `/projects/${b.projectId}`, workbench = project + "/";
   const page = openPagesStore(b.homeDirectory, b.projectId), decks = openPptStore(b.homeDirectory, b.projectId);
   const note = page.create({ title: "保留页面", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开 Pages" }] }] } });
@@ -223,7 +225,7 @@ test("FSS-07 FSS-27 a side view reads after the parent reconnects and applies ap
   const frameId = await issue.frame.frameId();
   await b.evaluate(`window.originalAppearanceSide = ${issueDocument}`);
   const direct = await openTab(t, b, directPath);
-  assert.equal(await direct.evaluate("document.body.dataset.sideView"), "issues");
+  assert.equal(await direct.evaluate("document.body.dataset.sideView"), "issues/capture", "a partition side view is named by plugin and view");
   await directConnected.promise;
   const { targetInfo } = await b.command<{ targetInfo: { targetId: string } }>("Target.getTargetInfo", {}, b.sessionId);
   await b.command("Target.activateTarget", { targetId: targetInfo.targetId });

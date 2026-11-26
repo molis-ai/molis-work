@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,7 +11,7 @@ import { createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-ho
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { homeAgentDefinitions, LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, studioTrials } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { STABLE_PREVIEW, studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
@@ -18,9 +19,9 @@ import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-proj
 import { exposedActionId } from '../apps/local-host/dist/installed-plugin-exposed-actions.js';
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { bindPrologueInference } from '../apps/local-host/dist/prologue-inference-host.js';
-import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
-import { newPublisher } from './fixtures/sandbox-package.js';
+import { agentDeclarationsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
+import { newPublisher, PACKAGE_PLUGIN_ID, signedAgentPackage, signedPackage } from './fixtures/sandbox-package.js';
+import { openTestHome, createPackageProject } from './fixtures/test-home.js';
 import { packagedStudioRelease } from './fixtures/studio-package.js';
 
 test('SBXN-04 installed and authoring model calls bind their own release through the real Host, sandbox and shared Runtime', { skip: process.platform !== 'darwin', timeout: 60_000 }, async t => {
@@ -82,7 +83,23 @@ test('SBXN-04 installed and authoring model calls bind their own release through
   const v2 = packagedStudioRelease(home, { ...raw, version: 2, prompts: [{ ...raw.prompts![0]!, body: 'RELEASE_TWO' }, { id: 'new-only', title: 'New', purpose: 'p', body: 'NEW_ONLY' }] }, publisher, { upgradesFrom: [1] });
   const one = await ensureInstalledPlugins({ store: a.store, projectId: a.id, homeDirectory: home, actions: a.actions });
   const two = await ensureInstalledPlugins({ store: b.store, projectId: b.id, homeDirectory: home, actions: b.actions });
-  await one.lifecycle('install', v1, { consent: true }); await two.lifecycle('install', v2, { consent: true });
+  const registry = homeAgentDefinitions(home), key = pluginId + '/summary';
+  const declarations = agentDeclarationsFor(home);
+  const remembered = () => declarations.all().find(row => row.registration.owner_id === pluginId)?.registration;
+  const listed = () => registry.prompts().filter(item => item.owner_id === pluginId).map(item => item.prompt_id).sort();
+  const assertV1 = (state: 'enabled' | 'disabled') => {
+    assert.deepEqual(listed(), ['summary']);
+    const prompt = registry.prompt(key);
+    assert.equal(prompt.default_body, 'RELEASE_ONE');
+    assert.equal(prompt.source.kind === 'plugin' && prompt.source.state, state);
+    assert.deepEqual(remembered()?.prompts.map(item => [item.prompt_id, item.body]), [['summary', 'RELEASE_ONE']]);
+  };
+  await one.lifecycle('install', v1, { consent: true });
+  assertV1('enabled');
+  await two.lifecycle('install', v2, { consent: true });
+  assert.equal(one.installations()[0]!.record.install_id, two.installations()[0]!.record.install_id);
+  assert.deepEqual(listed(), ['new-only', 'summary']);
+  assert.equal(registry.prompt(key).default_body, 'RELEASE_TWO');
   // `generate` calls the model through a platform capability, a switch that starts off (BL-701).
   // The project's platform also runs its built-in plugins (47-1 B): only the installed packages' switches are turned on.
   for (const host of [one, two]) for (const { record } of host.installations()) await host.platform.runtime.regrant(record.install_id, 'capabilities:call', true);
@@ -94,7 +111,6 @@ test('SBXN-04 installed and authoring model calls bind their own release through
   const calls = systems.length;
   await assert.rejects(invoke(a, 'new-only'), /没有声明/);
   assert.equal(systems.length, calls, 'another installed version cannot authorize a prompt absent from this release');
-  const registry = agentDefinitionsFor(home, builtinRegistrations), key = pluginId + '/summary';
   registry.save(key, 'PERSONAL_EDIT', null, 'person');
   // A trial's prompts come from the studio that drafts it (47-1 D): the open studio answers the installed host for its own builds.
   const stopTrials = one.useTrials(studioTrials(a.builder)); t.after(stopTrials);
@@ -104,13 +120,25 @@ test('SBXN-04 installed and authoring model calls bind their own release through
   assert.match(systems.at(-1)!, /AUTHORING_DEFAULT/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE|RELEASE_TWO|PERSONAL_EDIT/);
   assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
   assert.equal(registry.uses.list(key)[0]!.version, 1, 'usage records the actual default version underneath the shared user edit');
-  await two.lifecycle('uninstall', v2);
-  // What runs in project A is its own release under the person's edit. The register lists one installation's newest declaration across the
-  // projects that run it, and keeps showing it after that project leaves (BL-b47-prompt-register-newest-fallback): what it lists is not asserted here.
+  // BL-b47-prompt-register-newest-fallback: the list and the Home's remembered declaration follow the highest running release.
+  await two.lifecycle('disable', v2);
+  assertV1('enabled');
   assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');
+  await two.lifecycle('uninstall', v2);
+  assertV1('enabled');
   assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
+  await one.lifecycle('disable', v1);
+  assertV1('disabled');
+  assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');
+  await one.lifecycle('uninstall', v1);
+  assert.deepEqual(listed(), []);
+  assert.equal(remembered(), undefined);
+  await one.lifecycle('install', v1, { consent: true });
+  await one.platform.runtime.regrant(one.installations()[0]!.record.install_id, 'capabilities:call', true);
   registry.reset(key, 1, 'person');
   await one.lifecycle('upgrade', v2);
+  assert.equal(registry.prompt(key).default_body, 'RELEASE_TWO');
+  assert.deepEqual(listed(), ['new-only', 'summary']);
   assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_TWO/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE/);
   const beforeRejected = systems.length;
   // A preview identity naming another plugin than its build is refused when the Host issues the call's caller (the plugin it declared is not that one), before the model is reached.
@@ -125,4 +153,26 @@ test('SBXN-04 installed and authoring model calls bind their own release through
   try {
     await assert.rejects(one.lifecycle('enable', v2), /Sandboxed plugins cannot start with this Node\.js installation.*nodejs\.org/);
   } finally { process.execPath = originalNode; }
+});
+
+test("BL-b47-prompt-register-newest-fallback a running version with no declarations takes back the whole registration", { skip: process.platform !== "darwin" }, async t => {
+  const h = await openTestHome(t), a = await createPackageProject(h, "Empty declaration"), b = await createPackageProject(h, "Mixed declaration");
+  const publisher = newPublisher();
+  const registry = homeAgentDefinitions(h.home);
+  const entries = () => [registry.prompts(), registry.roles(), registry.methods()].map(rows => rows.filter(row => row.owner_id === PACKAGE_PLUGIN_ID).length);
+  await a.install(signedPackage(publisher));
+  assert.deepEqual(entries(), [0, 0, 0]);
+  await b.install(signedAgentPackage(publisher, { version: "2.0.0" }));
+  assert.deepEqual(entries(), [2, 1, 1], "the newer package supplies an instruction, a role prompt, a role and a method");
+  await b.disable(PACKAGE_PLUGIN_ID);
+  assert.deepEqual(entries(), [0, 0, 0], "the empty running release wins as soon as the newer one stops");
+  // A fresh register reads the durable projection before uninstall has a chance to clean it up.
+  execFileSync(process.execPath, ["--input-type=module", "-e", `
+    import assert from "node:assert/strict";
+    import { homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+    const [home, owner] = process.argv.slice(1);
+    assert.equal(homeAgentDefinitions(home).registrations().some(row => row.owner_id === owner), false);
+  `, h.home, PACKAGE_PLUGIN_ID]);
+  await b.uninstall(PACKAGE_PLUGIN_ID);
+  assert.deepEqual(entries(), [0, 0, 0]);
 });

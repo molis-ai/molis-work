@@ -161,12 +161,12 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live, release.packaged.localePacks)) forget(); }
     catch (error) { forget(); throw error; }
   };
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') => {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
     const value = definition(release, approvedFor(release.pluginId) ?? release.permissions); declared.set(value, record.install_id, state);
     rememberHomeInstalledMemoryScene(home, release.pluginId, state === 'enabled' ? value.manifest.memory_scene : undefined);
-    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
+    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({
     standing, platform, recoveryErrors,

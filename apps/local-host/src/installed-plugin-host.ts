@@ -164,12 +164,12 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
     holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId, platform.runtime.get(installId)) });
   const declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') => {
     const record = recordFor(release.pluginId);
     if (!record || !release.packaged || record.version !== installedVersion(release)) return;
     const value = definition(release, approvedFor(release.pluginId) ?? release.permissions);
     rememberInstalledMemoryScene(projectId, release.pluginId, state === 'enabled' ? value.manifest.memory_scene : undefined);
-    declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored);
+    declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state);
     reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({
@@ -264,7 +264,7 @@ async function reconcileInstalledDualHalf(ctx: {
   platform: PluginPlatform;
   withdraw(pluginId: string): void;
   expose(release: InstalledRelease): Promise<void>;
-  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
   standing: ReturnType<typeof publisherStanding>;
   definition(release: InstalledRelease, approved: SandboxEffects): ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
 }, pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) {

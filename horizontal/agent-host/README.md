@@ -53,6 +53,8 @@ adapter 只报告事实并执行已批准的工作。
 
 SDK 已提交的执行终态不等待 Host 的显示时间元数据保存，也不因该保存失败退回 running 或阻止同 Session 下一轮。时间仍只写原 run_id 一次，迟到回执只更新原轮次；没有原时间的恢复保留未知。关闭仍等待已接受的时间保存。验证：`tests/prologue-run-timing.test.ts` 的延迟/失败交错及 `tests/prologue-recovery.test.ts` 的真实 Node 存储重启路径（QEA-19/20）。
 
+进程里持有的会话与轮次（`prologue-run-store.ts`）不随常驻 Host 一直增长：一个会话所有轮次都已结束并存好时间、没人在跟、也没有开始或恢复在进行，且 `IDLE_SESSION_MS`（5 分钟）没人读过，下一次读别的会话时就放下它；再读时由运行时 `sessions.restore` 从原 ledger 恢复，与重启后一样。没有 `restore` 的运行时不放下。跟着一轮的监听者每次拿到自己的视图副本；流式正文最多每 `STREAM_NOTIFY_MS`（50 ms）交一次，阶段、工具、问题等变化立即交；没人在跟时不复制。回归：`tests/prologue-status-projection.test.ts`。长会话的内存与耗时用 `node --expose-gc --import tsx scripts/bench-coding-long-session.mts` 量（每 25 轮记一次整理后仍占用的堆）。
+
 已派发的业务动作可能在停止时仍等回执。工作权限的终止以原 Run 已提交的结束事件为准，效果继续待核对。原 ActionService 调用成功返回时，Host 用原 SDK 派发许可结算原效果。原调用方能证明尚未调用 ActionService 时，原效果可结算为未派出。宿主关闭时只等已受理的本地回执落盘。其余待核对效果在重启后仍归原轮和原审批。助理仅在当前授权有效时发布动作结果卡、后台工作和结果关系。
 
 Host 可注入版本化 `memory.promotion`，Adapter 将候选、来源、正式变更与 App 历史回执转换为纯 AgentHost DTO，只有这里依赖 SDK 类型。`decide` 只读返回 promote/hold；`undo.prepare` 保存当前操作的准备，`undo.record` 以 SDK 已提交的 canonical entry 补历史及撤销身份。回调首参只能来自当前 `withCaller` 的独立调用上下文，或 SDK 请求对应的可信 Session owner；prepare/record 没有来源上下文时要求原调用绑定仍在，缺失即拒绝，不从模型参数恢复身份，不新建操作账。 App 的 prepare/record 写账也复用原调用的 `PrologueEffects`：异步身份解析和 `beforeEffect` 后紧邻写入核 `assertCurrent` 及本次 `signal`，任一等待中取消不再调用 App 写账；撤权后不能留下准备历史，正式已提交而补账被拒时沿原操作恢复。

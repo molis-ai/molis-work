@@ -7,6 +7,7 @@
  *
  *   ROUNDS=300 pnpm exec tsx scripts/bench-coding-long-session.mts            # build and measure
  *   KEEP=1 PORT=4219 ... to leave the server running for manual inspection afterwards.
+ *   node --expose-gc --import tsx scripts/bench-coding-long-session.mts  # also logs the heap still held after a full GC
  */
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,14 +20,16 @@ process.env.MOLIS_WORK_HOME = home;
 process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
 const { PROJECT_SCOPED_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
-const { createMolisWorkWebServer } = await import("../apps/desktop/launchers/web/server.js");
+// The single-Home web core without the account gate: the benchmark measures the runtime, not sign-in.
+const { createSingleHomeTestWebServer: createMolisWorkWebServer } = await import("../tests/fixtures/local-web-core.js");
 const { openStudioChrome } = await import("../tests/fixtures/plugin-builder-browser.js");
 
 const ROUNDS = Number(process.env.ROUNDS ?? 300), PORT = Number(process.env.PORT ?? 0), token = "bench-control-token-" + randomUUID();
 const log = (...values: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...values);
 
 // A workspace with two sizeable files, so every read returns a lot of text.
-const workspace = join(home, "bench-repo"); await mkdir(join(workspace, "src"), { recursive: true });
+// Outside the Home: a non-empty Home without its stores is refused as a new Home.
+const workspace = join(await mkdtemp(join(tmpdir(), "molis-long-session-repo-")), "bench-repo"); await mkdir(join(workspace, "src"), { recursive: true });
 const lines = (name: string) => Array.from({ length: 180 }, (_, i) => `export function ${name}${i}(value: number): number { return value * ${i} + ${i % 7}; } // ${"x".repeat(40)}`).join("\n") + "\n";
 await writeFile(join(workspace, "src", "alpha.ts"), lines("alpha")); await writeFile(join(workspace, "src", "beta.ts"), lines("beta"));
 execFileSync("git", ["init", "-q"], { cwd: workspace }); execFileSync("git", ["-c", "user.name=bench", "-c", "user.email=bench@example.invalid", "add", "."], { cwd: workspace });
@@ -109,7 +112,12 @@ for (let round = 1; round <= ROUNDS; round++) {
   await callRound(round, `${plugin}/sessions/${sessionId}/runs`, "POST", { task: `第 ${round} 轮：核对 alpha 和 beta 的系数是否一致`, intent: "discuss", provider_id: "bench", model_id: "bench-model",
     workspace_id: workspaceId, methods: [], mcp_tools: [], mcp_sources: [], materials: [] });
   for (;;) { const state = await stateOf(); if (["done", "failed", "stopped", "idle"].includes(state)) { if (state !== "done") { const view = await call(`${plugin}/sessions/${sessionId}`); const run = view.runs.at(-1); throw new Error(`round ${round} ended ${state}: ${run?.phase} ${run?.stop_reason ?? view.error ?? ""} · model calls ${modelCalls}`); } break; } await new Promise(r => setTimeout(r, 60)); }
-  if (round % 25 === 0) log(`built ${round}/${ROUNDS} rounds · ${modelCalls} model calls (${compactions} compactions) · ${Math.round((Date.now() - started) / 1000)}s`);
+  if (round % 25 === 0) {
+    // With --expose-gc, the heap still held after a full collection: what a resident host keeps per round.
+    (globalThis as { gc?: () => void }).gc?.();
+    const held = (globalThis as { gc?: () => void }).gc ? ` · heap held ${Math.round(process.memoryUsage().heapUsed / 1048576)} MB` : "";
+    log(`built ${round}/${ROUNDS} rounds · ${modelCalls} model calls (${compactions} compactions) · ${Math.round((Date.now() - started) / 1000)}s${held}`);
+  }
 }
 log("tools offered:", toolNames.join(","));
 
@@ -121,7 +129,7 @@ const measureRead = async (label: string, path: string) => {
   return { bytes, median: times[2]! };
 };
 const readUrl = `${plugin}/sessions/${sessionId}` + (process.env.READ_QUERY ?? "?window=6");
-const read = await measureRead("session read (first)", readUrl);
+await measureRead("session read (first)", readUrl);
 // A refresh as the open page sends it: the fingerprints of what it already holds.
 const held = await (await realFetch(readUrl, { headers: { origin } })).json();
 const steadyUrl = readUrl + (held.earlier_fingerprint ? `&earlier=${held.earlier_fingerprint}` : "") + (held.runs?.some((run: { fingerprint?: string }) => run.fingerprint) ? `&known=${held.runs.map((run: { fingerprint: string }) => run.fingerprint).join(",")}` : "");

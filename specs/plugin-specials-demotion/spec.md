@@ -1,6 +1,6 @@
 # 特殊逻辑平民化：特殊插件收归平台、平台特例收成公开声明（Platform Specials Demotion）
 
-状态：44B-0 已随 [#2262](https://github.com/molis-ai/molis-work/pull/2262) 合入（`de25e3090d`）。44B-1/2 由 Claude（本机）「44B｜主会话」承接，删除旧 Alchemist（[#2279](https://github.com/molis-ai/molis-work/pull/2279)，`ae9f8948c7`）、Shelf 平台化与官方集成驱动化（[#2294](https://github.com/molis-ai/molis-work/pull/2294)）均已合入，独立复核修复已随 [#2308](https://github.com/molis-ai/molis-work/pull/2308) 合入。同步身份部分仍等 #2260。见[认领板](https://github.com/molis-ai/molis-work/issues/1743)、[批次](../post-anticorruption-roadmap/reference/batches/44b.md)与[实施总纲](implementation-plan.md)。
+状态：44B-0 已随 [#2262](https://github.com/molis-ai/molis-work/pull/2262) 合入（`de25e3090d`）。44B-1/2 由 Claude（本机）「44B｜主会话」承接，删除旧 Alchemist（[#2279](https://github.com/molis-ai/molis-work/pull/2279)，`ae9f8948c7`）、Shelf 平台化与官方集成驱动化（[#2294](https://github.com/molis-ai/molis-work/pull/2294)）均已合入，独立复核修复已随 [#2308](https://github.com/molis-ai/molis-work/pull/2308) 合入；同步衔接 #2260 已合入，余项收尾归 [第 44C 批](../post-anticorruption-roadmap/reference/batches/44c.md)。见[认领板](https://github.com/molis-ai/molis-work/issues/1743)、[44B](../post-anticorruption-roadmap/reference/batches/44b.md)、[44C](../post-anticorruption-roadmap/reference/batches/44c.md)与[实施总纲](implementation-plan.md)。
 
 需求维护：Claude / Antigravity；实现：Claude（本机）「44B｜主会话」。类型：底层与架构（主）、横向能力、产品线（Shelf、Feed、Inbox、Goals、Coding、Alchemist、官方集成）。前身：[插件同等地位收口](../plugin-equal-standing/spec.md)（第 44 批，及在途复核清扫 [#2258](https://github.com/molis-ai/molis-work/pull/2258)）；本需求把范围扩到**全仓所有特殊地位与特例接线**，并彻底清零插件形态特例。
 

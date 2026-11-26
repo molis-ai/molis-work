@@ -635,7 +635,7 @@ interface AgentInputView {
 | 灵光 | B | 调整：加请求行、排队、流式；冲突改成「没用上 + 理由」 | 不丢话，回复时可以先写下一条 |
 | 炼金术士 | B | 调整：讨论关联到研究计划；所有作业都能取消 | 知道哪段讨论影响了哪份研究 |
 | Shelf 作业、开项目引导 | B | 调整：真实进度、中断后可继续、可取消 | 几分钟长的作业不再像卡死 |
-| Jelly 计划拆解 | B | 调整：反馈轮次持久化，标出用上 / 没用上；进度条接上 | 多轮修订不白费 |
+| ~~Jelly 计划拆解~~ | — | 已随 [`112-2`](../post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-2) Jelly 瘦身（砍除私有 AI 拆解与语音识别，仅留纯净日历＋极简随手记）正式退役，阶段 6 不再包含本项 | — |
 | Images、Pages 生成、Inbox → Pages | B | 基本已有（`request_id`、中断不重放）；补 `background_job` 声明与状态展示 | 生成状态一致 |
 | Todo 整理 | — | 作为任务侧目标，以及「未采纳 + 理由」的形状来源 | — |
 | Form、Dataset、PPT、Cognia、Pages 行内改写 | — | 不适用：单次调用，已有接受 / 拒绝；不为统一硬改成 Agent（ai-interaction-experience §7.4） | — |

@@ -115,11 +115,17 @@ function isFragmentDarwinOnly(analysis, fragment) {
   return matched.length > 0 && matched.every((entry) => entry.darwinSkipped);
 }
 
+/** Strip full-line YAML `#` comments so commented-out CI commands never count as executed tests. */
+function stripYamlCommentLines(text) {
+  return text.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+}
+
 /** Test file tokens actually executed by blocking `runs-on: macos-*` jobs in `.github/workflows/ci.yml`. */
 function extractMacosCiTokens(ciYml, packageScripts) {
-  const jobsStart = ciYml.indexOf("\njobs:\n");
+  const activeYml = stripYamlCommentLines(ciYml);
+  const jobsStart = activeYml.indexOf("\njobs:\n");
   if (jobsStart === -1) return [];
-  const body = ciYml.slice(jobsStart + 1);
+  const body = activeYml.slice(jobsStart + 1);
   const headers = [...body.matchAll(/^  ([a-z0-9-]+):\s*$/gm)];
   const blocks = new Map();
   for (let i = 0; i < headers.length; i++) {
@@ -178,7 +184,7 @@ export function securityInvariantProblems(snapshot) {
   let packageScripts = {};
   try { packageScripts = JSON.parse(snapshot.read("package.json") ?? "{}").scripts ?? {}; } catch { problems.push("package.json cannot be read"); }
   const subset = productSubsetFiles(snapshot);
-  const ciYml = snapshot.read(".github/workflows/ci.yml") ?? "";
+  const ciYml = stripYamlCommentLines(snapshot.read(".github/workflows/ci.yml") ?? "");
   const macosCiTokens = extractMacosCiTokens(ciYml, packageScripts);
   const ciTokens = [...testTokens(String(packageScripts["test:security"] ?? "")), ...macosCiTokens, ...testTokens(String(packageScripts["test:contracts"] ?? "")), ...testTokens(ciYml)];
   const named = new Set(), sources = new Map();

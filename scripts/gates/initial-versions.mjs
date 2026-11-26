@@ -295,7 +295,7 @@ export const isCheckedSource = (file) => isUnderSourceRoots(file) && CODE_FILE.t
  * A repository with neither table is not this one (the gates' scratch repositories); losing a table this one had, or one that cannot be
  * read, is a problem and not a pass. `chains` is `registeredUpgradeChains`, given here and in checkRepository() below.
  */
-export function versionOriginProblems({ files, read }, { readBase, chains = new Map() } = {}) {
+export function versionOriginProblems({ files, read }, { readBase, baseFiles, chains = new Map() } = {}) {
   const problems = [];
   const table = (file, parse, empty) => {
     const text = read(file);
@@ -310,7 +310,7 @@ export function versionOriginProblems({ files, read }, { readBase, chains = new 
   const exceptions = table("tooling/gates/version-exceptions.json", exceptionNames, new Set());
   problems.push(...initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, chains }));
   for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, read(file) ?? "", chains, exceptions));
-  try { problems.push(...contentVersionChanges({ files, read }, readBase)); }
+  try { problems.push(...contentVersionChanges({ files, read }, readBase, baseFiles)); }
   catch (error) { problems.push("Cannot compare the content version table: " + error.message); }
   return problems;
 }

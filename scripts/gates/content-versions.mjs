@@ -27,16 +27,21 @@ const COMPOSED_PROMPT_DEPENDENTS = {
 };
 
 const table = raw => raw ? JSON.parse(raw).versions ?? {} : {};
-const body = raw => raw?.replace(/^version: \d+\r?\n/mu, "").trimEnd() ?? null;
+const body = raw => (typeof raw === "string" ? raw.replace(/^version: \d+\r?\n/mu, "").trimEnd() : null);
 
 /** The live registry is checked by the built contract test. This gate also checks an actual edit against its base. */
-export function contentVersionChanges({ files, read }, readBase) {
+export function contentVersionChanges({ files, read }, readBase, baseFiles = []) {
   if (!readBase) return [];
   const before = table(readBase("tooling/versions.json")), current = table(read("tooling/versions.json")), groups = new Map();
   const known = new Set([...Object.keys(before), ...Object.keys(current)]), errors = [];
-  for (const file of files) {
+  const headFiles = new Set(files);
+  const allFiles = new Set([...files, ...(baseFiles ?? [])]);
+  for (const file of allFiles) {
     const [key, ambiguous] = versionKeys(file, known);
-    if (ambiguous) { errors.push(file + ": ambiguous content id (" + key + " or a translation of " + ambiguous + ")"); continue; }
+    if (ambiguous) {
+      if (headFiles.has(file)) errors.push(file + ": ambiguous content id (" + key + " or a translation of " + ambiguous + ")");
+      continue;
+    }
     if (key) {
       groups.set(key, [...(groups.get(key) ?? []), file]);
       for (const dependent of COMPOSED_PROMPT_DEPENDENTS[key] ?? []) {
@@ -44,14 +49,25 @@ export function contentVersionChanges({ files, read }, readBase) {
       }
     }
   }
+  const present = value => value !== null && value !== undefined;
   for (const [key, paths] of groups) {
+    const has = file => present(read(file));
+    // A retired content entry whose files and version key were all removed together needs no version bump.
+    if (current[key] === undefined && !paths.some(has)) continue;
     const next = current[key], previous = before[key];
-    if (!Number.isSafeInteger(next) || next < 1) { errors.push(key + " has no positive content version in tooling/versions.json"); continue; }
+    if (!Number.isSafeInteger(next) || next < 1) {
+      errors.push(key + " has no positive content version in tooling/versions.json");
+      continue;
+    }
     if (previous === undefined) continue;
-    // Moved content (MOVED) has its base where it was (a missing base blob reads as "").
-    const base = file => readBase(file) || readBase(formerPath(file));
+    // Moved content (MOVED) has its base where it was; preserve empty-string blobs distinct from absent (null/undefined).
+    const base = file => {
+      const direct = readBase(file);
+      if (present(direct)) return direct;
+      const former = formerPath(file);
+      return former !== file ? readBase(former) : null;
+    };
     // The old path of moved content is gone and the content is where it is now; any other missing file is a deletion and a change.
-    const has = file => read(file) !== null && read(file) !== undefined;
     const moved = file => !has(file) && paths.some(other => has(other) && formerPath(other) === file);
     const changed = paths.filter(file => !moved(file)).some(file => body(read(file)) !== body(base(file)));
     if (changed && next <= previous) errors.push(key + " changed content without advancing its version");

@@ -567,7 +567,7 @@ function inspectPacks(snapshot, problems) {
       all.set(key, { prefix: definition.prefix ?? prefix });
     }
   }
-  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|plugins\/content\/[^/]+|packages\/system-skills\/[^/]+|horizontal\/[^/]+|modules\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/(?:[^/]+\/)*[^/]+\.json$/u.test(file)
+  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|plugins\/content\/[^/]+|packages\/system-skills\/[^/]+|horizontal\/[^/]+|modules\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources|packages\/im-ui\/resources)\/locales\/(?:[^/]+\/)*[^/]+\.json$/u.test(file)
     && !files.has(file)) problems.push(`${file}: no locale declaration reaches this file`);
   return { all, files };
 }

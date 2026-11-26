@@ -61,15 +61,23 @@ const UPGRADE_POINTER = /^`([^`#\s]+#[^`#\s]+)#(\d+)→(\d+)`$/;
 const unreadable = (message) => { throw Object.assign(new Error(message), { storeVersionsUnreadable: true }); };
 
 const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+const isTableSeparator = (line) => /^[-|:\s]+$/.test(line ?? "") && (line ?? "").includes("-");
 // The table that starts at the first line beginning with "|" from `start`, up to `end`: its header and its rows.
 function tableAfter(lines, start, end, where) {
   let index = start;
   while (index < end && !lines[index].startsWith("|")) index++;
   if (index >= end) unreadable(`${where}: no table`);
   const header = cells(lines[index]);
-  if (!/^[-|:\s]+$/.test(lines[index + 1] ?? "")) unreadable(`${where}: the table has no separator line under its header`);
+  if (!isTableSeparator(lines[index + 1])) unreadable(`${where}: the table has no separator line under its header`);
   const rows = [];
-  for (index += 2; index < end && lines[index].startsWith("|"); index++) rows.push({ line: index + 1, cells: cells(lines[index]) });
+  for (index += 2; index < end && lines[index].startsWith("|"); index++) {
+    rows.push({ line: index + 1, cells: cells(lines[index]) });
+  }
+  let after = index;
+  while (after < end && lines[after].trim() === "") after++;
+  if (after < end && lines[after].startsWith("|") && !isTableSeparator(lines[after + 1])) {
+    unreadable(`${where}:${after + 1}: unexpected table continuation row after blank line (remove the blank line so the table is not truncated)`);
+  }
   return { header, rows };
 }
 const column = (header, name, where) => {

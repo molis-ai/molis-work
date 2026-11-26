@@ -54,6 +54,7 @@ import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
 import { productSubsetProblems } from "./gates/product-subset.mjs";
 import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
+import { layerExceptionsWantsText } from "./gates/layer-exceptions.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { goldenHomeProblems } from "./gates/golden-homes.mjs";
 import { hostLineDetails, hostLineSummary, hostLinesWantText, reportHostLines } from "./gates/host-lines.mjs";
@@ -105,7 +106,14 @@ const run = (gitArgs, extra = {}) => execFileSync("git", gitArgs, { cwd: root, e
 const git = (gitArgs, extra) => {
   try { return run(gitArgs, extra); } catch (error) { fail(`git ${gitArgs.join(" ")} failed in ${root}: ${String(error.stderr ?? error.message).trim()}`); }
 };
-const gitMaybe = (gitArgs) => { try { return run(gitArgs).trim(); } catch { return ""; } };
+const gitMaybe = (gitArgs) => {
+  try {
+    return run(gitArgs).trimEnd();
+  } catch {
+    /* ref or blob absent in git */
+    return null;
+  }
+};
 
 // ---- the thresholds (§4.5): they may be tightened, never loosened; --base compares them with the merge-base's --------
 const LIMIT_KEYS = ["file", "classLines", "classMethods", "functionLines", "vendoredPrologueSdk"];
@@ -461,7 +469,7 @@ const METRIC_BASE_INPUTS = {
   platformPluginNames: (file) => isSource(file) || /^plugins\/[^/]+\/[^/]+\/package\.json$/u.test(file),
   contractsPurity: (file) => isStructureSource(file) || structureWantsText(file),
   hostEntryExports: (file) => isStructureSource(file) || structureWantsText(file),
-  layerExceptions: (file) => isStructureSource(file) || structureWantsText(file),
+  layerExceptions: (file) => isStructureSource(file) || layerExceptionsWantsText(file) || structureWantsText(file),
   moduleRepositoryExports: (file) => isStructureSource(file) || structureWantsText(file),
   typedCapabilities: (file) => isStructureSource(file) || structureWantsText(file),
   translations: (file) => isSource(file) || file.endsWith(".json"),
@@ -598,7 +606,7 @@ const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
 // A library whose version changed against the merge-base needs a row under CONTRACT-CHANGES.md「存储版本变更登记」(scripts/gates/store-versions.mjs).
 // It fails closed: a table it cannot read ends the run with exit 2.
 const storeVersions = () => {
-  const show = (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null;
+  const show = (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]);
   try {
     return storeVersionProblems({ read: headSnapshot.read, readBase: mergeBase ? show : undefined });
   } catch (error) {
@@ -609,7 +617,11 @@ const storeVersions = () => {
 // UPG-01 compares the store schemas and retained replay samples with the merge-base. `pnpm test:contracts` checks the schemas against the build.
 const storeSchemas = () => storeSchemaProblems(headSnapshot, baseSnapshot);
 // The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
-const versionOrigin = () => versionOriginProblems(headSnapshot, { chains: registeredUpgradeChains(headSnapshot), readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
+const versionOrigin = () => versionOriginProblems(headSnapshot, {
+  chains: registeredUpgradeChains(headSnapshot),
+  baseFiles: baseSnapshot?.files,
+  readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined,
+});
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
 
 // ---- --report --------------------------------------------------------------------------------------------------------

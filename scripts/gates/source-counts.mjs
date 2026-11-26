@@ -119,6 +119,7 @@ function isStringOrUndefinedMatcher(expression) {
   const node = unwrapTypeNodes(expression);
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) return true;
   if (ts.isIdentifier(node) && node.text === "undefined") return true;
+  if (ts.isVoidExpression(node)) return true;
   if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
     return isStringOrUndefinedMatcher(node.left) || isStringOrUndefinedMatcher(node.right);
   }
@@ -141,11 +142,21 @@ export function findStringAssertMatchers(file, text) {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const violations = [];
   const visit = (node) => {
-    if (ts.isCallExpression(node) && node.arguments.length === 2 && ts.isPropertyAccessExpression(node.expression)) {
-      const method = node.expression.name.text;
-      const receiver = unwrapTypeNodes(node.expression.expression);
-      const isAssert = (ts.isIdentifier(receiver) && ASSERT_RECEIVER.test(receiver.text))
-        || (ts.isPropertyAccessExpression(receiver) && receiver.name.text === "assert");
+    if (ts.isCallExpression(node) && node.arguments.length === 2) {
+      const callee = unwrapTypeNodes(node.expression);
+      let method = null;
+      let receiver = null;
+      if (ts.isPropertyAccessExpression(callee)) {
+        method = callee.name.text;
+        receiver = unwrapTypeNodes(callee.expression);
+      } else if (ts.isElementAccessExpression(callee) && ts.isStringLiteralLike(callee.argumentExpression)) {
+        method = callee.argumentExpression.text;
+        receiver = unwrapTypeNodes(callee.expression);
+      }
+      const isAssert = receiver !== null && (
+        (ts.isIdentifier(receiver) && ASSERT_RECEIVER.test(receiver.text))
+        || (ts.isPropertyAccessExpression(receiver) && ASSERT_RECEIVER.test(receiver.name.text))
+      );
       if ((method === "throws" || method === "rejects") && isAssert && isStringOrUndefinedMatcher(node.arguments[1])) {
         const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
         violations.push(`${file}:${line + 1}: assert.${method}() with 2 arguments passes a string or undefined as validateError; pass an error matcher (RegExp, Error constructor, object, or predicate) as argument 2 and move the message to argument 3`);

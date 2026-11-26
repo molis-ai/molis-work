@@ -180,6 +180,8 @@
 
 第 44 批插件同等地位收口（2026-11-19 合并 main #2163 后，用户批准选项 A 随发布前 v1 清理一并拍平；2026-11-20 独立复核整改经用户批准 A2 进一步补齐 `acceptance_*` 表 SQLite `CHECK` 约束）：项目指导（`guidance_entries`、`guidance_revisions`）、要求与认可（`acceptance_*` 含同步约束 CHECK、移出原独立 Home 库 `acceptance/acceptance.db`）和去掉闭合 CHECK 的 `inbox_entries` 直接落入项目库 v1 基线；Goals 私有库去掉指导与旧要求/判断/结论表、改留 `goal_requirement_links` 与 `goal_event_closures.acceptance_round`，随 `project_goals` 同步集合一起拍平为 v1；放置库（`placement.attached_in`）、上手旅程库（平台形状 `drafts` 与 `summary_open`）与外部 Runtime 接入收据（`format.runtime.integration.receipt` 保持 v1、去掉 `skill_path`/`skill_target`）均保持 v1、零迁移段、零读时兼容。PEQ-03 平台禁止 import 插件包门禁的迁移例外为空（Goals 同步决定摘要经 `PluginRegistration.approval_outcomes` 通用登记接入）。`projects/*/molis-work.db` 与 `projects/*/molis-work.db#io.molis.work.goals` 的同版 v1 结构变更按确切 `(from → to)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，并在干净 v1 基线上重新生成唯一 `0.1.0` 金样（含 `acceptance` 写入与 `codex.json` 接入收据）。
 
+第 108 批（2026-11-26，V17「108 做主库摘要表」，U13/V7 发布前 Clean v1）：`<partition>/molis-work.db` 新增平台管理的总览摘要表 `plugin_overview_rows`（`install_id` 由平台盖章，主键 `(install_id, kind, row_id)`，列同 `molis_overview_rows`），保持 v1 不升版、无迁移段、无读时兼容；确切 `(ef7b23560ff7e149 → e887a7ecc3f08e62)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，下一个改这份文件的 PR 清退。Goal 历史夹具四份转储同步加表，现存金样随第 108 批第 3 项就地补表（44B「金样不重生」）。
+
 第 106 批合后复查修复（2026-11-25，决定 66 C11 发布前 Clean v1 口径）：`horizontal/person-settings` 的 `person-settings/person-settings.db` 移去与主键 `PRIMARY KEY (install_id, key)` 冲突的 `UNIQUE (plugin_id, key)` 约束（该库为第 106 批新建且零生产写入、未入金样），保持 v1 不升版，确切 `(b6c54dfe0fa5eaa5 → 0aa8b1771c6fe435)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，与目录库同版例外及 `v1-reset-exceptions.json` 一并于第 107 批清退。
 ### 存储版本变更登记
 

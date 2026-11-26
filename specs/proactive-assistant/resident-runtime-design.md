@@ -186,8 +186,8 @@ interface RuntimeOverview {
 
 以下几处与上文不同，以这里为准（2026-11-12）：
 
-- **汇总不是动作，是宿主的两条路由**：`GET /api/runtime/overview` 与 `POST /api/runtime/runs/decide`（`apps/local-host/src/runtime-overview.ts`、`runtime-overview-http.ts`），没有登记 `runtime.overview@1`。汇总只给本机的人看，Agent 要的是各主人自己的 `runs.overview`；「现在做／跳过」由宿主按 `scope_project_id`＋`provider_id` 在同一处重新按类型找到那位主人再交给它，页面不拿动作引用，平台也不另判。主人超时 2 秒（首页汇总的同一个 `home-aggregate` 读法），一位失败只在 `unavailable_sources` 里留错误码，它说的话不带出来。
-- **项目里的主人按项目找**：Schedule、Feed 的 `runs.overview`／`runs.decide` 是 scope project 的动作，宿主在每个打开的项目里各问一次（与首页汇总同一套 `home_aggregate`）；助理定时的两个动作挂在 `io.molis.work.assistant.rules` 这个系统提供方上（scope home）。动作 id 是 `<主人>.runs.overview@1`、`<主人>.runs.decide@1`。
+- **汇总不是动作，是宿主的两条路由**：`GET /api/runtime/overview` 与 `POST /api/runtime/runs/decide`（`apps/local-host/src/runtime-overview.ts`、`runtime-overview-http.ts`），没有登记 `runtime.overview@1`。汇总只给本机的人看，Agent 要的是各主人自己的 `runs.overview`；「现在做／跳过」由宿主按 `scope_project_id`＋`provider_id` 在同一处重新按类型找到那位主人再交给它，页面不拿动作引用，平台也不另判。Home 的主人（助理定时）超时 2 秒，一位失败只在 `unavailable_sources` 里留错误码，它说的话不带出来。
+- **项目里的主人按项目找**：Schedule、Feed 的 `runs.overview`／`runs.decide` 是 scope project 的动作，跨项目汇总不再问它们（第 108 批 V17，用户 2026-11-26 定）：Schedule、Feed 在写错过与排程的同一事务里经 `services.overview` 写 `scheduled_run` 摘要行，宿主经 `apps/local-host/src/home-overview.ts` 的 `homeScheduledRuns` 只读各分区主库的 `plugin_overview_rows`，休眠分区不唤醒；项目里的面板仍按项目只读查询问它们；助理定时的两个动作挂在 `io.molis.work.assistant.rules` 这个系统提供方上（scope home）。动作 id 是 `<主人>.runs.overview@1`、`<主人>.runs.decide@1`。
 - **`waiting.model`** 是「没有设好可用的文字模型」，不是连接探测；`waiting.network` 是本机有没有网络。
 - **醒来立刻检查**只让宿主的周期任务马上跑一次（`onHostWake` → `periodic.wake()`），Schedule、Feed 的错过在它们各自的唤醒里记。
 - **胶囊的「运行」一节（面板、退出前确认、错过红点）随桌面胶囊在 44-7 一并删除，重做胶囊时再做，现在不另找去处；错过的事与重启后的补上、「现在做／跳过」的宿主逻辑照旧，只是胶囊上暂时没有提示；2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）。**以下是当时的做法：用胶囊自己的样式类，经桌面命令读和决定（`runtime_overview`、`runtime_decide`、`runtime_missed_dot`、`runtime_quit_confirmed`、`runtime_open`），不加载页面的共享请求客户端：那个客户端比这一节本身还大，胶囊整页会超过 10 KB 的增长线。首页的提示用组件板的 `mw-*` 与 `molisWorkRequest`。
@@ -212,7 +212,7 @@ interface RuntimeOverview {
 
 - **到期只从时间算**：`runHasExpired(due_at, now)`（`now - due_at >= 7 天`，刚满七天就算）。三位主人都不为到期另写一行或改状态：没人决定的那一行原样留着，读的时候按 `runsExpiryBounds` 排出列表、数进 `expired`；所以关机跨过第七天的，一回来读到的就是已过期，不靠哪次扫描赶上；第一页只列还在等的，过期的再多也数得全（`COUNT`）。对过期的那一件点「现在做／跳过」答 `gone`；第七天之前点的「现在做」是人的决定，照常执行，不算进汇总。人自己的「跳过」也不算进汇总。
 - **各主人自己存**：Feed 的 `feed_missed_pulls`、Schedule 的 `schedule_missed_runs`、助理跟进记录里的 `missed`。行留到过期后一个月再删（Feed、Schedule 在写错过时顺手删；助理在下一次跑这条跟进时删），已决定的照旧留到决定后一个月。Schedule 的一次性提醒与一次性操作过期时，像「跳过」一样了结（提醒删掉、操作标完成），在每 5 秒一轮的恢复写里做（`endExpiredOnce`）。
-- **说一次**：宿主按主人（项目＋提供方，Home 的主人项目为空）记「说到哪儿」，存在 `run/expired-seen.json`（`format.home.run.expired-seen` 第 1 版），问每位主人时把它自己的那一刻作为 `expired_after` 传下去（首页聚合用 `HomeAggregateInputEach`，每个提供方只拿到自己的）。主人数「到期了、且那一刻还说不到的」：第七天在那一刻之后，或者这一行在那一刻之后才记下（主人当时没在跑，回来才补记；`runExpiredUntold`）。「知道了」只推进这份汇总里答上来的主人；宿主在内存里按汇总时刻记着是哪些主人，重启后对旧汇总点「知道了」不推进任何主人，宁可再说一次也不漏。「知道了」在首页走 `POST /api/runtime/expired/seen`，在菜单栏面板走桌面命令 `runtime_expired_seen`（只答面板自己的页面，同 `runtime_decide`）。
+- **说一次**：宿主按主人（项目＋提供方，Home 的主人项目为空）记「说到哪儿」，存在 `run/expired-seen.json`（`format.home.run.expired-seen` 第 1 版），问每位主人时把它自己的那一刻作为 `expired_after` 传下去（第 108 批起项目主人不再被问，宿主按 `expiredOwnerKey(项目, 插件)` 把那一刻交给 `runExpiredUntold` 数摘要行，Home 的主人仍各拿自己的）。主人数「到期了、且那一刻还说不到的」：第七天在那一刻之后，或者这一行在那一刻之后才记下（主人当时没在跑，回来才补记；`runExpiredUntold`）。「知道了」只推进这份汇总里答上来的主人；宿主在内存里按汇总时刻记着是哪些主人，重启后对旧汇总点「知道了」不推进任何主人，宁可再说一次也不漏。「知道了」在首页走 `POST /api/runtime/expired/seen`，在菜单栏面板走桌面命令 `runtime_expired_seen`（只答面板自己的页面，同 `runtime_decide`）。
 - **同一来源两次「现在做」合成一次拉取**：Feed 一个来源错过两格、两格都点「现在做」，来源只回到后点的那一格拉一次（拉取总是拿最新内容，两次拉的结果相同）；两行都记成「现在做」，不再问。
 - **面板读不到时**：读失败一律显示「没在运行」，不区分宿主没起和一次读超时；30 秒后再读。**接受、不修**；重看条件：界面能可靠区分「宿主没起」和「一次读超时」时再看。
 - **「已核对、不再提醒」没有来源**：11-04 决定要求在首页也列「已核对、不再提醒」的，但助理跟进的结果里没有「已不需要」这一种，首页只列错过的；另立 [BL-followup-already-unneeded](../backlog/BL-followup-already-unneeded.md)（A 轨／助理，等跟进有了这个结果再接）。

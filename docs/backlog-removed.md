@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-sdk-home-aggregate-query-export | 已完成并删除 | 2026-11-26：第 108 批（V17）删除首页聚合与 `home_aggregate` 标记，SDK 不再导出 `isHomeAggregateQuery`；接替它的 `isProjectReadQuery` 是项目面板与事项线（`horizontal/mainline`）共用的只读项目查询判定，随 SDK 根入口导出（[108](../specs/post-anticorruption-roadmap/reference/batches/108.md)） |
 | BL-639 | 不再适用并删除 | 2026-11-25：它问的是 `databases.home` 按项目拆的分区库升级后怎么办；第 107 批删掉了那个复用器，分区库改为每个分区一份 `databases.partition`，版本按库声明的一份现行结构开（[107](../specs/post-anticorruption-roadmap/reference/batches/107.md)） |
 | BL-1055 | 已完成并删除 | SDK 与设计系统共用折叠组件，Images、Goals 已接入，Files 旧面板随 #2009 退役。[SCF-01](../specs/archive/shared-ui-folds/spec.md#验收标准) |
 | BL-1061 | 已完成并删除 | 连接行、原处连接卡和设计系统的自然高度折叠共用选择器函数。[SCF-02](../specs/archive/shared-ui-folds/spec.md#验收标准) |

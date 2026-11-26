@@ -93,7 +93,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 作业只有安装自己的授权：control 里没有原调用者，发出的调用以安装身份、按 `plugin` 受众走。每次写之前 `await control.beforeEffect()`；平台在每次写和每 200 ms 重核激活、安装记录与权限，插件停止、项目关闭或删除、Home 关闭就停，之后经平台服务的写一律拒。单次调用取消、撤权不停它，这只为把已经受理的那件事跟到底、记下真实结果，不发起新的业务（`specs/archive/repository-anti-corruption/spec.md` §12.10）。平台不落盘、不重放：要在重启后接着跟，插件在 `start()` 里读自己的记录再登记。沙箱没有这项服务。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」与 `docs/system/SECURITY-INVARIANTS.md` S-52。
 
-要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。首页标题栏的后台任务列表走这条路：用 SDK 的 `defineBackgroundTasksAction` 声明、回答 `{ source: { surface, title, icon }, tasks }`（每行带任务对象、状态环取值、谁在办、为哪些事件办、打开位置；停止这类命令写成自己的动作引用），宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
+要让首页跨项目列出这些还在跑的工作，在 Manifest 的 `overview_projection.kinds` 声明 `background_task`（定时的写 `scheduled_run`），并在写业务数据的同一事务里经 `services.overview.join(tx, rows => …)` 写摘要行（数据在分区独立库的写自己库里的 `molis_overview_rows`）；首页只读这些行、不唤醒项目（第 108 批 V17，S-49）。项目里的后台任务面板则在那个项目里调项目范围只读查询（`isProjectReadQuery`：只读、写 `output_type`、不调用模型、不计费）：用 SDK 的 `defineBackgroundTasksAction` 声明、回答 `{ source: { surface, title, icon }, tasks }`（每行带任务对象、状态环取值、谁在办、为哪些事件办、打开位置；停止这类命令写成自己的动作引用），宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
 
 Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }` 交出待审记录引用。先用 `agent.reviews.pending-ids@1` 批量取自己安装范围内的编号。卡片的提案和同意、拒绝来自平台的原审批，前提是项目、安装和 Agent 会话都匹配。
 

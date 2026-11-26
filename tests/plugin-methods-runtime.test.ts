@@ -281,6 +281,29 @@ test("RAC-196-U1 an uninstall whose declaration cleanup hits a database lock fin
     } finally { project.store.close(); }
   }));
 
+test("RAC-196-U1 BL-b47-prompt-register-newest-fallback retrying a locked fallback persists the running project", { timeout: 60_000 },
+  withHome(async home => {
+    const a = platformIn(home), b = platformIn(home);
+    try {
+      await a.platform.start([{ definition: agentProbe() }]);
+      await b.platform.start([{ definition: agentProbe({ version: "2.0.0", prompt: "v2-only" }) }]);
+      const id = b.installId(AGENT_PROBE), runtime = b.platform.runtime;
+      assert.deepEqual(promptsOf(home), ["v2-only:enabled"]);
+      const blocker = openHomeSqliteDatabase(home, "agent-declarations");
+      try {
+        blocker.exec("BEGIN IMMEDIATE");
+        await assert.rejects(runtime.uninstall(id), { code: "plugin.executor_failed" });
+      } finally { blocker.close(); }
+      assert.equal(runtime.get(id).state, "crashed");
+      assert.deepEqual(promptsOf(home), ["probe-role:enabled"], "the failed persistence cannot keep the removed version running");
+      assert.equal((await runtime.uninstall(id)).install.state, "uninstalled");
+      assert.deepEqual(promptsAfterRestart(home).prompts, ["probe-role:disabled"], "a fresh register reads v1 after the retry");
+      assert.deepEqual(promptsOf(home), ["probe-role:enabled"], "A still runs");
+      await a.platform.runtime.stop(id);
+      await a.platform.runtime.uninstall(id);
+    } finally { a.store.close(); b.store.close(); }
+  }));
+
 test("RAC-196 PG-051 Q1 b the last instance out leaves its version visible after other projects stop", { timeout: 60_000 },
   withHome(async home => {
     // One installation, two projects: A still runs 1.0.0 when B starts the upgraded 1.1.0; B stops first, A last.

@@ -169,7 +169,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     if (!record || !release.packaged || record.version !== installedVersion(release)) return;
     const value = definition(release, approvedFor(release.pluginId) ?? release.permissions);
     rememberInstalledMemoryScene(projectId, release.pluginId, state === 'enabled' ? value.manifest.memory_scene : undefined);
-    declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state);
+    declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, record.installation_generation);
     reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({

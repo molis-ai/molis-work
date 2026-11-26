@@ -11,27 +11,54 @@ import { registeredBuiltinText } from "./ui-text-provider.js";
 import { bindAgentDisplayWords } from "./agent-definitions/display-words.js";
 
 /** An installId identifies a plugin and publisher. Even a version declaring nothing can become the newest one still running. */
-type HeldVersion = { version: string; held: number; registration: AgentDefinitionRegistration | null; remember: boolean };
-const holders = new Map<string, Map<string, HeldVersion>>();
+type Hold = { pendingGeneration?: string };
+type HeldVersion = { version: string; holds: Set<Hold>; registration: AgentDefinitionRegistration | null };
+type Installation = { owner: string; versions: Map<string, HeldVersion>; remembered?: HeldVersion };
+const holders = new Map<string, Installation>();
 const installationKey = (home: PluginPlatformHome, installId: string) => `${path.resolve(home.directory)}\0${installId}`;
 let hostOwners: ReadonlySet<string> | undefined;
 
-function newestHeld(versions: ReadonlyMap<string, HeldVersion>): HeldVersion | undefined {
+function newerThan(row: HeldVersion, previous: HeldVersion | undefined): boolean {
+  return !previous || comparePluginVersions(row.version, previous.version) > 0;
+}
+
+function newestHeld(installation: Installation): HeldVersion | undefined {
   let newest: HeldVersion | undefined;
-  for (const row of versions.values()) if (!newest || comparePluginVersions(row.version, newest.version) > 0) newest = row;
+  for (const row of installation.versions.values()) {
+    const running = [...row.holds].some(hold => hold.pendingGeneration === undefined);
+    if (running && newerThan(row, newest)) newest = row;
+  }
   return newest;
 }
 
-function publishDeclaration(home: PluginPlatformHome, owner: string, installId: string, registration: AgentDefinitionRegistration | null,
-  state: "enabled" | "disabled", remember: boolean): void {
+function showDeclaration(home: PluginPlatformHome, owner: string, installId: string, registration: AgentDefinitionRegistration | null): void {
   const registry = homeAgentDefinitions(home.directory);
-  if (registration) {
-    registry.register(state === "disabled" ? notRunning(registration) : registration, installId);
-    if (remember) agentDeclarationsFor(home.directory).remember(installId, registration);
-  } else {
-    registry.unregister(owner, installId);
-    if (remember) agentDeclarationsFor(home.directory).forgetOwner(installId, owner);
+  if (registration) registry.register(registration, installId);
+  else registry.unregister(owner, installId);
+}
+
+function rememberDeclaration(home: PluginPlatformHome, owner: string, installId: string, registration: AgentDefinitionRegistration | null): void {
+  const declarations = agentDeclarationsFor(home.directory);
+  if (registration) declarations.remember(installId, registration);
+  else if (declarations.has(installId, owner)) declarations.forgetOwner(installId, owner);
+}
+
+function rememberHeld(home: PluginPlatformHome, installId: string, installation: Installation, row: HeldVersion): void {
+  if (installation.remembered === row) return;
+  rememberDeclaration(home, installation.owner, installId, row.registration);
+  installation.remembered = row;
+}
+
+/** Validate the incoming registration before remembering it. A rejected start returns the register to its previous view. */
+function activateHeld(home: PluginPlatformHome, installId: string, installation: Installation, row: HeldVersion): void {
+  if (!row.registration && !installation.remembered && !agentDeclarationsFor(home.directory).has(installId, installation.owner)) {
+    installation.remembered = row;
+    return;
   }
+  const previous = homeAgentDefinitions(home.directory).installation(installation.owner, installId);
+  showDeclaration(home, installation.owner, installId, row.registration);
+  try { rememberHeld(home, installId, installation, row); }
+  catch (error) { showDeclaration(home, installation.owner, installId, previous ?? null); throw error; }
 }
 
 /**
@@ -56,8 +83,9 @@ function publishDeclaration(home: PluginPlatformHome, owner: string, installId: 
 export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string,
   projectRecord?: PluginInstanceRecord | null): (() => void) | undefined {
   if (!home) return undefined;
-  // A stopped project package is still starting. Its successful enable owns the durable registration.
-  const remember = !(definition.execution === "sandbox" && projectRecord?.publisher_trust === "pinned" && projectRecord.state === "disabled");
+  // A disabled project package stays invisible until its own installation generation finishes enabling.
+  const hold: Hold = definition.execution === "sandbox" && projectRecord?.publisher_trust === "pinned" && projectRecord.state === "disabled"
+    ? { pendingGeneration: projectRecord.installation_generation } : {};
   const { plugin_id: owner, version } = definition.manifest;
   const registration = pluginAgentRegistration(definition);
   hostOwners ??= new Set(builtinRegistrations().map(row => row.owner_id));
@@ -67,33 +95,25 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
   }
 
   const key = installationKey(home, installId);
-  const versions = holders.get(key) ?? new Map<string, HeldVersion>();
-  const previous = newestHeld(versions);
-  const row = versions.get(version) ?? { version, held: 0, registration, remember };
-  const takesOver = !previous || comparePluginVersions(version, previous.version) > 0;
-  if (takesOver || (previous === row && remember && !row.remember)) {
-    // A first, empty declaration needs a projection only when the Home remembers a previous one.
-    if (registration || previous || agentDeclarationsFor(home.directory).has(installId, owner)) {
-      publishDeclaration(home, owner, installId, row.registration, "enabled", remember);
-    }
-  }
-  row.held++;
-  row.remember ||= remember;
-  versions.set(version, row);
-  holders.set(key, versions);
+  const installation = holders.get(key) ?? { owner, versions: new Map<string, HeldVersion>() };
+  const previous = newestHeld(installation);
+  const row = installation.versions.get(version) ?? { version, holds: new Set<Hold>(), registration };
+  if (hold.pendingGeneration === undefined && newerThan(row, previous)) activateHeld(home, installId, installation, row);
+  row.holds.add(hold);
+  installation.versions.set(version, row);
+  holders.set(key, installation);
 
-  let withdrawn = false;
   return () => {
-    if (withdrawn) return;
-    withdrawn = true;
-    if (--row.held > 0) return;
-    const wasNewest = newestHeld(versions) === row;
-    versions.delete(version);
-    if (!versions.size) holders.delete(key);
-    if (!wasNewest) return;
-    const remaining = newestHeld(versions);
-    if (remaining) publishDeclaration(home, owner, installId, remaining.registration, "enabled", remaining.remember);
-    else if (row.registration) publishDeclaration(home, owner, installId, row.registration, "disabled", row.remember);
+    const before = newestHeld(installation);
+    if (!row.holds.delete(hold)) return;
+    if (!row.holds.size) installation.versions.delete(version);
+    if (!installation.versions.size) holders.delete(key);
+    const remaining = newestHeld(installation);
+    if (before !== row || remaining === before) return;
+    // The departing instance has stopped even when the durable write fails. Uninstall retries the surviving declaration.
+    if (remaining) showDeclaration(home, owner, installId, remaining.registration);
+    else if (row.registration) showDeclaration(home, owner, installId, notRunning(row.registration));
+    rememberHeld(home, installId, installation, remaining ?? row);
   };
 }
 
@@ -130,16 +150,21 @@ function pluginDefinitionSource(definition: PluginDefinition): AgentDefinitionSo
 }
 
 /** A lifecycle refresh confirms this version without acquiring a hold. Other projects keep their running versions, even during rollback. */
-export function updatePluginAgentDefinitions(home: PluginPlatformHome, definition: PluginDefinition, installId: string, state: "enabled" | "disabled"): void {
+export function updatePluginAgentDefinitions(home: PluginPlatformHome, definition: PluginDefinition, installId: string, state: "enabled" | "disabled", generation?: string): void {
   const { plugin_id: owner, version } = definition.manifest;
-  const versions = holders.get(installationKey(home, installId));
-  if (versions) {
-    const row = versions.get(version);
-    if (!row) return;
-    row.remember = true;
-    if (newestHeld(versions) === row) publishDeclaration(home, owner, installId, row.registration, "enabled", true);
+  const installation = holders.get(installationKey(home, installId));
+  if (installation) {
+    const row = installation.versions.get(version);
+    if (!row || state !== "enabled") return;
+    const before = newestHeld(installation);
+    const pending = generation ? [...row.holds].filter(hold => hold.pendingGeneration === generation) : [];
+    if (pending.length && newerThan(row, before)) activateHeld(home, installId, installation, row);
+    for (const hold of pending) delete hold.pendingGeneration;
+    if (before === row) rememberHeld(home, installId, installation, row);
   } else {
-    publishDeclaration(home, owner, installId, pluginAgentRegistration(definition), state, true);
+    const registration = pluginAgentRegistration(definition);
+    showDeclaration(home, owner, installId, registration && state === "disabled" ? notRunning(registration) : registration);
+    rememberDeclaration(home, owner, installId, registration);
   }
 }
 
@@ -159,8 +184,9 @@ export function declaredOnlyHolds(home: PluginPlatformHome | null | undefined) {
       if (holds && current?.version === version && current.installId === installId) return;
       // A new version is held before the earlier one is let go, so the Skills are not left not running in between.
       const acquired = holds ? registerPluginAgentDefinitions(home, definition, installId) : undefined;
-      release(pluginId);
       if (acquired) held.set(pluginId, { version, installId, release: acquired });
+      else held.delete(pluginId);
+      current?.release();
     },
     release,
     releaseAll(): void { for (const pluginId of [...held.keys()]) release(pluginId); },
@@ -169,7 +195,13 @@ export function declaredOnlyHolds(home: PluginPlatformHome | null | undefined) {
 
 /** An uninstalled installation's declarations leave the register and the Home (PG-051 Q1 b), unless it still runs somewhere. */
 export function forgetPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, installId: string): void {
-  if (!home || holders.has(installationKey(home, installId))) return;
+  if (!home) return;
+  const installation = holders.get(installationKey(home, installId));
+  if (installation) {
+    const remaining = newestHeld(installation);
+    if (remaining) rememberHeld(home, installId, installation, remaining);
+    return;
+  }
   const registry = homeAgentDefinitions(home.directory);
   for (const owner of agentDeclarationsFor(home.directory).forget(installId)) {
     registry.unregister(owner, installId);

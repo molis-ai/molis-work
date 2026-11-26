@@ -36,7 +36,7 @@ import { SUBTASK_CONVERSATION_STYLES } from "@molis-ai/molis-work-design-system"
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, manifestFor, hostSurfaceDirectory, pluginTabGlyphs, railEntries } from "./plugin-catalog.js";
+import { builtinPluginDirectory, manifestFor, hostSurfaceDirectory, pluginTabGlyphs, railEntries, shippedPersonalPlugins } from "./plugin-catalog.js";
 import { PLATFORM_NAVIGATION } from "./platform-surfaces.js";
 import type { PlatformSurfaceId } from "@molis-ai/molis-work-ui-host";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
@@ -50,8 +50,7 @@ import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.
 function sampleProjectPlugins(): string[] {
   const directory = builtinPluginDirectory();
   const backbone = railEntries(directory.map(entry => entry.id), directory).filter(entry => entry.rail === "core").map(entry => entry.id);
-  const personal = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true).map(entry => entry.project_plugin_id);
-  return [...new Set([...backbone, ...personal])];
+  return [...new Set([...backbone, ...shippedPersonalPlugins()])];
 }
 
 function htmlLangFor(lang: WebLocale): string {

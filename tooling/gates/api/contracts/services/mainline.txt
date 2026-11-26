@@ -983,8 +983,6 @@ export interface ObjectOpenResult {
     target: OpenTarget | null;
 }
 
-export declare const PLATFORM_RECEIVE_STATION = "system.shelf";
-
 export interface TaskPlaceRequest {
     task: ActionSubject;
     to?: {

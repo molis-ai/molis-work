@@ -68,7 +68,9 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
 // PSD-01 (44C-3, specs/plugin-specials-demotion section 8): no built-in plugin is load-bearing. Each of the 20 built-ins is taken out of a
 // project in turn (a personal one is turned off there) and the Home page, the project's page, its settings, the attention read, the
 // person's and the assistant's action directories and the project's MCP directory all still answer; then it is added back, so each
-// removal is measured against a project that has all the others. Desktop start, sync and backup are covered by their own files (44C record).
+// removal is measured against a project that has all the others. Each removal also takes effect: the assistant is offered none of
+// that plugin's actions, unless a plugin still shown embeds it (availableProjectPluginIds); added back, it is offered what it was before.
+// Desktop start, sync and backup are covered by their own files (44C record).
 test("PSD-01 taking out any one built-in plugin leaves the Home page, the project page, settings, attention, the assistant and MCP working", { timeout: 600_000 }, async t => {
   const builtins = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.project_plugin_id).sort();
   assert.equal(builtins.length, 20, `the 20 built-in plugins: ${builtins.join(", ")}`);
@@ -94,12 +96,28 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     await response.arrayBuffer();
     return response.status;
   };
+  // Whose actions are whose: the removal must take effect, not only leave the pages answering.
+  const pluginIdOf = new Map(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
+  const offered = async (id: string) => (await client.discover(assistant))
+    .filter(view => view.provider.plugin_id === pluginIdOf.get(id) && view.availability.available).map(view => view.capability_id).sort();
+  const left: Record<string, string[]> = {}, back: Record<string, string[]> = {};
   for (const id of builtins) {
+    const before = await offered(id);
     await home.web.delete(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
     assert.ok(!(await enabled()).includes(id), `${id} is out of the project`);
     for (const path of pages) assert.equal(await status(path), 200, `without ${id}: ${path}`);
     for (const caller of [person, assistant]) assert.ok((await client.discover(caller)).length > 0, `without ${id}: the ${caller.audience} directory answers`);
+    const still = await offered(id);
+    // One rule, from the declarations: a plugin another shown plugin embeds stays reachable (Coding embeds Git and Diff, Git embeds Diff).
+    const shown = await enabled();
+    const embeddedBy = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => shown.includes(entry.project_plugin_id)
+      && (entry.manifest.ui.embedded_plugins ?? []).includes(pluginIdOf.get(id)!)).map(entry => entry.project_plugin_id);
+    if (embeddedBy.length ? still.join() !== before.join() : still.length) left[id] = still;
     assert.ok(Array.isArray(await mcp.client.discover(mcp.caller)), `without ${id}: the project's MCP directory answers`);
     await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+    const again = await offered(id);
+    if (again.join() !== before.join()) back[id] = again;
   }
+  assert.deepEqual(left, {}, "without each plugin, the assistant is offered none of its actions, unless a plugin still shown embeds it");
+  assert.deepEqual(back, {}, "added back, each plugin's actions are offered as before");
 });

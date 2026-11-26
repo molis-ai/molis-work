@@ -19,6 +19,9 @@ export * from "./ui-views.js";
 export * from "./ui-slots.js";
 export * from "./ui-help.js";
 export type { ReviewOwner, ReviewReference, ReviewDelegationReference, ReviewDecisionSource, ReviewDecisionAvailability, ReviewDecisionRecord, ReviewDecisionReference, TrustedReviewDecisionRecord, ReviewTarget, ReviewEvidence, ReviewRequirement, ReviewRequest } from "./reviews.js";
+/** The platform's own receiver of 「放到…」 on the work line, first in every list: the Shelf, by its identity as a platform part. No plugin's
+ * station may take it. It lives here, not in services/mainline, so that the page drawing the line does not load the mainline action table. */
+export const PLATFORM_RECEIVE_STATION = "system.shelf";
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
 

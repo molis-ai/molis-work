@@ -1,5 +1,5 @@
 import { escapeHtml, icon, renderButton, renderMenu, renderMenuItem, renderStateRing, t as uiText, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/services/mainline";
+import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /**
  * The markup of the work line's parts (specs/work-line §4, scheme E of docs/design/work-line-32; rules in styles/work-line.ts).

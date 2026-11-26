@@ -140,6 +140,12 @@ const pages: Record<string, Draw> = {
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.
 // Every other byte, JSON block and record stayed fixed; the candidate was not used to record these expectations.
+// Batch 44C (PSD-08: no vendor branches in the shell): independently built main 9f85b88511 and the batch head were both drawn with
+// MOLIS_WORK_GOLDEN_DUMP=1 and compared token by token. The 16 page-* draws differ in one place only: the knowledge-import dialog's
+// 「文档来源」 select is drawn empty (its four hand-written Notion / 飞书 / Lark / Google Docs options gone; the dialog's script fills it
+// from the declared offers of `artifacts.import.sources`), -169 / -173 characters in zh / en. The three English settings pages differ
+// only in the project settings link Plugin → Plugins (the link now comes from the settings registry). No Goals markup or JSON changed;
+// those 19 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 33 records did not change.
 // WORK-03 / T01-ACCOUNT-ENTRY-01: the earlier 16 whole-page account-entry records derived from independently built main 9f00fd0dad.
 // Its 66 normalized draws first matched every original hash. Only the personal-account button's disabled attribute
 // and unavailable title were replaced by the enabled Sign in / 登录 entry. All other markup and JSON stayed fixed;

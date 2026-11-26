@@ -14,8 +14,6 @@ import { WORK_ITEM_LIMITS, type WorkItemNextStep } from "../platform/work-items.
  * the providers again through the caller's own client, so what a caller cannot read is not in its answer.
  */
 export const MAINLINE_PROVIDER_ID = "system.mainline";
-/** The platform's own receiver of 「放到…」, first in every list: the Shelf, by its identity as a platform part. No plugin's station may take it. */
-export const PLATFORM_RECEIVE_STATION = "system.shelf";
 export const MAINLINE_READ_PERMISSION = "mainline:read";
 /** Acting on a task: the action a command names is still authorized on its own when it is called. */
 export const MAINLINE_CONTROL_PERMISSION = "mainline:control";

@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { PLATFORM_RECEIVE_STATION, mainlineActions, mainlineItemActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/platform/ui";
+import { mainlineActions, mainlineItemActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { placementActions } from "@molis-ai/molis-work-contracts/services/placement";

@@ -41,8 +41,7 @@ async function consumer(t: Parameters<typeof openTestHome>[0], home: TestHome, p
     ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions }));
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `com.example.fixture.${declared.name}`, version: "1.0.0", name: declared.name, kind: "app",
     publisher: { publisher_id: "fixture", signature: declared.name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-    // The permission as Shelf declares it, without the words that are Shelf's own.
-    permissions: declared.permissions.map(({ reason_text: _words, ...permission }) => permission), capabilities: { provides: [], consumes: [...declared.consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
+    permissions: [...declared.permissions], capabilities: { provides: [], consumes: [...declared.consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
     async start(context) { client = context.services?.actions; return { kind: "app" }; } };
   const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [...declared.grants] }).install;
   t.after(() => runtime.stop(install.install_id));

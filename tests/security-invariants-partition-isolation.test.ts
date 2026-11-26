@@ -20,6 +20,8 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 import { person as runtimePerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { TODO_ACTION_PERMISSIONS, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, pluginErrors, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
@@ -396,6 +398,52 @@ test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partit
     await timer.fire();
     assert.equal(woken.length, 21);
   } finally { timer.close(); due.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+/** Waits for a condition the Host reaches on its own (a timer firing), reading it again every 50 ms; fails after `ms`. */
+async function until(what: string, ready: () => boolean, ms = 20_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!ready()) {
+    if (Date.now() > end) assert.fail(`timed out waiting: ${what}`);
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
+
+// Batch 108 item 2 ④: the same rule on the real Host with the real plugins. Todo's reminder (read from its overview table into the due
+// registry) and Images' generation deadline (its own due entry) fall due while every partition sleeps; each wakes only its own (plugin,
+// partition), opening that partition and no other. Jelly's events join this case when Jelly moves to partitions.
+test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("提醒 A", ["todo", "images"]), b = await f.project("提醒 B", ["todo", "images"]), c = await f.project("提醒 C", ["todo", "images"]);
+  const host = existingPartitionPluginHost(f.home), services = host?.services;
+  assert.ok(host && services, "the Host started the partition services");
+  const soon = new Date(Date.now() + 3_000).toISOString(), later = new Date(Date.now() + 86_400_000).toISOString();
+  const remind = (p: typeof a, title: string, at: string) => f.host.actionClient(p.reference).invoke(runtimePerson(TODO_ACTION_PERMISSIONS, p.project_id), todoActions.create, { title, remind_at: at });
+  await remind(a, "A 到点", soon);
+  await remind(b, "B 明天", later);
+  await remind(c, "C 明天", later);
+  await until("the reminders are in the due registry", () => [a, b, c].every(p => services.due.entries(p.project_id).length === 1));
+  const imagesInstall = installIdentity(imagesManifest);
+  const deadline = (p: typeof a, key: string, at: string) => services.registerDue({ install_id: imagesInstall, plugin_id: imagesManifest.plugin_id, partition_id: p.project_id }, { entry_key: key, due_at: at });
+  deadline(b, "job:probe", soon);
+  deadline(a, "job:later", later);
+  deadline(c, "job:later", later);
+  // Every project closes and every instance stops before the time comes: the partitions sleep.
+  for (const p of [a, b, c]) await f.host.closeProject(p.reference);
+  await host.assembly.stopPlugin(todoManifest.plugin_id);
+  await host.assembly.stopPlugin(imagesManifest.plugin_id);
+  assert.deepEqual(host.assembly.instances(), [], "no instance runs before the time");
+  assert.deepEqual(f.host.projects(), [], "and no project is open");
+
+  const fallen = (p: typeof a, plugin: string) => services.due.entries(p.project_id).filter(entry => entry.plugin_id === plugin && Date.parse(entry.due_at) <= Date.parse(soon));
+  await until("both fallen-due entries are settled", () => fallen(a, todoManifest.plugin_id).length === 0 && fallen(b, imagesManifest.plugin_id).length === 0);
+  assert.deepEqual(host.assembly.instances().map(item => `${item.plugin_id}@${item.partition_id}`).sort(),
+    [`${imagesManifest.plugin_id}@${b.project_id}`, `${todoManifest.plugin_id}@${a.project_id}`].sort(),
+    "Todo wakes in A and Images in B; Todo in B, Images in A, C and the personal space stay asleep");
+  assert.deepEqual(f.host.projects().map(project => project.project_id).sort(), [a.project_id, b.project_id].sort(), "only the woken partitions are opened; C stays closed");
+  assert.deepEqual(services.due.entries(c.project_id).map(entry => entry.due_at), [later, later], "C's entries still wait");
+  assert.deepEqual(services.due.entries(b.project_id).filter(entry => entry.plugin_id === todoManifest.plugin_id).map(entry => entry.due_at), [later], "B's reminder still waits");
+  assert.deepEqual(services.due.entries(a.project_id).filter(entry => entry.plugin_id === imagesManifest.plugin_id).map(entry => entry.entry_key), ["job:later"]);
 });
 
 // Batch 107-1: the Host's per-partition assembly (`partition-plugin-host.ts`). A plugin with a library in each partition no longer runs on the

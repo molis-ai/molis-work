@@ -192,8 +192,7 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
   try {
     const path = join(directory, "original");
     await pipeline(request, createWriteStream(path, { flags: "wx" }));
-    const input: ArtifactFileImport = { source: "file", filename, original_file: { filename, mime },
-      ...new URL(request.url ?? "/", "http://host").searchParams.get("allow_model_download") === "true" ? { allow_model_download: true } : {} };
+    const input: ArtifactFileImport = { source: "file", filename, original_file: { filename, mime } };
     const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
       const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, control, on_progress ? { on_progress } : undefined);
       return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved) } };
@@ -224,7 +223,7 @@ async function importArtifactJson(request: IncomingMessage, response: ServerResp
     const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
     return { status: result.reused ? 200 : 201, body: result };
   };
-  // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
+  // A page that waits on a slow reading (a scanned PDF, an image's text) can ask for its progress and result as NDJSON (QEA-24).
   if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
   const result = await answer();
   sendLocalWebJson(response, result.status, result.body);

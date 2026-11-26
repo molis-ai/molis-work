@@ -5,19 +5,19 @@ import https from "node:https";
 import { syncBuiltinESMExports } from "node:module";
 import { Readable } from "node:stream";
 import { gzipSync, brotliCompressSync, deflateSync } from "node:zlib";
-import { classifyMaterialSource, materialSourceEmbeddedJSON, materialXiaohongshuNoteID, parseMaterialXiaohongshu, parseMaterialXiaoyuzhouAudio, readMaterialSource, type MaterialSourceOptions } from "../apps/local-host/src/material-source-providers.js";
+import { classifyMaterialSource, materialSourceEmbeddedJSON, materialXiaohongshuNoteID, parseMaterialXiaohongshu, readMaterialSource, type MaterialSourceOptions } from "../apps/local-host/src/material-source-providers.js";
 import { assertMaterialHostAllowed, fetchMaterialPublicBytes, isMaterialPublicAddress, materialRedirectTarget, readMaterialPublicBody, resolveMaterialPublicAddresses, validateMaterialPublicURL, type MaterialPublicResponse } from "../apps/local-host/src/material-source-reader.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { type UploadedMaterial } from "../apps/local-host/src/material-upload.js";
 import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from "./fixtures/public-address-policy.js";
 const page = (url: string, body: string, type = "text/html"): MaterialPublicResponse => ({ data: Buffer.from(body), type, final_url: url, status: 200 });
-const material = (text: string): UploadedMaterial => ({ text, file_name: "source.mp4", extractor: "test-extractor", pages: [{ number: 1, text, method: "test", confidence: null }], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } });
+const material = (text: string): UploadedMaterial => ({ text, file_name: "source.png", extractor: "test-extractor", pages: [{ number: 1, text, method: "test", confidence: null }], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } });
 const noteHTML = (id: string, note: Record<string, unknown>) => `<script>window.__INITIAL_STATE__=${JSON.stringify({ note: { noteDetailMap: { [id]: { note } } } })};</script>`;
 
 test("public source classifier uses exact domains and note paths without executing embedded JS", () => {
   assert.equal(classifyMaterialSource("https://www.bilibili.com/video/BVexample"), "bilibili"); assert.equal(classifyMaterialSource("https://b23.tv/abc"), "bilibili");
-  assert.equal(classifyMaterialSource("https://www.xiaoyuzhoufm.com/episode/abc"), "xiaoyuzhou"); assert.equal(classifyMaterialSource("https://bilibili.com.evil.example/video/x"), "article");
+  assert.equal(classifyMaterialSource("https://www.xiaoyuzhoufm.com/episode/abc"), "article"); assert.equal(classifyMaterialSource("https://bilibili.com.evil.example/video/x"), "article");
   assert.equal(materialXiaohongshuNoteID("https://www.xiaohongshu.com/explore/abc_123?token=opaque"), "abc_123"); assert.equal(materialXiaohongshuNoteID("https://www.xiaohongshu.com/explore/abc/extra"), null); assert.equal(materialXiaohongshuNoteID("https://www.xiaohongshu.com/explore/%2fsecret"), null);
   assert.deepEqual(materialSourceEmbeddedJSON('<script>__INITIAL_STATE__={"text":"} undefined","missing":undefined}; evil();</script>', "__INITIAL_STATE__"), { text: "} undefined", missing: null });
   assert.equal(materialSourceEmbeddedJSON('<script>__INITIAL_STATE__={"x":(()=>{throw 1})()};</script>', "__INITIAL_STATE__"), null);
@@ -61,29 +61,31 @@ test("Bilibili qualified Chinese subtitles retain timestamps without a model dow
       if (target.endsWith("chinese")) return page(target, JSON.stringify({ body: Array.from({ length: 30 }, (_, i) => ({ from: i, to: i + 1, content: `这是第${i}段真实公开中文字幕内容` })) }), "application/json");
       throw new Error("unexpected fetch");
     },
-    async extractMaterial() { assert.fail("qualified public subtitles must not invoke audio model"); }
+    async extractMaterial() { assert.fail("subtitles are read as text, never extracted"); }
   };
   const result = await readMaterialSource("/unused", url, options); assert.equal(result.provider, "bilibili"); assert.equal(result.segments?.length, 30); assert.equal(result.coverage.status, "sufficient"); assert.equal(result.title, "视频标题"); assert.ok(!seen.some(target => target.endsWith("english")));
 });
-test("Bilibili insufficient subtitles fall back to public DASH audio with explicit model choice preserved", async () => {
-  const url = "https://www.bilibili.com/video/BVexample";
+test("Batch 112: Bilibili without qualified public subtitles asks for pasted subtitles and never downloads audio", async () => {
+  const url = "https://www.bilibili.com/video/BVexample"; const seen: string[] = [];
   await assert.rejects(readMaterialSource("/unused", url, {
     async fetch(target) {
+      seen.push(target);
       if (target === url) return page(url, '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVexample","cid":123}}</script>');
       if (target.includes("/x/player/v2?")) return page(target, JSON.stringify({ code: 0, data: { subtitle: { subtitles: [] } } }), "application/json");
-      if (target.includes("/x/player/playurl?")) return page(target, JSON.stringify({ code: 0, data: { dash: { audio: [{ baseUrl: "https://cdn.example/audio" }] } } }), "application/json");
-      return page(target, "binary-audio", "audio/mp4");
+      throw new Error("unexpected fetch");
     },
-    async extractMaterial(_home, upload) { assert.equal(upload.allow_model_download, false); assert.equal(upload.file_name, "来源素材.m4a"); throw new ActionError("material.model_required", "explicit choice required", { kind: "conflict", details: { approximate_bytes: 626000000 } }); }
-  }), (error: unknown) => error instanceof ActionError && error.code === "material.model_required" && actionHttpStatus(error) === 409 && error.details?.approximate_bytes === 626000000);
+    async extractMaterial() { assert.fail("no audio is transcribed"); }
+  }), (error: unknown) => error instanceof ActionError && error.code.startsWith("material.") && /粘贴字幕/.test(error.message));
+  assert.ok(!seen.some(target => target.includes("/x/player/playurl?")), "the audio stream address is never asked for");
 });
-test("Xiaoyuzhou resolves public OG, JSON-LD and Next enclosure audio", async () => {
-  assert.equal(parseMaterialXiaoyuzhouAudio('<meta content="https://cdn.example/a.mp3?x=1&amp;y=2" property="og:audio">'), "https://cdn.example/a.mp3?x=1&y=2");
-  assert.equal(parseMaterialXiaoyuzhouAudio('<script type="application/ld+json">{"@type":"PodcastEpisode","audio":{"contentUrl":"https://cdn.example/a.mp3"}}</script>'), "https://cdn.example/a.mp3");
-  assert.equal(parseMaterialXiaoyuzhouAudio('<script id="__NEXT_DATA__" type="application/json">{"props":{"enclosure":{"url":"https://cdn.example/a.m4a"}}}</script>'), "https://cdn.example/a.m4a");
-  let extracted = false;
-  const result = await readMaterialSource("/unused", "https://www.xiaoyuzhoufm.com/episode/abc", { allow_model_download: true, async fetch(target) { return target.includes("/episode/") ? page(target, '<meta property="og:audio" content="https://cdn.example/a.mp3"><meta property="og:title" content="节目标题">') : page(target, "audio", "audio/mpeg"); }, async extractMaterial(_home, upload) { assert.equal(upload.allow_model_download, true); extracted = true; return material("带来源的转写"); } });
-  assert.equal(extracted, true); assert.equal(result.title, "节目标题"); assert.equal(result.source_url, "https://www.xiaoyuzhoufm.com/episode/abc");
+test("Batch 112: a podcast page is read as an ordinary article, and its audio is never fetched", async () => {
+  const seen: string[] = [];
+  const result = await readMaterialSource("/unused", "https://www.xiaoyuzhoufm.com/episode/abc", { async fetch(target) {
+    seen.push(target);
+    return page(target, `<title>节目标题</title><meta property="og:audio" content="https://cdn.example/a.mp3"><article><p>${"节目简介的公开文字。".repeat(8)}</p></article>`);
+  }, async extractMaterial() { assert.fail("no audio is transcribed"); } });
+  assert.equal(result.provider, "article"); assert.equal(result.title, "节目标题"); assert.match(result.text, /节目简介/);
+  assert.deepEqual(seen, ["https://www.xiaoyuzhoufm.com/episode/abc"]);
 });
 test("Xiaohongshu exact note identity, source text and bounded images are preserved", async () => {
   const id = "abc123"; const url = `https://www.xiaohongshu.com/explore/${id}?xsec_token=private-query`;
@@ -99,10 +101,11 @@ test("restricted and redirected-to-other-note XHS pages stay explicit failures",
   await assert.rejects(readMaterialSource("/unused", url, { async fetch() { return page("https://www.xiaohongshu.com/explore/other", noteHTML("other", { noteId: "other", desc: "别人的内容" })); } }), /ID 不一致/);
   await assert.rejects(readMaterialSource("/unused", url, { async fetch() { return page(url, noteHTML("abc", { noteId: "abc", title: "只有标题", tags: ["只有标签"] })); } }), /只有标题或元数据/);
 });
-test("XHS video without an enabled speech model returns original body and an explicit model requirement", async () => {
-  const url = "https://www.xiaohongshu.com/explore/abc";
-  const result = await readMaterialSource("/unused", url, { async fetch(target) { return target === url ? page(url, noteHTML("abc", { noteId: "abc", title: "视频", desc: "视频原作者的正文", type: "video", video: { masterUrl: "https://cdn.example/video.mp4" } })) : page(target, "video", "video/mp4"); }, async extractMaterial(_home, upload) { assert.equal(upload.allow_model_download, false); throw new ActionError("material.model_required", "download choice", { kind: "conflict", details: { approximate_bytes: 626000000, variant: "large-v3" } }); } });
-  assert.match(result.text, /原作者的正文/); assert.equal(result.model_required?.approximate_bytes, 626000000); assert.equal(result.coverage.status, "partial"); assert.match(result.coverage.issues.join(" "), /等待明确下载/);
+test("Batch 112: an XHS video note keeps its original body, says the video is not transcribed, and never fetches the video", async () => {
+  const url = "https://www.xiaohongshu.com/explore/abc"; const seen: string[] = [];
+  const result = await readMaterialSource("/unused", url, { async fetch(target) { seen.push(target); return target === url ? page(url, noteHTML("abc", { noteId: "abc", title: "视频", desc: "视频原作者的正文", type: "video", video: { masterUrl: "https://cdn.example/video.mp4" } })) : page(target, "video", "video/mp4"); }, async extractMaterial() { assert.fail("no video is transcribed"); } });
+  assert.match(result.text, /原作者的正文/); assert.equal(Object.hasOwn(result, "model_required"), false); assert.equal(result.coverage.status, "partial");
+  assert.match(result.coverage.issues.join(" "), /视频不转写/); assert.deepEqual(seen, [url]);
 });
 test("generic public articles retain readable body while omitting executable/page-navigation content", async () => {
   const result = await readMaterialSource("/unused", "https://example.com/article", { async fetch(target) { return page(target, `<title>示例&amp;文章</title><nav>导航</nav><article><script>secret()</script><p>${"真实公开文章内容。".repeat(8)}</p></article>`); } });
@@ -119,11 +122,11 @@ test("RAC-27 source authority is checked before the first fetch, every later fet
   await assert.rejects(readMaterialSource("/unused", "https://example.com", { beforeEffect,
     async fetch() { fetches++; throw new Error("must not fetch"); } }), error => error === refusal);
   assert.equal(fetches, 0);
-  const url = "https://www.xiaoyuzhoufm.com/episode/abc";
+  const url = "https://www.xiaohongshu.com/explore/abc";
   await assert.rejects(readMaterialSource("/unused", url, { beforeEffect() { if (fetches) throw refusal; },
-    async fetch(target) { fetches++; return page(target, '<meta property="og:audio" content="https://cdn.example/audio.mp3">'); },
+    async fetch(target) { fetches++; return page(target, noteHTML("abc", { noteId: "abc", title: "标题", desc: "原始正文内容", imageList: [{ urlDefault: "https://cdn.example/image.png" }] })); },
     async extractMaterial() { assert.fail("withdrawn source cannot reach extraction"); } }), error => error === refusal);
-  assert.equal(fetches, 1, "no media fetch after the first page withdrew authority");
+  assert.equal(fetches, 1, "no image fetch after the first page withdrew authority");
   let active = true, fallbacks = 0;
   await assert.rejects(resolveMaterialPublicAddresses("public.example", undefined, {
     async lookup() { active = false; return [{ address: "198.18.0.58", family: 4 }]; },
@@ -173,7 +176,7 @@ test("BL492-02 the first request is refused before any lookup or request, and a 
   assert.throws(() => materialRedirectTarget(from, "http://[bad", ["docs.example.com"]), refusal("material.source.redirect_invalid"));
 });
 
-test("BL492-04 every request a source's reader makes carries the list: its page, the API it follows to and the media it downloads", async () => {
+test("BL492-04 every request a source's reader makes carries the list: its page, the API it follows to and the subtitles it downloads", async () => {
   const url = "https://www.bilibili.com/video/BVexample"; const seen: string[] = [];
   const state = '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVexample","cid":123,"title":"视频标题"}}</script>';
   const options = (allowedHosts: readonly string[]): MaterialSourceOptions => ({

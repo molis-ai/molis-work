@@ -1,17 +1,18 @@
 import { decodeMaterialHTMLEntities, fetchMaterialPublicBytes, isMaterialSourceFailure, materialHTMLArticle, materialSourceErrors, validateMaterialPublicURL, type MaterialPublicFetchOptions, type MaterialPublicResponse } from "./material-source-reader.js";
-import { extractUploadedMaterial, type UploadedMaterial, type MaterialUploadOptions, type MaterialUploadRequest } from "./material-upload.js";
+import { extractUploadedMaterial, type UploadedMaterial, type MaterialUploadOptions } from "./material-upload.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isMaterialFailure } from "./material-text.js";
 import type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale, webLanguage } from "./web-locale.js";
 
 type MaterialSourceMaterial = MaterialSourceContent;
 export interface MaterialSourceOptions extends MaterialUploadOptions {
-  allow_model_download?: boolean;
-  /** Exact host names the whole read may contact (the page, its redirects, the API and media it follows to); unset, every public host. */
+  /** Exact host names the whole read may contact (the page, its redirects, the API and images it follows to); unset, every public host. */
   allowed_hosts?: readonly string[];
   /** Dependency seams for offline parser/adapter regressions; HTTP routes never bind these fields. */
   fetch?: (url: string, options?: MaterialPublicFetchOptions) => Promise<MaterialPublicResponse>;
-  extractMaterial?: (home: string, upload: MaterialUploadRequest, options?: MaterialUploadOptions) => Promise<UploadedMaterial>;
+  extractMaterial?: (home: string, upload: MaterialUpload, options?: MaterialUploadOptions) => Promise<UploadedMaterial>;
 }
 const desktopAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 function acceptLanguageHeader(): string {
@@ -44,10 +45,9 @@ export function materialXiaohongshuNoteID(value: string): string | null {
   const match = url.pathname.match(/^\/(?:explore|discovery\/item)\/([A-Za-z\d_-]{1,128})\/?$/u);
   return match?.[1] ?? null;
 }
-export function classifyMaterialSource(value: string): "bilibili" | "xiaoyuzhou" | "xiaohongshu" | "article" {
+export function classifyMaterialSource(value: string): "bilibili" | "xiaohongshu" | "article" {
   const url = validateMaterialPublicURL(value);
   if (url.protocol === "https:" && (url.hostname === "b23.tv" || (domain(url.hostname, "bilibili.com") && /^\/video\//u.test(url.pathname)))) return "bilibili";
-  if (url.protocol === "https:" && domain(url.hostname, "xiaoyuzhoufm.com") && /^\/episode\//u.test(url.pathname)) return "xiaoyuzhou";
   return materialXiaohongshuNoteID(value) ? "xiaohongshu" : "article";
 }
 /** Balanced JSON extraction with literal-only undefined handling. Never executes source JavaScript. */
@@ -116,14 +116,6 @@ function metadata(html: string, property: string): string | undefined {
   }
   return undefined;
 }
-export function parseMaterialXiaoyuzhouAudio(html: string): string | null {
-  const og = https(metadata(html, "og:audio")); if (og) return og;
-  for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu)) {
-    try { const url = walk(JSON.parse(match[1]!), value => https(value.contentUrl) ?? undefined); if (typeof url === "string") return url; } catch { /* Try other public representations. */ }
-  }
-  const next = materialSourceEmbeddedJSON(html, "__NEXT_DATA__");
-  return walk(next, value => https(value.audioUrl) ?? https(object(value.enclosure).url) ?? undefined) as string | null ?? null;
-}
 function coverage(issues: string[], sufficient: boolean, processed = 1, total = 1): UploadedMaterial["coverage"] { return { status: !sufficient ? "insufficient" : issues.length ? "partial" : "sufficient", processed_pages: processed, total_pages: total, issues }; }
 function fetcher(options: MaterialSourceOptions) {
   return async (url: string, request: MaterialPublicFetchOptions) => {
@@ -136,27 +128,25 @@ async function readPage(url: string, options: MaterialSourceOptions): Promise<{ 
   if (!/text\/html|application\/xhtml\+xml/iu.test(response.type)) throw materialSourceErrors.unsupported("来源没有返回公开网页");
   return { html: response.data.toString("utf8"), response };
 }
-function extensionFor(type: string, fallback: "audio" | "video" | "image"): string {
+function extensionFor(type: string): string {
   const mime = type.split(";")[0]!.toLowerCase();
-  const types: Record<string, string> = { "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a", "audio/aac": "aac", "audio/flac": "flac", "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/gif": "gif" };
+  const types: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/gif": "gif" };
   if (types[mime]) return types[mime]!;
-  if (mime && mime !== "application/octet-stream" && !mime.startsWith(`${fallback}/`)) throw materialSourceErrors.invalid_media("来源媒体响应类型不符");
-  return fallback === "video" ? "mp4" : fallback === "audio" ? "m4a" : "jpg";
+  if (mime && mime !== "application/octet-stream" && !mime.startsWith("image/")) throw materialSourceErrors.invalid_media("来源图片响应类型不符");
+  return "jpg";
 }
-async function remoteMaterial(home: string, url: string, kind: "audio" | "video" | "image", referer: string, options: MaterialSourceOptions, maxBytes = maxBinary): Promise<{ extraction: UploadedMaterial; bytes: number }> {
-  checkAborted(options); if (!https(url)) throw materialSourceErrors.invalid_media("媒体必须使用公开 HTTPS 地址");
-  const response = await fetcher(options)(url, { maxBytes, headers: { ...pageHeaders(), accept: `${kind}/*,application/octet-stream`, referer: safeReferer(referer) }, signal: options.signal });
-  const extension = extensionFor(response.type, kind);
-  const extraction = await (options.extractMaterial ?? extractUploadedMaterial)(home, { file_name: `来源素材.${extension}`, data_base64: response.data.toString("base64"), allow_model_download: options.allow_model_download === true }, options);
+/** A public image the page shows, read for its text. Audio and video are not transcribed on this machine (batch 112). */
+async function remoteImage(home: string, url: string, referer: string, options: MaterialSourceOptions, maxBytes = maxBinary): Promise<{ extraction: UploadedMaterial; bytes: number }> {
+  checkAborted(options); if (!https(url)) throw materialSourceErrors.invalid_media("图片必须使用公开 HTTPS 地址");
+  const response = await fetcher(options)(url, { maxBytes, headers: { ...pageHeaders(), accept: "image/*,application/octet-stream", referer: safeReferer(referer) }, signal: options.signal });
+  const extraction = await (options.extractMaterial ?? extractUploadedMaterial)(home, { file_name: `来源素材.${extensionFor(response.type)}`, data_base64: response.data.toString("base64") }, options);
   return { extraction, bytes: response.data.length };
 }
-function fromExtraction(extraction: UploadedMaterial, source: string, provider: string, title?: string): MaterialSourceMaterial { return { text: extraction.text, ...(title ? { title } : {}), source_url: source, provider, extractor: extraction.extractor, coverage: extraction.coverage, pages: extraction.pages, segments: extraction.segments, frames: extraction.frames }; }
 function apiData(response: MaterialPublicResponse): Record<string, unknown> {
   const json = object(responseJSON(response)); if (typeof json.code === "number" && json.code !== 0) throw ([-403, 403, -101, -412].includes(json.code) ? materialSourceErrors.restricted : materialSourceErrors.unavailable)("B站公开接口未返回可读内容；不尝试登录或绕过限制");
   return object(json.data);
 }
-function biliAudio(data: Record<string, unknown>): string | null { const first = object(array(object(data.dash).audio)[0]); return https(first.baseUrl ?? first.base_url); }
-async function bilibili(home: string, source: string, options: MaterialSourceOptions): Promise<MaterialSourceMaterial> {
+async function bilibili(source: string, options: MaterialSourceOptions): Promise<MaterialSourceMaterial> {
   const { html, response } = await readPage(source, options);
   if (classifyMaterialSource(response.final_url) !== "bilibili" || new URL(response.final_url).hostname === "b23.tv") throw materialSourceErrors.redirect_mismatch("短链接未跳转到B站视频页");
   const state = object(materialSourceEmbeddedJSON(html, "__INITIAL_STATE__")); const video = object(state.videoData); const bvid = video.bvid ?? state.bvid; const cid = Number(video.cid ?? state.cid);
@@ -175,49 +165,31 @@ async function bilibili(home: string, source: string, options: MaterialSourceOpt
       return { text, title: typeof video.title === "string" ? video.title : metadata(html, "og:title"), source_url: source, provider: "bilibili", extractor: "bilibili-public-subtitles", segments, coverage: coverage(body.length > 10000 ? ["字幕仅提取前 10000 段"] : [], true) };
     } catch (error) { checkAborted(options); if (isMaterialSourceFailure(error) && error.code === "material.source.private_address") throw error; }
   }
-  let audio = biliAudio(player);
-  if (!audio) { query.set("fnval", "16"); audio = biliAudio(apiData(await request(`https://api.bilibili.com/x/player/playurl?${query}`, { maxBytes: 4_000_000, headers, signal: options.signal }))); }
-  if (!audio) throw materialSourceErrors.unavailable("没有合格公开字幕或可读音轨；可以粘贴字幕或上传文件");
-  const material = await remoteMaterial(home, audio, "audio", response.final_url, options);
-  return fromExtraction(material.extraction, source, "bilibili", typeof video.title === "string" ? video.title : undefined);
-}
-async function xiaoyuzhou(home: string, source: string, options: MaterialSourceOptions): Promise<MaterialSourceMaterial> {
-  const { html, response } = await readPage(source, options); if (classifyMaterialSource(response.final_url) !== "xiaoyuzhou") throw materialSourceErrors.redirect_mismatch("链接未返回原小宇宙节目页");
-  const audio = parseMaterialXiaoyuzhouAudio(html); if (!audio) throw materialSourceErrors.unavailable("小宇宙公开页未提供可读音频；可以上传音频或粘贴转写");
-  const material = await remoteMaterial(home, audio, "audio", response.final_url, options);
-  return fromExtraction(material.extraction, source, "xiaoyuzhou", metadata(html, "og:title"));
+  throw materialSourceErrors.unavailable("没有合格的公开字幕；可以粘贴字幕继续");
 }
 async function xiaohongshu(home: string, source: string, options: MaterialSourceOptions): Promise<MaterialSourceMaterial> {
   const expected = materialXiaohongshuNoteID(source)!; const { html, response } = await readPage(source, options);
   if (materialXiaohongshuNoteID(response.final_url) !== expected) throw materialSourceErrors.note_mismatch("小红书跳转后的笔记 ID 不一致；未读取其他笔记");
   const payload = parseMaterialXiaohongshu(html, expected); const parts = [payload.title, payload.body, payload.tags.length ? `话题：${payload.tags.map(tag => `#${tag}`).join(" ")}` : undefined].filter((text): text is string => !!text);
-  const issues: string[] = []; const pages: NonNullable<MaterialSourceMaterial["pages"]> = []; let segments: MaterialSourceMaterial["segments"]; let frames: MaterialSourceMaterial["frames"]; let modelRequired: MaterialSourceMaterial["model_required"]; let acquired = 0; let bytes = 0; let hasMaterial = !!payload.body;
-  if (payload.kind === "video") {
-    let material: UploadedMaterial | undefined;
-    for (const candidate of payload.videos.slice(0, 3)) {
-      try { material = (await remoteMaterial(home, candidate, "video", response.final_url, options)).extraction; break; }
-      catch (error) { checkAborted(options); if (isMaterialFailure(error) && error.code === "material.model_required") { if (!hasMaterial) throw error; modelRequired = (error.details ?? {}) as { approximate_bytes?: number; variant?: string }; issues.push("本地语音模型尚未启用；保留正文，视频转写等待明确下载选择"); break; } issues.push(error instanceof Error ? error.message : "视频素材读取失败"); }
-    }
-    if (material) { parts.push(material.text); hasMaterial ||= !!material.text.trim(); pages.push(...material.pages); segments = material.segments; frames = material.frames; issues.push(...material.coverage.issues); acquired++; }
-    else if (!modelRequired) issues.push("公开视频素材不可用");
-  } else {
+  const issues: string[] = []; const pages: NonNullable<MaterialSourceMaterial["pages"]> = []; let acquired = 0; let bytes = 0; let hasMaterial = !!payload.body;
+  if (payload.kind === "video") issues.push("视频不转写，只读取笔记正文");
+  else {
     if (payload.images.length > 20) issues.push("图集仅提取前 20 张");
     for (const [index, url] of payload.images.slice(0, 20).entries()) {
       checkAborted(options); if (bytes >= maxBinary) { issues.push("图集总下载达到 25 MB 上限"); break; }
-      try { const result = await remoteMaterial(home, url, "image", response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
-      catch (error) { checkAborted(options); issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
+      try { const result = await remoteImage(home, url, response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
+      catch (error) { checkAborted(options); if (error instanceof ActionError && !isMaterialFailure(error)) throw error; issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
     }
     if (payload.images.length) issues.push("图片仅提取文字，未理解纯视觉内容");
   }
   const text = parts.filter(Boolean).join("\n\n");
   if (!text || !hasMaterial) throw materialSourceErrors.insufficient("小红书来源只有标题或元数据，没有足够的可读材料；原链接保留，可以粘贴原文继续");
-  return { text, title: payload.title, source_url: source, provider: "xiaohongshu", extractor: "xiaohongshu-public-page", coverage: coverage([...new Set(issues)], true, acquired, payload.kind === "video" ? 1 : payload.images.length), pages, segments, frames, ...(modelRequired ? { model_required: modelRequired } : {}) };
+  return { text, title: payload.title, source_url: source, provider: "xiaohongshu", extractor: "xiaohongshu-public-page", coverage: coverage([...new Set(issues)], true, acquired, payload.kind === "video" ? 1 : payload.images.length), pages };
 }
 export async function readMaterialSource(home: string, source: string, options: MaterialSourceOptions = {}): Promise<MaterialSourceMaterial> {
   checkAborted(options);
   switch (classifyMaterialSource(source)) {
-    case "bilibili": return bilibili(home, source, options);
-    case "xiaoyuzhou": return xiaoyuzhou(home, source, options);
+    case "bilibili": return bilibili(source, options);
     case "xiaohongshu": return xiaohongshu(home, source, options);
     case "article": {
       const response = await fetcher(options)(source, { maxBytes: 4_000_000, headers: pageHeaders(), signal: options.signal });

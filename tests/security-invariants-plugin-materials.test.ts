@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync } from "node:fs";
+import { existsSync, writeFileSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import type { ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, LocalProjectDatabase, DEMO_PROJECT_ID, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -19,31 +18,36 @@ async function callingPlugin(host: Parameters<typeof grantMaterials>[0], permiss
   return callAs(issued, permissions);
 }
 
-test("S-39 RAC-26 runtime material authority strips download permission from every non-user audience for files and sources", async t => {
+test("S-39 RAC-26 a plugin's material request never carries the Host's helper, platform or caller audience, for files and sources", async t => {
   const probe = materialsProbe("materialsaudiences", { readPermissions: ["materials:read", "materials:fetch"] }), caller = callerPlugin("materialscaller", "home", { "materials:read": true, "materials:fetch": true });
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition, caller.definition] } });
   await grantMaterials(host, probe);
   const asPlugin = await callingPlugin(host, probe.permissions, caller);
-  const seen: boolean[] = [];
+  const seen: string[] = [];
+  const untrusted = ["helperPath", "platform", "audience", "allowModelDownload", "onProgress"];
   probe.behavior.read = async context => {
     const answer = { text: "read", extractor: "port", pages: [], coverage: { status: "sufficient" as const, processed_pages: 0, total_pages: 0, issues: [] } };
     const service = createPluginMaterialsClient(probe.definition.manifest, {
       extract: async (_source, options) => {
-        await options.beforeEffect(); seen.push(options.allowModelDownload);
-        for (const key of ["helperPath", "whisperHelperPath", "modelDirectory", "platform", "audience"]) assert.equal(Object.hasOwn(options, key), false, key);
+        await options.beforeEffect(); seen.push("extract");
+        for (const key of untrusted) assert.equal(Object.hasOwn(options, key), false, key);
         return answer;
       },
-      readSource: async (_url, options) => { await options.beforeEffect(); seen.push(options.allowModelDownload); return { ...answer, source_url: "https://example.com", provider: "article" }; },
+      readSource: async (_url, options) => {
+        await options.beforeEffect(); seen.push("source");
+        for (const key of untrusted) assert.equal(Object.hasOwn(options, key), false, key);
+        return { ...answer, source_url: "https://example.com", provider: "article" };
+      },
       readDocuments: () => Promise.reject(new Error("not read here")),
     }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id: null, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
-    const request = { allowModelDownload: true, audience: "user", helperPath: "/untrusted", whisperHelperPath: "/untrusted", modelDirectory: "/untrusted", platform: "darwin" };
+    const request = { allowModelDownload: true, onProgress: () => {}, audience: "user", helperPath: "/untrusted", platform: "darwin" };
     await service.extract!({ file_name: "a.txt", bytes: Buffer.from("authorized") }, request);
-    return service.readSource!("https://example.com", { allowModelDownload: true });
+    return service.readSource!("https://example.com", request);
   };
   for (const audience of ["agent", "mcp", "workflow", "plugin", "user"] as const) {
     await host.homeActionClient().invoke(audience === "plugin" ? asPlugin : { ...person(probe.permissions), audience }, probe.read, {});
   }
-  assert.deepEqual(seen, [false, false, false, false, false, false, false, false, true, true]);
+  assert.equal(seen.length, 10); assert.deepEqual(new Set(seen), new Set(["extract", "source"]));
 });
 
 test("RAC-25 material methods are independently declared; real Host extraction works and startup, serial and undeclared actions are refused", async t => {
@@ -117,74 +121,9 @@ test("RAC-25 RAC-27 materials from another installation or an expired action can
   release.resolve(); await assert.rejects(late!, { code: "actions.expired" });
 });
 
-/**
- * The plugin's own call to one of its own actions keeps the audience of the call it is part of (S-73, PG-028), so a model download the
- * person alone may allow cannot be had by an Agent, an MCP client, a workflow or another plugin through the plugin's own code. The outer
- * action here is the probe's `source`; the inner one, reached through `services.actions.invoke`, is its `read`, which asks for the download.
- */
-async function selfCallDownloads(t: Parameters<typeof serveHomeRuntime>[0], call: (host: Awaited<ReturnType<typeof serveHomeRuntime>>["host"], probe: ReturnType<typeof materialsProbe>, plugin: ReturnType<typeof callerPlugin>) => Promise<unknown>) {
-  const probe = materialsProbe("materialsselfcall", { readPermissions: ["materials:read", "materials:fetch"] }), caller = callerPlugin("materialsselfcaller", "home", { "materials:read": true, "materials:fetch": true });
-  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition, caller.definition] } });
-  await grantMaterials(host, probe);
-  const seen: boolean[] = [];
-  probe.behavior.read = async context => {
-    const answer = { text: "read", extractor: "port", pages: [], coverage: { status: "sufficient" as const, processed_pages: 0, total_pages: 0, issues: [] } };
-    const service = createPluginMaterialsClient(probe.definition.manifest, {
-      extract: async (_source, options) => { await options.beforeEffect(); seen.push(options.allowModelDownload); return answer; },
-      readSource: async (_url, options) => { await options.beforeEffect(); seen.push(options.allowModelDownload); return { ...answer, source_url: "https://example.com", provider: "article" }; },
-      readDocuments: () => Promise.reject(new Error("not read here")),
-    }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id: null, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
-    await service.extract!({ file_name: "a.txt", bytes: Buffer.from("authorized") }, { allowModelDownload: true });
-    return service.readSource!("https://example.com", { allowModelDownload: true });
-  };
-  probe.behavior.source = (context, execution) => context.services!.actions!.invoke(probe.read, {}, execution) as Promise<unknown>;
-  await call(host, probe, caller);
-  return seen;
-}
-
-for (const audience of ["agent", "mcp", "workflow", "user"] as const) {
-  test(`S-39 RAC-587 S-73 a model download requested in the plugin's call to its own action is allowed only when the outer call is the person's (${audience})`, async t => {
-    const seen = await selfCallDownloads(t, (host, probe) => host.homeActionClient().invoke({ ...person(probe.permissions), audience }, probe.source, {}));
-    assert.deepEqual(seen, audience === "user" ? [true, true] : [false, false]);
-  });
-}
-
-test("S-39 RAC-588 S-73 a model download requested in the plugin's call to its own action is never allowed when the outer call is another plugin's (plugin)", async t => {
-  const seen = await selfCallDownloads(t, async (host, probe, plugin) => host.homeActionClient().invoke(await callingPlugin(host, probe.permissions, plugin), probe.source, {}));
-  assert.deepEqual(seen, [false, false]);
-});
-
-test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as download permission", { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
-  const probe = materialsProbe(), caller = callerPlugin("materialscaller", "home", { "materials:read": true, "materials:fetch": true });
-  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition, caller.definition] } });
-  await grantMaterials(host, probe);
-  const asPlugin = await callingPlugin(host, probe.permissions, caller);
-  const helper = join(home, "speech-helper"), choices = join(home, "choices.jsonl"), downloaded = join(home, "downloaded");
-  const prior = process.env.MOLIS_MATERIAL_WHISPER_HELPER; process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
-  t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = prior; });
-  writeFileSync(helper, `#!${process.execPath}\nconst fs = require('node:fs'); const allowed = process.argv.includes('--allow-model-download'); fs.appendFileSync(${JSON.stringify(choices)}, JSON.stringify(allowed)+'\\n'); if (!allowed) { process.stdout.write(JSON.stringify({error:'model_required',message:'explicit download required'})); process.exit(1); } fs.writeFileSync(${JSON.stringify(downloaded)},'user approved'); process.stdout.write(JSON.stringify({text:'transcript',extractor:'fixture-speech',pages:[],coverage:{status:'sufficient',processed_pages:0,total_pages:0,issues:[]}}));\n`, { mode: 0o700 });
-  let choice = true, audience: ActionAudience = "user";
-  probe.behavior.read = async (context, caller) => {
-    assert.equal(caller.audience, audience);
-    return context.services!.materials!.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") }, { allowModelDownload: choice });
-  };
-  for (audience of ["agent", "mcp", "workflow", "plugin"]) {
-    await assert.rejects(host.homeActionClient().invoke(audience === "plugin" ? asPlugin : { ...person(probe.permissions), audience }, probe.read, {}), { code: "material.model_required" });
-    assert.equal(existsSync(downloaded), false);
-  }
-  audience = "user"; choice = false;
-  await assert.rejects(host.homeActionClient().invoke(person(probe.permissions), probe.read, {}), { code: "material.model_required" });
-  assert.equal(existsSync(downloaded), false);
-  choice = true;
-  const result = await host.homeActionClient().invoke(person(probe.permissions), probe.read, {}) as { text: string };
-  assert.equal(result.text, "transcript"); assert.equal(readFileSync(downloaded, "utf8"), "user approved");
-  assert.deepEqual(readFileSync(choices, "utf8").trim().split("\n").map(line => JSON.parse(line)), [false, false, false, false, false, true]);
-  assert.deepEqual(readdirSync(join(home, "materials", "models")), [], "PEQ-09 platform material model cache path is prepared under materials/models");
-});
-
 // S-39 on every platform: the materials client the Runtime gives a plugin (`createPluginMaterialsClient`, bound to this installation's
 // running action and grants), around a port that waits where the Host's native helper would. `extract` and the document batch
-// (`readDocuments`, PG-050) both run through it. The cases after this drive the Host's own speech helper, which only macOS has, and
+// (`readDocuments`, PG-050) both run through it. The cases after this drive the Host's own image helper, which only macOS has, and
 // are listed under 「只在本机跑」.
 for (const method of ["extract", "readDocuments"] as const) for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`S-39 RAC-27 ${invalidation} while ${method === "extract" ? "material extraction" : "a document batch read"} waits refuses the late result and every business write, on any platform`, { timeout: 60_000 }, async t => {
@@ -207,7 +146,7 @@ for (const method of ["extract", "readDocuments"] as const) for (const invalidat
       }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id: null, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
       try {
         const text = method === "extract"
-          ? (await materials.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") })).text
+          ? (await materials.extract!({ file_name: "scan.png", bytes: Buffer.from("image fixture") })).text
           : (await materials.readDocuments!([{ file_name: "late.md", data_base64: Buffer.from("late material").toString("base64") }])).documents[0]!.content;
         handed = true; await caller.beforeEffect(); context.services!.storage!.set("late", text); return text;
       } finally { over.resolve(); }
@@ -240,18 +179,20 @@ for (const method of ["extract", "readDocuments"] as const) for (const invalidat
 for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`RAC-27 RAC-30 ${invalidation} during material extraction refuses late results and persistent business writes`, { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
     const probe = materialsProbe(), installed = new Set<PluginDefinition>(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed } });
-    const { platform, install } = await grantMaterials(host, probe), helper = join(home, "waiting-helper"), release = join(home, "release");
-    const prior = process.env.MOLIS_MATERIAL_WHISPER_HELPER; process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
-    t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = prior; });
-    writeFileSync(helper, `#!${process.execPath}\nconst fs=require('node:fs');process.stderr.write(JSON.stringify({stage:'waiting',progress:0})+'\\n');const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(release)}))return;clearInterval(timer);process.stdout.write(JSON.stringify({text:'late material',extractor:'fixture-speech',pages:[],coverage:{status:'sufficient',processed_pages:0,total_pages:0,issues:[]}}));},10);\n`, { mode: 0o700 });
+    const { platform, install } = await grantMaterials(host, probe), helper = join(home, "waiting-helper"), release = join(home, "release"), started = join(home, "started");
+    const prior = process.env.MOLIS_MATERIAL_NATIVE_HELPER; process.env.MOLIS_MATERIAL_NATIVE_HELPER = helper;
+    t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_NATIVE_HELPER; else process.env.MOLIS_MATERIAL_NATIVE_HELPER = prior; });
+    writeFileSync(helper, `#!${process.execPath}\nconst fs=require('node:fs');fs.writeFileSync(${JSON.stringify(started)},'');const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(release)}))return;clearInterval(timer);process.stdout.write(JSON.stringify({text:'late material',extractor:'fixture-image',pages:[],coverage:{status:'sufficient',processed_pages:0,total_pages:0,issues:[]}}));},10);\n`, { mode: 0o700 });
     const entered = deferred(), over = deferred(), abort = new AbortController(); let handed = false;
+    const watcher = setInterval(() => { if (existsSync(started)) { clearInterval(watcher); entered.resolve(); } }, 10);
+    t.after(() => clearInterval(watcher));
     probe.behavior.read = async (context, caller) => {
       try {
-        const result = await context.services!.materials!.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") });
+        const result = await context.services!.materials!.extract!({ file_name: "scan.png", bytes: Buffer.from("image fixture") });
         handed = true; await caller.beforeEffect(); context.services!.storage!.set("late", result.text); return result;
       } finally { over.resolve(); }
     };
-    const pending = host.homeActionClient().invoke({ ...person(probe.permissions), signal: abort.signal, on_progress: () => entered.resolve() }, probe.read, {});
+    const pending = host.homeActionClient().invoke({ ...person(probe.permissions), signal: abort.signal }, probe.read, {});
     const refused = assert.rejects(pending);
     let replacement = probe;
     try {

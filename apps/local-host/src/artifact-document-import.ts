@@ -60,9 +60,6 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
    */
   offeredPath?: string;
   beforeDispatch?(): void | Promise<void>;
-  /** Decided by the Host from the caller (a person's explicit yes, S-39), never read from the input here (PMAT-48). */
-  allowModelDownload?: boolean;
-  onProgress?: (progress: { stage: string; progress: number }) => void;
 }) {
   const home = resolveConfiguredHome();
   let usedConnection: string | undefined;
@@ -85,8 +82,7 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
       try { const parsed = await readMaterialHtml(html, { signal: ports.signal, timeoutMs: 12_000 }); return { title: parsed.title ?? "", content: parsed.text }; }
       catch { ports.signal?.throwIfAborted(); throw artifactImportErrors.html_invalid("无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
     },
-    readFileText: file => readOriginalText(file, home, { ...ports.signal ? { signal: ports.signal } : {},
-      ...ports.allowModelDownload ? { allowModelDownload: true } : {}, ...ports.onProgress ? { onProgress: ports.onProgress } : {} }),
+    readFileText: file => readOriginalText(file, home, ports.signal ? { signal: ports.signal } : {}),
     async readExternal(document) {
       const imports = await documentImports(home), entry = imports[document.source], service = entry?.service;
       const candidates = entry ? listConnectorConnectionViews(home, entry.service).filter(row => readsWith(row, entry) && row.state === "connected") : [];

@@ -3485,11 +3485,6 @@ export interface MaterialSourceContent {
     coverage: MaterialExtraction["coverage"];
     pages?: MaterialExtraction["pages"];
     segments?: MaterialExtraction["segments"];
-    frames?: MaterialExtraction["frames"];
-    model_required?: {
-        approximate_bytes?: number;
-        variant?: string;
-    };
 }
 
 export interface MissedRun extends ScheduledRun {
@@ -5203,7 +5198,7 @@ export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
 
 export type PluginMaterialRequest = MaterialExtractionOptions;
 
-export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress"> & {
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal"> & {
     readonly allowedDomains?: readonly string[];
 };
 

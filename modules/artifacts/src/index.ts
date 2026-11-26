@@ -148,7 +148,7 @@ export type { ArtifactProjectReferencePorts } from "./artifact-project-reference
 export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, requireArtifactAnalysisRecord, artifactAnalysisContext } from "./artifact-browser.js";
 export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./artifact-browser.js";
 export { importArtifactDocument, documentErrors, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./artifact-document-import.js";
-export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifactDocument, ExternalDocumentSource, ModelRequired, OfferedOriginal } from "./artifact-document-import.js";
+export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifactDocument, ExternalDocumentSource, OfferedOriginal } from "./artifact-document-import.js";
 export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, artifactsProjectData, openArtifactOriginal, storeArtifactOriginal } from "./artifact-original-store.js";
 export type { StoredArtifactOriginal } from "./artifact-original-store.js";
 export { readSubjectArtifactEmbeds, type SubjectArtifactEmbed } from "./artifact-subject-context.js";

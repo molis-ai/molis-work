@@ -11,9 +11,8 @@ export interface MaterialExtraction {
   title?: string;
   extractor: string;
   pages: MaterialPage[];
+  /** Timed captions a public source publishes with its video (never a transcription made on this machine). */
   segments?: { start_seconds: number; end_seconds: number; text: string }[];
-  frames?: { seconds: number; text: string; confidence?: number | null }[];
-  duration_seconds?: number;
   coverage: {
     status: MaterialCoverageStatus;
     /** True when a configured page or text budget stopped extraction. */
@@ -36,9 +35,7 @@ export interface MaterialExtractionOptions {
   textFormat?: "text" | "markdown";
   pdfMode?: "text" | "ocr";
   /** Recognition languages are selected by the consuming feature; omission retains the Host defaults. */
-  ocrLanguages?: readonly ("zh-Hans" | "zh-Hant" | "en-US")[];
-  allowModelDownload?: boolean;
-  onProgress?: (progress: { stage: string; progress: number }) => void;
+  ocrLanguages?: readonly ("zh-Hans" | "zh-Hant" | "en-US" | "ja-JP")[];
 }
 /** Source identity, saved originals, business conversions and citation rules remain with consumers. */
 export type MaterialExtractor = (source: MaterialSource, options?: MaterialExtractionOptions) => Promise<MaterialExtraction>;
@@ -69,8 +66,6 @@ export interface MaterialSourceContent {
   coverage: MaterialExtraction["coverage"];
   pages?: MaterialExtraction["pages"];
   segments?: MaterialExtraction["segments"];
-  frames?: MaterialExtraction["frames"];
-  model_required?: { approximate_bytes?: number; variant?: string };
 }
 
 /**

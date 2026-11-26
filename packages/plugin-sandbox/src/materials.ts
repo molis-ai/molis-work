@@ -40,6 +40,8 @@ export function materialSource(value: SandboxJson | undefined): MaterialSource {
   return { file_name, bytes };
 }
 
+const OCR_LANGUAGES: readonly string[] = ['zh-Hans', 'zh-Hant', 'en-US', 'ja-JP'];
+
 /** The choices a plugin has over one read; `keys` narrows them for a reader that takes fewer (a document batch takes only `timeoutMs`). */
 export function materialRequest(value: SandboxJson | undefined, keys: ReadonlyArray<typeof READ_KEYS[number]> = READ_KEYS): SandboxMaterialRequest {
   if (value === undefined) return {};
@@ -48,7 +50,7 @@ export function materialRequest(value: SandboxJson | undefined, keys: ReadonlyAr
   if (timeoutMs !== undefined && (!Number.isSafeInteger(timeoutMs) || (timeoutMs as number) <= 0 || (timeoutMs as number) > 30 * 60_000)) throw invalid('timeoutMs is a positive number of milliseconds');
   if (textFormat !== undefined && textFormat !== 'text' && textFormat !== 'markdown') throw invalid('textFormat is text or markdown');
   if (pdfMode !== undefined && pdfMode !== 'text' && pdfMode !== 'ocr') throw invalid('pdfMode is text or ocr');
-  if (ocrLanguages !== undefined && (!Array.isArray(ocrLanguages) || ocrLanguages.length > 3 || ocrLanguages.some(item => item !== 'zh-Hans' && item !== 'zh-Hant' && item !== 'en-US'))) throw invalid('ocrLanguages names zh-Hans, zh-Hant or en-US');
+  if (ocrLanguages !== undefined && (!Array.isArray(ocrLanguages) || ocrLanguages.length > OCR_LANGUAGES.length || ocrLanguages.some(item => !OCR_LANGUAGES.includes(item as string)))) throw invalid('ocrLanguages names zh-Hans, zh-Hant, en-US or ja-JP');
   return { ...(timeoutMs !== undefined ? { timeoutMs: timeoutMs as number } : {}), ...(textFormat !== undefined ? { textFormat } : {}),
     ...(pdfMode !== undefined ? { pdfMode } : {}), ...(ocrLanguages !== undefined ? { ocrLanguages: ocrLanguages as SandboxMaterialRequest['ocrLanguages'] } : {}) };
 }

@@ -2132,7 +2132,6 @@
     "workbench.attention.tasks-incomplete": "バックグラウンドタスクの一覧が不完全です。",
     "workbench.attention.no-background-tasks-right-now": "現在バックグラウンドタスクはありません",
     "workbench.attention.stop": "停止",
-    "workbench.attention.project-resting": "{project} · 休止中",
     "workbench.board-plugin-rows.container": "コンテナー",
     "workbench.board-plugin-rows.drawn-each-plugin-s-own-row-renderer-data": "各プラグイン独自の行描画サンプル（固定データ・本番同一UI）。一覧行は1列幅、メイン領域ビューは全幅表示。",
     "workbench.board-plugin-rows.language": "表示言語",

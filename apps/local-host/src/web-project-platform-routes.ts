@@ -37,8 +37,7 @@ import { assistantWords } from "./assistant/assistant-saved-text.js";
 import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { onAttentionChange } from "./attention-changes.js";
-import { homeBackgroundTasks } from "./home-background-tasks.js";
-import { homeAggregatePorts } from "./home-aggregate.js";
+import { hostBackgroundTasks } from "./home-overview.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
@@ -360,7 +359,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     const home = url.searchParams.get("view") === "home" && !pluginPageRequest(request);
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
       notices: surface => assistantNotices(assistant!, surface),
-      ...(home ? { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), options.projects) }
+      ...(home ? { backgroundTasks: () => hostBackgroundTasks(localHost) }
         : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference, true) }),
       changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });

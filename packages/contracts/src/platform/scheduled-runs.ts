@@ -6,8 +6,9 @@ import { ActionError, type ActionDefinition } from "./actions.js";
  * reports it to the menu-bar panel: what comes next, and what was missed while Molis Work was not running or the computer was
  * asleep (specs/proactive-assistant/resident-runtime-design.md §2). Each owner keeps its own record of what it missed and decides
  * the person's 「现在做」 or 「跳过」 itself; the Host finds the owners by these types and only puts their answers side by side.
- * A project Plugin declares both in project scope, the list as a `home_aggregate` query the Host asks in every open project (PG-043);
- * a Home-level owner declares them in Home scope. Either way each run says its project.
+ * A project Plugin declares both in project scope, and writes the same runs as `scheduled_run` overview rows, which the Home reads across
+ * partitions without opening one (specs/unified-partition-plugins §6.1, V17); a Home-level owner declares them in Home scope and is asked.
+ * Either way each run says its project.
  *
  * A missed run waits for the person for seven days from its `due_at` (user 2026-11-18). One nobody decided on by then is skipped on its
  * own: it leaves the list, a decision on it finds it `gone`, and its owner counts it in `expired` so the panel can say once how many were
@@ -80,7 +81,7 @@ export type RunsOwnerScope = "project" | "home";
 
 export function defineRunsOverviewAction(capabilityId: string, version: number, title: string, permissions: string[], scope: RunsOwnerScope): ActionDefinition<RunsWindow, RunsOverview> {
   return { capability_id: capabilityId, version, operation: "query", action: { title, description: "列出接下来要自动运行的事和还没处理的错过的事；只读。", kind: "query", scope, scheduling: "concurrent",
-    audiences: ["user"], permissions, subject_kinds: [], ...(scope === "project" ? { home_aggregate: true as const } : {}),
+    audiences: ["user"], permissions, subject_kinds: [],
     input_type: RUNS_OVERVIEW_INPUT_TYPE, output_type: RUNS_OVERVIEW_OUTPUT_TYPE, input_schema: inputSchemaFor<RunsWindow>()(RUNS_WINDOW_SCHEMA), output_schema: RUNS_OVERVIEW_SCHEMA } };
 }
 

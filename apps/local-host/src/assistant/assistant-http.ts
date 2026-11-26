@@ -10,7 +10,6 @@ import { assistantLineAcceptance } from "../acceptance-review.js";
 import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
 import { AssistantTaskReports, type AssistantReportRounds } from "./assistant-task-reports.js";
 import { onAttentionChangeOf } from "../attention-changes.js";
-import { homeAggregatePorts } from "../home-aggregate.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -117,11 +116,12 @@ const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ 
  * Only a project open now is read (the Home never opens one to read it), kept open while it is, in the language last used.
  */
 function watchTaskReports(ports: AssistantHttpPorts, tableOf: (projectId: string) => ReturnType<ReturnType<typeof personTaskTable>>, rounds: AssistantReportRounds): AssistantTaskReports {
-  const aggregate = homeAggregatePorts(ports.localHost);
+  const host = ports.localHost;
   const reports = new AssistantTaskReports({ changes: onAttentionChangeOf, reportsTo: projectId => rounds.reportsTo(projectId), report: report => rounds.report(report),
     table: async projectId => {
-      const reference = aggregate.openProjects().find(one => one.project_id === projectId);
-      const read = reference && await aggregate.whileOpen(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
+      // Checked and entered in the same turn: a project closing is not read, and reading never reopens one.
+      const reference = host.projects().find(one => one.project_id === projectId && one.state !== "closing");
+      const read = reference && await host.withProject(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
       return read ?? { tasks: [], issues: [] };
     } });
   reports.start();

@@ -340,13 +340,6 @@ export interface ActionMetadata {
   /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
   readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
   /**
-   * The Home may call this query in every open project and keep each project's answer apart (PG-043), as it gathers the background
-   * work still running. It only reads: a query of project scope that calls no model and costs nothing, with the `output_type` the
-   * Home asks for. Declaring it grants nothing: each call is made in its project with that project's grants, and where the plugin
-   * is off or not granted it is not called.
-   */
-  readonly home_aggregate?: true;
-  /**
    * The Host gives this action, of a Home-level plugin, the projects the person may reach through it (`ActionCallContext.readable_project_ids`,
    * PG-014): the plugin keeps the records of every project in one Home library and reads the list instead of judging the caller itself.
    * Only a Home-scope action may declare it, and the Manifest must declare the `projects:reach` permission as well; the list is given only

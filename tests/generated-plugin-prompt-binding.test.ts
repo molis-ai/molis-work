@@ -9,7 +9,7 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
+import { openHomeSqliteDatabase, resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { homeAgentDefinitions, LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, studioTrials } from '@molis-ai/molis-work-app-local-host';
@@ -121,6 +121,13 @@ test('SBXN-04 installed and authoring model calls bind their own release through
   assert.equal(await invoke(a), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
   assert.equal(registry.uses.list(key)[0]!.version, 1, 'usage records the actual default version underneath the shared user edit');
   // BL-b47-prompt-register-newest-fallback: the list and the Home's remembered declaration follow the highest running release.
+  const blocker = openHomeSqliteDatabase(home, 'agent-declarations');
+  try {
+    blocker.exec('BEGIN IMMEDIATE');
+    await assert.rejects(two.lifecycle('disable', v2), { code: 'plugin.executor_failed' });
+  } finally { blocker.close(); }
+  assert.equal(registry.prompt(key).default_body, 'RELEASE_ONE');
+  assert.deepEqual(remembered()?.prompts.map(item => item.prompt_id).sort(), ['new-only', 'summary']);
   await two.lifecycle('disable', v2);
   assertV1('enabled');
   assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');

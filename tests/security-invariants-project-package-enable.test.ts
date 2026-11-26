@@ -212,6 +212,7 @@ test("S-84 BL-b47-prompt-register-newest-fallback cancelling a second project's 
   const a = projectPackage(f, await f.project("Running v1")), b = projectPackage(f, await f.project("Disabled v2"));
   const publisher = newPublisher();
   await a.install(signedAgentPackage(publisher, { version: "1.0.0" }));
+  const first = observe().runtime;
   await b.install(signedAgentPackage(publisher, { version: "2.0.0", roles: [{ name: "新版角色", purpose: "仅新版", body: "agent/v2.md" }] }));
   const { runtime } = observe();
   await b.disable();
@@ -228,24 +229,30 @@ test("S-84 BL-b47-prompt-register-newest-fallback cancelling a second project's 
     gate.entered.resolve(); await gate.release.promise;
     return started;
   });
-  for (const stopA of [false, true]) {
+  for (const change of ["keep", "disable", "uninstall"]) {
     assert.deepEqual(roles(), [["审稿", "enabled"]]);
     gate = hold();
     const controller = new AbortController();
     const pending = b.enable({ ...target, expected_installation: selected }, { signal: controller.signal });
     try {
       await enteredBefore(pending, gate.entered.promise);
-      if (stopA) await a.disable();
+      if (change === "disable") await a.disable();
+      if (change === "uninstall") await first.uninstall(selected.install_id);
       const beforeCancel = stored(), pendingRoles = roles();
-      assert.ok(beforeCancel);
       controller.abort(new ActionError("actions.cancelled", "left the settings page"));
       gate.release.resolve();
       await assert.rejects(pending, { code: "actions.cancelled" });
       assert.deepEqual(stored(), beforeCancel, "cancelling the candidate must not rewrite the remembered row");
-      assert.deepEqual(pendingRoles, [["审稿", stopA ? "disabled" : "enabled"]], "a candidate is not offered to another project");
+      if (change === "uninstall") assert.equal(beforeCancel, undefined, "a candidate cannot keep an uninstalled declaration");
+      else assert.ok(beforeCancel);
+      assert.deepEqual(pendingRoles, change === "uninstall" ? [] : [["审稿", change === "disable" ? "disabled" : "enabled"]], "a candidate is not offered to another project");
       assert.deepEqual(roles(), pendingRoles, "only the confirmed role is visible after cancellation");
     } finally { gate.release.resolve(); }
+    if (change === "disable") await a.enable({ ...target, expected_installation: projectInstallation(await a.row()) });
   }
+  await b.enable({ ...target, expected_installation: selected });
+  assert.deepEqual(roles(), [["新版角色", "enabled"]]);
+  assert.ok(stored());
 });
 
 test("S-84 SCS-08 a committed start still closes after caller withdrawal and cannot undo a newer disable", mac, async t => {

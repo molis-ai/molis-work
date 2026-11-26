@@ -155,12 +155,14 @@ export function updatePluginAgentDefinitions(home: PluginPlatformHome, definitio
   const installation = holders.get(installationKey(home, installId));
   if (installation) {
     const row = installation.versions.get(version);
-    if (!row || state !== "enabled") return;
-    const before = newestHeld(installation);
-    const pending = generation ? [...row.holds].filter(hold => hold.pendingGeneration === generation) : [];
-    if (pending.length && newerThan(row, before)) activateHeld(home, installId, installation, row);
-    for (const hold of pending) delete hold.pendingGeneration;
-    if (before === row) rememberHeld(home, installId, installation, row);
+    if (row && state === "enabled" && generation) {
+      const pending = [...row.holds].filter(hold => hold.pendingGeneration === generation);
+      if (pending.length && newerThan(row, newestHeld(installation))) activateHeld(home, installId, installation, row);
+      for (const hold of pending) delete hold.pendingGeneration;
+    }
+    // A retried disable may name the version whose last hold already left before its fallback could be saved.
+    const remaining = newestHeld(installation);
+    if (remaining) rememberHeld(home, installId, installation, remaining);
   } else {
     const registration = pluginAgentRegistration(definition);
     showDeclaration(home, owner, installId, registration && state === "disabled" ? notRunning(registration) : registration);
@@ -199,11 +201,11 @@ export function forgetPluginAgentDefinitions(home: PluginPlatformHome | null | u
   const installation = holders.get(installationKey(home, installId));
   if (installation) {
     const remaining = newestHeld(installation);
-    if (remaining) rememberHeld(home, installId, installation, remaining);
-    return;
+    if (remaining) { rememberHeld(home, installId, installation, remaining); return; }
   }
   const registry = homeAgentDefinitions(home.directory);
   for (const owner of agentDeclarationsFor(home.directory).forget(installId)) {
     registry.unregister(owner, installId);
   }
+  if (installation) delete installation.remembered;
 }

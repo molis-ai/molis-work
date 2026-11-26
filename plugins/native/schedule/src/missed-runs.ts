@@ -12,6 +12,7 @@ import { SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_PLUGIN_ID } from "./manifest.js";
 import { getScheduledOperation, saveScheduledOperation, scheduledOperationForJob } from "./operations.js";
 import { getScheduleReminder } from "./reminders.js";
 import { getScheduleConversationTask, setScheduleConversationTaskEnabled, type ScheduleTaskDatabase } from "./tasks.js";
+import { nextDailyLocalDue } from "./calendar.js";
 
 /**
  * What Schedule missed while Molis Work was not running or the computer slept (resident-runtime-design §2.1): a task, a plugin's
@@ -223,7 +224,7 @@ export function writeScheduleRunRows(rows: PluginOverviewRows, db: ScheduleTaskD
   for (const job of [...jobs].sort((a, b) => Date.parse(a.next_due_at) - Date.parse(b.next_due_at))) {
     const kind = KIND_BY_CAPABILITY[job.capability_id];
     if (!kind || job.plugin_id !== SCHEDULE_PLUGIN_ID || !job.enabled) continue;
-    const due = nextTime(job, now);
+    const due = nextTime(job, now) ?? (kind === "task" ? dailyTaskNext(db, job.object_ref, now) : null);
     const current = due ? target(db, kind, job.job_id, job.object_ref) : null;
     if (!due || !current) continue;
     const row: OverviewScheduledRunRow = { row_id: missedRunId(kind, current.ref, due), title: overviewTitle(current.title), due_at: due, updated_at: at,
@@ -237,6 +238,15 @@ export function writeScheduleRunRows(rows: PluginOverviewRows, db: ScheduleTaskD
     rows.upsert("scheduled_run", { row_id: entry.run_id, title: overviewTitle(entry.title), due_at: entry.due_at, missed_at: entry.missed_at, updated_at: entry.missed_at,
       ...(entry.kind === "task" ? { needs: ["model"] } : {}), ...open(entry.ref) });
   }
+}
+
+/**
+ * A daily task's next time after `now` when its job is past: the task registers one occurrence at a time and registers the next once that
+ * one has run, so a Home that was off past the time (more than the seven days after which it is not run) still has a next run to show.
+ */
+function dailyTaskNext(db: ScheduleTaskDatabase, taskId: string, now: number): string | null {
+  const task = getScheduleConversationTask(db, taskId);
+  return task?.repeat === "daily" ? nextDailyLocalDue(task.hour, task.minute, new Date(now)).toISOString() : null;
 }
 
 /** A job's next time after `now`: its own when still to come, else the next of a repeating one; null for a one-time job that is due now. */

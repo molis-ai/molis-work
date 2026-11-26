@@ -69,6 +69,11 @@ export function overviewReach(caller: OverviewCaller,
 export interface OverviewServiceOptions {
   /** Replaces the due registry's reminder entries of one library with the times read from it now. */
   readonly reminders?: (library: OverviewLibrary, entries: readonly { readonly entry_key: string; readonly due_at: string }[]) => void;
+  /**
+   * Reads an `attention` library (the partition's "waiting on you" entries, R13): its owner module's projection on a read-only connection.
+   * Without it such a library cannot be read and stays dirty.
+   */
+  readonly readAttention?: (library: OverviewLibrary) => readonly OverviewTableRow[] | null;
 }
 
 export class OverviewService {
@@ -87,7 +92,7 @@ export class OverviewService {
    * and stays dirty. Returns the rows held, or null when it could not be read.
    */
   refresh(library: OverviewLibrary): number | null {
-    const read = this.port.readLibrary(library);
+    const read = library.table === "attention" ? this.options.readAttention?.(library) ?? null : this.port.readLibrary(library);
     if (read === null) {
       this.port.track(library);
       return null;

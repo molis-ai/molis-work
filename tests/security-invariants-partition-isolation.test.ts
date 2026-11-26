@@ -924,3 +924,44 @@ test("UPP-05 the six partition plugins' code never narrows its own tables by pro
     .filter(file => /\bproject_id\s*(=|IN)\s*[?(]/iu.test(readFileSync(file, "utf8")));
   assert.deepEqual(found, []);
 });
+
+test("UPP-06 S-partition-isolation overview.read@1: the person reads every partition's waiting entries, the assistant only what the person granted in its settings, revoked at once; other callers are refused", { timeout: 60_000 }, async t => {
+  const { openTestHome } = await import("./fixtures/test-home.js");
+  const { ATTENTION_OVERVIEW_SOURCE, assistantSettingActions, assistantSettingOwner } = await import("@molis-ai/molis-work-app-local-host");
+  const { OVERVIEW_PROVIDER_ID, overviewReadAction } = await import("@molis-ai/molis-work-contracts/platform/plugin");
+  const home = await openTestHome(t);
+  const a = await home.createProject("总览 A"), b = await home.createProject("总览 B");
+  // Two "waiting on you" entries written where the platform keeps them, one per project, and one already done that is not shown.
+  for (const [project, entry, status] of [[a, "wait-a", "open"], [b, "wait-b", "in_progress"], [a, "done-a", "done"]] as const) {
+    const db = new DatabaseSync(project.database_path);
+    try {
+      db.prepare(`INSERT INTO attention_entries (project_id, entry_id, owner_plugin_id, subject_type, subject_id, reason, status, detail_json, revision, created_at, updated_at)
+        VALUES (?, ?, 'io.molis.work.goals', 'goal', ?, 'needs_decision', ?, '{}', 1, '2026-11-26T09:00:00.000Z', '2026-11-26T09:00:00.000Z')`).run(project.project_id, entry, `subject-${entry}`, status);
+    } finally { db.close(); }
+  }
+  const client = home.host.homeActionClient(), read = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", permissions: [], project_id: null } as ActionCallContext;
+  const assistant = { ...person, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:work-1" } as ActionCallContext;
+  const rows = async (caller: ActionCallContext) => (await client.invoke(caller, read, { kinds: ["notification"] })).rows
+    .filter(row => row.install_id === ATTENTION_OVERVIEW_SOURCE).map(row => [row.partition_id, row.row_id, row.fields] as const).sort();
+
+  const byPerson = await rows(person);
+  assert.deepEqual(byPerson.map(([partition, id]) => [partition, id]), [[a.project_id, "wait-a"], [b.project_id, "wait-b"]].sort(),
+    "the person reads both projects' open entries; a done one is not listed");
+  assert.equal(byPerson[0]![2].title, "needs_decision", "the row carries the owner's reason word, not a copy of the object");
+  assert.deepEqual(await rows(assistant), [], "the assistant reads nothing until the person grants it a project");
+
+  const write = (expected_revision: string, grants: unknown) => client.invoke(person, { ...assistantSettingActions.write, provider_id: assistantSettingOwner.provider_id },
+    { key: "assistant.overview_grants", layer: "personal", expected_revision, change: { set: { grants } }, request_id: `grant-${expected_revision}` });
+  await write("0", [{ partition_id: a.project_id, fields: ["title"] }]);
+  assert.deepEqual(await rows(assistant), [[a.project_id, "wait-a", { title: "needs_decision" }]], "granted A's titles: A's entry, only its title, nothing of B");
+  await write("1", []);
+  assert.deepEqual(await rows(assistant), [], "a withdrawn grant takes effect on the next read");
+
+  for (const [label, caller] of [
+    ["an Agent of its own (not the person)", { ...assistant, actor_id: "agent:runtime-1" }],
+    ["an MCP client", { ...person, audience: "mcp", actor_kind: "runtime" }],
+    ["a workflow", { ...person, audience: "workflow", actor_kind: "runtime" }],
+    ["a call handed on by a plugin", { ...person, delegated_by: "some-install" }],
+  ] as const) await assert.rejects(client.invoke(caller as ActionCallContext, read, {}), (error: ActionError) => error.code === "actions.forbidden" || error.code === "actions.unavailable", label);
+});

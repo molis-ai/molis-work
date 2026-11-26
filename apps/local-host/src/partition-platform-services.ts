@@ -5,7 +5,8 @@ import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type
 import { EVIDENCE_STORE, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { PERSON_SETTINGS_STORE, openPersonSettings, type PersonSettingsInstallation } from "@molis-ai/molis-work-service-person-settings";
 import { OverviewService, overviewReach, type OverviewGrant, type OverviewLibrary } from "@molis-ai/molis-work-service-search";
-import { homeSqlitePath, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openHomeSqliteFile, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
+import { attentionOverviewRows } from "@molis-ai/molis-work-module-attention-resumption";
 import { partitionPluginScope, type PartitionPluginLease } from "./partition-plugin-assembly.js";
 import { partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
 
@@ -53,6 +54,26 @@ export function partitionOverviewLibraries(home: string, partitions: readonly { 
 export function mainOverviewLibrary(home: string, partitionId: string, installId: string, manifest: Pick<PluginManifest, "plugin_id" | "overview_projection">): OverviewLibrary {
   return { partition_id: partitionId, install_id: installId, plugin_id: manifest.plugin_id, path: partitionDatabasePath(realpathSync(home), partitionId),
     kinds: manifest.overview_projection?.kinds ?? [], table: "main" };
+}
+
+/**
+ * The stamp of the platform's own "waiting on you" rows in the overview (R13, batch 108): not a plugin, so no installation; one library per
+ * partition, read from the partition's main database by the attention module's projection (`attentionOverviewRows`).
+ */
+export const ATTENTION_OVERVIEW_SOURCE = "system.attention";
+
+/** The partition's "waiting on you" entries as an overview library: `notification` rows, read-only, waking nothing. */
+export function attentionOverviewLibrary(home: string, partitionId: string): OverviewLibrary {
+  return { partition_id: partitionId, install_id: ATTENTION_OVERVIEW_SOURCE, plugin_id: ATTENTION_OVERVIEW_SOURCE,
+    path: partitionDatabasePath(realpathSync(home), partitionId), kinds: ["notification"], table: "attention" };
+}
+
+/** Reads one attention library on a read-only connection; a main database not written yet holds nothing, one that cannot be read now stays dirty. */
+function readAttentionLibrary(library: OverviewLibrary): ReturnType<typeof attentionOverviewRows> | null {
+  if (!existsSync(library.path)) return [];
+  let db: ReturnType<typeof openHomeSqliteFile>;
+  try { db = openHomeSqliteFile(library.path, { readOnly: true }); } catch { return null; }
+  try { return attentionOverviewRows(db); } catch { return null; } finally { db.close(); }
 }
 
 export interface PartitionPlatformServicesOptions {
@@ -107,6 +128,7 @@ export class PartitionPlatformServices {
         this.due.replaceOverview({ install_id: library.install_id, plugin_id: library.plugin_id, partition_id: library.partition_id }, entries);
         this.timer.arm();
       },
+      readAttention: readAttentionLibrary,
     });
     this.timer.arm();
     running.set(this.home, this);

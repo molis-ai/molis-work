@@ -1,4 +1,6 @@
 import { mainlinePresentations } from "./mainline-presentations.js";
+import { overviewReadProvider } from "./overview-actions.js";
+import { assistantOverviewGrants } from "./assistant/assistant-settings-actions.js";
 import { inLanguagePreview } from "./web-locale.js";
 import { DraftReferences } from "./contextual/draft-references.js";
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
@@ -316,6 +318,8 @@ export class MolisWorkLocalHost {
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []), ...(this.sessions ? [this.sessions.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), ...(options.homeDirectory && this.recommendations ? [adoptionProvider(this, options.homeDirectory, callerClient)] : []), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), projectApprovalsProvider(), // the pages' writes, behind their doors (B9)
       mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined, taskReviews), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      overviewReadProvider({ source: () => hostOverviewSource(this), partitions: () => this.partitions(),
+        grants: () => this.assistantStore ? assistantOverviewGrants(this.assistantStore()) : [] }),
       ...(this.assistantStore ? [assistantSettingsProvider(this.assistantStore), assistantDelegationProvider({ host: this, works: this.assistantStore,
         permissions: async () => (await readyAgentHost(this.plugins))?.workDelegations("prologue") })] : []),
       stateMachineRegistryProvider(options.homeDirectory ? { homeDirectory: options.homeDirectory, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) } : undefined),

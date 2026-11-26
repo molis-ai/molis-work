@@ -8,7 +8,8 @@ import { hostLog } from "./host-log.js";
 import { assembledPerPartition, PartitionPluginAssembly, type PartitionPluginLease, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 import { notePartitionInstalls } from "./plugin-install-records.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { forgetInstallationPlatformRecords, markPartitionChanged, PartitionPlatformServices } from "./partition-platform-services.js";
+import { ATTENTION_OVERVIEW_SOURCE, forgetInstallationPlatformRecords, markPartitionChanged, PartitionPlatformServices } from "./partition-platform-services.js";
+import { onAttentionChangeOf } from "./attention-changes.js";
 import type { PluginPlatform, PluginPlatformEntry } from "./plugin-platform.js";
 import { partitionPluginMembers, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -132,6 +133,7 @@ export class PartitionPluginHost {
   private installs: ReturnType<typeof openHomePluginStore> | undefined;
   private opener: PartitionOpener | undefined;
   private sweep: NodeJS.Timeout | undefined;
+  private stopAttentionMarks: (() => void) | undefined;
   private readonly rounds = new Map<string, Promise<void>>();
 
   constructor(readonly home: string, private readonly startInstance: StartInstance) {
@@ -187,6 +189,11 @@ export class PartitionPluginHost {
         dueWakeupRecord(this.home, entry, new Date(), { outcome: "failed", error });
         hostLog.warn("plugins", "partition_due_wake_failed", error, { plugin_id: entry.plugin_id, partition_id: entry.partition_id, entry_key: entry.entry_key });
       } });
+    // Something waiting on the person may have changed in a partition: its "waiting on you" rows are read again on the next overview read
+    // (R13), read-only; nothing is read now and nothing wakes.
+    this.stopAttentionMarks ??= onAttentionChangeOf(partitionId => {
+      if (partitionId !== null) try { this.services?.overview.markDirty(partitionId, ATTENTION_OVERVIEW_SOURCE); } catch { /* the next sync or restore marks it again */ }
+    });
     this.sweep ??= setInterval(() => { void this.assembly.sweep().catch(() => {}); }, SWEEP_MS);
     this.sweep.unref?.();
   }
@@ -363,6 +370,7 @@ export class PartitionPluginHost {
   }
 
   async close(): Promise<void> {
+    this.stopAttentionMarks?.(); this.stopAttentionMarks = undefined;
     if (this.closed) return;
     this.closed = true;
     if (this.sweep) clearInterval(this.sweep);

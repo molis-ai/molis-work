@@ -287,9 +287,11 @@ export interface OverviewIndexLibrary {
   readonly kinds: readonly import("../platform/plugin-overview.js").OverviewKind[];
   /**
    * Where the rows are: the plugin's own partition library (`molis_overview_rows`, the default), or the partition's main database, where a
-   * plugin that keeps its data there has its rows in the platform's `plugin_overview_rows` under its installation (V17, batch 108).
+   * plugin that keeps its data there has its rows in the platform's `plugin_overview_rows` under its installation (V17, batch 108), or the
+   * platform's own "waiting on you" entries in the main database (`attention_entries`, R13, batch 108), which their owner module projects
+   * into `notification` rows; the index never reads that table itself.
    */
-  readonly table?: "library" | "main";
+  readonly table?: "library" | "main" | "attention";
 }
 /** A row of a plugin's overview table as stored: the platform's columns (`OVERVIEW_TABLE_SQL`), nothing else. */
 export type OverviewTableRow = Readonly<Record<string, string | number | null>>;

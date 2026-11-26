@@ -76,6 +76,8 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
       else db.prepare("UPDATE overview_libraries SET dirty = 1 WHERE partition_id = ? AND install_id = ?").run(partitionId, installId);
     },
     readLibrary(library) {
+      // The attention projection is its owner module's read (OverviewService's `readAttention`), never a table this index names.
+      if (library.table === "attention") return null;
       const kinds = library.kinds.filter(kind => (OVERVIEW_KINDS as readonly string[]).includes(kind));
       try {
         lstatSync(library.path);

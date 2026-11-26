@@ -180,3 +180,47 @@ export interface PluginOverviewRows {
 export interface PluginOverviewClient {
   join<T>(transaction: PluginDatabaseTransaction, write: (rows: PluginOverviewRows) => T): T;
 }
+
+/** The platform's provider of the overview read (`overview.read@1`): the Host's own, not a plugin's. */
+export const OVERVIEW_PROVIDER_ID = "system.overview";
+/** The most rows one overview read hands over. */
+export const OVERVIEW_READ_LIMIT = 2_000;
+
+/** What `overview.read@1` answers: the rows the caller may see now, each with only the fields it may see. */
+export interface OverviewReadResult {
+  readonly rows: readonly OverviewIndexRow[];
+}
+
+/**
+ * `overview.read@1` (specs/unified-partition-plugins §6.1, `overview-readers`, batch 108): the partitions' overview index, read as its caller
+ * may read it now. The person on this machine reads every partition; the personal assistant only the projects and summary fields the person
+ * granted it in 设置 › 个人助理 (`assistant.overview_grants`), checked before the read and again before the answer is handed over. A project
+ * Agent, an MCP client, a workflow, a plugin or a delegated call is refused. Reading it opens no dormant partition and runs no plugin.
+ */
+export const overviewReadAction = {
+  capability_id: "overview.read", version: /* @version action.overview.read */ 1, operation: "query",
+  action: {
+    kind: "query", scope: "home", audiences: ["user", "agent"], permissions: [], subject_kinds: [],
+    title: "读取跨项目总览",
+    description: "读取各项目与个人空间的总览摘要：待办、日程、通知、简报、后台任务与定时运行。本人可读全部；个人助理只读本人授予的项目与字段。只给摘要，不给原文与附件。",
+    input_schema: {
+      type: "object", additionalProperties: false,
+      properties: {
+        kinds: { type: "array", maxItems: OVERVIEW_KINDS.length, uniqueItems: true, items: { type: "string", enum: [...OVERVIEW_KINDS] } },
+        limit: { type: "integer", minimum: 1, maximum: OVERVIEW_READ_LIMIT },
+      },
+    },
+    output_schema: {
+      type: "object", additionalProperties: false, required: ["rows"],
+      properties: {
+        rows: { type: "array", maxItems: OVERVIEW_READ_LIMIT, items: {
+          type: "object", additionalProperties: false, required: ["partition_id", "install_id", "plugin_id", "kind", "row_id", "fields"],
+          properties: {
+            partition_id: { type: "string" }, install_id: { type: "string" }, plugin_id: { type: "string" },
+            kind: { type: "string", enum: [...OVERVIEW_KINDS] }, row_id: { type: "string" }, fields: { type: "object" },
+          },
+        } },
+      },
+    },
+  },
+} as import("./actions.js").ActionDefinition<{ kinds?: OverviewKind[]; limit?: number }, OverviewReadResult>;

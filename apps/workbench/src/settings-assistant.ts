@@ -464,9 +464,55 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       r.enabled.checked = value.enabled; r.frequency.value = value.frequency; r.time.value = value.time; r.time_zone.value = value.time_zone;
       r.weekday.value = String(value.weekday ?? 1); r.month_day.value = String(value.month_day ?? 1); reportFields();
     });
+  // 跨项目总览: per project, whether the assistant may read its overview and which summary fields (none by default, overview-readers).
+  const overviewForm = root.querySelector("[data-assistant-overview]"), overviewError = root.querySelector("[data-overview-error]");
+  const overviewPlaces = overviewForm.querySelector("[data-overview-places]");
+  const OVERVIEW_FIELDS = ["title", "status", "due_at", "remind_at", "priority", "tags", "starts_at", "ends_at", "all_day", "time_zone", "level", "source",
+    "occurred_at", "summary", "state", "waiting", "started_at", "reports_to", "missed_at", "needs", "open", "updated_at"];
+  const OVERVIEW_DEFAULT_FIELDS = ["title", "status", "due_at", "starts_at", "ends_at", "level", "occurred_at", "state", "waiting", "updated_at"];
+  let overviewPlaceList = null, overviewGranted = new Map();
+  const drawOverviewPlaces = () => {
+    if (!overviewPlaceList) return;
+    if (!overviewPlaceList.length) { overviewPlaces.replaceChildren(note(globalThis.t.text("workbench.settings-assistant.overview-no-places"))); return; }
+    overviewPlaces.replaceChildren(...overviewPlaceList.map((place) => {
+      const name = place.project_id === "personal" ? globalThis.t.text("workbench.settings-assistant.personal") : place.display_name;
+      const fields = overviewGranted.get(place.project_id);
+      const { control, toggle } = switchOf(Boolean(fields), name);
+      toggle.dataset.overviewPlace = place.project_id;
+      const group = el("div", "mw-choice-group");
+      group.setAttribute("role", "group"); group.setAttribute("aria-label", globalThis.t.text("workbench.settings-assistant.overview-fields", { place: name }));
+      group.dataset.overviewFields = place.project_id; group.hidden = !fields;
+      for (const field of OVERVIEW_FIELDS) {
+        const chip = el("button", "mw-choice"), label = el("span", "mw-choice__label", globalThis.t.text("workbench.settings-assistant.overview-field-" + field.replaceAll("_", "-"))), check = el("span", "mw-choice__check");
+        chip.type = "button"; chip.dataset.overviewField = field; chip.setAttribute("aria-pressed", String(Boolean(fields && fields.includes(field))));
+        check.setAttribute("aria-hidden", "true"); check.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-check"></use></svg>';
+        chip.append(label, check);
+        chip.addEventListener("click", () => chip.setAttribute("aria-pressed", String(chip.getAttribute("aria-pressed") !== "true")));
+        group.append(chip);
+      }
+      toggle.addEventListener("change", () => {
+        group.hidden = !toggle.checked;
+        if (toggle.checked && !group.querySelector('[aria-pressed="true"]'))
+          for (const chip of group.querySelectorAll("[data-overview-field]")) chip.setAttribute("aria-pressed", String(OVERVIEW_DEFAULT_FIELDS.includes(chip.dataset.overviewField)));
+      });
+      const place_row = el("div", "assistant-overview-place");
+      place_row.append(settingRow(name, "", [control]), group);
+      return place_row;
+    }));
+  };
+  preference("assistant.overview_grants", overviewForm, overviewForm.querySelector("[data-inherit]"), root.querySelector("[data-overview-source]"), overviewError,
+    () => ({ grants: [...overviewPlaces.querySelectorAll("[data-overview-place]")].flatMap((toggle) => {
+      if (!toggle.checked) return [];
+      const group = overviewPlaces.querySelector('[data-overview-fields="' + CSS.escape(toggle.dataset.overviewPlace) + '"]');
+      const fields = [...group.querySelectorAll('[aria-pressed="true"]')].map((chip) => chip.dataset.overviewField);
+      return fields.length ? [{ partition_id: toggle.dataset.overviewPlace, fields }] : [];
+    }) }),
+    (value) => { overviewGranted = new Map(value.grants.map((grant) => [grant.partition_id, grant.fields])); drawOverviewPlaces(); });
+  rulesApi("/overview-places").then((answer) => { overviewPlaceList = answer.places; drawOverviewPlaces(); },
+    (failure) => { overviewPlaces.replaceChildren(problem(failure)); });
   async function loadPreferences() {
     try { for (const item of (await rulesApi("/preferences")).values) fields.get(item.key)?.(item); }
-    catch (failure) { for (const error of [budgetError, rangeError, reportError]) { molisWorkRequest.show(error, failure); error.hidden = false; } }
+    catch (failure) { for (const error of [budgetError, rangeError, reportError, overviewError]) { molisWorkRequest.show(error, failure); error.hidden = false; } }
   }
   void loadPreferences(); void refreshUsage();
   if (location.hash === "#contributions") { contributionsFold.open = true; loadContributions(); }

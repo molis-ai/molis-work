@@ -502,6 +502,11 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
         if (method === "GET") return { status: 200, body: await client.invoke({ ...assistantSettingActions.read, provider_id: assistantSettingOwner.provider_id }, { keys: assistantSettingOwner.settings_entries.entries.map(entry => entry.key) }) };
         if (method === "POST") return { status: 200, body: await client.invoke<unknown, SettingsValues>({ ...assistantSettingActions.write, provider_id: assistantSettingOwner.provider_id }, body) };
       }
+      // The places the person may grant the assistant's cross-project overview reads in (设置 › 个人助理, overview-readers): every partition now.
+      if (method === "GET" && parts.length === 1 && parts[0] === "overview-places") {
+        policyControl.assertCurrent();
+        return { status: 200, body: { places: (await ports.localHost.partitions()).map(place => ({ project_id: place.project_id, display_name: place.display_name })) } };
+      }
       const thread = await handleThreadHttp(parts, method, url, body, ports);
       if (thread) return thread;
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };

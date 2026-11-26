@@ -416,7 +416,7 @@ export { attentionChanged, onAttentionChange, onAttentionChangeOf } from "./atte
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 export { forgetMainOverviewRows, pluginOverviewFor } from "./plugin-overview-service.js";
-export { backgroundWorkUnderWay, homeBackgroundTaskOf, homeBackgroundTasks, homeOverviewRows, homeScheduledRuns, hostBackgroundTasks, scheduledRunsOf, type HomeScheduledRuns, hostOverviewSource, REPORTED_ENDED_SHOWN_MS, type HomeOverviewPartition, type HomeOverviewSource, type HomeRun, type HomeRunsOwner } from "./home-overview.js";
+export { backgroundWorkUnderWay, homeBackgroundTaskOf, homeBackgroundTasks, homeOverviewRows, overviewRowsFor, homeScheduledRuns, hostBackgroundTasks, scheduledRunsOf, type HomeScheduledRuns, hostOverviewSource, REPORTED_ENDED_SHOWN_MS, type HomeOverviewPartition, type HomeOverviewSource, type HomeRun, type HomeRunsOwner } from "./home-overview.js";
 export type { HomeBackgroundTaskRow } from "@molis-ai/molis-work-contracts/services/mainline";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
@@ -493,3 +493,6 @@ export { offerProjectAutomation } from "./automation-proactive.js";
 export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
 export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";
 export { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry } from "./home-page-authority.js";
+export { overviewReadProvider, type OverviewReadPorts } from "./overview-actions.js";
+export { ATTENTION_OVERVIEW_SOURCE, attentionOverviewLibrary } from "./partition-platform-services.js";
+export { assistantSettingActions, assistantSettingOwner } from "./assistant/assistant-settings-actions.js";

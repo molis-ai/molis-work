@@ -7,7 +7,8 @@ import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginHomeFor } from "./home-side.js";
 import { existingPartitionPluginHost } from "./partition-plugin-host.js";
-import { partitionOverviewLibraries, runningPartitionPlatformServices } from "./partition-platform-services.js";
+import { attentionOverviewLibrary, partitionOverviewLibraries, runningPartitionPlatformServices } from "./partition-platform-services.js";
+import type { OverviewGrant, OverviewLibrary } from "@molis-ai/molis-work-service-search";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { readBackgroundTasks } from "@molis-ai/molis-work-service-mainline";
@@ -58,18 +59,32 @@ function overviewManifests(home: string, kinds: readonly OverviewKind[]): Map<st
  */
 export async function homeOverviewRows(source: HomeOverviewSource, partitions: readonly HomeOverviewPartition[], kinds: readonly OverviewKind[]):
   Promise<{ readonly rows: readonly OverviewIndexRow[]; readonly manifests: ReadonlyMap<string, PluginManifest> } | null> {
+  const read = await overviewRowsFor(source, PERSON, partitions, () => [], { kinds, limit: 2_000 });
+  return read && { rows: read.rows, manifests: read.manifests };
+}
+
+/**
+ * The overview rows `caller` may read now in `partitions` (`overview-readers`): the libraries of the plugins enabled in each partition, and
+ * each partition's "waiting on you" entries when notifications are asked for (R13). `grants` are the person's grants to the assistant, read
+ * again before the rows are handed over. Rows the index still holds of an installation turned off since are not handed over. Null while this
+ * Host runs no partition services.
+ */
+export async function overviewRowsFor(source: HomeOverviewSource, caller: ActionCallContext, partitions: readonly HomeOverviewPartition[],
+  grants: () => readonly OverviewGrant[], query: { readonly kinds: readonly OverviewKind[]; readonly limit: number }):
+  Promise<{ readonly rows: readonly OverviewIndexRow[]; readonly manifests: ReadonlyMap<string, PluginManifest> } | null> {
   const { home } = source, services = runningPartitionPlatformServices(home);
   if (!services) return null;
-  const manifests = overviewManifests(home, kinds);
-  const libraries = (await Promise.all(partitions.map(async partition => {
+  const manifests = overviewManifests(home, query.kinds);
+  const attention = query.kinds.includes("notification");
+  const libraries: OverviewLibrary[] = (await Promise.all(partitions.map(async partition => {
     const reaches = await source.reach(partition.project_id).catch(() => () => false);
-    return partitionOverviewLibraries(home, [{ partition_id: partition.project_id,
-      plugins: [...manifests.values()].flatMap(manifest => reaches(manifest.plugin_id) === true ? [{ install_id: installIdentity(manifest), manifest }] : []) }]);
+    return [...partitionOverviewLibraries(home, [{ partition_id: partition.project_id,
+      plugins: [...manifests.values()].flatMap(manifest => reaches(manifest.plugin_id) === true ? [{ install_id: installIdentity(manifest), manifest }] : []) }]),
+      ...(attention ? [attentionOverviewLibrary(home, partition.project_id)] : [])];
   }))).flat();
   const readable = partitions.map(partition => partition.project_id);
-  // Only the installations enabled there now: rows the index still holds of one turned off since are not handed over.
   const enabled = new Set(libraries.map(library => `${library.partition_id}\u0000${library.install_id}`));
-  const rows = services.readOverview(PERSON, libraries, () => ({ readable, grants: [] }), { kinds, limit: 2_000 })
+  const rows = services.readOverview(caller, libraries, () => ({ readable, grants: grants() }), query)
     .filter(row => enabled.has(`${row.partition_id}\u0000${row.install_id}`));
   return { rows, manifests };
 }

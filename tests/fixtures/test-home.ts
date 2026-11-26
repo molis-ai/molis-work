@@ -7,6 +7,8 @@ import type { TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { changeMcpClientCredential, LocalActionGatewayClient, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   LocalHostHttpClient, addProjectPlugin, createProject, grantMcpActions, revokeMcpAction,
@@ -177,3 +179,21 @@ export async function openTestHome(t: TestContext, options: { host?: Partial<Hos
 }
 
 export type TestHome = Awaited<ReturnType<typeof openTestHome>>;
+
+export async function createPackageProject(h: TestHome, name: string) {
+  const { project_id } = await h.createProject(name);
+  const base = `/projects/${project_id}/api/plugin-trust`;
+  return {
+    async install(bundle: PluginPackageBundle) {
+      const { preview_id } = await h.web.post<{ preview_id: string }>(base + "/install/preview", { bundle });
+      await h.web.post(base + "/install/confirm", { preview_id, consent: true, pin_label: "Prompt test" });
+    },
+    disable: (plugin_id: string) => h.web.post(base + "/installed/disable", { plugin_id }),
+    async uninstall(plugin_id: string) {
+      const { plugins } = await h.web.get<{ plugins: ProjectPluginInstalledView[] }>(base + "/overview");
+      const target = plugins.find(row => row.plugin_id === plugin_id)?.uninstall_target;
+      assert.ok(target);
+      await h.web.post(base + "/installed/uninstall", { plugin_id, keep_data: true, target });
+    },
+  };
+}

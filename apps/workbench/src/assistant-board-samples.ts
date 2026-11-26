@@ -12,7 +12,7 @@ const SAMPLE_EXECUTOR_PLUGIN_ID = "com.example.workspace";
  * The fixed works of the component board's Assistant frame (specs/visual-ui-experience VUX-39, VUX-08/09/13): what the Host
  * would answer at `/api/assistant` for one person, in the contract's own shapes, so the shipped island draws them as it draws
  * a real Home. Two works carry the comparison — one not about code (the Assistant, waiting on a confirmation) and one about
- * code (Coding, running) — and four lighter ones make the list a real multi-task list (waiting on an answer, failed, stopped,
+ * code (Workshop, running) — and four lighter ones make the list a real multi-task list (waiting on an answer, failed, stopped,
  * done). Their words are the person's and the model's, so they are not translated; the Host's and the page's own labels are.
  * Simulated: nothing here was run, and the board says so.
  */
@@ -43,18 +43,18 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
     text: "帮我安排一次试用复盘，材料在附件里",
     materials: [{ material_id: "m-notes", kind: "file", title: "试用记录.md", explicit: true }, { material_id: "m-board", kind: "image", title: "图片：白板.png", explicit: true }],
     turns: [{ turn_id: "t-plan-1", kind: "assistant", text: "看过试用记录和白板照片了：12 位试用者里有 7 位卡在第一次导入。要我按这个安排复盘吗？", at: at(46), sequence: 3 }],
-    activity: [act("c-p1", "read", "Feed · 读取条目", "completed", { capability_id: "example.feed.items.read", sequence: 1 }), act("c-p2", "lookup", "日程", "completed", { sequence: 2 })],
+    activity: [act("c-p1", "read", "Digest · 读取条目", "completed", { capability_id: "example.feed.items.read", sequence: 1 }), act("c-p2", "lookup", "日程", "completed", { sequence: 2 })],
   });
   const latest = round(at, "run-plan-2", 6, {
     text: "就周五上午吧，叫上王一骏和产品组", phase: "awaiting-review", ended_at: null,
     materials: [{ material_id: "m-outline", kind: "object", title: "引用：首次使用记录汇总", explicit: true, object: { kind: "example.doc", id: "doc-usage", title: "首次使用记录汇总" } }],
-    context: { source: { surface: "example-docs", title: "Pages" }, selection: { text: "首次使用卡住最久的三处" }, captured_at: at(6) },
+    context: { source: { surface: "example-docs", title: "Notebook" }, selection: { text: "首次使用卡住最久的三处" }, captured_at: at(6) },
     activity: [
       act("c-p3", "lookup", "日程", "completed", { sequence: 1 }),
-      act("c-p4", "read", "日程 · 查看空闲时间", "completed", { capability_id: "schedule.events.free", sequence: 2 }),
+      act("c-p4", "read", "日程 · 查看空闲时间", "completed", { capability_id: "calendar.events.free", sequence: 2 }),
       act("c-p5", "read", "通讯录 · 查找联系人", "failed", { capability_id: "contacts.people.search", reason: "not-authorized", sequence: 3 }),
       act("c-p6", "read", "会议室 · 查看空闲会议室", "unknown", { capability_id: "rooms.availability.read", detail: "会议室服务没有回答", sequence: 4 }),
-      act("c-p7", "suggest", "日程 · 创建日程", "completed", { capability_id: "schedule.events.create", sequence: 5 }),
+      act("c-p7", "suggest", "日程 · 创建日程", "completed", { capability_id: "calendar.events.create", sequence: 5 }),
     ],
     turns: [{ turn_id: "t-plan-2", kind: "assistant", text: PLAN_REPLY, at: at(4), sequence: 6 }],
     model: { model_id: "MiniMax-M2", window_tokens: 200000 },
@@ -70,13 +70,13 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
       { relation: "material", subject: { kind: "example.feed.item", id: "feed-week" }, title: "上周用户反馈", recorded_revision: "1", current_revision: null, state: "missing", recorded_at: at(48) },
     ],
     undoable: [
-      { undo_id: "u-todo", title: "Todo · 新建待办「订会议室」", state: "available", created_at: at(5) },
-      { undo_id: "u-inbox", title: "Inbox · 归档 3 条", state: "failed", created_at: at(30), detail: "Inbox 已关闭" },
+      { undo_id: "u-todo", title: "Checklist · 新建待办「订会议室」", state: "available", created_at: at(5) },
+      { undo_id: "u-inbox", title: "Mail · 归档 3 条", state: "failed", created_at: at(30), detail: "Mail 已关闭" },
     ],
-    unsettled: [{ change_id: "s-feed", work_id: work.work_id, title: "Feed · 标记已读", started_at: at(47), state: "pending" }],
+    unsettled: [{ change_id: "s-feed", work_id: work.work_id, title: "Digest · 标记已读", started_at: at(47), state: "pending" }],
     jobs: [
       { job_id: "j-research", work_id: work.work_id, title: "Research · 汇总试用访谈", state: "running", started_at: at(5) },
-      { job_id: "j-dataset", work_id: work.work_id, title: "Dataset · 导入试用问卷", state: "failed", started_at: at(44), ended_at: at(40) },
+      { job_id: "j-dataset", work_id: work.work_id, title: "Survey · 导入试用问卷", state: "failed", started_at: at(44), ended_at: at(40) },
     ],
     usage: { tokens: 18200, rounds: 2, budget_tokens: null },
     delegated: [{ work_id: "board-sub-interviews", title: "汇总试用访谈", state: "running", follow_ups: 1, created_at: "2026-10-02T09:12:00.000Z" }, { work_id: "board-sub-survey", title: "整理问卷里的首次导入问题", state: "completed", follow_ups: 0, created_at: "2026-10-02T09:12:00.000Z" }],
@@ -87,7 +87,7 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
       { connection_id: "cal", title: "Google Calendar", account: "yijun@example.com", state: "connected", tools: "callable" },
       { connection_id: "wecom", title: "企业微信", account: null, state: "needs-authorization", tools: "blocked" },
     ],
-    tools: { executor: "assistant", callable: [{ provider: "日程", count: 4 }, { provider: "Pages", count: 6 }, { provider: "Todo", count: 3 }],
+    tools: { executor: "assistant", callable: [{ provider: "日程", count: 4 }, { provider: "Notebook", count: 6 }, { provider: "Checklist", count: 3 }],
       unavailable: [{ title: "查找联系人", provider: "通讯录", reason: "未获授权" }] },
     read_at: at(1),
   };
@@ -103,7 +103,7 @@ const CODE_ACTIVITY = [
 
 /** About code: an example plugin executor carries it, in a repository with a conflict; 「推进一步」 finishes the running command, then the round. */
 function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: AssistantWorkSurroundings } {
-  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "plugin", plugin_id: SAMPLE_EXECUTOR_PLUGIN_ID, title: "Coding", session_id: "cs-auth", mode: "execute" } });
+  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "plugin", plugin_id: SAMPLE_EXECUTOR_PLUGIN_ID, title: "Workshop", session_id: "cs-auth", mode: "execute" } });
   const text = "登录要兼容旧的 session cookie，公开接口别动";
   const reply = "先读了 `auth/session.ts` 和 `auth/cookie.ts`：旧格式的 Cookie 叫 `session`，没有过期时间。改成先读 `sid`、再读旧的 `session`，过期时间按新的七天补上。";
   const step = (state: AssistantActivity["state"]) => act("c-c7", "command", "pnpm test auth", state, { sequence: 7 });
@@ -159,6 +159,6 @@ export function assistantBoardSamples(now: number, text: BoardSampleText = "zh")
     recovery: { [cut.view.work.work_id]: cut.recovery },
     notices: boardNotices(at),
   }, text);
-  return { ...sample, executors: [{ plugin_id: SAMPLE_EXECUTOR_PLUGIN_ID, title: "Coding", default_mode: "execute", session_kind: "example_workspace_session",
+  return { ...sample, executors: [{ plugin_id: SAMPLE_EXECUTOR_PLUGIN_ID, title: "Workshop", default_mode: "execute", session_kind: "example_workspace_session",
     modes, capability_ids: { "session.update": "example.workspace.session.update", "run.start": "example.workspace.run.start" } }] };
 }

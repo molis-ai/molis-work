@@ -328,3 +328,38 @@ test("the report lists each count per file, next to the merge-base's", () => {
   assert.deepEqual(json.head.directEllipsisCuts, { "packages/alpha/src/ellipses.ts": 1 });
   assert.deepEqual(json.head, json.base);
 });
+
+// 44C (user 2026-11-25): G1's count is unchanged, and every platform source it finds has one row in the named-exception list; the
+// list and the disk agree both ways.
+test("44C PSD-02 G1 named exceptions: an unlisted file, a stale row, a wrong count and a bad row each fail; the real list matches the tree", async () => {
+  // @ts-expect-error the gate modules are plain .mjs
+  const { pluginNameExceptionProblems, PLUGIN_NAME_EXCEPTIONS_FILE } = await import("../scripts/gates/plugin-name-exceptions.mjs");
+  const row = { count: 2, kind: "same-word", reason: "`form` 是 HTML 表单元素，不是同名插件", decided: "2026-11-25" };
+  const snapshot = (files: Record<string, unknown> | null) => ({ read: (file: string) => file === PLUGIN_NAME_EXCEPTIONS_FILE && files ? JSON.stringify({ files }) : null });
+  assert.deepEqual(pluginNameExceptionProblems(snapshot({ "a.ts": row }), { "a.ts": 2 }, { required: true }), []);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), { "a.ts": 2, "b.ts": 1 }, { required: true }).join("\n"), /b\.ts names a plugin 1 time and has no row/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), {}, { required: true }).join("\n"), /a\.ts: the file names no plugin any more/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), { "a.ts": 1 }, { required: true }).join("\n"), /"count" is 2 but the file measures 1/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, kind: "because" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"kind" must be one of/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, reason: "ok" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"reason" needs/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, decided: "today" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"decided" is the date/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "b.ts": row, "a.ts": row }), { "a.ts": 2, "b.ts": 2 }, { required: true }).join("\n"), /sorted order/);
+  assert.match(pluginNameExceptionProblems(snapshot(null), { "a.ts": 2 }, { required: true }).join("\n"), /is missing/);
+  assert.deepEqual(pluginNameExceptionProblems(snapshot(null), { "a.ts": 2 }, { required: false }), []);
+  assert.deepEqual(pluginNameExceptionProblems(snapshot(null), {}, { required: true }), [], "a tree with no plugin name needs no list");
+
+  // The real list against the real tree, counted the way the gate counts.
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  // @ts-expect-error the gate modules are plain .mjs
+  const { isSource } = await import("../scripts/gates/giant-units.mjs");
+  const files = execFileSync("git", ["ls-files", "-co", "--exclude-standard"], { cwd: root, encoding: "utf8", maxBuffer: 1e8 }).trim().split("\n");
+  const present = files.filter(file => { try { readFileSync(path.join(root, file)); return true; } catch { return false; } });
+  const ids = pluginIdsOf(present), counts: Record<string, number> = {};
+  for (const file of present) {
+    if (!isSource(file)) continue;
+    const count = countPlatformPluginNames(file, readFileSync(path.join(root, file), "utf8"), ids);
+    if (count) counts[file] = count;
+  }
+  const real = { read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } };
+  assert.deepEqual(pluginNameExceptionProblems(real, counts, { required: true }), []);
+});

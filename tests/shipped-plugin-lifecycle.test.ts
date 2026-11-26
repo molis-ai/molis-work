@@ -20,12 +20,11 @@ const SHIPPED: Record<string, Shipped> = {
   todo: { key: "todo", plugin_id: "io.molis.work.todo", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/items`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ items: Array<{ title: string }> }>(`${routes}/items?view=all`)).items) },
+  // Jelly has no routes since batch 112-2: the person writes and reads through its actions, refused the same way a route is.
   jelly: { key: "jelly", plugin_id: "io.molis.work.jelly", scope: "home",
-    write: async (web, routes, title) => {
-      const { state } = await web.get<{ state: { revision: number } }>(`${routes}/`);
-      return web.post(`${routes}/commands`, { expected_revision: state.revision, command: { type: "item.create", item: { title, start_date: day } } });
-    },
-    titles: async (web, routes) => titlesOf((await web.get<{ state: { items: Array<{ title: string }> } }>(`${routes}/`)).state.items) },
+    revoked_answer: "404 actions.missing",
+    write: (_web, _routes, title, call) => call("jelly.item.create", /* @version action.jelly.item.create */ 1, { item: { title, start_date: day } }),
+    titles: async (_web, _routes, call) => titlesOf((await call<{ items: Array<{ title: string }> }>("jelly.calendar.list", /* @version action.jelly.calendar.list */ 1, { start: day, end: day })).items) },
   pages: { key: "pages", plugin_id: "io.molis.work.pages", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/pages`, { title, markdown: "第一稿" }),
     titles: async (web, routes) => titlesOf((await web.get<{ documents: Array<{ title: string }> }>(`${routes}/pages`)).documents) },
@@ -99,7 +98,7 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     const scheduleInstall = await scheduleAt.installation(), pagesInstall = await pagesAt.installation();
     assert.ok(scheduleInstall && pagesInstall);
     assert.deepEqual([scheduleInstall.state, pagesInstall.state], ["running", "running"]);
-    await pages.write(served.web, pagesAt.routes, "kept through restart");
+    await pages.write(served.web, pagesAt.routes, "kept through restart", pagesAt.call);
     const pagesCallable = await pagesAt.callable();
     assert.ok(pagesCallable.length > 0 && pagesCallable.every(action => declared(pages.plugin_id).includes(action)), 'Pages offers its declared actions that this Home can use');
     const noModel = async () => {
@@ -125,7 +124,7 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     assert.equal(await answer(served.web.get(`${scheduleAt.routes}/list`)), "404 actions.missing", "Schedule: not installed again by the start");
     assert.equal((await scheduleAt.installation())?.state, "uninstalled");
     assert.deepEqual(await scheduleAt.callable(), []);
-    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), 200, "Pages: a legacy disabled record restarts normally");
+    assert.equal(await answer(pages.titles(served.web, pagesAt.routes, pagesAt.call)), 200, "Pages: a legacy disabled record restarts normally");
     assert.equal((await pagesAt.installation())?.state, "running");
     assert.deepEqual(await pagesAt.callable(), pagesCallable, 'a restart restores the same callable actions, without inventing a model');
     await noModel();
@@ -140,7 +139,7 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     await served.shut();
     served = await serve(home);
     scheduleAt = viewOf(served, project, schedule); pagesAt = viewOf(served, project, pages);
-    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), "400 plugin.grant_denied", "Pages: the route's Host client refuses its withdrawn read grant before action dispatch");
+    assert.equal(await answer(pages.titles(served.web, pagesAt.routes, pagesAt.call)), "400 plugin.grant_denied", "Pages: the route's Host client refuses its withdrawn read grant before action dispatch");
     assert.deepEqual(await pagesAt.installation(), { ...pagesInstall, state: "running", grants: narrowedGrants }, "the same installation runs without silently returning the optional grant");
     const person = await served.host.localPersonContext(project.reference);
     const isRead = (view: { provider: { plugin_id?: string }; capability_id: string }) => view.provider.plugin_id === pages.plugin_id && view.capability_id === "pages.list";
@@ -154,8 +153,8 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     await denied.runtime.stop(pagesInstall.install_id);
     denied.runtime.grant(pagesInstall.install_id, pagesInstall.grants);
     await denied.runtime.start(pagesInstall.install_id);
-    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), 200, "Pages: explicitly returning grants restores execution");
-    assert.deepEqual(await pages.titles(served.web, pagesAt.routes), ["kept through restart"], "the original content survives both restarts and the permission's return");
+    assert.equal(await answer(pages.titles(served.web, pagesAt.routes, pagesAt.call)), 200, "Pages: explicitly returning grants restores execution");
+    assert.deepEqual(await pages.titles(served.web, pagesAt.routes, pagesAt.call), ["kept through restart"], "the original content survives both restarts and the permission's return");
     assert.deepEqual(await pagesAt.installation(), pagesInstall, "restoring permission does not replace the installation");
     assert.deepEqual(await pagesAt.callable(), pagesCallable);
 

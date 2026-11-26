@@ -60,21 +60,12 @@ function renderKnowledgeImportDialog(_L: SidePanelPrimitives["readText"]): strin
             <ul class="knowledge-import-picked" data-knowledge-import-picked></ul>
           </div>
           <div class="knowledge-import-online" data-knowledge-import-online hidden>
-            <label>${uiText("workbench.side-panel-files.document-source")}<select class="mw-select" name="source" data-knowledge-import-source>
-              <option value="notion">Notion</option><option value="feishu">${uiText("workbench.side-panel-files.feishu")}</option><option value="lark">Lark</option><option value="google-docs">Google Docs</option></select></label>
+            <label>${uiText("workbench.side-panel-files.document-source")}<select class="mw-select" name="source" data-knowledge-import-source></select></label>
             <label>${uiText("workbench.side-panel-files.account-connection")}<select class="mw-select" name="connection_id" data-knowledge-import-connection></select></label>
             <p class="knowledge-import-help" data-knowledge-import-connection-note></p>
             <label>${uiText("workbench.side-panel-files.document-url")}<input class="mw-input" name="url" type="url" autocomplete="off" spellcheck="false" placeholder="https://" data-knowledge-import-url></label>
           </div>
           <p class="knowledge-import-status" data-knowledge-import-status role="status" aria-live="polite"></p>
-          <div class="knowledge-import-model" data-knowledge-import-model hidden>
-            <p data-knowledge-import-model-text role="status" aria-live="polite"></p>
-            <progress max="1" data-knowledge-import-model-progress hidden></progress>
-            <div class="knowledge-import-model-choices" data-knowledge-import-model-choices>
-              <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-import-model-no>${uiText("workbench.side-panel-files.not-now")}</button>
-              <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-knowledge-import-model-yes>${uiText("workbench.side-panel-files.download-continue")}</button>
-            </div>
-          </div>
           <footer><button class="mw-btn mw-btn--secondary mw-btn--md" type="button" data-knowledge-import-close>${uiText("common.control.cancel")}</button>
             <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-knowledge-import-submit>${uiText("workbench.side-panel-files.imported")}</button></footer>
         </form>
@@ -181,11 +172,6 @@ dialog.mw-dialog.knowledge-import{width:min(520px,calc(100vw - 32px));max-height
 .knowledge-import-online label{display:grid;gap:6px;font-size:13px}
 .knowledge-import-online :is(.mw-select,.mw-input){width:100%}
 .knowledge-import-status{margin:0;min-height:1em;color:var(--muted);font-size:12px}
-.knowledge-import-model{display:grid;gap:10px;padding:12px;border-radius:10px;background:var(--wash,var(--nav-hover));font-size:13px;line-height:1.6}
-.knowledge-import-model[hidden],.knowledge-import-model [hidden]{display:none}
-.knowledge-import-model p{margin:0}
-.knowledge-import-model progress{width:100%;height:4px;accent-color:var(--action,var(--accent))}
-.knowledge-import-model-choices{display:flex;justify-content:flex-end;gap:8px}
 .knowledge-import-form footer{display:flex;justify-content:flex-end;gap:8px}
 @container side-panel (min-width:720px){
  .side-files{grid-template-columns:minmax(220px,300px) minmax(0,1fr)}

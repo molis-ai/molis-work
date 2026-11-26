@@ -7,6 +7,7 @@
     "gmail.connection.outbound": "Read-only for now — receives mail without sending.",
     "gmail.connection.send-mail": "Send mail",
     "gmail.connection.summary": "Connect your account on this computer. Feed reads mail without modifying it.",
+    "gmail.connection.purpose": "Bring email into a project to sort out work threads and todos. Email is only read for now.",
     "gmail.guide.mcp-connected-note": "Access to the Google Workspace Developer Preview is required.",
     "gmail.guide.mcp-link": "View the official Gmail MCP (Developer Preview)",
     "gmail.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work hasn’t integrated this service yet.",

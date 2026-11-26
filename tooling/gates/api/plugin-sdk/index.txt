@@ -266,7 +266,6 @@ export type { KitVersion } from "@molis-ai/molis-work-contracts/platform/kit-rep
 export declare const MATERIAL_EXTENSIONS: {
     readonly text: readonly [".txt", ".md", ".markdown", ".html", ".htm", ".csv", ".json", ".log"];
     readonly image: readonly [".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".gif"];
-    readonly media: readonly [".mp3", ".wav", ".m4a", ".aac", ".aiff", ".aif", ".flac", ".mp4", ".mov", ".m4v", ".webm"];
     readonly document: readonly [".pdf"];
 };
 
@@ -285,11 +284,6 @@ export type OverviewRowCheck = {
 } | {
     readonly problem: string;
 };
-
-export interface OverviewRowsWriter {
-    get(sql: string, parameters?: readonly PluginSqlValue[]): unknown;
-    run(sql: string, parameters?: readonly PluginSqlValue[]): unknown;
-}
 
 export declare const PAGE_ROUTE_LIMITS: Readonly<{
     routes: 32;
@@ -956,12 +950,12 @@ export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompt
 
 export declare function isCodedFailure(error: unknown): boolean;
 
-export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
-
-export declare function isProjectReadQuery(definition: {
+export declare function isHomeAggregateQuery(definition: {
     readonly operation: string;
     readonly action: object;
 }): boolean;
+
+export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 
@@ -1008,7 +1002,7 @@ export declare function overviewColumns<K extends OverviewKind>(kind: K, row: Ov
 
 export declare function overviewEventWindowEnd(now: Date): Date;
 
-export declare function overviewRows(tx: OverviewRowsWriter | PluginDatabaseTransaction): {
+export declare function overviewRows(tx: PluginDatabaseTransaction): {
     upsert<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): void;
     remove(kind: OverviewKind, rowId: string): void;
     removePrefix(kind: OverviewKind, prefix: string): void;

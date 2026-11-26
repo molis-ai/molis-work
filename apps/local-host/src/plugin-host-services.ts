@@ -125,7 +125,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants), permission => {
       try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
     });
-    const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
+    const providerId = context.provider_id;
     const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions, plugin_caller: pluginCaller,
       project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context),
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
@@ -145,7 +145,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
     // A project instance has no owner files of its own: only a sandboxed package has them here, and the sandbox is refused the terminal at start.
     terminal = options.home ? pluginTerminalFor({ home: options.home.directory, manifest, context, ownerFiles: undefined, assertActive }) : undefined;
-    const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
+    const hosted = hostedContext(options, manifest, context, { pluginCaller, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client, sync: combinePluginSyncLibraries(manifest, library?.sync, projectLibrary?.sync),
       database: library?.client, artifactRows: library?.artifactRows, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       imageGeneration: partitionImageGenerationFor(options, definition, context, assertActive),
@@ -302,8 +302,6 @@ function hostPluginCaller(options: PluginHostExecutorOptions, definition: Plugin
 
 interface SessionParts {
   readonly pluginCaller: HostPluginCaller;
-  /** What the Plugin's actions are registered under (`PluginHostExecutorOptions.providerFor`). */
-  readonly providerId: string;
   readonly artifactService: ArtifactService;
   readonly ui: PluginUi;
   readonly assertActive: () => void;
@@ -358,8 +356,8 @@ function artifactDatabaseServices(options: PluginHostExecutorOptions, context: P
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
 function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, parts: SessionParts): PluginStartContext {
-  const { pluginCaller, providerId, artifactService, ui, assertActive } = parts;
-  const actions = pluginHostActions(context, manifest, { ...options.actions, actor_id: options.actor_id, assertActive, pluginCaller, providerId,
+  const { pluginCaller, artifactService, ui, assertActive } = parts;
+  const actions = pluginHostActions(context, manifest, { ...options.actions, actor_id: options.actor_id, assertActive, pluginCaller,
     ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   const wiring = options.wiring;
   const { database, artifacts } = artifactDatabaseServices(options, context, parts);

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -10,15 +11,63 @@ import type { PluginPlatformHome } from "./home-side.js";
 import { registeredBuiltinText } from "./ui-text-provider.js";
 import { bindAgentDisplayWords } from "./agent-definitions/display-words.js";
 
-/**
- * Per Home and owner: the installations this module holds for, how many running instances hold each, and the newest version among
- * them with what it declares (`null`: that version declares nothing). Several projects run one installation and the last instance
- * out leaves the newest declaration as not running; two installations of one plugin (two publisher signatures) register side by side.
- * What the register holds for an owner beyond these is not this module's.
- */
-type Holder = { held: number; version: string; registration: AgentDefinitionRegistration | null };
-const holders = new Map<string, Map<string, Holder>>();
+/** An installId identifies a plugin and publisher. Even a version declaring nothing can become the newest one still running. */
+type Hold = { pendingGeneration?: string };
+type HeldVersion = { version: string; holds: Set<Hold>; registration: AgentDefinitionRegistration | null };
+type Installation = { owner: string; versions: Map<string, HeldVersion>; remembered?: HeldVersion };
+const holders = new Map<string, Installation>();
+const installationKey = (home: PluginPlatformHome, installId: string) => `${path.resolve(home.directory)}\0${installId}`;
 let hostOwners: ReadonlySet<string> | undefined;
+
+// Re-enabling a disabled project can still be cancelled. Runtime also starts disabled records to restore a failed upgrade.
+const pendingEnable = new AsyncLocalStorage<string | undefined>();
+
+export function withPendingPluginEnable<T>(generation: string | undefined, start: () => Promise<T>): Promise<T> {
+  return pendingEnable.run(generation, start);
+}
+
+function newerThan(row: HeldVersion, previous: HeldVersion | undefined): boolean {
+  return !previous || comparePluginVersions(row.version, previous.version) > 0;
+}
+
+function newestHeld(installation: Installation): HeldVersion | undefined {
+  let newest: HeldVersion | undefined;
+  for (const row of installation.versions.values()) {
+    const running = [...row.holds].some(hold => hold.pendingGeneration === undefined);
+    if (running && newerThan(row, newest)) newest = row;
+  }
+  return newest;
+}
+
+function showDeclaration(home: PluginPlatformHome, owner: string, installId: string, registration: AgentDefinitionRegistration | null): void {
+  const registry = homeAgentDefinitions(home.directory);
+  if (registration) registry.register(registration, installId);
+  else registry.unregister(owner, installId);
+}
+
+function rememberDeclaration(home: PluginPlatformHome, owner: string, installId: string, registration: AgentDefinitionRegistration | null): void {
+  const declarations = agentDeclarationsFor(home.directory);
+  if (registration) declarations.remember(installId, registration);
+  else if (declarations.has(installId, owner)) declarations.forgetOwner(installId, owner);
+}
+
+function rememberHeld(home: PluginPlatformHome, installId: string, installation: Installation, row: HeldVersion): void {
+  if (installation.remembered === row) return;
+  rememberDeclaration(home, installation.owner, installId, row.registration);
+  installation.remembered = row;
+}
+
+/** Validate the incoming registration before remembering it. A rejected start returns the register to its previous view. */
+function activateHeld(home: PluginPlatformHome, installId: string, installation: Installation, row: HeldVersion): void {
+  if (!row.registration && !installation.remembered && !agentDeclarationsFor(home.directory).has(installId, installation.owner)) {
+    installation.remembered = row;
+    return;
+  }
+  const previous = homeAgentDefinitions(home.directory).installation(installation.owner, installId);
+  showDeclaration(home, installation.owner, installId, row.registration);
+  try { rememberHeld(home, installId, installation, row); }
+  catch (error) { showDeclaration(home, installation.owner, installId, previous ?? null); throw error; }
+}
 
 /**
  * Registers what a definition carries for Agents for as long as the installation runs: the roles and Agent prompts of its Manifest's
@@ -42,53 +91,37 @@ let hostOwners: ReadonlySet<string> | undefined;
 export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string,
   projectRecord?: PluginInstanceRecord | null): (() => void) | undefined {
   if (!home) return undefined;
-  // A stopped project package is still starting. Its successful enable owns the durable registration.
-  const remember = !(definition.execution === "sandbox" && projectRecord?.publisher_trust === "pinned" && projectRecord.state === "disabled");
-  const instructions = definition.instructions ?? [], bodies = definition.methods ?? [], agent = definition.manifest.agent;
-  const carries = instructions.length > 0 || bodies.length > 0 || agent !== undefined;
+  // A disabled project package stays invisible until its own installation generation finishes enabling.
+  const pendingGeneration = pendingEnable.getStore();
+  const hold: Hold = pendingGeneration && projectRecord?.installation_generation === pendingGeneration ? { pendingGeneration } : {};
   const { plugin_id: owner, version } = definition.manifest;
-  for (const item of instructions) {
-    if (item.owner_id !== owner) throw new Error(`插件 ${owner} 登记的指令 ${item.prompt_id} 属于 ${item.owner_id}：一个插件只能登记自己的指令`);
-  }
-  const ownerKey = `${path.resolve(home.directory)}\0${owner}`;
-  const installs = holders.get(ownerKey) ?? new Map<string, Holder>();
-  const holder = installs.get(installId), declarations = agentDeclarationsFor(home.directory);
-  // A version that declares nothing and has nothing to replace: no instance of the installation runs, nothing is remembered.
-  if (!carries && !holder && !declarations.has(installId, owner)) return undefined;
-  // The Host's own owners, not the register's: a remembered declaration of this plugin is in the register too (PG-051 Q1 b).
+  const registration = pluginAgentRegistration(definition);
   hostOwners ??= new Set(builtinRegistrations().map(row => row.owner_id));
-  if (hostOwners.has(owner)) throw new Error(`${owner} 的 Agent 定义由平台自己登记，插件定义不能再登记第二个来源`);
-  const registry = homeAgentDefinitions(home.directory);
-  // Only a newer version replaces what the running instances registered.
-  const replaces = !holder || comparePluginVersions(version, holder.version) > 0;
-  let current: Holder = holder ? { ...holder, held: holder.held + 1 } : { held: 1, version, registration: null };
-  if (replaces) {
-    const registration = pluginAgentRegistration(definition);
-    if (registration) {
-      registry.register(registration, installId);
-      if (remember) declarations.remember(installId, registration);
-    } else {
-      registry.unregister(owner, installId);
-      if (remember) declarations.forgetOwner(installId, owner);
-    }
-    current = { ...current, version, registration };
+  if (hostOwners.has(owner)) {
+    if (!registration) return undefined;
+    throw new Error(`${owner} 的 Agent 定义由平台自己登记，插件定义不能再登记第二个来源`);
   }
-  installs.set(installId, current);
-  holders.set(ownerKey, installs);
-  let withdrawn = false;
+
+  const key = installationKey(home, installId);
+  const installation = holders.get(key) ?? { owner, versions: new Map<string, HeldVersion>() };
+  const previous = newestHeld(installation);
+  const row = installation.versions.get(version) ?? { version, holds: new Set<Hold>(), registration };
+  if (hold.pendingGeneration === undefined && newerThan(row, previous)) activateHeld(home, installId, installation, row);
+  row.holds.add(hold);
+  installation.versions.set(version, row);
+  holders.set(key, installation);
+
   return () => {
-    if (withdrawn) return;
-    withdrawn = true;
-    // What the installation's running instances hold now, not what this one registered: a newer version may have replaced it since.
-    const running = holders.get(ownerKey), now = running?.get(installId);
-    if (!now) return;
-    if (now.held > 1) { running!.set(installId, { ...now, held: now.held - 1 }); return; }
-    running!.delete(installId);
-    if (running!.size === 0) holders.delete(ownerKey);
-    if (!now.registration) return;
-    // Kept as not running: the person still sees and edits its prompts; uninstalling forgets it.
-    registry.register(notRunning(now.registration), installId);
-    if (remember) declarations.remember(installId, now.registration);
+    const before = newestHeld(installation);
+    if (!row.holds.delete(hold)) return;
+    if (!row.holds.size) installation.versions.delete(version);
+    if (!installation.versions.size) holders.delete(key);
+    const remaining = newestHeld(installation);
+    if (before !== row || remaining === before) return;
+    // The departing instance has stopped even when the durable write fails. Uninstall retries the surviving declaration.
+    if (remaining) showDeclaration(home, owner, installId, remaining.registration);
+    else if (row.registration) showDeclaration(home, owner, installId, notRunning(row.registration));
+    rememberHeld(home, installId, installation, remaining ?? row);
   };
 }
 
@@ -124,16 +157,25 @@ function pluginDefinitionSource(definition: PluginDefinition): AgentDefinitionSo
     ...(definition.execution === "sandbox" && publisher.signature.startsWith("ed25519:sha256:") ? { publisher_signature: publisher.signature } : {}) };
 }
 
-/** Lifecycle refreshes do not acquire another running instance. Only a verified rollback may replace a newer holder. */
-export function updatePluginAgentDefinitions(home: PluginPlatformHome, definition: PluginDefinition, installId: string, state: "enabled" | "disabled", restored = false): void {
-  const { plugin_id: owner, version } = definition.manifest, ownerKey = `${path.resolve(home.directory)}\0${owner}`;
-  const holder = holders.get(ownerKey)?.get(installId);
-  if (holder && comparePluginVersions(version, holder.version) < 0 && !restored) return;
-  const registration = pluginAgentRegistration(definition), registry = homeAgentDefinitions(home.directory), declarations = agentDeclarationsFor(home.directory);
-  if (holder) { holder.version = version; holder.registration = registration; }
-  if (!registration) { registry.unregister(owner, installId); declarations.forgetOwner(installId, owner); return; }
-  registry.register(state === "disabled" && !holder?.held ? notRunning(registration) : registration, installId);
-  declarations.remember(installId, registration);
+/** A lifecycle refresh confirms this version without acquiring a hold. Other projects keep their running versions, even during rollback. */
+export function updatePluginAgentDefinitions(home: PluginPlatformHome, definition: PluginDefinition, installId: string, state: "enabled" | "disabled", generation?: string): void {
+  const { plugin_id: owner, version } = definition.manifest;
+  const installation = holders.get(installationKey(home, installId));
+  if (installation) {
+    const row = installation.versions.get(version);
+    if (row && state === "enabled" && generation) {
+      const pending = [...row.holds].filter(hold => hold.pendingGeneration === generation);
+      if (pending.length && newerThan(row, newestHeld(installation))) activateHeld(home, installId, installation, row);
+      for (const hold of pending) delete hold.pendingGeneration;
+    }
+    // A retried disable may name the version whose last hold already left before its fallback could be saved.
+    const remaining = newestHeld(installation);
+    if (remaining) rememberHeld(home, installId, installation, remaining);
+  } else {
+    const registration = pluginAgentRegistration(definition);
+    showDeclaration(home, owner, installId, registration && state === "disabled" ? notRunning(registration) : registration);
+    rememberDeclaration(home, owner, installId, registration);
+  }
 }
 
 /**
@@ -143,16 +185,18 @@ export function updatePluginAgentDefinitions(home: PluginPlatformHome, definitio
  * last hold let go leaves its Skills not running, so they are offered only while some Host has the plugin enabled and its package verified.
  */
 export function declaredOnlyHolds(home: PluginPlatformHome | null | undefined) {
-  const held = new Map<string, { version: string; release: () => void }>();
+  const held = new Map<string, { version: string; installId: string; release: () => void }>();
   const release = (pluginId: string) => { const hold = held.get(pluginId); held.delete(pluginId); hold?.release(); };
   return {
     set(definition: PluginDefinition, installId: string, state: "enabled" | "disabled"): void {
       const { plugin_id: pluginId, version, kind } = definition.manifest, holds = state === "enabled" && kind === "content";
-      if (holds && held.get(pluginId)?.version === version) return;
+      const current = held.get(pluginId);
+      if (holds && current?.version === version && current.installId === installId) return;
       // A new version is held before the earlier one is let go, so the Skills are not left not running in between.
       const acquired = holds ? registerPluginAgentDefinitions(home, definition, installId) : undefined;
-      release(pluginId);
-      if (acquired) held.set(pluginId, { version, release: acquired });
+      if (acquired) held.set(pluginId, { version, installId, release: acquired });
+      else held.delete(pluginId);
+      current?.release();
     },
     release,
     releaseAll(): void { for (const pluginId of [...held.keys()]) release(pluginId); },
@@ -162,8 +206,14 @@ export function declaredOnlyHolds(home: PluginPlatformHome | null | undefined) {
 /** An uninstalled installation's declarations leave the register and the Home (PG-051 Q1 b), unless it still runs somewhere. */
 export function forgetPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, installId: string): void {
   if (!home) return;
+  const installation = holders.get(installationKey(home, installId));
+  if (installation) {
+    const remaining = newestHeld(installation);
+    if (remaining) { rememberHeld(home, installId, installation, remaining); return; }
+  }
   const registry = homeAgentDefinitions(home.directory);
   for (const owner of agentDeclarationsFor(home.directory).forget(installId)) {
-    if (!holders.get(`${path.resolve(home.directory)}\0${owner}`)?.has(installId)) registry.unregister(owner, installId);
+    registry.unregister(owner, installId);
   }
+  if (installation) delete installation.remembered;
 }

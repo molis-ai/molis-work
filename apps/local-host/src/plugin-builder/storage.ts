@@ -20,7 +20,7 @@ export const studioStorageInstallation = (projectId: string) => 'agent-studio:' 
 
 /** Stable authoring namespace of the Studio in this project. */
 export function studioStorage(db: ConstructorParameters<typeof SqlitePluginPrivateStorage>[0], projectId: string): PluginPrivateStorage {
-  const context = { install_id: studioStorageInstallation(projectId), installation_generation: 'studio', plugin_id: BUILDER_PLUGIN_ID, version: builderManifest.version, deployment: 'local' as const,
+  const context = { install_id: studioStorageInstallation(projectId), installation_generation: 'studio', provider_id: BUILDER_PLUGIN_ID, plugin_id: BUILDER_PLUGIN_ID, version: builderManifest.version, deployment: 'local' as const,
     grants: ['storage:private'], project_id: projectId, requireGrant() {} };
   return new SqlitePluginPrivateStorage(db).forPlugin(context, builderManifest);
 }

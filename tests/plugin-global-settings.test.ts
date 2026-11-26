@@ -31,12 +31,7 @@ import {
   createWorkbenchUiHost,
   renderPluginSettingsContribution,
 } from "@molis-ai/molis-work-app-workbench";
-import {
-  listPluginSettingsNavItems,
-  findPluginSettingsNavItem,
-  pluginSettingsNavItemsFrom,
-  isHostGlobalSettingsSection,
-} from "../apps/workbench/dist/plugin-settings-catalog.js";
+import { findPluginSettingsNavItem, isHostGlobalSettingsSection, listPluginSettingsNavItems, pluginSettingsNavItemsFrom } from "@molis-ai/molis-work-app-workbench";
 import { renderAppearanceSettingsDocument } from "../apps/workbench/dist/settings-appearance.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";

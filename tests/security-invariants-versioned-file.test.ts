@@ -3,16 +3,15 @@
 import {createTrialAuthPeer,trialAccountConfig} from "../examples/personal-trial-tools/mock-auth.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, statSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, statSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, fileAccountSecrets, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PersonalAuth, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, runHomeUpgrade, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { JELLY_MODEL_CONFIGURATION, jellyServiceActions } from "@molis-ai/molis-work-plugin-jelly";
+import { createConsumerModelConfiguration, BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, fileAccountSecrets, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PersonalAuth, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, runHomeUpgrade, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { assertVersionedFileWritable, createFileSecretStore, LocalSqliteStorage, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { sha256, upgradeTestHome } from "./fixtures/home-upgrade-home.js";
 
 const place = (home: string, relative: string, value: unknown) => {
@@ -50,27 +49,29 @@ test("S-upgrade-too-new-untouched: `browser/sites.json` one version ahead: fail-
   assert.equal(sites.blocked("https://b.example"), true, "the refused allow does not lift fail-closed blocking");
 });
 
-test("S-upgrade-too-new-untouched: `jelly/preferences.json` one version ahead or unreadable: the model choice is refused before anything it would change", async t => {
-  // The fixture removes this Home after its Host has closed.
-  const home = await mkdtemp(join(tmpdir(), "molis-too-new-preference-")), relative = join("jelly", "preferences.json");
+test("S-upgrade-too-new-untouched: a plugin's model preference one version ahead or unreadable: the model choice is refused before anything it would change", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-too-new-preference-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const folder = join("plugin-files", "probe-install", ".model-settings"), relative = join(folder, "preference.json");
   await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
-  const file = place(home, relative, { schema_version: versionAt(relative) + 1, provider_id: "later", model_id: "later" });
-  const { host } = await serveHomeRuntime(t, { homeDirectory: home });
+  const file = place(home, relative, { schema_version: versionAt("plugin-files/*/.model-settings/preference.json") + 1, provider_id: "later", model_id: "later" });
+  // A sandbox plugin's declaration (apps/local-host/src/sandbox-model-settings.ts); Jelly's own was retired in batch 112-2.
+  const configuration = createConsumerModelConfiguration(home, { preference: { store_name: folder, file_name: "preference.json" },
+    custom_provider: { provider_id: "probe-text", display_name: "探针模型" } });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "还没有地址", token: "too-new-preference-fixture" }));
-  // The save that does the most before its file: a provider of Jelly's own, and the first address the connection is pinned to.
-  const save = () => host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.saveModelSettings,
-    { base_url: "https://unwritten.example/v1", model_id: "unwritten", connection_id: connection.connection_id });
+  // The save that does the most before its file: a provider of the plugin's own, and the first address the connection is pinned to.
+  const save = () => configuration.save({ base_url: "https://unwritten.example/v1", model_id: "unwritten", connection_id: connection.connection_id });
   for (const [contents, code] of [[null, "storage.store_too_new"], ["{", "storage.schema_version_mismatch"]] as const) {
     if (contents !== null) place(home, relative, contents);
     const before = sha256(file);
-    await assert.rejects(save(), { code });
+    assert.throws(save, { code });
     assert.equal(sha256(file), before, code);
     assert.deepEqual(temporaryFiles(file), [], `${code}: and no temporary file`);
   }
   const catalog = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
   try {
     const providers = new ModelProviderStore({ db: catalog.db, secrets: runWithMolisWorkHome(home, () => createFileSecretStore()) });
-    assert.equal(providers.get(JELLY_MODEL_CONFIGURATION.custom_provider.provider_id), null, "no provider of Jelly's own was made");
+    assert.equal(providers.get("probe-text"), null, "no provider of the plugin's own was made");
   } finally { catalog.close(); }
   // Not pinned by the refused save: another address can still be the connection's first.
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", "https://first-target.example/v1"));

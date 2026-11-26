@@ -3,7 +3,6 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { connectorAccountControl, oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, readApiOAuthAccount, resolveApiOAuthToken } from "./connector-api-oauth.js";
@@ -12,7 +11,7 @@ import { clearRefreshRefused, markRefreshRefused } from "./connector-refresh-ref
 import { replacedOAuthShape, REPLACED_OAUTH_NOTE } from "./connector-oauth-shape.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { cliConnectionApi, inspectCliConnection } from "./connector-cli.js";
-import { accountProviderWithToken } from "./account-providers.js";
+import { accountDriver } from "./builtin-drivers.js";
 
 /** The service, not the connection, said no for now: a check that ends this way is remembered with when to look again. */
 export const connectorCheckErrors = defineErrorCodes("connector.check", { rate_limited: "rate_limited" });
@@ -105,10 +104,8 @@ export async function resolveApiConnection(home: string, id: string, control: Co
 /** What a preview reads with the connection once its account is checked: the service's first page, if its reader has one. */
 async function previewRead(home: string, service: string, access: ApiConnectionAccess, fetchImpl: typeof fetch, control: ConnectorCallControl,
   signal: AbortSignal, beforeRead?: () => void | Promise<void>): Promise<{ record_count?: number; items?: unknown[] }> {
-  if (isCatalogConnectorId(service) && getCatalogSpec(service).source_available === false) return {};
-  const provider = isCatalogConnectorId(service)
-    ? createCatalogProvider({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl })
-    : accountProviderWithToken(home, service, { token: access.token, fetchImpl });
+  const driver = accountDriver(service);
+  const provider = runWithMolisWorkHome(home, () => driver?.source?.({ token: access.token, context: access.authExtras, fetch: fetchImpl }));
   if (!provider) return {};
   await beforeRead?.(); signal.throwIfAborted();
   const read = await provider.sync({ cursor: null }, control);
@@ -134,12 +131,13 @@ export async function inspectApiConnection(home: string, id: string, preview = f
     if (!preview) return verified;
     return { ...verified, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead) };
   }
-  if (isCatalogConnectorId(service)) {
-    let result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
+  const driver = accountDriver(service), identity = driver?.check === "identity" ? driver.identity : undefined;
+  if (identity) {
+    let result = await identity({ token: access.token, context: access.authExtras, fetch: fetchImpl });
     await control.beforeEffect(); control.current();
     if (!result.ok && result.http_status === 401 && access.connection.auth_method === "oauth") {
       access = await resolveApiConnection(home, id, control, service, true);
-      result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
+      result = await identity({ token: access.token, context: access.authExtras, fetch: fetchImpl });
       await control.beforeEffect(); control.current();
     }
     if (!result.ok) throw connectorReadFailure(result);
@@ -147,7 +145,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
     if (!preview) return verified;
     return { ...verified, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead) };
   }
-  const provider = accountProviderWithToken(home, service, { token: access.token, fetchImpl });
+  const provider = runWithMolisWorkHome(home, () => driver?.source?.({ token: access.token, fetch: fetchImpl }));
   if (!provider) throw new Error("请在使用此连接的功能里运行一次，验证目标服务");
   const health = await provider.health(control);
   if (!health.ok) throw connectorReadFailure(health);

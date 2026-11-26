@@ -7,8 +7,7 @@ import { renderAssistantDock } from "./assistant-dock.js";
 import { renderWorkLine } from "./work-line-parts.js";
 import { renderAccountBar } from "./account-bar.js";
 import { renderSidePanel, renderSideStrip, type SidePanelPluginTab } from "./side-panel.js";
-import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
-import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
+import { PLATFORM_NAVIGATION } from "./platform-surfaces.js";
 
 export interface ImmersiveShellPrimitives {
   readText(value: string): string;
@@ -131,7 +130,7 @@ export function renderPluginRail(
   const join = (values: readonly string[]) => values.join(uiText.text("common.list.separator"));
   const summaries = pluginStageSummaries(directory);
   // A summary is the Plugin's own text, so it is English in that Plugin's own words and nobody else's.
-  const hints: Record<string, string> = { ...Object.fromEntries(Object.entries(summaries).map(([id, { summary }]) => [id, summary])), [ARTIFACT_NAVIGATION.id]: uiText.text(ARTIFACT_NAVIGATION.hint), [SESSIONS_NAVIGATION.id]: uiText.text("workbench.sessions.navigation-hint") };
+  const hints: Record<string, string> = { ...Object.fromEntries(Object.entries(summaries).map(([id, { summary }]) => [id, summary])), ...Object.fromEntries(PLATFORM_NAVIGATION.map(({ id, hint }) => [id, uiText.text(hint)])) };
   const names = new Map<string, string>([...entries, ...islands].map(plugin => [plugin.id, plugin.label]));
   const sitesOf = new Map(cards.map(card => [card.id, card.sites]));
   const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);

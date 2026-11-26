@@ -36,6 +36,7 @@ import {
 } from "../../settings-address-params.js";
 
 import { settingsContentOf } from "../../settings-content.js";
+import { CAPABILITY_SETTINGS_SECTIONS, MOVED_SETTINGS_ADDRESSES, PLATFORM_PROJECT_SETTINGS_REGISTRY, UNLISTED_SETTINGS_ROWS } from "../../platform-settings-registry.js";
 
 export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const { translate: readText, setDirectory, setExclusive, hideDirectory } = host;
@@ -69,7 +70,10 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   const keptHash = (hash, section) => !hash ? "" : (declared(ADDRESS_HASHES, section) + " " + addressOf(section).hash).split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
   const keptAddress = (url, defaults, extras, section) => keptQuery(url.search, defaults, extras, section) + keptHash(url.hash, section);
-  const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
+  const CAPABILITY_SECTIONS = ${JSON.stringify(CAPABILITY_SETTINGS_SECTIONS)};
+  const UNLISTED_ROWS = ${JSON.stringify(UNLISTED_SETTINGS_ROWS)};
+  const MOVED = ${JSON.stringify(MOVED_SETTINGS_ADDRESSES)};
+  const PROJECT_SECTIONS = ${JSON.stringify(PLATFORM_PROJECT_SETTINGS_REGISTRY.map(section => section.id))};
   let lastSettingsSection = "appearance";
   const retained = new WeakMap();
   const disposePage = (root) => { retained.get(root)?.dispose(); retained.delete(root); };
@@ -354,31 +358,17 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const projectSectionFromPath = (pathname) => {
     if (!projectPrefix || !pathname.startsWith(projectPrefix + "/settings")) return "";
     const rest = pathname.slice((projectPrefix + "/settings").length).replace(/\\/+$/, "") || "";
-    if (!rest || rest === "/general") return "general";
-    if (rest === "/workspaces") return "workspaces";
-    if (rest.startsWith("/guidance")) return "guidance";
-    if (rest.startsWith("/memory")) return "memory";
-    if (rest.startsWith("/knowledge")) return "knowledge";
-    if (rest.startsWith("/plugins")) return "plugins";
-    if (rest.startsWith("/kit")) return "kit";
-    if (rest.startsWith("/characters")) return "characters";
-    if (rest.startsWith("/grants")) return "grants";
-    if (rest.startsWith("/rules")) return "rules";
-    return "";
+    if (!rest) return "general";
+    const section = rest.split("/")[1];
+    return PROJECT_SECTIONS.includes(section) ? section : "";
   };
   const globalSectionFromPath = (pathname) => {
-    if (pathname.startsWith("/settings/runtimes")) return "runtimes";
-    // Prompts have no row of their own: they belong to a role in a kit (09), so their page opens under 能力包.
-    if (pathname.startsWith("/settings/prompts")) return "kit";
     const capability = /^\\/capabilities(?:\\/([^/?#]+))?/.exec(pathname);
     if (capability) return CAPABILITY_SECTIONS.includes(capability[1]) ? capability[1] : "library";
-    if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
-    if (pathname.startsWith("/settings/projects")) return "projects";
-    // 运行 is listed only in the desktop app; its address still opens its page in a browser, which says where the switches are.
-    if (pathname.startsWith("/settings/running")) return "running";
-    if (pathname.startsWith("/settings/appearance") || pathname === "/settings") return "appearance";
+    if (pathname === "/settings") return "appearance";
     const slug = pathname.replace(/^\\/settings\\//, "").split("/")[0];
     if (!slug || slug === pathname) return "";
+    if (declared(UNLISTED_ROWS, slug)) return UNLISTED_ROWS[slug];
     const known = [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
       .map((row) => row.dataset.settingsSection);
     return known.includes(slug) ? slug : "";
@@ -428,10 +418,10 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const unprefixed = projectPrefix && url.pathname.startsWith(projectPrefix + "/") ? url.pathname.slice(projectPrefix.length) : "";
     let pathname = global(unprefixed) ? unprefixed : url.pathname;
     if (!global(pathname)) return false;
-    if (pathname === "/settings/mcp") pathname = "/capabilities/access";
-    else if (pathname === "/settings/connectors" || pathname === "/settings/functions") {
-      if (pathname === "/settings/functions") url.searchParams.set("connector", "typesafe");
-      pathname = "/capabilities/connections";
+    const moved = declared(MOVED, pathname);
+    if (moved) {
+      for (const [key, value] of Object.entries(moved.query)) url.searchParams.set(key, value);
+      pathname = moved.path;
     }
     if (pathname === "/capabilities") pathname = "/capabilities/library";
     const section = globalSectionFromPath(pathname);

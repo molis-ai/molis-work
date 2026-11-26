@@ -229,7 +229,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       if (prepared) void deliver(focus, { ...candidate, scope: "object" }).then(fallback => { if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback)); });
     },
   };
-  // A control on a plugin's page that names a creation entry (data-context-intake="todo") puts the object that page shows
+  // A control on a plugin's page that names a creation entry (data-context-intake="<entry>") puts the object that page shows
   // into it: the surface says which plugin and which kind it opens (what the plugins declare as their search sources), the control
   // gives the object's id, title and words, and the entry's own provider drafts and makes it, as for a choice on the bar. The same
   // object asks the same request, which the entry's owner makes once, so a second click finds the first.

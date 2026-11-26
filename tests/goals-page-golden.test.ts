@@ -61,6 +61,10 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // Removing `overview.lead` (decision 62 ③) took the home's empty lead box (`data-home-lead`) out of the same 16 pages, and only it:
 // drawn on the 36A-6 branch and on this one and compared token by token, each page loses that one element, a uniform -56 characters
 // in both languages; the other records are byte for byte the same. The 16 were recorded again.
+// Batch 112-1 took the speech-transcription words out of the workbench's text table, which every page carries (and changed the
+// attachment and import lines): each page shrinks by that table's change alone, -630 characters in Chinese and -634 in English. They were recorded again.
+// Batch 112-2 changed the model-API words in the workbench's text table, which every page carries (Jelly is no longer named, a
+// "choose in model settings" line replaces Jelly's): on top of 112-1, each page changes by that alone, +2 characters in Chinese and -10 in English. Recorded again.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
@@ -140,6 +144,12 @@ const pages: Record<string, Draw> = {
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.
 // Every other byte, JSON block and record stayed fixed; the candidate was not used to record these expectations.
+// Batch 44C (PSD-08: no vendor branches in the shell): independently built main 9f85b88511 and the batch head were both drawn with
+// MOLIS_WORK_GOLDEN_DUMP=1 and compared token by token. The 16 page-* draws differ in one place only: the knowledge-import dialog's
+// 「文档来源」 select is drawn empty (its four hand-written Notion / 飞书 / Lark / Google Docs options gone; the dialog's script fills it
+// from the declared offers of `artifacts.import.sources`), -169 / -173 characters in zh / en. The three English settings pages differ
+// only in the project settings link Plugin → Plugins (the link now comes from the settings registry). No Goals markup or JSON changed;
+// those 19 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 33 records did not change.
 // WORK-03 / T01-ACCOUNT-ENTRY-01: the earlier 16 whole-page account-entry records derived from independently built main 9f00fd0dad.
 // Its 66 normalized draws first matched every original hash. Only the personal-account button's disabled attribute
 // and unavailable title were replaced by the enabled Sign in / 登录 entry. All other markup and JSON stayed fixed;

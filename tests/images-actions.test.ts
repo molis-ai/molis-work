@@ -5,10 +5,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { IMAGE_GENERATION_ROLES, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesActions as actions, IMAGES_ACTION_PERMISSIONS, type ImageJob } from "@molis-ai/molis-work-plugin-images";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { imageGeneratorOf, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -185,4 +185,21 @@ test('RAC-105-A-18 Images refuses an occupied Home before business initializatio
   const finished=await terminal(f.client,job.id);
   assert.equal(finished.status,'succeeded');assert.equal(calls,1);
   assert.doesNotMatch(finished.error??'',/无法连接厂商|网络/);
+});
+
+// PSD-02 (44C, specs/plugin-specials-demotion section 2 P3): the plugin studio draws proposals through whichever plugin declares the four
+// image-generation roles (Role 6), not through Images by name. Images declares each role once; a stand-in third-party provider that
+// declares the same four is found the same way; a provider missing one role is not a generator. The call carries the four actions' own permissions.
+test('PSD-02 the studio finds the image generator by role: Images today, any provider declaring all four roles tomorrow', async t => {
+  const f = await fixture(t);
+  const catalog = await f.client.discover() as ActionView[];
+  const found = imageGeneratorOf(catalog);
+  assert.ok(found, 'Images is the project\'s image generator');
+  assert.deepEqual(Object.fromEntries(IMAGE_GENERATION_ROLES.map(role => [role, found.roles[role].capability_id])),
+    { 'services.list': actions.connections.capability_id, generate: actions.start.capability_id, 'generations.get': actions.get.capability_id, 'image.read': actions.image.capability_id });
+  assert.deepEqual(found.permissions.sort(), [...new Set([actions.connections, actions.start, actions.get, actions.image].flatMap(definition => definition.action.permissions))].sort());
+  const roleViews = IMAGE_GENERATION_ROLES.map(role => found.roles[role]);
+  const elsewhere = roleViews.map(view => ({ ...view, provider: { ...view.provider, provider_id: 'com.example.pictures' } }));
+  assert.equal(imageGeneratorOf(elsewhere)?.roles.generate.provider.provider_id, 'com.example.pictures', 'a third-party provider declaring the four roles is found the same way');
+  assert.equal(imageGeneratorOf(elsewhere.filter(view => view.capability_id !== actions.image.capability_id)), undefined, 'three roles are not a generator');
 });

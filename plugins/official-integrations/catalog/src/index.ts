@@ -6,6 +6,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   IntegrationBinding,
+  PluginConnectionCardDeclaration,
+  PluginConnectionCredentialDeclaration,
   PluginConnectionServiceDeclaration,
   PluginIntegrationDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
@@ -27,11 +29,32 @@ const SIGNAL_ADAPTER_VERSION = /* @version type.signal.adapter.catalog */ 1;
  * The document sources the 成果库 can import through a connected service, the service each reads with, and the ways of connecting its
  * reading works with: an API token or an OAuth grant everywhere, and Feishu's own CLI login as well.
  */
-const DOCUMENT_SOURCES: Readonly<Record<string, { service: string; methods: readonly ConnectorMethodKind[] }>> = {
+const DOCUMENT_SOURCES: Readonly<Record<string, { service: string; methods: readonly ConnectorMethodKind[]; title?: string }>> = {
   notion: { service: "notion", methods: ["token", "oauth"] },
   feishu: { service: "feishu", methods: ["token", "oauth", "cli"] },
   lark: { service: "lark", methods: ["token", "oauth"] },
-  "google-docs": { service: "google-drive", methods: ["token", "oauth"] },
+  "google-docs": { service: "google-drive", methods: ["token", "oauth"], title: "Google Docs" },
+};
+
+/** The fields a credential is pasted in, each labelled by the service's own `credential.<field>` word. */
+const credential = (service: string, separator: ":" | "|", ...fields: readonly [field: string, type: "text" | "email" | "url" | "password", placeholder?: string][]): PluginConnectionCredentialDeclaration => ({
+  separator, fields: fields.map(([field, type, placeholder]) => ({ label: { key: `${service}.credential.${field}` }, type, ...(placeholder ? { placeholder } : {}) })),
+});
+const atlassianSite = (service: string) => credential(service, "|", ["site-domain", "text", "your-site.atlassian.net"], ["atlassian-email", "email"], ["api-token", "password"]);
+const larkApp = (service: string) => credential(service, ":", ["app-id", "text", "cli_…"], ["app-secret", "password"]);
+
+/** What some of the services' cards say or ask beyond the shared shape. */
+const CONNECTION_CARDS: Readonly<Record<string, PluginConnectionCardDeclaration>> = {
+  loom: { purpose: { key: "loom.connection.purpose" } },
+  figma: { purpose: { key: "figma.connection.purpose" }, preferred_method: "mcp" },
+  feishu: { preferred_method: "cli", client_note: { key: "feishu.connection.client-note" }, own_app: true, credential: larkApp("feishu") },
+  lark: { own_app: true, credential: larkApp("lark") },
+  wechat: { preferred_method: "token", credential: credential("wechat", ":", ["corp-id", "text", "ww…"], ["corp-secret", "password"]) },
+  bitbucket: { credential: credential("bitbucket", ":", ["atlassian-email", "email"], ["api-token", "password"]) },
+  jira: { credential: atlassianSite("jira") },
+  confluence: { credential: atlassianSite("confluence") },
+  salesforce: { credential: credential("salesforce", "|", ["instance-url", "url", "https://your.my.salesforce.com"], ["access-token", "password"]) },
+  adobe: { credential: credential("adobe", "|", ["client-key", "text"], ["access-token", "password"]) },
 };
 
 /** The service this connector is, and the card shown for it where a person connects accounts. */
@@ -58,6 +81,7 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
     setup_links: spec.setup_links,
     ...(spec.categories?.length ? { categories: spec.categories } : {}),
     ...(spec.project_hints ? { project_hints: spec.project_hints } : {}),
+    ...(CONNECTION_CARDS[connectorId] ? { card: CONNECTION_CARDS[connectorId] } : {}),
   };
 }
 
@@ -66,9 +90,9 @@ function catalogIntegrations(connectorId: string): PluginIntegrationDeclaration[
   const integrations: PluginIntegrationDeclaration[] = [];
   if (getCatalogSpec(connectorId).source_available !== false) integrations.push({ integration_id: connectorId, kind: "source", service_id: connectorId });
   if (getCatalogSpec(connectorId).web_search) integrations.push({ integration_id: `${connectorId}-web`, kind: "web_search", service_id: connectorId });
-  for (const [source, { service, methods }] of Object.entries(DOCUMENT_SOURCES)) {
+  for (const [source, { service, methods, title }] of Object.entries(DOCUMENT_SOURCES)) {
     if (service === connectorId) integrations.push({ integration_id: source === connectorId ? `${source}-documents` : source, kind: "document_import",
-      service_id: connectorId, document_source: source, connection_methods: methods });
+      service_id: connectorId, document_source: source, ...(title ? { title } : {}), connection_methods: methods });
   }
   return integrations;
 }
@@ -145,7 +169,6 @@ export { officialMethodsFor, OFFICIAL_CONNECTOR_METHODS } from "./methods.js";
 export { CATALOG_OAUTH_CALLBACK_ALIASES, CATALOG_OAUTH_METHODS, catalogOAuthMethod } from "./oauth-methods.js";
 export { catalogWhoami, createCatalogProvider, type CatalogWhoamiResult } from "./provider.js";
 export { CatalogLiveError } from "./http.js";
-export { catalogCloudOrigin } from "./targets.js";
 export type { CatalogFetch } from "./types.js";
 export { readExternalDocument, externalDocumentErrors } from "./document-import.js";
 export { searchCatalogWeb } from "./web-search-read.js";

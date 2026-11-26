@@ -1,6 +1,6 @@
-import { CONNECTOR_REQUEST_SERVICES, CONNECTOR_USES, type ConnectorDirectoryEntry, type ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_REQUEST_SERVICES, CONNECTOR_USES, type ConnectorCardView, type ConnectorDirectoryEntry, type ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { serviceHasRecordReader } from "./connector-record-actions.js";
-import type { IntegrationKind, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationKind, PluginConnectionCardDeclaration, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import type { IntegrationRegistry } from "./integration-registry.js";
@@ -39,7 +39,14 @@ function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: C
     ...(sourceAvailable === undefined ? {} : { source_available: sourceAvailable }),
     capabilities: declaration.capabilities.map(item => ({ ...item, label: word(item.label) })),
     ...(declaration.outbound_note === undefined ? {} : { outbound_note: word(declaration.outbound_note) }),
+    ...(declaration.card === undefined ? {} : { card: cardView(declaration.card, word) }),
   };
+}
+
+function cardView({ purpose, provider, client_note, credential, ...shape }: PluginConnectionCardDeclaration, word: ConnectorWordReader): ConnectorCardView {
+  return { ...shape, ...(purpose === undefined ? {} : { purpose: word(purpose) }), ...(provider === undefined ? {} : { provider: word(provider) }),
+    ...(client_note === undefined ? {} : { client_note: word(client_note) }),
+    ...(credential === undefined ? {} : { credential: { ...credential, fields: credential.fields.map(field => ({ ...field, label: word(field.label) })) } }) };
 }
 
 /** What the service's accounts can be used for, read from what is declared, in `CONNECTOR_USES` order (§13.7). */

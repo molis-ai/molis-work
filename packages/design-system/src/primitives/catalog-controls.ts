@@ -286,7 +286,7 @@ export function tabsSection(say: CatalogSay = resolveCatalogSay()): string {
   const ghost = renderButton({ label: say("workbench.context-toolbar.more"), variant: "ghost", icon: "more" });
   return section("tabs", "Tabs / Toolbar / Toggle / Collapsible / Combobox / Accordion / Pagination / Breadcrumb", `<div class="mw-catalog__specimens">${mark("tabs", specimen(escapeHtml(say("workbench.catalog-board.ds.ctrl-spec-tabs")), renderTabs({
       label: say("workbench.catalog-board.ds.ctrl-tabs-aria"),
-      tabs: [{ id: "overview", label: say("workbench.catalog-board.ds.ctrl-tab-overview"), selected: true }, { id: "schedule", label: say("workbench.catalog-board.ds.ctrl-tab-schedule") }],
+      tabs: [{ id: "overview", label: say("workbench.catalog-board.ds.ctrl-tab-overview"), selected: true }, { id: "agenda", label: say("workbench.catalog-board.ds.ctrl-tab-schedule") }],
     })))}${mark("toolbar", specimen(escapeHtml(say("workbench.catalog-board.ds.ctrl-spec-toolbar")), renderToolbar({ body: primary + ghost })))}${mark("toggle", specimen(escapeHtml(say("workbench.catalog-board.ds.ctrl-spec-toggle")), renderToggle({ label: say("workbench.catalog-board.ds.ctrl-toggle-pin"), pressed: true })))}${mark("toggle-group", specimen(escapeHtml(say("workbench.catalog-board.ds.ctrl-spec-toggle-group")), renderToggleGroup({
       label: say("workbench.catalog-board.ds.ctrl-view-legend"),
       items: [{ value: "list", label: say("workbench.catalog-board.ds.ctrl-view-list"), current: true }, { value: "board", label: say("workbench.catalog-board.ds.ctrl-view-board") }, { value: "canvas", label: say("workbench.catalog-board.ds.ctrl-view-canvas") }],

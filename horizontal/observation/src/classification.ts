@@ -11,7 +11,8 @@ export interface ClassificationShape {
   readonly operation?: string;
 }
 
-const FLOW_SERVICES = new Set(["workflows", "scheduler", "schedule", "connections"]);
+// The platform services whose records are flows; a plugin's are flows when its Manifest says so (`flowOwners`, 44C: no plugin is named here).
+const FLOW_SERVICES = new Set(["scheduler", "connections"]);
 
 /**
  * Map one stored record to its user-facing record kind (contract-design §16.1, docs/design/work-records/data.js):

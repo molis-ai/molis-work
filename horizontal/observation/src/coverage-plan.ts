@@ -20,8 +20,8 @@ const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "rep
 const SCHEDULE_ENTRY: ObservationEntry = "schedule";
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
-  // This covers the protected Goal source review (`goals.inputs.review_source`, `goals.inputs.review_change`),
-  // fixed Pages comparison (`pages.artifacts.diff`), Form-to-Dataset delivery (`placement.convert`, `dataset.content.receive`),
+  // This covers a plugin's protected source review and fixed-version comparison (each plugin registers its own rows), delivery between
+  // plugins (`placement.convert` and the receiving plugin's own action),
   // and dynamic Skill/Kit scene candidate reads and bindings (`kit.catalog.list`, `skills.kit.report`, `skills.catalog.list`,
   // `skills.import.preview`, `skills.import.confirm`, `skills.drafts.adopt`, `plugins.install.preview`), and signed package repair through the two protected settings actions
   // (`plugins.installed.repair`, `plugins.home.installed.repair`).

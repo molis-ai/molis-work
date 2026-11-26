@@ -1,10 +1,8 @@
 import { field, readsBack, type GoldenWriteContext } from "../fixtures/golden-write.ts";
 
-/** jelly/jelly.db */
+/** jelly/jelly.db: one note row, saved new and then changed at the revision it was read with (batch 112-2). */
 export default async function ({ call, tag }: GoldenWriteContext) {
-  const before = await call("jelly.workspace.get");
-  const created = await call("jelly.note.create", { expected_revision: field(before, "revision"), title: `金样便笺 ${tag}` });
-  const note = created.state.notes.find((item: { title: string }) => item.title === `金样便笺 ${tag}`);
-  await call("jelly.note.update", { id: note.id, patch: { title: `金样便笺 ${tag} 已改` }, expected_revision: created.state.revision });
-  readsBack(await call("jelly.workspace.get"), `金样便笺 ${tag} 已改`);
+  const created = field(await call("jelly.note.save", { expected_revision: 0, title: `金样便笺 ${tag}`, body: "" }), "note");
+  await call("jelly.note.save", { id: field(created, "id"), expected_revision: field(created, "revision"), title: `金样便笺 ${tag} 已改` });
+  readsBack(await call("jelly.note.list", {}), `金样便笺 ${tag} 已改`);
 }

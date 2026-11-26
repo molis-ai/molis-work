@@ -43,7 +43,6 @@ import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleHomePagesHttp } from "./home-pages-http.js";
 import { handleSearchHttp } from "./search-http.js";
-import { handleSessionsHttp } from "./sessions-http.js";
 import { isProjectOutputWorkspaceId } from "@molis-ai/molis-work-module-projects";
 import { handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { runningPluginTextIn } from "./running-plugin-text.js";
@@ -287,8 +286,6 @@ export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle
 export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSearchHttp(request, response, url, signal => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal })) },
-  { id: "sessions", handle: ({ request, response, url, localHost, hostReference }) =>
-    handleSessionsHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal }), true) },
   // The unified input's `+` sources (S-composer-source-call): every plugin's `composer_source`, as the person, in this project.
   { id: "composer-sources", handle: ({ request, response, url, store, localHost, hostReference }) =>
     handleComposerSourcesHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal }),
@@ -325,7 +322,7 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     && await handleContextualHttp(context.request, context.response, context.url, contextualPorts(context)) },
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost, hostReference }) => Boolean(serverOptions.homeDirectory)
     && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory!, {
-      actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
+      actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "functions:manage"]),
     }) },
 ];
 

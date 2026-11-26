@@ -49,7 +49,7 @@ test('Host exposes and transfers all registered creative collections through the
     const flow=s.create({title:'跨设备流程',chain:{stations:[newStation('pages'),newStation('inbox')],links:[manualLink()]}});
     return {id:flow.workflow_id,instance:s.startInstance(flow,{plugin:'pages',item_id:'source',title:'资料'}).instance_id};
   }finally{s.close();}})();
-  const jelly=(()=>{const s=openJellyStore(f.homes[0]);try{return s.execute({type:'note.create',title:'跨设备笔记',markdown:'同步内容'}).notes[0]!.id;}finally{s.close();}})();
+  const jelly=(()=>{const s=openJellyStore(f.homes[0]);try{const now=new Date().toISOString();return s.write(store=>store.insert('note',{id:'sync-note',title:'跨设备笔记',body:'同步内容',day:null,revision:1,created_at:now,updated_at:now})).id;}finally{s.close();}})();
   // Todo keeps a library in each partition since batch 108: this one is the project's.
   const todo=(()=>{const s=openTodoStore(f.homes[0],undefined,project.project_id);try{return s.create({title:'跨设备待办'},{projectId:null,projectIds:[],actor:'user',actorId:'alice'}).item.id;}finally{s.close();}})();
   const character=(()=>{const s=openCharacters(f.homes[0],LOCAL_PERSON_ACTOR_ID);try{
@@ -74,7 +74,7 @@ test('Host exposes and transfers all registered creative collections through the
     assert.throws(()=>received.assertExecutableInstance(workflow.instance),/仅可查看/);
   }finally{received.close();}
   const receivedJelly=openJellyStore(f.homes[1]);try{
-    assert.equal(receivedJelly.read().notes.find(note=>note.id===jelly)?.title,'跨设备笔记');
+    assert.equal(receivedJelly.read(store=>store.get('note',jelly))?.title,'跨设备笔记');
   }finally{receivedJelly.close();}
   const receivedTodo=openTodoStore(f.homes[1],undefined,project.project_id);try{
     assert.equal(receivedTodo.get(todo,{projectId:null,projectIds:[],actor:'user',actorId:'alice'}).title,'跨设备待办');

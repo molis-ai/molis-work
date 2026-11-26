@@ -208,7 +208,7 @@ test("STRIP-04: the landing is on the strip only while its object goes with the 
   const b = await openNotes(t, STEPS, "第二步");
   if (!b) return;
   const { evaluate, waitFor, model, asked, send } = b;
-  await b.child.evaluate(caretAfterSecond);
+  await b.child.evaluate(caretAfterSecond, undefined, "person");
   await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional")}))`, 10_000);
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -234,7 +234,7 @@ test("STRIP-05: a round is told the landing once its owner reads the object agai
   const b = await openNotes(t, STEPS, "第二步");
   if (!b) return;
   const { evaluate, waitFor, model, asked, send, page, homeDirectory, projectId } = b;
-  await b.child.evaluate(caretAfterSecond);
+  await b.child.evaluate(caretAfterSecond, undefined, "person");
   await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}))`, 10_000);
   await evaluate(`document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}).click()`);

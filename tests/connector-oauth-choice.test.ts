@@ -92,7 +92,7 @@ test("settings show the available method choices for Gmail, Notion, and Feishu",
     { connector_id: "feishu", title: "飞书", auth_kind: "feishu", group_id: "chat" },
   ] as const;
   const html = renderConnectorsSettings({ connectors: cards.map((card) => ({
-    ...card, method_options: HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === card.connector_id)!.method_options, availability: "live" as const, summary: card.title,
+    ...card, ...(({ method_options, card: declared }) => ({ method_options, card: declared }))(HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === card.connector_id)!), availability: "live" as const, summary: card.title,
   })) }, { L: (value) => value, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
   for (const marker of ["data-protocol-start=\"oauth\"", "data-connector-token=\"gmail\"", "data-connector-token=\"notion\"", "data-cli-login", 'data-connector-auth="feishu" data-credential-separator=":"']) assert.ok(html.includes(marker), marker);
   assert.match(html, /data-credential-part type="text"[^>]*placeholder="cli_…"/);

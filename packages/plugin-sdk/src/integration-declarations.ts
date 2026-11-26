@@ -15,8 +15,11 @@ const GROUPS = new Set(["mail", "files", "chat", "code", "work", "design", "crm"
 const AUTH_KINDS = new Set(["oauth", "feishu", "token", "none"]);
 const METHOD_KINDS = new Set(["oauth", "cli", "token", "mcp"]);
 const FULFILLMENTS = new Set(["live", "unfulfilled"]);
-const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins", "categories", "project_hints"]);
-const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
+const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins", "categories", "project_hints", "card"]);
+const CARD_FIELDS = new Set(["purpose", "provider", "preferred_method", "credential", "own_app", "client_note"]);
+const CREDENTIAL_FIELDS = new Set(["label", "type", "placeholder"]);
+const CREDENTIAL_TYPES = new Set(["text", "email", "url", "password"]);
+const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "title", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
 export function integrationDeclarationProblems(manifest: { kind?: unknown; plugin_id?: unknown; ui?: { locales?: unknown }; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
@@ -44,7 +47,7 @@ export function integrationDeclarationProblems(manifest: { kind?: unknown; plugi
     if (!Array.isArray(integrations) || integrations.length === 0) problems.push("integrations 必须是至少一项的数组");
     else {
       const seen = new Set<string>();
-      for (const integration of integrations) problems.push(...integrationProblems(integration, serviceIds, seen));
+      for (const integration of integrations) problems.push(...integrationProblems(integration, serviceIds, seen, word));
     }
   }
   return problems;
@@ -74,6 +77,36 @@ function serviceProblems(value: unknown, seen: Set<string>, word: WordCheck): st
   if (value.origins !== undefined) problems.push(...originProblems(id, value.origins));
   if (value.categories !== undefined) problems.push(...categoryProblems(id, value.categories));
   if (value.project_hints !== undefined) problems.push(...projectHintProblems(id, value.project_hints));
+  if (value.card !== undefined) problems.push(...cardProblems(id, value.card, value.auth, word));
+  return problems;
+}
+
+/** What a card says beyond the shared shape; what it prefers or asks for is of a way the service declares. */
+function cardProblems(id: string, value: unknown, auth: unknown, word: WordCheck): string[] {
+  if (!isRecord(value) || Object.keys(value).length === 0) return [`连接服务 ${id} 的 card 必须是至少一项的对象`];
+  const problems: string[] = [];
+  const unknown = Object.keys(value).filter(field => !CARD_FIELDS.has(field));
+  if (unknown.length > 0) problems.push(`连接服务 ${id} 的 card 不认这些字段：${unknown.join("、")}`);
+  for (const field of ["purpose", "provider", "client_note"] as const) {
+    if (value[field] !== undefined && !word(value[field])) problems.push(`连接服务 ${id} 的 card.${field} 要写原文、通用键或本插件的无参键`);
+  }
+  const methods = isRecord(auth) && Array.isArray(auth.methods) ? auth.methods.flatMap(method => isRecord(method) ? [method.kind] : []) : [];
+  const preferred = value.preferred_method;
+  // A client is the Host's fixed table and may stand without a declared `cli` method.
+  if (preferred !== undefined && preferred !== "cli" && (preferred !== "mcp" && preferred !== "token" || !methods.includes(preferred))) {
+    problems.push(`连接服务 ${id} 的 card.preferred_method 必须是 cli，或本服务声明过的 mcp、token`);
+  }
+  if (value.own_app !== undefined && value.own_app !== true) problems.push(`连接服务 ${id} 的 card.own_app 只可写 true`);
+  if (value.credential !== undefined) {
+    const credential = value.credential;
+    if (!methods.includes("token")) problems.push(`连接服务 ${id} 没有 token 接入方式，不能写 card.credential`);
+    if (!isRecord(credential) || Object.keys(credential).some(key => key !== "separator" && key !== "fields") || credential.separator !== ":" && credential.separator !== "|"
+      || !Array.isArray(credential.fields) || credential.fields.length < 2 || credential.fields.length > 4) problems.push(`连接服务 ${id} 的 card.credential 必须是 { separator: ":" 或 "|", fields: 2 到 4 项 }`);
+    else if (credential.fields.some(field => !isRecord(field) || Object.keys(field).some(key => !CREDENTIAL_FIELDS.has(key)) || !word(field.label)
+      || typeof field.type !== "string" || !CREDENTIAL_TYPES.has(field.type) || field.placeholder !== undefined && !text(field.placeholder))) {
+      problems.push(`连接服务 ${id} 的 card.credential 每项要有 label 和 type（text、email、url、password），placeholder 是非空原文`);
+    }
+  }
   return problems;
 }
 
@@ -200,7 +233,7 @@ function linkProblems(id: string, value: unknown, word: WordCheck): string[] {
   return bad ? [`连接服务 ${id} 的 setup_links 每项要有 label 和 https 地址`] : [];
 }
 
-function integrationProblems(value: unknown, serviceIds: ReadonlySet<string>, seen: Set<string>): string[] {
+function integrationProblems(value: unknown, serviceIds: ReadonlySet<string>, seen: Set<string>, word: WordCheck): string[] {
   if (!isRecord(value) || typeof value.integration_id !== "string" || !INTEGRATION_ID.test(value.integration_id)) {
     return ["集成的 integration_id 必须是小写字母开头、只含小写字母、数字和连字符、至多 64 个字符的名字"];
   }
@@ -220,10 +253,12 @@ function integrationProblems(value: unknown, serviceIds: ReadonlySet<string>, se
   const documentSource = value.document_source;
   if (value.kind === "document_import") {
     if (typeof documentSource !== "string" || !DOCUMENT_SOURCE.test(documentSource)) problems.push(`文档导入集成 ${id} 要写 document_source`);
+    if (value.title !== undefined && !word(value.title)) problems.push(`文档导入集成 ${id} 的 title 要写原文、通用键或本插件的无参键`);
     problems.push(...connectionMethodProblems(id, value.connection_methods));
   } else {
     if (documentSource !== undefined) problems.push(`集成 ${id} 只有文档导入才写 document_source`);
     if (value.connection_methods !== undefined) problems.push(`集成 ${id} 只有文档导入才写 connection_methods`);
+    if (value.title !== undefined) problems.push(`集成 ${id} 只有文档导入才写 title`);
   }
   return problems;
 }

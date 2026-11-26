@@ -123,8 +123,8 @@ export interface AgentEndingReviewDeclaration {
 /**
  * Scene names (BL-b44-coding-scene-enum). The platform names only its own: `assistant` (the Assistant), `common` (what every
  * scene also reads) and `agent` (a plugin Agent with no scene of its own); `both` is the Skills word for the Assistant together with
- * every plugin scene. A plugin names its own scene on its Manifest (`memory_scene`) with a short lowercase name — Coding declares
- * `coding` — and memory classification and Skills both use it. Plugins that declare the same name share that scene.
+ * every plugin scene. A plugin names its own scene on its Manifest (`memory_scene`) with a short lowercase name — a coding plugin might
+ * declare `code` — and memory classification and Skills both use it. Plugins that declare the same name share that scene.
  */
 export const PLATFORM_SCENE_NAMES = ["assistant", "common", "agent", "both"] as const;
 export const SCENE_NAME_PATTERN = "^[a-z][a-z0-9-]{0,39}$";
@@ -133,7 +133,7 @@ const SCENE_NAME = new RegExp(SCENE_NAME_PATTERN, "u");
 export const isPluginSceneName = (value: unknown): value is string =>
   typeof value === "string" && SCENE_NAME.test(value) && !(PLATFORM_SCENE_NAMES as readonly string[]).includes(value);
 
-/** Who may pick a method a Plugin offers to others (Manifest `methods`): `assistant`, `both`, or one plugin scene (Coding's `coding`). */
+/** Who may pick a method a Plugin offers to others (Manifest `methods`): `assistant`, `both`, or one plugin scene (a plugin's declared `memory_scene`). */
 export type SkillAppliesTo = string;
 export const isSkillAppliesTo = (value: unknown): value is SkillAppliesTo => value === "assistant" || value === "both" || isPluginSceneName(value);
 /** One plugin scene name as a schema: well formed and none of the platform's reserved names. */

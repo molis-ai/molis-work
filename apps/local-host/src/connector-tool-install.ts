@@ -1,5 +1,5 @@
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
-import { installGraphConnectorTool } from "./connector-powershell.js";
+import { installPowerShellModule } from "./connector-powershell.js";
 import { installNativeConnectorTool } from "./connector-native-install.js";
 import { randomUUID } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statfsSync, writeFileSync } from "node:fs";
@@ -62,7 +62,7 @@ export async function installManagedConnectorTool(home: string, input: ManagedTo
     writeFileSync(join(directory, "installation.json"), JSON.stringify({ id, source, created_at: new Date().toISOString() }), { mode: 0o600, flag: "wx" });
     control.onPrepared?.(id);
     const env = packageEnvironment(home, directory);
-    const launch = source.kind === "powershell" ? await installGraphConnectorTool(home, source, directory, env, control) : source.kind === "native" ? await installNativeConnectorTool(source, directory, control) : source.kind === "npm" ? await installNpm(home, source, directory, env, control) : await installPython(home, source, directory, env, control);
+    const launch = source.kind === "powershell" ? await installPowerShellModule(home, source, directory, env, control) : source.kind === "native" ? await installNativeConnectorTool(source, directory, control) : source.kind === "npm" ? await installNpm(home, source, directory, env, control) : await installPython(home, source, directory, env, control);
     let executable: string;
     try { executable = realpathSync(launch.executable); }
     catch { throw toolInstallErrors.failed("安装的包没有提供所选命令，请核对包的启动说明"); }

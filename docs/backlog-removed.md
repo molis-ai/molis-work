@@ -7,6 +7,8 @@
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
 | BL-sdk-home-aggregate-query-export | 已完成并删除 | 2026-11-26：第 108 批（V17）删除首页聚合与 `home_aggregate` 标记，SDK 不再导出 `isHomeAggregateQuery`；接替它的 `isProjectReadQuery` 是项目面板与事项线（`horizontal/mainline`）共用的只读项目查询判定，随 SDK 根入口导出（[108](../specs/post-anticorruption-roadmap/reference/batches/108.md)） |
+| BL-122 | 不再适用并删除 | 2026-11-26：它要把 `jelly-whisper` 的 SwiftPM 包构建改成挡合并；第 112-1 批连根删除了 `jelly-whisper`（WhisperKit、626 MB 语音模型下载链）和 CI 里那一步 `continue-on-error`，Swift 检查只剩挡合并的类型检查（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |
+| BL-398 | 不再适用并删除 | 2026-11-26：关对话框停不下本机语音模型的下载与转写；第 112-1 批删除了本机转写与模型下载，音视频导入只保存原件，这条下载不再存在（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |
 | BL-639 | 不再适用并删除 | 2026-11-25：它问的是 `databases.home` 按项目拆的分区库升级后怎么办；第 107 批删掉了那个复用器，分区库改为每个分区一份 `databases.partition`，版本按库声明的一份现行结构开（[107](../specs/post-anticorruption-roadmap/reference/batches/107.md)） |
 | BL-1055 | 已完成并删除 | SDK 与设计系统共用折叠组件，Images、Goals 已接入，Files 旧面板随 #2009 退役。[SCF-01](../specs/archive/shared-ui-folds/spec.md#验收标准) |
 | BL-1061 | 已完成并删除 | 连接行、原处连接卡和设计系统的自然高度折叠共用选择器函数。[SCF-02](../specs/archive/shared-ui-folds/spec.md#验收标准) |
@@ -128,6 +130,7 @@
 | BL-ui-client-scope-watch-revision | 已完成并删除 | 2026-11-23，公开 `UiClientScope` 补上宿主已有的 `watchRevision` 签名，Git、Coding、Schedule 共用。见 [SCC-01](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-artifact-sdk-handler-binding | 已完成并删除 | 2026-11-23，成果 SDK 的八个动作按现行 schema 推导输入并共用 `bindActionHandler`，Shelf 直接使用平台给的可消费列表。见 [SCC-02、SCC-03](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-coding-changeset-view-shared | 已完成并删除 | 2026-11-23，Coding 和 Diff 通过 SDK `/diff-view` 的 `compareCodingChangeSet` 读取固定变更视图。见 [SCC-04](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
+| BL-b47-prompt-register-newest-fallback | 已修复并删除 | 2026-11-26，同一签名插件跨项目运行时登记在用的最高版。新版退出后恢复旧版默认文字和条目，保留用户改动。旧版无声明时清空登记。最后一个实例停用后可继续编辑，卸载后清除。见[签名包回归](../tests/generated-plugin-prompt-binding.test.ts)和[纯内容包回归](../tests/prompt-registration.test.ts)。 |
 
 其余在 git 历史中曾经出现、后来随事项完成或总表迁移删除的编号，按同一规则处理：先查对应 PR/提交，不为历史编号新建文件，也不复用编号。
 

@@ -85,7 +85,7 @@ const isKind = (value: string): value is ProjectGuidanceKind => (PROJECT_GUIDANC
 export const projectGuidanceContentHash = (content: string) => createHash("sha256").update(content).digest("hex");
 /**
  * A row's source refs. Every read projects the table's rowid as `stored_row`, so a broken cell is pointed at without its text or business
- * key; it stops the read (`projects.guidance.record_unreadable`, as Goals' `goals.storage.record_unreadable` did) rather than reading as none.
+ * key; it stops the read (`projects.guidance.record_unreadable`) rather than reading as none.
  */
 const refs = (row: Row, table: string): string[] => {
   try {

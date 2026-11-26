@@ -54,7 +54,7 @@ test("BL-491 RAC-2631 the derived names are 32 hex digits of the installation id
 test("BL-491 RAC-2631 a declaration that names the provider id or the image store the Host derives for a package is refused where it is used", () => {
   const manifest = sandboxPluginManifest({ pluginId: OTHER, version: "1.0.0", name: "declares", publisher: { publisher_id: "example", signature: "probe-declares" }, presentation: false, runtime: { scope: "home" }, effects: { model: ["invoke"] } });
   const definition: PluginDefinition = { manifest, async start() { return { kind: "app", views: [], actions: [] }; } };
-  const context: PluginStartContext = { install_id: "declares", installation_generation: "1", plugin_id: OTHER, version: "1.0.0", deployment: "local", grants: [], requireGrant: () => {} };
+  const context: PluginStartContext = { install_id: "declares", installation_generation: "1", provider_id: "declares", plugin_id: OTHER, version: "1.0.0", deployment: "local", grants: [], requireGrant: () => {} };
   const home = { directory: tmpdir() };
   assert.throws(() => pluginModelFor(home, definition, context, () => {}, { preference: { store_name: "declares-model", file_name: "preference.json" }, custom_provider: { provider_id: sandboxProviderId(OTHER_INSTALL), display_name: "x" } }),
     refused("host.model_configuration_invalid"), "the provider id of a package's own provider");
@@ -80,7 +80,7 @@ async function rig(t: test.TestContext) {
     runtime: { scope: "home" }, effects: { model: ["invoke"], imageGeneration: ["read", "bind", "generate"] } });
   const definition: PluginDefinition = { manifest, execution: "sandbox", async start() { return { kind: "app", views: [], actions: [] }; } };
   const grants = manifest.permissions.map(entry => entry.permission);
-  const context: PluginStartContext = { install_id: "image-port", installation_generation: "1", plugin_id: PLUGIN, version: "1.0.0", deployment: "local", grants, requireGrant: () => {} };
+  const context: PluginStartContext = { install_id: "image-port", installation_generation: "1", provider_id: "image-port", plugin_id: PLUGIN, version: "1.0.0", deployment: "local", grants, requireGrant: () => {} };
   const client = sandboxImageGenerationFor({ directory: home }, definition, context, () => {});
   assert.ok(client, "a package that derived the image rows is given the client");
   const account = (name: string, pinned?: string) => {

@@ -6,11 +6,10 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
  * The text extractor's error codes, every one `material.<reason>`. The kind is the sort of failure; the Host's edges turn it into the status
  * (plugin SDK `actionHttpStatus`), so the extractor keeps no status of its own. A refusal of the person's file or link is `invalid`
  * (before: 400, or 415 and 422, which have no kind), what the file or page holds too much of is `too_large`, a helper that failed or timed
- * out is `upstream`, the speech model that has to be downloaded first is `conflict`, and a native helper that is not built is `unavailable`.
- * The native helpers (Swift) name their refusals in the same words, so what they report is looked up here by reason (`materialFailure`).
+ * out is `upstream`, and a native helper that is not built is `unavailable`.
+ * The native helper (Swift) names its refusals in the same words, so what they report is looked up here by reason (`materialFailure`).
  */
 export const materialErrors = defineErrorCodes("material", {
-  audio_extraction_failed: "invalid",
   cancelled: "cancelled",
   empty: "invalid",
   empty_pdf: "invalid",
@@ -22,24 +21,18 @@ export const materialErrors = defineErrorCodes("material", {
   insufficient_content: "invalid",
   invalid_arguments: "invalid",
   invalid_data: "invalid",
-  invalid_download_choice: "invalid",
   invalid_document: "invalid",
   invalid_file: "invalid",
   invalid_image: "invalid",
   invalid_limits: "invalid",
-  invalid_media: "invalid",
   invalid_pdf: "invalid",
   invalid_result: "upstream",
   locked_pdf: "invalid",
-  model_download_failed: "invalid",
-  model_required: "conflict",
   native_unavailable: "unavailable",
   output_too_large: "too_large",
   redirect: "invalid",
   timeout: "upstream",
   too_large: "too_large",
-  transcription_failed: "invalid",
-  unsafe_storage: "internal",
   unsupported: "invalid",
   unsupported_language: "invalid",
   url: "invalid",

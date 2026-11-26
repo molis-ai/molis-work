@@ -31,6 +31,7 @@
       "auth_kind": "github",
       "categories": ["source-control", "project-tracker"],
       "project_hints": { "git_hosts": ["github.com"], "files": [".github/"] },
+      "card": { "purpose": { "key": "github.connection.purpose" } },
       "auth": {
         "methods": [
           {

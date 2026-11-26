@@ -4,7 +4,6 @@ import { catalogInlinePageText } from "./platform-languages.js";
 import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
 import { escapeHtml, icon, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { builtinPluginDirectory } from "./plugin-catalog.js";
 import { WORK_LINE_FRAME_STYLES, renderWorkLineSpecimens, workLineSpecimenTitle } from "./work-line-specimens.js";
 import {
   THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram,
@@ -23,15 +22,15 @@ import {
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 type Plugin = { readonly glyph: PluginIconName; readonly hue: string }
-  & ({ readonly name: string } | { readonly nameKey: string } | { readonly catalog: true });
-/** Sample plugins with the glyph and hue their Manifests declare (the prototype's sample project). */
+  & ({ readonly name: string } | { readonly nameKey: string });
+/** Sample plugins with a glyph and a hue as a Manifest declares them. They are made up (44C, D8=A): the board names no real plugin. */
 const P = {
-  goals: { name: "Goals", glyph: "target", hue: "blue" }, pages: { name: "Pages", glyph: "note", hue: "cyan" },
-  coding: { name: "Coding", glyph: "code", hue: "purple" }, feed: { name: "Feed", glyph: "rss", hue: "brown" },
-  talk: { nameKey: "workbench.side-panel-tab.discussion", glyph: "message", hue: "steel" }, lingguang: { catalog: true, glyph: "idea", hue: "yellow" },
+  roadmap: { name: "Roadmap", glyph: "target", hue: "blue" }, notebook: { name: "Notebook", glyph: "note", hue: "cyan" },
+  workshop: { name: "Workshop", glyph: "code", hue: "purple" }, digest: { name: "Digest", glyph: "rss", hue: "brown" },
+  talk: { nameKey: "workbench.side-panel-tab.discussion", glyph: "message", hue: "steel" }, spark: { name: "Spark", glyph: "idea", hue: "yellow" },
   shelf: { name: "Shelf", glyph: "library", hue: "slate" }, materials: { nameKey: "workbench.side-panel-tab.materials", glyph: "folder-tree", hue: "gray" },
-  tasks: { nameKey: "workbench.side-panel-tab.background-tasks", glyph: "activity", hue: "gray" }, jelly: { name: "Jelly", glyph: "calendar", hue: "mint" },
-  todo: { catalog: true, glyph: "list", hue: "green" }, cognia: { name: "Cognia", glyph: "book", hue: "blue" },
+  tasks: { nameKey: "workbench.side-panel-tab.background-tasks", glyph: "activity", hue: "gray" }, agenda: { name: "Agenda", glyph: "calendar", hue: "mint" },
+  checklist: { name: "Checklist", glyph: "list", hue: "green" }, reader: { name: "Reader", glyph: "book", hue: "blue" },
   receipts: { nameKey: "workbench.navigation-specimens.receipts", glyph: "package", hue: "gray" },
 } as const satisfies Record<string, Plugin>;
 type PluginId = keyof typeof P;
@@ -39,8 +38,7 @@ type PluginId = keyof typeof P;
 function pluginName(id: PluginId): string {
   const plugin = P[id];
   if ("name" in plugin) return plugin.name;
-  if ("nameKey" in plugin) return uiText.text(plugin.nameKey);
-  return builtinPluginDirectory().find(entry => entry.id === id)?.name ?? id;
+  return uiText.text(plugin.nameKey);
 }
 
 const hueVars = (hue: string) => `--group-color:var(--hue-${hue});--group-fill:var(--hue-${hue}-fill)`;
@@ -92,11 +90,11 @@ const sample = (_L: Say) => ({
 function mainTabs(readText: Say, state: "ok" | "wrong" = "ok"): string {
   const r = sample(readText);
   const goals = state === "wrong"
-    ? group(readText, "goals", [{ label: r.goal1, current: true }, { label: r.goal2, gone: true, readerLabel: `${r.goal2} · ${uiText.text("workbench.navigation-specimens.goal-no-longer-here")}` }])
-    : group(readText, "goals", [{ label: r.goal1, current: true }, { label: r.goal2 }]);
-  const pages = group(readText, "pages", [{ label: r.doc1 }, { label: r.doc2 }]);
+    ? group(readText, "roadmap", [{ label: r.goal1, current: true }, { label: r.goal2, gone: true, readerLabel: `${r.goal2} · ${uiText.text("workbench.navigation-specimens.goal-no-longer-here")}` }])
+    : group(readText, "roadmap", [{ label: r.goal1, current: true }, { label: r.goal2 }]);
+  const pages = group(readText, "notebook", [{ label: r.doc1 }, { label: r.doc2 }]);
   const last = state === "wrong"
-    ? group(readText, "feed", [{ label: r.feed1 }], { removed: true })
+    ? group(readText, "digest", [{ label: r.feed1 }], { removed: true })
     : personGroup(readText, r.launch, "orange", tab(readText, { label: r.ppt1, glyph: "presentation" }) + tab(readText, { label: r.code1, glyph: "code" }));
   return goals + (state === "wrong" ? "" : pages) + last;
 }
@@ -113,7 +111,7 @@ function allTabsMenu(readText: Say, id: string, hidden = false): string {
   const section = (pid: PluginId, rows: readonly [string, boolean?][]) => renderMenuGroup({ label: `${pluginName(pid)} · ${rows.length === 1 ? uiText.text("workbench.navigation-specimens.value-1-tab") : uiText.text("workbench.navigation-specimens.n-n", { n: rows.length })}`, items: rows.map(([label, current]) => renderMenuItem({ label, iconName: P[pid].glyph, attrs: current ? { "aria-current": "true" } : {} })).join("") })
     .replace('class="mw-menu__label" aria-hidden="true">', `class="mw-menu__label" aria-hidden="true"><span class="tab-menu-dot" style="${hueVars(P[pid].hue)}"></span>`).replace('class="mw-menu__group"', `class="mw-menu__group" style="${hueVars(P[pid].hue)}"`);
   return `<div class="mw-menu tab-menu" id="${id}" data-nav-popover${hidden ? " hidden" : ""}>${find(uiText.text("workbench.navigation-specimens.find-tab"))}<div role="menu" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.all-tabs"))}">`
-    + section("goals", [["Goals"], [r.goal1, true], [r.goal2]]) + section("pages", [["Pages"], [r.doc1], [r.doc2]]) + section("coding", [["Coding"], [r.code1]]) + `</div></div>`;
+    + section("roadmap", [["Roadmap"], [r.goal1, true], [r.goal2]]) + section("notebook", [["Notebook"], [r.doc1], [r.doc2]]) + section("workshop", [["Workshop"], [r.code1]]) + `</div></div>`;
 }
 
 function allTabsButton(_L: Say, controls: string, open: boolean, phoneOnly = false): string {
@@ -130,9 +128,9 @@ function plusRow(_readText: Say, pid: PluginId, where = "", warn = false): strin
 function plusMenu(readText: Say, id: string, hidden = false, wrong = false): string {
   const label = (text: string, items: string) => renderMenuGroup({ label: text, items });
   return `<div class="mw-menu tab-menu" id="${id}" data-nav-popover${hidden ? " hidden" : ""}>${find(uiText.text("workbench.navigation-specimens.find-plugin-tab-just-closed"))}<div role="menu" aria-label="${escapeHtml(uiText.text("common.control.open"))}">`
-    + label(uiText.text("workbench.navigation-specimens.project"), plusRow(readText, "goals", uiText.text("workbench.navigation-specimens.pane")) + plusRow(readText, "pages", uiText.text("workbench.navigation-specimens.pane")) + plusRow(readText, "coding") + plusRow(readText, "talk", uiText.text("workbench.navigation-specimens.right")))
-    + label(uiText.text("workbench.navigation-specimens.personal-every-project"), plusRow(readText, "jelly") + plusRow(readText, "todo") + plusRow(readText, "cognia") + (wrong ? plusRow(readText, "receipts", "", true) : ""))
-    + label(uiText.text("workbench.navigation-specimens.recently-closed"), renderMenuItem({ label: sample(readText).feed1, iconName: "rss", shortcut: "⌘⇧T", attrs: { style: hueVars(P.feed.hue) } }))
+    + label(uiText.text("workbench.navigation-specimens.project"), plusRow(readText, "roadmap", uiText.text("workbench.navigation-specimens.pane")) + plusRow(readText, "notebook", uiText.text("workbench.navigation-specimens.pane")) + plusRow(readText, "workshop") + plusRow(readText, "talk", uiText.text("workbench.navigation-specimens.right")))
+    + label(uiText.text("workbench.navigation-specimens.personal-every-project"), plusRow(readText, "agenda") + plusRow(readText, "checklist") + plusRow(readText, "reader") + (wrong ? plusRow(readText, "receipts", "", true) : ""))
+    + label(uiText.text("workbench.navigation-specimens.recently-closed"), renderMenuItem({ label: sample(readText).feed1, iconName: "rss", shortcut: "⌘⇧T", attrs: { style: hueVars(P.digest.hue) } }))
     + `</div><p class="tab-menu-foot" aria-hidden="true">${escapeHtml(uiText.text("workbench.navigation-specimens.opens-here-opens-beside"))}</p></div>`;
 }
 
@@ -157,7 +155,7 @@ function layoutButton(_L: Say, controls: string, open: boolean): string {
 
 /** The right side's glyphs: its tabs against the right edge, background tasks with what is unfinished. */
 function sideGlyphs(readText: Say, options: { current?: PluginId; grown?: PluginId; asTabs?: boolean } = {}): string {
-  const ids: PluginId[] = ["talk", "lingguang", "shelf", "materials", "tasks"];
+  const ids: PluginId[] = ["talk", "spark", "shelf", "materials", "tasks"];
   const tabs = ids.map((id) => {
     const name = pluginName(id), badge = id === "tasks" ? 2 : 0;
     return tab(readText, { label: name, glyph: P[id].glyph, head: true, glyphOnly: true, current: options.current === id, grown: options.grown === id, badge, readerLabel: badge ? `${name} · ${uiText.text("workbench.navigation-specimens.n-background-n-not-finished", { n: badge })}` : name });
@@ -179,7 +177,7 @@ function sideEar(id: PluginId, list: string, open: boolean): string {
 
 /** The side's views as the list that drops from its tab: every one with its glyph and its name (side-panel.ts, menu). */
 function sideViews(readText: Say, id: string, current: PluginId, hidden: boolean): string {
-  const ids: PluginId[] = ["talk", "lingguang", "shelf", "materials", "tasks"];
+  const ids: PluginId[] = ["talk", "spark", "shelf", "materials", "tasks"];
   const rows = ids.map((view) => {
     const name = pluginName(view), badge = view === "tasks" ? 2 : 0;
     return tab(readText, { label: name, glyph: P[view].glyph, head: true, current: view === current, ear: false, badge, readerLabel: badge ? `${name} · ${uiText.text("workbench.navigation-specimens.n-background-n-not-finished", { n: badge })}` : name });
@@ -189,8 +187,8 @@ function sideViews(readText: Say, id: string, current: PluginId, hidden: boolean
 
 /** The way back after closing Feed's group, at the end of the strip (the product's `.tab-undo-chip`). */
 function undoChip(_L: Say): string {
-  const label = uiText.text("workbench.navigation-specimens.reopen-plugin", { plugin: "Feed" });
-  return `<button type="button" class="tab-undo-chip" data-nav-undo data-reopened="${escapeHtml(uiText.text("workbench.navigation-specimens.reopened-plugin", { plugin: "Feed" }))}" style="${hueVars(P.feed.hue)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)} (⌘⇧T)">${icon("undo")}<span>${escapeHtml(label)}</span></button>`;
+  const label = uiText.text("workbench.navigation-specimens.reopen-plugin", { plugin: "Digest" });
+  return `<button type="button" class="tab-undo-chip" data-nav-undo data-reopened="${escapeHtml(uiText.text("workbench.navigation-specimens.reopened-plugin", { plugin: "Digest" }))}" style="${hueVars(P.digest.hue)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)} (⌘⇧T)">${icon("undo")}<span>${escapeHtml(label)}</span></button>`;
 }
 
 /** The first place, 「项目 › 项目主页」 with ⌂ in it (settings-navigation.ts renderProjectCorner; §4「底栏第十三版」第 1 条): the
@@ -230,13 +228,13 @@ function partSpecimens(readText: Say): string {
   // A split, in the product's panes (tab-workspace.ts): each sheet carries its own strip, and its current tab is an ear on it.
   const pane = (stripHtml: string, focused: boolean) => `<section class="tab-pane${focused ? " is-focused" : ""}">${stripHtml}<div class="tab-pane-body mw-navs__sheet"></div></section>`;
   const unfocused = specimen("unfocused", "2", uiText.text("workbench.navigation-specimens.current-tab-pane-without-focus"), uiText.text("workbench.navigation-specimens.focused-pane-s-ear-has-accent-line"),
-    `<div class="tab-workspace mw-navs__split" data-split><div class="tab-workspace-panes">${pane(strip(uiText.text("workbench.navigation-specimens.pane-1-tabs"), group(readText, "goals", [{ label: r.goal1, current: true }])), true)}${pane(strip(uiText.text("workbench.navigation-specimens.pane-2-tabs"), group(readText, "pages", [{ label: r.doc1, current: true }]) + tab(readText, { label: r.code1, glyph: "code" }), { unfocused: true }), false)}</div></div>`);
+    `<div class="tab-workspace mw-navs__split" data-split><div class="tab-workspace-panes">${pane(strip(uiText.text("workbench.navigation-specimens.pane-1-tabs"), group(readText, "roadmap", [{ label: r.goal1, current: true }])), true)}${pane(strip(uiText.text("workbench.navigation-specimens.pane-2-tabs"), group(readText, "notebook", [{ label: r.doc1, current: true }]) + tab(readText, { label: r.code1, glyph: "code" }), { unfocused: true }), false)}</div></div>`);
   const overflow = specimen("all-tabs", "3", uiText.text("workbench.navigation-specimens.all-tabs-button-its-list"), uiText.text("workbench.navigation-specimens.appears-end-strip-only-when-tabs-don-t"),
     `<div class="mw-navs__narrow">${strip(uiText.text("workbench.navigation-specimens.main-tabs"), mainTabs(readText), { end: allTabsButton(readText, "nav-all-open", true) })}</div>${allTabsMenu(readText, "nav-all-open")}`);
   const undo = specimen("undo", "6", uiText.text("workbench.navigation-specimens.undo-chip"), uiText.text("workbench.navigation-specimens.after-group-closes-stays-six-seconds-group-s"),
     `<div class="mw-navs__narrow">${strip(uiText.text("workbench.navigation-specimens.main-tabs"), mainTabs(readText), { end: undoChip(readText) })}</div><p class="mw-navs__live" role="status" data-nav-live></p>`);
   const solo = specimen("solo", "7", uiText.text("workbench.navigation-specimens.one-pane-chip"), uiText.text("workbench.navigation-specimens.one-pane-shown-others-hidden-press-again-bring"),
-    strip(uiText.text("workbench.navigation-specimens.main-tabs"), group(readText, "goals", [{ label: r.goal1, current: true }]), { end: `<button type="button" class="tab-strip-button tab-solo-chip">${icon("maximize")}<span>${escapeHtml(uiText.text("workbench.navigation-specimens.one-pane-show-all"))}</span></button>` }));
+    strip(uiText.text("workbench.navigation-specimens.main-tabs"), group(readText, "roadmap", [{ label: r.goal1, current: true }]), { end: `<button type="button" class="tab-strip-button tab-solo-chip">${icon("maximize")}<span>${escapeHtml(uiText.text("workbench.navigation-specimens.one-pane-show-all"))}</span></button>` }));
   const plus = specimen("plus", "8", uiText.text("workbench.navigation-specimens.rows-menu"), uiText.text("workbench.navigation-specimens.only-opens-things-what-already-open-says-which"),
     `<div class="mw-navs__row">${plusButton(readText, "nav-plus-open", true)}</div>${plusMenu(readText, "nav-plus-open", false, true)}`);
   const marks = specimen("marks", "9", uiText.text("workbench.navigation-specimens.marks-tab-when-something-wrong"), uiText.text("workbench.navigation-specimens.struck-through-record-gone-amber-point-didn-t"),
@@ -245,7 +243,7 @@ function partSpecimens(readText: Say): string {
   const side = specimen("side", "10", uiText.text("workbench.navigation-specimens.side-sheet-s-tab-its-list"), uiText.text("workbench.navigation-specimens.side-sheet-names-view-it-shows-list"),
     `<header class="workbench-header immersive-titlebar mw-navs__side" data-dock>${sideEar("shelf", "nav-side-open", true)}${sideViews(readText, "nav-side-open", "shelf", false)}<span class="titlebar-layout">${sideSwitch(true)}</span></header>`);
   const grow = specimen("grow", "12", uiText.text("workbench.navigation-specimens.glyph-tabs-that-widen-place"), uiText.text("workbench.navigation-specimens.rest-about-0-14s-move-keyboard-widens-place"),
-    `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(readText, { current: "talk", grown: "shelf" })}</div><div class="mw-navs__row">${strip(uiText.text("workbench.navigation-specimens.main-tabs"), tab(readText, { label: r.doc1, glyph: "note", pinned: true, glyphOnly: true, grown: true }) + group(readText, "goals", [{ label: r.goal1, current: true }]))}</div>`);
+    `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(readText, { current: "talk", grown: "shelf" })}</div><div class="mw-navs__row">${strip(uiText.text("workbench.navigation-specimens.main-tabs"), tab(readText, { label: r.doc1, glyph: "note", pinned: true, glyphOnly: true, grown: true }) + group(readText, "roadmap", [{ label: r.goal1, current: true }]))}</div>`);
   const badge = specimen("badge", "13", uiText.text("workbench.navigation-specimens.count-badge"), uiText.text("workbench.navigation-specimens.how-many-background-tasks-unfinished-their-glyph-screen"), `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(readText)}</div>`);
   const layout = specimen("layout", "14", uiText.text("workbench.navigation-specimens.layout-button-titlebar-s-end"), uiText.text("workbench.navigation-specimens.side-switch-and-layout-after-hairline"),
     `<div class="mw-navs__row mw-navs__row--end"><span class="titlebar-layout">${sideSwitch(false)}${layoutButton(readText, "nav-layout-open", true)}</span></div><div class="mw-navs__row mw-navs__row--end">${layoutMenu(readText, "nav-layout-open")}</div>`);

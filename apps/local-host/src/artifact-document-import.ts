@@ -2,11 +2,11 @@ import type { IncomingMessage } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { readOriginalText } from "./artifact-original-text.js";
 import { readMaterialHtml } from "./material-extraction.js";
-import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { builtinDocumentDriver } from "./builtin-drivers.js";
 import {
   DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
-  type ArtifactDocumentImportPorts, type OfferedOriginal,
+  type ArtifactDocumentImportPorts, type ArtifactDocumentSourceOffer, type OfferedOriginal,
 } from "@molis-ai/molis-work-module-artifacts";
 import { resolveConfiguredHome } from "./product-home.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
@@ -40,6 +40,15 @@ export async function documentImports(home: string): Promise<Record<string, { se
     { service: entry.declaration.service_id, methods: entry.declaration.connection_methods ?? [] }]));
 }
 
+/** The sources a person can pick, with the name each was declared with: its own, or its service's. */
+export async function documentImportOffers(home = resolveConfiguredHome()): Promise<ArtifactDocumentSourceOffer[]> {
+  const registry = await homeIntegrationRegistry(home), services = registry.connectionServices();
+  return registry.listIntegrations("document_import").flatMap(({ declaration }) => {
+    const service = services.find(item => item.declaration.service_id === declaration.service_id);
+    return service ? [{ source: declaration.document_source!, service_id: declaration.service_id, title: service.word(declaration.title ?? service.declaration.title) }] : [];
+  });
+}
+
 type ConnectionView = ReturnType<typeof listConnectorConnectionViews>[number];
 const readsWith = (row: ConnectionView, entry: { service: string; methods: readonly string[] }) =>
   row.service_id === entry.service && entry.methods.includes(row.auth_method);
@@ -60,9 +69,6 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
    */
   offeredPath?: string;
   beforeDispatch?(): void | Promise<void>;
-  /** Decided by the Host from the caller (a person's explicit yes, S-39), never read from the input here (PMAT-48). */
-  allowModelDownload?: boolean;
-  onProgress?: (progress: { stage: string; progress: number }) => void;
 }) {
   const home = resolveConfiguredHome();
   let usedConnection: string | undefined;
@@ -85,8 +91,7 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
       try { const parsed = await readMaterialHtml(html, { signal: ports.signal, timeoutMs: 12_000 }); return { title: parsed.title ?? "", content: parsed.text }; }
       catch { ports.signal?.throwIfAborted(); throw artifactImportErrors.html_invalid("无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
     },
-    readFileText: file => readOriginalText(file, home, { ...ports.signal ? { signal: ports.signal } : {},
-      ...ports.allowModelDownload ? { allowModelDownload: true } : {}, ...ports.onProgress ? { onProgress: ports.onProgress } : {} }),
+    readFileText: file => readOriginalText(file, ports.signal ? { signal: ports.signal } : {}),
     async readExternal(document) {
       const imports = await documentImports(home), entry = imports[document.source], service = entry?.service;
       const candidates = entry ? listConnectorConnectionViews(home, entry.service).filter(row => readsWith(row, entry) && row.state === "connected") : [];
@@ -101,13 +106,13 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
         catch { signal.throwIfAborted(); throw artifactImportErrors.credentials_unavailable("所选连接不可用，请在连接器设置中重新授权"); }
         usedConnection = id;
         usedRevision = access.connection.updated_at;
-        const read = () => readExternalDocument(document, { token: access.token, fetch: access.fetchImpl, signal, beforeDispatch,
-          ...(access.connection.auth_method === "oauth" ? { tokenKind: "access_token" as const } : {}) });
+        const read = async () => ({ ...await builtinDocumentDriver().read(document, { token: access.token, fetch: access.fetchImpl, signal, beforeDispatch,
+          ...(access.connection.auth_method === "oauth" ? { tokenKind: "access_token" as const } : {}) }), source: document.source });
         try { return { ...await read(), connection_id: id }; }
         catch (error) {
           signal.throwIfAborted();
           assertConnection();
-          if (access.connection.auth_method !== "oauth" || !(error instanceof ActionError) || error.code !== "catalog_integration.needs_auth") throw error;
+          if (access.connection.auth_method !== "oauth" || !builtinDocumentDriver().refused(error)) throw error;
           await beforeDispatch();
           access = await resolveApiConnection(home, id, control, service, true);
           return { ...await read(), connection_id: id };

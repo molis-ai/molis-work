@@ -7,6 +7,7 @@
     "gmail.connection.outbound": "目前只支持收信，不会发送邮件。",
     "gmail.connection.send-mail": "发送邮件",
     "gmail.connection.summary": "本机账号。Feed 只读收信。",
+    "gmail.connection.purpose": "把邮件带进项目，整理工作往来与待办。当前只读取邮件。",
     "gmail.guide.mcp-connected-note": "需要 Google Workspace 开发者预览资格。",
     "gmail.guide.mcp-link": "查看 Gmail 官方 MCP（开发者预览）",
     "gmail.guide.mcp-note": "需要 Google Workspace 开发者预览资格；Molis Work 暂未接入。",

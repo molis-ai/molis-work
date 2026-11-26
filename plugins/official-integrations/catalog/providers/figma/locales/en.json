@@ -8,6 +8,7 @@
     "figma.connection.summary": "Designs and annotations.",
     "figma.connection.token-label": "Figma Personal Access Token",
     "figma.connection.token-placeholder": "figu_… or figd_…",
+    "figma.connection.purpose": "Connect official design tools so AI can read and work on authorized designs.",
     "figma.guide.mcp-link": "View the official Figma MCP",
     "figma.guide.mcp-note": "Enable the desktop MCP service in Figma. The cloud service is limited to approved clients.",
     "figma.guide.oauth-link": "View Figma OAuth app",

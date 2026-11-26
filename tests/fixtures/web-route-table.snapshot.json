@@ -668,12 +668,9 @@
     "error": "页面或接口不存在"
   },
   "GET <project>/api/plugins/io.molis.work.jelly/": {
-    "status": 200,
+    "status": 404,
     "type": "application/json",
-    "keys": [
-      "capabilities",
-      "state"
-    ]
+    "error": "找不到对应的功能入口，刷新页面后再试一次。"
   },
   "GET <project>/api/plugins/io.molis.work.todo/items": {
     "status": 200,

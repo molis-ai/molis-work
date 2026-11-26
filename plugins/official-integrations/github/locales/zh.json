@@ -6,6 +6,7 @@
     "github.connection.inbound": "Feed 拉取未读通知",
     "github.connection.outbound": "可在连接设置中检查当前 GitHub 账号。AI 可用能力以能力库为准。",
     "github.connection.summary": "本机账号。Feed 拉取未读通知，可在连接设置中检查账号。",
+    "github.connection.purpose": "把 GitHub 未读通知带进项目，跟进代码协作。",
     "github.guide.cli-link": "查看 GitHub CLI 登录方式",
     "github.guide.mcp-link": "查看 GitHub 官方 MCP",
     "github.guide.oauth-link": "注册 GitHub OAuth App",

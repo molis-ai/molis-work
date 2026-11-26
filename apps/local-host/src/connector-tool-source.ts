@@ -1,8 +1,9 @@
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { builtinCliReleaseFileHosts, builtinPowerShellModules } from "./builtin-drivers.js";
 import { toolInstallErrors } from "./connector-tool-process.js";
 
 export interface NativeToolSource { kind: "native"; package: string; version: string; bin: string; url: string; sha256: string; entry?: string }
-export interface PowerShellToolSource { kind: "powershell"; package: "Microsoft.Graph.Authentication"; version: string; bin: "pwsh"; runtime: NativeToolSource }
+export interface PowerShellToolSource { kind: "powershell"; package: string; version: string; bin: "pwsh"; runtime: NativeToolSource }
 const safeEntry = (value: string) => value.split("/").every(part => /^[A-Za-z0-9_.-]+$/u.test(part) && part !== "." && part !== "..");
 
 export type ManagedToolSource =
@@ -16,15 +17,15 @@ export const exactToolVersion = (value: string) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z
 export function validateManagedToolSource(source: ManagedToolSource): ManagedToolSource {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/u.test(source.bin)) throw toolInstallErrors.invalid("请选择包正式提供的命令名");
   if (source.kind === "powershell") {
-    if (source.package !== "Microsoft.Graph.Authentication" || source.bin !== "pwsh" || !exactToolVersion(source.version) || source.runtime.kind !== "native"
-      || source.runtime.bin !== "pwsh" || !source.runtime.url.startsWith(`https://github.com/PowerShell/PowerShell/releases/download/v${source.runtime.version}/`)) throw toolInstallErrors.invalid("Microsoft Graph 安装方案无效");
+    if (!builtinPowerShellModules().has(source.package) || source.bin !== "pwsh" || !exactToolVersion(source.version) || source.runtime.kind !== "native"
+      || source.runtime.bin !== "pwsh" || !source.runtime.url.startsWith(`https://github.com/PowerShell/PowerShell/releases/download/v${source.runtime.version}/`)) throw toolInstallErrors.invalid("PowerShell 模块的安装方案无效");
     validateManagedToolSource(source.runtime); return source;
   }
   if (source.kind === "native") {
     let url: URL;
     try { url = new URL(source.url); } catch { throw toolInstallErrors.invalid("原生客户端来源地址无效"); }
     if (!exactToolVersion(source.version) || !/^[0-9a-f]{64}$/u.test(source.sha256) || source.entry !== undefined && !safeEntry(source.entry)
-      || url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !["github.com", "gitlab.com", "acli.atlassian.com"].includes(url.hostname)) throw toolInstallErrors.invalid("原生客户端来源、固定版本、校验和或包内路径无效");
+      || url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !builtinCliReleaseFileHosts().includes(url.hostname)) throw toolInstallErrors.invalid("原生客户端来源、固定版本、校验和或包内路径无效");
     return source;
   }
   if (source.kind === "npm") {

@@ -388,8 +388,8 @@ test("RAC-1766 the Rust and Swift checks run when a changed file is one they rea
   // Written out here, one file for each kind, not read from NATIVE_RUN_WHEN, so that dropping one of them from the script is seen.
   for (const file of [
     "apps/desktop/src-tauri/src/lib.rs", "apps/desktop/src-tauri/Cargo.lock", "apps/desktop/package.json", "apps/desktop/adapters/tauri/src/drop_wheel.rs",
-    "apps/local-host/native/materials/JellyMaterial.swift", "apps/local-host/native/computer/Sources/main.swift", "apps/local-host/native/computer/build.sh",
-    "apps/local-host/native/materials/whisper/Package.swift", "crates/elsewhere/src/lib.rs", "other/Cargo.toml", "other/Cargo.lock",
+    "apps/local-host/native/materials/MolisMaterial.swift", "apps/local-host/native/computer/Sources/main.swift", "apps/local-host/native/computer/build.sh",
+    "apps/local-host/native/materials/build.sh", "crates/elsewhere/src/lib.rs", "other/Cargo.toml", "other/Cargo.lock",
     "rust-toolchain.toml", "sub/rust-toolchain", "clippy.toml", "rustfmt.toml", ".cargo/config.toml", ".github/workflows/ci.yml", ".github/workflows/full-suite.yml", ".github/actions/setup-work/action.yml",
     "scripts/gates/native-checks.mjs", "scripts/script-paths.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "package.json", ".nvmrc", "pnpm-lock.yaml",
   ]) {

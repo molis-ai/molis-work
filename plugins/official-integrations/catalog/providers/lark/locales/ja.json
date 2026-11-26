@@ -7,6 +7,8 @@
     "lark.connection.inbound": "Feed でチャット取得・成果物へドキュメント取込",
     "lark.connection.summary": "国際版 Lark のメッセージとドキュメント。",
     "lark.connection.token-label": "Lark アプリ認証情報",
+    "lark.credential.app-id": "アプリID",
+    "lark.credential.app-secret": "アプリシークレット",
     "lark.guide.cli-link": "Lark 公式 CLI を見る",
     "lark.guide.cli-note": "同じ公式 CLI で Lark 環境に対応していますが、Molis Work の Lark 接続ではまだログインを再利用していません。",
     "lark.guide.mcp-link": "Lark 公式 MCP を見る",

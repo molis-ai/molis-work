@@ -1,6 +1,6 @@
 import { pluginRouteBase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
-import { sideViewBridgeScript } from "./side-view-document.js";
+import { SIDE_PAGE_SCRIPT, sideViewBridgeScript } from "./side-view-document.js";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { COPY_FEEDBACK_CLIENT_SCRIPT, CRAFT_FINISH_CLIENT_SCRIPT, DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FEEDBACK_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, renderIconSprite, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
@@ -17,17 +17,6 @@ import type { WorkbenchRendererPorts } from "./renderer.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
 
-/**
- * Where the person is beside this side view, read from the shell around it: the place the work area names and the
- * project. A report for the record ("written on …"), never proof of what was on screen.
- */
-const SIDE_PAGE_SCRIPT = String.raw`() => {
-  const top = window.top; if (top === window) return null;
-  const doc = top.document, place = doc.querySelector('[data-plugin-picker-current] .is-focused') || doc.querySelector('[data-plugin-picker-current]');
-  const name = doc.body.dataset.arrival ? globalThis.t.text("workbench.home-plugin-page.home") : (place?.textContent || doc.title.replace(/ · Molis Work$/, '')).trim();
-  return { url: (top.location.pathname + top.location.search).slice(0, 500),
-    title: [name, doc.querySelector('.navigator-project-selector strong')?.textContent.trim()].filter(Boolean).join(' · ').slice(0, 200) || null };
-}`;
 
 /** A Home plugin can be opened before any project exists. The same contribution and client also mount in Workbench. */
 export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_plugin_id"> & { readonly manifest: Pick<PluginManifest, "name" | "plugin_id"> }, html: string | null, message: string | null, controlToken: string,

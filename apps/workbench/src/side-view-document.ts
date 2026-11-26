@@ -17,6 +17,20 @@ import { renderAppearanceRecovery } from "./settings-appearance.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 
+
+/**
+ * Where the person is beside this side view, read from the shell around it: the place the work area names and the
+ * project. A report for the record ("written on …"), never proof of what was on screen. Every side view hands it to its plugin; the
+ * plugin's `status` goes to the side tab as `molis:side-status`, which the panel takes only from its own frame (side-panel.ts).
+ */
+export const SIDE_PAGE_SCRIPT = String.raw`() => {
+  const top = window.top; if (top === window) return null;
+  const doc = top.document, place = doc.querySelector('[data-plugin-picker-current] .is-focused') || doc.querySelector('[data-plugin-picker-current]');
+  const name = doc.body.dataset.arrival ? globalThis.t.text("workbench.home-plugin-page.home") : (place?.textContent || doc.title.replace(/ · Molis Work$/, '')).trim();
+  return { url: (top.location.pathname + top.location.search).slice(0, 500),
+    title: [name, doc.querySelector('.navigator-project-selector strong')?.textContent.trim()].filter(Boolean).join(' · ').slice(0, 200) || null };
+}`;
+
 /**
  * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
  * document, which the panel loads in a same-origin frame. The plugin supplies the contribution, its stylesheet and
@@ -59,7 +73,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const route = JSON.stringify(input.routePrefix);
   const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
   const client = surfaceClient
-    ? `void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, projectId:()=>${JSON.stringify(input.projectId)}, projectTitle:()=>"", route:path=>${route}+path, side:true, openItem:(plugin,itemId,title)=>parent.postMessage({type:'molis:side-main-open', plugin, itemId, title, from:${JSON.stringify(surfaceClient.id)}}, location.origin)}, ${JSON.stringify(surfaceClient ? {id:surfaceClient.id,plugin_id:surfaceClient.plugin_id,bundle:surfaceClient.bundle,assets:surfaceClient.assets} : null)}).then(()=>{const root=document.querySelector('[data-side-view-root]');if(root?.isConnected){root.inert=false;root.removeAttribute('aria-busy');}}).catch(error=>{const root=document.querySelector('[data-side-view-root]');if(!root?.isConnected)return;root.inert=false;root.removeAttribute('aria-busy');molisWorkRequest.show(root,error);const retry=document.createElement('button');retry.type='button';retry.className='mw-btn mw-btn--secondary';retry.textContent=globalThis.t.text("common.control.retry");retry.addEventListener('click',()=>location.reload());root.append(retry);});`
+    ? `void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, projectId:()=>${JSON.stringify(input.projectId)}, projectTitle:()=>"", route:path=>${route}+path, side:true, page:(${SIDE_PAGE_SCRIPT}), status:status=>parent.postMessage({type:'molis:side-status',status},location.origin), openItem:(plugin,itemId,title)=>parent.postMessage({type:'molis:side-main-open', plugin, itemId, title, from:${JSON.stringify(surfaceClient.id)}}, location.origin)}, ${JSON.stringify(surfaceClient ? {id:surfaceClient.id,plugin_id:surfaceClient.plugin_id,bundle:surfaceClient.bundle,assets:surfaceClient.assets} : null)}).then(()=>{const root=document.querySelector('[data-side-view-root]');if(root?.isConnected){root.inert=false;root.removeAttribute('aria-busy');}}).catch(error=>{const root=document.querySelector('[data-side-view-root]');if(!root?.isConnected)return;root.inert=false;root.removeAttribute('aria-busy');molisWorkRequest.show(root,error);const retry=document.createElement('button');retry.type='button';retry.className='mw-btn mw-btn--secondary';retry.textContent=globalThis.t.text("common.control.retry");retry.addEventListener('click',()=>location.reload());root.append(retry);});`
     : "";
   return renderWorkbenchDocument({
     lang: input.lang,

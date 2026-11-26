@@ -45,7 +45,7 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
     await Promise.all([browser.event("Page.loadEventFired"), page.command("Page.reload")]);
     await page.wait("document.querySelector('[data-action=invite]')?.checkVisibility() && !document.querySelector('[data-conversations]').hidden");
     await page.click("[data-action=invite]");
-    await page.wait("document.querySelector('[data-invite-notice]')?.textContent.includes('无法重新取回')");
+    await page.wait("document.querySelector('[data-invite-notice]')?.textContent.includes('原链接只在生成时显示一次')");
     assert.equal(await page.evaluate("!!document.querySelector('[data-invite-value]')"), false); assert.equal(count(), 1);
     const bob = await f.person("External reader"); assert.equal((await f.post(bob.cookie, "/join", { token: firstToken })).status, 200);
     await page.evaluate(`window.__inviteCalls=[];window.__dropNextInvite=true;const nativeFetch=window.fetch.bind(window);

@@ -19,12 +19,12 @@ test("BCC-11 a Home that hid Pages is never handed another Home's Pages candidat
   const project_id = `project-onboarding-${randomUUID()}`;
   const create = (home: TestHome, pages: boolean) => home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home.home }, async catalog => {
     await catalog.createProject({ project_id, display_name: pages ? "Home A with Pages" : "Home B without Pages", actor_id: "fixture" });
-    const change = { project_id, plugin_id: "pages", actor_id: "fixture" };
-    if (pages) catalog.addProjectPlugin(change); else catalog.removeProjectPlugin(change);
-    return catalog.projectPluginMembership(project_id).hidden;
+    // Pages is on only where the project adds it (batch 107): Home B never does.
+    if (pages) catalog.addProjectPlugin({ project_id, plugin_id: "pages", actor_id: "fixture" });
+    return catalog.projectPluginMembership(project_id).plugins;
   });
-  assert.ok(!(await create(a, true)).includes("pages"));
-  assert.ok((await create(b, false)).includes("pages"));
+  assert.ok((await create(a, true)).includes("pages"));
+  assert.ok(!(await create(b, false)).includes("pages"));
   const prefix = `/projects/${encodeURIComponent(project_id)}`;
   const { document } = await a.web.post<{ document: { id: string } }>(`${prefix}/api/plugins/io.molis.work.pages/pages`, { title: "Fixture document", markdown: "Fixture selection." });
   let sequence = 0;

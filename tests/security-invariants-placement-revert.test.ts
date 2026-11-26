@@ -222,6 +222,11 @@ function carryWorld({ remove, putting }: CarryOptions = {}) {
   return { notes, ports, exports, removes, restart: () => { cut = false; refusing = false; }, service: () => new PlacementService(ports) };
 }
 
+test("a carried object is offered to move and copy: its partition's exporter is what offers it, with no mover of the old kind (batch 107)", async () => {
+  const described = await carryWorld().service().describe(old);
+  assert.deepEqual([described.state, described.can.move, described.can.copy], ["ok", true, true]);
+});
+
 test("S-35 a carried move whose remove is refused takes back what it put: the note is only where it was, and no carry is left", async () => {
   const w = carryWorld({ remove: from => from === "personal" ? "conflict" : undefined });
   await assert.rejects(w.service().move(old, "q4"), { code: "notes.conflict" });

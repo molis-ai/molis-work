@@ -909,3 +909,13 @@ test("UPP-21 sweep does not stop an instance with pending start waiters, and sto
   await assert.rejects(pendingAcquire, /boom-on-start/u);
   assert.deepEqual(failing.instances(), []);
 }));
+
+// UPP-05: batch 107's six partition plugins keep one library per partition, so their business code has no `project_id` filter left.
+test("UPP-05 the six partition plugins' code never narrows its own tables by project_id", async () => {
+  const { readdirSync } = await import("node:fs");
+  const files = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
+    .flatMap(entry => entry.isDirectory() ? files(join(directory, entry.name)) : /\.(ts|mjs|js)$/u.test(entry.name) ? [join(directory, entry.name)] : []);
+  const found = ["pages", "ppt", "form", "dataset", "lingguang", "workflows"].flatMap(plugin => files(join("plugins/native", plugin, "src")))
+    .filter(file => /\bproject_id\s*(=|IN)\s*[?(]/iu.test(readFileSync(file, "utf8")));
+  assert.deepEqual(found, []);
+});

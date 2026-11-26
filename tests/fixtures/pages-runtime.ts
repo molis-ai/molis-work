@@ -6,7 +6,7 @@ import { serveHomeRuntime, person } from "./home-runtime.js";
 
 /** Actual project Runtime and HTTP, with an isolated Home and no real model unless the test gives one. */
 export async function servePages(t: TestContext, options: Parameters<typeof serveHomeRuntime>[1] = {}) {
-  const f = await serveHomeRuntime(t, options), project = await f.project("Pages Runtime");
+  const f = await serveHomeRuntime(t, options), project = await f.project("Pages Runtime", ["pages"]);
   return pagesIn(f, project);
 }
 

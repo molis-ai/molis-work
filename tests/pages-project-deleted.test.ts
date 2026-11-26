@@ -13,7 +13,7 @@ const stepOf = (result: Deletion) => result.deletion.owner_steps.find(step => st
 /** Two projects of one Home, each with a document, a folder and a generation receipt written through Pages' own library. */
 async function twoProjects(t: Parameters<typeof serveHomeRuntime>[0]) {
   const home = await serveHomeRuntime(t);
-  const gone = pagesIn(home, await home.project("Pages 要删的项目")), kept = pagesIn(home, await home.project("Pages 留下的项目"));
+  const gone = pagesIn(home, await home.project("Pages 要删的项目", ["pages"])), kept = pagesIn(home, await home.project("Pages 留下的项目", ["pages"]));
   for (const pages of [gone, kept]) {
     const folder = await pages.http<{ folder: { id: string } }>("/folders", { title: "文件夹" });
     await pages.http<{ document: PagesRecord }>("", { title: `文稿 ${pages.project.project_id}`, folder_id: folder.folder.id });

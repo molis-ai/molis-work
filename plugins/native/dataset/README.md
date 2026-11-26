@@ -2,7 +2,7 @@
 
 个人空间同步：`replica(context)` 同步表结构、单元格、保存版本与固定成果引用。以一份表及其历史为冲突单元；目标设备编辑版本独立递增，不采用源设备 CAS。待恢复发布不会被覆盖；超出当前 512 KiB 聚合上限会报错并保留原数据。当前仅显式启用的本机联调。回归：`tests/plugin-aggregate-replication.test.ts`。
 
-本机表格：改列改行、粘贴与导出 CSV、保存快照及回滚、发布 Artifact。业务数据仍在 `{home}/dataset/dataset.db`，按 Host 注入的 canonical project_id 分区，保留原表、快照和 Artifact 身份。
+本机表格：改列改行、粘贴与导出 CSV、保存快照及回滚、发布 Artifact。业务数据在每个分区自己的 `libraries/dataset.db`（由宿主的按分区装配（`apps/local-host/src/partition-plugin-host.ts`）在每个启用它的分区（个人空间与项目）各起一个实例），保留原表、快照和 Artifact 身份。
 
 包名：`@molis-ai/molis-work-plugin-dataset`。
 
@@ -32,7 +32,7 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 - 公开入口：`@molis-ai/molis-work-plugin-dataset`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-dataset/contract`（`src/contract.ts`）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `dataset.<原因>`，状态由错误种类决定，Dataset 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 数据按 Host 注入的 canonical `project_id` 分区。
+  - 数据按分区分库：一个实例只打开它所在分区的库，表里不再有 `project_id` 列。
   - 冲突保留本地输入，并阻止发布或切表。
   - 固定事务在更新根行、登记成果及最终提交时复查原调用授权（S-18）。提交前取消、撤权或提供方变化会回滚表引用、成果、事件及复制记录（`tests/dataset-promote-authority.test.ts tests/dataset-client-bundle.test.ts tests/creative-tools-plugins.test.ts`）。
   - 项目被删除时平台删掉这个分区自己的整份库（`<分区根>/libraries/<库名>.db` 与它的日志），也就删掉了数据表与保存的版本，连同创建回执；确认框里的说法与顺序来自 Manifest 的 `databases.partition.deletion`（`src/database.ts`）。插件的代码不参与，库不存在时不创建，重复运行没有副作用（PG-024，第 107 批起）。

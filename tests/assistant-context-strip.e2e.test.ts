@@ -14,7 +14,7 @@ const STRIP = "[data-assistant-context-strip]:not([hidden])";
 async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIRST)], ready = FIRST) {
   let model!: Awaited<ReturnType<typeof issueModel>>;
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
-    prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory, { replyText: "收到。" }); },
+    prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory, { replyText: "收到。" }); }, projectPlugins: ["pages"],
   });
   if (!browser) return null;
   const child = await pluginFrameBrowser(t, browser, "pages");

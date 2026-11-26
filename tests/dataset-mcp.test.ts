@@ -26,7 +26,7 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   const stop = async () => { await web?.close(); await host?.close(); web = undefined; host = undefined; };
   t.after(async () => { await stop(); await rm(home, { recursive: true, force: true }); });
   await start();
-  const a = await web!.createProject("MCP Dataset a"), b = await web!.createProject("MCP Dataset b");
+  const a = await web!.createProject("MCP Dataset a", ["dataset"]), b = await web!.createProject("MCP Dataset b", ["dataset"]);
 
   // What each tool may do is what the person granted it: the writers every Dataset action, the reader the ones that only read.
   const datasetViews = async (clientId: string, projectId: string) => (await web!.inspect(clientId, projectId)).filter(view => view.capability_id.startsWith("dataset."));

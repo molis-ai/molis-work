@@ -2,7 +2,7 @@
 
 个人空间同步：`replica(context)` 同步演示稿、主题色、幻灯片顺序、要点、讲者备注与固定成果引用。待恢复发布不传输也不覆盖；两端冲突保留双方。当前仅显式启用的本机联调，512 KiB 聚合上限不是附件同步能力。回归：`tests/plugin-aggregate-replication.test.ts`。
 
-本机演示稿：改主题色、加幻灯片、预览、导出 JSON 与 PowerPoint 文件。数据在 `{home}/ppt/ppt.db`。
+本机演示稿：改主题色、加幻灯片、预览、导出 JSON 与 PowerPoint 文件。数据在每个分区自己的 `libraries/ppt.db`，由宿主的按分区装配（`apps/local-host/src/partition-plugin-host.ts`）在每个启用它的分区（个人空间与项目）各起一个实例。
 
 包名：`@molis-ai/molis-work-plugin-ppt`。
 

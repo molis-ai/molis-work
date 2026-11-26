@@ -7,7 +7,7 @@ import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plu
 import { openTestHome } from "./fixtures/test-home.js";
 async function fixture(t: test.TestContext) {
   const { home, host, createProject } = await openTestHome(t);
-  const { reference: ref } = await createProject("PPT actions", ["ppt"]);
+  const { reference: ref } = await createProject("PPT actions", ["ppt", "pages"]);
   const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: PPT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };

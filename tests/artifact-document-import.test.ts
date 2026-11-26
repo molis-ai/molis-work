@@ -493,7 +493,7 @@ test("any file imports as a 成果 with its original bytes and real media type; 
   // Read in the project's own Pages library (batch 107): this single-database server serves no project's plugin routes by name.
   const library = openSqliteConnection(partitionLibraryFile(directory, projectId, "pages"), { readonly: true });
   try {
-    assert.deepEqual(library.prepare("SELECT id FROM pages WHERE title = ?").all("接着写").map(row => row.id), [result.open.id], "exactly one document, the one that opens");
+    assert.deepEqual(library.prepare("SELECT id FROM pages WHERE title = ?").all("接着写").map(row => (row as { id: string }).id), [result.open.id], "exactly one document, the one that opens");
   } finally { library.close(); }
   const refused = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image, plugin_id: "io.molis.work.pages" }) });
   assert.equal(refused.status, 400);

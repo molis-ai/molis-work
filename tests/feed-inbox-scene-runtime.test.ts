@@ -136,15 +136,15 @@ test("FI-1 RAC-482 Inbox lists a rule only when its capability can run the scene
   const zhUnbound = await read(compatible, "zh"), enUnbound = await read(compatible, "en");
   assert.deepEqual(zhUnbound.functions, [{ function_key: "rule-a", name: "规则 A" }]);
   assert.deepEqual({ key: zhUnbound.function_key, reason: zhUnbound.summary.reason }, { key: null, reason: "还没绑定规则" });
-  assert.deepEqual({ key: enUnbound.function_key, reason: enUnbound.summary.reason }, { key: null, reason: "No rule is bound yet" },
+  assert.deepEqual({ key: enUnbound.function_key, reason: enUnbound.summary.reason }, { key: null, reason: "No rule connected yet" },
     "the fixed sentence comes from Inbox's own words in the language of the read");
   const incompatible = inboxRuntime({ capabilities: [action(FUNCTION)], views: [sceneView(INBOX_NEXT_SCENE_ID, 1, false)] });
   assert.deepEqual((await read(incompatible, "zh")).functions, []);
   const binding: ActionSceneBinding = { binding_id: inboxSceneBindingId(PROJECT), scene_id: INBOX_NEXT_SCENE_ID, scene_version: 1, project_id: PROJECT, function: FUNCTION, enabled: true, revision: "r1", title: "t", href: "/" } as never;
   const unauthorised = inboxRuntime({ bound: binding, capabilities: [action(FUNCTION)] });
   const zhNoScene = await read(unauthorised, "zh"), enNoScene = await read(unauthorised, "en");
-  assert.deepEqual({ key: zhNoScene.function_key, reason: zhNoScene.summary.reason }, { key: "rule-a", reason: "当前无权使用此场景" });
-  assert.equal(enNoScene.summary.reason, "You don’t have access to this scene");
+  assert.deepEqual({ key: zhNoScene.function_key, reason: zhNoScene.summary.reason }, { key: "rule-a", reason: "你暂时没有使用这项功能的权限" });
+  assert.equal(enNoScene.summary.reason, "You don’t have access to this feature");
   // Another owner's reason (the scene's own availability words) is original text, shown as written in either language.
   const usage = { scene_id: INBOX_NEXT_SCENE_ID, binding_id: inboxSceneBindingId(PROJECT), revision: "r1", enabled: true, function: FUNCTION,
     availability: { available: false, reason: "此能力需要已配置的个人服务" } } as never;

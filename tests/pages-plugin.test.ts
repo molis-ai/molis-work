@@ -552,20 +552,21 @@ test("点到正文下面的空白会落到一个空段落", () => {
   assert.match(mounted, /handleDOMEvents: \{ \.\.\.pagesDomEvents/);
 });
 
-test("Pages 是个人插件，不进项目启用名单", () => {
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(PAGES_PROJECT_PLUGIN_ID), true);
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("pages"), false);
-  const rail = railEntries(["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"]);
+test("Pages 是分区插件（第 107 批起），按分区启用，不再是个人插件", () => {
+  assert.equal(PERSONAL_PLUGIN_IDS.includes(PAGES_PROJECT_PLUGIN_ID), false);
+  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("pages"), true);
+  const rail = railEntries(["goals", "pages", "artifacts"]);
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
   const market = runWithLocale("zh", () => pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "pages"));
-  assert.equal(market?.personal, true);
+  assert.equal(market?.personal, false);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
-  const owner = runWithLocale("zh", () => renderMolisWorkWeb(withHostPluginFacts(emptyView())));
+  // The project shows Pages because it turned it on (batch 107: a partition plugin, no longer personal).
+  const owner = runWithLocale("zh", () => renderMolisWorkWeb(withHostPluginFacts({ ...emptyView(), enabled_plugins: ["goals", "pages"] })));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="pages"/);
   assert.match(html, /data-pages="workbench"/);

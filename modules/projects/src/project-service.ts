@@ -216,6 +216,24 @@ export class ProjectService {
     return this.get(project.project_id);
   }
 
+  /**
+   * One-time upgrade write, run inside the caller's transaction: every partition that does not hide a plugin gains it,
+   * and a row already there stays as it was. Returns how many rows it wrote.
+   */
+  addPluginsWhereShown(pluginIds: readonly ProjectPluginId[], actorId: string): number {
+    const actor = this.requiredActorId(actorId), at = this.now();
+    let added = 0;
+    for (const partition of this.partitions()) {
+      const hidden = new Set(this.repository.projects.listHiddenPlugins(partition.project_id));
+      for (const pluginId of pluginIds) {
+        if (hidden.has(pluginId) || !this.repository.projects.addProjectPlugin(partition.project_id, pluginId, at, actor)) continue;
+        this.appendEvent(partition.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
+        added += 1;
+      }
+    }
+    return added;
+  }
+
   appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void {
     this.repository.projects.appendEvent({
       event_id: this.id("project-event"),

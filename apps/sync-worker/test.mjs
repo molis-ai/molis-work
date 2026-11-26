@@ -71,7 +71,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     const forged={spaceId:space.spaceId,revision:0,selections:[selection]};
     assert.equal((await call('/v1/policy','bob',forged,'PUT')).status,403);
     assert.equal((await call('/v1/changes?namespace='+encodeURIComponent(namespace)+'&after=0','bob')).status,403);
-    const mutation={operationId:'stale',key:JSON.stringify([null,JSON.stringify([project.project_id,'document',page.id])]),base:0,value:null};
+    const mutation={operationId:'stale',key:JSON.stringify([project.project_id,JSON.stringify([project.project_id,'document',page.id])]),base:0,value:null};
     assert.equal((await call('/v1/changes','alice',{namespace,policyRevision:1,mutation,attachments:[]})).status,409);
     withStore(0,s=>s.delete(page.id));await clients[0].run();await clients[1].run();
     assert.equal(withStore(1,s=>s.list(project.project_id).length),0);

@@ -367,7 +367,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
     }; })()`);
   await click('[data-event-form=closure] input[name=deliverable-pin]');
   await click(submit);
-  await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('尚未核对') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled");
+  await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('暂时不确定是否固定成功') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   const versions = () => openProjectVersionStores(store).artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId).map(row => row.version);
   const linked = async () => (await (await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/deliverables")).json() as { deliverables: Array<{ reference: { version: number } }> }).deliverables.map(row => row.reference.version);
   assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);

@@ -12,7 +12,8 @@ test('the Pages collection has stable scope across two project instances, stoppi
  const projects=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},async catalog=>[
   await catalog.createProject({display_name:'First',actor_id:'alice'}),await catalog.createProject({display_name:'Second',actor_id:'alice'}),
  ]);projects.sort((a,b)=>a.project_id.localeCompare(b.project_id));
- await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async catalog=>{for(const project of projects)await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});});
+ await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},catalog=>{for(const project of projects)catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'pages',actor_id:'alice'});});
+ await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async catalog=>{for(const project of projects){await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'pages',actor_id:'alice'});}});
  const source=await runtimePersonalSync(f.homes[0],f.space),target=await runtimePersonalSync(f.homes[1],f.space);f.closeWith(()=>source.close());f.closeWith(()=>target.close());
  const pages=projects.map(project=>f.withStore(0,store=>store.create({title:project.display_name}),project.project_id));
  const discover=async()=>{const rows=await discoverRuntimeSyncCollections(f.homes[0],f.space.spaceId,source.host,source.withCatalog,()=>{});const pageRows=rows.filter(row=>row.selection.plugin_id===pagesSyncSelection.plugin_id);assert.equal(pageRows.length,1,'all active project instances expose one Home collection');return pageRows[0]!;};

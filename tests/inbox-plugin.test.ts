@@ -82,6 +82,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-inbox-plugin-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const created = await catalog.createProject({ display_name: "Inbox 项目", actor_id: "test" });
+  // Inbox's Pages results read through Pages, which the project adds itself (batch 107).
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const functionEnv: NodeJS.Dict<string> = {};
   catalog.close();
@@ -120,7 +122,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const declared = inboxManifest.actions!.filter(definition => definition.action.permissions.every(permission => caller.permissions.includes(permission)));
   assert.deepEqual(discovered.map(action => action.capability_id).sort(), [...declared.map(action => action.capability_id), "scenes.targets:inbox.next", "scenes.enable:inbox.next", "scenes.disable:inbox.next"].sort());
   assert.ok(discovered.filter(action => ![inboxActions.generatePages.capability_id, inboxActions.evaluateJudgment.capability_id].includes(action.capability_id))
-    .every(action => action.availability.available));
+    .every(action => action.availability.available), JSON.stringify(discovered.filter(action => !action.availability.available).map(action => [action.capability_id, action.availability])));
   assert.equal(discovered.find(action => action.capability_id === inboxActions.evaluateJudgment.capability_id)?.availability.available, false);
   await assert.rejects(actions.invoke({ ...caller, permissions: [] }, inboxActions.list, {}), { code: "actions.forbidden" });
   await assert.rejects(actions.invoke({ ...caller, project_id: "another-project" }, inboxActions.list, {}), { code: "actions.scope_mismatch" });

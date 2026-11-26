@@ -1,6 +1,6 @@
 # Pages 文档入口
 
-本机文档：列表、写作、自动保存、块、评论、卡、挂 Goal 与 Promote。数据在 `{home}/pages/pages.db`。编辑器用 ProseMirror，单独打成浏览器脚本，不进工作台 factory 字符串。
+本机文档：列表、写作、自动保存、块、评论、卡、挂 Goal 与 Promote。数据在每个分区自己的 `libraries/pages.db`。编辑器用 ProseMirror，单独打成浏览器脚本，不进工作台 factory 字符串。
 
 `pages.generate` 接收调用方已解析的材料快照，通过同一模型配置执行；缺少模型时目录及调用明确拒绝，不生成占位文稿。插件内部的 `generatePagesFromMaterials` 通过短 Store 操作保存 `page_generations`，不跨模型等待持有数据库。历史按项目和请求保存要求、采用版本、错误和文稿 ID；失败或取消保留快照，重试成功后返回原文稿，不覆盖手工编辑。Workbench 的 Inbox 提供材料选择、要求与恢复入口，生成不会自动完成 Inbox。编辑器与 MCP 的 AI 使用统一文字模型配置；候选正文由用户确认或后续创建/修改动作保存。生成前后核对文档版本和取消状态，过期候选不提交。
 
@@ -8,7 +8,7 @@
 
 Pages 不读旧库，也不自动迁移：错版的库被拒绝，旧 Home 按发布检查单第 4 节搬开重建。
 
-包名：`@molis-ai/molis-work-plugin-pages`。装配：每个项目一个 Plugin Runtime 实例（`src/plugin.ts` 的 `createPagesPlugin`，`apps/local-host/src/project-plugins.ts` 的 Home 库条目，`trust: HOST_BUILD_TRUST`）；库仍是 Home 级的 `{home}/pages/pages.db`（`PAGES_DATABASE`），按 `project_id` 分区，经 Runtime 的 `services.database` 读写；成果经 `services.artifacts`、模型经 `services.model`、Goals 与其他插件经 `services.actions`。宿主里不再有 Pages 专用的动作、HTTP 或成果适配文件。
+包名：`@molis-ai/molis-work-plugin-pages`。装配：由宿主的按分区装配（`apps/local-host/src/partition-plugin-host.ts`）在每个启用它的分区（个人空间与项目）各起一个实例（`src/plugin.ts` 的 `createPagesPlugin`，`trust: HOST_BUILD_TRUST`）；库在分区根的 `libraries/pages.db`，表里不再有 `project_id` 列（`PAGES_DATABASE`），经 Runtime 的 `services.database` 读写；成果经 `services.artifacts`、模型经 `services.model`、Goals 与其他插件经 `services.actions`。宿主里不再有 Pages 专用的动作、HTTP 或成果适配文件。
 
 导入入口在 Pages 文档列表的「导入」。支持 Notion 的 Markdown & CSV / HTML ZIP 导出包，飞书等工具导出的 DOCX、Markdown，以及通用 HTML、TXT、CSV。先预览、查看转换提示并勾选文档，再导入当前项目的指定文件夹；可继续编辑、自动保存。保留常用文字格式、列表、待办、表格和代码。导入只创建新文档；一次批量写入使用事务，同一请求重试不会覆盖手工编辑或重复创建。
 

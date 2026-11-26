@@ -157,13 +157,13 @@ test("Partial clear and unknown retry retain the original confirmation; only com
   await page.click("[data-memory-clear]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')"); await page.click("[data-memory-confirm-yes]");
   await clearStarted;
   const pending = await page.evaluate<string>("document.querySelector('[data-memory-clear-status]').textContent");
-  assert.match(pending, /尚未完成/);
-  assert.doesNotMatch(pending, /已删除|版本冲突|结果未知|尚未执行/, "the pending reply cannot report detailed outcomes yet");
+  assert.match(pending, /还没完成/);
+  assert.doesNotMatch(pending, /已删除|版本冲突|结果未知|还没执行/, "the pending reply cannot report detailed outcomes yet");
   assert.equal(clears, 1);
   releaseClear();
   await page.wait("document.querySelector('[data-memory-clear-status]')?.textContent.includes('版本冲突')");
   const status = await page.evaluate<string>("document.querySelector('[data-memory-clear-status]').textContent");
-  assert.match(status, /已删除 1/); assert.match(status, /版本冲突 1/); assert.match(status, /结果未知 1/); assert.match(status, /尚未执行 1/);
+  assert.match(status, /已删除 1/); assert.match(status, /版本冲突 1/); assert.match(status, /结果未知 1/); assert.match(status, /还没执行 1/);
   assert.equal(await page.evaluate("document.querySelector('[data-memory-clear]').textContent"), "重试本次清空");
   await page.click("[data-memory-clear]"); await page.wait("!document.querySelector('[data-memory-error]').hidden");
   await page.click("[data-memory-clear]"); await page.wait("document.querySelector('[data-memory-clear-status]').textContent.includes('清空已完成')");
@@ -308,7 +308,7 @@ test("B4 v2 clear retry cards show changing partial results without success unti
   await page.click("[data-memory-retry]");
   await page.wait("document.querySelector('[data-memory-clear-status]')?.textContent.includes('已删除 2') || document.querySelector('[data-settings-toast]').textContent.includes('这次操作已完成')");
   const status = await page.evaluate<string>("document.querySelector('[data-memory-clear-status]').textContent");
-  assert.match(status, /已删除 2/); assert.match(status, /版本冲突 0/); assert.match(status, /结果未知 1/); assert.match(status, /尚未执行 1/);
+  assert.match(status, /已删除 2/); assert.match(status, /版本冲突 0/); assert.match(status, /结果未知 1/); assert.match(status, /还没执行 1/);
   assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-settings-toast]').textContent"), /这次操作已完成|清空已完成/);
   assert.equal(await page.evaluate("document.querySelector('[data-memory-retries]').hidden"), false);
   assert.equal(await page.evaluate("document.querySelector('[data-memory-clear]').textContent"), "重试本次清空");

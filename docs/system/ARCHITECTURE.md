@@ -23,7 +23,7 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
 
 - `User` 是个人身份和 Personal 数据 owner。
 - `Team` 是成员、权限和 Team Plugin 决策的边界。
-- `Project` 是工作边界：项目插件的数据在项目库里，部分个人插件（如待办、Pages、灵光）的 Home 级库按 `project_id` 区分本项目与个人；未来交换也以它为边界。
+- `Project` 是工作边界：项目插件的数据在项目库里；分区插件（第 107 批起 Pages、PPT、Form、Dataset、灵光、Workflows）在每个启用它的分区各有一份库（`<分区根>/libraries/<库名>.db`）；还没迁走的个人插件（如待办）的 Home 级库仍按 `project_id` 区分本项目与个人，第 108、109 批迁走；未来交换也以它为边界。
 - `Space` 是账号级本地/个人资产隔离边界；Home 内「个人空间」仍是保留身份的项目分区，不列为项目、不能改名或删除。
 - `project_id` 是唯一的 Project identity：目录条目、项目数据库与库里 Goals 的根记录都用它（2026-10 起不再有 `board_id`）。不创造平行的 Board 产品概念。
 

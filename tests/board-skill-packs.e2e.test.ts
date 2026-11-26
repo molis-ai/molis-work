@@ -132,7 +132,7 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
     const token = getComputedStyle(split).getPropertyValue('--dur-move').trim(), dur = token.endsWith('ms') ? parseFloat(token) : parseFloat(token) * 1000;
     return { shown: [...split.querySelectorAll('[data-list-panel]:not([hidden]) h3')].map((h) => h.textContent.slice(0, 6)), animation: animation?.animationName ?? '', duration: Number(animation?.effect.getTiming().duration ?? 0), dur,
       focus: document.activeElement.dataset.listPick ?? document.activeElement.tagName, listShown: getComputedStyle(split.querySelector('.mw-list-detail__list')).display !== 'none' }; })()`);
-  assert.deepEqual(chosen, { shown: ["把会议录音整"], animation: "craft-rise", duration: chosen.dur, dur: chosen.dur, focus: "list-wide-minutes", listShown: true }, "another entry's detail moves in; the list and the focus stay");
+  assert.deepEqual(chosen, { shown: ["将会议录音整"], animation: "craft-rise", duration: chosen.dur, dur: chosen.dur, focus: "list-wide-minutes", listShown: true }, "another entry's detail moves in; the list and the focus stay");
   await evaluate("new Promise((resolve) => setTimeout(resolve, 400))");
   assert.equal(await evaluate<number>(`(() => { const split = ${wide}; split.querySelectorAll('[data-list-pick]')[1].click(); return split.querySelector('[data-list-panel]:not([hidden])').getAnimations().length; })()`), 0,
     "choosing the same entry again plays nothing");

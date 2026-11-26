@@ -50,7 +50,7 @@ const QUESTION_TYPES: readonly FormQuestionType[] = [
 ];
 
 /**
- * The SQL the store runs: its own connection to `form/form.db`, or the library the Runtime gives the plugin, inside one write
+ * The SQL the store runs: its own connection to a partition's `libraries/form.db`, or the library the Runtime gives the plugin, inside one write
  * transaction or read-only. Reads are SELECT; writes are INSERT, UPDATE and DELETE.
  */
 export interface FormSql {

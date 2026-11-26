@@ -114,7 +114,7 @@ test("the address bar opens web addresses, searches the rest and refuses other s
 test("real Host: the file tab lists and previews plugin files through the action directory; a new plugin joins by declaring and leaves when stopped", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "side-panel-files-"));
   const [a] = await withCatalog({ homeDirectory: home }, async catalog => [await catalog.createProject({ display_name: "侧栏项目", actor_id: "owner" })]);
-  await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: a.project_id, plugin_id: "pages", actor_id: "owner" }));
+  await withCatalog({ homeDirectory: home }, catalog => { for (const plugin_id of ["pages", "lingguang"]) catalog.addProjectPlugin({ project_id: a.project_id, plugin_id, actor_id: "owner" }); });
   const ref = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
@@ -171,8 +171,8 @@ test("real Host: the file tab lists and previews plugin files through the action
     const otherBody = await other.json() as { page?: { entries: unknown[] } };
     assert.ok(other.status === 404 || (otherBody.page?.entries.length ?? 0) === 0, "project boundary");
 
-    // A plugin's side tab also renders for a personal plugin, on without being stored per project (灵光); a view that is
-    // not there answers the panel's frame with a sentence, not a JSON body.
+    // A plugin's side tab renders for a plugin the project enables (灵光); a view that is not there answers the panel's frame
+    // with a sentence, not a JSON body.
     const sideTab = await fetch(`${origin}/projects/${a.project_id}/side/lingguang/side`);
     assert.equal(sideTab.status, 200);
     assert.match(await sideTab.text(), /data-side-view="lingguang\/side"/u);

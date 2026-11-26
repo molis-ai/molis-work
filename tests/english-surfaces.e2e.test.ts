@@ -62,7 +62,7 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Git and Diff pages 
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
   for (const [plugin, ready, selector] of pages) {
     await open(plugin, ready);
-    if (plugin === "git") await waitFor("document.querySelector('[data-git-status]')?.textContent === 'This folder hasn’t been made yet, so it isn’t a Git repository'");
+    if (plugin === "git") await waitFor("document.querySelector('[data-git-status]')?.textContent === 'This folder hasn’t been created yet, so it isn’t a Git repository'");
     assert.deepEqual(await evaluate<string[]>(HAN_IN(selector)), [], `${plugin} in English`);
     // The English is longer: none of it runs out of its box.
     assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], `${plugin} in English fits`);

@@ -219,7 +219,7 @@ for (const phase of ["transport", "body", "save"] as const) test(`BSH-09 BL-1033
     assert.deepEqual(await child.evaluate("({ status: datasetRead.error.status, code: datasetRead.error.code })"), {
       status: 403, code: "actions.scope_mismatch",
     });
-    assert.match(await child.evaluate<string>(`document.querySelector('${failure} p').textContent`), /无权读取此内容/);
+    assert.match(await child.evaluate<string>(`document.querySelector('${failure} p').textContent`), /当前没有查看这项内容的权限/);
     await child.click(`${failure} button`);
   }
   await child.waitFor(`document.querySelector('[data-dataset-id="${original.id}"]')`);

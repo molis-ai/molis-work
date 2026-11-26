@@ -696,7 +696,7 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
   for (const edge of self.edges(TYPES.copied).filter(edge => sameObject(edge.target, object.kind, object.id))) {
     await origin(title => placementText(ports, "workbench.index.copied-title-2", { title }), "copied_into")(edge, edge.source);
   }
-  const tools = read.state === "ok" ? await placementTools(ports, object) : { mover: null, copier: null };
+  const tools = read.state === "ok" ? await placementTools(ports, object) : { mover: null, copier: null, exporter: null };
   const here = object.project_id ?? placementBelongsOf(read);
   if (!ports.surfaceSource && object.project_id === null && read.state === "ok") { await ports.beforeEffect?.(); self.rememberBelonging(object, here); }
   // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
@@ -706,7 +706,7 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     state: read.state, reason: read.reason, object, title, plugin: read.plugin, location,
     moved_from: located.moved ? placementLocation(ports, input.project_id, spaces) : before ? homePlacementLocation(ports, before, spaces) : null,
     associations,
-    can: { move: !!tools.mover, copy: !!tools.copier, use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
+    can: { move: !!(tools.mover ?? tools.exporter), copy: !!(tools.copier ?? tools.exporter), use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
     open: read.context?.open ? { project_id: placementOpenProject(object, read), surface: read.context.open.surface, id: read.context.open.id } : null,
   };
 }
@@ -749,15 +749,17 @@ function placementToolOf(ports: PlacementPorts, views: readonly ActionView[], ki
   return matches[0] ? ref(matches[0]) : null;
 }
 
-async function placementTools(ports: PlacementPorts, object: PlacedObject, operation?: "move" | "copy"): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
+async function placementTools(ports: PlacementPorts, object: PlacedObject, operation?: "move" | "copy"): Promise<{ mover: ActionReference | null; copier: ActionReference | null; exporter: ActionReference | null }> {
   let views: readonly ActionView[];
   try {
     const scope = await ports.scope(object.project_id);
     views = await scope.client.discover(scope.caller);
-  } catch { return { mover: null, copier: null }; }
+  } catch { return { mover: null, copier: null, exporter: null }; }
   // Discovery can be unavailable; a discovered conflict must reach the caller rather than look like an absent tool.
   return { mover: operation === "copy" ? null : placementToolOf(ports, views, object.kind, "move"),
-    copier: operation === "move" ? null : placementToolOf(ports, views, object.kind, "copy") };
+    copier: operation === "move" ? null : placementToolOf(ports, views, object.kind, "copy"),
+    // An object in a partition is carried across by its owner's parts (`carryTools`): the exporter here is what offers it.
+    exporter: operation || object.project_id === null ? null : carryToolOf(ports, views, object.kind, isObjectExporter) };
 }
 
 /**

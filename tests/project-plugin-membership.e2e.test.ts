@@ -126,7 +126,8 @@ test("SPC-C08 picker and market save from their own observations, report committ
   await browser.click("[data-market-project-trigger]");
   await browser.click(`[data-market-project-option="${other.project_id}"]`);
   await browser.waitFor(`${ready("diff")} && ${marketState("diff")} === 'available'`);
-  await browser.web.delete(settings(other.project_id), { plugin_id: "form", expected_revision: before.revision });
+  // Another writer hides a personal plugin there (Todo; Form is no longer personal, batch 107), so the revision moves on.
+  await browser.web.delete(settings(other.project_id), { plugin_id: "todo", expected_revision: before.revision });
   const changed = await membership(browser, other.project_id);
   assert.notEqual(changed.revision, before.revision);
   await browser.click(marketButton("diff"));

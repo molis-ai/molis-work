@@ -1,357 +1,160 @@
-import { randomUUID } from "node:crypto";
+import { isTimeZone } from "@molis-ai/molis-work-plugin-sdk";
+import type { JellyItem, JellyOccurrence, JellyOccurrencePatch, JellySchedule, JellySeries } from "./contract.js";
 import { jellyAssert } from "./error.js";
-import type { JellyCategory, JellyCommand, JellyItem, JellyOccurrence, JellySchedule, JellySeries, JellyWorkspace } from "./contract.js";
-import { JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDate, jellyDaysBetween, jellyLogicalOccurrence, jellyOccurrenceIdentity, jellyWeekday, jellyWithinSeries, validateJellySeries, validateJellyWorkspace } from "./calendar-validation.js";
-import { JellyWorkspaceEdit } from "./workspace-edit.js";
-export { JELLY_UNCATEGORIZED_ID, validateJellyWorkspace } from "./calendar-validation.js";
 
-export function emptyJellyWorkspace(): JellyWorkspace {
-  return { schema_version: /* @version format.jelly.workspace */ 1, revision: 0, categories: [{ id: JELLY_UNCATEGORIZED_ID, name: "未分类", color: "#8E8E93", sort_index: 0 }], items: [], series: [], notes: [], relations: [], relation_overrides: [], task_links: [], applied_plan_ids: [] };
+/** The one category that is always there and cannot be renamed or deleted; entries of a deleted category move to it. */
+export const JELLY_UNCATEGORIZED_ID = "uncategorized";
+const DAY = 86_400_000;
+
+export function jellyDate(value: unknown): string {
+  jellyAssert(typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value), "日期应为 YYYY-MM-DD");
+  const timestamp = Date.parse(`${value}T12:00:00.000Z`);
+  jellyAssert(Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value && value >= "0001-01-01", "日期无效");
+  return value;
 }
-export function makeJellyItem(input: Partial<JellyItem>, now: string): JellyItem {
-  const start = jellyDate(input.start_date);
-  return { id: input.id ?? randomUUID(), title: typeof input.title === "string" ? input.title.trim() : "", kind: input.kind ?? "task", category_id: input.category_id ?? JELLY_UNCATEGORIZED_ID, priority: input.pinned ? "P0" : input.priority ?? "none", pinned: input.pinned ?? false, start_date: start, end_date: input.end_date ?? start, start_time: input.start_time ?? null, end_time: input.end_time ?? null, completed_at: input.completed_at ?? null, completion_description: input.completion_description ?? "", notes: input.notes ?? "", untimed_rank: input.untimed_rank ?? 0, created_at: now, updated_at: now, time_zone: input.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone };
+export function jellyDaysBetween(start: string, end: string): number { return (Date.parse(`${jellyDate(end)}T12:00:00Z`) - Date.parse(`${jellyDate(start)}T12:00:00Z`)) / DAY; }
+export function jellyAddDays(day: string, count: number): string {
+  jellyAssert(Number.isSafeInteger(count), "天数无效");
+  return jellyDate(new Date(Date.parse(`${jellyDate(day)}T12:00:00Z`) + count * DAY).toISOString().slice(0, 10));
 }
-function record(value: unknown, label: string): Record<string, unknown> { jellyAssert(value && typeof value === "object" && !Array.isArray(value), `${label} 无效`); return value as Record<string, unknown>; }
-function identifier(value: unknown): string { jellyAssert(typeof value === "string" && value.length > 0, "ID 无效"); return value; }
-function ids(value: unknown): string[] { jellyAssert(Array.isArray(value) && value.every(id => typeof id === "string") && new Set(value).size === value.length, "ID 列表重复或无效"); return value as string[]; }
-function bool(value: unknown): boolean { jellyAssert(typeof value === "boolean", "完成状态无效"); return value; }
-const mutableFields = ["title", "kind", "category_id", "priority", "pinned", "start_date", "end_date", "start_time", "end_time", "completion_description", "notes", "untimed_rank"] as const;
-function patchItem<T extends JellyItem>(item: T, raw: Record<string, unknown>, now: string): T {
-  const next = { ...item };
-  for (const key of mutableFields) if (Object.hasOwn(raw, key)) Object.assign(next, { [key]: raw[key] });
-  if (typeof next.title === "string") next.title = next.title.trim();
-  if (raw.pinned === true) next.priority = "P0";
-  next.updated_at = now;
-  return next;
+/** 1 is Monday, 7 Sunday. */
+export function jellyWeekday(day: string): number { return new Date(`${jellyDate(day)}T12:00:00Z`).getUTCDay() || 7; }
+
+function validateSchedule(schedule: JellySchedule): void {
+  jellyDate(schedule.start_date); jellyDate(schedule.end_date);
+  jellyAssert(schedule.end_date >= schedule.start_date, "结束日期不能早于开始日期");
+  jellyAssert((schedule.start_time === null) === (schedule.end_time === null), "开始和结束时间必须同时填写");
+  for (const minute of [schedule.start_time, schedule.end_time]) jellyAssert(minute === null || (Number.isInteger(minute) && minute >= 0 && minute < 1440), "时间必须是 0–1439 的分钟数");
+  if (schedule.start_date === schedule.end_date && schedule.start_time !== null && schedule.end_time !== null) jellyAssert(schedule.end_time > schedule.start_time, "结束时间必须晚于开始时间");
+  jellyAssert(typeof schedule.time_zone === "string" && isTimeZone(schedule.time_zone), "时区无效");
 }
-function shiftSchedule<T extends JellySchedule>(item: T, delta: number): T { return { ...item, start_date: jellyAddDays(item.start_date, delta), end_date: jellyAddDays(item.end_date, delta) }; }
-function rangeIntersects(item: JellySchedule, start: string, end: string): boolean { return item.start_date <= end && item.end_date >= start; }
-function effectiveOccurrence(series: JellySeries, date: string): JellyOccurrence {
-  const duration = jellyDaysBetween(series.start_date, series.end_date);
-  const { weekdays: _weekdays, until: _until, exceptions: _exceptions, completions: _completions, ...base } = series;
-  const completion = series.completions[date];
-  return { ...base, start_date: date, end_date: jellyAddDays(date, duration), ...series.exceptions[date]?.patch, id: `${series.id}@${date}`, series_id: series.id, original_date: date, completed_at: completion?.completed_at ?? null, completion_description: completion?.completion_description ?? base.completion_description };
+const stamp = (value: unknown): boolean => typeof value === "string" && Number.isFinite(Date.parse(value));
+/** What every entry and every occurrence must be. `categories` are the ids that exist. */
+/** The category ids an entry may name; sync, where a category may arrive after its entries, passes one that has every id. */
+export type JellyCategoryIds = Pick<ReadonlySet<string>, "has">;
+export function validateJellyEntry(entry: Omit<JellyItem, "completed_at"> & { completed_at?: string | null }, categories: JellyCategoryIds): void {
+  jellyAssert(typeof entry.id === "string" && entry.id.length > 0 && entry.id.length <= 200 && !entry.id.includes("@"), "事项 ID 无效");
+  jellyAssert(typeof entry.title === "string" && entry.title.trim().length > 0 && entry.title.length <= 500, "事项标题不能为空，也不能超过 500 字");
+  jellyAssert(entry.kind === "task" || entry.kind === "event", "事项类型无效");
+  jellyAssert(categories.has(entry.category_id), "分类不存在");
+  jellyAssert(typeof entry.notes === "string" && entry.notes.length <= 20_000, "备注过长");
+  jellyAssert((entry.completed_at === undefined || entry.completed_at === null || stamp(entry.completed_at)) && stamp(entry.created_at) && stamp(entry.updated_at), "事项时间戳无效");
+  jellyAssert(Number.isSafeInteger(entry.revision) && entry.revision >= 1, "事项版本无效");
+  validateSchedule(entry);
 }
-const priorityRank = { P0: 0, P1: 1, P2: 2, none: 3 };
+const within = (series: JellySeries, date: string): boolean => date >= series.start_date && (series.until === null || date <= series.until);
+/** Whether `date` is an occurrence the series shows (its weekday, or a moved occurrence kept as an exception, and not deleted). */
+export function jellyOccurs(series: JellySeries, date: string): boolean {
+  const exception = series.exceptions[date];
+  return within(series, date) && !exception?.deleted && (!!exception?.patch || series.weekdays.includes(jellyWeekday(date)));
+}
+export function validateJellySeries(series: JellySeries, categories: JellyCategoryIds): void {
+  validateJellyEntry(series, categories);
+  jellyAssert(Array.isArray(series.weekdays) && series.weekdays.length > 0 && new Set(series.weekdays).size === series.weekdays.length && series.weekdays.every(day => Number.isInteger(day) && day >= 1 && day <= 7), "重复星期应为 1–7，不能重复或为空");
+  if (series.until !== null) jellyAssert(jellyDate(series.until) >= series.start_date, "重复结束日不能早于开始日");
+  let natural = false;
+  for (let offset = 0; offset < 7; offset++) { const day = jellyAddDays(series.start_date, offset); if (series.until !== null && day > series.until) break; if (series.weekdays.includes(jellyWeekday(day))) natural = true; }
+  jellyAssert(natural || Object.entries(series.exceptions).some(([day, exception]) => within(series, day) && exception.patch), "重复范围内没有一次日程");
+  for (const [date, exception] of Object.entries(series.exceptions)) {
+    jellyDate(date); jellyAssert(within(series, date), "重复例外超出系列范围");
+    jellyAssert(exception && (exception.deleted === true) !== !!exception.patch, "重复例外无效");
+    if (exception.patch) validateJellyEntry({ ...occurrenceOf(series, date), id: series.id }, categories);
+  }
+  for (const [date, completed] of Object.entries(series.completions)) jellyAssert(jellyOccurs(series, jellyDate(date)) && stamp(completed), "完成记录指向不存在的一次日程");
+}
+
+/** One occurrence of a series as the calendar shows it. Its id is `<series id>@<original date>`. */
+export function occurrenceOf(series: JellySeries, date: string): JellyOccurrence {
+  const { weekdays: _weekdays, until: _until, exceptions, completions, ...base } = series;
+  const length = jellyDaysBetween(series.start_date, series.end_date);
+  return { ...base, start_date: date, end_date: jellyAddDays(date, length), ...exceptions[date]?.patch, id: `${series.id}@${date}`, series_id: series.id, original_date: date, completed_at: completions[date] ?? null };
+}
+const intersects = (entry: JellySchedule, start: string, end: string): boolean => entry.start_date <= end && entry.end_date >= start;
+/** Sorted for one day's list: multi-day first, then all-day, then by start time; ties by creation. */
 export function compareJellyOccurrences(a: JellyOccurrence, b: JellyOccurrence): number {
-  if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-  if (a.priority !== b.priority) return priorityRank[a.priority] - priorityRank[b.priority];
-  const aMulti = a.end_date !== a.start_date; const bMulti = b.end_date !== b.start_date;
-  if (aMulti !== bMulti) return aMulti ? -1 : 1;
+  const aLong = a.end_date !== a.start_date, bLong = b.end_date !== b.start_date;
+  if (aLong !== bLong) return aLong ? -1 : 1;
   if ((a.start_time === null) !== (b.start_time === null)) return a.start_time === null ? -1 : 1;
   if (a.start_time !== null && b.start_time !== null && a.start_time !== b.start_time) return a.start_time - b.start_time;
-  if (!aMulti && !bMulti && a.start_time === null && b.start_time === null && a.untimed_rank !== b.untimed_rank) return a.untimed_rank - b.untimed_rank;
-  return a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
+  return a.start_date.localeCompare(b.start_date) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
 }
-export function jellyOccurrences(state: JellyWorkspace, start: string, end: string): JellyOccurrence[] {
-  jellyDate(start); jellyDate(end); jellyAssert(end >= start && jellyDaysBetween(start, end) <= 36600, "日历查询范围无效或超过 100 年");
-  const result: JellyOccurrence[] = state.items.filter(item => rangeIntersects(item, start, end)).map(item => ({ ...item, series_id: null, original_date: null }));
-  for (const series of state.series) {
-    const duration = jellyDaysBetween(series.start_date, series.end_date);
-    const startMs = Date.parse(`${start}T12:00:00Z`) - duration * 86400000;
-    const lower = Math.max(startMs, Date.parse(`${series.start_date}T12:00:00Z`));
-    let date = new Date(lower).toISOString().slice(0, 10);
-    const upper = series.until && series.until < end ? series.until : end;
-    const candidates = new Set(Object.keys(series.exceptions).filter(day => jellyLogicalOccurrence(series, day)));
-    while (date <= upper) { if (series.weekdays.includes(jellyWeekday(date))) candidates.add(date); if (date === upper) break; date = jellyAddDays(date, 1); }
-    for (const candidate of candidates) {
-      if (!jellyLogicalOccurrence(series, candidate)) continue;
-      const occurrence = effectiveOccurrence(series, candidate);
-      if (rangeIntersects(occurrence, start, end)) result.push(occurrence);
-    }
+/** Every entry and occurrence that touches `start`..`end` (both included). */
+export function jellyOccurrences(items: readonly JellyItem[], series: readonly JellySeries[], start: string, end: string): JellyOccurrence[] {
+  jellyAssert(jellyDate(end) >= jellyDate(start) && jellyDaysBetween(start, end) <= 400, "日历查询范围无效或超过 400 天");
+  const result: JellyOccurrence[] = items.filter(item => intersects(item, start, end)).map(item => ({ ...item, series_id: null, original_date: null }));
+  for (const value of series) {
+    const length = jellyDaysBetween(value.start_date, value.end_date);
+    const first = jellyAddDays(start, -length) > value.start_date ? jellyAddDays(start, -length) : value.start_date;
+    const last = value.until !== null && value.until < end ? value.until : end;
+    const candidates = new Set(Object.keys(value.exceptions));
+    for (let day = first; day <= last; day = jellyAddDays(day, 1)) if (value.weekdays.includes(jellyWeekday(day))) candidates.add(day);
+    for (const day of candidates) if (jellyOccurs(value, day)) { const occurrence = occurrenceOf(value, day); if (intersects(occurrence, start, end)) result.push(occurrence); }
   }
   return result.sort(compareJellyOccurrences);
 }
-/** Timed intervals are half-open. Untimed items do not reserve every minute of their day. */
-export function jellySchedulesOverlap(a: JellySchedule, b: JellySchedule): boolean {
-  if (a.start_time === null || a.end_time === null || b.start_time === null || b.end_time === null) return false;
-  const origin = a.start_date < b.start_date ? a.start_date : b.start_date;
-  const startA = jellyDaysBetween(origin, a.start_date) * 1440 + a.start_time;
-  const endA = jellyDaysBetween(origin, a.end_date) * 1440 + a.end_time;
-  const startB = jellyDaysBetween(origin, b.start_date) * 1440 + b.start_time;
-  const endB = jellyDaysBetween(origin, b.end_date) * 1440 + b.end_time;
-  return startA < endB && startB < endA;
+
+export type JellySeriesScope = "onlyThis" | "thisAndFuture" | "all";
+export interface JellySeriesPatch extends JellyOccurrencePatch { weekdays?: number[]; until?: string | null; completed?: boolean }
+/** What a change to a series leaves: the series as it is now (`null` when nothing of it is left) and, for "this and following", the new series split off. */
+export interface JellySeriesChange { series: JellySeries | null; created: JellySeries | null }
+const OCCURRENCE_FIELDS = ["title", "kind", "category_id", "notes", "start_date", "end_date", "start_time", "end_time"] as const;
+function pick(patch: JellySeriesPatch): JellyOccurrencePatch {
+  return Object.fromEntries(OCCURRENCE_FIELDS.filter(key => patch[key] !== undefined).map(key => [key, key === "title" ? patch.title!.trim() : patch[key]]));
 }
-export function jellyProgress(state: JellyWorkspace, start: string, end: string, today: string, categoryIds?: string[]) {
-  jellyDate(today);
-  const allowed = categoryIds ? new Set(categoryIds) : null;
-  const items = jellyOccurrences(state, start, end).filter(item => !allowed || allowed.has(item.category_id));
-  const completed = items.filter(item => item.completed_at !== null);
-  const open = items.filter(item => item.completed_at === null);
-  const overdue = open.filter(item => item.end_date < today);
-  const categories = state.categories.map(category => { const group = items.filter(item => item.category_id === category.id); return { ...category, total: group.length, completed: group.filter(item => item.completed_at !== null).length }; }).filter(category => category.total > 0).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-  return { start, end, today, total: items.length, completed_count: completed.length, open_count: open.length, overdue_count: overdue.length, high_priority_open: open.filter(item => item.priority === "P0" || item.priority === "P1").length, completed, open, overdue, categories, factual_summary: items.length === 0 ? "这一时段还没有事项。" : open.length === 0 ? `这一时段的 ${items.length} 件事项已全部完成。` : `已完成 ${completed.length} 件，仍有 ${open.length} 件${overdue.length ? `，其中 ${overdue.length} 件已延期。` : "在进行。"}` };
+/** Ends the series before `boundary`; `null` when no occurrence is left before it. */
+function endBefore(series: JellySeries, boundary: string): JellySeries | null {
+  const until = jellyAddDays(boundary, -1);
+  const kept = { ...series, until: series.until !== null && series.until < until ? series.until : until,
+    exceptions: Object.fromEntries(Object.entries(series.exceptions).filter(([day]) => day < boundary)),
+    completions: Object.fromEntries(Object.entries(series.completions).filter(([day]) => day < boundary)) };
+  for (let day = kept.start_date; day <= kept.until; day = jellyAddDays(day, 1)) if (jellyOccurs(kept, day)) return kept;
+  return null;
 }
-function syncLinkedBlock(state: JellyWorkspace, item: JellyItem, now: string, edit: JellyWorkspaceEdit): void {
-  for (const link of state.task_links.filter(link => link.item_id === item.id)) {
-    const note = state.notes.find(note => note.id === link.note_id); const block = note?.blocks.find(block => block.id === link.block_id);
-    jellyAssert(note && block?.kind === "task", "关联的任务块已不存在");
-    if (block.text !== item.title || block.completed_at !== item.completed_at || block.completion_description !== item.completion_description) {
-      if (block.text !== item.title) block.inline_spans = undefined;
-      block.text = item.title;
-      block.completed_at = item.completed_at;
-      block.completion_description = item.completion_description;
-      note.revision++;
-      note.updated_at = now;
-      edit.notes.add(note);
-    }
+/**
+ * One change to a repeating series at the occurrence originally on `date`. `patch` absent deletes; `patch.completed` alone marks or clears that
+ * one occurrence. "This and following" ends the series before `date` and starts `newId` there, moved by as many days as the occurrence moved.
+ */
+export function changeJellySeries(series: JellySeries, date: string, scope: JellySeriesScope, patch: JellySeriesPatch | null, now: string, newId: string): JellySeriesChange {
+  jellyAssert(jellyOccurs(series, jellyDate(date)), "这一次重复日程不存在");
+  const touched = (value: JellySeries): JellySeries => ({ ...value, revision: value.revision + 1, updated_at: now });
+  const fields = patch ? pick(patch) : {};
+  const rule = patch && (patch.weekdays !== undefined || patch.until !== undefined);
+  if (patch?.completed !== undefined) {
+    jellyAssert(scope === "onlyThis" && !rule && Object.keys(fields).length === 0, "完成状态只能对一次日程单独标记");
+    const completions = { ...series.completions };
+    if (patch.completed) completions[date] = completions[date] ?? now; else delete completions[date];
+    return { series: touched({ ...series, completions }), created: null };
   }
-}
-function removeOwnerRelations(state: JellyWorkspace, id: string, predicate: (day: string | null) => boolean = () => true): void {
-  state.relations = state.relations.filter(relation => relation.owner_id !== id || !predicate(relation.original_date));
-  state.relation_overrides = state.relation_overrides?.filter(relation => relation.owner_id !== id || !predicate(relation.original_date));
-}
-function completeAt(previous: string | null, completed: boolean, now: string): string | null { return completed ? previous ?? now : null; }
-function requireSeries(state: JellyWorkspace, command: JellyCommand): { series: JellySeries; date: string } {
-  const series = state.series.find(series => series.id === identifier(command.id)); jellyAssert(series, "重复系列不存在");
-  const date = jellyDate(command.original_date); jellyAssert(jellyLogicalOccurrence(series, date), "重复实例不存在"); return { series, date };
-}
-function retainHistory(state: JellyWorkspace, series: JellySeries, boundary: string, now: string): boolean {
-  let hasHistory = Object.entries(series.exceptions).some(([date, exception]) => date < boundary && !exception.deleted);
-  for (const weekday of series.weekdays) {
-    let day = jellyAddDays(series.start_date, (weekday - jellyWeekday(series.start_date) + 7) % 7);
-    while (day < boundary && series.exceptions[day]?.deleted) day = jellyAddDays(day, 7);
-    if (day < boundary) hasHistory = true;
-  }
-  if (!hasHistory) { state.series = state.series.filter(value => value.id !== series.id); return false; }
-  series.until = jellyAddDays(boundary, -1); series.updated_at = now;
-  series.exceptions = Object.fromEntries(Object.entries(series.exceptions).filter(([day]) => day < boundary));
-  series.completions = Object.fromEntries(Object.entries(series.completions).filter(([day]) => day < boundary));
-  return true;
-}
-function mutateSeries(state: JellyWorkspace, command: JellyCommand, now: string, edit: JellyWorkspaceEdit): void {
-  const { series, date } = requireSeries(state, command); const scope = command.scope;
-  const deleting = command.type === "series.delete";
   if (scope === "onlyThis") {
-    if (deleting) { series.exceptions[date] = { deleted: true }; delete series.completions[date]; }
-    else {
-      const patch = record(command.patch, "重复修改"); jellyAssert(patch.weekdays === undefined && patch.until === undefined, "单次修改不能改变重复规则");
-      const occurrence = patchItem(effectiveOccurrence(series, date), patch, now);
-      const { series_id: _sid, original_date: _date, ...value } = occurrence;
-      series.exceptions[date] = { patch: { ...value, id: series.id } };
-    }
-    series.updated_at = now;
-    edit.series.add(series);
-    return;
+    jellyAssert(!rule, "只改这一次时不能改变重复规则");
+    const exceptions = { ...series.exceptions, [date]: patch ? { patch: { ...series.exceptions[date]?.patch, ...fields } } : { deleted: true as const } };
+    const completions = { ...series.completions }; if (!patch) delete completions[date];
+    return { series: touched({ ...series, exceptions, completions }), created: null };
   }
-  const original = { ...series };
-  const keptHistory = retainHistory(state, series, date, now);
-  if (keptHistory) edit.series.add(series);
-  edit.relations = true;
-  if (deleting) { removeOwnerRelations(state, series.id, day => !keptHistory || (day !== null && day >= date)); return; }
-  const patch = record(command.patch, "重复修改");
-  const newStart = patch.start_date === undefined ? date : jellyDate(patch.start_date);
-  const delta = jellyDaysBetween(date, newStart);
-  const futureId = command.new_series_id === undefined ? randomUUID() : identifier(command.new_series_id);
-  jellyAssert(!state.series.some(value => value.id === futureId) && !state.items.some(value => value.id === futureId) && futureId !== original.id, "新系列 ID 已存在");
-  const duration = jellyDaysBetween(original.start_date, original.end_date);
-  const future = patchItem({ ...original, id: futureId, start_date: newStart, end_date: jellyAddDays(newStart, duration), created_at: now }, patch, now);
-  future.weekdays = patch.weekdays === undefined ? original.weekdays.map(day => ((day - 1 + delta) % 7 + 7) % 7 + 1) : patch.weekdays as number[];
-  future.until = patch.until === undefined ? (original.until === null ? null : jellyAddDays(original.until, delta)) : patch.until as string | null;
-  future.exceptions = {}; future.completions = {};
-  for (const [oldDate, exception] of Object.entries(original.exceptions)) {
-    if (oldDate < date) continue; const newDate = jellyAddDays(oldDate, delta); if (!jellyWithinSeries(future, newDate)) continue;
-    if (exception.deleted) future.exceptions[newDate] = { deleted: true };
-    else if (exception.patch) {
-      let value = shiftSchedule({ ...effectiveOccurrence(original, oldDate), id: future.id }, delta);
-      if (oldDate === date) value = patchItem(value, patch, now);
-      const { series_id: _sid, original_date: _date, ...item } = value;
-      future.exceptions[newDate] = { patch: item };
-    }
+  if (scope === "all") {
+    if (!patch) return { series: null, created: null };
+    const moved = fields.start_date === undefined ? 0 : jellyDaysBetween(date, fields.start_date);
+    const start = jellyAddDays(series.start_date, moved), length = fields.start_date !== undefined && fields.end_date !== undefined ? jellyDaysBetween(fields.start_date, fields.end_date) : jellyDaysBetween(series.start_date, series.end_date);
+    const { start_date: _start, end_date: _end, ...rest } = fields;
+    const next = { ...series, ...rest, start_date: start, end_date: jellyAddDays(start, length),
+      weekdays: patch.weekdays ?? series.weekdays.map(day => ((day - 1 + moved) % 7 + 7) % 7 + 1),
+      until: patch.until !== undefined ? patch.until : series.until === null ? null : jellyAddDays(series.until, moved),
+      // Moving the whole series drops what was kept for single dates: they no longer line up.
+      exceptions: moved || patch.weekdays ? {} : series.exceptions, completions: moved || patch.weekdays ? {} : series.completions };
+    return { series: touched(next), created: null };
   }
-  for (const [oldDate, completion] of Object.entries(original.completions)) { const newDate = jellyAddDays(oldDate, delta); if (oldDate >= date && jellyLogicalOccurrence(future, newDate)) future.completions[newDate] = completion; }
-  validateJellySeries(future, new Set(state.categories.map(category => category.id)));
-  state.series.push(future);
-  edit.series.add(future);
-  const baseline = state.relations.filter(relation => relation.owner_id === original.id && relation.original_date === null);
-  for (const relation of baseline) state.relations.push({ ...relation, owner_id: future.id });
-  state.relations = state.relations.flatMap(relation => {
-    if (relation.owner_id !== original.id) return [relation];
-    if (relation.original_date === null) return keptHistory ? [relation] : [];
-    if (relation.original_date < date) return keptHistory ? [relation] : [];
-    const day = jellyAddDays(relation.original_date, delta); return jellyOccurrenceIdentity(future, day) ? [{ ...relation, owner_id: future.id, original_date: day }] : [];
-  });
-  state.relation_overrides = state.relation_overrides?.flatMap(relation => {
-    if (relation.owner_id !== original.id) return [relation];
-    if (relation.original_date < date) return keptHistory ? [relation] : [];
-    const day = jellyAddDays(relation.original_date, delta); return jellyOccurrenceIdentity(future, day) ? [{ ...relation, owner_id: future.id, original_date: day }] : [];
-  });
-}
-const calendarCommandTypes = new Set(["item.create", "item.update", "item.delete", "item.move", "item.move_many", "item.complete", "item.reorder", "series.create", "series.update", "series.delete", "series.complete", "category.create", "category.update", "category.delete", "category.reorder"]);
-/** Validate a candidate before publishing it, so failed commands cannot partly mutate callers. */
-export function applyJellyCalendarCommand(state: JellyWorkspace, command: JellyCommand, nowValue: string | Date): boolean {
-  if (!calendarCommandTypes.has(command.type)) return false;
-  const now = nowValue instanceof Date ? nowValue.toISOString() : nowValue;
-  jellyAssert(typeof now === "string" && Number.isFinite(Date.parse(now)), "操作时间无效");
-  const next = structuredClone(state);
-  editJellyCalendarCommand(next, command, now, new JellyWorkspaceEdit());
-  validateJellyWorkspace(next);
-  Object.assign(state, next);
-  return true;
-}
-
-/** Apply to a store-owned working state. The caller checks the edit before publishing it. */
-export function editJellyCalendarCommand(state: JellyWorkspace, command: JellyCommand, now: string, edit: JellyWorkspaceEdit): boolean {
-  switch (command.type) {
-    case "item.create": {
-      const item = makeJellyItem(record(command.item, "事项"), now);
-      state.items.push(item);
-      edit.items.add(item);
-      break;
-    }
-    case "item.update": {
-      const index = state.items.findIndex(item => item.id === identifier(command.id));
-      jellyAssert(index >= 0, "事项不存在");
-      const item = patchItem(state.items[index], record(command.patch, "修改"), now);
-      state.items[index] = item;
-      edit.items.add(item);
-      syncLinkedBlock(state, item, now, edit);
-      break;
-    }
-    case "item.complete": {
-      const item = state.items.find(item => item.id === identifier(command.id));
-      jellyAssert(item, "事项不存在");
-      item.completed_at = completeAt(item.completed_at, bool(command.completed), now);
-      if (command.completion_description !== undefined) {
-        jellyAssert(typeof command.completion_description === "string", "完成说明无效");
-        item.completion_description = command.completion_description;
-      }
-      item.updated_at = now;
-      edit.items.add(item);
-      syncLinkedBlock(state, item, now, edit);
-      break;
-    }
-    case "item.delete": {
-      const id = identifier(command.id);
-      jellyAssert(state.items.some(item => item.id === id), "事项不存在");
-      state.items = state.items.filter(item => item.id !== id);
-      state.task_links = state.task_links.filter(link => link.item_id !== id);
-      removeOwnerRelations(state, id);
-      break;
-    }
-    case "item.move":
-    case "item.move_many": {
-      const selected = command.type === "item.move" ? [identifier(command.id)] : ids(command.ids);
-      const date = jellyDate(command.date);
-      for (const id of selected) {
-        const index = state.items.findIndex(item => item.id === id);
-        jellyAssert(index >= 0, "事项不存在");
-        const item = state.items[index];
-        const moved = { ...shiftSchedule(item, jellyDaysBetween(item.start_date, date)), updated_at: now };
-        state.items[index] = moved;
-        edit.items.add(moved);
-      }
-      break;
-    }
-    case "item.reorder": {
-      const date = jellyDate(command.date);
-      const order = ids(command.ids);
-      const available = state.items.filter(item => item.start_date === date && item.end_date === date && item.start_time === null);
-      jellyAssert(order.length === available.length && available.every(item => order.includes(item.id)), "排序必须包含该日全部单日无时间事项");
-      for (const item of available) {
-        item.untimed_rank = order.indexOf(item.id);
-        item.updated_at = now;
-        edit.items.add(item);
-      }
-      break;
-    }
-    case "series.create": {
-      const input = record(command.series, "重复系列");
-      const series: JellySeries = {
-        ...makeJellyItem(input, now),
-        weekdays: input.weekdays as number[],
-        until: input.until === undefined ? null : input.until as string | null,
-        exceptions: {}, completions: {},
-      };
-      state.series.push(series);
-      edit.series.add(series);
-      break;
-    }
-    case "series.update":
-    case "series.delete":
-      mutateSeries(state, command, now, edit);
-      break;
-    case "series.complete": {
-      const { series, date } = requireSeries(state, command);
-      const old = series.completions[date];
-      if (bool(command.completed)) {
-        series.completions[date] = { completed_at: completeAt(old?.completed_at ?? null, true, now), completion_description: command.completion_description as string ?? old?.completion_description ?? "" };
-      } else delete series.completions[date];
-      series.updated_at = now;
-      edit.series.add(series);
-      break;
-    }
-    case "category.create": {
-      const input = record(command.category, "分类");
-      const category: JellyCategory = {
-        id: input.id === undefined ? randomUUID() : identifier(input.id),
-        name: typeof input.name === "string" ? input.name.trim() : "",
-        color: input.color === undefined ? "#6A8D73" : input.color as string,
-        sort_index: state.categories.length,
-      };
-      state.categories.push(category);
-      edit.categories = true;
-      break;
-    }
-    case "category.update": {
-      const category = state.categories.find(category => category.id === identifier(command.id));
-      jellyAssert(category, "分类不存在");
-      const patch = record(command.patch, "分类修改");
-      if (patch.name !== undefined) {
-        jellyAssert(category.id !== JELLY_UNCATEGORIZED_ID, "未分类不能改名");
-        jellyAssert(typeof patch.name === "string", "分类名无效");
-        category.name = patch.name.trim();
-      }
-      if (patch.color !== undefined) category.color = patch.color as string;
-      edit.categories = true;
-      break;
-    }
-    case "category.delete":
-      deleteCategory(state, identifier(command.id), now, edit);
-      break;
-    case "category.reorder": {
-      const order = ids(command.ids);
-      jellyAssert(order.length === state.categories.length && state.categories.every(category => order.includes(category.id)), "排序必须包含全部分类");
-      state.categories.forEach(category => { category.sort_index = order.indexOf(category.id); });
-      state.categories.sort((a, b) => a.sort_index - b.sort_index);
-      edit.categories = true;
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-
-function deleteCategory(state: JellyWorkspace, id: string, now: string, edit: JellyWorkspaceEdit): void {
-  jellyAssert(id !== JELLY_UNCATEGORIZED_ID && state.categories.some(category => category.id === id), "不能删除未分类或不存在的分类");
-  state.categories = state.categories.filter(category => category.id !== id);
-  state.categories.forEach((category, index) => { category.sort_index = index; });
-  edit.categories = true;
-  for (const item of state.items) {
-    if (item.category_id !== id) continue;
-    item.category_id = JELLY_UNCATEGORIZED_ID;
-    item.updated_at = now;
-    edit.items.add(item);
-  }
-  for (const series of state.series) {
-    if (series.category_id === id) {
-      series.category_id = JELLY_UNCATEGORIZED_ID;
-      series.updated_at = now;
-      edit.series.add(series);
-    }
-    for (const exception of Object.values(series.exceptions)) {
-      if (exception.patch?.category_id !== id) continue;
-      exception.patch.category_id = JELLY_UNCATEGORIZED_ID;
-      edit.series.add(series);
-    }
-  }
-  for (const note of state.notes) {
-    if (note.category_id !== id) continue;
-    note.category_id = JELLY_UNCATEGORIZED_ID;
-    note.revision++;
-    note.updated_at = now;
-    edit.notes.add(note);
-  }
+  const kept = endBefore(series, date);
+  if (!patch) return { series: kept && touched(kept), created: null };
+  const current = occurrenceOf(series, date);
+  const start = fields.start_date ?? current.start_date, moved = jellyDaysBetween(current.start_date, start);
+  const length = jellyDaysBetween(start, fields.end_date ?? jellyAddDays(current.end_date, moved));
+  const { start_date: _start, end_date: _end, ...rest } = fields;
+  const shift = (day: string) => jellyAddDays(day, jellyDaysBetween(date, start));
+  const created: JellySeries = { ...series, ...rest, id: newId, start_date: start, end_date: jellyAddDays(start, length),
+    weekdays: patch.weekdays ?? series.weekdays.map(day => ((day - 1 + jellyDaysBetween(date, start)) % 7 + 7) % 7 + 1),
+    until: patch.until !== undefined ? patch.until : series.until === null ? null : shift(series.until),
+    exceptions: patch.weekdays ? {} : Object.fromEntries(Object.entries(series.exceptions).filter(([day]) => day > date).map(([day, value]) => [shift(day), value])),
+    completions: patch.weekdays ? {} : Object.fromEntries(Object.entries(series.completions).filter(([day]) => day >= date).map(([day, value]) => [shift(day), value])),
+    revision: 1, created_at: now, updated_at: now };
+  return { series: kept && touched(kept), created };
 }

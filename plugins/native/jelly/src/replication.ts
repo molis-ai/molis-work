@@ -1,96 +1,56 @@
-import { syncError } from './sync-errors.js';
+import { syncError } from "./sync-errors.js";
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
-import type { JellyWorkspace } from "./contract.js";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { emptyJellyWorkspace, validateJellyWorkspace } from "./calendar.js";
-import { jellyHash, validateJellyContent } from "./content.js";
+import { decodeJellyRow, encodeJellyRow, JELLY_TABLES, jellyRowColumns, validateJellyRow, type JellyRowKind, type JellyRows } from "./store.js";
 
+const KINDS = Object.keys(JELLY_TABLES) as JellyRowKind[];
+const LIMIT = 1_000_000;
+/** One synced key per row: `["jelly", <kind>, <id>]`, so a note and an entry travel, conflict and arrive on their own. */
+export const jellyTracking: PluginSyncCollectionDefinition["tracking"] = KINDS.map(kind => ({ table: JELLY_TABLES[kind], key: [{ literal: "jelly" }, { literal: kind }, { column: "id" }] }));
 
+function parse(key: string): { kind: JellyRowKind; id: string } {
+  let parts: unknown;
+  try { parts = JSON.parse(key); } catch { invalid(); }
+  if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== "jelly" || !KINDS.includes(parts[1]) || typeof parts[2] !== "string" || !parts[2] || parts[2].length > 200) invalid();
+  return { kind: parts[1] as JellyRowKind, id: parts[2] };
+}
+function invalid(message = "Jelly 同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never { throw syncError(code, message); }
 
-const KEY = JSON.stringify(["jelly", "workspace"]);
-const LIMIT = 100000000;
-type Row = { revision: number; body: string; checksum: string };
-
-/** Only editable content travels; platform-owned tracking observes owner writes. */
+/** Only the row travels; the platform's tracking observes owner writes. An arriving row is a new revision here, so a page holding the old one sees a conflict. */
 export const jellyCollection: PluginSyncCollectionDefinition = {
-  tracking: [{ table: "jelly_workspace", key: [{literal:"jelly"},{literal:"workspace"}], where:[{column:"revision",op:"gt",value:0}] }],
-  create(db,context) {
-  const key = (value: string) => {
-    if (value !== KEY) invalid();
-  };
-  const localWorkspace = (): JellyWorkspace => {
-    const row = db.prepare("SELECT revision,body,checksum FROM jelly_workspace WHERE singleton=1").get() as Row | undefined;
-    if (!row) {
-      if (db.prepare("SELECT command FROM jelly_history LIMIT 1").get()) invalid("Jelly 工作区记录缺失，历史数据已保留");
-      return emptyJellyWorkspace();
-    }
-    if (jellyHash(row.body) !== row.checksum) invalid("Jelly 本地数据校验失败");
-    const workspace = JSON.parse(row.body) as JellyWorkspace;validate(workspace);
-    if (workspace.revision !== row.revision) invalid("Jelly 本地版本记录不一致");
-    return workspace;
-  };
-  return {
-    authorizeKey(id){key(id);context.authorize();},
-    belongsToProject(id) { key(id); return false; },
-    read(id) {
-      key(id);
-      const workspace = localWorkspace();
-      // The import receipt may contain a machine-specific source and is not needed to use the resulting notes.
-      const { imported_sources: _localImportReceipts, ...portable } = workspace;
-      const value = { format: /* @version format.jelly.portable */ 1, spaceId: context.spaceId, workspace: portable };
-      size(value);
-      return value;
-    },
-    apply(id, value) {
-      key(id);
-      if (value === null) invalid("Jelly 工作区不能由远端删除");
-      size(value);
-      const envelope = object(value);
-      exact(envelope, ["format", "spaceId", "workspace"]);
-      if (envelope.format !== /* @version format.jelly.portable */ 1 || envelope.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
-      const wire = object(envelope.workspace);
-      const allowed = ["schema_version", "revision", "categories", "items", "series", "notes", "relations", "relation_overrides", "task_links", "applied_plan_ids"];
-      if (Object.keys(wire).some(field => !allowed.includes(field)) || Object.hasOwn(wire, "imported_sources")) invalid();
-      const incoming: JellyWorkspace = JSON.parse(JSON.stringify(wire));
-      validate(incoming);
-      const previous = localWorkspace();
-      const next = { ...incoming, revision: Math.max(previous.revision, incoming.revision) + 1,
-        imported_sources: previous.imported_sources };
-      for (const note of next.notes) {
-        const high = db.prepare("SELECT revision FROM jelly_note_versions WHERE id=?").get(note.id) as { revision: number } | undefined;
-        note.revision = Math.max(note.revision, high?.revision ?? -1) + 1;
-      }
-      validate(next);
-      const body = JSON.stringify(next);
-      db.prepare("INSERT INTO jelly_workspace(singleton,revision,body,checksum) VALUES (1,?,?,?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision,body=excluded.body,checksum=excluded.checksum").run(next.revision, body, jellyHash(body));
-      for (const note of next.notes) db.prepare("INSERT INTO jelly_note_versions(id,revision) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET revision=MAX(revision,excluded.revision)")
-        .run(note.id, note.revision);
-      db.exec("DELETE FROM jelly_history");
-      db.exec("DELETE FROM jelly_previews");
-    },
-  };
-  }
+  tracking: jellyTracking,
+  create(db, context) {
+    const local = (kind: JellyRowKind, id: string) => db.prepare(`SELECT * FROM ${JELLY_TABLES[kind]} WHERE id = ?`).get(id);
+    return {
+      authorizeKey(key) { parse(key); context.authorize(); },
+      belongsToProject(key) { parse(key); return false; },
+      read(key) {
+        const { kind, id } = parse(key), row = local(kind, id);
+        if (!row) return null;
+        const record = decodeJellyRow(kind, row);
+        return { format: /* @version format.jelly.row */ 1, spaceId: context.spaceId, kind, record };
+      },
+      apply(key, value) {
+        const { kind, id } = parse(key), table = JELLY_TABLES[kind];
+        if (value === null) { db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id); return; }
+        if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 的一条记录超过同步上限，原记录仍保留在本机", "limit");
+        if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
+        const wire = value as Record<string, unknown>;
+        if (Object.keys(wire).sort().join(",") !== "format,kind,record,spaceId" || wire.format !== /* @version format.jelly.row */ 1 || wire.kind !== kind) invalid();
+        if (wire.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
+        const record = wire.record as JellyRows[typeof kind];
+        const columns = jellyRowColumns(kind);
+        if (!record || typeof record !== "object" || Object.keys(record).sort().join(",") !== [...columns].sort().join(",") || record.id !== id) invalid();
+        try { validateJellyRow(kind, record); } catch { invalid("Jelly 同步记录无效"); }
+        const revision = Math.max(Number(local(kind, id)?.revision ?? 0), record.revision) + 1;
+        const values = encodeJellyRow(kind, { ...record, revision } as JellyRows[typeof kind]);
+        db.prepare(`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")}) ON CONFLICT(id) DO UPDATE SET ${columns.filter(column => column !== "id").map(column => `${column} = excluded.${column}`).join(", ")}`).run(...values);
+      },
+    };
+  },
 };
-
-function validate(workspace: JellyWorkspace): void {
-  try { validateJellyWorkspace(workspace); validateJellyContent(workspace); }
-  catch { invalid("Jelly 工作区数据无效"); }
-}
-function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 工作区超过账号容量上限（100 MB），原数据仍保留在本机", "limit");
-}
-function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
-  return value as Record<string, unknown>;
-}
-function exact(row: Record<string, unknown>, columns: readonly string[]): void {
-  if (Object.keys(row).length !== columns.length || columns.some(column => !Object.hasOwn(row, column))) invalid();
-}
-function invalid(message = "Jelly 同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
-  throw syncError(code, message);
-}
 
 export const jellySync: PluginSyncDeclaration = {
   protocol_version: /* @version sync.protocol */ 1,
-  collections: [{ id: "jelly_workspace", title: "Jelly 日历与笔记", schema_version: /* @version sync.collection.jelly.jelly_workspace */ 1, requires: [], tracking: jellyCollection.tracking }],
+  collections: [{ id: "entries", title: "Jelly 日程与随手记", schema_version: /* @version sync.collection.jelly.entries */ 1, requires: [], tracking: jellyTracking }],
 };

@@ -4,357 +4,115 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { actionResultSubject, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { JELLY_ACTION_PERMISSIONS, jellyActions as actions, jellyCommandActions as commands, jellyServiceActions as services } from "@molis-ai/molis-work-plugin-jelly";
-import { openJellyStore } from "./fixtures/plugin-home-stores.js";
+import { JELLY_ACTION_PERMISSIONS, JELLY_ACTIONS, jellyActions as a, jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { assistantContributions } from "../apps/local-host/dist/assistant/assistant-contributions.js";
-import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-const day = "2026-09-25", tomorrow = "2026-09-26";
-const slot = { start_date: day, end_date: day, start_time: 540, end_time: 570 };
-function fixture(t: { after(fn: () => Promise<void>): void }, completeText: HostCompleteText | null = null) {
+
+const zone = "Asia/Shanghai";
+function fixture(t: { after(fn: () => Promise<void>): void }) {
   const home = mkdtempSync(join(tmpdir(), "jelly-actions-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
+  // No model is configured: Jelly starts and works without one (batch 112-2, hand-off to batch 108).
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS };
   const service = host.homeActionClient(), bound = bindActionClient(service, () => caller);
   t.after(async () => { await host.close(); rmSync(home, { recursive: true, force: true }); });
-  const read = async () => (await bound.invoke(actions.state, {})).state;
-  const command = async (type: keyof typeof commands, input: Record<string, unknown> = {}) => (await bound.invoke(commands[type], { expected_revision: (await read()).revision, ...input })).state;
-  return { home, host, caller, bound, service, read, command };
+  const month = () => bound.invoke(a.calendar, { start: "2026-09-01", end: "2026-09-30" });
+  return { home, host, caller, service, bound, month };
 }
-// Commands on one note that name it as their result.
-const noteResults = ["note.create", "note.import", "note.update", "note.pin", "note.restore"] as const;
-const planModel: HostCompleteText = async () => JSON.stringify({ actions: [{ title: "核对来源", notes: "逐条核实", minutes: 30 }], clarification_questions: [] });
 
-test("Jelly Home registration executes without a project; permissions, malformed inputs and separate Homes do not leak", async t => {
+test("Jelly is a Home plugin with fifteen typed actions and no model, settings or routes; permissions and separate Homes hold", async t => {
   const f = fixture(t), other = fixture(t);
+  assert.equal(Object.keys(a).length, 15);
+  assert.deepEqual(jellyManifest.runtime, { scope: "home" });
+  assert.equal(jellyManifest.routes, undefined); assert.equal(jellyManifest.settings_entries, undefined);
+  assert.ok(!JELLY_ACTION_PERMISSIONS.includes("model:invoke"));
   const directory = await f.bound.discover();
-  for (const action of [...Object.values(commands), ...Object.values(actions), ...Object.values(services)]) assert.ok(directory.some(row => row.capability_id === action.capability_id));
-  assert.equal(directory.find(row => row.capability_id === actions.manualPlan.capability_id)!.availability.available, true);
-  assert.equal(directory.find(row => row.capability_id === actions.modelPlan.capability_id)!.availability.available, false);
-  assert.deepEqual((await f.service.discover({ ...f.caller, permissions: ["pages:read", "model:invoke"] })).filter(row => row.capability_id.startsWith("jelly.")), []);
-  await assert.rejects(f.service.invoke({ ...f.caller, permissions: ["jelly:write"] }, commands["note.create"], { expected_revision: 0, title: "denied" }), { code: "actions.forbidden" });
-  await assert.rejects(f.bound.invoke(commands["item.create"], { expected_revision: 0, item: { title: "bad date", start_date: "2026-02-30" } }), /日期/);
-  await assert.rejects(f.bound.invoke(commands["item.create"], { expected_revision: 0, item: { title: "unknown", start_date: day }, actor_id: "forged" }), { code: "actions.input_invalid" });
-  const state = await f.command("note.create", { title: "Home A", markdown: "private" });
-  assert.equal((await other.read()).notes.length, 0);
-  await assert.rejects(f.bound.invoke(commands["note.update"], { expected_revision: 0, id: state.notes[0]!.id, patch: { title: "stale" } }), { code: "jelly.conflict" });
-  await f.host.close();
-  const reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
-  try { const result = await reopened.homeActionClient().invoke(f.caller, actions.state, {}); assert.match(JSON.stringify(result), /Home A/); }
-  finally { await reopened.close(); }
+  for (const definition of JELLY_ACTIONS) assert.ok(directory.some(row => row.capability_id === definition.capability_id), definition.capability_id);
+  assert.deepEqual((await f.service.discover({ ...f.caller, permissions: ["pages:read"] })).filter(row => row.capability_id.startsWith("jelly.")), []);
+  await assert.rejects(f.service.invoke({ ...f.caller, permissions: ["jelly:write"] }, a.saveNote, { title: "denied" }), { code: "actions.forbidden" });
+  await assert.rejects(f.bound.invoke(a.createItem, { item: { title: "bad", start_date: "2026-02-30" } }), { code: "jelly.invalid" });
+  await assert.rejects(f.bound.invoke(a.createItem, { item: { title: "forged", start_date: "2026-09-01" }, actor_id: "x" } as never), { code: "actions.input_invalid" });
+  await f.bound.invoke(a.saveNote, { title: "Home A", body: "private" });
+  assert.equal((await other.bound.invoke(a.notes, {})).notes.length, 0);
 });
 
-test("calendar commands retain dates, instance identity, category reassignment and original revision history", async t => {
-  const { bound, command, read } = fixture(t);
-  await command("category.create", { category: { id: "work", name: "工作" } });
-  await command("category.update", { id: "work", patch: { name: "重点工作", color: "#AABBCC" } });
-  let state = await command("category.reorder", { ids: ["work", "uncategorized"] });
-  assert.equal(state.categories[0]!.id, "work");
-  state = await command("item.create", { item: { title: "跨日任务", kind: "event", start_date: day, end_date: tomorrow, category_id: "work", notes: "需要留存" } });
-  const id = state.items[0]!.id; assert.equal(state.items[0]!.kind, "event");
-  state = await command("item.update", { id, patch: { title: "真正修改", kind: "task" } }); assert.equal(state.items[0]!.title, "真正修改"); assert.equal(state.items[0]!.kind, "task");
-  state = await command("item.complete", { id, completed: true, completion_description: "已核对" }); assert.ok(state.items[0]!.completed_at);
-  state = await command("item.move", { id, date: tomorrow }); assert.equal(state.items[0]!.end_date, "2026-09-27");
-  state = await command("item.move_many", { ids: [id], date: day }); assert.equal(state.items[0]!.end_date, tomorrow);
-  state = await command("item.create", { item: { title: "单日", start_date: day } }); const single = state.items[1]!.id;
-  await command("item.reorder", { ids: [single], date: day });
-  await assert.rejects(command("item.reorder", { ids: [id, single], date: day }), /全部单日/);
-  state = await command("series.create", { series: { title: "每日", start_date: day, weekdays: [1, 2, 3, 4, 5, 6, 7], category_id: "work" } }); const series = state.series[0]!.id;
-  await command("series.update", { id: series, original_date: day, scope: "onlyThis", patch: { start_date: tomorrow, end_date: tomorrow, title: "改期" } });
-  await command("series.complete", { id: series, original_date: day, completed: true });
-  const occurrences = (await bound.invoke(actions.calendar, { start: day, end: tomorrow })).items;
-  assert.ok(occurrences.some(i => i.title === "改期" && i.original_date === day && i.start_date === tomorrow && i.completed_at));
-  await command("series.delete", { id: series, original_date: tomorrow, scope: "thisAndFuture" });
-  assert.equal((await bound.invoke(actions.calendar, { start: day, end: "2026-10-01" })).items.filter(i => i.series_id).length, 1);
-  state = await command("category.delete", { id: "work" });
-  assert.equal(state.items[0]!.category_id, "uncategorized"); assert.equal(state.series[0]!.category_id, "uncategorized");
-  const progress = (await bound.invoke(actions.progress, { start: day, end: tomorrow, today: tomorrow })).progress;
-  assert.equal(progress.completed_count, 2); assert.equal(progress.total, 3);
-  state = await command("item.delete", { id }); assert.equal(state.items.length, 1);
-  state = await command("undo"); assert.ok(state.items.some(i => i.id === id));
-  state = await command("redo"); assert.ok(!state.items.some(i => i.id === id));
-  assert.equal((await bound.invoke(actions.categories, {})).revision, (await read()).revision);
-});
-
-test("commands on one calendar entry name it as their result, and the Assistant can read that entry back", async t => {
-  const { bound, read, host, caller } = fixture(t);
-  const entries = ["item.create", "item.update", "item.complete", "item.move", "task.schedule", "series.create", "series.update", "series.complete"] as const;
-  for (const type of entries) {
-    assert.deepEqual(commands[type].action.subject_kinds, ["jelly_item"], type);
-    assert.ok(commands[type].action.result_subject, type);
-  }
-  // Several entries, a removal or the whole workspace: no single entry to relate the result to.
-  for (const type of ["item.move_many", "item.reorder", "item.delete", "series.delete", "undo"] as const) assert.deepEqual(commands[type].action.subject_kinds, ["jelly_workspace"], type);
-  const agent = bindActionClient(host.homeActionClient(), () => ({ ...caller, audience: "agent" }));
-  const reader = (await agent.discover()).find(view => view.capability_id === actions.itemSubject.capability_id);
-  assert.equal(reader?.availability.available, true, "the reader of jelly_item is offered to agents");
-  type Entry = { id: string; title: string; updated_at: string };
-  // What the Assistant's work keeps from a successful change, and what it then reads back from Jelly.
-  const run = async (type: (typeof entries)[number], input: Record<string, unknown>) => {
-    const full = { expected_revision: (await read()).revision, ...input };
-    const output = await bound.invoke(commands[type], full) as { state: Awaited<ReturnType<typeof read>>; item?: Entry; series?: Entry };
-    const result = actionResultSubject(commands[type].action, full, output);
-    assert.ok(result, type);
-    const context = await agent.invoke(actions.itemSubject, { subject_id: result.subject.id });
-    assert.equal(context.revision, result.revision, `${type}: the recorded revision is the one read back`);
-    return { output, result, context };
-  };
-  const created = await run("item.create", { item: { title: "Q4 预算对齐会", kind: "event", ...slot } });
-  const id = created.output.item!.id;
-  assert.deepEqual(created.result.subject, { kind: "jelly_item", id });
-  assert.ok(created.output.state.items.some(item => item.id === id));
-  assert.equal(created.context.title, "Q4 预算对齐会");
-  const given = await run("item.create", { item: { id: "chosen", title: "自带标识", start_date: day } });
-  assert.equal(given.result.subject.id, "chosen");
-  const updated = await run("item.update", { id, patch: { title: "Q4 预算对齐会（改）" } });
-  assert.equal(updated.result.subject.id, id); assert.equal(updated.context.title, "Q4 预算对齐会（改）");
-  assert.equal((await run("item.complete", { id, completed: true })).result.subject.id, id);
-  assert.equal((await run("item.move", { id, date: tomorrow })).context.content.includes(tomorrow), true);
-  const note = (await bound.invoke(commands["note.create"], { expected_revision: (await read()).revision, title: "笔记", blocks: [{ id: "task", kind: "task", text: "做检查" }] })).state.notes[0]!;
-  const scheduled = await run("task.schedule", { note_id: note.id, block_id: "task", schedule: slot });
-  assert.equal(scheduled.context.title, "做检查");
-  assert.equal((await run("task.schedule", { note_id: note.id, block_id: "task", schedule: { ...slot, start_time: 600, end_time: 630 } })).result.subject.id, scheduled.result.subject.id, "rescheduling changes the same item");
-  const series = await run("series.create", { series: { title: "每周例会", start_date: day, weekdays: [5] } });
-  const seriesId = series.output.series!.id;
-  assert.equal(series.context.title, "每周例会");
-  assert.equal((await run("series.update", { id: seriesId, original_date: day, scope: "onlyThis", patch: { title: "本次改名" } })).result.subject.id, seriesId);
-  assert.equal((await run("series.complete", { id: seriesId, original_date: day, completed: true })).result.subject.id, seriesId);
-  const later = await run("series.update", { id: seriesId, original_date: "2026-10-02", scope: "thisAndFuture", patch: { title: "此后改名" } });
-  assert.notEqual(later.result.subject.id, seriesId, "this and later occurrences become a new series");
-  assert.equal(later.context.title, "此后改名");
-  assert.ok((await read()).series.some(entry => entry.id === later.result.subject.id));
-  // The developer diagnostics count exactly these, the note commands and the note a handoff makes, as changes the Assistant can relate and read back.
-  const jelly = assistantContributions(await host.inspectActions({ actor_id: "web-user", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [] }))
-    .find(row => row.title === "Jelly")!;
-  assert.ok(jelly.readable_kinds.includes("jelly_item"));
-  assert.equal(jelly.linked_changes, entries.length + noteResults.length + 1);
-  assert.match(jelly.gaps.find(gap => gap.area === "results" && gap.text.includes("jelly_workspace"))!.text, /没有配套的读取动作/);
-});
-
-test("commands on one note name it as their result, and the Assistant can read it back; archiving and deletion do not", async t => {
-  const { bound, read, host, caller } = fixture(t);
-  for (const type of noteResults) {
-    assert.deepEqual(commands[type].action.subject_kinds, ["jelly_note"], type);
-    assert.ok(commands[type].action.result_subject, type);
-  }
-  // Right after these the readers treat the object as gone: the work would show its own result as missing.
-  for (const type of ["note.archive", "note.delete"] as const) assert.deepEqual(commands[type].action.subject_kinds, ["jelly_workspace"], type);
-  const agent = bindActionClient(host.homeActionClient(), () => ({ ...caller, audience: "agent" }));
-  type Output = { state: Awaited<ReturnType<typeof read>>; note?: { id: string } };
-  // What the Assistant's work keeps from a successful change, and what it then reads back from Jelly.
-  const run = async (type: (typeof noteResults)[number], input: Record<string, unknown>) => {
-    const full = { expected_revision: (await read()).revision, ...input };
-    const output = await bound.invoke(commands[type], full) as Output;
-    const result = actionResultSubject(commands[type].action, full, output);
-    assert.ok(result, type);
-    const context = await agent.invoke(actions.noteSubject, { subject_id: result.subject.id });
-    assert.equal(context.revision, result.revision, `${type}: the recorded revision is the one read back`);
-    return { output, result, context };
-  };
-  const created = await run("note.create", { title: "周报", markdown: "本周完成预算核对" });
-  const noteId = created.output.note!.id;
-  assert.deepEqual(created.result.subject, { kind: "jelly_note", id: noteId });
-  assert.ok(created.output.state.notes.some(note => note.id === noteId));
-  assert.equal(created.context.title, "周报");
-  const updated = await run("note.update", { id: noteId, patch: { title: "第 40 周周报" } });
-  assert.equal(updated.result.subject.id, noteId); assert.equal(updated.context.title, "第 40 周周报");
-  assert.notEqual(updated.result.revision, created.result.revision);
-  assert.match((await run("note.import", { id: noteId, format: "markdown", mode: "append", source: "下周计划" })).context.content, /下周计划/);
-  assert.equal((await run("note.pin", { id: noteId, pinned: true })).result.subject.id, noteId);
-  await bound.invoke(commands["note.archive"], { expected_revision: (await read()).revision, id: noteId });
-  await assert.rejects(agent.invoke(actions.noteSubject, { subject_id: noteId }), { code: "jelly.not_found" }, "an archived note is not read back");
-  assert.equal((await run("note.restore", { id: noteId })).context.title, "第 40 周周报");
-
-});
-
-test("notes, tasks and relationships update the same objects; confirmed deletion retains scheduled items and undo restores links", async t => {
-  const { bound, command, read } = fixture(t);
-  let state = await command("note.create", { title: "笔记", blocks: [{ id: "task", kind: "task", text: "做检查" }] });
-  const noteId = state.notes[0]!.id;
-  await command("note.update", { id: noteId, expected_note_revision: state.notes[0]!.revision, patch: { title: "检查笔记" } });
-  state = await command("note.import", { id: noteId, format: "markdown", mode: "append", source: "补充原文" }); assert.ok(state.notes[0]!.blocks.some(b => b.text === "补充原文"));
-  await command("note.pin", { id: noteId, pinned: true });
-  state = await command("task.schedule", { note_id: noteId, block_id: "task", schedule: slot }); const itemId = state.task_links[0]!.item_id;
-  state = await command("task.complete", { note_id: noteId, block_id: "task", completed: true, completion_description: "验过" });
-  assert.equal(state.items[0]!.completed_at, state.notes[0]!.blocks[0]!.completed_at);
-  await command("item.update", { id: itemId, patch: { title: "两边同步" } });
-  assert.equal((await read()).notes[0]!.blocks[0]!.text, "两边同步");
-  await assert.rejects(command("note.update", { id: noteId, patch: { blocks: [] } }), /先取消/);
-  await command("relation.detach", { owner_id: itemId, note_id: noteId });
-  await command("relation.attach", { owner_id: itemId, note_id: noteId, role: "primary" });
-  state = await command("series.create", { series: { title: "重复关联", start_date: day, weekdays: [5] } }); const series = state.series[0]!.id;
-  await command("relation.attach", { owner_id: series, original_date: day, note_id: noteId });
-  state = await command("relation.reset", { owner_id: series, original_date: day }); assert.equal(state.relation_overrides?.length, 0);
-  await command("item.update", { id: itemId, patch: { notes: "迁移随记" } });
-  state = await command("item.notes_to_note", { owner_id: itemId, mode: "append", note_id: noteId });
-  assert.equal(state.items[0]!.notes, ""); assert.ok(state.notes[0]!.blocks.some(b => b.text === "迁移随记"));
-  await command("note.archive", { id: noteId }); await command("note.restore", { id: noteId });
-  assert.equal((await read()).notes[0]!.archived_at, null);
-  await command("note.archive", { id: noteId });
-  const preview = (await bound.invoke(actions.previewNoteDelete, { id: noteId })).preview;
-  await command("note.pin", { id: noteId, pinned: false });
-  await assert.rejects(command("note.delete", { id: noteId, confirmation_token: preview.confirmation_token }), { code: "jelly.stale_preview" });
-  const fresh = (await bound.invoke(actions.previewNoteDelete, { id: noteId })).preview;
-  state = await command("note.delete", { id: noteId, confirmation_token: fresh.confirmation_token });
-  assert.equal(state.notes.length, 0); assert.equal(state.items.length, 1); assert.equal(state.task_links.length, 0);
-  state = await command("undo"); assert.equal(state.task_links.length, 1); assert.ok(state.notes[0]!.revision > 0);
-  await command("note.restore", { id: noteId });
-  state = await command("task.unlink", { note_id: noteId, block_id: "task" }); assert.equal(state.task_links.length, 0); assert.equal(state.items.length, 1);
-  assert.match((await bound.invoke(actions.exportNote, { id: noteId })).content, /迁移随记/);
-});
-
-test("manual plans need no model; stale plans and altered imports cannot write and confirmed imports survive restart", async t => {
-  const { bound, command, home, caller, read, host } = fixture(t);
-  const result = await bound.invoke(actions.manualPlan, { source_type: "text", text: "核对来源\n保存结果" });
-  assert.ok("plan" in result); assert.equal(result.method, "manual"); assert.equal((await read()).revision, 0);
-  let state = await command("plan.apply", { plan: result.plan }); assert.equal(state.notes[0]!.blocks.filter(b => b.kind === "task").length, 2);
-  await command("plan.apply", { plan: result.plan }); assert.equal((await read()).notes.length, 1);
-  const noteId = state.notes[0]!.id;
-  const stale = await bound.invoke(actions.manualPlan, { source_type: "note", source_id: noteId }); assert.ok("plan" in stale);
-  await command("note.update", { id: noteId, patch: { markdown: "原文变更" } });
-  await assert.rejects(command("plan.apply", { plan: stale.plan }), { code: "jelly.source_changed" });
-  const donor = fixture(t); await donor.command("note.create", { title: "导入来源", markdown: "导入的原文" });
-  const { workspace } = await donor.bound.invoke(actions.export, {});
-  const preview = (await bound.invoke(actions.previewImport, { source: workspace })).preview;
-  const changed = structuredClone(workspace); changed.notes[0]!.title = "偷换来源";
-  await assert.rejects(command("workspace.import", { source: changed, confirmation_token: preview.confirmation_token }), { code: "jelly.stale_preview" });
-  // The failed transaction must retain the original preview token.
-  state = await command("workspace.import", { source: workspace, confirmation_token: preview.confirmation_token }); assert.equal(state.notes.length, 2);
-  // A restart: the first Host ends before the next one owns this Home.
-  await host.close();
-  const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  try { const data = await reopened.homeActionClient().invoke(caller, actions.export, {}); assert.match(JSON.stringify(data), /导入的原文/); }
-  finally { await reopened.close(); }
-});
-
-for (const mode of ["cancel", "failure", "success"] as const) test(`Jelly model ${mode} uses the action path and commits nothing until a plan is applied`, async t => {
-  let enter!: () => void, release!: () => void;
-  const entered = new Promise<void>(resolve => { enter = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
-  const f = fixture(t, async (prompt, options) => { enter(); await released; if (mode === "failure") throw new Error("model down"); return planModel(prompt, options); });
-  const before = await f.command("note.create", { title: "原笔记", markdown: "准备真实发布材料" }), id = before.notes[0]!.id;
-  const controller = new AbortController();
-  const pending = f.service.invoke({ ...f.caller, signal: controller.signal }, actions.modelPlan, { source_type: "note", source_id: id });
-  await entered;
-  if (mode === "cancel") controller.abort();
-  release();
-  if (mode === "success") assert.equal((await pending).plan.actions[0]!.title, "核对来源");
-  // W5-01-SHM-01: Runtime exposes the public model failure; the original workspace remains untouched.
-  else await assert.rejects(pending, mode === "cancel" ? { code: "jelly.cancelled" } : { code: "plugin.model_failed", message: "模型请求失败，请重试" });
-  assert.deepEqual(await f.read(), before);
-});
-
-test("AIC-12: a selection in a note must hold something, the schema refuses it before any handler runs, and a text source still carries one unread", async t => {
-  const f = fixture(t, planModel);
-  const note = (await f.command("note.create", { title: "原笔记", markdown: "第一段" })).notes[0]!, block = note.blocks[0]!;
-  const before = await f.read(), source = { source_type: "note", source_id: note.id };
-  for (const action of [actions.manualPlan, actions.modelPlan]) {
-    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [], text: block.text } }), { code: "actions.input_invalid" });
-    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: " \n" } }), { code: "actions.input_invalid" });
-    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id, block.id], text: block.text } }), { code: "actions.input_invalid" });
-    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: block.id, text: block.text } }), { code: "actions.input_invalid" });
-    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: 1 } }), { code: "actions.input_invalid" });
-    // What a person can select still goes through, and the block comparison that needs the note stays with the handler.
-    const selected = await f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: block.text } });
-    assert.deepEqual(selected.plan.selection, { block_ids: [block.id], text: block.text });
-    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: ["other"], text: block.text } }), { code: "jelly.source_changed" });
-  }
-  // The constraint moved, and did not spread: a text source never read its selection, and the shared fragment is also the plan's output.
-  const unread = await f.bound.invoke(actions.manualPlan, { source_type: "text", text: "原文", selection: { block_ids: [], text: "" } });
-  assert.deepEqual(unread.plan.selection, { block_ids: [], text: "" });
-  assert.deepEqual(await f.read(), before);
-});
-
-test("AIC-12: the checks the handlers dropped are refused by the schema, so a bad value still changes nothing", async t => {
+test("a single entry is created, moved as a whole, completed, refused on a stale revision, deleted and put back", async t => {
   const f = fixture(t);
-  const before = await f.read();
-  const plan = { id: "plan", title: "计划", source_type: "text", source_id: null, source_hash: "0".repeat(64), source_text: "原文", created_at: day, actions: [{ id: "a", title: "步骤", notes: "", schedule: null, category_id: "uncategorized", priority: "none" }] };
-  const action = plan.actions[0]!, occurrence = { id: "series", original_date: day };
-  // Each good input gets past the schema (the store refuses it: nothing by that name exists), so what is refused is the one bad value.
-  const cases: [keyof typeof commands, Record<string, unknown>, Record<string, unknown>][] = [
-    ["item.move_many", { ids: ["item"], date: day }, { ids: [] }],
-    ["series.update", { ...occurrence, scope: "onlyThis", patch: {} }, { scope: "later" }],
-    ["series.delete", { ...occurrence, scope: "onlyThis" }, { scope: "later" }],
-    ["series.complete", { ...occurrence, completed: true }, { completion_description: 1 }],
-    ["note.import", { id: "note", format: "markdown", mode: "append", source: "正文" }, { format: "pdf" }],
-    ["note.import", { id: "note", format: "markdown", mode: "append", source: "正文" }, { mode: "merge" }],
-    ["item.notes_to_note", { owner_id: "item", mode: "new" }, { mode: "move" }],
-    ["task.complete", { note_id: "note", block_id: "block", completed: true }, { completed: "yes" }],
-    ["plan.apply", { plan }, { plan: { ...plan, id: "" } }],
-    ["plan.apply", { plan }, { plan: { ...plan, actions: undefined } }],
-    ["plan.apply", { plan }, { plan: { ...plan, source_type: "web" } }],
-    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, title: "" }] } }],
-    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, notes: 1 }] } }],
-    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, priority: "P9" }] } }],
-    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, duration_minutes: 20 }] } }],
-  ];
-  for (const [type, good, bad] of cases) {
-    await assert.rejects(f.command(type, good), (error: { code?: string }) => error.code !== "actions.input_invalid", `${type} ${JSON.stringify(good)}`);
-    await assert.rejects(f.command(type, { ...good, ...bad }), { code: "actions.input_invalid" }, `${type} ${JSON.stringify(bad)}`);
-  }
-  await assert.rejects(f.bound.invoke(actions.manualPlan, { source_type: "web", text: "原文" }), { code: "actions.input_invalid" });
-  assert.deepEqual(await f.read(), before);
+  const input = { item: { title: " 交稿 ", start_date: "2026-09-10", end_date: "2026-09-11", start_time: 540, end_time: 600, time_zone: zone } };
+  const created = await f.bound.invoke(a.createItem, input), { item } = created;
+  assert.equal(item.title, "交稿"); assert.equal(item.revision, 1); assert.equal(item.kind, "task"); assert.equal(item.category_id, "uncategorized");
+  assert.deepEqual(actionResultSubject(a.createItem.action, input, created), { subject: { kind: "jelly_item", id: item.id }, revision: "1" });
+  const moved = (await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 1, patch: { start_date: "2026-09-15" } })).item;
+  assert.deepEqual([moved.start_date, moved.end_date, moved.revision], ["2026-09-15", "2026-09-16", 2]);
+  const done = (await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 2, patch: { completed: true } })).item;
+  assert.ok(done.completed_at);
+  await assert.rejects(f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 2, patch: { title: "stale" } }), (error: { code: string; details?: { revision?: number } }) => error.code === "jelly.conflict" && error.details?.revision === 3);
+  assert.deepEqual((await f.month()).items.map(entry => entry.id), [item.id]);
+  const { restore } = await f.bound.invoke(a.deleteItem, { id: item.id, expected_revision: 3 });
+  assert.equal((await f.month()).items.length, 0);
+  assert.equal(a.deleteItem.action.undo?.capability_id, "jelly.restore");
+  const back = (await f.bound.invoke(a.restore, { rows: restore })).rows.items[0]!;
+  assert.deepEqual([back.title, back.start_date, back.revision], ["交稿", "2026-09-15", 4]);
+  // Changed again after it came back: the old restore no longer applies.
+  await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 4, patch: { title: "改过" } });
+  await assert.rejects(f.bound.invoke(a.restore, { rows: restore }), { code: "jelly.conflict" });
 });
 
-test("model plan action returns a real preview and requires source mapping before execution", async t => {
-  const { bound, command, read } = fixture(t, async () => JSON.stringify({ actions: [{ title: "模型给出的步骤", notes: "核对来源", minutes: 30 }] }));
-  await assert.rejects(bound.invoke(actions.modelPlan, { source_type: "note" }), { code: "actions.input_invalid" });
-  const result = await bound.invoke(actions.modelPlan, { source_type: "text", source_id: null, text: "准备发布", today: day, start_time: 540 });
-  assert.ok("plan" in result); assert.equal(result.method, "model"); assert.equal(result.plan.actions[0]!.title, "模型给出的步骤");
-  assert.equal((await read()).revision, 0);
-  const state = await command("plan.apply", { plan: result.plan }); assert.equal(state.items[0]!.title, "模型给出的步骤"); assert.equal(state.task_links.length, 1);
-});
-
-for (const response of ["not JSON", '{"actions":[{"title":3}]}', "null"]) test(`Jelly rejects malformed or invalid structured output without changing original data: ${response}`, async t => {
-  const f = fixture(t, async () => response);
-  await f.command("note.create", { title: "原笔记", markdown: "准备真实发布材料" });
-  const before = await f.read();
-  await assert.rejects(f.bound.invoke(actions.modelPlan, { source_type: "note", source_id: before.notes[0]!.id }), { code: "jelly.ai_invalid" });
-  assert.deepEqual(await f.read(), before);
-});
-
-test("Jelly accepts whole-response JSON fences through Host and still returns an uncommitted domain plan", async t => {
-  const f = fixture(t, async () => '```json\n{"actions":[{"title":"核对来源","notes":"逐条核实","minutes":30}],"clarification_questions":[]}\n```');
-  const before = await f.read();
-  const result = await f.bound.invoke(actions.modelPlan, { source_type: "text", text: "准备发布说明" });
-  assert.equal(result.plan.actions[0]?.title, "核对来源");
-  assert.deepEqual(await f.read(), before);
-});
-
-for (const phase of ["dispatch", "result"] as const) test(`Jelly revocation at ${phase} prevents further model dispatch or a returned plan`, async t => {
-  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-  let allowed = true, dispatched = 0;
-  const f = fixture(t, async (prompt, options) => {
-    if (phase === "dispatch") { entered.resolve(); await release.promise; }
-    await options?.beforeDispatch?.(); dispatched++;
-    if (phase === "result") { entered.resolve(); await release.promise; }
-    return planModel(prompt, options);
-  });
-  const state = await f.command("note.create", { title: "原笔记", markdown: "这份原文必须保留。" });
-  const pending = f.service.invoke({ ...f.caller, validate_authority: async () => {
-    if (!allowed) throw Object.assign(new Error("Jelly permission revoked"), { code: "actions.forbidden" });
-  } }, actions.modelPlan, { source_type: "note", source_id: state.notes[0]!.id });
-  await entered.promise; allowed = false; release.resolve();
-  await assert.rejects(pending, { code: "actions.forbidden" });
-  assert.equal(dispatched, phase === "dispatch" ? 0 : 1);
-  assert.deepEqual(await f.read(), state);
-});
-
-// A note's exported file name is cut to 100 whole characters (an emoji is one, as the action schemas count it), never between the two halves of one.
-const EXPORT_NAMES = [
-  { name: "the 100th character is a two-unit one", title: "a".repeat(99) + "😀" + "尾".repeat(10), file: "a".repeat(99) + "😀" },
-  { name: "150 two-unit characters", title: "😀".repeat(150), file: "😀".repeat(100) },
-  { name: "exactly 100 two-unit characters", title: "😀".repeat(100), file: "😀".repeat(100) },
-  { name: "250 plain characters", title: "尾".repeat(250), file: "尾".repeat(100) },
-  { name: "forbidden characters become dashes", title: '周报/第1周:草稿*?"<>|\\终', file: "周报-第1周-草稿-------终" },
-  { name: "short", title: "发布清单", file: "发布清单" },
-];
-
-test("RAC-1896 an exported note's file name is cut to 100 whole characters, in Markdown and in HTML", async t => {
+test("a weekly series answers each scope at one occurrence, and its occurrences come back with the series id", async t => {
   const f = fixture(t);
-  for (const c of EXPORT_NAMES) {
-    const id = (await f.command("note.create", { title: c.title, markdown: "正文" })).notes.at(-1)!.id;
-    for (const [format, extension] of [["markdown", ".md"], ["html", ".html"]] as const) await t.test(`${format}: ${c.name}`, async () => {
-      assert.equal((await f.bound.invoke(actions.exportNote, { id, format })).filename, c.file + extension);
-    });
-  }
+  const { series } = await f.bound.invoke(a.createSeries, { series: { title: "站会", start_date: "2026-09-07", start_time: 570, end_time: 585, weekdays: [1, 3], time_zone: zone } });
+  const ids = async () => (await f.month()).items.map(entry => entry.id);
+  assert.equal((await ids()).length, 8);
+  assert.deepEqual((await f.bound.invoke(a.item, { id: `${series.id}@2026-09-09` })).series?.id, series.id);
+  const one = (await f.bound.invoke(a.updateSeries, { id: series.id, expected_revision: 1, original_date: "2026-09-09", scope: "onlyThis", patch: { title: "改期站会", start_date: "2026-09-10", end_date: "2026-09-10" } })).series;
+  assert.equal((await f.month()).items.find(entry => entry.id === `${series.id}@2026-09-09`)?.start_date, "2026-09-10");
+  const ticked = (await f.bound.invoke(a.updateSeries, { id: series.id, expected_revision: one.revision, original_date: "2026-09-14", scope: "onlyThis", patch: { completed: true } })).series;
+  const split = await f.bound.invoke(a.updateSeries, { id: series.id, expected_revision: ticked.revision, original_date: "2026-09-21", scope: "thisAndFuture", patch: { title: "新站会" } });
+  assert.equal(split.ended?.until, "2026-09-20"); assert.notEqual(split.series.id, series.id);
+  assert.deepEqual((await f.month()).items.filter(entry => entry.title === "新站会").map(entry => entry.start_date), ["2026-09-21", "2026-09-23", "2026-09-28", "2026-09-30"]);
+  const { series: left, restore } = await f.bound.invoke(a.deleteSeries, { id: series.id, expected_revision: split.ended!.revision, original_date: "2026-09-07", scope: "all" });
+  assert.equal(left, null);
+  assert.equal((await ids()).filter(id => id.startsWith(series.id)).length, 0);
+  await f.bound.invoke(a.restore, { rows: restore });
+  assert.equal((await ids()).filter(id => id.startsWith(series.id)).length, 4);
+  await assert.rejects(f.bound.invoke(a.updateSeries, { id: split.series.id, expected_revision: 1, original_date: "2026-09-22", scope: "onlyThis", patch: { title: "周二" } }), { code: "jelly.invalid" });
+});
+
+test("deleting a category moves its entries, including a single date's change, to uncategorized, and undo moves them back", async t => {
+  const f = fixture(t);
+  const { category } = await f.bound.invoke(a.saveCategory, { name: "工作", color: "#3366CC" });
+  await assert.rejects(f.bound.invoke(a.saveCategory, { name: " 工作 " }), { code: "jelly.invalid" });
+  await assert.rejects(f.bound.invoke(a.saveCategory, { id: "uncategorized", expected_revision: 0, name: "别的" }), { code: "jelly.invalid" });
+  const recolored = (await f.bound.invoke(a.saveCategory, { id: "uncategorized", expected_revision: 0, color: "#123456" })).category;
+  assert.equal(recolored.revision, 1);
+  const { item } = await f.bound.invoke(a.createItem, { item: { title: "评审", start_date: "2026-09-02", category_id: category.id } });
+  const { series } = await f.bound.invoke(a.createSeries, { series: { title: "周会", start_date: "2026-09-07", weekdays: [1] } });
+  await f.bound.invoke(a.updateSeries, { id: series.id, expected_revision: 1, original_date: "2026-09-14", scope: "onlyThis", patch: { category_id: category.id } });
+  const { restore } = await f.bound.invoke(a.deleteCategory, { id: category.id, expected_revision: 1 });
+  const after = await f.month();
+  assert.deepEqual(after.categories.map(row => row.id), ["uncategorized"]);
+  assert.ok(after.items.every(entry => entry.category_id === "uncategorized"));
+  await f.bound.invoke(a.restore, { rows: restore });
+  const back = await f.month();
+  assert.equal(back.items.find(entry => entry.id === item.id)?.category_id, category.id);
+  assert.equal(back.items.find(entry => entry.id === `${series.id}@2026-09-14`)?.category_id, category.id);
+  await assert.rejects(f.bound.invoke(a.deleteCategory, { id: "uncategorized", expected_revision: 1 }), { code: "jelly.invalid" });
+});
+
+test("notes keep plain text or Markdown, pin to a day, list by day or words, refuse a stale save and come back after delete", async t => {
+  const f = fixture(t);
+  const { note } = await f.bound.invoke(a.saveNote, { title: "周一", body: "# 要点\n\n- 订会议室", day: "2026-09-07" });
+  // An Assistant or MCP caller must name a version on every write: 0 is how it says "a new one".
+  await f.service.invoke({ ...f.caller, audience: "agent" }, a.saveNote, { expected_revision: 0, title: "随想", body: "没有日期" });
+  assert.deepEqual((await f.bound.invoke(a.notes, { day: "2026-09-07" })).notes.map(row => row.id), [note.id]);
+  assert.deepEqual((await f.bound.invoke(a.notes, { day: null })).notes.map(row => row.title), ["随想"]);
+  assert.deepEqual((await f.bound.invoke(a.notes, { query: "会议室" })).notes.map(row => [row.id, row.excerpt]), [[note.id, "# 要点 - 订会议室"]]);
+  const saved = (await f.bound.invoke(a.saveNote, { id: note.id, expected_revision: 1, body: "改过" })).note;
+  assert.deepEqual([saved.title, saved.body, saved.day, saved.revision], ["周一", "改过", "2026-09-07", 2]);
+  await assert.rejects(f.bound.invoke(a.saveNote, { id: note.id, expected_revision: 1, body: "旧稿" }), { code: "jelly.conflict" });
+  await assert.rejects(f.bound.invoke(a.saveNote, { id: note.id, body: "没带版本" }), { code: "jelly.invalid" });
+  const { restore } = await f.bound.invoke(a.deleteNote, { id: note.id, expected_revision: 2 });
+  await assert.rejects(f.bound.invoke(a.note, { id: note.id }), { code: "jelly.not_found" });
+  await assert.rejects(f.bound.invoke(a.saveNote, { id: note.id, expected_revision: 2, body: "删了还写" }), { code: "jelly.not_found" });
+  await f.bound.invoke(a.restore, { rows: restore });
+  assert.equal((await f.bound.invoke(a.note, { id: note.id })).note.body, "改过");
 });

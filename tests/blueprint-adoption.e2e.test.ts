@@ -3,12 +3,11 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { homeSqlitePath, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("ONB-21/22/28/30: review actual setting values one by one, resume from the project and undo", { timeout: 95_000 }, async t => {
@@ -153,84 +152,4 @@ test("ONB-29: reopening a new-project adoption interrupted before project creati
   await waitFor("location.pathname.includes(" + JSON.stringify(accepted.target.project_id) + ") && document.querySelector('.arrival-bar .bar-end button.mw-btn--primary')");
   await click(".arrival-bar .bar-end button.mw-btn--primary");
   await waitFor("document.querySelector('[data-scene-main] details:not([open])') && !document.querySelector('.arrival-bar .bar-end .mw-btn--primary')");
-});
-
-test("ONB-22/30: change an unavailable Jelly model in the review and read the replacement from Jelly", { timeout: 90_000 }, async t => {
-  const originalBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
-  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  t.after(() => {
-    if (originalBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND;
-    else process.env.MOLIS_WORK_SECRET_BACKEND = originalBackend;
-    resetSecretStoreCache();
-  });
-  const before = { provider_id: "scene-before", model_id: "before" };
-  const after = { provider_id: "scene-after", model_id: "after" };
-  let originalConnection = "";
-  const prepareHome = (home: string) => runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
-    for (const choice of [before, after]) {
-      const base = "http://127.0.0.1:9/" + choice.model_id;
-      const connection = withConnectorConnections(home, store => {
-        const row = store.createToken({ serviceId: "model-api", displayName: choice.model_id, token: "local-model-fixture" });
-        store.assertTarget(row.connection_id, "model-api", base);
-        return row;
-      });
-      if (choice === before) originalConnection = connection.connection_id;
-      catalog.models.upsert({ provider_id: choice.provider_id, display_name: choice.model_id, base_url: base, credential_ref: connection.credential_ref!,
-        api_format: "openai-chat-completions", models: [{ model_id: choice.model_id, enabled: true }] });
-    }
-  }));
-  const b = await openGoalBrowser(t, "user", undefined, null, undefined, undefined, { prepareHome });
-  if (!b) return;
-  const { localHost, homeDirectory, command, navigate, origin, sessionId, click, waitFor, evaluate, web } = b;
-  assert.ok(localHost);
-  const jelly = "/api/plugins/io.molis.work.jelly/model-settings";
-  const key = "jelly.model_selection", preference = "/api/plugins/io.molis.work.jelly/preferences/";
-  const { values } = await web.post<{values: {revision: string}[]}>(preference + "read", { keys: [key] });
-  await web.post(preference + "write", { key, layer: "personal", expected_revision: values[0]!.revision, change: { set: before }, request_id: "choose-before" });
-  withConnectorConnections(homeDirectory, store => store.setEnabled(originalConnection, false));
-  const caller = await localHost.localPersonContext();
-  const user = bindActionClient(localHost.homeActionClient(), () => caller);
-  const title = { literal: "会议准备" };
-  const { draft } = await user.invoke(blueprintActions.draftSave, { expected_revision: null, blueprint: {
-    title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
-    parts: [{ part_id: "model", layer: "personal", required: true, proposal: { kind: "setting", key: "jelly.model_selection", value: before } },
-      { part_id: "wheel", layer: "personal", required: false, proposal: { kind: "setting", key: "shelf.drop_wheel", value: false } },
-      { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
-    steps: [{ step_id: "prepare", title, part_ids: ["model", "wheel", "note"] }],
-    example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
-  } });
-  await navigate(() => command("Page.navigate", { url: origin + "/onboarding?scene&draft=" + draft.source.draft_id }, sessionId));
-  await waitFor("document.querySelector('[name=scene-target]')");
-  await click("[name=scene-target][value=personal]");
-  await click(".arrival-bar .bar-end .mw-btn--primary");
-  await waitFor("document.querySelector('[data-scene-main] details summary')");
-  assert.equal(await evaluate("document.querySelector('[data-scene-main] input[type=checkbox]')===null"), true);
-  await click("[data-scene-aside] button:nth-of-type(2)");
-  await waitFor("document.querySelector('[data-scene-main]').innerText.match(/仅限本机|This device only/i)");
-  assert.match(await evaluate<string>("document.querySelector('[data-scene-main] h2').textContent"), /拖放轮盘|Drop wheel/i);
-  assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /开启|\bOn\b/i);
-  assert.match(await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText"), /关闭|\bOff\b/i);
-  await click("[data-scene-main] details summary");
-  assert.equal(await evaluate("document.querySelector('[name=scene-boolean]:checked').value"), "false");
-  await click("[data-scene-aside] button");
-  const model = await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText");
-  assert.ok(model.includes(before.model_id) && /个人|Personal/i.test(model) && /不可用|unavailable/i.test(model), model);
-  const choicesRead = "performance.getEntriesByType('resource').filter(r => r.name.endsWith('/api/settings/models?choices=1')).length";
-  assert.equal(await evaluate(choicesRead), 0);
-  await click("[data-scene-main] details summary");
-  await waitFor("document.querySelector('[name=scene-model]')");
-  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('[name=scene-model]'), input => input.closest('label').innerText)"), ["after · after"]);
-  assert.equal(await evaluate(choicesRead), 1);
-  await click("[name=scene-model]");
-  await click("[data-scene-main] details button[data-focus]");
-  const checkbox = "[data-scene-main] input[type=checkbox]";
-  await waitFor("document.querySelector('[data-scene-main] input[type=checkbox]') && !document.querySelector('[data-scene-main] input[type=checkbox]').checked");
-  await click(checkbox);
-  await click(".arrival-bar .bar-end .mw-btn--primary");
-  await waitFor("location.search.includes('adoption=') && document.querySelector('[data-scene-main] details:not([open])')");
-  assert.deepEqual((await web.get<{selection: typeof after}>(jelly)).selection, after);
-  await click("[data-scene-aside] button");
-  await waitFor("document.querySelector('[data-scene-main]').innerText.match(/已恢复原设置|Previous setting restored/)");
-  assert.deepEqual((await web.get<{selection: typeof before}>(jelly)).selection, before);
-  assert.equal(withConnectorConnections(homeDirectory, store => store.get(originalConnection)?.enabled), false);
 });

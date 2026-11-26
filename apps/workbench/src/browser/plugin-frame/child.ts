@@ -113,7 +113,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? uiText.text(code === "actions.plugin_disabled" ? "common.child.project-has-turned-plugin-off-so-can-t" : "common.child.don-t-have-permission-read-so-can-t") : "",
     api: (path: string, method: "GET" | "POST", body: unknown, fallback = uiText.text("common.child.source-operation-failed")) => call(route(path), { method, body, fallback }),
     openItem: (...args: unknown[]) => intent("openItem", args), openBeside: (...args: unknown[]) => intent("openBeside", args), openPlugin: (...args: unknown[]) => intent("openPlugin", args),
-    hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
+    hideDirectory: () => intent("hideDirectory", []), // A function cannot cross the frame: the toast's 「撤销」 (\`undo\`) stays out, and the parent keeps only the presentation fields.
+    showToast: (...args: unknown[]) => intent("showToast", args.map(arg => arg && typeof arg === "object" ? Object.fromEntries(Object.entries(arg).filter(([, value]) => typeof value !== "function")) : arg)), page: () => config.page,
     status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
       references: (source: string, query: string) => call<SearchReferencesResponse>(route("/api/host/plugin-page-actions"), {
         body: { reference: { capability_id: "search.references", version: /* @version action.search.references */ 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,

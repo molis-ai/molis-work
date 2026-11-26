@@ -74,7 +74,8 @@ const permissionCases = [
   { plugin: "workflows", said: "[data-wf-gone]", path: "/io.molis.work.native.workflows/", toast: "[data-wf-toast]" },
   { plugin: "pages", said: "[data-pages-note]", path: "/io.molis.work.pages/", toast: "" },
   { plugin: "todo", said: "[data-todo-note-text]", path: "/io.molis.work.todo/", toast: "" },
-  { plugin: "jelly", said: "[data-jelly-notice]", path: "/io.molis.work.jelly/", toast: "" },
+  // Jelly reads through its actions only (batch 112-2): its reads are POSTs to the page-action address.
+  { plugin: "jelly", said: "[data-jelly-notice]", path: "/api/host/plugin-page-actions", toast: "", method: "POST" },
   { plugin: "lingguang", said: "[data-lingguang-note]", path: "/io.molis.work.lingguang/", toast: "" },
   { plugin: "coding", said: "[data-coding-status]", path: "/io.molis.work.coding/", toast: "" },
 ];
@@ -84,13 +85,13 @@ test("VUX-12: a plugin refused the read says it is a permission matter (or that 
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin, projectId, on } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
-  let refusal: { path: string; body: Record<string, string> } | null = null;
+  let refusal: { path: string; method: string; body: Record<string, string> } | null = null;
   const answered: string[] = [];
   t.after(on("Fetch.requestPaused", async (event, session) => {
     if (session !== sessionId) return;
     const request = event.request as { url: string; method: string };
     const requestId = String(event.requestId);
-    if (refusal && request.method === "GET" && request.url.includes(refusal.path)) {
+    if (refusal && request.method === refusal.method && request.url.includes(refusal.path)) {
       answered.push(request.url);
       await command("Fetch.fulfillRequest", { requestId, responseCode: 403, responseHeaders: [{ name: "content-type", value: "application/json" }], body: Buffer.from(JSON.stringify(refusal.body)).toString("base64") }, sessionId);
     } else await command("Fetch.continueRequest", { requestId }, sessionId).catch(() => undefined);
@@ -100,7 +101,7 @@ test("VUX-12: a plugin refused the read says it is a permission matter (or that 
   // Every plugin is walked and every miss collected, so one run shows the whole picture instead of the first plugin that fails.
   const problems: string[] = [];
   const check = (ok: boolean, message: string) => { if (!ok) problems.push(message); };
-  for (const { plugin, said, path, toast } of permissionCases) {
+  for (const { plugin, said, path, toast, method = "GET" } of permissionCases as readonly { plugin: string; said: string; path: string; toast: string; method?: string }[]) {
     const child = await pluginFrameBrowser(t, browser, plugin);
     const surface = `document.querySelector('[data-work-surface="${plugin}"]')`;
     const shown = `[...${surface}.querySelectorAll('${said}')].filter((node) => node.checkVisibility()).map((node) => node.textContent)`;
@@ -110,7 +111,7 @@ test("VUX-12: a plugin refused the read says it is a permission matter (or that 
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await evaluate(`window.__unreadable = []; document.addEventListener('molis-work:item-unreadable', (event) => window.__unreadable.push(event.detail.itemId))`);
     for (const [kind, body, words, itemId] of [["permission", denied, ["没有查看这项内容的权限", "在「设置」里管理授权"], "denied-item-1"], ["disabled", disabled, ["在当前项目已停用", "插件市场"], "denied-item-2"]] as const) {
-      refusal = { path, body };
+      refusal = { path, method, body };
       answered.length = 0;
       await evaluate(`${surface}.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(itemId)} } }))`);
       const said_ = await child.waitFor(`${shown}.some((text) => ${JSON.stringify(words)}.every((word) => text.includes(word)))`, 8_000).then(() => true, () => false);

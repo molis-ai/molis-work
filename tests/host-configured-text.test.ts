@@ -15,7 +15,9 @@ import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-
 import { feedInformationPlanAction } from "@molis-ai/molis-work-plugin-feed";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
-import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
+/** A plugin's model choice as its Manifest declares it (a sandbox plugin's is the same shape). */
+const PROBE_MODEL_CONFIGURATION = { preference: { store_name: "probe", file_name: "preferences.json" }, custom_provider: { provider_id: "probe-text", display_name: "探针模型" },
+  actions: { read: { capability_id: "probe.model.settings", version: 1 }, save: { capability_id: "probe.model.configure", version: 1 } } };
 import { asideReply } from "./fixtures/ending-review.js";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { SKILLS_PERMISSIONS, skillAuthoringActions, skillDraftActions } from "@molis-ai/molis-work-contracts/services/skills";
@@ -258,9 +260,9 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
   } finally { await close(web); }
 }));
 
-test("discovery and Jelly settings never decrypt; explicit selections stay invalid rather than changing account", async t => fixture(async f => {
+test("discovery and a plugin's model settings never decrypt; explicit selections stay invalid rather than changing account", async t => fixture(async f => {
   const first = configure(f, "a"), second = configure(f, "b");
-  const configuration = createConsumerModelConfiguration(f.home, JELLY_MODEL_CONFIGURATION);
+  const configuration = createConsumerModelConfiguration(f.home, PROBE_MODEL_CONFIGURATION);
   configuration.save({ provider_id: "a", model_id: "a-model" });
   const secrets = runWithMolisWorkHome(f.home, () => createFileSecretStore());
   const spy = t.mock.method(secrets, "get", () => { throw new Error("Directory attempted to decrypt a key"); });

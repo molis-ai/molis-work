@@ -60,7 +60,7 @@ export function requestGuideVariant(method: ConnectorMethodOption): "main" | "fu
 
 /** What each of the platform's own keys is for. */
 const PLATFORM_PURPOSE: Record<string, string> = {
-  "model-api": "workbench.settings-connector-guide.choose-text-models-molis-jelly-can-use",
+  "model-api": "workbench.settings-connector-guide.choose-text-models-molis-can-use",
   "image-api": "workbench.settings-connector-guide.use-own-image-generation-service-images",
   typesafe: "workbench.settings-connector-guide.let-functions-use-type-safe-account",
   "mcp-bearer": "workbench.settings-connector-guide.save-key-remote-tool-service-choose-coding",

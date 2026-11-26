@@ -1,41 +1,79 @@
 # Jelly
 
+Jelly 是个人日历和随手记，只做两件事：
 
-Jelly 的日历与笔记工作区，使用 Molis Work 控件与舞台。收想法只在灵光（2026-10-01 起，见 `specs/archive/post-merge-review/spec.md` PMR-22）：Jelly 不再有灵感页，也不再读取文件与网页。个人数据独立存于 `{home}/jelly/jelly.db`；不会访问或覆盖原 Jelly 数据。功能目标与差异见 `specs/archive/jelly-plugin/`。
+- **日历**：按月、周或清单看。日程分单次和每周重复两种，可以归到分类里。
+- **随手记**：纯文本或 Markdown，可以挂在某一天，也可以不挂。
 
-Contract: `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-plugin-jelly/contract`。
-Migration Goal: `goal-reorg-f2`。
+第 112 批（2026-11-25 拍板）把 Jelly 缩成这两件事，下面这些都删掉了，不再回来：
 
-Home Plugin Runtime 通过 `services.model` 提供模型能力；`completeJson` 使用 Prologue 的公共格式解码，Jelly 只验证领域内容。模型调用前后都复查原 Action 权限；MCP 客户端须在「能力 → 对外接入」逐项授权。AI 提案只有在用户确认后才写入日历或笔记。当前实现、工程证据、实际体验和真人验收分别记录，不将本地构建视为完整复刻验收。
+- 私有 AI 拆解：要让 AI 排日程，由个人助理调用下面的公开动作来做。
+- Jelly 自己的模型选择台和偏好文件。
+- 进展页。
+- 块级富文本、关联。
+- 整库 JSON 导入导出、预览令牌和全库历史快照。
 
+收想法、读文件与网页都在灵光（`specs/archive/post-merge-review/spec.md` PMR-22）。个人数据存在 `{home}/jelly/jelly.db`，不访问也不覆盖原 Jelly App 的数据。
 
-动作服务：Manifest 声明 53 项能力，由插件的 `actions.ts`、`command-actions.ts`、`service-actions.ts` 和 `content-actions.ts` 提供合同及处理器。全部动作由同一个 Home Runtime 实例注册；SQL 通过 `services.database`，模型推理和设置通过 `services.model`。HTTP 路由位于 `/api/plugins/io.molis.work.jelly`，转发到同一动作客户端，MCP 只经授权的动作工具。写入携带当前 workspace revision，导入及永久删除仍需原确认预览。模型等待使用声明式并发调度。`content-actions.ts` 是工作流内容站点「jelly」：交来的内容（灵光的「转成 Jelly 笔记」、工作流的一步）成为一篇笔记，同一次交接只建一篇。
+数据合同：`@molis-ai/molis-work-plugin-jelly/contract`（`src/contract.ts`）。插件协议：`@molis-ai/molis-work-contracts/platform/plugin`。
 
-Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个人内容或模型设置权限。工程、MCP 和桌面/窄屏实操证据见 `specs/action-architecture/migration.md`，系统全量迁移和用户本人验收仍在进行。
+## 存储
+
+一个库（`database.jelly_database` 版本 1，Clean v1，没有旧结构的兼容分支）里有四张表。每一行都带自己的 `revision`：
+
+| 表 | 内容 |
+| --- | --- |
+| `jelly_categories` | 分类：名字、颜色、排序。「未分类」只能改颜色。 |
+| `jelly_items` | 单次日程或事项：起止日期、可选的起止分钟数、时区、备注、完成时间。 |
+| `jelly_series` | 每周重复的系列：星期几、截止日，以及每一天的例外（改过或删掉）和完成记录。 |
+| `jelly_notes` | 随手记：标题、正文（纯文本或 Markdown）、可选的日期。 |
+
+- 每次写入只在一个事务里改它要改的那几行，并核对读取时拿到的 `revision`。
+- 改日程和写随手记互不锁表。
+- 同步按行进行（`src/replication.ts`），键是 `["jelly", 种类, id]`。
+
+## 动作
+
+共 18 项动作，输入类型都由 schema 推导（`InferActionInput`），处理器不写 `input as`：
+
+- **核心 15 项**（`src/actions.ts`），名字都以 `jelly.` 开头：
+  - 读：`calendar.list`、`item.get`、`note.list`、`note.get`
+  - 日程：`item.create`、`item.update`、`item.delete`、`series.create`、`series.update`、`series.delete`
+  - 分类：`category.save`、`category.delete`
+  - 随手记：`note.save`、`note.delete`
+  - 撤销：`restore`
+- **其余 3 项**：搜索提供的 `jelly.search.entries`，以及两项对象读取 `jelly.item.subject.read`、`jelly.note.subject.read`。
+- **内容站点**：`jelly.content.*`（`src/content-actions.ts`）接收别处交来的纯文本或 Markdown 笔记，例如灵光的「转成 Jelly 笔记」。
+
+写入规则：
+
+- 删除类动作返回删掉的行，撤销用 `jelly.restore` 把它们放回。页面的撤销按钮在宿主的 `host.showToast` 里。
+- 重复系列的改动按范围分三种：只改这一次（`onlyThis`）、改这次和以后（`thisAndFuture`，旧系列在前一天截止，另起一个新系列）、改全部（`all`）。
+- 新建时 `expected_revision` 不填或填 0。助理和 MCP 调用必须写明版本，所以新建填 0。
 
 ## 开发要求
 
-- 负责：个人日历与笔记工作区；作为内容站点接收交来的笔记。
-- 不负责：原 Jelly App 的数据、项目 Goal 事实、第二个运行时。
-- 公开入口：`@molis-ai/molis-work-plugin-jelly`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-jelly/contract`（`src/contract.ts`）。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 负责：个人日历和随手记；作为内容站点接收交来的笔记。
+- 不负责：原 Jelly App 的数据、项目 Goal 事实、模型调用、第二个运行时。
+- 公开入口：`@molis-ai/molis-work-plugin-jelly`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）。
+- 依赖：只依赖 `@molis-ai/molis-work-contracts` 和 `@molis-ai/molis-work-plugin-sdk`，不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 不访问或覆盖原 Jelly 数据。
-  - AI 提案只有用户确认后才写入日历或笔记。
-  - 项目访问不自动授予个人内容或模型设置权限。
-  - `delete_preview` 只保存确认凭证（显式声明为写），真正删除是另一个动作。
-  - 模型对话框里的「打开模型设置」链接先关掉对话框（它是模态的，留着会压在设置上）。`molis-work:model-ready` 上只有「去过设置」的标记还在、且 Jelly 此刻真在屏幕上才重开模型对话框，标记在第一次事件上就用掉；写法与原因见 `skills/molis-prologue-ai/SKILL.md` 步骤 6。守住它的是 `tests/model-ready-surfaces.e2e.test.ts`（「界面改动加跑」里）。
-  - 改一个对象的命令声明结果对象（`result_subject`），输出附带改后的这一个，可由该种类的 `subject.read` 读回：日程（事项，或重复系列整体）是 `jelly_item`（`item` 或 `series`），笔记是 `jelly_note`（`note`）。恢复让对象重新可读，结果就是这个对象。作用于多条或整个工作区的命令，以及归档与删除，仍是 `jelly_workspace`：读取动作把归档的对象当作不存在，结果刚记下就会显示为已不在。
-  - 动作的输入类型由 schema 推导（`defineJellyAction<Output>()(…)`，输入用到的片段写 `as const`），处理器不写 `input as`。全部命令共用一个处理器（`createJellyCommandHandlers`），所以 store 收到的 `JellyCommand` 的值是 `unknown`：形状由 schema 在 Kernel 里查，store 只查要读工作区的；`calendar.ts`、`content.ts` 的读值函数（`identifier`、`record`、`string` 等）留着，是为了把 `unknown` 收窄，不靠 `as`。约束加在用到它的动作上，不加到共享片段：`s.ids`、`s.selection` 同时是工作区和计划的输出，输出也过校验，一个空的 `applied_plan_ids` 就会让读取失败。笔记选区不能为空写在 `aiInput` 的笔记分支。
-  - 失败使用 `jellyErrors` 的 `jelly.<原因>` 声明，状态只由 kind 推出；Runtime、模型与授权错误保留其 owner 码，不包装成另一份状态表。Host 里读公开来源的失败是 `material.source.<原因>`（`materialSourceErrors`，`apps/local-host/src/material-source-reader.ts`），读上传文件的是 `material.<原因>`（`materialErrors`，`apps/local-host/src/material-text.ts`；上传入口在 `apps/local-host/src/material-upload.ts`）：这两组归 Host 的素材服务，不带 `jelly.` 前缀。灵光靠 `material.model_required` 按名字问「要不要下载语音模型」，大小在 `details.approximate_bytes`（`plugins/native/lingguang/src/client.ts`）。
-  - `services.model.configuration` 独占原 preferences.json v1 的模型选择；设置 read/save 只在声明的动作里使用，保存不调用模型，无效选择不回退。SQL 仍经插件的 database 事务，模型等待前后复查授权。
-- 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-jelly run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/plugin-model-configuration.test.ts tests/jelly-http-stream.test.ts tests/jelly-plugin.test.ts tests/lingguang-material.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/jelly-client-bundle.test.ts`
-- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/jelly-actions.e2e.test.ts tests/jelly-outside-changes.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
+  - 启动不需要 `context.services.model`，也不需要 `model.configuration`。Manifest 不申请 `model:*` 权限，也没有 HTTP 路由和设置入口。
+  - 每次写入核对行的 `revision`。版本对不上报 `jelly.conflict`，并带上最新的 `revision`。
+  - 失败统一用 `jellyErrors` 的 `jelly.<原因>`，只有 `invalid`、`conflict`、`not_found`、`corrupt` 四种。
+  - 交给第 108 批的约定：
+    - 不改 `runtime.scope: "home"`、`personal`、`registration.personal`。
+    - 日程行可读出起止日期、全天与否和时区。
+    - 写入口只有上面那 11 个命令动作，每个都在一个事务里完成。
+- 页面（`src/browser/`）分两个页签：
+  - 「日历」：月、周、清单三种看法；右侧是选中那天的日程、一行快速添加和当天的随手记。
+  - 「随手记」：列表加编辑器，有字的笔记打开时先显示阅读模式。
+  - 页面只经 `host.invokeAction` 调用上面的动作，不直接请求。
+  - 按 id 打开（`molis-work:select-item`）时：对象已经不在，就在页面上说出来（`[data-jelly-notice]`），并发 `molis-work:item-unreadable`；没有权限读的，用平台的话说，不说成「不在了」；`quiet` 的重开不出声。
+- 界面文字用 `jelly.*` 键，`locales/{zh,en,ja}.json` 三种语言齐全，并在 Manifest 的 `ui.locales` 声明。
+- 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-jelly run build`。改过共享依赖的，先在仓库根目录运行 `pnpm build`。
+- 改动后必跑：`node scripts/run-tests.mjs tests/jelly-calendar.test.ts tests/jelly-actions.test.ts tests/jelly-mcp.test.ts tests/jelly-replication.test.ts tests/jelly-client-bundle.test.ts tests/lingguang-material.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
+- 改了界面再加跑这些（需要本机 Chrome）：`node scripts/run-tests.mjs tests/jelly-actions.e2e.test.ts tests/jelly-outside-changes.e2e.test.ts tests/jelly-whole-character.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/jelly-client.js`，`src/client.ts` 读取它；请求只经共同的 `molisWorkRequest`，不直接 `fetch`。界面文字用 `jelly.*` 稳定键，在 Manifest 的 `ui.locales` 声明 [中文](locales/zh.json)和[英文](locales/en.json)词包，服务端和浏览器共用。
-
-读取文件与网页（文字提取、图片识别、音视频转写）现在归灵光，经 Host 的 `materials` 契约执行。
-
-项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。
+项目回收检查：Jelly 的内容属于个人 Home，跨项目独立保存，不会因为某个项目被回收而删除。同步适配器对任何项目都回答「没有未结算的内容」。

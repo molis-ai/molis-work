@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentHostCapabilities as agent, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, type AgentBackgroundTask, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
-import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { createPrologueNodeAdapter, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { CALLERS_WRITE, callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
@@ -21,26 +21,30 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 const RUNTIME = "fixture-letters", PROJECT = "project-a";
 const SEVEN = [agent.readMessages, agent.prioritizeSession, agent.sendPeopleMessage, agent.actOnPeopleMessage, agent.cancelMessage, agent.readBackground, agent.stopBackground];
-const letter = (message_id: string): AgentSessionMessage => ({ message_id, from_session: "s1", to_session: "s2", from_title: "一", to_title: "二", kind: "request", body: "补测试",
+const letter = (message_id: string, from_session = "s1", to_session = "s2"): AgentSessionMessage => ({ message_id, from_session, to_session, from_title: "一", to_title: "二", kind: "request", body: "补测试",
   state: "delivered", sent_at_ms: 1, audience: "people" });
+const bgTask = (task_id: string, session_id = "s1"): AgentBackgroundTask => ({ task_id, session_id, summary: "command", state: "running", started_at_ms: 1 });
 
 /** A Runtime that carries letters and background commands, and records what reached it (the Runtime's method, then its arguments). */
-function lettersRuntime(seen: Array<[string, unknown[]]>): AgentRuntimeAdapter {
+function lettersRuntime(seen: Array<[string, unknown[]]>, ownerOf: (session_id: string) => Record<string, string> | undefined): AgentRuntimeAdapter {
   const unused = async (): Promise<never> => { throw new Error("Not used by this fixture"); };
   const answer = <T>(name: string, value: (args: unknown[]) => T) => async (...args: unknown[]) => { seen.push([name, args]); return value(args); };
+  const letters: AgentSessionMessage[] = [letter("m1")];
+  const tasks: AgentBackgroundTask[] = [bgTask("t1")];
   return {
     descriptor: { runtime_id: RUNTIME, display_name: "Letters fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
-    createSession: unused, readSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
+    createSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
     observe() { throw new Error("Not used by this fixture"); },
+    readSession: async (session: { session_id: string }) => ({ session_id: session.session_id, owner: ownerOf(session.session_id) }) as never,
     messages: {
-      read: answer("read", () => [letter("m1")]),
+      read: answer("read", () => [...letters]),
       cancel: answer("cancel", () => undefined),
       prioritize: answer("prioritize", () => ({ notified: ["s2"], paths: ["src/x.ts"] })),
-      sendForPeople: answer("send", () => letter("m2")),
+      sendForPeople: answer("send", () => { const sent = letter("m2"); letters.push(sent); return sent; }),
       act: answer("act", args => letter(String(args[1]))),
     },
-    background: { read: answer("background", () => []), stop: answer("stop", () => true) },
+    background: { read: answer("background", () => [...tasks]), stop: answer("stop", () => true) },
   } as AgentRuntimeAdapter;
 }
 
@@ -50,15 +54,17 @@ async function lettersSetup(t: TestContext) {
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
   const composition = composeAgentHost({ localHost, workspaceFor: () => null });
   const seen: Array<[string, unknown[]]> = [];
-  const runtime = lettersRuntime(seen);
+  const owner: { current?: Record<string, string>; of: Record<string, Record<string, string>> } = { of: {} };
+  const runtime = lettersRuntime(seen, session_id => owner.of[session_id] ?? owner.current);
   composition.agentHost.register(runtime);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
   const consumer = callerPlugin("letters", "project", {}, SEVEN.map(definition => definition.capability_id));
   const bystander = callerPlugin("bystander", "project");
   await startPlugin(localHost, reference, store, consumer);
   await startPlugin(localHost, reference, store, bystander);
+  owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: LOCAL_PERSON_ACTOR_ID };
   t.after(async () => { composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  return { localHost, reference, seen, consumer, bystander, runtime };
+  return { localHost, reference, seen, owner, consumer, bystander, runtime };
 }
 
 const person = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT, audience, permissions: [] });
@@ -76,9 +82,9 @@ test("RAC-188 the seven are plugin-only actions needing no permission, and a con
   assert.equal((await actions.invoke(agent.sendPeopleMessage, [RUNTIME, sent])).message_id, "m2");
   assert.equal((await actions.invoke(agent.actOnPeopleMessage, [RUNTIME, "m2", "deliver", {}])).message_id, "m2");
   await actions.invoke(agent.cancelMessage, [RUNTIME, "m2"]);
-  assert.deepEqual(await actions.invoke(agent.readBackground, [RUNTIME]), []);
+  assert.deepEqual(await actions.invoke(agent.readBackground, [RUNTIME]), [bgTask("t1")]);
   assert.equal(await actions.invoke(agent.stopBackground, [RUNTIME, "t1"]), true);
-  assert.deepEqual(seen.map(([name]) => name), ["read", "prioritize", "send", "act", "cancel", "background", "stop"]);
+  assert.deepEqual(seen.map(([name]) => name), ["read", "prioritize", "send", "read", "act", "read", "cancel", "background", "background", "stop"]);
   // The project is the one the Host started the plugin in; the input names none.
   assert.ok(seen.every(([, args]) => args[0] === PROJECT), "every call ran in the plugin's own project");
   assert.deepEqual(seen.find(([name]) => name === "send")![1][1], sent, "the letter reached the Runtime as sent");
@@ -119,7 +125,7 @@ test("RAC-190 an input the schemas refuse never reaches the Runtime; the limits 
   assert.deepEqual(seen, [], "no refused input reached the Runtime");
   await actions.invoke(agent.actOnPeopleMessage, [RUNTIME, "m1", "record", { note: "字".repeat(100_000) }]);
   await actions.invoke(agent.sendPeopleMessage, [RUNTIME, { ...sent, attachments: Array.from({ length: 50 }, (_, i) => ({ kind: "artifact", id: `a${i}` })) }]);
-  assert.deepEqual(seen.map(([name]) => name), ["act", "send"], "the limits themselves are accepted");
+  assert.deepEqual(seen.map(([name]) => name), ["read", "act", "send"], "the limits themselves are accepted");
 });
 
 
@@ -136,6 +142,7 @@ test("RAC-190 Runtime message and background output errors are refused by the ac
   }
   runtime.messages!.sendForPeople = async () => ({ ...letter("m2"), kind: "other" } as never);
   await assert.rejects(actions.invoke(agent.sendPeopleMessage, [RUNTIME, { from_session: "s1", to_session: "s2", kind: "request", body: "Hi" }]), { code: "actions.output_invalid_after_effect" });
+  runtime.messages!.read = async () => [letter("m2")];
   runtime.messages!.act = async () => ({ ...letter("m2"), history: [{ event: "done", state: "completed" }] } as never);
   await assert.rejects(actions.invoke(agent.actOnPeopleMessage, [RUNTIME, "m2", "record", {}]), { code: "actions.output_invalid_after_effect" });
   runtime.background!.read = async () => [{ task_id: "t1", session_id: "s1", summary: "command", state: "done", started_at_ms: 1 } as never];
@@ -152,7 +159,7 @@ test("RAC-190 stored outputs include optional history and task fields without in
   const task = { task_id: "t1", session_id: "s1", run_id: "r1", summary: "command", state: "succeeded" as const, exit_code: 0, started_at_ms: 1, ended_at_ms: 2 };
   runtime.background!.read = async () => [task];
   assert.deepEqual(await actions.invoke(agent.readBackground, [RUNTIME]), [task]);
-  assert.equal(await actions.invoke(agent.cancelMessage, [RUNTIME, "m1"]), undefined, "cancel retains its void result");
+  assert.equal(await actions.invoke(agent.cancelMessage, [RUNTIME, "stored"]), undefined, "cancel retains its void result");
 });
 
 /*
@@ -248,6 +255,190 @@ test("RAC-197 the project's work and the sessions' standing are plugin-only acti
   await assert.rejects(actions.invoke(agent.queueProjectRound, [RUNTIME, { ...round, actor_id: "someone-else" } as never]), { code: "actions.input_invalid" });
   await assert.rejects(actions.invoke(agent.releaseProjectRound, [RUNTIME, "w1"] as never), { code: "actions.input_invalid" });
   assert.equal(seen.length, before, "no refused call reached the Runtime");
+});
+
+test("RAC-197 F-horiz-runtime-01: all seven message and background actions enforce (project_id, plugin_id, install_id, actor_id) ownership", async t => {
+  const { seen, owner, consumer, bystander } = await lettersSetup(t), actions = consumer.actions(PROJECT);
+  const mine = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: LOCAL_PERSON_ACTOR_ID };
+  const mutating = () => seen.filter(([name]) => ["prioritize", "send", "act", "cancel", "stop"].includes(name));
+  // Mismatches on any of the four owner fields are refused and filtered out; no mutating runtime method is called.
+  for (const other of [
+    { ...mine, project_id: "project-b" },
+    { ...mine, plugin_id: bystander.id },
+    { ...mine, install_id: "another-install" },
+    { ...mine, actor_id: "someone-else" },
+  ]) {
+    owner.current = other;
+    const tag = JSON.stringify(other);
+    assert.deepEqual(await actions.invoke(agent.readMessages, [RUNTIME]), [], `unscoped readMessages ${tag}`);
+    await assert.rejects(actions.invoke(agent.readMessages, [RUNTIME, "s1"]), { code: "agent.session_unknown" }, `scoped readMessages ${tag}`);
+    await assert.rejects(actions.invoke(agent.prioritizeSession, [RUNTIME, "s1"]), { code: "agent.session_unknown" }, `prioritizeSession ${tag}`);
+    await assert.rejects(actions.invoke(agent.sendPeopleMessage, [RUNTIME, { from_session: "s1", to_session: "s2", kind: "request", body: "越权" }]), { code: "agent.session_unknown" }, `sendPeopleMessage ${tag}`);
+    await assert.rejects(actions.invoke(agent.actOnPeopleMessage, [RUNTIME, "m1", "deliver", {}]), { code: "agent.session_unknown" }, `actOnPeopleMessage ${tag}`);
+    await assert.rejects(actions.invoke(agent.cancelMessage, [RUNTIME, "m1"]), { code: "agent.session_unknown" }, `cancelMessage ${tag}`);
+    assert.deepEqual(await actions.invoke(agent.readBackground, [RUNTIME]), [], `unscoped readBackground ${tag}`);
+    await assert.rejects(actions.invoke(agent.readBackground, [RUNTIME, "s1"]), { code: "agent.session_unknown" }, `scoped readBackground ${tag}`);
+    await assert.rejects(actions.invoke(agent.stopBackground, [RUNTIME, "t1"]), { code: "agent.session_unknown" }, `stopBackground ${tag}`);
+  }
+  assert.deepEqual(mutating(), [], "no unauthorized mutation reached the Runtime");
+});
+
+test("RAC-197 F-horiz-runtime-01: dual-plugin same-project isolation on real Prologue runtime prevents reading, steering, or stopping another plugin's sessions and background commands", { timeout: 60_000 }, async t => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "agent-host-p0-01-")));
+  const workspaceDir = join(root, "work");
+  await mkdir(join(workspaceDir, "src"), { recursive: true });
+  await writeFile(join(workspaceDir, "src/shared.ts"), "export const shared = 1;\n");
+  const directory = { canonical_path: workspaceDir, realpath_verified: true as const };
+
+  const localHost = new MolisWorkLocalHost();
+  const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.db"), projectId: PROJECT });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => null });
+  const queue = composition.agentHost.reviews;
+  const adapter = await createPrologueNodeAdapter({
+    app: { appId: "io.molis.work.p0-01-isolation", appVersion: "1.0.0" },
+    storageRoot: join(root, "runtime"),
+    reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "test-only",
+  });
+  composition.agentHost.register(adapter);
+
+  const store = new LocalProjectDatabase(join(root, "plugins.sqlite"));
+  const pluginA = callerPlugin("messages-owner-a", "project", {}, SEVEN.map(definition => definition.capability_id));
+  const pluginB = callerPlugin("messages-attacker-b", "project", {}, SEVEN.map(definition => definition.capability_id));
+  await startPlugin(localHost, reference, store, pluginA, { actorId: "web-user" });
+  await startPlugin(localHost, reference, store, pluginB, { actorId: "web-user" });
+
+  const holdRounds = Promise.withResolvers<void>();
+  t.after(async () => {
+    holdRounds.resolve();
+    await adapter.close();
+    await composition.dispose();
+    store.close();
+    await localHost.closeProject(reference);
+    await localHost.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const sseResponse = (text: string, tool?: { name: string; input: unknown }) => {
+    const events: string[] = [];
+    const emit = (type: string, value: Record<string, unknown>) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+    emit("message_start", { message: { id: "fixture", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 30, output_tokens: 0 } } });
+    if (tool) emit("content_block_start", { index: 0, content_block: { type: "tool_use", id: `call-${randomUUID()}`, name: tool.name, input: tool.input } });
+    else { emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } }); emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } }); }
+    emit("content_block_stop", { index: 0 });
+    emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn" }, usage: { output_tokens: 8 } });
+    emit("message_stop", {});
+    return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+  };
+  const seenByTag: Record<string, string[]> = {};
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+    const raw = typeof init?.body === "string" ? init.body : new TextDecoder().decode(init?.body as Uint8Array);
+    const body = JSON.parse(raw) as { messages: Array<{ role: string; content: unknown }> };
+    const opening = (message: { content: unknown }) => typeof message.content === "string"
+      ? message.content
+      : (Array.isArray(message.content) ? message.content : []).map((block: { text?: string; content?: string }) => block.text ?? block.content ?? "").join("");
+    const who = body.messages.filter(message => message.role === "user").map(opening).reverse().map(text => text.match(/^(A1|A2|B1)_TASK/)?.[1]).find(Boolean);
+    if (!who) return sseResponse("其他。");
+    const turns = (seenByTag[who] ??= []);
+    turns.push(JSON.stringify(body.messages));
+    const turn = turns.length;
+    if (who === "A1") {
+      if (turn === 1) return sseResponse("", { name: "start-command", input: { executable: "node", argv: ["-e", "setTimeout(()=>{}, 30000)"] } });
+      if (turn === 2) { await holdRounds.promise; return sseResponse("A1 完成。"); }
+      return sseResponse("A1 收到。");
+    }
+    if (turn === 1) { await holdRounds.promise; return sseResponse(`${who} 完成。`); }
+    return sseResponse(`${who} 收到。`);
+  });
+
+  const ownerA = { project_id: PROJECT, plugin_id: pluginA.id, install_id: pluginA.context(PROJECT).install_id, actor_id: "web-user" };
+  const ownerB = { project_id: PROJECT, plugin_id: pluginB.id, install_id: pluginB.context(PROJECT).install_id, actor_id: "web-user" };
+  const authority = {
+    manifest: {
+      roles: [{ role_id: "worker", version: 1, execution: "workspace-write" as const, prompts: ["worker"], host_tools: ["start-command"] }],
+      prompts: [{ prompt_id: "worker", version: 1 }],
+    },
+    prompts: [{ prompt_id: "worker", version: 1, body: "Work on the requested file.", layer: "role" as const }],
+    authorizedDirectories: [workspaceDir],
+  };
+
+  const sA1 = await adapter.createSession({ ...ownerA, directory, title: "A1" });
+  const sA2 = await adapter.createSession({ ...ownerA, directory, title: "A2" });
+  const sB1 = await adapter.createSession({ ...ownerB, directory, title: "B1" });
+  const sB2 = await adapter.createSession({ ...ownerB, directory, title: "B2" });
+
+  const rA1 = await composition.agentHost.start("prologue", { ...ownerA, session: sA1, directory, role_id: "worker", session_title: "A1", task: "A1_TASK 改 src/shared.ts" } as never, authority);
+  const rA2 = await composition.agentHost.start("prologue", { ...ownerA, session: sA2, directory, role_id: "worker", session_title: "A2", task: "A2_TASK 测 src/shared.ts" } as never, authority);
+  const rB1 = await composition.agentHost.start("prologue", { ...ownerB, session: sB1, directory, role_id: "worker", session_title: "B1", task: "B1_TASK 改 src/shared.ts" } as never, authority);
+
+  const approved = new Set<string>();
+  for (const deadline = Date.now() + 20_000; ;) {
+    for (const rev of queue.list(PROJECT, "pending")) {
+      if (!approved.has(rev.review_id)) {
+        approved.add(rev.review_id);
+        await queue.respond({ review_id: rev.review_id, version: rev.reference.version, decision: "approve", actor_id: "web-user" });
+      }
+    }
+    if ((seenByTag.A1?.length ?? 0) >= 2 && (seenByTag.A2?.length ?? 0) >= 1 && (seenByTag.B1?.length ?? 0) >= 1) break;
+    if (Date.now() > deadline) throw new Error("timed out waiting for active rounds and background command");
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+
+  const actionsA = pluginA.actions(PROJECT);
+  const actionsB = pluginB.actions(PROJECT);
+  const bgListA = await actionsA.invoke(agent.readBackground, ["prologue", sA1.session_id]);
+  assert.equal(bgListA.length, 1);
+  const bgA = bgListA[0]!;
+  assert.equal(bgA.state, "running");
+
+  const mA = await actionsA.invoke(agent.sendPeopleMessage, ["prologue", { from_session: sA1.session_id, to_session: sA2.session_id, kind: "request", body: "A的内部委派" }]);
+  assert.equal(mA.state, "queued");
+
+  // Plugin B (same project, same actor, different plugin) is refused across all 7 actions and sees nothing of Plugin A.
+  await assert.rejects(actionsB.invoke(agent.readMessages, ["prologue", sA1.session_id]), { code: "agent.session_unknown" });
+  assert.deepEqual(await actionsB.invoke(agent.readMessages, ["prologue"]), [], "unscoped readMessages must not leak Plugin A's letters");
+  await assert.rejects(actionsB.invoke(agent.prioritizeSession, ["prologue", sA1.session_id]), { code: "agent.session_unknown" });
+  // Even prioritizing Plugin B's own overlapping session must never discover A's paths or steer A's live rounds.
+  assert.deepEqual(await actionsB.invoke(agent.prioritizeSession, ["prologue", sB1.session_id]), { notified: [], paths: [] });
+  await assert.rejects(actionsB.invoke(agent.sendPeopleMessage, ["prologue", { from_session: sA1.session_id, to_session: sA2.session_id, kind: "request", body: "伪造" }]), { code: "agent.session_unknown" });
+  await assert.rejects(actionsB.invoke(agent.sendPeopleMessage, ["prologue", { from_session: sB1.session_id, to_session: sA1.session_id, kind: "request", body: "跨插件发信" }]), { code: "agent.session_unknown" });
+  await assert.rejects(actionsB.invoke(agent.sendPeopleMessage, ["prologue", { from_session: sB1.session_id, to_session: sB2.session_id, kind: "reply", in_reply_to: mA.message_id, body: "劫持回复" }]), { code: "agent.session_unknown" });
+  await assert.rejects(actionsB.invoke(agent.actOnPeopleMessage, ["prologue", mA.message_id, "deliver", {}]), { code: "agent.session_unknown" });
+  await assert.rejects(actionsB.invoke(agent.cancelMessage, ["prologue", mA.message_id]), { code: "agent.session_unknown" });
+  await assert.rejects(actionsB.invoke(agent.readBackground, ["prologue", sA1.session_id]), { code: "agent.session_unknown" });
+  assert.deepEqual(await actionsB.invoke(agent.readBackground, ["prologue"]), [], "unscoped readBackground must not leak Plugin A's commands");
+  await assert.rejects(actionsB.invoke(agent.stopBackground, ["prologue", bgA.task_id]), { code: "agent.session_unknown" });
+
+  // Plugin A's letter and background command remain intact after Plugin B's rejected attempts.
+  assert.equal((await actionsA.invoke(agent.readMessages, ["prologue", sA1.session_id]))[0]?.state, "queued");
+  assert.equal((await actionsA.invoke(agent.readBackground, ["prologue", sA1.session_id]))[0]?.state, "running");
+
+  // Plugin A's own legitimate calls across all 7 actions succeed, and prioritize steers only A's overlapping session A2 (never B1).
+  assert.deepEqual((await actionsA.invoke(agent.readMessages, ["prologue"])).map(item => item.message_id), [mA.message_id]);
+  assert.deepEqual(await actionsA.invoke(agent.prioritizeSession, ["prologue", sA1.session_id]), { notified: [sA2.session_id], paths: ["src/shared.ts"] });
+  assert.equal((await actionsA.invoke(agent.actOnPeopleMessage, ["prologue", mA.message_id, "deliver", {}])).state, "delivered");
+  await actionsA.invoke(agent.cancelMessage, ["prologue", mA.message_id]);
+  assert.equal((await actionsA.invoke(agent.readMessages, ["prologue", sA1.session_id]))[0]?.state, "cancelled");
+  assert.deepEqual((await actionsA.invoke(agent.readBackground, ["prologue"])).map(task => task.task_id), [bgA.task_id]);
+  assert.equal(await actionsA.invoke(agent.stopBackground, ["prologue", bgA.task_id]), true);
+
+  holdRounds.resolve();
+  const settle = async (ref: AgentRunRef) => {
+    for (const deadline = Date.now() + 20_000; ;) {
+      const view = await adapter.read(ref);
+      if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) return view;
+      if (Date.now() > deadline) throw new Error(`run ${ref.run_id} did not settle: ${view.phase}`);
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  };
+  for (const ref of [rA1.ref, rA2.ref, rB1.ref]) assert.equal((await settle(ref)).phase, "completed");
+
+  assert.equal(seenByTag.A1!.length, 2, "A1 never received a steer from Plugin B");
+  assert.doesNotMatch(seenByTag.A1!.join("\n"), /标成了优先/);
+  assert.equal(seenByTag.B1!.length, 1, "B1 never received a steer from Plugin A");
+  assert.doesNotMatch(seenByTag.B1!.join("\n"), /标成了优先/);
+  assert.match(seenByTag.A2!.at(-1)!, /标成了优先/, "A2 received Plugin A's own legitimate prioritize steer");
 });
 
 /*

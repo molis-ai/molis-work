@@ -29,7 +29,7 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./proje
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken, sendWebHealth } from "./web-control-token.js";
-import { sendUnhandledWebError, authorizeLocalWebRequest, finalizeLocalMutation, isTopLevelNavigation, refuseForeignRequest, sendLocalWebJson, type LocalMutationState } from "./web-http.js";
+import { sendUnhandledWebError, authorizeLocalWebRequest, finalizeLocalMutation, isTopLevelNavigation, refuseForeignRequest, refuseLocalWebRequest, requestHeader, sendLocalWebJson, type LocalMutationState } from "./web-http.js";
 import { platformPartUrl } from "./platform-part-routes.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
@@ -76,8 +76,19 @@ function nativeTerminal() {
   return terminal;
 }
 
-/** The language switch. This is a GET a foreign page's <img> reaches too: the browser's Cookie goes as ever, but only the page itself moves the Home's remembered language (S-ui-locale-memory). */
+/** The language switch. Only top-level document navigations may reach /locale; sub-frames (iframe / <meta refresh>), embeds, objects, non-navigation fetches and plugin/context pages are refused (S-47, S-ui-locale-memory). */
 function switchLocale(request: http.IncomingMessage, response: http.ServerResponse, url: URL, remember: (locale: unknown) => void): void {
+  const fetchDest = requestHeader(request, "sec-fetch-dest")?.toLowerCase();
+  const fetchMode = requestHeader(request, "sec-fetch-mode")?.toLowerCase();
+  if (
+    request.headers["x-molis-plugin-page"] !== undefined
+    || request.headers["x-molis-context-page"] !== undefined
+    || (fetchDest !== undefined && fetchDest !== "document")
+    || (fetchMode !== undefined && fetchMode !== "navigate")
+  ) {
+    refuseLocalWebRequest(response);
+    return;
+  }
   const requested = url.searchParams.get("lang");
   if (request.headers["sec-fetch-site"] === "same-origin") remember(requested === "system" ? resolveWebLocale(null, request.headers["accept-language"]) : requested);
   const nextLocale = isWebLocale(requested)

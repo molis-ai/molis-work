@@ -473,7 +473,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (message.type === "knowledge-pick") { pickMaterials(message); return; }
     if (message.type === "skill-pick") { pickSkill(message); return; }
-    if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
+    if (["ui", "link", "refresh-shell", "print", "download"].includes(message.type) && (!root.isConnected || !visible())) return;
     if (message.type === "refresh-shell") {
       if (shellRefreshed) return;
       // Parent-only key survives document reload; plugin storage cannot write outside its own prefix.
@@ -495,8 +495,14 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "copy") { void copyFromPage(port, message); return; }
     try {
       if (message.type === "page-message") receiveMessage(message.message);
-      else if (message.type === "download" && message.bytes instanceof ArrayBuffer && typeof message.filename === "string" && typeof message.mime === "string") downloadPageBlob(new Blob([message.bytes], { type: message.mime }), message.filename, scope);
-      else if (message.type === "print" && typeof message.html === "string") printPageDocument(message.html, scope);
+      else if (message.type === "download" && message.bytes instanceof ArrayBuffer && typeof message.filename === "string" && typeof message.mime === "string") {
+        if (!scope.visible || frame.hidden || !navigator.userActivation?.isActive) return;
+        downloadPageBlob(new Blob([message.bytes], { type: message.mime }), message.filename, scope);
+      }
+      else if (message.type === "print" && typeof message.html === "string") {
+        if (!scope.visible || frame.hidden || !navigator.userActivation?.isActive) return;
+        printPageDocument(message.html, scope);
+      }
       else if (message.type === "ready") {
         clearTimeout(deadline);
         childReady = true;

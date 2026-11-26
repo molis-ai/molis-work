@@ -4,6 +4,9 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
+import { buildSync } from "esbuild";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -848,7 +851,11 @@ test("S-sessions-git-files-only 1: worktree resolution reads only .git, commondi
     for (const name of readFiles) {
       assert.ok([".git", "commondir", "gitdir"].includes(name), `unexpected file read: ${name}`);
     }
-    await assert.rejects(() => realpath(gitMarker), "git binary and fsmonitor were never executed");
+    await assert.rejects(
+      () => realpath(gitMarker),
+      (err: unknown) => Boolean(err && typeof err === "object" && "code" in err && (err as { code?: unknown }).code === "ENOENT"),
+      "git binary and fsmonitor were never executed",
+    );
   });
 });
 
@@ -961,4 +968,230 @@ test("S-sessions-recheck-before-return 3: unlinking a root-exact workspace direc
       svc.close();
     }
   });
+});
+
+test("P0-07 F-wb2-02 scope-sheet toggling an already-allowed project switch sends allowed: false and rolls back .checked on failure", async () => {
+  const bundle = buildSync({
+    entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/sessions/scope-sheet.ts", import.meta.url))],
+    bundle: true,
+    write: false,
+    format: "iife",
+    globalName: "ScopeSheet",
+    platform: "browser",
+    target: "es2022",
+  }).outputFiles[0]!.text;
+
+  type Listener = (event: { target: unknown; preventDefault(): void }) => void;
+  interface MockSwitch {
+    checked: boolean;
+    disabled: boolean;
+    readonly dataset: { permitSwitch: string };
+    readonly attrs: Map<string, string>;
+    getAttribute(name: string): string | null;
+    setAttribute(name: string, value: string): void;
+    closest(selector: string): unknown;
+    focus(): void;
+    click(): void;
+  }
+  interface MockRetryButton {
+    readonly dataset: { permitRetry: string; permitWant: string };
+    closest(selector: string): unknown;
+  }
+
+  const listeners = new Map<string, Listener[]>();
+  const switches = new Map<string, MockSwitch>();
+  const notes = new Map<string, { dataset: Record<string, string>; retryButton: MockRetryButton | null; innerHTML: string }>();
+  let renderedAiHtml = "";
+
+  const dispatch = (type: string, target: unknown) => {
+    for (const fn of listeners.get(type) ?? []) fn({ target, preventDefault() {} });
+  };
+
+  const makeNote = (pid: string) => {
+    let html = "";
+    const note = {
+      dataset: {} as Record<string, string>,
+      retryButton: null as MockRetryButton | null,
+      get innerHTML() { return html; },
+      set innerHTML(next: string) {
+        html = next;
+        const retryPid = /data-permit-retry="([^"]+)"/u.exec(next)?.[1];
+        const retryWant = /data-permit-want="([^"]+)"/u.exec(next)?.[1];
+        note.retryButton = retryPid && retryWant
+          ? {
+            dataset: { permitRetry: retryPid, permitWant: retryWant },
+            closest(selector: string) { return selector === "[data-permit-retry]" ? this : null; },
+          }
+          : null;
+      },
+    };
+    notes.set(pid, note);
+    return note;
+  };
+
+  const aiPanel = {
+    dataset: { sessionsScopePanel: "project_ai_read" },
+    hidden: false,
+    get innerHTML() { return renderedAiHtml; },
+    set innerHTML(html: string) {
+      renderedAiHtml = html;
+      switches.clear();
+      for (const match of html.matchAll(/<input\b([^>]*data-permit-switch="([^"]+)"[^>]*)>/gu)) {
+        const rawAttrs = match[1]!;
+        const pid = match[2]!;
+        const attrs = new Map<string, string>();
+        const ariaChecked = /\baria-checked="([^"]*)"/u.exec(rawAttrs)?.[1];
+        if (ariaChecked !== undefined) attrs.set("aria-checked", ariaChecked);
+        const sw: MockSwitch = {
+          checked: /(?:^|\s)checked(?:\s*=|\s|$)/u.test(rawAttrs),
+          disabled: /(?:^|\s)disabled(?:\s*=|\s|$)/u.test(rawAttrs),
+          dataset: { permitSwitch: pid },
+          attrs,
+          getAttribute(name: string) { return this.attrs.get(name) ?? null; },
+          setAttribute(name: string, value: string) { this.attrs.set(name, value); },
+          closest(selector: string) { return selector === "[data-permit-switch]" ? this : null; },
+          focus() {},
+          click() {
+            if (this.disabled) return;
+            this.checked = !this.checked;
+            dispatch("click", this);
+            dispatch("change", this);
+          },
+        };
+        switches.set(pid, sw);
+        if (!notes.has(pid)) makeNote(pid);
+      }
+    },
+  };
+  const toolsPanel = { dataset: { sessionsScopePanel: "tools" }, hidden: false, innerHTML: "" };
+  const returnBtn = { hidden: true, setAttribute(name: string) { if (name === "hidden") this.hidden = true; } };
+  const noticeEl = { textContent: "" };
+  const saveBtn = { hidden: false };
+
+  const dlg = {
+    open: false,
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    addEventListener(type: string, fn: Listener) {
+      const list = listeners.get(type) ?? [];
+      list.push(fn);
+      listeners.set(type, list);
+    },
+    querySelector(selector: string) {
+      if (selector === '[data-sessions-scope-panel="project_ai_read"]') return aiPanel;
+      if (selector === '[data-sessions-scope-panel="tools"]') return toolsPanel;
+      if (selector === "[data-sessions-scope-return]") return returnBtn;
+      if (selector === "[data-sessions-scope-notice]") return noticeEl;
+      if (selector === "[data-sessions-scope-save]") return saveBtn;
+      if (selector === ".mw-permit.is-current [data-permit-switch]") return switches.get("proj-1") ?? null;
+      const swMatch = /^\[data-permit-switch="([^"]+)"\]$/u.exec(selector);
+      if (swMatch) return switches.get(swMatch[1]!) ?? null;
+      const noteMatch = /^\[data-permit-project="([^"]+)"\] \.mw-permit__note$/u.exec(selector);
+      if (noteMatch) return notes.get(noteMatch[1]!) ?? null;
+      return null;
+    },
+    querySelectorAll(selector: string) {
+      if (selector === "[data-sessions-scope-panel]") return [toolsPanel, aiPanel];
+      return [];
+    },
+  };
+
+  const requests: Array<{ url: string; method?: string; body?: unknown }> = [];
+  let failNextSet = false;
+  let serverRevision = 3;
+  const mockRequest = async (url: string, options?: { method?: string; body?: unknown }) => {
+    requests.push({ url, method: options?.method, body: options?.body });
+    if (url.includes("/api/sessions/scope")) {
+      return {
+        scope_revision: 1,
+        sources: [],
+        tool_meta: [],
+        project_ai_reads: [
+          {
+            project: { project_id: "proj-1", display_name: "Alpha" },
+            allowed: true,
+            revision: serverRevision,
+            current: true,
+          },
+        ],
+      };
+    }
+    if (url.endsWith("/api/sessions/project-ai-read")) {
+      const body = options?.body as { allowed: boolean; expected_revision: number };
+      if (failNextSet) {
+        failNextSet = false;
+        throw new Error("simulated write failure");
+      }
+      serverRevision += 1;
+      return {
+        project: { project_id: "proj-1", display_name: "Alpha" },
+        allowed: body.allowed,
+        revision: serverRevision,
+        current: true,
+      };
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const tFn = Object.assign((key: string) => key, { text: (key: string) => key });
+  const context = vm.createContext({
+    t: tFn,
+    CSS: { escape: (value: string) => value },
+    requestAnimationFrame: (fn: () => void) => { fn(); return 1; },
+    molisWorkRequest: mockRequest,
+    document: {
+      body: { dataset: { projectId: "proj-1", routePrefix: "/projects/proj-1" } },
+      querySelector(selector: string) {
+        return selector === "[data-sessions-scope-sheet]" ? dlg : null;
+      },
+    },
+  });
+  vm.runInContext(bundle, context);
+  const { createSessionsScopeSheet } = vm.runInContext("ScopeSheet", context) as {
+    createSessionsScopeSheet(): { open(tab?: "tools" | "project_ai_read"): Promise<void> };
+  };
+
+  const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+  const sheet = createSessionsScopeSheet();
+  await sheet.open("project_ai_read");
+
+  const sw = switches.get("proj-1");
+  assert.ok(sw, "project switch is rendered from renderSwitch");
+  assert.equal(sw.checked, true, "initially authorized project renders checked native checkbox");
+  assert.equal(sw.getAttribute("aria-checked"), null, "renderSwitch emits native checkbox without aria-checked");
+  assert.equal(renderedAiHtml.includes("aria-checked"), false, "rendered switch markup uses native checkbox state");
+
+  // 1. Clicking an already-authorized switch MUST revoke permission (`allowed: false`).
+  sw.click();
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)), {
+    url: "/projects/proj-1/api/sessions/project-ai-read",
+    method: "POST",
+    body: { allowed: false, expected_revision: 3 },
+  }, "revoking an initially authorized project sends allowed: false");
+  assert.equal(sw.checked, false, "switch stays unchecked after revoke succeeds");
+  assert.equal(sw.disabled, false, "switch re-enables after request settles");
+
+  // 2. Re-enabling succeeds (`allowed: true`), then a failed revoke rolls `.checked` back to `true`.
+  sw.click();
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)?.body), { allowed: true, expected_revision: 4 });
+  assert.equal(sw.checked, true);
+
+  failNextSet = true;
+  sw.click();
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)?.body), { allowed: false, expected_revision: 5 });
+  assert.equal(sw.checked, true, "failed revoke rolls native checkbox .checked back to true");
+  assert.equal(sw.disabled, false, "switch re-enables after failure");
+
+  // 3. Clicking the rendered retry button retries `{ allowed: false }` and syncs `.checked` to `false`.
+  const retryBtn = notes.get("proj-1")?.retryButton;
+  assert.ok(retryBtn, "failure note offers a retry button");
+  assert.equal(retryBtn.dataset.permitWant, "false");
+  dispatch("click", retryBtn);
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)?.body), { allowed: false, expected_revision: 5 });
+  assert.equal(sw.checked, false, "successful retry syncs native checkbox .checked to false");
+  assert.equal(sw.disabled, false);
 });

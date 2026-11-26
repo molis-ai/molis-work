@@ -14,6 +14,7 @@ import { CONTEXT_PANE_FACTORY_SCRIPT } from "./scripts/client/context-actions.js
 import { knowledgeClientTag } from "./settings-knowledge.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
+import { scriptJson } from "./plugin-directory.js";
 
 /**
  * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
@@ -54,10 +55,17 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
   const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id, primitives: { escape, text: input.translate } };
   const html = uiHost.mount({ slot: WORKBENCH_UI_SLOTS.side, contribution: { contribution_id: view.contribution_id, surface: surface.surface_id, model } }).html;
-  const route = JSON.stringify(input.routePrefix);
   const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
+  const sideConfig = {
+    routePrefix: input.routePrefix,
+    projectId: input.projectId,
+    surfaceClient: surfaceClient
+      ? { id: surfaceClient.id, plugin_id: surfaceClient.plugin_id, bundle: surfaceClient.bundle, assets: surfaceClient.assets }
+      : null,
+  };
   const client = surfaceClient
-    ? `void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, projectId:()=>${JSON.stringify(input.projectId)}, projectTitle:()=>"", route:path=>${route}+path, side:true, openItem:(plugin,itemId,title)=>parent.postMessage({type:'molis:side-main-open', plugin, itemId, title, from:${JSON.stringify(surfaceClient.id)}}, location.origin)}, ${JSON.stringify(surfaceClient ? {id:surfaceClient.id,plugin_id:surfaceClient.plugin_id,bundle:surfaceClient.bundle,assets:surfaceClient.assets} : null)}).then(()=>{const root=document.querySelector('[data-side-view-root]');if(root?.isConnected){root.inert=false;root.removeAttribute('aria-busy');}}).catch(error=>{const root=document.querySelector('[data-side-view-root]');if(!root?.isConnected)return;root.inert=false;root.removeAttribute('aria-busy');molisWorkRequest.show(root,error);const retry=document.createElement('button');retry.type='button';retry.className='mw-btn mw-btn--secondary';retry.textContent=globalThis.t.text("common.control.retry");retry.addEventListener('click',()=>location.reload());root.append(retry);});`
+    ? `const __sideCfg = JSON.parse(document.querySelector('script[data-side-view-config]')?.textContent || '{}');
+      void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, projectId:()=>__sideCfg.projectId, projectTitle:()=>"", route:path=>__sideCfg.routePrefix+path, side:true, openItem:(plugin,itemId,title)=>parent.postMessage({type:'molis:side-main-open', plugin, itemId, title, from:__sideCfg.surfaceClient.id}, location.origin)}, __sideCfg.surfaceClient).then(()=>{const root=document.querySelector('[data-side-view-root]');if(root?.isConnected){root.inert=false;root.removeAttribute('aria-busy');}}).catch(error=>{const root=document.querySelector('[data-side-view-root]');if(!root?.isConnected)return;root.inert=false;root.removeAttribute('aria-busy');molisWorkRequest.show(root,error);const retry=document.createElement('button');retry.type='button';retry.className='mw-btn mw-btn--secondary';retry.textContent=globalThis.t.text("common.control.retry");retry.addEventListener('click',()=>location.reload());root.append(retry);});`
     : "";
   return renderWorkbenchDocument({
     lang: input.lang,
@@ -66,6 +74,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css">${appearanceHead(input.appearance)}<style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}`, ...(input.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root${surfaceClient ? ' inert aria-busy="true"' : ''}>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>${renderAppearanceRecovery(input.translate, input.appearance)}
+    <script type="application/json" data-side-view-config>${scriptJson(sideConfig)}</script>
     <script src="/assets/molis-work-plugin-frame.js"></script>
     <script>${MICRO_INTERACTION_CLIENT_SCRIPT}
 ${OVERFLOW_FADE_CLIENT_SCRIPT}
@@ -102,16 +111,15 @@ html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
 `;
 
 /** The same parent protocol serves Runtime Home views and project side views. */
-export function sideViewBridgeScript(routePrefix: string): string {
-  const route = JSON.stringify(routePrefix);
+export function sideViewBridgeScript(_routePrefix: string): string {
   return `      // This document and the side panel around it (S-30, the same checks as a split pane): the page events the view may
       // hand up (SIDE_FORWARD_SCRIPT) go to the page; an item the panel was asked to open here comes down as
       // molis:side-target and is handed, as it is, to the view's surface: the view finds it, nobody else reads the id.
       // What the person selects here is in hand as in a split pane (specs/context-program §21.4 W3-C): this document draws
       // the toolbar the top document sends it and sends the choices back, through the same checks.
       {
-        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT};
-        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: globalThis.t.text, paneMessages: messages, route: path => ${route} + path });
+        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT}, bridgeRoute = document.body.dataset.routePrefix || "";
+        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: globalThis.t.text, paneMessages: messages, route: path => bridgeRoute + path });
         if (window.parent !== window) for (const name of forwarded.names) addEventListener(name, (event) => {
           try { window.parent.postMessage({ type: "molis:side-forward", name, detail: event.detail }, location.origin); }
           catch { /* a detail that cannot be copied stays in this document */ }

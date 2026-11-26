@@ -14,7 +14,7 @@ import { AgentHost, PrologueAgentAdapter, emptyCapabilityMatrix } from "@molis-a
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
-import { MolisWorkLocalHost, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { memoryForAgentRun, memoryHostFor, recordMemoryUsage } from "../apps/local-host/dist/memory/memory-host.js";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 
@@ -125,9 +125,14 @@ test("SystemAgentService drains late SDK memory usage on its original ledger aft
   });
   const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
     const project = await catalog.createProject({ display_name: "Usage drain", actor_id: LOCAL_PERSON_ACTOR_ID });
-    runWithMolisWorkHome(home, () => createFileSecretStore().put("memory-drain-fixture", "test-only"));
-    catalog.models.upsert({ provider_id: "drain", display_name: "Drain fixture", base_url: `http://127.0.0.1:${address.port}/v1`,
-      api_format: "openai-chat-completions", models: [{ model_id: "scripted", enabled: true }], credential_ref: "memory-drain-fixture" });
+    const baseUrl = `http://127.0.0.1:${address.port}/v1`;
+    const credentialRef = withConnectorConnections(home, store => {
+      const created = store.createToken({ serviceId: "model-api", displayName: "Drain fixture", token: "test-only-key" });
+      store.assertTarget(created.connection_id, "model-api", baseUrl);
+      return created.credential_ref!;
+    });
+    catalog.models.upsert({ provider_id: "drain", display_name: "Drain fixture", base_url: baseUrl,
+      api_format: "openai-chat-completions", models: [{ model_id: "scripted", enabled: true }], credential_ref: credentialRef });
     return project;
   });
   const system = ensureSystemAgentService(local, home, withHostCatalog);
@@ -212,9 +217,14 @@ test("a real pending read failure during SDK shutdown keeps late memory receipts
   });
   const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
     const project = await catalog.createProject({ display_name: "Pending close", actor_id: LOCAL_PERSON_ACTOR_ID });
-    runWithMolisWorkHome(home, () => createFileSecretStore().put("pending-close-fixture", "test-only"));
-    catalog.models.upsert({ provider_id: "pending-close", display_name: "Pending close fixture", base_url: `http://127.0.0.1:${address.port}/v1/messages`,
-      api_format: "anthropic-messages", models: [{ model_id: "scripted", enabled: true }], credential_ref: "pending-close-fixture" });
+    const baseUrl = `http://127.0.0.1:${address.port}/v1/messages`;
+    const credentialRef = withConnectorConnections(home, store => {
+      const created = store.createToken({ serviceId: "model-api", displayName: "Pending close fixture", token: "test-only-key" });
+      store.assertTarget(created.connection_id, "model-api", baseUrl);
+      return created.credential_ref!;
+    });
+    catalog.models.upsert({ provider_id: "pending-close", display_name: "Pending close fixture", base_url: baseUrl,
+      api_format: "anthropic-messages", models: [{ model_id: "scripted", enabled: true }], credential_ref: credentialRef });
     return project;
   });
   const system = ensureSystemAgentService(local, home, withHostCatalog); await system.ready;

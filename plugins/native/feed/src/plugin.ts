@@ -227,7 +227,17 @@ export function createFeedPlugin(): PluginDefinition {
       return handlers[route_id]!({ params: request.params, request: { method: request.method, pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));
-    return { kind: "app", sync: syncBindings(context), views: [feedUiContribution], action_scenes: [sceneRuntime.handler], routes,
+    return {
+      kind: "app",
+      sync: syncBindings(context, {
+        ...(services?.background && dependencies
+          ? { holdSyncedBodies: (groups) => watch.enqueueHold(groups) }
+          : {}),
+        onBodiesApplied: () => watch.bodiesChanged(),
+      }),
+      views: [feedUiContribution],
+      action_scenes: [sceneRuntime.handler],
+      routes,
       onEvent: (_event, delivery) => { delivery.beforeEffect(); watch.changed(); }, actions: [
       ...writer.writing(FEED_PROJECT_ACTIONS.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding))),
         (capabilityId, transaction) => { if (WAKE_SENSITIVE.has(capabilityId)) wakeup.sync(transaction); }),

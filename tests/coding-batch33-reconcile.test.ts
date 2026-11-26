@@ -3,6 +3,7 @@ import { join } from "node:path";
 import test from "node:test";
 import type { AgentRunRef, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ensureSystemAgentService, ModelProviderStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { applyRunEvent, applyUnknownCommandOutcomes, emptyPrologueStreamState } from "@molis-ai/molis-work-service-agent-host";
 import { createFileSecretStore, LocalSqliteStorage, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
@@ -416,4 +417,72 @@ test("BL-222, CHO-35: in-place rerun on non-succeeded step (chain.length === 1) 
     action: "accepted", project_id: board2.project_id, board_version: board2.version, expected_revision: 0,
   });
   assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+});
+
+test("BL-222 / F-horiz-runtime-02: applyRunEvent maps EFFECT_RECONCILE_REQUIRED command to unknown_outcome while TOOL_INTERRUPTED stays failed", () => {
+  const at = "2026-11-26T00:00:01.000Z";
+  const baseBoard = (): AgentStepBoard => ({
+    project_id: "project-reconcile",
+    version: 3,
+    terminal: true,
+    progress_summary: {
+      weighted_percent: 100,
+      completed_points: 3,
+      total_points: 3,
+      estimated_leaves: 1,
+      unestimated_leaves: 0,
+      completed_unestimated_leaves: 0,
+      removed_scope_leaves: 0,
+      removed_scope_points: 0,
+    },
+    nodes: [{
+      id: "step-1",
+      state: "succeeded",
+      story_points: 3,
+      progress: 1,
+      reports: [{ note: "执行构建命令", at_ms: Date.parse(at) }],
+    }],
+  });
+
+  // Positive case: SDK emits outcome: "failed" with errorCode: "EFFECT_RECONCILE_REQUIRED" when receipt is lost after dispatch.
+  const reconcileState = emptyPrologueStreamState();
+  applyRunEvent(reconcileState, { type: "tool-call", call: { id: "cmd-reconcile", name: "run-command", input: { executable: "pnpm", argv: ["build"] } } }, at);
+  applyRunEvent(reconcileState, {
+    type: "tool-result",
+    callId: "cmd-reconcile",
+    name: "run-command",
+    text: "EFFECT_RECONCILE_REQUIRED: The command executed, but its durable receipt could not be saved.",
+    outcome: "failed",
+    errorCode: "EFFECT_RECONCILE_REQUIRED",
+  }, at);
+  applyRunEvent(reconcileState, { type: "failed", error: { code: "EFFECT_RECONCILE_REQUIRED", safeMessage: "reconcile required" } }, at);
+  assert.equal(reconcileState.activity[0]?.state, "unknown");
+  const reconciledBoard = applyUnknownCommandOutcomes(
+    { phase: reconcileState.phase, activity: reconcileState.activity },
+    baseBoard(),
+  );
+  assert.equal(reconciledBoard.nodes[0]?.unknown_outcome, true, "EFFECT_RECONCILE_REQUIRED command must flag unknown_outcome: true");
+  assert.equal(reconciledBoard.terminal, false, "board with EFFECT_RECONCILE_REQUIRED command cannot remain terminal");
+  assert.equal(reconciledBoard.progress_summary?.completed_points, 0, "unknown_outcome deducts completed_points");
+
+  // Negative case: SDK emits TOOL_INTERRUPTED only when a command never ran; must stay "failed" and never flag unknown_outcome.
+  const interruptedState = emptyPrologueStreamState();
+  applyRunEvent(interruptedState, { type: "tool-call", call: { id: "cmd-interrupted", name: "run-command", input: { executable: "pnpm", argv: ["test"] } } }, at);
+  applyRunEvent(interruptedState, {
+    type: "tool-result",
+    callId: "cmd-interrupted",
+    name: "run-command",
+    text: "TOOL_INTERRUPTED: this run was cancelled before the tool ran. Nothing ran.",
+    outcome: "failed",
+    errorCode: "TOOL_INTERRUPTED",
+  }, at);
+  applyRunEvent(interruptedState, { type: "cancelled" }, at);
+  assert.equal(interruptedState.activity[0]?.state, "failed");
+  const interruptedBoard = applyUnknownCommandOutcomes(
+    { phase: interruptedState.phase, activity: interruptedState.activity },
+    baseBoard(),
+  );
+  assert.equal(interruptedBoard.nodes[0]?.unknown_outcome, undefined, "TOOL_INTERRUPTED unexecuted command must NOT flag unknown_outcome");
+  assert.equal(interruptedBoard.terminal, true);
+  assert.equal(interruptedBoard.progress_summary?.completed_points, 3);
 });

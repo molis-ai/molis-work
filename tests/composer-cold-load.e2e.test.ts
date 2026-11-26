@@ -33,7 +33,7 @@ test("B58-03: cold input holds immediately, rejects failed loads, and retries it
   const field = "document.querySelector('#subtask-probe textarea')", check = "document.querySelector('#subtask-probe [data-subtask-check]')";
   await child.waitFor(`${field} && ${check}`);
   assert.deepEqual(await child.evaluate(`[${field}.disabled,document.querySelector('#subtask-probe [data-composer-send]').disabled]`), [true, true]);
-  await child.evaluate(`${field}.focus()`);
+  await child.evaluate(`${field}.focus()`, undefined, "person");
   await child.frameCommand("Input.insertText", { text: "must not be edited before loading" });
   assert.equal(await child.evaluate(`${field}.value`), "");
   await child.evaluate(`${check}.click()`);

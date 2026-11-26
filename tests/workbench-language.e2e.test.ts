@@ -686,7 +686,7 @@ test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 s
   const document = `document.querySelector('[data-coding-method-document]')`;
   await frame.waitFor(`${document}?.querySelector('p')?.textContent.includes('保留正文 · Original')`);
   await frame.evaluate(`void (()=>{window.methodRows=${builtins};window.methodDialog=${dialog};window.methodDocument=${document};
-    window.methodButton=${original}.querySelector('button');methodButton.focus();})()`);
+    window.methodButton=${original}.querySelector('button');methodButton.focus();})()`, undefined, "person");
   const retained = `[methodRows.every((node,index)=>node===${builtins}[index]),methodDialog===${dialog},methodDialog.open,
     methodDocument===${document},methodButton===document.activeElement,methodDocument.querySelector('h3').textContent,methodDocument.querySelector('p').textContent]`;
   const originalExcerpt = await frame.evaluate<string>(`${document}.querySelector('p').textContent`);
@@ -1242,7 +1242,7 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
     window.savedStudioDetail=document.querySelector('[data-detail-open] .pc-detail-pane');window.savedStudioDetailWord=savedStudioDetail.querySelector('.pc-detail-meta span');
     window.savedStudioExcerpt=document.querySelector('[data-pc-description]');
     field.value='unfinished 摘录';field.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-pc-value=team]').click();
-    field.focus();field.setSelectionRange(1,6,'backward');})()`);
+    field.focus();field.setSelectionRange(1,6,'backward');})()`, undefined, "person");
   const opened = await b.evaluate<string>(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`);
   assert.ok(opened);
   const tab = `.tab-item[data-tab-kind=plugin][data-plugin=${JSON.stringify(surface)}]`;
@@ -1336,7 +1336,7 @@ test("FSS-20 FSS-74 the Studio canvas switches the current and previous design's
   await child.click(`[data-as-open="${build.id}"]`);
   await child.waitFor("document.querySelector('[data-as-plugin] h1')?.textContent === '读书摘记'");
   await child.evaluate(`(()=>{const root=window.studioCanvas=document.querySelector('[data-as-plugin]'),field=window.studioCanvasField=root.querySelector('[data-field=text]');
-    field.value='Canvas 草稿';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();field.setSelectionRange(1,5,'backward');})()`);
+    field.value='Canvas 草稿';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();field.setSelectionRange(1,5,'backward');})()`, undefined, "person");
   await chooseEnglishInSettings(t, b);
   await child.waitFor("studioCanvas.querySelector('h1')?.textContent === 'Reading notes'");
   assert.deepEqual(await child.evaluate(`[studioCanvas===document.querySelector('[data-as-plugin]'),studioCanvasField===studioCanvas.querySelector('[data-field=text]'),

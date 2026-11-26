@@ -70,7 +70,7 @@ async function journey(t: TestContext, mode: "empty" | "seeded", name: string) {
   const title = async (value: string) => {
     // The placement card can arrive before the new document's editor draws its title; wait for the field, not just the card.
     await pages.waitFor(`Boolean(${visible("[data-pages-title]")})`, 15_000);
-    await pages.evaluate(`(() => { const input = ${visible("[data-pages-title]")}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await pages.evaluate(`(() => { const input = ${visible("[data-pages-title]")}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`, undefined, "person");
     await pages.waitFor(`${visible("[data-pages-editor-status]")}?.textContent === '已保存'`, 15_000);
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);

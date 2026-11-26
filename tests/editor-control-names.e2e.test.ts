@@ -33,7 +33,7 @@ async function keyboard(b: Browser, key: keyof typeof keys) {
 }
 
 async function focus(frame: Frame, selector: string) {
-  await frame.evaluate(`${node(selector)}.focus()`);
+  await frame.evaluate(`${node(selector)}.focus()`, undefined, "person");
   await frame.waitFor(`document.hasFocus() && document.activeElement === ${node(selector)}`).catch(async error => {
     const focusState = await frame.evaluate(`({ focused: document.hasFocus(), active: document.activeElement?.tagName,
       targetIsActive: document.activeElement === ${node(selector)}, targetIsVisible: ${node(selector)}?.checkVisibility() })`);

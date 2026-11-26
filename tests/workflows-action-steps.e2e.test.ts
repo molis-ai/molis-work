@@ -199,7 +199,7 @@ test('FSS-36 held judgments follow both language changes and keep the run, verdi
             holdLanguageChanges.push(event.detail.tag);
           });
         }
-      })()`);
+      })()`, undefined, "person");
       await b.evaluate('holdRunRequests.length = 0');
       for (const [tag, locale] of [['zh', 'zh-CN'], ['en', 'en']] as const) {
         const count = await child.evaluate<number>('holdLanguageChanges.length');

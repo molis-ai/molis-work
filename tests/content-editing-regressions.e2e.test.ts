@@ -18,7 +18,7 @@ test("W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range a
   const b = await openContentBrowser(t, "pages", null); if (!b) return;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/?openPlugin=pages" }, b.sessionId));
   await b.frame.waitFor("typeof window.MolisWorkPagesEditor?.mount === 'function'");
-  await b.frame.evaluate("(() => { const root=document.createElement('div'); root.id='comment-anchor-fixture'; document.body.append(root); window.commentHandle=window.MolisWorkPagesEditor.mount(root,{doc:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Document A',marks:[{type:'comment',attrs:{id:'comment-a',text:'A note'}}]}]}]}}); const view=commentHandle.view; view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,2))); view.focus(); })()");
+  await b.frame.evaluate("(() => { const root=document.createElement('div'); root.id='comment-anchor-fixture'; document.body.append(root); window.commentHandle=window.MolisWorkPagesEditor.mount(root,{doc:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Document A',marks:[{type:'comment',attrs:{id:'comment-a',text:'A note'}}]}]}]}}); const view=commentHandle.view; view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,2))); view.focus(); })()", undefined, "person");
   await b.frame.waitFor("[...document.querySelectorAll('.pages-comment-preview')].some(node=>!node.hidden && node.textContent.includes('A note'))");
   await b.frame.evaluate("[...document.querySelectorAll('.pages-comment-preview')].find(node=>!node.hidden && node.textContent.includes('A note')).querySelector('button').click()");
   await b.frame.waitFor("[...document.querySelectorAll('.pages-pop:not([hidden]) textarea')].some(node=>node.value==='A note')");
@@ -27,7 +27,7 @@ test("W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range a
   assert.equal(mapped.content[0]!.content.map(node => node.text).join(""), "Prefix Document A");
   assert.ok(mapped.content[0]!.content.some(node => node.text === "Document A" && node.marks?.some(mark => mark.type === "comment" && mark.attrs.text === "Mapped note")), "the original text carries the saved annotation after the insertion moved it");
   assert.ok(!mapped.content[0]!.content.some(node => node.text.includes("Prefix") && node.marks?.some(mark => mark.type === "comment" && mark.attrs.text === "Mapped note")), "the inserted prefix was not silently included in the old range");
-  await b.frame.evaluate("(() => { const view=commentHandle.view; view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,10))); view.focus(); })()");
+  await b.frame.evaluate("(() => { const view=commentHandle.view; view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc,10))); view.focus(); })()", undefined, "person");
   await b.frame.waitFor("[...document.querySelectorAll('.pages-comment-preview')].some(node=>!node.hidden && node.textContent.includes('Mapped note'))");
   await b.frame.evaluate("[...document.querySelectorAll('.pages-comment-preview')].find(node=>!node.hidden && node.textContent.includes('Mapped note')).querySelector('button').click()");
   await b.frame.waitFor("[...document.querySelectorAll('.pages-pop:not([hidden]) textarea')].some(node=>node.value==='Mapped note')");
@@ -47,7 +47,7 @@ const open = async (b: Browser, plugin: string, id: string) => {
 };
 const input = (b: Browser, selector: string, value: string) => b.frame.evaluate(`(() => { const input=document.querySelector(${JSON.stringify(selector)}); input.value=${JSON.stringify(value)}; input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
 const typeEnd = async (b: Browser, text: string) => {
-  await b.frame.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus(); const range=document.createRange(); range.selectNodeContents(editor);range.collapse(false); const selection=getSelection();selection.removeAllRanges();selection.addRange(range); })()`);
+  await b.frame.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus(); const range=document.createRange(); range.selectNodeContents(editor);range.collapse(false); const selection=getSelection();selection.removeAllRanges();selection.addRange(range); })()`, undefined, "person");
   await b.command("Input.insertText", { text }, b.sessionId);
 };
 // A person moves the caret with the pointer; the editor puts a caret set only through the DOM back where its own state has
@@ -67,7 +67,7 @@ const holdTimers = (b: Browser) => b.frame.evaluate(`(() => { const original=win
 // The page asks through the frame's molisWorkRequest (it captured fetch when the frame started), so the real Host's answer is held by wrapping that helper: it hands back the parsed payload.
 const holdReply = (b: Browser, path: string) => b.frame.evaluate(`(() => { const original=window.molisWorkRequest;let held=false; window.molisWorkRequest=Object.assign(async (url,options)=>{const payload=await original(url,options);if(!held&&options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith(${JSON.stringify(path)})){held=true;window.heldContentPayload=payload;await new Promise(resolve=>window.releaseContentReply=resolve);}return payload;},original);window.restoreContentFetch=()=>{window.molisWorkRequest=original;}; })()`);
 const chooseActions = async (b: Browser) => {
-  await b.frame.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'),p=editor.querySelector('p');editor.focus();const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()`);
+  await b.frame.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'),p=editor.querySelector('p');editor.focus();const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
   await b.frame.waitFor("!getSelection().isCollapsed && getSelection().toString() === document.querySelector('[data-pages-editor] .ProseMirror p').textContent");
   await b.waitFor("document.querySelector('.mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-more]')");
   await b.click(".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-more]");
@@ -198,7 +198,7 @@ test("W2-18-PAGES-ACTIONS-01: real candidate inserts exact unchecked tasks once 
   assert.deepEqual([saved.child(1).child(0).textContent, saved.child(1).child(1).textContent], ["Ask Alice", "Publish roadmap"]);
   assert.equal(saved.child(1).child(0).attrs.checked, false); assert.equal(saved.child(1).child(1).attrs.checked, false);
   await open(b, "pages", changed.id); await chooseActions(b);
-  await b.frame.evaluate(`(() => { const editor=document.querySelector('.ProseMirror');editor.focus();const text=editor.querySelector('.pages-focus-frozen').firstChild,range=document.createRange();range.setStart(text,2);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
+  await b.frame.evaluate(`(() => { const editor=document.querySelector('.ProseMirror');editor.focus();const text=editor.querySelector('.pages-focus-frozen').firstChild,range=document.createRange();range.setStart(text,2);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`, undefined, "person");
   await b.command("Input.insertText", { text: "改变" }, b.sessionId);
   await b.frame.click(".pages-pop .mw-btn--primary"); await b.frame.waitFor("document.querySelector('.pages-pop-error')?.textContent.includes('没有写入')");
   await b.frame.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");

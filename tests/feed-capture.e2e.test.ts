@@ -326,7 +326,7 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
       document.querySelector('.feed-materials').open=false;
       document.querySelector(${JSON.stringify(row)}).focus();
       window.pagingHold=true;
-    })()`);
+    })()`, undefined, "person");
     const readCount = await child.evaluate<number>("pagingReads.length");
     await b.evaluate(`(() => {
       const link=document.createElement('a'); link.dataset.uiLanguage=${JSON.stringify(tag)};
@@ -342,7 +342,7 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
         pager.focus({preventScroll:true});
         const slot=pager.closest('[data-feed-item-slot]'); slot.scrollTop=180;
         return slot.scrollTop;
-      })()`);
+      })()`, undefined, "person");
       assert.ok(readerTop > 0);
       await child.evaluate("window.pagingRelease()");
     }
@@ -370,7 +370,7 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.click('[data-feed-page="0"]:not(:disabled)');
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===200");
   // FSS-35: with the list in front, the search keeps its focus and selection through a language change.
-  await child.evaluate("(() => { const search=document.querySelector('[data-feed-search]'); search.focus(); search.setSelectionRange(1, 5, 'backward'); })()");
+  await child.evaluate("(() => { const search=document.querySelector('[data-feed-search]'); search.focus(); search.setSelectionRange(1, 5, 'backward'); })()", undefined, "person");
   for (const tag of ["en", "zh"]) {
     await b.evaluate(`(() => { const link=document.createElement('a'); link.dataset.uiLanguage=${JSON.stringify(tag)};
       link.href='/locale?lang='+link.dataset.uiLanguage; document.body.append(link); link.click(); link.remove(); })()`);

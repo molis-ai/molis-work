@@ -74,7 +74,7 @@ test("STRIP-02 POLISH-49: ✦助理 puts what is in hand in the strip with the o
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
+  })()`, undefined, "person");
   const ask = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-assistant]";
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(ask)}))`, 8000);
   await click(ask);
@@ -268,7 +268,7 @@ test("CTX-COVER-01: the selection toolbar waits while the Assistant's panel cove
       const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-    })()`);
+    })()`, undefined, "person");
     await waitFor(`Boolean(document.querySelector(${JSON.stringify(BAR)}))`, 10_000);
     const box = await b.child.evaluate<{x:number;y:number}>("(() => {const box=document.querySelector('[data-pages-editor] .ProseMirror p').getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2}})()");
     const passage = await evaluate<{x:number;y:number}>(`(() => {const frame=document.querySelector('iframe[data-plugin-frame=pages]').getBoundingClientRect();return {x:frame.x+${box.x},y:frame.y+${box.y}}})()`);

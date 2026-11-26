@@ -102,7 +102,7 @@ test("UIV-18 UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's
   const assistantWords = await browser.evaluate<string>(`${BOX}.value`);
   await browser.evaluate(`(() => { const box = ${BOX}; box.value = '只给助理的字'; box.dispatchEvent(new InputEvent('input', { bubbles: true, data: '字', inputType: 'insertText' })); box.blur(); })()`);
   await child.evaluate(`(() => { const box = document.querySelector('#probe .mw-composer__input'); box.value = '偷偷写进去'; box.dispatchEvent(new Event('input', { bubbles: true }));
-    probe.insert('偷偷插入'); probe.focus(); document.querySelector('#probe [data-composer-send]').click(); })()`);
+    probe.insert('偷偷插入'); probe.focus(); document.querySelector('#probe [data-composer-send]').click(); })()`, undefined, "person");
   await new Promise(resolve => setTimeout(resolve, 800));
   assert.deepEqual(await browser.evaluate(`[${BOX}.value, document.activeElement === ${BOX}, ${BAR}.dataset.receiver ?? null]`), ["只给助理的字", false, null], "the hidden page cannot write, focus or send");
   assert.equal(await child.evaluate("document.querySelector('#probe .mw-composer__input').value"), "偷偷写进去", "the Assistant's words never reach the page");

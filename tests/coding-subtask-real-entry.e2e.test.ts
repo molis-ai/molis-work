@@ -78,7 +78,7 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
   try { await child.waitFor("document.querySelector('.mw-subtask textarea')&&!document.querySelector('.mw-subtask textarea').disabled&&document.body.textContent.includes('CODING_ORIGINAL_CHILD_RESULT')"); }
   catch (error) { t.diagnostic(await child.evaluate("document.body.innerText.slice(-6000)")); throw error; }
   assert.deepEqual(await b.evaluate(`{const field=document.querySelector(${JSON.stringify(CODING_BOX)});[field===window.__codingMainInput,field.value,${CODING_TAKEN}]}`), [true, "CODING_MAIN_DRAFT_STAYS", true]);
-  await child.evaluate("const field=document.querySelector('.mw-subtask textarea');field.value='CODING_CHILD_FOLLOW_UP';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus()");
+  await child.evaluate("const field=document.querySelector('.mw-subtask textarea');field.value='CODING_CHILD_FOLLOW_UP';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus()", undefined, "person");
   await child.click("[data-composer-send]");
   try {
     if (boardReply) {
@@ -92,7 +92,7 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
   assert.ok(JSON.stringify(childBodies[1]!.messages).includes("CODING_ORIGINAL_CHILD_RESULT"), "continued model consumes its original child history");
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`), "CODING_MAIN_DRAFT_STAYS");
   await main.waitFor("!window.__taskEntry.isConnected");
-  await child.evaluate("document.querySelector('.mw-subtask textarea').focus()");
+  await child.evaluate("document.querySelector('.mw-subtask textarea').focus()", undefined, "person");
   await b.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, b.sessionId);
   await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, b.sessionId);
   await b.waitFor("!document.querySelector('[data-work-task-float]')");
@@ -142,7 +142,7 @@ for (const entry of ["board", "card", "results"] as const) test(`Coding's ${entr
       assert.equal(held.posts(), 1);
       held.dispose();
       assert.equal(childCalls, 2, "budget extension is not an execution");
-      await child.evaluate("(()=>{const field=document.querySelector('.mw-subtask textarea');field.value='SAI_THIRD_CODING';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus()})()");
+      await child.evaluate("(()=>{const field=document.querySelector('.mw-subtask textarea');field.value='SAI_THIRD_CODING';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus()})()", undefined, "person");
       await child.click("[data-composer-send]");
       await child.waitFor("document.body.textContent.includes('CODING_THIRD_CHILD_RESULT')", 20_000);
       assert.equal(childCalls, 3);

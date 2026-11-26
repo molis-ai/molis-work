@@ -56,7 +56,7 @@ test("PANE-FLASH-01, PANE-FLASH-02, MENU-FLASH-01 (W3-A3c, S-30): hovering 「�
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = doc.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range);
-  })()`);
+  })()`, undefined, "person");
   await paneView.waitFor(`(() => { const pane = window; return pane.lastLanding?.position === 'cursor' && pane.lastLanding?.targets?.[0]?.anchor === 4; })()`, 10_000);
 
   // A passage in hand from the right panel's file preview.

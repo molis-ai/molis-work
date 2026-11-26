@@ -31,10 +31,10 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 | 写在代码里的一处 | `apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`。宿主报出产品版本的每个地方都从它取，不另写一份：Feed 的 User-Agent 与它和搜索运行时交给搜索证据层的 `app.version`、MCP 客户端（`connector-mcp.ts` 的两处 `Client`）的版本、Codex 会话传输的 `clientInfo.version`（`horizontal/runtime-host` 不持有版本，宿主在 `session-runtime-resources.ts` 以 `clientVersion` 选项传入）。新增要报出产品版本的地方，导入这个常量，不在脚本里再加一条载体 | 等于产品版本 | 脚本 |
 | 发布说明与 CHANGELOG | `docs/releases/v<版本>.md`、`docs/releases/CHANGELOG.md` 里的 `[<版本>]` 一节 | 当前产品版本两者都有；CHANGELOG 第一节永远是 `[Unreleased]` | 脚本 |
 | 工作区包 | 每个 `pnpm-workspace.yaml` 列出的包 | 私有，版本固定 0.0.0；它们不单独发布，随产品一起构建 | 脚本 |
-| 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前内置插件（以 `plugins/native/*` 为准，不在这里写死个数）统一为 0.1.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/builtin-manifests-contract.test.ts` 再核对 |
+| 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前内置插件（以 `plugins/native/*` 为准，不在这里写死个数）统一为 0.1.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/plugin-declaration-rules.test.ts` 再核对 |
 | 各库的结构版本 | 见 [CHECKLIST.md](CHECKLIST.md) 的「各库版本表」 | 每个库自己一个数字，与产品版本无关；改库就升那个库的数字 | 脚本核对表与代码一致 |
 
-不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS（也读 YouTube 频道）、Web Query）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在版本表里，现在 1.0.0 到 1.5.0）各自独立。它们没有持久的安装记录：`OfficialIntegrationRegistry`（`apps/local-host/src/official-integrations.ts`）为每个 Feed 来源在内存里装一个 Runtime（`MemoryPluginRuntimeRepository`），装进去的只有 GitHub、Gmail 和目录连接器，RSS、Web Query 的 Manifest 现在没有任何调用把它们装进 Runtime；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
+不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS［含 YouTube 频道］）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在版本表里，各自独立）。它们通过各自的 `./drivers` 导出驱动、经生成的登记清单由 `apps/local-host/src/builtin-drivers.ts` 与 `apps/local-host/src/integration-registry.ts` 统一装配，没有持久的插件安装记录；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
 
 ## 2. 版本号怎么选
 
@@ -168,7 +168,7 @@ A 和 E 同时管两种情形，也不靠每次发布补手工，还会让今天
 - 算出的值必须等于锁文件，所以改了清单、动作表或清单引进的 contracts 定义的合并，都必须同时更新锁文件，评审看得见；
 - 与合并基底的锁文件比：同一个插件摘要变了而版本没变就失败（做法和现有健康门禁一致：基底和头部各算一次，不读被改过的基线，`.github/workflows/ci.yml` 的 Health gates 一步，`scripts/ci-health-base.mjs` 选基底）。
 
-CI 的 `action-contracts` 作业在 `pnpm test:contracts` 之前已经构建了包（`pnpm workspace:build`），`tests/builtin-manifests-contract.test.ts` 已经在那一步里读 `BUILTIN_PLUGIN_CATALOG`，这 7 个清单都在其中（目录由各包 `src/registration.ts` 生成到 `apps/workbench/src/builtin-plugins.ts`），测试可以放在一起。它管不到的：不经这 7 个监督器条目的内置插件（旧装配）、非内置插件。成本：每个改清单的合并多改一个锁文件，并发的合并会在它上面冲突；Characters 并进宿主后删一行。它不替用户做 A 到 F 的选择，只解决「摘要变了版本没升」会被悄悄放过的问题。
+CI 的 `action-contracts` 作业在 `pnpm test:contracts` 之前已经构建了包（`pnpm workspace:build`），`tests/plugin-declaration-rules.test.ts` 已经在那一步里读 `BUILTIN_PLUGIN_CATALOG`，这 7 个清单都在其中（目录由各包 `src/registration.ts` 生成到 `apps/workbench/src/builtin-plugins.ts`），测试可以放在一起。它管不到的：不经这 7 个监督器条目的内置插件（旧装配）、非内置插件。成本：每个改清单的合并多改一个锁文件，并发的合并会在它上面冲突；Characters 并进宿主后删一行。它不替用户做 A 到 F 的选择，只解决「摘要变了版本没升」会被悄悄放过的问题。
 
 选定以后，0.3.0 的发布 PR 的顺序：
 
@@ -208,7 +208,7 @@ A 已经落地（第 7.8 节），下面是落地之前的临时规则，保留�
 - **不做迁移。** 跟的时候不调插件的 `validateUpgrade`，也不捕获和恢复私有数据；这和 #237 的向上跟一样。版本跟随本身不保证旧数据可读；N34 的 0.1.0 统一起点按检查清单第 4 节干净重建，不沿旧 Home 做数据降级或搬迁。
 - **代价。** 同第 7.5 节表里 A 一行：多一条永久的向下规则，旧版本宿主打开新 Home 时会把记录改回自己带的版本。
 - **用例。** `tests/plugin-release-artifact.test.ts`：「a bundled Manifest below the installed version is followed …」「a bundled Manifest changed without a new version is followed …」换下了固定旧规则的两条；另有往返、三个方向的授权收敛（记录持有构建声明的全部时，结果是新清单声明的全部）、同版本声明对内置插件无效且新增必需权限照授予、`PluginRuntime.install` 本身、部署环境不变、内置插件不进市场更新列表；非内置插件的旧行为由原来两条的原文（去掉 `bundled`）和一条新的拒绝用例固定。`tests/bundled-plugin-grants.test.ts`：可选权限随全新安装打开；人关掉的可选权限在同一构建连续启动时保持关着、不报 `plugin.state_invalid`，重新打开的也保持打开；跟随新构建时关掉的仍关着、新声明的可选权限打开、改成必需的补上、不再声明的去掉；条目自己传较窄 `grants` 时首次安装就是全部、连续启动五次都不失败；`PluginRuntime.install` 带 `bundled` 时不看 `grants`，带 `declared_before` 时只打开记录自己那个构建没声明的，不带时不打开任何可选的。`tests/plugin-release-artifact.test.ts` 另有经真实存档的两条：关掉的可选权限跟随时仍关、存档没了时不打开任何可选的。`tests/plugin-upgrades.test.ts`：真实项目启动路径（7 个条目、真实发行物）下，安装记录高于构建、或同版本不同清单，都在启动时跟上。
-- **当前落实与待验。** 全部内置清单已跟产品同版，`scripts/verify-release-versions.mjs` 核对源码，`tests/builtin-manifests-contract.test.ts` 核对构建目录；插件开发 Skill 已区分内置与独立发布的版本规则。N34 源码复位为 0.1.0 后，另在最终构建上验证登记、降版跟随和隔离安装，并按检查清单第 4.5 节取得全部清单摘要；真实 Home 的备份、干净重建与安装记录核对在维护窗口执行。
+- **当前落实与待验。** 全部内置清单已跟产品同版，`scripts/verify-release-versions.mjs` 核对源码，`tests/plugin-declaration-rules.test.ts` 核对构建目录；插件开发 Skill 已区分内置与独立发布的版本规则。N34 源码复位为 0.1.0 后，另在最终构建上验证登记、降版跟随和隔离安装，并按检查清单第 4.5 节取得全部清单摘要；真实 Home 的备份、干净重建与安装记录核对在维护窗口执行。
 
 ### 7.9 版本跟随算安装信任（ac-trust，PG-016）
 

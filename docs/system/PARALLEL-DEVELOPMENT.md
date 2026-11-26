@@ -36,14 +36,14 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
 | 类 | 文件 |
 | --- | --- |
-| 工作台聚合（`apps/workbench/src/` 下） | `i18n/en.ts`（总词典）、`index.ts`、`plugin-catalog.ts`、`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts`、`page-assets.ts`、`immersive-shell.ts`、`scripts/client/initialization.ts`、`scripts/client/plugin-workbench.ts`；另有 `packages/design-system/src/styles/craft-finish.ts`（总样式）；`builtin-plugins.ts` 是 `node scripts/generate-plugin-registry.mjs` 生成的，不再是手写枢纽：条目写在各包的 `plugins/native/<目录>/src/registration.ts`，枢纽变成这些文件和生成脚本 `scripts/generate-plugin-registry.mjs`，合并冲突时重新生成而不手合 |
+| 工作台聚合（`apps/workbench/src/` 下） | `index.ts`、`plugin-catalog.ts`、`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts`、`page-assets.ts`、`immersive-shell.ts`、`scripts/client/initialization.ts`、`scripts/client/plugin-workbench.ts`；工作台多语言词表在 `apps/workbench/resources/locales/*.json`（第 16 批已取代旧总词典，且由第 2.1 节 JSON 合并驱动自动按键合并）；另有 `packages/design-system/src/styles/craft-finish.ts`（总样式）；`builtin-plugins.ts` 是 `node scripts/generate-plugin-registry.mjs` 生成的，不再是手写枢纽：条目写在各包的 `plugins/native/<目录>/src/registration.ts`，枢纽变成这些文件和生成脚本 `scripts/generate-plugin-registry.mjs`，合并冲突时重新生成而不手合 |
 | 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发，连同它的路由表 `web-project-platform-routes.ts`、`web-catalog-index-routes.ts`）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
 | 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`（与同目录的 `plugin-manifest.ts`、`plugin-host-services.ts`、`plugin-routes.ts`）、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
 | 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/archive/repository-anti-corruption/spec.md` |
 | 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
 
-`apps/local-host/src/project-plugins.ts` 不到 7 次，但 `AGENTS.md` 把每个新内置插件的装配点指到它的监督器条目，按枢纽对待。`tests/ci-product-subset.txt`（2026-10-09 才有，谈不上次数）也按枢纽对待：它点名三百多个用例，其中任何一个改名或删除，都要在同一个 PR 里改它的那一行，不然 `pnpm health:check` 变红（见第 3 节）；一行一个文件，解冲突时两边的行都留。
+`apps/local-host/src/project-plugins.ts` 虽按 `AGENTS.md` 硬约束不再为新增内置插件修改（新插件在各包 `src/registration.ts` 声明 `project_runtime` 由其统一装配），但改动它本身影响全部项目插件监督装配，仍按枢纽对待。`tests/ci-product-subset.txt`（2026-10-09 才有，谈不上次数）也按枢纽对待：它点名三百多个用例，其中任何一个改名或删除，都要在同一个 PR 里改它的那一行，不然 `pnpm health:check` 变红（见第 3 节）；一行一个文件，解冲突时两边的行都留。
 
 动枢纽的规矩：
 
@@ -51,11 +51,11 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
    ```sh
    gh pr list --state open --json number,title,files \
-     --jq '.[] | select(any(.files[]; .path == "apps/workbench/src/i18n/en.ts")) | "#\(.number) \(.title)"'
+     --jq '.[] | select(any(.files[]; .path == "apps/local-host/src/web-request.ts")) | "#\(.number) \(.title)"'
    ```
 
 2. 只加自己的几行，写在自己的位置上。不顺手重排、重命名、换格式；那类改动单独一个 PR，不夹逻辑改动。
-3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。健康快查只在工作树的 Git 元数据里，不提交；需要刷新时运行 `node scripts/check-health-gates.mjs --update --base origin/main`。页面资源许可、安全不变量、待办和巨大单元例外按任务或源文件分别登记，改独立事项无需碰共享总表。`tooling/gates/api/`、`tooling/gates/actions/`、`tooling/gates/schemas/stores.tsv` 这几份生成的快照不手工合并，几份 JSON 词表和登记表也不必逐行合，由合并驱动处理，见第 2.1 节；合完跑 `pnpm merge:regenerate`，再看 diff 里是否只剩自己的 API 与动作变化。
+3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。健康快查只在工作树的 Git 元数据里，不提交；需要刷新时运行 `node scripts/check-health-gates.mjs --update --base origin/main`。页面资源许可、安全不变量与待办按任务或源文件分别登记，改独立事项无需碰共享总表。`tooling/gates/api/`、`tooling/gates/actions/`、`tooling/gates/schemas/stores.tsv` 这几份生成的快照不手工合并，几份 JSON 词表和登记表也不必逐行合，由合并驱动处理，见第 2.1 节；合完跑 `pnpm merge:regenerate`，再看 diff 里是否只剩自己的 API 与动作变化。
 4. 两个 PR 动同一个枢纽：先准备好的先合；后一个合入 main 再重跑相关用例。文字上没有冲突也一样，合并队列的 `Verify` 替代不了这一步。
 5. 门禁脚本、`tooling/gates/`、`limits.json`、CI 工作流的改动单独一个 PR：它们是唯一能放宽数字的地方（`AGENTS.md` 的健康门禁一条）。这几处在 `.github/CODEOWNERS` 里只请求 @yijunw0212 评审；这是请求，不是强制（必需批准数是 0，见第 3 节）。放宽数字的 PR 在描述里写清放宽哪一项、为什么。
 
@@ -82,7 +82,7 @@ node scripts/regenerate-after-merge.mjs --all       # 不看清单全跑一遍�
 
 驱动由 `scripts/setup-merge-drivers.mjs` 写进仓库的共享 Git 配置（所有工作树共用，命令是相对路径，每个工作树跑自己那份），根 `package.json` 的 `prepare` 让每次 `pnpm install` 都执行一遍，重复执行不改任何东西；不在 Git 检出里或写不进配置时只打印一行，不让安装失败。`node scripts/setup-merge-drivers.mjs --check` 查有没有登记。驱动出任何错（读不懂的 JSON、驱动自己的缺陷）都退回 git 不带驱动时的逐行合并；只在合并结果读回、核对无误后才写文件，不会留下写了一半的文件。按键合出冲突、逐行合并却是干净的（例如数组两边改了不相邻的元素），也照 git 不带驱动时的做法算干净合入，只打印一行提醒去看一眼这个文件。工作树里还没有驱动脚本时（还在旧分支上的工作树、变基到旧基点、`git stash apply`），登记的命令先查脚本在不在，不在就直接跑 `git merge-file`，和没有驱动时完全一样，不会把对方的改动丢掉。驱动执行的是当前检出里的脚本，和 `pnpm build` 一样只在自己信任的检出里合并。
 
-没有交给驱动的：`tooling/gates/giant-exceptions/` 每个文件只有一个对象，冲突都在实测的 `size` 上，按键合也是冲突，要重新量；`tooling/gates/baseline.json` 和页面资源这类门禁数字要按 merge-base 重新量，不能取一边；`package.json`、`pnpm-lock.yaml` 由 pnpm 管；Goals 页面金样不是生成文件（按测试注释里的录制规程从参照构建录下来），所以不取一边、不自动重录，只按键合：两边改了不同的页面记录可以合，同一条记录两边都改仍是冲突，要按规程重录；`tests/goals-page-golden.test.ts` 会核对合出来的每一条。
+没有交给驱动的：页面资源预算与门禁数字按 merge-base 实时量取，不取单边（原静态基线文件与巨大单元例外目录均已移除）；`package.json`、`pnpm-lock.yaml` 由 pnpm 管；Goals 页面金样不是生成文件（按测试注释里的录制规程从参照构建录下来），所以不取一边、不自动重录，只按键合：两边改了不同的页面记录可以合，同一条记录两边都改仍是冲突，要按规程重录；`tests/goals-page-golden.test.ts` 会核对合出来的每一条。
 
 ## 3. 合并
 
@@ -93,10 +93,8 @@ node scripts/regenerate-after-merge.mjs --all       # 不看清单全跑一遍�
 - main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到；2026-10-15 去掉了「必须与 main 同步」，加了带合并队列的规则集）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它汇总构建、实际健康与合同检查、选中的门禁自测、密钥、原生与脚本检查、登录、安全、产品和旧 Home 回放。作业跳过须有对应的有效选择依据；needs 里另有 `queue-check`（只在 push main 上运行，T-129）和 `test-selection`（PR 选择），两者是辅助依赖，不是额外必须成功的检查；`queue-check` 只让队列已验过的提交在 main 上不重跑；改这个作业的名字就等于改保护规则）；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
 - PR 描述按 `.github/pull_request_template.md` 写，包括验证结果、基线比对、API 与动作合同影响和基本合同检查。
-- 产品子集（决定 #14）与安全不变量现已纳入 `Verify`，分支保护仍只要求 `Verify`。作业分工、PR 选择与整套回退、分片、预算、退出码及隔离规则统一见 [PACKAGE-BOUNDARIES.md「自动门禁」](PACKAGE-BOUNDARIES.md#6-自动门禁)与[「产品子集作业」](PACKAGE-BOUNDARIES.md#产品子集作业w2-16决定-14)；作业超时及调整依据见 `.github/workflows/ci.yml` 注释与 `tests/ci-timeouts.test.ts`。**日常怎么用**：新增或修改的产品用例若快、在 Linux 上稳、走用户动线，就加进 `tests/ci-product-subset.txt`；作业红了先看摘要的 Failed 与 Flaky，回归要修，偶发失败按摘要条目写入 `tests/quarantine.json`，不跳过或放宽断言、不为变绿删清单。全量安排见第 7 节，本次执行范围以第 5.1 节覆盖说明为准。
+- 产品子集（决定 #14）与安全不变量现已纳入 `Verify`，分支保护仍只要求 `Verify`。作业分工、PR 选择与整套回退、分片、预算、退出码及隔离规则统一见 [PACKAGE-BOUNDARIES.md「自动门禁」](PACKAGE-BOUNDARIES.md#6-自动门禁)与[「产品子集作业」](PACKAGE-BOUNDARIES.md#产品子集作业w2-16决定-14)；作业超时及调整依据见 `.github/workflows/ci.yml` 注释与 `tests/ci-timeouts.test.ts`。**日常怎么用**：新增或修改的产品用例若快、在 Linux 上稳、走用户动线，就加进 `tests/ci-product-subset.txt`；作业红了先看摘要的 Failed 与 Flaky，回归要修，偶发失败按摘要条目写入 `tests/quarantine.json`，不跳过或放宽断言、不为变绿删清单。全量安排见第 7 节。
 - 清单和隔离文件自己的规则也挡合并：这些规则（每行的文件存在、没有 live 或 macOS 专有的用例、冒烟 3 到 5 个、`tests/i18n.test.ts` 在内、隔离项的字段与日期）在 `pnpm health:check` 里，随挡合并的 `gates`（经 `Verify`）检查，没有基线，出一处就失败。这是 W2-16 实现时加的，当时决定 #14 说的是作业先不挡合并（记在 spec §1 同一行）。对每个人的影响：重命名或删除清单里的某个用例，要在同一个 PR 里改 `tests/ci-product-subset.txt` 那一行；给清单里的用例加上 macOS 专有或 live 的用法（直接写，或经它引入的夹具）也会变红，那个用例已经不适合 Linux 子集，在 PR 描述里说明后从清单拿掉。需要日期的两条（隔离到期、`since` 不在将来）不在门禁里，由运行器按当天日期判断。
-
-上述本地 Full 为通用运行能力；本次接续执行按第 5.1 节覆盖说明。
 
 ## 4. PR 体量
 
@@ -118,11 +116,9 @@ node scripts/regenerate-after-merge.mjs --all       # 不看清单全跑一遍�
 
 ### 5.1 子代理与并发的 Agent
 
-**本次接续覆盖说明（2026-10-31）**：通用运行能力、历史成本和本次执行授权分别理解。下文保留本地 Full 的通用能力与规则；它们不授予本次运行权限。2026-10-31 防腐本机 Codex 全线接续期间，按协调仓库 `coordination/2026-10-28/README.md` 的「2026-10-31 本机 Codex 全线接续（现行）」执行：本机及子代理均不跑 Full，由根安排所需 CI Full，仅根加 `full-suite`；本地定向验证经公共机器槽、`--jobs 1`（现行槽数见上节）。此覆盖说明仅用于本次接续，后续执行依当时明确授权与协调安排；Full/SI 及定向验收要求不因此减少。
-
 一个会话派出的子代理、Workflow 里的 Agent，和别的会话一样受上面的规矩约束；下面几条是它们常出事的地方（用户 2026-10-14 要求写进仓库：之前只记在某一个会话的记忆里，别的会话和工具看不到）。
 
-- **子代理不跑全量。** 全量在 CI 上跑：批次由主会话在最终头上加 `full-suite`，集成分支推上去就跑（第 7 节）；子代理只跑定向用例：包 README 的「改动后必跑」、自己改到的测试、门禁。派活时在实现和评审两份提示里都写明这一条，路线图某行写着「Full regression」也一样，否则评审会把它当成必须修的问题，修复的子代理就去跑全量。依据：2026-10-09 有两个修复子代理在负载很高的机器上轮询全量 3 到 5 个小时。 本次接续由根安排 CI Full，见本节覆盖说明。
+- **本机与子代理不跑全量。** 全量交 CI `full-suite` 跑：批次由主会话在最终头上加 `full-suite`，集成分支推上去就跑（第 7 节）；本机与子代理只跑定向用例：包 README 的「改动后必跑」、自己改到的测试、门禁。派活时在实现和评审两份提示里都写明这一条，路线图某行写着「Full regression」也一样，否则评审会把它当成必须修的问题，修复的子代理就去跑全量。依据：2026-10-09 有两个修复子代理在负载很高的机器上轮询全量 3 到 5 个小时。
 - **只停自己起的进程，按 pid。** 用 `$!` 记下自己起的进程，或用 `pgrep` 按自己工作树的路径过滤后 `kill <pid>`；不用 `pkill`、`killall` 或按模式的 `kill`。依据：2026-10-11 一个子代理发现自己误起了全量，`pkill -f "scripts/run-tests.mjs"` 把统筹会话跑了约 50 分钟的全量一起杀了。
 - **本机每次跑一个定向测试批次，默认一个文件。** 直接调用 `node scripts/run-tests.mjs <文件…>` 即可排队。本机同一次工作区构建默认同时编译至多两个包。CI 冷构建沿用 pnpm 的并发设置，增量构建默认并行四个包。批次全量交 CI，由主会话在最终头上加 `full-suite`。
 
@@ -136,8 +132,8 @@ node scripts/regenerate-after-merge.mjs --all       # 不看清单全跑一遍�
 | 带 `L()` 文案 | 再加 `tests/i18n.test.ts` |
 | 路由 | 再加所有读这条路由的用例 |
 | 界面 | 受影响的浏览器用例（排时段、串行）；PR 模板里的浅深色与三个宽度的截图。动了共用样式、皮肤、外壳或底栏的，再跑 `pnpm visual:compare`：在本机 Chrome 里把关键界面按 1440、1024、390 三个宽度、浅深色各拍一张，与 main 逐像素比对（同一棵树拍两次一像素不差，所以有差就是分支的；报告在 `.impeccable/qa/review/visual/compare/report.html`，用法见 `scripts/visual-compare.mjs` 开头） |
-| 共享核心（contracts、kernel、plugin-sdk、plugin-runtime、horizontal/agent-host、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 58 分钟：2026-10-16 在 1,017 个文件上测，W5-12；之前串行 76–78 分钟） ；本次 Full 由根按第 5.1 节覆盖说明安排 CI |
-| 每个阶段收尾 | 全量一次，作为阶段证据；本次 Full 由根按第 5.1 节覆盖说明安排 CI |
+| 共享核心（contracts、kernel、plugin-sdk、plugin-runtime、horizontal/agent-host、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量交 CI `full-suite` 执行（本机不跑全量，详见第 7 节；历史本地参考耗时约 58 分钟） |
+| 每个阶段收尾 | 全量一次（CI `full-suite`），作为阶段证据 |
 
 测试与包的引用：一个测试进程既读包的 `src` 又读它的构建（包名、`dist`）就加载了两份，`instanceof`、模块级缓存和 `AsyncLocalStorage` 会对不上。改了包的出口、搬了名字或 rebase 之后，`node scripts/test-imports.mjs --check` 列出这样的测试，`--report` 按规则出重写计划（公开的名字走包入口，其余走 `dist` 里的同一个模块），`--write` 落地；`pnpm health:check` 对每个测试文件及独立子进程夹具要求这个数为零；改旧基线或 `--update` 也不能放过混用（`tooling/gates/README.md`）。
 
@@ -187,7 +183,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 - 改了 contracts、kernel、plugin-sdk、plugin-runtime、horizontal/agent-host 或任一 `modules/*`（名单是 rules.mjs 的 `corePackages` 与 `corePackagePrefixes`，第 6 节表里的「共享核心」一行同此）。
 - 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，共 28 个文件，不含 `index.ts` 出口，来源有三处。测试逐条核对这些来源：下面说“README 点到”的文件，README 里真有这个文件名；说“枢纽表”的，第 2 节的表里真有，README 里没有；两个 README 的「从哪里读代码」表里用途写了“装配”或“组合”的文件都在名单上；两个 README 里“阅读装配方式”指到的文件，在名单上或明确排除。
   - 两个包 README 按文件名点到的 20 个：local-host 的 `project-host`、`host-surfaces`（平台自带的框内页面，即插件创作台，47-1 C；workbench 同名文件同此）、`home-plugins`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`home-side`（宿主与它的 Home 的登记，W3-06 D0）、`space-sync-http`（个人空间同步装配）；workbench 的 `host-surfaces`、`ui-composition`、`shell-page-renderer`、`home-plugin-page`、`scripts/client/initialization`、`browser-assets`（workbench README 同一张表），以及 `builtin-plugins`、`plugin-catalog`、`plugin-workbench`（workbench README 不变量里“派生相应投影”那一句点到的 `src/` 下三个文件；注意 README 没点到客户端程序 `scripts/client/plugin-workbench`，它是下一条里的），再加 `apps/local-host/src/workbench-renderer.ts`（workbench README“阅读装配方式”指到的现有调用方，12 行，把 Workbench renderer 绑到这个 Host 的语言、桌面端口和 Goals 默认值上）。
-  - 第 2 节枢纽表里把东西接在一起的 7 个，两个 README 没按文件名点到：local-host 的 `web-request`（路由分发）、`web-catalog`、`project-plugins`（`AGENTS.md` 把每个新内置插件的装配点指到它，第 2 节按枢纽对待）；workbench 的 `renderer`（README 只在“一次典型调用”里把它叫作“Workbench renderer”）、`immersive-shell`、`page-assets`，以及浏览器端的客户端程序 `scripts/client/plugin-workbench`。
+  - 第 2 节枢纽表里把东西接在一起的 7 个，两个 README 没按文件名点到：local-host 的 `web-request`（路由分发）、`web-catalog`、`project-plugins`（项目插件监督装配入口，新增内置插件不改它，第 2 节按枢纽对待）；workbench 的 `renderer`（README 只在“一次典型调用”里把它叫作“Workbench renderer”）、`immersive-shell`、`page-assets`，以及浏览器端的客户端程序 `scripts/client/plugin-workbench`。
   - `apps/workbench/src/document-shell.ts`：README 和枢纽表都没点名，是实现时按判断加的，因为它出整页外壳文档和 `WORKBENCH_UI_SLOTS` 这五个挂载位。
   - 明确不在名单上的：`apps/desktop/src/web-host.ts`（local-host README 在同一句“阅读装配方式”里指到它，但它是 desktop 包的文件，不属于 local-host 的装配或 workbench 外壳；测试固定这一点）；`index.ts` 出口；`apps/workbench` 的其余文件（`src` 下 214 个，包里共 217 个，大多是某个插件的一页或一块界面，见第 12 节第 1 点）。
 - 改了存储或迁移：`packages/storage` 的任何源码；名字带 migration 的文件；改动行调用或写了 `PRAGMA user_version`、`user_version`、`applySqliteBaseline`；或者一个产品源码文件持有的结构变了。后一种不看哪几行变了，而是把这个文件在合并基点和现在的两个版本各读一遍，比较它持有的结构：所有含 `CREATE`、`ALTER`、`DROP` 表、索引、视图、触发器或 `PRAGMA user_version` 的字符串与模板字符串的全文，和每个 `SqliteBaseline = { version, schema }` 声明的整个内容。所以 `version: 2` 改 `3`、在多行 `CREATE TABLE` 中间加一列、删一张表都算，注释里的 DDL 不算；名字里带 baseline 但不存数据的文件（`proposal-baselines.ts`）不算。点名文件（没有基点可比）时，持有结构的文件按整个文件改了算。此时还会提示 `node scripts/verify-release-versions.mjs`（库版本表在 `docs/releases/CHECKLIST.md`）。
@@ -227,12 +223,10 @@ Full 红了先看首个失败。代码有修复时，在新的最终提交上触
 
 耗时权重用 `node scripts/ci-shard-weights.mjs <run-id> --write` 从核心 CI 或 Full 的成功分片日志刷新。跳过失败、取消、无测试执行和重试通过的样本，保留未测文件的旧值、删除已不存在的文件；同时报告实际各片测试步骤耗时、慢文件和新配置的预计负载。每个 runner 的私有缓存只影响片内启动顺序，不决定分片归属。
 
-本次接续适用第 5.1 节：本地仅点名文件补 macOS 或复现 CI 失败，不运行 Full。
-
 几个 PR 同时动共享核心，各跑一次全量太贵，也看不到它们合在一起的结果。做法（第二步各批的做法，记录在 spec §9.5）：
 
 1. 开一个集成工作树和分支，名字 `integration/batch-<月-日><字母>`；把这几个 PR 的分支合进去。
-2. 整体构建一次；`pnpm boundary:check`、健康门禁（`node scripts/check-health-gates.mjs --base origin/main`）和类型检查过了，再跑这批的相关用例，最后跑一次全量。 本次最后一步由根安排 CI Full 并核回结果，见第 5.1 节。
+2. 整体构建一次；`pnpm boundary:check`、健康门禁（`node scripts/check-health-gates.mjs --base origin/main`）和类型检查过了，再跑这批的相关用例，最后推送并由 CI `full-suite` 跑一次全量。
 3. 失败先和干净基线比对。属于某个 PR 的，修在那个 PR 的分支上，再合进集成分支重跑受影响的用例；不在集成分支上直接改。
 4. 全量通过后，各 PR 仍然各自合入：各自的 CI 通过，分支同步到最新 main，批次结果贴在各 PR 里，也记进对应 spec。集成分支本身不合入 main。路线书批次不走这一步：本批分支就是集成分支，子分支不开 PR，全批开一个 PR 合入 main（[开发流程第 8.4 节](../../specs/post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)）。
 5. 用完删掉集成工作树与分支（第 10 节）。
@@ -301,7 +295,7 @@ node scripts/linux-repro.mjs tests/<文件>.e2e.test.ts [--test-name-pattern=…
 - 合成包负责人和流程：方向已定，人选与方案等路线图 W1-20（见上一节）。
 - 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
 - 挑相关用例的脚本已有（第 6.1 节）；阈值是首批取值，要用一两周后按漏选、多选的实例调整，反向依赖不追。有三处读法等用户拍板，现在按推荐的做：
-  1. “workbench 外壳”。选项：名单上的 28 个文件（推荐：`apps/workbench` 的 `src` 下有 214 个文件（包里共 217 个），大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 14 个文件：README 按文件名点到的 10 个（`project-host`、`home-plugins`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`home-side`、`space-sync-http`，加 workbench README 指到的 `workbench-renderer`），加第 2 节枢纽表与 `AGENTS.md` 点到的 3 个（`web-request`、`web-catalog`、`project-plugins`）。workbench 的 14 个里，README 按文件名点到 9 个（`host-surfaces`、`ui-composition`、`shell-page-renderer`、`home-plugin-page`、`scripts/client/initialization`、`browser-assets`、`builtin-plugins`、`plugin-catalog`、`plugin-workbench`）；另 5 个（`renderer`、`immersive-shell`、`page-assets` 和客户端程序 `scripts/client/plugin-workbench` 来自枢纽表，`document-shell` 是实现时加的，两处都没点名）要不要留，随这一问一起定。
+  1. “workbench 外壳”。选项：名单上的 28 个文件（推荐：`apps/workbench` 的 `src` 下有 214 个文件（包里共 217 个），大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 14 个文件：README 按文件名点到的 11 个（`project-host`、`host-surfaces`、`home-plugins`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`home-side`、`space-sync-http`，加 workbench README 指到的 `workbench-renderer`），加第 2 节枢纽表点到的 3 个（`web-request`、`web-catalog`、`project-plugins`）。workbench 的 14 个里，README 按文件名点到 9 个（`host-surfaces`、`ui-composition`、`shell-page-renderer`、`home-plugin-page`、`scripts/client/initialization`、`browser-assets`、`builtin-plugins`、`plugin-catalog`、`plugin-workbench`）；另 5 个（`renderer`、`immersive-shell`、`page-assets` 和客户端程序 `scripts/client/plugin-workbench` 来自枢纽表，`document-shell` 是实现时加的，两处都没点名）要不要留，随这一问一起定。
   2. “删除整块旧代码”。选项：3 个文件或净取走 300 行（推荐，现状，以 245 个 PR 量过）；只看文件数；再加一条“一个文件净取走 150 行以上”以抓住只删一个大函数的情形（245 个 PR 里 18 个会触发，其中只有 4 个是 300 行条件抓不到的）。
   3. “所有读这条路由的用例”。现状：一条路由被超过 25 个用例提到就不选（Notes 写出路由和个数，`--wide` 选全部），因为 `/projects/`（199 个）、`/health`（143 个）、`/desktop/`（236 个）这类只是路径的常见片段，全选会让每个路由改动都带上几百个用例（`web-request.ts` 原来选出 265 个，现在 70 个）。代价是真路由也被挡，在 `76ba1545` 上量：`/settings`（77）、`/api/plugins`（62）、`/archive`（58）、`/sessions`（38）、`/api/plugins/io.molis.work.coding`（28）；不在装配名单上的文件（`web-goals-read.ts`、`web-routing.ts`、`document-routes.ts`）改到它们时，读者只在 Notes 里。选项：保持 25（推荐，现状；Notes 与 `--wide` 兜底）；把上限提到 80，让上面五条真路由选上（`/settings/` 的 66 也会进来），`/projects/`、`/health`、`/desktop/` 仍挡；不设上限，路由改动一律带上所有读者（一次可到几百个用例）。
 - 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。

@@ -27,10 +27,10 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 ## 3. 与其他边界怎样合作
 
 - Projects Module 只拥有 Project 身份和正式事实；终端记录是平台的启动终端服务的（`apps/local-host/src/plugin-terminal-panels.ts`），不进入 Projects Module。
-- Private Work Context 拥有 Session 和 Runtime workspace 关联；终端记录只保存终端到稳定 work context 的别名。
+- Private Work Context 拥有 Runtime workspace 关联与绑定映射（旧 Work Session 已下线，外部 AI 会话归 `horizontal/sessions`）；终端记录只保存终端到稳定 work context 的别名。
 - Runtime Host 拥有通用 Runtime stream、重连和中断；当前工作台终端的连接在 `apps/workbench/src/terminal/connection.ts`，接 `apps/local-host/src/pty-socket.ts`。Tauri 仍登记原生 PTY 命令，其消费用途与 IPC 可达范围另待实探，不能以登记代替现行动线。
 - Workbench 提供共享页面壳；Local Host 注入主题与语言。所有桌面原生界面文字（菜单栏与 tooltip、Drop Wheel、macOS 原生选目录面板、Shelf 通知、启动失败占位页与 launcher 错误）统一消费 `NativeLanguage` 词包投影与 Home 语言偏好（支持 `zh` / `en` / `ja` 并可扩展至 N 语种）；**严禁新增语言布尔开关（如已退役的 `ENGLISH: AtomicBool`）**，禁止向用户暴露 `宿主`、`Runtime payload`、`pnpm install:local` 等内部词或开发命令；`native_set_locale` 切换语言时同步更新菜单项、菜单栏状态标题与 tooltip。
-- Feed Native Plugin 拥有外部内容脱敏规则；Desktop 推进提示直接调用其公开 API，不复制一份规则。
+- Feed Native Plugin 拥有外部内容脱敏规则；现行对象工作终端由平台 `system.work-terminal` 按各插件声明的 `work_prompt` 组装推进提示，Desktop 不复制业务或脱敏规则。
 
 ## 4. 当前真实能力
 
@@ -43,7 +43,7 @@ AP4 保持并迁移了以下既有能力：
 - 内置 Molis Work Runtime 的版本比较、升级安装与 owned service 配置修复。
 - Tauri command 的显式 permission allowlist。
 
-当前产品没有系统级通知实现：界面中的通知按钮原本就是“暂不可用”的禁用占位。Desktop 也没有独立 Keychain adapter；平台的密钥与凭据后端（`packages/storage` 的 `FileSecretStore`，落盘 `security/secrets.json`）仍由 Local Host 接线管理。AP4 不把不存在的功能伪装成已迁入。将来实现系统通知、Keychain 或 App 自更新时，应作为 `apps/desktop/adapters/tauri/` 的受控 adapter 接入，但权限策略和业务判断仍由调用它的正式 owner 决定。
+当前产品没有系统级通知实现：界面中的通知按钮原本就是“暂不可用”的禁用占位。Desktop 本身也没有独立的 Tauri Keychain adapter；平台的密钥与凭据后端由 Local Host 经 `packages/storage/src/adapters/file-secret-store.ts`（`FileSecretStore`）统一接线管理——在 macOS 默认启用 `keychain+aes-gcm` 后端，隔离测试与显式文件模式下通过 `MOLIS_WORK_SECRET_BACKEND=file` 落盘 `security/secrets.json`。AP4 不把不存在的功能伪装成已迁入。将来实现系统通知或 App 自更新时，应作为 `apps/desktop/adapters/tauri/` 的受控 adapter 接入，但权限策略和业务判断仍由调用它的正式 owner 决定。
 
 ## 5. 当前退出与发布状态
 

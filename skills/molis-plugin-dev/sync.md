@@ -109,7 +109,7 @@ Runtime 私有文档使用 `scope:'project-private-values'`、固定 `namespace/
 
 同步日志、编辑高水位及策略缓存都属于当前 Store 基线，必须在 owner 当前 schema 中声明并更新版本/fixture/发布表。错版拒绝且保持原文件；同步启动不通过 ALTER 或临时补表修复旧库。插件只能调用 Storage 的公开日志端口，不直接查询它的 replica 表。真实 Home 的备份与重建需要单独批准，不属于代码升级的隐式步骤。
 
-项目私有库在同一目录条目使用 `scope: 'project-library'`、固定 `kind` 和 owner 的 `open(home,projectId)`；共同 Host 负责分区和项目授权，owner 负责安全路径、不可重绑的空间/项目、当前库基线与逐事务日志。炼金术士的 `studio` 是这个入口的实际消费者：整份研究图作为一致单元，终态任务仅保存观察信息，前台模型等待/后台活动时暂拒接收，恢复不能启动执行。不把此内置分区端口当成独立 Runtime 自动发现的完成证据。
+项目私有库在同一目录条目使用 `scope: 'project-library'`、固定 `kind` 和 owner 的 `open(home,projectId)`（合同见 `packages/contracts/src/platform/plugin-sync-registration.ts`）；共同 Host 负责分区和项目授权，owner 负责安全路径、不可重绑的空间/项目、当前库基线与逐事务日志。旧炼金术士插件随第 44B 批删除后，当前内置插件暂无该入口的生产消费者；此类内置分区端口也不能当作独立 Runtime 自动发现的完成证据。
 
 Module 的项目内容可通过 `ProjectReplicaDefinition` 明确 `assetKind`、表/字段/范围与语义校验，由 App 组合到既有目录。`project` 是 owner 的纯导出投影，`restore` 只能合并同事务捕获的目标本机状态；例如 Sources 不上传连接配置，在恢复业务描述时保留目标端已有连接。清理和写入必须在同一事务里，不能把本机凭据放进网络快照后再让 Host 猜哪些字段需要删。没有自身项目根表的 owner，由可信组合根向 `installProjectReplicaJournal` 明确传入项目 ID，不跨 owner 申明或遍历根表。事件键来自显式 `assetKind`，不再假定每份内容都是 Goal。
 

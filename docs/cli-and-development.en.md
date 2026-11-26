@@ -1,5 +1,7 @@
 # CLI & Development
 
+> Synced with [`docs/cli-and-development.md`](cli-and-development.md) (baseline `2ca43ef58f`; locked runtime: Node `24.15.x` per `.nvmrc` and `pnpm@11.9.0`).
+
 ## Offline Home snapshots
 
 `molis-work home snapshot --to /absolute/path/new-directory --home /original/Home --json` captures an existing Home. If `--home` is omitted, normal product Home resolution applies. `--to` is required: the destination must not exist, its parent must exist, and neither the destination nor the Home may contain the other. Duplicate, unknown or incomplete arguments are rejected. Success writes JSON to stdout, or the path and counts without `--json`; failure writes only to stderr and exits with code 1.
@@ -46,7 +48,11 @@ Each v1 command requires `--db PATH` and the project's `project_id` in its JSON.
 
 The plugin author's commands (`molis-work plugin create`, `validate`, `dev`, `pack`) are in the [plugin development manual](platform/PLUGIN-DEVELOPMENT.md#创建和运行) (Chinese). `validate` also reads the language files the Manifest declares in `ui.locales`: what would block fails, what only lacks a translation goes into `locale_notes`; how to read it is in the manual's [界面文字与语言文件](platform/PLUGIN-DEVELOPMENT.md#界面文字与语言文件).
 
-`molis-work demo remove --confirm` asks the resident service of this Home first. When it answers, its deletion service does the removal (it refuses while a terminal of the project is still open, as the settings page does, and records the person on this machine); the address is the `MOLIS_WORK_WEB_URL` environment variable, or `http://127.0.0.1:4173` without it. Only when the Home has no control token, or nothing answers at that address, does the command delete in its own process. If the answer comes from another Home's service, or a terminal is still open, the command exits with an error and leaves the demo as it was. `molis-work uninstall` stops the resident service first and then clears the demo in its own process.
+`molis-work demo remove --confirm` asks the resident service of this Home first. When it answers, its deletion service does the removal (it refuses while a terminal of the project is still open, as the settings page does, and records the person on this machine); the address is resolved in order: `MOLIS_WORK_WEB_URL` > the Home's `run/endpoint.json` > `http://127.0.0.1:4173` (same as Desktop and launchers). Only when the Home has no control token, or nothing answers at that address, does the command delete in its own process. If the answer comes from another Home's service, or a terminal is still open, the command exits with an error and leaves the demo as it was. `molis-work uninstall` stops the resident service first and then clears the demo in its own process.
+
+Plugin authors can run `molis-work plugin validate` to inspect Manifests, files, and declarations; when `state_machines` are declared, validation prints the machine list (metadata-only, see [state-machine.md](../skills/molis-plugin-dev/state-machine.md)).
+
+For isolated-Home real evaluation, run `pnpm eval:run` (`tsx scripts/run-evaluation.mts`): default `--mode stand-in` boots the real Host, plugins, Prologue Runtime, `system.observation`, and `system.evaluation` in a temporary isolated Home and cleans up automatically; `--verify-reproducible` compares verdict digests across two independent temporary Homes; `--mode live` uses Gemini (`gemini-2.5-flash`, `https://generativelanguage.googleapis.com/v1beta/openai`) with `GEMINI_API_KEY` (or `MOLIS_EVAL_API_KEY`) and refuses `~/.molis-work`. See [Evaluation service](horizontal/evaluation.md).
 
 ## Project structure
 
@@ -123,13 +129,48 @@ specs/molis-work-architecture-reorganization/spec.md
 - Every migration slice updates its package README and the affected Module/Service document.
 - See [giant units: list and verdicts](system/HUGE-CLASS-MIGRATION.md) for the owner, verdict and plan of every file, class and function over the limits.
 
+## External MCP
+
+`molis-work-mcp` is the sole external MCP entrypoint: platform connection tools plus each user-granted action. For plugin authoring order and elements see [molis-plugin-dev Skill](../skills/molis-plugin-dev/SKILL.md); for external MCP authoring see [Plugin development · External MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp); for the Runtime protocol see [MCP Integration](mcp.en.md).
+
+### Call chain
+
+```text
+molis-work-mcp
+  apps/desktop/launchers/mcp/server.ts     Process entry
+  apps/local-host/src/mcp-server.ts        Composition, live discovery, catalog-entry dispatch
+  apps/local-host/src/mcp-catalog.ts       Platform tools + granted, available actions
+  apps/local-host/src/mcp-settings-store.ts  {home}/config/mcp-tools.json (action grants only)
+  apps/local-host/src/mcp-authority.ts     Shared list/call authority gate
+  apps/local-host/src/action-gateway.ts    Actions -> resident Web Host
+  apps/mcp                                 Platform schemas, protocol, connection tools, management dispatch
+```
+
+Every `tools/list` and `tools/call` reads the current catalog and grants so connected clients see changes immediately (no proactive `tools/list_changed`). When the production launcher has an explicit Runtime Home, actions come from that Home's resident service; if offline, only connection tools remain.
+
+| `source` | Dispatched to |
+| --- | --- |
+| `action` | Shared `ActionClient`; production stdio forwards over the local channel to the resident Host registry and execution queue. Runtime writes record the session as audit author. |
+| `platform` (connection tool) | Runtime-context handlers in `apps/mcp` |
+| `platform` (management entry) | `dispatchMcpProjectTool` after Host injects identity |
+
+- **Adding capabilities**: Declare actions and handlers in the plugin Manifest with `"mcp"` in `audiences`; once registered through SDK/Runtime they appear in **Capabilities → External access** automatically, with no separate MCP table.
+- **Grants & settings**: Per-client grants live in `mcp-settings-store.ts` and are managed under **Capabilities → External access**.
+- `agent.mcp` is the reverse direction (in-plugin Agents calling external MCP servers); do not reuse it here.
+
 ## Frontend and the control catalog
 
-When changing the workbench, plugin lists, forms, or shared controls, **prefer** opening `/__ui/catalog` and matching an existing specimen before inventing another look. This is not a gate: one-off pages, drafts, and unstable experiments can stay in product UI first.
+When changing the workbench, plugins, or shared controls, **visuals, motion, icons, and color are part of the slice**, not follow-up polish. Passing typecheck and tests is not completion. See [ui-craft-floor](../specs/ui-craft-floor/spec.md) and [DESIGN.md](../DESIGN.md) (Soft Workbench).
 
-The visual spec is the Soft Workbench in [DESIGN.md](../DESIGN.md): a mist-blue desk holding one continuous white work surface, ink blue for the primary action and a selected choice, mist blue for focus, links and work in progress, weights 400 / 500 / 600, motion around 130 / 250 / 420 ms. Take colours, corners, heights and durations from the shared tokens, whose values live only in the baseline files in `packages/design-system/resources/` (`palette.ts` writes them as CSS); do not hard-code hex values or win over an earlier layer with `!important` or per-plugin overrides. Plugins carry no identity colour, draw no card of their own inside the surface, and have no global sidebar: global entries live in the bottom bar (the Dock and the plugin switcher), and the `navigator` slot id keeps its name. The real bottom bar is at `/__ui/catalog/bar`.
+Hard rules:
 
-Once a shared control, state variant, or micro-interaction meets the product’s visual bar, **add it** to that board (Catalog specimens in `packages/design-system`) so later work can see and reuse it. Product-specific composition does not need a specimen. Usage and isolated preview: [design-system README](../packages/design-system/README.md). Platform split: [UI Platform](platform/UI-PLATFORM.md).
+- **Never ship OS native controls as product UI.** Native dropdowns, color pickers, date/time popups, `alert`/`confirm`/`prompt`, and unskinned `range` inputs are forbidden. Use `mw-menu` (hiding native `<select>` only for form submission), `mw-btn` for file triggers, and `mw-*` styling on `<dialog>` (keeping only Escape and focus ring). See [mw-select-custom-menu](../specs/archive/mw-select-custom-menu/spec.md).
+- **Consistent icons and semantic color.** Action icons come from Lucide using surface ink (`--ink-soft` / `--ink`). Plugins carry no identity color (`--plugin-tint` stays neutral). Ink blue `--action` is for primary actions and active selection; mist blue `--accent` is for focus, links, and in-progress; status uses the status family. All colors, radii, heights, and durations come only from baseline tokens in `packages/design-system/resources/`—no hardcoded hex, no `!important`, and no per-plugin overrides.
+- **Coherent motion.** Use only `--dur-*` (130 / 250 / 420 ms), `--ease-quint`, `--ease-spring`, and shared transitions (`craft-rise`, etc.). Respect `prefers-reduced-motion`.
+- **Keyboard focus** uses only `--focus-stroke` (2 px mist blue, 1 px offset); inputs use mist-blue border plus 3 px glow.
+- **Typography and hierarchy.** System font stack with weights 400 / 500 / 600 only (`--weight-body`, `--weight-control`, `--weight-title`), one continuous white work surface, no plugin outer frame cards, shadows only on elevated surfaces.
+
+Before editing shared controls, states, or micro-interactions, open `/__ui/catalog` (`pnpm web` → `http://127.0.0.1:4173/__ui/catalog`; real bottom bar at `/__ui/catalog/bar`). One-off drafts may start in feature code, **but must migrate to `mw-*` before landing—never merge OS native controls**. Shared controls, state variants, or micro-interactions that meet the product bar **must** be added to the `packages/design-system` catalog. See [design-system README](../packages/design-system/README.md) and [UI Platform](platform/UI-PLATFORM.md).
 
 ## Development verification
 
@@ -169,11 +210,21 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 ### Page asset sizes
 
-After building with `pnpm workspace:build`, run `node scripts/gates/page-assets.mjs --base origin/main`. The gate compares actual Host-served bytes at the merge-base and candidate. Shrinking needs no committed budget edit; future comparisons start from the smaller actual size. `--report [--json]` only measures the current build.
+After changing stylesheets, client scripts, plugin client bundles, `/desktop/pty-client.js`, or fonts, run `pnpm build` then `node scripts/gates/page-assets.mjs --base origin/main` (`pnpm page-assets:check` compares against `origin/main` by default). Batch 100 `100-2` ([Decision 58](../specs/post-anticorruption-roadmap/reference/decisions.md#decision-58)) retired per-task `tooling/gates/page-asset-allowances/*.json` files (adding new JSON files there now fails `pnpm health:check`) and replaced them with the unified route/payload budget table [`tooling/gates/page-asset-budgets.json`](../tooling/gates/page-asset-budgets.json):
 
-Necessary growth is reviewed in a separate task JSON under `tooling/gates/page-asset-allowances/`, with `reason`, `review`, and an `assets` map of permitted byte increases. New assets or growth over 10,000 bytes require the user's prior approval recorded in `userApproval`. Only files absent from the comparison base count; adopted allowances cannot be edited, removed or reused. A merge group sums its new allowances. Do not copy an old approval as a new one.
+- Checks route/surface total bytes across `workbench`, `arrival`, `settings`, `pluginFrame` (including `/assets/molis-work-plugin-frame.js`, `/assets/molis-work-composer.js`, `/desktop/pty-client.js`), `pluginPacks` (all `/assets/molis-work-plugins/*` and `/assets/molis-work-pages-editor.js`), and `fonts`.
+- Enforces `maxSingleAssetBytes` for non-font assets and `maxPluginAssetBytes` per plugin bundle; unclassified served paths fail immediately.
+- Changes within budget need no per-byte allowance file. Relative to `merge-base`, budgets in `page-asset-budgets.json` may only tighten; raising a cap or removing an asset from a route requires user approval first. `--report [--json]` measures the current build and prints raw and gzip bytes per asset. See [`scripts/gates/page-assets-measure.mjs`](../scripts/gates/page-assets-measure.mjs) and the [Chinese reference](cli-and-development.md#页面资源体积).
 
-The base measurement may come from a successful main-push or merge-queue CI artifact for the exact commit, collector and toolchain. Missing or invalid artifacts trigger an isolated base install/build/measurement; failure is never a pass and temporary checkouts are cleaned on success, failure and cancellation. This adds a build on a cold baseline. The candidate is always measured from its own build. See the [complete procedure and transition instructions](cli-and-development.md#页面资源体积).
+### First-screen bytes
+
+After `pnpm build`, run `node scripts/gates/first-screen.mjs --base origin/main`. CI runs the same HTTP sampler against an isolated temporary Home and fixed project seed, checking cold/warm real bytes for `arrival-empty`, `chooser`, `workbench-default`, and `workbench-all-plugins` in [`tooling/gates/first-screen.json`](../tooling/gates/first-screen.json) against the `firstScreen` limits in [`tooling/gates/page-asset-budgets.json`](../tooling/gates/page-asset-budgets.json) (`workbench-demo` is report-only). Any error status, truncated response, or SSE first-event timeout fails, and caps may only tighten relative to `merge-base`.
+
+Before starting a batch, run a browser audit to catch unrecorded GETs or missing paths:
+
+```sh
+node scripts/machine-slot.mjs run browser --label 'first-screen audit' -- node scripts/first-screen-report.mjs --runs 1 --pages arrival-empty,chooser,workbench-default,workbench-all-plugins,workbench-demo
+```
 
 ### Secret scanning before push
 
@@ -190,3 +241,24 @@ The Desktop payload contains root dist, production workspace dependencies, Runti
 The npm archive bundles required workspace and vendor JavaScript packages using their declared files. Consumers install registry dependencies normally, including target-platform PTY binaries; Node itself is not bundled and Node 24.15.x is required: project libraries use the SQLite that comes with it, and on another Node every plugin statement is refused, which the service says at start. In a new consumer directory run `npm install /absolute/archive.tgz` without skipping install scripts, then run `node tests/npm-distribution-smoke.mjs /absolute/consumer` from this repository. This checks the actual CLI, SQLite persistence, PTY, planning assets, Home installation and source-independent MCP handshake. The smoke script targets a Unix host; passing locally does not certify other platforms.
 
 That sentence describes the current release; DV4's full release acceptance in a clean environment is still pending.
+
+## Account environment startup
+
+Use the locked official standalone Node `24.15.x` (`.nvmrc` `24.15.0`) and `pnpm@11.9.0`, then run `pnpm install --frozen-lockfile` and `pnpm build`. Copy any needed templates from `secrets.example/` into the ignored `secrets/` directory (the current account client needs no provider secret).
+
+| Command | Auth | Work | Home |
+| --- | --- | --- | --- |
+| `pnpm start --env dev` | `http://127.0.0.1:8787` | `http://127.0.0.1:4207` | `~/.molis-work-environments/dev` |
+| `pnpm start --env test` | `https://auth.test.molis.ai` | `http://127.0.0.1:4207` | `~/.molis-work-environments/test` |
+
+Startup verifies the Node version and terminal build tooling (`--strict-native` aborts on missing native tools). Pass `--desktop` to launch the Desktop shell attached to the same authenticated Host (stop any previous Work instance first).
+
+### Local login testing (dev)
+
+Start the V2 Auth service in `dev` mode per the Auth repository deployment guide (`npm start -- --env dev`), then run `pnpm start --env dev` in Work and open `http://127.0.0.1:4207`. Installed builds register `http://127.0.0.1:4173/account/callback`, while source dev registers `http://127.0.0.1:4207/account/callback`.
+
+Test-channel installs appear as Molis Work Test (`com.molis.work.test`) using `~/.molis-work-environments/installed-test`. `pnpm start --env test` runs on port `4207`, connecting login to `https://auth.test.molis.ai` and sync to `https://work.test.molis.ai`. When `syncOrigin` is empty, cloud sync is unavailable (`dev` may point to a local sync worker at `http://127.0.0.1:8788`).
+
+### Test file typecheck inventory
+
+`pnpm typecheck:tests` runs strict `noEmit` typechecking across all test files and type dependencies. It currently exits non-zero due to pre-existing test debt and is tracked separately from mandatory CI gates (see [D0069 record](reviews/daily-quality/2026-11-08-test-types.md)).

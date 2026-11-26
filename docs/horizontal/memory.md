@@ -4,7 +4,7 @@
 
 **类别：** 平台产品服务（[系统架构 §3](../system/ARCHITECTURE.md)），不是技术性的横向运行服务。哪些内容可以记、怎样从工作里提出建议、召回时先带哪些，是跨插件的产品策略；这类策略可以放在这里，但记忆不拥有任何插件或 Module 的业务事实：业务对象的事实永远向所有者读取，记忆只记「用户想让系统记住什么」。位置暂不变动，仍在 `horizontal/memory`。
 
-**首期策略接入（设计，尚未实现）：** [现役 spec](../../specs/prologue-memory-strategy/spec.md) 是新方案的范围与验收来源，[包合同](../../horizontal/memory/README.md#首期策略接入合同) 定义本包边界。Molis 声明场景、类型、生命周期、使用方读写矩阵和产品批准政策；Prologue 执行共同的候选、写入、状态、异步召回、token 预算和最终使用回执。分类不是授权，Coding 与助理也不是两个记忆库。下面「提供」仍是现有行为，不表示新矩阵或新 SDK 已可用。
+**首期策略接入（P0 已随 #2020 合入，收官项持续推进）：** [现役 spec](../../specs/prologue-memory-strategy/spec.md) 是新方案的范围与验收来源，[包合同](../../horizontal/memory/README.md#首期策略接入合同) 定义本包边界。M1/M2/B4/A4-M 已落地，Agent Host 已接线 `memory-extractor` 槽（`horizontal/agent-host/src/adapters/prologue-node-port.ts`），收官项（BL-1071–1077）仍在 spec 中跟踪。Molis 声明场景、类型、生命周期、使用方读写矩阵和产品批准政策；Prologue 执行共同的候选、写入、状态、异步召回、token 预算和最终使用回执。分类不是授权，Coding 与助理也不是两个记忆库。
 
 采用时保留旧 Home 的有效开关、人工条目和待认可建议；不以「没有保存设置」判断为新用户，不把未知场景默认放到 common。现有管理入口、恢复/导入、历史/撤销、配对/维护和项目删除一起接到新门，不能只切换 Agent 的读取入口。P0 不搬历史正文、不换 `molis.memory` 信封。SDK 由 Agent Host 单一适配入口采用可追溯构建包，SDK 源码存在某项能力不等于本产品已消费。
 
@@ -14,7 +14,7 @@
 
 **提供：**
 
-- 系统动作 `memory.*`（提供方 `system.memory`，Host 装配在 `apps/local-host/src/memory/memory-host.ts`）：`memory.recall`、`memory.list`、`memory.write`、`memory.change`、`memory.history`、`memory.candidates.list`、`memory.candidates.accept`、`memory.candidates.discard`、`memory.changes.list`、`memory.changes.undo`、`memory.prefs.read`、`memory.prefs.write`、`memory.signals.report`、`memory.pairs.list`、`memory.pairs.resolve`、`memory.upkeep.run`、`memory.scope.preview`、`memory.scope.clear`、`memory.export`、`memory.import`。使用方（助理、Agent、界面、插件、MCP）由可信调用上下文的受众得出，不从输入读；`memory.recall` 声明了界面、Agent、工作流和 MCP，`memory.write` 与 `memory.list` 声明了界面和 Agent，MCP 只能召回，其余动作只对界面。外部 MCP 客户端要先有本人在 `config/mcp-tools.json` 里给它的 `memory.recall` 授权才看得到、调得了，默认只读项目记忆，个人记忆要本人单独打开（`tests/memory-mcp.test.ts`）。插件受众「未启用」（决定 19，W2-03）：没有插件用记忆，生成插件的调用也不带宿主确认的插件身份，所以这三个动作都带 `plugin: false`，目录和创作台的「能力板」都不向插件提供；有插件要用记忆时，连同宿主确认的插件身份一起重新打开，服务里按插件命名空间和类别的规则一直保留。逐项核对见 [CALL-CHAINS §8](../system/CALL-CHAINS.md)。
+- 系统动作 `memory.*`（提供方 `system.memory`，Host 装配在 `apps/local-host/src/memory/memory-host.ts`）：`memory.recall`、`memory.list`、`memory.page`、`memory.write`、`memory.change`、`memory.history`、`memory.candidates.list`、`memory.candidates.accept`、`memory.candidates.discard`、`memory.changes.list`、`memory.changes.undo`、`memory.prefs.read`、`memory.prefs.write`、`memory.signals.report`、`memory.pairs.list`、`memory.pairs.resolve`、`memory.upkeep.run`、`memory.scope.preview`、`memory.scope.clear`、`memory.batch.preview`、`memory.batch.apply`、`memory.operations.list`、`memory.export`、`memory.import`。使用方（助理、Agent、界面、插件、MCP）由可信调用上下文的受众得出，不从输入读；`memory.recall` 声明了界面、Agent、工作流和 MCP，`memory.write` 与 `memory.list` 声明了界面和 Agent，MCP 只能召回，其余动作（含批量预览/执行 `memory.batch.preview`/`memory.batch.apply` 与操作记录 `memory.operations.list`）只对界面本人开放。外部 MCP 客户端要先有本人在 `config/mcp-tools.json` 里给它的 `memory.recall` 授权才看得到、调得了，默认只读项目记忆，个人记忆要本人单独打开（`tests/memory-mcp.test.ts`）。插件受众「未启用」（决定 19，W2-03）：没有插件用记忆，生成插件的调用也不带宿主确认的插件身份，所以这三个动作都带 `plugin: false`，目录和创作台的「能力板」都不向插件提供；有插件要用记忆时，连同宿主确认的插件身份一起重新打开，服务里按插件命名空间和类别的规则一直保留。逐项核对见 [CALL-CHAINS §8](../system/CALL-CHAINS.md)。
 - 开关与使用方权限：个人范围和每个项目各有一组开关（允许记住、自动记住低风险内容、从工作里提建议、从界面操作里学习），角色记忆沿用所在项目的开关；每个使用方（助理、Agent、界面、插件、MCP）单独开关，插件还可以逐个设置能读哪些类别；MCP 默认读不到个人记忆。
 - 确定性写入门：开关、秘密形状、像指令的文字、范围、重复与冲突，以及自动写入的决定表。模型只提议不批准，规则版本记进来源与最近变动。
 - 记作「你说过」（来源 `said`）只看一条规则：要记的内容就是你发的某一整条消息的全文（只容许大小写、全角半角、空格、引号样式和最后一个句号的差别，不做 Unicode 归一化），记下来的是那条消息本身。改写、删减、只取其中一句、拼接都不算，只作为建议等你认可。只有你自己打的消息才是你的原话：定时安排拼出的一轮、助理给子任务写的话、页面自己写的话（浏览器交还的那一句、请助理重新准备卡片的那一句、插件页替你发出的交办）写入时就标了出处，不算；之前的构建存下的轮次没有标记，要等维护补标记；经 `memory.write` 动作调用的 Agent（Coding 会话、插件里的 Agent）宿主没有保存你对它说的话，没法核对，它写的一律只是建议（细则与理由见 [horizontal/memory/README.md](../../horizontal/memory/README.md)）。
@@ -31,4 +31,4 @@
 
 **当前来源与 Goal：** `horizontal/memory`（`MemoryService`），旁表适配 `packages/storage`，Host 装配 `apps/local-host/src/memory/`（`memory-host.ts`、`memory-learning.ts`、`memory-upkeep.ts`；后两个经 Host 的推理端口 `hostTextGeneration` 调模型提炼与整理，写入仍由写入门决定）。需求与语义见 `specs/archive/memory-system/spec.md`；逐步的调用链见 [CALL-CHAINS §8](../system/CALL-CHAINS.md)。
 
-**已知的边界问题：** 旁表的建库代码放在基础包 `packages/storage`，写入门放在 `horizontal/memory`，规则和 schema 分处两个包；`horizontal/memory/src/service.ts` 一个文件超过 1,300 行，`MemoryService` 在巨大单元清单里。N-03 决定「代码不搬、写清边界」，这里的待办是把边界规则写进包 README 与门禁（W4-08），不是搬走。
+**已知的边界问题：** 旁表的建库代码放在基础包 `packages/storage`，写入门放在 `horizontal/memory`，规则和 schema 分处两个包；`horizontal/memory/src/service.ts` 当前约 1,250 行（历史巨大单元例外目录已移除，当前门禁以 `tooling/gates/limits.json` 与 `pnpm health:check` 动态比对 merge-base 为准）。N-03 决定「代码不搬、写清边界」，保持现有包位并在包 README 与门禁中守住边界。

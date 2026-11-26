@@ -14,7 +14,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 新的内置插件（任何 kind）只走 Plugin Runtime：由监督器启动，得到安装记录、升级检查、崩溃恢复和每个安装独立的私人存储。不在宿主里为插件写 HTTP 文件，也不往构建期名单加条目；构建期名单第 44B 批起为空，见下面「构建期 Native」一节（门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。
 
-典型目录：`plugins/native/<id>/src/{manifest,ui,client,styles,en,routes,index}.ts`。私人库对照 Pages / 灵光；不要新建第二张业务 Module 表。
+典型目录：`plugins/native/<id>/src/{manifest,ui,client,styles,routes,index}.ts` 与 `locales/{zh,en,ja}.json`（由 `ui.locales` 声明，不再使用已删除的 `src/en.ts`）。私人库对照 Pages / 灵光；不要新建第二张业务 Module 表。
 
 包：`@molis-ai/molis-work-plugin-<id>`。`pnpm-workspace` 已含 `plugins/**`。还要登记依赖，否则 workbench / local-host 解析不到。
 
@@ -119,7 +119,7 @@ Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 12. **动作定义**：用 SDK 的 `defineAction` 写一份定义，同一份既进 Manifest 的 `actions`，也绑定运行实例的 `actions` 处理器（`packages/plugin-sdk/README.md`）；注册后自动进共同目录，UI、编排、Agent、MCP 共用它，没有另外的适配。
-13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；插件的客户端包是 `/assets/` 下的新文件，在 `tooling/gates/page-asset-allowances/` 写本任务的独立增长许可，新增资源先问用户（`scripts/gates/page-assets.mjs`）。
+13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；页面静态资源与首屏字节按 `tooling/gates/page-asset-budgets.json` 预算表由 `pnpm page-assets:check` 与 `node scripts/gates/first-screen.mjs --base origin/main` 验收（原 `tooling/gates/page-asset-allowances/` 目录已于第 100 批退役，新增 `.json` 会直接导致 `pnpm health:check` 失败）；预算内变动无需逐字节许可，调高上限、把资源移出路由或新增路由资产须先问用户（`scripts/gates/page-assets.mjs`）。
 
 导航、设置位置、项目启用由 catalog 和 Manifest 推导；客户端与 i18n 仍需接线。公共动作注册后自动进入 MCP 目录，没有另外的 MCP 适配。
 
@@ -225,7 +225,7 @@ Inbox 的 `GET/POST /api/plugins/io.molis.work.inbox/pages` 由 Plugin Runtime �
 
 路由也是一次调用（BL-403）：Plugin Runtime 派发路由时给它记一个和动作同样的作用域，处理器答复以后这次调用结束。激活撤下时（停用、崩溃、重启），还在等的请求由 Runtime 当场答 403（`actions.forbidden`），这次调用随之结束，处理器之后再调服务照上一段什么也不做；谁留着旧激活的路由再调，也是 403，处理器不会跑。流式路由（`stream: "ndjson"`）不提前答，由路由器取消那次调用（`actions.cancelled`）。路由处理器抛出带我们的码的错误（`defineErrorCodes` 声明的、`ActionError`，别的包里同样形状的也算），Runtime 按它的 kind 答，响应体带码和 `details`（BL-404），手写路由不用自己写 catch；没有码的错误交给宿主，答通用的「请求未能完成」，不带原消息。
 
-最小的端口消费者形状在测试夹具 `tests/fixtures/snapshot-reader-plugin.ts`：一个必选输入口、一个读取状态的动作，无界面、无存储、无事件（它只给测试用，不进内置目录）；完整的插件样板是 `examples/plugin-sample`。新端口消费者先抄夹具的声明形状，再抄 Diff 的 `input_groups`。输入口声明 `default_source` 时，默认连线把它接到那个来源（夹具与 Diff 都接 `system.materials` 的快照）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
+最小的端口消费者形状在测试夹具 `tests/fixtures/snapshot-reader-plugin.ts`：一个必选输入口、一个读取状态的动作，无界面、无存储、无事件（它只给测试用，不进内置目录）；完整的插件样板是 `examples/plugin-sample`。新端口消费者先抄夹具的声明形状，再抄 Diff 的 `input_groups`。输入口声明 `default_source` 时，默认连线把它接到那个来源（夹具与 Diff 都接 `system.materials` 的快照）；随宿主发布的内置插件与已安装插件走同一套声明与同意账本规则（S-76 / PG-005，`apps/local-host/src/plugin-default-bindings.ts`）：内置插件由宿主代为同意（只同意来自同样随宿主发布的来源），已安装插件经用户在安装确认或同意入口显式授予（`plugins.consents.grant_default_source`）后生效，本人可随时撤回；无有效同意或不写 `default_source` 时不自动连线，由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
 
 宿主动作由 Module/Host 自己登记（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，宿主动作（模型起草 `agent.draft-text`、工作区读取、Git 的暂存与操作准备及两项读取、Agent Host 的会话与轮次）和调别的动作一样经 `services.actions.invoke` 调，调用之前可用 `services.actions.availability` 只读查它在不在，按本插件自己的授权（起草要 `model:invoke`，Git 的暂存与操作要 `review:git-index`、`review:git-operation`）；宿主那边只有 `registerAction` 一个登记口（R8 删掉了 typed 的 `register` / `registerCapability` 与 `services.capabilities`）。
 

@@ -471,64 +471,70 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
 test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
   await withHome(async (home) => {
     const host = new MolisWorkLocalHost({ homeDirectory: home });
-    // The Home is served so that the project and the client's grants are made the way a person makes them, through the settings routes.
-    const served = await serveTestHost(t, { home, host });
-    const project = await served.createProject("MCP Promote");
-    const databasePath = project.database_path;
-    const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.get), promoteName = molisWorkActionToolName(pagesActions.promote);
-    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.get, pagesActions.promote]);
-    const server = new MolisWorkServer("runtime", {
-      databasePath,
-      projectId: project.project_id,
-      webBaseUrl: "http://127.0.0.1:4173",
-    }, {
-      homeDirectory: home,
-      runtimeContext: { runtime_id: "codex", stable_work_context_id: "pages-promote", host_declares_stable: true },
-      webBaseUrl: "http://127.0.0.1:4173",
-    }, host);
+    // A failure while setting up (the grant, say) still closes the host: its running plugins (Schedule's reconcile loop) would
+    // otherwise keep the file alive until the runner's timeout, and the failure would read as a hang.
     try {
-      await server.handleMessage({
-        jsonrpc: "2.0",
-        id: 0,
-        method: "initialize",
-        params: { protocolVersion: "2025-03-26", capabilities: {} },
-      });
-      const created = await server.handleMessage({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name: createName, arguments: { title: "MCP 发出", goal_id: "CORE" } },
-      }) as { result: { isError: boolean; content: Array<{ text: string }> } };
-      assert.equal(created.result.isError, false, created.result.content[0]?.text);
-      const page = JSON.parse(created.result.content[0]?.text ?? "{}") as { document: { id: string } };
-      const current = await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call",
-        params: { name: readName, arguments: { id: page.document.id } } }) as { result: { isError?: boolean; content: Array<{ text: string }> } };
-      assert.notEqual(current.result.isError, true, current.result.content[0]?.text);
-      const read = JSON.parse(current.result.content[0]?.text ?? "{}") as { document: { version: number } };
-      assert.ok(Number.isInteger(read.document.version));
-      const promoted = await server.handleMessage({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "tools/call",
-        params: { name: promoteName, arguments: { id: page.document.id, goal_id: "CORE", expected_version: read.document.version } },
-      }) as { result: { isError: boolean; content: Array<{ text: string }> } };
-      assert.equal(promoted.result.isError, false, promoted.result.content[0]?.text);
-      const body = JSON.parse(promoted.result.content[0]?.text ?? "{}") as { artifact: { artifact_id: string } };
-      assert.equal(body.artifact.artifact_id, `pages-${page.document.id}`);
-      const verify = new LocalProjectDatabase(databasePath);
+      // The Home is served so that the project and the client's grants are made the way a person makes them, through the settings routes.
+      const served = await serveTestHost(t, { home, host });
+      // Batch 107 (做法 A): Pages is no longer a personal plugin, so a new project carries it only once it is added.
+      const project = await served.createProject("MCP Promote", ["pages"]);
+      const databasePath = project.database_path;
+      const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
+      const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.get), promoteName = molisWorkActionToolName(pagesActions.promote);
+      await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.get, pagesActions.promote]);
+      const server = new MolisWorkServer("runtime", {
+        databasePath,
+        projectId: project.project_id,
+        webBaseUrl: "http://127.0.0.1:4173",
+      }, {
+        homeDirectory: home,
+        runtimeContext: { runtime_id: "codex", stable_work_context_id: "pages-promote", host_declares_stable: true },
+        webBaseUrl: "http://127.0.0.1:4173",
+      }, host);
       try {
-        const library = openProjectVersionStores(verify);
-        assert.ok(library.artifacts.query.getArtifactVersion(project.project_id, {
-          artifact_id: body.artifact.artifact_id,
-          version: 1,
-        }));
+        await server.handleMessage({
+          jsonrpc: "2.0",
+          id: 0,
+          method: "initialize",
+          params: { protocolVersion: "2025-03-26", capabilities: {} },
+        });
+        const created = await server.handleMessage({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: createName, arguments: { title: "MCP 发出", goal_id: "CORE" } },
+        }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+        assert.equal(created.result.isError, false, created.result.content[0]?.text);
+        const page = JSON.parse(created.result.content[0]?.text ?? "{}") as { document: { id: string } };
+        const current = await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call",
+          params: { name: readName, arguments: { id: page.document.id } } }) as { result: { isError?: boolean; content: Array<{ text: string }> } };
+        assert.notEqual(current.result.isError, true, current.result.content[0]?.text);
+        const read = JSON.parse(current.result.content[0]?.text ?? "{}") as { document: { version: number } };
+        assert.ok(Number.isInteger(read.document.version));
+        const promoted = await server.handleMessage({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: { name: promoteName, arguments: { id: page.document.id, goal_id: "CORE", expected_version: read.document.version } },
+        }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+        assert.equal(promoted.result.isError, false, promoted.result.content[0]?.text);
+        const body = JSON.parse(promoted.result.content[0]?.text ?? "{}") as { artifact: { artifact_id: string } };
+        assert.equal(body.artifact.artifact_id, `pages-${page.document.id}`);
+        const verify = new LocalProjectDatabase(databasePath);
+        try {
+          const library = openProjectVersionStores(verify);
+          assert.ok(library.artifacts.query.getArtifactVersion(project.project_id, {
+            artifact_id: body.artifact.artifact_id,
+            version: 1,
+          }));
+        } finally {
+          verify.close();
+        }
       } finally {
-        verify.close();
+        await server.close();
+        await served.close();
       }
     } finally {
-      await server.close();
-      await served.close();
       await host.close();
     }
   });

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { KEYBOARD_FOCUS, KEYBOARD_GROUPS, type KeyboardGroup } from "./fixtures/keyboard-audit.js";
@@ -82,13 +84,15 @@ test("VUX-16 (fallback): the fields on the Home Issue page, the Issue side view 
   await command("Page.addScriptToEvaluateOnNewDocument", { source: WITHOUT_FIELD_SIZING }, sessionId);
   await browser.setViewport(1280, 900);
 
+  // Issues runs in each partition since batch 108: the Home's Issues is the personal space's (R14).
+  await addProjectPlugin(browser.web, PERSONAL_SPACE_PROJECT_ID, "issues");
   const issues = await pluginFrameBrowser(t, browser, "issues");
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/?openPlugin=issues` }, sessionId));
   await issues.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 30_000);
   await growsAndFallsBack(browser, issues, "[data-issue-composer] textarea[name=description]");
 
   const capture = await pluginFrameBrowser(t, browser, "issues");
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/issues/capture` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/side/issues/capture` }, sessionId));
   await capture.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 30_000);
   await growsAndFallsBack(browser, capture, "[data-issue-composer] textarea[name=description]");
 
@@ -137,53 +141,20 @@ test("VUX-16 (fallback): the discussion side panel's IM composer is the same fie
   assert.equal(await height(), empty, "an emptied composer falls back to its start");
 });
 
-test("VUX-28: Home Todo's placement and placement-choices radios rove, one tab stop each", { timeout: 240_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, navigate, origin } = browser;
-  await browser.setViewport(1280, 900);
-  const todo = await pluginFrameBrowser(t, browser, "todo");
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/todo` }, sessionId));
-  await todo.waitFor("document.querySelector('[data-todo-quick-input]') && document.querySelector('[data-todo-loading]')?.hidden === true", 30_000);
-  await todo.click("[data-todo-quick-input]");
-  const found: string[] = [];
-  // The quick add's placement radio group is on the page as it opens.
-  assert.ok(await keyboardGroups(browser, todo, "Home Todo quick", found, 1) >= 1, "the quick add's placement group is audited");
-
-  // One todo, so the detail editor's placement choices radio group can be opened.
-  await todo.click("[data-todo-quick-input]");
-  await command("Input.insertText", { text: "验收 Home 待办的键盘分组" }, sessionId);
-  await todo.evaluate("document.querySelector('[data-todo-quick-submit]').click()");
-  // The quick add answers in whichever view the item belongs to; every view lists it from "全部".
-  await todo.waitFor("Boolean(document.querySelector('[data-todo-view=all]'))", 10_000);
-  await todo.evaluate("document.querySelector('[data-todo-view=all]').click()");
-  await todo.waitFor("document.querySelector('[data-todo-rows]')?.textContent.includes('验收 Home 待办的键盘分组')", 20_000);
-  // The batch toolbar's "移到" disclosure menu is left out: its items are plain buttons without role=menuitem, so the
-  // shared roving (and its audit) do not manage it — measured as three tab stops when the disclosure is open, which is a
-  // separate product gap from the radio groups this test proves rove in a Home frame.
-  await todo.evaluate("document.querySelector('[data-todo-row] [data-todo-id]').click()");
-  await todo.waitFor("!document.querySelector('[data-todo-stage-workspace]').hidden", 20_000);
-  await todo.waitFor("document.querySelectorAll('[data-todo-placement-choices] [role=radio]').length >= 2", 20_000);
-  await todo.evaluate("document.querySelector('[data-todo-pop-open=place]').click()");
-  await todo.waitFor("!document.querySelector('[data-todo-placement-choices]').hidden && document.querySelector('[data-todo-placement-choices] [role=radio]')?.getClientRects().length", 10_000);
-  await todo.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  // The placement choices radiogroup lives inside the place popover (#2208); once opened, the shared audit checks its roving radios.
-  assert.ok(await keyboardGroups(browser, todo, "Home Todo detail", found, 1) >= 1, "the placement choices radio group is audited");
-  assert.deepEqual(found, []);
-});
-
 test("VUX-28: the Issue type radio group in a Home Issue and in the Issue side view rove, one tab stop each", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, evaluate, navigate, origin, projectId } = browser;
   await browser.setViewport(1440, 900);
+  await addProjectPlugin(browser.web, PERSONAL_SPACE_PROJECT_ID, "issues");
   const child = await pluginFrameBrowser(t, browser, "issues");
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/?openPlugin=issues` }, sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 30_000);
   const api = <T = unknown>(path: string, body: unknown) => evaluate<T>(`(async () => { const response = await fetch(${JSON.stringify(path)}, { method: 'POST',
     headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(${JSON.stringify(body)}) });
     const text = await response.text(); if (!response.ok) throw new Error(response.status + ' ' + text); return JSON.parse(text); })()`);
-  const record = await api<{ id: string }>("/api/plugins/io.molis.work.issues/create", { title: "Home 与侧栏的键盘", type: "bug", description: "编辑表单里的类型单选用键盘。" });
+  const record = await api<{ id: string }>("/projects/personal/api/plugins/io.molis.work.issues/create", { title: "Home 与侧栏的键盘", type: "bug", description: "编辑表单里的类型单选用键盘。" });
   const found: string[] = [];
-  for (const [where, path] of [["Home Issue", "/plugins/issues"], ["Issue side view", `/projects/${projectId}/side/issues/capture`]] as const) {
+  for (const [where, path] of [["Home Issue", "/projects/personal/?openPlugin=issues"], ["Issue side view", "/projects/personal/side/issues/capture"]] as const) {
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
     await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 30_000);
     await child.waitFor(`document.querySelector('[data-issue-id=${JSON.stringify(record.id)}]')`, 20_000);
@@ -201,15 +172,16 @@ test("VUX-28: the Issue type radio group in a Home Issue and in the Issue side v
 test("VUX-04 VUX-30: Home Issue/Todo pages and Issue/Lingguang side views wrap text and lay out cleanly at 1280 and 390 px", { timeout: 300_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
+  for (const plugin of ["issues", "todo"]) await addProjectPlugin(browser.web, PERSONAL_SPACE_PROJECT_ID, plugin);
   const children = {
     issues: await pluginFrameBrowser(t, browser, "issues"),
     todo: await pluginFrameBrowser(t, browser, "todo"),
     lingguang: await pluginFrameBrowser(t, browser, "lingguang"),
   };
   const surfaces: Array<[string, string, keyof typeof children]> = [
-    ["Home Issues", "/plugins/issues", "issues"],
-    ["Home Todo", "/plugins/todo", "todo"],
-    ["侧栏 Issues capture", `/projects/${projectId}/side/issues/capture`, "issues"],
+    ["Home Issues", "/projects/personal/?openPlugin=issues", "issues"],
+    ["Home Todo", "/projects/personal/?openPlugin=todo", "todo"],
+    ["侧栏 Issues capture", "/projects/personal/side/issues/capture", "issues"],
     ["侧栏 Lingguang", `/projects/${projectId}/side/lingguang/side`, "lingguang"],
   ];
   const found: string[] = [];

@@ -138,8 +138,8 @@ test("narrow settings reveal the chosen page and ignore a slower obsolete sectio
 test("RAC-2800 RAC-2802: native search chords cross the Todo bridge without stealing handled or terminal input", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "todo");
-  const store = openTodoStore(b.homeDirectory);
-  const item = (() => { try { return store.create({ title: "Search from notes", notes: "Keep these notes", placement: "project" },
+  const store = openTodoStore(b.homeDirectory, undefined, b.projectId!);
+  const item = (() => { try { return store.create({ title: "Search from notes", notes: "Keep these notes" },
     { actor: "user", actorId: "web-user", projectId: b.projectId!, projectIds: [] }).item; } finally { store.close(); } })();
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=todo&openItem=${item!.id}` }, b.sessionId));
   const notes = '[data-todo-field=notes]';

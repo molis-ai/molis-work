@@ -114,8 +114,8 @@ test("UIV-18 UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's
 test("QEA-41 S-composer-source-call: only a person's parent-bar send discloses a picked Todo reference to a framed receiver", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const store = openTodoStore(browser.homeDirectory);
-  const item = (() => { try { return store.create({ title: "只在本人发送时交出的待办", notes: "尚未交给收件人", placement: "project" },
+  const store = openTodoStore(browser.homeDirectory, undefined, browser.projectId!);
+  const item = (() => { try { return store.create({ title: "只在本人发送时交出的待办", notes: "尚未交给收件人" },
     { actor: "user", actorId: "web-user", projectId: browser.projectId!, projectIds: [] }).item; } finally { store.close(); } })();
   const child = await pluginFrameBrowser(t, browser, "lingguang");
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=lingguang` }, browser.sessionId));

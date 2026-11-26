@@ -27,8 +27,8 @@ test("QEA-87 PWA-144 PWA-145 PWA-146: the event's card sums up its requirements 
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click, setViewport } = browser;
-  const store = openTodoStore(homeDirectory);
-  const todo = store.create({ title: "改定价页", placement: "project", notes: "三档", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const store = openTodoStore(homeDirectory, undefined, projectId!);
+  const todo = store.create({ title: "改定价页", notes: "三档", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
   store.close();
   const PRESS = `[data-work-line] [data-work-event*="todo-planned:${todo.id}"]`;
   // What the page asks the acceptance doors, as it posted it.

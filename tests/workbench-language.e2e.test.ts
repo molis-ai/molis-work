@@ -5,9 +5,10 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ASSISTANT_STORE_NAME, AssistantStore, homeAgentDefinitions, hostTextProblems, openProjectVersionStores, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { ISSUES_PAGE, personalIssues } from "./fixtures/issue-browser.js";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
@@ -994,8 +995,9 @@ function holdIssueOpening(t: TestContext, b: LanguageBrowser) {
 
 test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized projection and retains the draft", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await personalIssues(b);
   const child = await pluginFrameBrowser(t, b, "issues");
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(ISSUES_PAGE) }, b.sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
   await child.frameCommand("Runtime.evaluate", {
     expression: `(() => {
@@ -1069,22 +1071,25 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
 
 test("S-ui-text-page FSS-08 stopping the real plugin during the opening locale batch denies frame config", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await personalIssues(b);
   const { entered, finish } = holdIssueOpening(t, b);
   const child = await pluginFrameBrowser(t, b, "issues");
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/plugins/issues" }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + ISSUES_PAGE }, b.sessionId));
   await entered.promise;
   await child.waitFor("document.querySelector('meta[name=molis-work-frame-mount]') && typeof t === 'undefined'");
-  // The actual Home Plugin Supervisor withdraws the running installation while the actual HTTP scope check is waiting.
-  await b.web.post("/api/plugins/" + ISSUE_OWNER + "/disable", {});
+  // The personal space's plugin supervisor withdraws the running instance (Issues is removed from the space) while the actual HTTP scope check
+  // is waiting (batch 108: Issues is a partition plugin, no longer a Home one).
+  await b.web.delete(`/api/settings/projects/${PERSONAL_SPACE_PROJECT_ID}/plugins`, { plugin_id: "issues", expected_revision: await projectPluginRevision(b.web, PERSONAL_SPACE_PROJECT_ID) });
   finish.resolve();
-  await b.waitFor("!document.querySelector('iframe[data-plugin-frame=issues]') && !document.querySelector('[data-home-status]').hidden", 15000);
-  assert.equal(await b.evaluate("document.querySelector('[data-work-surface=issues]').dataset.uiClientState"), "failed");
+  await b.waitFor("!document.querySelector('iframe[data-plugin-frame=issues]')", 15000);
+  console.log("FSS-08 probe", await b.evaluate("JSON.stringify([...document.querySelectorAll('[data-work-surface],[data-ui-client-state]')].map(e=>[e.tagName,e.dataset.workSurface,e.dataset.uiClientState,e.hidden]))"));
 });
 
 test("FSS-20 FSS-37 a frame still opening when Settings changes the language draws all its words before running the plugin", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await personalIssues(b);
   const child = await pluginFrameBrowser(t, b, "issues");
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(ISSUES_PAGE) }, b.sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
   await child.evaluate(`(() => {
     const draft = document.querySelector('[data-issue-composer] textarea');

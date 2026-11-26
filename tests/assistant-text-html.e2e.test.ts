@@ -102,7 +102,7 @@ test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code
 
   // APR-10 checks the stored result before and after the review action in the isolated browser.
   const savedTodos = (title: string) => {
-    const todos = openTodoStore(homeDirectory);
+    const todos = openTodoStore(homeDirectory, undefined, projectId!);
     try { return todos.list({ projectId, projectIds: [], actor: "user", actorId: "web-user" }).filter(item => item.title === title).length; }
     finally { todos.close(); }
   };

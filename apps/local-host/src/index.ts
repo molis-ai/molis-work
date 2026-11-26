@@ -99,7 +99,7 @@ export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
-export { personalConfigRegistrations } from './personal-config-sync.js';
+export { personalConfigRegistrations, personSettingsObserved } from './personal-config-sync.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
@@ -298,7 +298,7 @@ export { collectRetained } from "./uninstall-retained.js";
 export { ensureProjectPlugins, projectPluginPlatform, projectPluginProblem, refreshRunningProjectPlugins, releaseProjectPlugins, runningPluginPlatform, runningProjectPlatform, runningProjectPluginState, startPartitionPluginInstance } from "./project-plugins.js";
 export { existingPartitionPluginHost, partitionChanged, type PartitionPluginInstance } from "./partition-plugin-host.js";
 export { pluginInstallRecords } from "./plugin-install-records.js";
-export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginScope, type PartitionWakeReason } from "./partition-plugin-assembly.js";
+export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginLifecycleEvent, type PartitionPluginScope, type PartitionStopReason, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 export { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, PartitionPlatformServices, partitionOverviewLibraries, personSettingsInstallations, type OverviewInstallation, type PartitionPlatformServicesOptions } from "./partition-platform-services.js";
 export { onPartitionReminder, REMINDER_LATE_MS, tellPartitionReminder, type PartitionReminder } from "./partition-reminders.js";
 export { openHomePluginStore } from "./home-plugin-store.js";
@@ -479,6 +479,7 @@ export { attachHostPresence, DEFAULT_HOST_PORT, homeHostUrl, HOST_CANDIDATE_PORT
 export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
 export { createHostObservation, observationPluginDataCleared, scheduleWakeupRecords, type HostObservation } from "./observation-host.js";
+export { dueWakeupRecord, partitionLifecycleRecords } from "./partition-observation.js";
 export { registerEvaluationReplayScenario, type HostEvaluationOwner } from "./evaluation-host.js";
 export type { GrantChangedBy } from "./observation-grants.js";
 export { observationShellDoor } from "./observation-shell-entry.js";

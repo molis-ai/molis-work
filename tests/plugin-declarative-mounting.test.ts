@@ -325,7 +325,8 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("ppt"), true, "分区资料库插件是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("lingguang"), true, "分区资料库插件是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("workflows"), true, "分区资料库插件是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("todo"), false, "个人插件不是项目可启用项");
+  // Batch 108: Todo, Cognia, Issues and Images too.
+  for (const id of ["todo", "cognia", "issues", "images"]) assert.equal(BUILTIN_PLUGIN_REGISTRY.has(id), true, `${id}：分区资料库插件是项目可启用项`);
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
 });
 

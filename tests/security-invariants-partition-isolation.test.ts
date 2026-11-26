@@ -107,8 +107,9 @@ test("UPP-06 S-partition-isolation a partition never runs a plugin it did not en
 
 test("UPP-21 one instance per (plugin, partition): started on first use, shared by concurrent uses, stopped when idle, disabled, uninstalled or its partition goes", async () => withPartitions(async (home, a, b) => {
   let now = 0;
-  const events: string[] = [];
+  const events: string[] = [], told: string[] = [];
   const assembly = new PartitionPluginAssembly({ home, idleMs: 1000, now: () => now, library: id => id.split(".").pop()!, members: () => [PLUGIN, "com.example.second"],
+    lifecycle: event => told.push(`${event.stage} ${event.scope.plugin_id} ${event.scope.partition_id} ${event.reason} ${event.outcome}`),
     installation: id => ({ install_id: `${id.split(".").pop()}-install` } as PluginInstanceRecord),
     async start(scope, reason) { events.push(`start ${scope.plugin_id} ${scope.partition_id} ${reason}`); return { async stop() { events.push(`stop ${scope.plugin_id} ${scope.partition_id}`); } }; } });
   const [first, second] = await Promise.all([assembly.acquire(PLUGIN, a, "open"), assembly.acquire(PLUGIN, a, "due")]);
@@ -129,6 +130,10 @@ test("UPP-21 one instance per (plugin, partition): started on first use, shared 
   await assembly.stopPartition(a);
   assert.deepEqual(assembly.instances(), [], "the partition going stops every instance in it");
   assert.equal(events.filter(event => event.startsWith("start")).length, 4);
+  // Each start and stop is told with why, for the work records (batch 108).
+  assert.deepEqual(told.slice(0, 6), [`start ${PLUGIN} ${a} open succeeded`, `stop ${PLUGIN} ${a} idle succeeded`, `start ${PLUGIN} ${a} sync succeeded`,
+    `start ${PLUGIN} ${b} sync succeeded`, `start com.example.second ${a} sync succeeded`, `stop ${PLUGIN} ${b} plugin succeeded`]);
+  assert.deepEqual(told.slice(6).sort(), [`stop ${PLUGIN} ${a} partition succeeded`, `stop com.example.second ${a} partition succeeded`].sort());
 }));
 
 test("UPP-21 a use waiting for an instance that is stopped while it starts gets no lease on it", async () => withPartitions(async (home, a) => {

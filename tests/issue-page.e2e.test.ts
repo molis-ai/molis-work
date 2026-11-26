@@ -25,7 +25,7 @@ test("ISSUE-01 the failed Home page retries only on click and recovers without r
   const { origin, sessionId, command, navigate, click, waitFor, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "issues");
   const path = join(homeDirectory, "plugin-runtime", "plugin-runtime.db"), original = await readFile(path);
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/?openPlugin=issues` }, sessionId));
   await waitFor("document.querySelector('[data-home-lifecycle=retry]')?.textContent === '重试启动'");
   await click("[data-home-lifecycle=retry]");
   await waitFor("!document.querySelector('[data-home-status]').hidden && !document.querySelector('[data-home-lifecycle]').disabled");
@@ -46,10 +46,10 @@ test("ISSUE-06 ISSUE-18 a record opens read-only; edits save or cancel; a confli
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const v = await issueView(t, b, "issue-page");
   t.after(async () => { if (t.error) await v.shot("failure"); });
-  await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
-  const first = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", create("切换项目后记录应保留", "bug", "切换项目，原来的记录还在。"));
-  await v.api("/api/plugins/io.molis.work.issues/create", create("列表需要按类型筛选", "feature", "希望列表可以只看 Bug。"));
-  await v.go("/plugins/issues"); await v.until("d.querySelectorAll('.issues-row').length === 2");
+  await v.viewport(1440, 940); await v.go("/projects/personal/?openPlugin=issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const first = await v.api<Issue>("/projects/personal/api/plugins/io.molis.work.issues/create", create("切换项目后记录应保留", "bug", "切换项目，原来的记录还在。"));
+  await v.api("/projects/personal/api/plugins/io.molis.work.issues/create", create("列表需要按类型筛选", "feature", "希望列表可以只看 Bug。"));
+  await v.go("/projects/personal/?openPlugin=issues"); await v.until("d.querySelectorAll('.issues-row').length === 2");
   assert.match(await v.ask<string>("$('.issues-row').textContent"), /列表需要按类型筛选功能需求 · 刚刚/, "newest first, with its type and age");
   await v.shot("list-light-1440");
   await v.press(`[data-issue-id="${first.id}"]`);
@@ -75,7 +75,7 @@ test("ISSUE-06 ISSUE-18 a record opens read-only; edits save or cancel; a confli
   await v.press("[data-issue-back]"); await v.until("$('[data-issue-dialog]').open");
   await v.press("[data-issue-dialog] [value=cancel]"); await v.until("!$('[data-issue-dialog]').open && !$('[data-issue-editor]').hidden");
   // Someone else saves first: their title stays, this person's words go on top, nothing is written until saved again.
-  await v.api("/api/plugins/io.molis.work.issues/update", { id: first.id, expected_version: 2, title: "别处改过的标题" });
+  await v.api("/projects/personal/api/plugins/io.molis.work.issues/update", { id: first.id, expected_version: 2, title: "别处改过的标题" });
   await v.press("[data-issue-save]");
   await v.until("$('[data-issue-flag]').textContent.includes('已合并你的修改')");
   assert.deepEqual(await v.ask("({ title: $('[data-issue-editor] [name=title]').value, text: $('[data-issue-editor] [name=description]').value })"),
@@ -110,7 +110,7 @@ test("ISSUE-06 ISSUE-18 a record opens read-only; edits save or cancel; a confli
 test("ISSUE-09 ISSUE-27 screenshots: six join a capture, a seventh and a mislabeled file are refused without losing the draft", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const v = await issueView(t, b, "issue-page");
-  await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await v.viewport(1440, 940); await v.go("/projects/personal/?openPlugin=issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press("[data-issue-composer] [name=description]"); await v.type("一次贴六张截图");
   for (let index = 0; index < 6; index++) { await v.paste(`第${index + 1}张.png`, 200 + index); await v.until(`d.querySelectorAll('[data-issue-thumbs] img').length === ${index + 1}`); }
   assert.equal(await v.ask("$('[data-issue-composer] [data-issue-tip]').textContent"), "6 / 6 张截图");
@@ -141,7 +141,7 @@ test("ISSUE-10 ISSUE-43 dropped screenshots preview, save and reopen; a late imp
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
   }); if (!b) return;
   const v = await issueView(t, b, "issue-page");
-  await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await v.viewport(1440, 940); await v.go("/projects/personal/?openPlugin=issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.frame.evaluate("window.issueScreen = 0; if(!navigator.mediaDevices)Object.defineProperty(navigator, 'mediaDevices', {value:{}}); navigator.mediaDevices.getDisplayMedia = async () => { issueScreen++; throw Error('screen access must not be requested'); }");
   const pngUrl = await b.evaluate<string>("(() => { const c = document.createElement('canvas'); c.width = 64; c.height = 32; c.getContext('2d').fillRect(0, 0, 64, 32); return c.toDataURL('image/png'); })()");
   const files = [join(b.homeDirectory, "第一张.png"), join(b.homeDirectory, "第二张.png")];
@@ -162,15 +162,15 @@ test("ISSUE-10 ISSUE-43 dropped screenshots preview, save and reopen; a late imp
   assert.ok(captured);
   const expectedImages = files.map(path => ({ name: path.split("/").at(-1), data_url: pngUrl }));
   assert.deepEqual((await v.read(captured.id)).images, expectedImages, "the dropped bytes, names and order are persisted");
-  await v.go("/plugins/issues"); await v.press(`[data-issue-id="${captured.id}"]`);
+  await v.go("/projects/personal/?openPlugin=issues"); await v.press(`[data-issue-id="${captured.id}"]`);
   await v.until("d.querySelectorAll('[data-issue-view-shots] img').length === 2");
   await v.press("[data-issue-view-shots] [data-preview]");
   await v.until("$('[data-issue-preview]').open && $('[data-issue-preview] img').naturalWidth === 64");
   assert.equal(await v.ask("$('[data-issue-preview] img').src"), pngUrl);
   await v.escape(); await v.press("[data-issue-back]");
 
-  const saved = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", create("已有记录", "bug", "原文"));
-  await v.go("/plugins/issues"); await v.press(`[data-issue-id="${saved.id}"]`); await v.press("[data-issue-edit]");
+  const saved = await v.api<Issue>("/projects/personal/api/plugins/io.molis.work.issues/create", create("已有记录", "bug", "原文"));
+  await v.go("/projects/personal/?openPlugin=issues"); await v.press(`[data-issue-id="${saved.id}"]`); await v.press("[data-issue-edit]");
   await v.frame.evaluate("const decode = createImageBitmap; window.createImageBitmap = file => new Promise(resolve => { window.issueFinish = () => decode(file).then(resolve); })");
   await v.frame.frameCommand("Page.setInterceptFileChooserDialog", { enabled: true });
   await v.press("[data-issue-editor] [data-issue-pick]");
@@ -188,7 +188,7 @@ test("ISSUE-06 hidden and removed Issue views stop refreshing; one remount keeps
   const browser = await openGoalBrowser(t, "empty"); if (!browser) return;
   const { origin, sessionId, command, navigate } = browser;
   const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "issues");
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/?openPlugin=issues` }, sessionId));
   await waitFor("document.querySelector('[data-issue-list]').textContent.includes('还没有记录')");
   await evaluate(`window.issueChecks = { reads: 0, root: document.querySelector('[data-issues=workbench]') };
     const originalFetch = window.fetch.bind(window);
@@ -205,7 +205,7 @@ test("ISSUE-06 hidden and removed Issue views stop refreshing; one remount keeps
   await evaluate(`issueChecks.parent.append(issueChecks.root);
     const mount = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
     const host = { root: issueChecks.root, mountPluginClient: mount, translate: text => text, route: path => path,
-      pluginId: 'io.molis.work.issues', pluginRoute: path => '/api/plugins/io.molis.work.issues' + path, readRefusal: () => '' };
+      pluginId: 'io.molis.work.issues', pluginRoute: path => '/projects/personal/api/plugins/io.molis.work.issues' + path, readRefusal: () => '' };
     globalThis.molisWorkbenchPluginFactories.issues(host);globalThis.molisWorkbenchPluginFactories.issues(host);`);
   await waitFor("issueChecks.reads === 1");
   assert.equal(await evaluate(`(async()=>{issueChecks.reads=0;issueChecks.refresh();${nextFrame}return issueChecks.reads;})()`), 1,

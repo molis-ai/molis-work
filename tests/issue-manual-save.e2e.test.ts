@@ -14,7 +14,7 @@ async function manual(t: TestContext) {
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { question: "free-text" }); },
   }); if (!b) return;
   const v = await issueView(t, b);
-  await v.viewport(1440); await v.go("/plugins/issues");
+  await v.viewport(1440); await v.go("/projects/personal/?openPlugin=issues");
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.paste();
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
@@ -102,12 +102,12 @@ for (const [recovery, receipt] of [["retry", "lost"], ["reload", "lost"], ["retr
     const pendingId = await v.ask("JSON.parse(localStorage.getItem('molis:issue-unsent'))[0].id");
     if (recovery === "retry") {
       // The Runtime no longer holds the saved draft: its persistent row still settles the request.
-      await v.api("/api/plugins/io.molis.work.issues/cancel-capture", { draft_id: id });
+      await v.api("/projects/personal/api/plugins/io.molis.work.issues/cancel-capture", { draft_id: id });
       await v.press("[data-issue-save]"); await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
       assert.equal(await recordIsIntact(b, v, image), id);
       assert.deepEqual(await v.ask("d.defaultView.issueCaptures"), [id], "checking an existing record must not capture again");
     } else {
-      await v.go("/plugins/issues");
+      await v.go("/projects/personal/?openPlugin=issues");
       await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true' && $('[data-issue-list] .issues-row')");
       assert.equal(await v.ask("d.querySelectorAll('[data-state]').length"), 0, "reload reconciles the pending request with the saved row");
     }
@@ -151,7 +151,7 @@ test("RAC-139 background naming with a malformed receipt reads the committed rec
   }); if (!b) return;
   const { namings } = model;
   const v = await issueView(t, b);
-  await v.viewport(1440); await v.go("/plugins/issues");
+  await v.viewport(1440); await v.go("/projects/personal/?openPlugin=issues");
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.paste();
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");

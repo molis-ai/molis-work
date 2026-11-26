@@ -27,7 +27,7 @@ test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while 
   assert.deepEqual(await controls(), english);
   // These are also UI dictionary keys: a broad text-node translation would corrupt them.
   await v.type("问题描述");
-  const record = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", { title: "删除", description: "我的 Issue", type: "experience" });
+  const record = await v.api<Issue>("/projects/personal/api/plugins/io.molis.work.issues/create", { title: "删除", description: "我的 Issue", type: "experience" });
   await v.go(`/projects/${b.projectId}/?desktop=1`); await b.click(issueGlyph); await b.waitFor(sideOpen); await v.composerFocused();
   assert.deepEqual(await controls(), english);
   assert.equal(await v.ask(`$('${composer}').value`), "问题描述");

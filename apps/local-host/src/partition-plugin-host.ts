@@ -15,6 +15,7 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginPorts } from "./project-plugins.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { REMINDER_LATE_MS, tellPartitionReminder } from "./partition-reminders.js";
+import { dueWakeupRecord, partitionLifecycleRecords } from "./partition-observation.js";
 import type { DueEntryRecord } from "@molis-ai/molis-work-service-scheduler";
 import type { PluginDueReminder } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -151,6 +152,7 @@ export class PartitionPluginHost {
         return entry ? { install_id: installIdentity(entry.definition.manifest) } : null;
       },
       start: (scope, reason) => this.start(scope, reason),
+      lifecycle: partitionLifecycleRecords(home),
     });
   }
 
@@ -193,25 +195,31 @@ export class PartitionPluginHost {
     // A fired entry wakes only its (plugin, partition) instance and is handed to its `onDue` (batch 108); a reminder it raises goes to the
     // person. The entry is taken off only once this succeeded (`DueTimer`): a failure is tried again.
     this.services ??= new PartitionPlatformServices({ home: this.home, assembly: this.assembly,
-      deliverDue: (_lease, entry) => this.deliverDue(entry),
+      deliverDue: async (_lease, entry) => {
+        const startedAt = new Date(), told = await this.deliverDue(entry);
+        dueWakeupRecord(this.home, entry, startedAt, { outcome: told ? "succeeded" : "no_action" });
+      },
+      // Every wake that failed, the instance not started included; the entry stays and is tried again.
       failed: (entry, error) => {
+        dueWakeupRecord(this.home, entry, new Date(), { outcome: "failed", error });
         hostLog.warn("plugins", "partition_due_wake_failed", error, { plugin_id: entry.plugin_id, partition_id: entry.partition_id, entry_key: entry.entry_key });
       } });
     this.sweep ??= setInterval(() => { void this.assembly.sweep().catch(() => {}); }, SWEEP_MS);
     this.sweep.unref?.();
   }
 
-  /** Hands one fallen-due entry to the running instance and tells the person the reminder it raises, if any. */
-  private async deliverDue(entry: DueEntryRecord): Promise<void> {
+  /** Hands one fallen-due entry to the running instance and tells the person the reminder it raises, if any; answers whether it told one. */
+  private async deliverDue(entry: DueEntryRecord): Promise<boolean> {
     const platform = this.platform(entry.plugin_id, entry.partition_id), manifest = this.manifestOf(entry.plugin_id);
     if (!platform || !manifest) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没有运行");
     const late = Date.now() - Date.parse(entry.due_at) > REMINDER_LATE_MS;
     const outcome = await platform.deliverDue(entry.plugin_id, { entry_key: entry.entry_key, due_at: entry.due_at, source: entry.source, late });
     // An overview reminder the plugin does not speak for shows its overview row; `null` says it no longer stands.
     const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry) : null;
-    if (!reminder) return;
+    if (!reminder) return false;
     tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
       due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null });
+    return true;
   }
 
   /** The overview row behind a reminder time (`<kind>:<row_id>`), as the overview index read it from the plugin's table. */

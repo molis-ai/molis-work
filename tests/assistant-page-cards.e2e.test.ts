@@ -20,7 +20,7 @@ test("W2-18-PAGE-CARDS-01: both page cards remain visible and executing or ignor
   const cards = () => browser.evaluate<Array<[string, string]>>("[...document.querySelectorAll('[data-assistant-thread] > [data-card]')].map(node => [node.dataset.card, node.dataset.status])");
   assert.deepEqual(await cards(), [[first.card.card_id, "ready"], [second.card.card_id, "ready"]], "both Host cards must be reachable in the same work");
   const savedTodos = () => {
-    const store = openTodoStore(browser.homeDirectory);
+    const store = openTodoStore(browser.homeDirectory, undefined, browser.projectId!);
     try { return store.list({ projectId: browser.projectId, projectIds: [], actor: "user", actorId: "web-user" }).map(todo => todo.title); }
     finally { store.close(); }
   };

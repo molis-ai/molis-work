@@ -1,3 +1,4 @@
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -434,7 +435,7 @@ async function openTodoReview(t: Parameters<typeof openGoalBrowser>[0]) {
   ], reference_only: [] });
   const browser = await openGoalBrowser(t, true, undefined, async () => answer); if (!browser) return null;
   const frame = await pluginFrameBrowser(t, browser, "todo");
-  await browser.localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
+  await browser.localHost.actionClient(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: browser.projectId! })).invoke({ actor_id: "assistant", project_id: browser.projectId, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
     { title: "整理：张总的邮件", materials: [{ title: "张总：新版方案", text: "小王你好，请周五前发新版方案，预算等小李确认。" }] });
   await wide(browser); await openPlugin(browser, "todo");
   await frame.waitFor("!document.querySelector('[data-todo-view=review]').hidden", 20_000);
@@ -467,7 +468,7 @@ test("VUX-31: Todo's reminders keep the one just acknowledged when an earlier re
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "todo");
   const everything = { projectId: browser.projectId, projectIds: [], actor: "user" as const, actorId: "test" };
-  const store = openTodoStore(browser.homeDirectory);
+  const store = openTodoStore(browser.homeDirectory, undefined, browser.projectId!);
   try { for (const title of ["交报销单", "给妈妈打电话"]) store.create({ title, remind_at: new Date(Date.now() - 5 * 60_000).toISOString() }, everything); } finally { store.close(); }
   await wide(browser); await openPlugin(browser, "todo");
   await waitFor("document.querySelectorAll('[data-todo-reminder]').length === 2", 20_000);

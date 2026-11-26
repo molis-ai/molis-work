@@ -21,8 +21,8 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   const browser = await openGoalBrowser(t, true, undefined, null, undefined, undefined, {}, { project: [plugin.definition] });
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
-  const store = openTodoStore(homeDirectory);
-  const item = store.create({ title: "季度预算", placement: "project" }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const store = openTodoStore(homeDirectory, undefined, projectId!);
+  const item = store.create({ title: "季度预算" }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
   store.close();
   const done = { event_id: "budget", subject: { kind: "homebg_item", id: "b1" }, title: "季度预算已整理", summary: "已办", content: "三档预算与对比表，附常见问题。", facts: [], category: "personal",
     placement: "occurred", occurred_at: new Date(Date.now() - 3_600_000).toISOString(), state: "done", needs_attention: false, open: { kind: "item", surface: "todo", id: item.id, title: "季度预算", label: "打开" } };

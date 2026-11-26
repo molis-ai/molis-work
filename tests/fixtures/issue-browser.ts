@@ -5,12 +5,28 @@ import { resolve } from "node:path";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { Issue, IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { openGoalBrowser } from "./goal-browser.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 
 export type IssueBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 export const ISSUE_FRAME = '[data-side-body="plugin:issues/capture"] iframe';
+/**
+ * Issues runs in each partition since batch 108; the chord and the Home's tab open the personal space's (R14). Its routes and its own page
+ * are the personal space's.
+ */
+export const ISSUES_API = `/projects/${PERSONAL_SPACE_PROJECT_ID}/api/plugins/io.molis.work.issues`;
+export const ISSUES_PAGE = `/projects/${PERSONAL_SPACE_PROJECT_ID}/?openPlugin=issues`;
+
+/** The person has Issues in their personal space: the platform does not add it there on its own (V6). */
+export async function personalIssues(b: Pick<IssueBrowser, "web">): Promise<void> {
+  const { projects } = await b.web.get<{ projects: Array<{ project_id: string; plugins?: string[] }> }>("/api/settings/project-plugins");
+  if (projects.find(project => project.project_id === PERSONAL_SPACE_PROJECT_ID)?.plugins?.includes("issues")) return;
+  await addProjectPlugin(b.web, PERSONAL_SPACE_PROJECT_ID, "issues");
+}
 
 /** Real input in the opaque Issue view; a side panel retains its own trusted outer document. */
 export async function issueView(t: TestContext, b: IssueBrowser, evidence = "issue-capture") {
+  await personalIssues(b);
   const child = await pluginFrameBrowser(t, b, "issues", ISSUE_FRAME);
   const within = (body: string) => `(() => { const d = document, $ = q => d.querySelector(q); return (${body}); })()`;
   const ask = <T = unknown>(body: string) => child.evaluate<T>(within(body));
@@ -41,8 +57,8 @@ export async function issueView(t: TestContext, b: IssueBrowser, evidence = "iss
       g.fillStyle = '#e8e0d8'; g.fillRect(0, 0, c.width, 360); g.fillStyle = '#93604b'; g.fillRect(24, 24, c.width - 48, 48);
       const blob = await new Promise(r => c.toBlob(r, 'image/png')); const t = new DataTransfer(); t.items.add(new File([blob], ${JSON.stringify(name)}, { type: 'image/png' }));
       (d.activeElement || d.body).dispatchEvent(new ClipboardEvent('paste', { clipboardData: t, bubbles: true, cancelable: true })); return true; })()`),
-    list: () => api<IssueListResult>("/api/plugins/io.molis.work.issues/list"),
-    read: (id: string) => api<Issue>(`/api/plugins/io.molis.work.issues/read?id=${encodeURIComponent(id)}`),
+    list: () => api<IssueListResult>(`${ISSUES_API}/list`),
+    read: (id: string) => api<Issue>(`${ISSUES_API}/read?id=${encodeURIComponent(id)}`),
     /** The person's active Assistant works with their state, and the open notices: the Issue page names its captures itself (ISSUE-50), so a capture leaves none. */
     assistant: async () => {
       const ids = (await api<{ works: Array<{ work_id: string }> }>("/api/assistant/works")).works.map(work => work.work_id);

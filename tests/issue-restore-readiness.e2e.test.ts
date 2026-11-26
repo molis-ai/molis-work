@@ -20,7 +20,7 @@ test('list readiness does not mean its saved screenshot draft is ready to submit
       return open(name);
     };
   })()`},b.sessionId);
-  await v.viewport(1280);await v.go('/plugins/issues');
+  await v.viewport(1280);await v.go('/projects/personal/?openPlugin=issues');
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await b.waitFor('window.issueDraftWaiting === true');
   await v.press('[data-issue-composer] [name=description]');await v.type('111');

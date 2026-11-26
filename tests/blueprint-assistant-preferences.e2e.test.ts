@@ -236,9 +236,9 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
     "P1-4: settings/projects transfer button matches shell help-tab availability",
   );
 
-  // P1-4: standalone Home plugin page (/plugins/todo) carries sideHelpAvailable="0" so Help omits the broken side-pane button.
-  const todoFrame = await pluginFrameBrowser(t, b, "todo");
-  await navigate(() => command("Page.navigate", { url: origin + "/plugins/todo" }, sessionId));
+  // P1-4: standalone Home plugin page (/plugins/jelly; Todo moved to partitions in batch 108) carries sideHelpAvailable="0" so Help omits the broken side-pane button.
+  const todoFrame = await pluginFrameBrowser(t, b, "jelly");
+  await navigate(() => command("Page.navigate", { url: origin + "/plugins/jelly" }, sessionId));
   await todoFrame.waitFor("document.body.dataset.sideHelpAvailable === '0' && !!document.querySelector('[data-mw-help-trigger]')");
   await todoFrame.evaluate("document.querySelector('[data-mw-help-trigger]')?.click()");
   await todoFrame.waitFor("!!document.querySelector('.mw-help-card')");

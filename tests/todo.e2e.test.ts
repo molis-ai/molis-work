@@ -1,3 +1,4 @@
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -13,7 +14,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const all = () => { const store = openTodoStore(homeDirectory); try { return store.list({ projectId, projectIds: [], actor: "user", actorId: "test" }); } finally { store.close(); } };
+  const all = () => { const store = openTodoStore(homeDirectory, undefined, projectId!); try { return store.list({ projectId, projectIds: [], actor: "user", actorId: "test" }); } finally { store.close(); } };
   const byTitle = (title: string) => all().find(item => item.title === title);
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   const screenshot = async (name: string) => {
@@ -159,7 +160,7 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
   const everything = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
-  const store = openTodoStore(homeDirectory);
+  const store = openTodoStore(homeDirectory, undefined, projectId!);
   const now = Date.now();
   let dueId = "", overdueId = "";
   try {
@@ -175,7 +176,7 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
     await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`todo-${name}-1440.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
-  const read = (id: string) => { const opened = openTodoStore(homeDirectory); try { return opened.get(id, everything); } finally { opened.close(); } };
+  const read = (id: string) => { const opened = openTodoStore(homeDirectory, undefined, projectId!); try { return opened.get(id, everything); } finally { opened.close(); } };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
 
@@ -223,9 +224,9 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
   const everything = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
-  const items = () => { const store = openTodoStore(homeDirectory); try { return store.list(everything); } finally { store.close(); } };
+  const items = () => { const store = openTodoStore(homeDirectory, undefined, projectId!); try { return store.list(everything); } finally { store.close(); } };
   // The Assistant's path: an agent asks Todo to organize; the result waits for the person.
-  await localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
+  await localHost.actionClient(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: projectId! })).invoke({ actor_id: "assistant", project_id: projectId, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
     { title: "整理：张总的邮件", materials: [{ title: "张总：新版方案", text: "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。" }] });
   assert.equal(items().length, 0, "整理不会直接新建待办");
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
@@ -281,7 +282,7 @@ test("390px: opening an organize result by id keeps that batch in view", { timeo
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
   for (const name of ["张总", "李主管", "赵经理", "陈老师", "周女士"]) {
-    await localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
+    await localHost.actionClient(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: projectId! })).invoke({ actor_id: "assistant", project_id: projectId, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
       { title: `整理：${name}的邮件`, materials: [{ title: `${name}：新版方案`, text: `${name}：请周五前发新版方案，预算等小李确认。` }] });
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 700, deviceScaleFactor: 1, mobile: true }, sessionId);

@@ -69,7 +69,7 @@ test("ISSUE-38 undo takes a new record back and returns the words to an empty co
   await v.until("d.hasFocus() && d.activeElement === $('[data-issue-composer] [name=description]') && $('[data-issue-composer] [name=description]').value === '保存按钮点了没反应' && !$('[data-issue-submit]').disabled");
   await v.send(); await v.until("$('[data-issue-toast-action]').textContent === '撤销'", 20_000);
   const [record] = (await v.list()).items;
-  await v.api("/api/plugins/io.molis.work.issues/update", { id: record!.id, expected_version: 1, title: "后来改过" });
+  await v.api("/projects/personal/api/plugins/io.molis.work.issues/update", { id: record!.id, expected_version: 1, title: "后来改过" });
   await v.press("[data-issue-toast-action]");
   await v.until("/记录后已修改/.test($('[data-issue-toast] span').textContent)");
   assert.equal((await v.list()).items[0]!.title, "后来改过");

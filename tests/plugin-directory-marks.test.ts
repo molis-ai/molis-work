@@ -63,9 +63,10 @@ test("RAC-710 forged marks are refused: honest changes still bring companions an
   assert.ok(membership.plugins.includes("feed") && membership.plugins.includes("inbox"), "Inbox comes along whatever the page says");
   assert.deepEqual(membership.hidden, []);
 
-  const removed = await change("DELETE", "todo", { personal: false });
+  // Jelly is the one personal built-in left until it moves into the partitions (batch 108).
+  const removed = await change("DELETE", "jelly", { personal: false });
   assert.equal(removed.status, 200);
-  assert.ok((await removed.json() as { hidden: string[] }).hidden.includes("todo"));
+  assert.ok((await removed.json() as { hidden: string[] }).hidden.includes("jelly"));
 
   // Shelf is a platform part (44B): whatever the page claims, there is no project plugin of that name to remove.
   const forged = await change("DELETE", "shelf", { personal: true });

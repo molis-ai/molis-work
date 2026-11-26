@@ -31,7 +31,7 @@ test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`, undefined, "person"); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, projectIds: [] };
-  const todos = () => { const owner = openTodoStore(homeDirectory); try { return owner.list(access); } finally { owner.close(); } };
+  const todos = () => { const owner = openTodoStore(homeDirectory, undefined, projectId!); try { return owner.list(access); } finally { owner.close(); } };
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const TODO = `[...document.querySelectorAll('${BAR} button')].find(button => !button.disabled && button.textContent.startsWith('记成待办'))`;
   const CARD = (head: string) => `[...document.querySelectorAll('.placement-toast')].find(card => card.textContent.includes(${JSON.stringify(head)}))`;
@@ -97,7 +97,7 @@ test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what
   assert.equal(todos().length, 1, "once per request");
 
   // Edited elsewhere since: 撤销 is refused by Todo, and the todo stays as edited.
-  const owner = openTodoStore(homeDirectory);
+  const owner = openTodoStore(homeDirectory, undefined, projectId!);
   try { owner.update(item!.id, { title: "改过的待办" }, item!.revision, access); } finally { owner.close(); }
   await evaluate(`[...${CARD("已记成待办")}.querySelectorAll('button')].find(button => button.textContent === '撤销').click()`);
   await waitFor(`Boolean(${CARD("没能撤销")})`, 10_000);

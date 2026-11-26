@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -17,6 +18,13 @@ type Installation = { owner: string; versions: Map<string, HeldVersion>; remembe
 const holders = new Map<string, Installation>();
 const installationKey = (home: PluginPlatformHome, installId: string) => `${path.resolve(home.directory)}\0${installId}`;
 let hostOwners: ReadonlySet<string> | undefined;
+
+// Re-enabling a disabled project can still be cancelled. Runtime also starts disabled records to restore a failed upgrade.
+const pendingEnable = new AsyncLocalStorage<string | undefined>();
+
+export function withPendingPluginEnable<T>(generation: string | undefined, start: () => Promise<T>): Promise<T> {
+  return pendingEnable.run(generation, start);
+}
 
 function newerThan(row: HeldVersion, previous: HeldVersion | undefined): boolean {
   return !previous || comparePluginVersions(row.version, previous.version) > 0;
@@ -84,8 +92,8 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
   projectRecord?: PluginInstanceRecord | null): (() => void) | undefined {
   if (!home) return undefined;
   // A disabled project package stays invisible until its own installation generation finishes enabling.
-  const hold: Hold = definition.execution === "sandbox" && projectRecord?.publisher_trust === "pinned" && projectRecord.state === "disabled"
-    ? { pendingGeneration: projectRecord.installation_generation } : {};
+  const pendingGeneration = pendingEnable.getStore();
+  const hold: Hold = pendingGeneration && projectRecord?.installation_generation === pendingGeneration ? { pendingGeneration } : {};
   const { plugin_id: owner, version } = definition.manifest;
   const registration = pluginAgentRegistration(definition);
   hostOwners ??= new Set(builtinRegistrations().map(row => row.owner_id));

@@ -45,8 +45,9 @@ test("no text model asks for one; model settings that cannot be read say so with
 
 test("the reason names the model settings page exactly as the settings navigation shows it", () => {
   // The person looks for this name in 设置; if the page is renamed, the one reason the Host writes must follow.
-  const sections = readFileSync(new URL("../apps/workbench/src/settings-sections.ts", import.meta.url), "utf8");
-  const labelKey = /\{ id: "models", label: "([^"]+)"/u.exec(sections)?.[1];
+  // The settings navigation reads its rows from the platform settings registry (44C-1).
+  const sections = readFileSync(new URL("../apps/workbench/src/platform-settings-registry.ts", import.meta.url), "utf8");
+  const labelKey = /\{ id: "models",[^\n]*row: \{ label: "([^"]+)"/u.exec(sections)?.[1];
   assert.ok(labelKey);
   const label = pageText("zh")(labelKey);
   assert.equal(label, "模型设置");

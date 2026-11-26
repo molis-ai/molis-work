@@ -42,15 +42,17 @@ import type { PlatformSurfaceId } from "@molis-ai/molis-work-ui-host";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
 /**
- * The specimen project's plugins (a development tool, W5-02 B1): a fresh project's, the backbone its Manifests declare (`rail: "core"`)
- * and the person's plugins. The board names no plugin (44C, D8=A): both come from the declarations of the build-time directory, and the
- * bar specimen draws the rest of it (`pluginMarketCards()`, which already leaves developer plugins out) grey "not added". The board runs
+ * The specimen project's plugins (a development tool, W5-02 B1): the backbone its Manifests declare (`rail: "core"`), the person's
+ * plugins, and those keeping their library in each project's work partition (`databases.partition`; batch 107: the personal space has
+ * them added, so the sample project does too). The board names no plugin (44C, D8=A): all three come from the declarations of the
+ * build-time directory, and the bar specimen draws the rest of it (`pluginMarketCards()`, which already leaves developer plugins out) grey "not added". The board runs
  * no Runtime and no Host, so it is drawn from the built-in catalog's directory; a project page is drawn from the one the Host supplies.
  */
 function sampleProjectPlugins(): string[] {
   const directory = builtinPluginDirectory();
   const backbone = railEntries(directory.map(entry => entry.id), directory).filter(entry => entry.rail === "core").map(entry => entry.id);
-  return [...new Set([...backbone, ...shippedPersonalPlugins()])];
+  const partitioned = directory.filter(entry => manifestFor(entry.id)?.databases?.partition).map(entry => entry.id);
+  return [...new Set([...backbone, ...shippedPersonalPlugins(), ...partitioned])];
 }
 
 function htmlLangFor(lang: WebLocale): string {

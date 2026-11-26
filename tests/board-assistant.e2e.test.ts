@@ -59,8 +59,8 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   assert.match(groups.environment!, /示例项目.*项目范围/);
   assert.match(groups.tools!, /你的连接.*Google Calendar.*企业微信.*需要登录授权.*可调用.*现在不能用.*通讯录/);
   assert.match(groups.results!, /固定成果.*试用复盘议程 v1.*工作文件.*试用复盘提纲/);
-  assert.match(groups.changes!, /Inbox · 归档 3 条没能撤销：Inbox 已关闭.*Todo · 新建待办「订会议室」可以撤销.*停止时仍在执行.*还在等它的结果，不会重新提交/, "newest change first");
-  assert.match(groups.background!, /Research · 汇总试用访谈.*进行中.*Dataset · 导入试用问卷.*没有完成/);
+  assert.match(groups.changes!, /Mail · 归档 3 条没能撤销：Mail 已关闭.*Checklist · 新建待办「订会议室」可以撤销.*停止时仍在执行.*还在等它的结果，不会重新提交/, "newest change first");
+  assert.match(groups.background!, /Research · 汇总试用访谈.*进行中.*Survey · 导入试用问卷.*没有完成/);
 
   // A round's steps: what was done to what, and how many did not finish; the failure says why, the unknown says so, the technical part opens from the step.
   const steps = await inFrame<{ summary: string; failed: string; unknown: string; facts: string }>(`
@@ -113,8 +113,8 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
     environment: d.querySelector('[data-assistant-block=environment]').textContent.replace(/\\s+/g, ' '), tools: d.querySelector('[data-assistant-block=tools]').textContent.replace(/\\s+/g, ' ') };`);
   assert.equal(codingText.input, "", "the Coding work has its own (empty) draft");
   assert.match(codingText.environment, /~\/code\/molis-auth.*molis-ai\/molis-auth · feature\/session-cookie.*领先 2 · 3 处未提交 · 1 处冲突/);
-  // The card is titled by the executor's own name (the sample's executor is "Coding"), not by a label the Assistant wrote for it.
-  assert.match(codingText.tools, /Coding.*自己的读写与命令.*GitHub MCP.*3 项可用.*create_issue.*Linear MCP · 服务未连接/);
+  // The card is titled by the executor's own name (the sample's executor is "Workshop"), not by a label the Assistant wrote for it.
+  assert.match(codingText.tools, /Workshop.*自己的读写与命令.*GitHub MCP.*3 项可用.*create_issue.*Linear MCP · 服务未连接/);
 
   // 推进一步 (simulated): the Host's long wait answers with the next view; the step changes in its own line, the group the person opened stays open.
   const moved = await inFrame<{ same: boolean; open: boolean; line: string; summary: string; path: string }>(`
@@ -314,7 +314,7 @@ test("VUX-39 QEA-173 the board's Assistant shows delegated sub-tasks, the bell's
       folds: [...pop.querySelectorAll('.assistant-notice-list > details > summary')].map((n) => n.textContent) };`);
   const first = await bell();
   t.diagnostic("bell: " + JSON.stringify(first));
-  assert.deepEqual(first.rows, ["「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"], "the open work's decision is already seen; only the failure and reminder still wait");
+  assert.deepEqual(first.rows, ["「整理上周的 Digest 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"], "the open work's decision is already seen; only the failure and reminder still wait");
   assert.deepEqual(first.folds, ["有 1 条新结果", "按你的规则暂缓 1 条"]);
   // The key counts the notices that want a hand: the failure and the reminder (news and held ones are not counted).
   assert.equal(first.count, "2");
@@ -323,7 +323,7 @@ test("VUX-39 QEA-173 the board's Assistant shows delegated sub-tasks, the bell's
   await waitFor(inside("!d.querySelector('[data-notice-id=n-room]') && d.querySelector('[data-bar-notices-count]').textContent === '1'"), 10_000);
   // 打开 on the failure opens its work.
   await inFrame("d.querySelector('[data-notice-id=n-digest][data-notice-action=open]').click();");
-  await waitFor(inside("d.querySelector('[data-assistant-thread]').textContent.includes('Feed 里和试用有关的整理成摘要')"), 10_000);
+  await waitFor(inside("d.querySelector('[data-assistant-thread]').textContent.includes('Digest 里和试用有关的整理成摘要')"), 10_000);
 
   // A question answered: the card goes, the round runs on to its end and says what it made.
   await inFrame("if (d.querySelector('[data-assistant-works]').hidden) d.querySelector('[data-assistant-works-toggle]').click(); [...d.querySelectorAll('.assistant-works-item')].find((n) => n.textContent.includes('给王一骏回邮件')).click();");
@@ -341,7 +341,7 @@ test("VUX-39 QEA-173 the board's Assistant shows delegated sub-tasks, the bell's
   await inFrame("[...d.querySelectorAll('.assistant-problem button')].find((n) => n.textContent === '查看实际发生了什么').click();");
   await waitFor(inside("!!d.querySelector('.assistant-recovery li')"), 10_000);
   const recovery = await inFrame<string[]>("return [...d.querySelectorAll('.assistant-recovery li')].map((n) => n.textContent);");
-  assert.deepEqual(recovery, ["Todo · 新建待办「复盘跟进」 — 已发生", "Mail · 发送邮件给产品组 — 结果未知，请到原处核对", "日程 · 修改「试用复盘」 — 失败，没有发生", "Pages · 更新「试用复盘提纲」 — 没有执行"]);
+  assert.deepEqual(recovery, ["Checklist · 新建待办「复盘跟进」 — 已发生", "Mail · 发送邮件给产品组 — 结果未知，请到原处核对", "日程 · 修改「试用复盘」 — 失败，没有发生", "Notebook · 更新「试用复盘提纲」 — 没有执行"]);
   // Each outcome reads in the tone a step's own line uses; the close is the box's action, after the list, not one of its items.
   const tones = await inFrame<{ colors: string[]; closeIn: boolean; close: string }>(`const items = [...d.querySelectorAll('.assistant-recovery li')];
     const close = [...d.querySelectorAll('.assistant-problem button')].find((n) => n.textContent === '已核对，结束这一轮');

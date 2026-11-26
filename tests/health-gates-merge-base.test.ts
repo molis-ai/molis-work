@@ -692,7 +692,7 @@ test("ci base, push of several commits: the previous tip is fetched and the hist
   const world = ciWorld();
   const dir = shallowClone(world.mainTip, 2);
   const before = gitAt(ciWorld().root + "/work", "rev-parse", "main~5").trim();
-  assert.throws(() => gitAt(dir, "cat-file", "-e", `${before}^{commit}`), "not in the depth-2 checkout");
+  assert.throws(() => gitAt(dir, "cat-file", "-e", `${before}^{commit}`), (error: unknown) => error instanceof Error && (error as { status?: number }).status === 128 && /Not a valid object name/u.test(error.message), "not in the depth-2 checkout");
   const run = ciBase(dir, { EVENT_NAME: "push", PUSH_BEFORE: before });
   assert.equal(run.code, 0, run.log);
   assert.equal(run.base, before);

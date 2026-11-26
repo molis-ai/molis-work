@@ -200,7 +200,7 @@ test("CPK-13: an instruction prompt may name the role it works for; only the id'
   const base = { owner_id: "io.molis.work.notes", prompt_id: "summarize", version: 1, title: "总结", purpose: "总结笔记", used_by: ["笔记"], body: "请总结。" };
   assert.equal(defineInstructionPrompt(base).role_id, undefined);
   assert.equal(defineInstructionPrompt({ ...base, role_id: "writer" }).role_id, "writer");
-  for (const role_id of ["", "Writer", "writer role", "-writer", "writer.v2"]) assert.throws(() => defineInstructionPrompt({ ...base, role_id }), JSON.stringify(role_id));
+  for (const role_id of ["", "Writer", "writer role", "-writer", "writer.v2"]) assert.throws(() => defineInstructionPrompt({ ...base, role_id }), /声明不完整/u, JSON.stringify(role_id));
 });
 
 test("the new refusals are declared once, by their owners, with their kinds", () => {

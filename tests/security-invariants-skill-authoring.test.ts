@@ -12,7 +12,7 @@ import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_PERMISSIONS, skillAuthoringActions, s
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, homeAgentDefinitions, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
-import { caller, mac } from "./fixtures/signed-package-host.js";
+import { caller } from "./fixtures/signed-package-host.js";
 
 // S-skill-authoring. Batch 41, 41-2 (specs/prologue-strategies/skill.md §10, 定样 docs/design/skill-authoring 方案 B): the person writes Skills of their own in
 // settings. A scope's own Skills are one content package signed with this Home's publisher identity and installed through the one
@@ -66,7 +66,7 @@ async function harness(completeText: ((prompt: unknown) => Promise<string>) | nu
     async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await host.close(); await rm(base, { recursive: true, force: true }); } };
 }
 
-test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, readable back as written; a change is its next version and keeps the others; a stale change, a taken name and an empty field are refused", mac, async () => {
+test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, readable back as written; a change is its next version and keeps the others; a stale change, a taken name and an empty field are refused", { timeout: 90_000 }, async () => {
   const h = await harness();
   try {
     const first = await h.save({ ...fields("周报整理", { when_not_to_use: "只是闲聊时不用。", argument_hint: "哪一周" }), scope: "project" });
@@ -106,7 +106,7 @@ test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, 
   } finally { await h.close(); }
 });
 
-test("SKL-41-2-AU-02 B42-F06 B42-F07 B42-F08 removal takes only the settings door, and no Agent or plugin can write or remove one. A same-name rebuild has its own identity.", mac, async () => {
+test("SKL-41-2-AU-02 B42-F06 B42-F07 B42-F08 removal takes only the settings door, and no Agent or plugin can write or remove one. A same-name rebuild has its own identity.", { timeout: 90_000 }, async () => {
   const h = await harness();
   try {
     const a = await h.save({ ...fields("alpha"), scope: "project" }), b = await h.save({ ...fields("beta"), scope: "project" });
@@ -161,7 +161,7 @@ test("SKL-41-2-AU-02 B42-F06 B42-F07 B42-F08 removal takes only the settings doo
   } finally { await h.close(); }
 });
 
-test("SKL-41-2-AU-03 a draft is the text model's proposal cut to the form's limits and writes nothing; an answer that is not a draft, and a Home with no text model, are refused", mac, async () => {
+test("SKL-41-2-AU-03 a draft is the text model's proposal cut to the form's limits and writes nothing; an answer that is not a draft, and a Home with no text model, are refused", { timeout: 90_000 }, async () => {
   const answers: string[] = [], prompts: string[] = [];
   const h = await harness(async prompt => { prompts.push(JSON.stringify(prompt)); return answers.shift() ?? ""; });
   try {
@@ -180,7 +180,7 @@ test("SKL-41-2-AU-03 a draft is the text model's proposal cut to the form's limi
   finally { await none.close(); }
 });
 
-test("SKL-41-2-AU-04 a package of the same id from another publisher is not the person's: it reads as not mine, and saving into it or removing from it is refused and leaves it installed", mac, async () => {
+test("SKL-41-2-AU-04 a package of the same id from another publisher is not the person's: it reads as not mine, and saving into it or removing from it is refused and leaves it installed", { timeout: 90_000 }, async () => {
   const h = await harness();
   try {
     // Whose it is comes from the installed record's publisher, compared with this Home's key (not from a version this Home also signed).
@@ -198,7 +198,7 @@ test("SKL-41-2-AU-04 a package of the same id from another publisher is not the 
   } finally { await h.close(); }
 });
 
-test("SKL-41-2-AU-07 reading an authored Skill back keeps a leading horizontal rule as the body's own text", mac, async () => {
+test("SKL-41-2-AU-07 reading an authored Skill back keeps a leading horizontal rule as the body's own text", { timeout: 90_000 }, async () => {
   const h = await harness();
   try {
     const saved = await h.save({ ...fields("横线开头", { body: "---\n\n# 正文\n" }), scope: "project" });
@@ -210,7 +210,7 @@ test("SKL-41-2-AU-07 reading an authored Skill back keeps a leading horizontal r
   } finally { await h.close(); }
 });
 
-test("SKL-41-2-AU-05 the project's own Skills and the personal space's are two packages: writing in one scope does not shut the other out", mac, async () => {
+test("SKL-41-2-AU-05 the project's own Skills and the personal space's are two packages: writing in one scope does not shut the other out", { timeout: 90_000 }, async () => {
   const h = await harness();
   try {
     const inProject = await h.save({ ...fields("项目里的"), scope: "project" });

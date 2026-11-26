@@ -28,7 +28,7 @@ test("BL-396 PMAT-23: project knowledge is in the Assistant's capability directo
   disabled = new Set([knowledgeListKey]);
   assert.equal(await find(), undefined, "关掉后它不再出现在助理的目录里");
   await assert.rejects(actions.check({ capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge" }, {}), { code: "assistant.action_revoked" });
-  await assert.rejects(actions.invoke({ capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge" }, {}), "关掉的旧引用调不动");
+  await assert.rejects(actions.invoke({ capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge" }, {}), { code: "assistant.action_revoked" }, "关掉的旧引用调不动");
 });
 
 // RAC-2675 RAC-2676: an action the person switched off for the Assistant is refused as a refusal (kind `forbidden`), whether the dispatch-time

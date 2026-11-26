@@ -67,7 +67,7 @@ test('null-schema count and rowid reads never borrow an owner name from an attac
     assert.equal(run('SELECT id FROM records LIMIT 1')[0]!.id,1);
     db.exec("ATTACH ':memory:' AS other;CREATE TABLE other.records(id INTEGER PRIMARY KEY);INSERT INTO other.records VALUES(2);");
     assert.throws(()=>run('SELECT count(*) FROM other.records'));
-    assert.throws(()=>run('SELECT count(*) FROM records'),'ambiguous null-schema names fail closed');
+    assert.throws(()=>run('SELECT count(*) FROM records'),{code:'ERR_SQLITE_ERROR',message:/not authorized/},'ambiguous null-schema names fail closed');
     assert.equal(run('SELECT count(*) AS n FROM main.records')[0]!.n,1);
     db.exec('DETACH other;CREATE TEMP TABLE records(id INTEGER PRIMARY KEY);INSERT INTO temp.records VALUES(3);');
     assert.throws(()=>run('SELECT count(*) FROM records'));

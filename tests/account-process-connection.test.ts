@@ -62,7 +62,7 @@ test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while 
  };
  const starter=createMcpResidentStarter();
  try{
-  await assert.rejects(cli(['demo','create','--confirm','--json']),'an unlogged default installation never falls back to anonymous demo writes');
+  await assert.rejects(cli(['demo','create','--confirm','--json']),(error:unknown)=>error instanceof Error&&'code'in error&&error.code===1&&'stderr'in error&&String(error.stderr).trim().length>0,'an unlogged default installation never falls back to anonymous demo writes');
   assert.equal(existsSync(join(home,'projects','catalog.db')),false,'login-only installation has no root business catalog');
   mkdirSync(home+'-external',{recursive:true});
   const external=join(home+'-external','project.db');
@@ -110,7 +110,7 @@ test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while 
   const offlineA=await stdio();assert.ok((await projects(offlineA)).some(project=>project.project_id===a.project_id));await snapshot(a);
   for(const missing of [[NATIVE_SESSION_FILE],['config/web-control-token'],[NATIVE_SESSION_FILE,'config/web-control-token']]){
    for(const file of missing)unlinkSync(join(home,file));
-   try{await assert.rejects(snapshot(a),'a missing installation credential must not select anonymous business');await assert.rejects(cli(['demo','create','--confirm','--json']));assert.equal(existsSync(join(home,'projects','catalog.db')),false);}
+   try{await assert.rejects(snapshot(a),assert.AssertionError,'a missing installation credential must not select anonymous business');await assert.rejects(cli(['demo','create','--confirm','--json']));assert.equal(existsSync(join(home,'projects','catalog.db')),false);}
    finally{writeFileSync(join(home,NATIVE_SESSION_FILE),proof,{mode:0o600});writeFileSync(join(home,'config','web-control-token'),rootToken+'\n',{mode:0o600});}
   }
  }finally{

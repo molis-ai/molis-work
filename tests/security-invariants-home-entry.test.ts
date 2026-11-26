@@ -91,7 +91,7 @@ test("RAC-713 a link inside the Home is still refused, with the Home reached thr
   const result = await runHomeEntry(t, "cli", ["home", "snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
   assert.equal(result.code, 1, "the snapshot is refused");
   assert.equal(JSON.parse(result.stderr).error.code, "host.home_snapshot.invalid");
-  await assert.rejects(stat(f.snapshot), "no snapshot is published");
+  await assert.rejects(stat(f.snapshot), { code: "ENOENT" }, "no snapshot is published");
   assert.equal(await readFile(join(outside, "value"), "utf8"), "A different owner's bytes", "the link's target is untouched");
   assert.equal((await readdir(f.area)).some(name => name.startsWith(".molis-home-snapshot-")), false, "no private staging is left");
 });

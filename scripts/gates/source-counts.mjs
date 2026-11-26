@@ -105,6 +105,69 @@ const scriptText = (node) => {
 const IS_STRING_LIKE = (node) => ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
   || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node);
 
+const TEST_SOURCE_FILE = /^tests\/.+\.(?:ts|mts|mjs)$/;
+const ASSERT_RECEIVER = /^(?:assert|strict|nodeAssert)$/;
+
+function unwrapTypeNodes(node) {
+  while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node)) {
+    node = node.expression;
+  }
+  return node;
+}
+
+function isStringOrUndefinedMatcher(expression) {
+  const node = unwrapTypeNodes(expression);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) return true;
+  if (ts.isIdentifier(node) && node.text === "undefined") return true;
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return isStringOrUndefinedMatcher(node.left) || isStringOrUndefinedMatcher(node.right);
+  }
+  if (ts.isCallExpression(node)) {
+    const callee = unwrapTypeNodes(node.expression);
+    if (ts.isIdentifier(callee) && callee.text === "String") return true;
+    if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === "JSON" && callee.name.text === "stringify") return true;
+  }
+  return false;
+}
+
+/**
+ * F-TEST-03: `assert.throws(fn, "message")` and `assert.rejects(p, "message")` pass a string as Node's 2nd argument (`validateError`),
+ * which Node treats as a failure message ONLY when no error is thrown and otherwise accepts ANY error (even a TypeError or SyntaxError).
+ * Exported for unit and mutation tests.
+ */
+export function findStringAssertMatchers(file, text) {
+  if (!TEST_SOURCE_FILE.test(file) || file.endsWith(".d.ts") || typeof text !== "string") return [];
+  if (!text.includes("throws") && !text.includes("rejects")) return [];
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const violations = [];
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && node.arguments.length === 2 && ts.isPropertyAccessExpression(node.expression)) {
+      const method = node.expression.name.text;
+      const receiver = unwrapTypeNodes(node.expression.expression);
+      const isAssert = (ts.isIdentifier(receiver) && ASSERT_RECEIVER.test(receiver.text))
+        || (ts.isPropertyAccessExpression(receiver) && receiver.name.text === "assert");
+      if ((method === "throws" || method === "rejects") && isAssert && isStringOrUndefinedMatcher(node.arguments[1])) {
+        const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+        violations.push(`${file}:${line + 1}: assert.${method}() with 2 arguments passes a string or undefined as validateError; pass an error matcher (RegExp, Error constructor, object, or predicate) as argument 2 and move the message to argument 3`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return violations;
+}
+
+/** Absolute gate across all tracked `tests/**` files forbidding 2-argument string/undefined `assert.throws` / `assert.rejects`. */
+export function testAssertMatcherProblems(snapshot) {
+  const problems = [];
+  for (const file of snapshot.files) {
+    if (!TEST_SOURCE_FILE.test(file) || file.endsWith(".d.ts")) continue;
+    const text = snapshot.read(file);
+    if (text !== null) problems.push(...findStringAssertMatchers(file, text));
+  }
+  return problems;
+}
+
 function withoutParentheses(node) {
   while (ts.isParenthesizedExpression(node)) node = node.expression;
   return node;

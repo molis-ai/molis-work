@@ -58,7 +58,7 @@ test('existence predicates may inspect only declared owner tables in the same pr
   const declared=(existsAny: import('@molis-ai/molis-work-contracts/platform/plugin-sync').SyncTrackedTable['existsAny']):PluginManifest=>({...manifest,sync:{protocol_version:1,collections:[{id:'records',title:'Records',schema_version:1,requires:[],tracking:[{table:'boards',key:[{column:'project_id'}],existsAny}]}]}});
   assert.doesNotThrow(()=>assertPluginSyncDeclarations(declared([{table:'goals',match:[{column:'project_id',rowColumn:'project_id'}]}]),tables));
   assert.throws(()=>assertPluginSyncDeclarations(declared([{table:'foreign_owner',match:[{column:'project_id',rowColumn:'project_id'}]}]),tables));
-  assert.throws(()=>assertPluginSyncDeclarations(declared([{table:'goals',match:[{column:'id',rowColumn:'project_id'}]}]),tables),'cross-project existence must not authorize a bootstrap mark');
+  assert.throws(()=>assertPluginSyncDeclarations(declared([{table:'goals',match:[{column:'id',rowColumn:'project_id'}]}]),tables),{code:'actions.input_invalid'},'cross-project existence must not authorize a bootstrap mark');
 });
 
 test('sections reject empty, foreign and duplicate owner declarations and ignore object property insertion order',()=>{

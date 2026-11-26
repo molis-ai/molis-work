@@ -571,7 +571,7 @@ test("S-68 an Inbox entry and the plugin's own rows land together or not at all:
   assert.equal(noted(main.short, "once"), true);
   assert.equal(main.services().attention!.findForSubject({ owner_plugin_id: main.id, subject_type: "goal_decision", subject_id: "once" }).length, 1, "the same subject and reason is one entry");
   main.reset();
-  await assert.rejects(client.invoke(caller(permissionsOf(main)).context, main.act, { name: "bad", step: "plain", which: "setStatus" }), undefined);
+  await assert.rejects(client.invoke(caller(permissionsOf(main)).context, main.act, { name: "bad", step: "plain", which: "setStatus" }), { code: "attention.entry_not_found" });
   assert.equal(entry("bad"), undefined);
   assert.equal(noted(main.short, "bad"), false, "the plugin's row went with the failed service call");
 });

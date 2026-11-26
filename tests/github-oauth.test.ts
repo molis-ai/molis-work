@@ -128,7 +128,7 @@ test("RAC-2541: a verification address that is not https, carries an account, po
   for (const address of ["http://github.com/login/device", "https://user:pass@github.com/login/device", "https://github.com:8443/login/device", "https://github.com/login/device#x",
     "https://evil.example/login/device", "https://github.com.evil.example/login/device", "https://gist.github.com/login/device", "not a url", "", `https://github.com/login/device?x=${"a".repeat(2100)}`]) {
     remote.options.verification = address;
-    await assert.rejects(startDeviceOAuth(home, START), address);
+    await assert.rejects(startDeviceOAuth(home, START), /验证地址/u, address);
     remote.options.verification = undefined;
   }
   remote.options.complete = `https://github.com/login/device?user_code=${"A".repeat(2100)}`;
@@ -136,7 +136,7 @@ test("RAC-2541: a verification address that is not https, carries an account, po
   remote.options.complete = "https://evil.example/login/device?user_code=ABCD-EFGH";
   await assert.rejects(startDeviceOAuth(home, START), /验证地址/u, "the address with the code filled in is judged as strictly");
   remote.options.complete = undefined;
-  for (const code of ["", "ab\ncd", "<script>", "x".repeat(65)]) { remote.options.userCode = code; await assert.rejects(startDeviceOAuth(home, START), code); }
+  for (const code of ["", "ab\ncd", "<script>", "x".repeat(65)]) { remote.options.userCode = code; await assert.rejects(startDeviceOAuth(home, START), /设备码无效/u, code); }
   assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
   assert.equal(remote.of(TOKEN_URL).length, 0);
   // The address with the code filled in is handed over when it passes.
@@ -206,7 +206,7 @@ test("RAC-2543: an authorization that ends without a token writes only its statu
     assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
     assert.ok(!secrets.get("device"), "the device code is gone with the authorization");
     time.advance(6);
-    await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }), "the record is gone");
+    await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }), /授权会话不存在或已过期/u, "the record is gone");
     assert.equal(remote.of(USER_URL).length, 0);
   }
 });
@@ -454,7 +454,7 @@ test("RAC-2545: a token is claimed once, and a state the Host never issued, or i
   time.advance(6); remote.options.polls = [tokenAnswer];
   await pollDeviceOAuth(home, { origin: ORIGIN, state: started.state });
   time.advance(6);
-  await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }), "a second poll finds the record taken");
+  await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }), /授权会话不存在或已过期/u, "a second poll finds the record taken");
   assert.equal(remote.of(TOKEN_URL).length, 1);
   assert.equal(withConnectorConnections(home, store => store.list()).length, 1);
   // A state the Host never issued, or issued for another origin, reads nothing.
@@ -498,8 +498,8 @@ test("RAC-2547: a GitHub connection of the dedicated flow's shape is reauth_requ
   const web = await startApiOAuth(home, { serviceId: "github", displayName: "GitHub", clientId: "own-app", clientSecret: "own-secret", origin: ORIGIN });
   assert.equal(new URL(web.authorization_url).origin + new URL(web.authorization_url).pathname, "https://github.com/login/oauth/authorize");
   await assert.rejects(startApiOAuth(home, { serviceId: "github", displayName: "GitHub", clientId: "own-app", origin: ORIGIN }, undefined,
-    async (_service, grant) => (grant === "device" ? { ...OWNER, method: DEVICE } : undefined)), "no authorization-code method, no web flow");
-  await assert.rejects(startDeviceOAuth(home, START, undefined, async () => undefined), "no device method, no device flow");
+    async (_service, grant) => (grant === "device" ? { ...OWNER, method: DEVICE } : undefined)), /没有已启用的宿主插件声明这个服务的 OAuth 连接/u, "no authorization-code method, no web flow");
+  await assert.rejects(startDeviceOAuth(home, START, undefined, async () => undefined), /没有已启用的宿主插件声明这个服务的 OAuth 连接/u, "no device method, no device flow");
 });
 
 test("RAC-2548: the verification address is compared as a parsed origin, so spelling does not make a lookalike the same", async t => {

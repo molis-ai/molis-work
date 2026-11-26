@@ -145,7 +145,7 @@ test("beforeEffect decides the write: a transaction whose beforeEffect refuses w
       await assert.rejects(database.transaction(async () => { throw new Error("这一次调用已被取消"); }, tx => tx.run("INSERT INTO notes (text) VALUES ('cancelled')")),
         /已被取消/);
       await assert.rejects(database.transaction(async () => {}, (async (tx: { run: (sql: string) => unknown }) => { tx.run("INSERT INTO notes (text) VALUES ('async')"); }) as never));
-      assert.throws(() => database.get("DELETE FROM notes"), "reads accept SELECT and WITH only");
+      assert.throws(() => database.get("DELETE FROM notes"), /仅接受 SELECT 或 WITH/u, "reads accept SELECT and WITH only");
       assert.deepEqual(rows(directory, LIBRARY), [], "none of the three wrote");
       await noteInto(database, "kept");
       assert.deepEqual(rows(directory, LIBRARY), ["kept"], "a refused transaction leaves the library usable");

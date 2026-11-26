@@ -159,7 +159,7 @@ test("UPP-15 S-person-settings-private an incoming portable preference with an u
   for (const [index, [label, change]] of cases.entries()) {
     const value = structuredClone(mutation.value) as Record<string, unknown>;
     change(value);
-    assert.throws(() => replica.receive({ ...mutation, value, revision: index + 2, operationId: `invalid-${index}` }), label);
+    assert.throws(() => replica.receive({ ...mutation, value, revision: index + 2, operationId: `invalid-${index}` }), { code: "actions.input_invalid" }, label);
     assert.equal(JSON.stringify(settings.list(person, INSTALL)), before, `${label}: nothing kept`);
     assert.equal(replica.counts().conflicts, 0, `${label}: not even held as a conflict`);
   }

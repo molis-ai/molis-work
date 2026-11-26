@@ -88,7 +88,7 @@ test("RAC-2682 SSC-14 IUI-03 the declared stage reads the same presentation stat
   assert.equal((await actions.invoke(goalsActions.stage, { goal_id: goal.goal_id, collection: "trash" })).selected, null,
     "a Goal outside the requested collection is not selected; the page route supplies its original 404 body");
   const untrusted = { goal_id: goal.goal_id, project_id: "another-project", actor_id: "another-person" };
-  await assert.rejects(actions.invoke(goalsActions.stage, untrusted), "request input cannot replace the trusted scope or actor");
+  await assert.rejects(actions.invoke(goalsActions.stage, untrusted), { code: "actions.input_invalid" }, "request input cannot replace the trusted scope or actor");
   const other = await served.createProject("Other Goals stage", ["goals"]);
   const otherActions = bindActionClient(served.host.actionClient(other.reference), () => ({ ...caller, project_id: other.project_id }));
   const outside = await otherActions.invoke(goalsActions.stage, { goal_id: goal.goal_id });

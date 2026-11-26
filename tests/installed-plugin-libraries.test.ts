@@ -220,10 +220,10 @@ test("RAC-320 an installed plugin's library is declared the way a shipped one is
   const item = platformIn(directory);
   try {
     for (const name of ["Dataset", "../data", "a/b", ""]) {
-      assert.throws(() => install(item, probe({ name: "badname", library: { store_name: name } }).definition), "a Manifest with such a library name does not install");
+      assert.throws(() => install(item, probe({ name: "badname", library: { store_name: name } }).definition), { code: "plugin.manifest_invalid" }, "a Manifest with such a library name does not install");
     }
     assert.throws(() => install(item, { ...probe({ name: "noperm" }).definition, manifest: { ...probe({ name: "noperm" }).definition.manifest, permissions: [STORAGE, READ] } }),
-      "a Manifest that does not list the write permission does not install");
+      { code: "plugin.manifest_invalid" }, "a Manifest that does not list the write permission does not install");
   } finally { item.store.close(); }
 }));
 

@@ -106,7 +106,7 @@ test("S-10 a request a plugin makes through the sandbox proxy is HTTPS to an app
   assert.equal(validateNetworkRequest({ url: "https://example.com/a" }, approved, 1024).hostname, "example.com");
   for (const url of ["http://example.com/", "https://127.0.0.1/", "https://[::1]/", "https://[::ffff:127.0.0.1]/", "https://10.0.0.1/", "https://2130706433/", "https://example.com.evil.test/", "https://evil-example.com/",
     "https://example.com:8443/", "https://user:pass@example.com/", "https://example.com./", "https://example.com/#fragment", "https://sub.example.com/", "file:///etc/passwd", "gopher://example.com/"]) {
-    assert.throws(() => validateNetworkRequest({ url }, approved, 1024), url);
+    assert.throws(() => validateNetworkRequest({ url }, approved, 1024), (error: unknown) => error instanceof Error && "code" in error && (error.code === "sandbox.network_denied" || error.code === "sandbox.invalid_request"), url);
   }
 });
 
@@ -114,7 +114,7 @@ test("S-10 a custom RSS address is HTTPS to a public DNS name: addresses, local 
   assert.doesNotThrow(() => normalizeCustomRssFeedUrl("https://example.com/feed.xml"));
   for (const url of ["http://example.com/feed.xml", "https://127.0.0.1/feed.xml", "https://[::1]/feed.xml", "https://10.0.0.5/feed", "https://localhost/feed", "https://printer.local/feed", "https://intranet/feed",
     "https://user:pass@example.com/feed", "https://metadata.google.internal/computeMetadata", "file:///etc/passwd", "https://169.254.169.254/latest/meta-data"]) {
-    assert.throws(() => normalizeCustomRssFeedUrl(url), url);
+    assert.throws(() => normalizeCustomRssFeedUrl(url), (error: unknown) => error instanceof ActionError && error.code === "rss.custom_url_invalid", url);
   }
 });
 

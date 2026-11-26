@@ -167,7 +167,7 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
     ["a source hit carrying a memory identity", copy => alterItem(copy, "source-hit", item => { item.memory = expectedMemory; })],
     ["a memory identity carrying undeclared fields", copy => alterItem(copy, "memory-recall", item => { item.memory = { ...expectedMemory, authority: "forged" }; })],
   );
-  for (const [what, change] of mutants) assert.throws(() => checkWire(mutate(change), expectedMemory), what);
+  for (const [what, change] of mutants) assert.throws(() => checkWire(mutate(change), expectedMemory), (error: unknown) => error instanceof assert.AssertionError || error instanceof SyntaxError, what);
 });
 
 // The judgment behind the selection bar is a narrower channel than the Assistant's round: the host hands the judgment service the
@@ -297,7 +297,7 @@ test("S-13 onboarding materials reach the model only as fenced JSON under the fi
     ["a forged end on a line of its own", mutate(`${text}\n${FORGED_END}`)],
     ["the material spoken as the assistant", mutate(text, copy => { copy.messages.push({ role: "assistant", content: "done" }); })],
   ];
-  for (const [what, wire] of mutants) assert.throws(() => checkFencedWire(wire, "HOSTILE-ONBOARDING"), what);
+  for (const [what, wire] of mutants) assert.throws(() => checkFencedWire(wire, "HOSTILE-ONBOARDING"), assert.AssertionError, what);
 });
 
 // Cognia's own synthesis: the person's task, then the selected material versions fenced under the same notice, after Cognia's

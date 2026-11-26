@@ -21,6 +21,8 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
   "gates-built": { limit: 45, longest: 1400, blocking: true },
   "gate-rules": { limit: 45, longest: 0, blocking: true },
   "security-invariants": { limit: 40, longest: 1315, blocking: true },
+  // macOS Seatbelt sandbox and native input security invariants (F-TEST-01); bounded conservatively pending CI measurement.
+  "security-invariants-macos": { limit: 45, longest: 0, blocking: true },
   // Measured on the same window when it joined the table (2026-10-31): 939 s at the longest of 422 successful jobs.
   "product-subset": { limit: 35, longest: 939, blocking: true },
   // Measured on the one run there was when they joined the table (run 42410763603, 2026-11-07): 203 s on Linux, 334 s on macOS. One run each, so later runs are what to
@@ -101,7 +103,7 @@ test("RAC-1906 ci.yml: every setup-work step (including Install pnpm and pnpm in
       assert.ok(SETUP_WORK.limit * 60 >= 1.8 * SETUP_WORK.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 9, "the nine blocking job definitions that install pnpm and dependencies through setup-work");
+  assert.equal(seen, 10, "the ten blocking job definitions that install pnpm and dependencies through setup-work");
   for (const name of Object.keys(JOBS)) assert.equal(setupWorkSteps(jobBlock(name)).length, 1, `${name} runs setup-work once`);
 });
 

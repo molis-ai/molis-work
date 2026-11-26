@@ -671,7 +671,7 @@ jobs:
   verify:
     name: Verify
     # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
-    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
+    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, security-invariants-macos, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
     # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the source and build-dependent gates, secret scan, Rust/Swift/shell checks, account login, security invariants, product subset and golden replay run here.
@@ -696,6 +696,7 @@ jobs:
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
           SECURITY_INVARIANTS_RESULT: ${{ needs.security-invariants.result }}
+          SECURITY_INVARIANTS_MACOS_RESULT: ${{ needs.security-invariants-macos.result }}
           PRODUCT_SUBSET_RESULT: ${{ needs.product-subset.result }}
           GOLDEN_REPLAY_RESULT: ${{ needs.golden-replay.result }}
           GOLDEN_REPLAY_THIRD_PARTY_RESULT: ${{ needs.golden-replay-third-party.result }}
@@ -738,6 +739,10 @@ jobs:
           if [ "$SECURITY_INVARIANTS_RESULT" != "success" ]; then
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
             selected_skip "$SECURITY_MODE" none "$SECURITY_INVARIANTS_RESULT"
+          fi
+          if [ "$SECURITY_INVARIANTS_MACOS_RESULT" != "success" ]; then
+            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
+            selected_skip "$SECURITY_MODE" none "$SECURITY_INVARIANTS_MACOS_RESULT"
           fi
           if [ "$PRODUCT_SUBSET_RESULT" != "success" ]; then
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
@@ -864,6 +869,45 @@ jobs:
           else
             pnpm test:security --shard ${{ matrix.shard }}/${{ strategy.job-total }} --retries 1
           fi
+
+  # macOS-only security invariants (Seatbelt sandbox and native macOS input tests, P0-10 / F-TEST-01):
+  # runs all `@requires-platform darwin` and darwin-skipped security-invariant files (`test:security:macos`) on macos-latest
+  # so darwin-only invariants in the CI column actually execute instead of reporting 0-execution green on Linux.
+  security-invariants-macos:
+    name: Security invariants (macOS)
+    needs: [test-selection, queue-check]
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'none') }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      MOLIS_WORK_TEST_JOBS: 2
+    steps:
+      - uses: actions/checkout@v6
+
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      - name: Build
+        env:
+          # macOS security invariants never run Whisper audio transcription; skipping WhisperKit saves ~3.5 minutes on macOS.
+          MOLIS_WORK_SKIP_NATIVE_WHISPER_BUILD: "1"
+        run: pnpm build
+
+      - name: Security invariants (macOS)
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/security-macos-node-cache
+        run: pnpm test:security:macos --retries 1
 
   # Decision #14 (specs/archive/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
   # listed in tests/ci-product-subset.txt (fast files that passed on Linux in the probe above, the main flow of each product area, the

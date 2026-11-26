@@ -252,11 +252,11 @@ test('S-119 PCSYNC-22/23 the signed release and all five current release files s
  const extraFile=JSON.stringify(signPluginPackage({payload:payloadOf(distributed,{...bodies,'hidden.dat':'undeclared data'}),signature:null,publisher_key:null},publisher.signer));
  for(const malformed of [extraFile,JSON.stringify({...JSON.parse(signed),extra:'unsigned data'}),signed.replace('{','{"payload":{},')]){
   writeFileSync(join(directory,'signed-package.json'),malformed);
-  assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),'even a signed envelope may only describe the fixed release files');
+  assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),(error:unknown)=>error instanceof Error&&(/签名分发物与发布记录不符|创作同步内容或归属无效/u.test(error.message)||(error as {code?:string}).code==='plugin.signature_invalid'||(error as {code?:string}).code==='plugin.declaration_invalid'),'even a signed envelope may only describe the fixed release files');
  }
  writeFileSync(join(directory,'signed-package.json'),signed);
  writeFileSync(join(directory,'plugin.mjs'),'another body at the fixed version');
- assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),'file digests alone cannot replace the signed distribution');
+ assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),/签名分发物与发布记录不符/u,'file digests alone cannot replace the signed distribution');
  writeFileSync(join(directory,'signed-package.json'),signFiles({...bodies,'plugin.mjs':'another body at the fixed version'}));
  f.stores[0]!.update(build.id,checked.revision,row=>{row.title='force a normal owner mutation';});
  const changed=f.replicas[0]!.next()!;f.replicas[1]!.receive({...changed,revision:2});assert.equal(f.replicas[1]!.conflicts().length,1);

@@ -328,7 +328,7 @@ test("S-83 RAC-664 a disabled installation reads nothing, an uninstall takes its
   f.a.reading({ grant_id: grant.grant_id });
   const platform = await f.host.homePlugins!.ready();
   assert.equal((await f.request(`/api/plugins/${f.a.id}/disable`, { method: "POST", body: {} })).status, 200);
-  await assert.rejects(f.read(), "a disabled plugin's action is not called");
+  await assert.rejects(f.read(), (error: unknown) => error instanceof Error && "code" in error && ["actions.missing", "actions.stopped", "actions.provider_changed", "actions.plugin_unavailable"].includes(String(error.code)), "a disabled plugin's action is not called");
   assert.equal((await f.listed()).length, 1, "the grant waits for the next activation");
   await platform.supervisor.enable(f.a.id); await grantHomeProbe(f.host, f.a);
   assert.equal((await f.read()).outcome, "directory");

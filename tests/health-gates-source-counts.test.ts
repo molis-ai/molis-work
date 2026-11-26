@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countFile, countNonTsOldNames, countPackedStatements, countPartitionPathScans, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
+import { countFile, countNonTsOldNames, countPackedStatements, countPartitionPathScans, countPlatformPluginNames, findStringAssertMatchers, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
 
 // specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
@@ -348,4 +348,24 @@ test("44C PSD-02 G1 named exceptions: an unlisted file, a stale row, a wrong cou
   }
   const real = { read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } };
   assert.deepEqual(pluginNameExceptionProblems(real, counts, { required: true }), []);
+});
+
+test("F-TEST-03 testAssertMatcherProblems forbids 2-arg string/undefined assert.throws and assert.rejects in tests/**", () => {
+  const file = "tests/example.test.ts";
+  assert.equal(findStringAssertMatchers(file, 'assert.throws(() => f(), "should fail");').length, 1);
+  assert.equal(findStringAssertMatchers(file, "await assert.rejects(p(), `bad ${x}`);").length, 1);
+  assert.equal(findStringAssertMatchers(file, 'await assert.rejects(p(), "a" + b);').length, 1);
+  assert.equal(findStringAssertMatchers(file, "await assert.rejects(p(), undefined);").length, 1);
+  assert.equal(findStringAssertMatchers(file, "assert.throws(() => f(), JSON.stringify(x));").length, 1);
+  assert.equal(findStringAssertMatchers(file, 'assert.throws(() => f(), /bad/, "should fail");').length, 0);
+  assert.equal(findStringAssertMatchers(file, 'await assert.rejects(p(), { code: "ENOENT" }, "missing");').length, 0);
+  assert.equal(findStringAssertMatchers(file, "await assert.rejects(p(), (err: unknown) => err instanceof Error, label);").length, 0);
+  assert.equal(findStringAssertMatchers(file, "await assert.rejects(p());").length, 0);
+  assert.equal(findStringAssertMatchers("packages/alpha/src/index.ts", 'assert.throws(() => f(), "not a test file");').length, 0);
+  branch("bad-assert-matcher", () => {
+    put("tests/bad-matcher.test.ts", 'import assert from "node:assert/strict";\nassert.throws(() => { throw new Error("x"); }, "forgot matcher");\n');
+  });
+  const bad = gate("--base", "main");
+  assert.equal(bad.code, 1, bad.out);
+  assert.match(bad.out, /tests\/bad-matcher\.test\.ts:2: assert\.throws\(\) with 2 arguments passes a string or undefined as validateError/);
 });

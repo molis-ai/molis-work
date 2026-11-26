@@ -4,23 +4,19 @@ import { shippedParts, builtinPluginByManifestId } from "./plugin-registry.js";
 import { boundReferenceKinds, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
 
 /**
- * The typed-questionnaire question types each surface that renders `awaiting_input` can draw and validate.
- * Prologue offers question types per Runtime, not per run, so the Host may offer only the types every surface below
- * can render: a type is added to its surface's list in the same change that teaches the surface to draw it.
+ * The typed-questionnaire question types the Host's question card (`agent-question-card.ts`) draws and validates. Every surface that
+ * shows `awaiting_input` draws it with that one card, a plugin's stage through `plugin-interaction.ts` as much as the assistant (A1, A2), so the card says it once and
+ * no surface has a list of its own (44C). Prologue offers question types per Runtime, not per run: a type is added here in the change
+ * that teaches the card to draw it.
  *
- * Empty means the surface draws only the plain question (options as labels). Offering even `choice` switches the model
- * to the typed form (options with descriptions, a recommendation and a default). Both surfaces draw it with the Host's
- * shared question card (A1, A2), which also draws words, numbers, dates and a date and time (T1) and objects found by name (T2).
+ * Offering even `choice` switches the model to the typed form (options with descriptions, a recommendation and a default). The card also
+ * draws words, numbers, dates and a date and time (T1) and objects found by name (T2).
  */
-export const ASSISTANT_QUESTION_TYPES: readonly AgentQuestionType[] = ["choice", "text", "number", "date", "datetime", "reference"];
-export const CODING_QUESTION_TYPES: readonly AgentQuestionType[] = ["choice", "text", "number", "date", "datetime", "reference"];
+export const QUESTION_CARD_TYPES: readonly AgentQuestionType[] = ["choice", "text", "number", "date", "datetime", "reference"];
 
-/** The types the Runtime may offer: the ones every question-rendering surface can draw. */
-export function hostQuestionTypes(
-  surfaces: ReadonlyArray<readonly AgentQuestionType[]> = [ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES],
-): AgentQuestionType[] {
-  const [first = [], ...rest] = surfaces;
-  return first.filter(type => rest.every(surface => surface.includes(type)));
+/** The types the Runtime may offer: the ones the question card can draw. */
+export function hostQuestionTypes(): AgentQuestionType[] {
+  return [...QUESTION_CARD_TYPES];
 }
 
 type Declared = Parameters<typeof isSubjectReader>[0] & {

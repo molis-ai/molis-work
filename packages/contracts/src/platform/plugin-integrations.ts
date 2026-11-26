@@ -206,6 +206,30 @@ export interface PluginConnectionServiceDeclaration {
    * dependency named in `dependencies` (a package name; `@scope/*` matches the scope). Each list at most 16 entries.
    */
   readonly project_hints?: PluginServiceProjectHints;
+  /** What the service's card says or asks beyond the shared shape; absent where the shared shape is enough. */
+  readonly card?: PluginConnectionCardDeclaration;
+}
+
+/** Each part is optional; the card is drawn the shared way wherever a part is absent. */
+export interface PluginConnectionCardDeclaration {
+  /** What connecting the service is for, in place of its summary where a person connects it. */
+  readonly purpose?: PluginConnectionWord;
+  /** Whose account a person signs in with, when that is not the service's own (a Google account for Gmail). */
+  readonly provider?: PluginConnectionWord;
+  /** The way shown first. `cli`: whenever its official client is installed; `mcp`, `token`: when no way signs in with one click. */
+  readonly preferred_method?: "cli" | "mcp" | "token";
+  /** The parts a pasted credential is made of, joined with `separator` into the token that is saved. */
+  readonly credential?: PluginConnectionCredentialDeclaration;
+  /** Its tool service needs an app or an organization's setting of the person's own before it can be authorized. */
+  readonly own_app?: true;
+  /** What signing in through its official client does, in place of the shared sentence. */
+  readonly client_note?: PluginConnectionWord;
+}
+
+export interface PluginConnectionCredentialDeclaration {
+  readonly separator: ":" | "|";
+  /** In the order they are joined, 2 to 4. */
+  readonly fields: readonly { readonly label: PluginConnectionWord; readonly type: "text" | "email" | "url" | "password"; readonly placeholder?: string }[];
 }
 
 export interface PluginServiceProjectHints {
@@ -223,6 +247,8 @@ export interface PluginIntegrationDeclaration {
   readonly service_id: string;
   /** Only `document_import`: the name of the document source it reads, such as `google-docs`. */
   readonly document_source?: string;
+  /** Only `document_import`: what the source is called where a person picks it; the service's title without it. */
+  readonly title?: PluginConnectionWord;
   /**
    * Only `document_import`, and required there: the ways of connecting to the service its reading works with. The import takes a
    * connection only when the connection's way is one of these.

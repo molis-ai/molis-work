@@ -96,7 +96,7 @@ export const artifactsActions = {
       allow_model_download: { type: "boolean", description: "这个人同意为转写音视频下载本机语音模型；只有人亲自导入时有效" } }, ["source", "filename"]), imported, write, "concurrent") },
   importExternal: define<ArtifactExternalImport, ArtifactImportResult>("import.external", /* @version action.artifacts.import.external */ 1, "导入外部文档", "使用当前 Home 已连接的文档账号读取链接，保存个人快照；不写回来源，不自动同步", "command",
     object({ source: sources, url: { ...text, minLength: 1, maxLength: 4096 }, connection_id: id }, ["source", "url"]), imported, [...write, "connectors:document:read"], "concurrent"),
-  importSources: define<Record<string, never>, { sources: Record<string, boolean>; connections: ConnectorConnectionView[] }>("import.sources", /* @version action.artifacts.import.sources */ 1, "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, connections: array({ type: "object", additionalProperties: true }) })),
+  importSources: define<Record<string, never>, { sources: Record<string, boolean>; offered: ArtifactDocumentSourceOffer[]; connections: ConnectorConnectionView[] }>("import.sources", /* @version action.artifacts.import.sources */ 1, "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, offered: array(object({ source: text, service_id: text, title: text })), connections: array({ type: "object", additionalProperties: true }) })),
   subjectEmbeds: define<{ subject_id: string; supported_types?: ArtifactConsumerType[] }, { embeds: SubjectArtifactEmbed[] }>("subject.embeds", /* @version action.artifacts.subject.embeds */ 1, "读取对象的成果引用", "读取插件对象在 Ledger 里明确关联的输入和输出及固定版本，保留失效引用，不猜测关系", "query", object({ subject_id: id, supported_types: consumerTypes }, ["subject_id"]),
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", /* @version action.artifacts.links */ 1, "这一版被谁引用", "按声明链接种类的插件分组，列出把这一版作为输入或产出（含提议的）的对象，以及其他引用的数量；不修改数据",
@@ -120,6 +120,8 @@ const artifactsContentActions = defineWorkflowContentActions({ id: "artifacts", 
   subject_kind: ARTIFACT_SUBJECT_KIND, read_permissions: read, write_permissions: read });
 export const ARTIFACT_ACTIONS: readonly ActionDefinition[] = [...Object.values(artifactsActions), ...Object.values(artifactsContentActions)];
 export const ARTIFACT_ACTION_PERMISSIONS = [...new Set(ARTIFACT_ACTIONS.flatMap(value => value.action.permissions))];
+/** A document source a person can pick: what it is called, and the service whose connections read it. */
+export interface ArtifactDocumentSourceOffer { source: string; service_id: string; title: string }
 export interface ArtifactActionPorts {
   projectId: string;
   artifacts: ArtifactsApplicationApi;
@@ -129,6 +131,8 @@ export interface ArtifactActionPorts {
   importDocument(input: ArtifactFileImport | ArtifactExternalImport, caller: ActionExecutionContext): Promise<ArtifactImportResult>;
   /** May read a registry that is built asynchronously (the Home's integrations), so the answer may be a promise. */
   importSources(): Record<string, boolean> | Promise<Record<string, boolean>>;
+  /** The document sources that can be read from here, in the order they were declared, by the words they were declared with. */
+  importOffered?(): ArtifactDocumentSourceOffer[] | Promise<ArtifactDocumentSourceOffer[]>;
   importConnections?(): ConnectorConnectionView[] | Promise<ConnectorConnectionView[]>;
   openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
   /**
@@ -253,7 +257,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.export, input => ({ filename: `artifact-v${input.reference.version}.json`, mime: "application/json", content: exportArtifactVersion(ports.artifacts.query, ports.projectId, input.reference) })),
     bind(artifactsActions.importFile, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importExternal, (input, caller) => ports.importDocument(input, caller)),
-    bind(artifactsActions.importSources, async () => ({ sources: await ports.importSources(), connections: (await ports.importConnections?.()) ?? [] })),
+    bind(artifactsActions.importSources, async () => ({ sources: await ports.importSources(), offered: (await ports.importOffered?.()) ?? [], connections: (await ports.importConnections?.()) ?? [] })),
     bind(artifactsActions.subjectEmbeds, input => ({ embeds: readSubjectArtifactEmbeds({ projectId: ports.projectId, subjectId: input.subject_id, artifacts: ports.artifacts.query, ledger: ports.ledger, linkKinds: ports.linkKinds, supportedTypes: input.supported_types }) })),
     bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
     bind(artifactsActions.pluginInputs, async input => ({ inputs: await ports.pluginInputs?.(requireUsable(ports, input.reference)) ?? [] })),

@@ -2,11 +2,11 @@ import type { IncomingMessage } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { readOriginalText } from "./artifact-original-text.js";
 import { readMaterialHtml } from "./material-extraction.js";
-import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { builtinDocumentDriver } from "./builtin-drivers.js";
 import {
   DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
-  type ArtifactDocumentImportPorts, type OfferedOriginal,
+  type ArtifactDocumentImportPorts, type ArtifactDocumentSourceOffer, type OfferedOriginal,
 } from "@molis-ai/molis-work-module-artifacts";
 import { resolveConfiguredHome } from "./product-home.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
@@ -38,6 +38,15 @@ export async function documentImports(home: string): Promise<Record<string, { se
   const registry = await homeIntegrationRegistry(home);
   return Object.fromEntries(registry.listIntegrations("document_import").map(entry => [entry.declaration.document_source!,
     { service: entry.declaration.service_id, methods: entry.declaration.connection_methods ?? [] }]));
+}
+
+/** The sources a person can pick, with the name each was declared with: its own, or its service's. */
+export async function documentImportOffers(home = resolveConfiguredHome()): Promise<ArtifactDocumentSourceOffer[]> {
+  const registry = await homeIntegrationRegistry(home), services = registry.connectionServices();
+  return registry.listIntegrations("document_import").flatMap(({ declaration }) => {
+    const service = services.find(item => item.declaration.service_id === declaration.service_id);
+    return service ? [{ source: declaration.document_source!, service_id: declaration.service_id, title: service.word(declaration.title ?? service.declaration.title) }] : [];
+  });
 }
 
 type ConnectionView = ReturnType<typeof listConnectorConnectionViews>[number];
@@ -101,13 +110,13 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
         catch { signal.throwIfAborted(); throw artifactImportErrors.credentials_unavailable("所选连接不可用，请在连接器设置中重新授权"); }
         usedConnection = id;
         usedRevision = access.connection.updated_at;
-        const read = () => readExternalDocument(document, { token: access.token, fetch: access.fetchImpl, signal, beforeDispatch,
-          ...(access.connection.auth_method === "oauth" ? { tokenKind: "access_token" as const } : {}) });
+        const read = async () => ({ ...await builtinDocumentDriver().read(document, { token: access.token, fetch: access.fetchImpl, signal, beforeDispatch,
+          ...(access.connection.auth_method === "oauth" ? { tokenKind: "access_token" as const } : {}) }), source: document.source });
         try { return { ...await read(), connection_id: id }; }
         catch (error) {
           signal.throwIfAborted();
           assertConnection();
-          if (access.connection.auth_method !== "oauth" || !(error instanceof ActionError) || error.code !== "catalog_integration.needs_auth") throw error;
+          if (access.connection.auth_method !== "oauth" || !builtinDocumentDriver().refused(error)) throw error;
           await beforeDispatch();
           access = await resolveApiConnection(home, id, control, service, true);
           return { ...await read(), connection_id: id };

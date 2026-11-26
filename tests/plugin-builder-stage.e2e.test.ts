@@ -52,7 +52,7 @@ test("B47-F4 B12 an expired Studio page keeps the message for the same paused bu
     const fixture = readyPublication(home, projectId, "project"), store = new LocalProjectDatabase(database);
     try {
       const storage = new SqlitePluginPrivateStorage(store.db).forPlugin({
-        install_id: "agent-studio:" + projectId, installation_generation: "studio", plugin_id: BUILDER_PLUGIN_ID, version: builderManifest.version,
+        install_id: "agent-studio:" + projectId, installation_generation: "studio", plugin_id: BUILDER_PLUGIN_ID, provider_id: BUILDER_PLUGIN_ID, version: builderManifest.version,
         deployment: "local", grants: ["storage:private"], project_id: projectId, requireGrant() {},
       }, builderManifest);
       const values = JSON.parse(await readFile(fixture.statePath, "utf8")) as Record<string, string>;

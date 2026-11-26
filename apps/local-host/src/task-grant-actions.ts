@@ -4,7 +4,7 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import {
   agentTaskGrantActions, type TaskGrantCategoryReference, type TaskGrantClearRequest, type TaskGrantListRequest, type TaskGrantListResult, type TaskGrantSetCategory, type TaskGrantSetRequest, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { resolveManifestText, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { resolveActionProviderId, resolveManifestText, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { createMcpActionGrant } from "./mcp-action-grants.js";
@@ -41,8 +41,8 @@ type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectAct
 
 /**
  * The providers' declarations, from the Manifest each installation was installed with: the project's own installations first (a
- * dual-instance plugin's halves share one), then the Home's. A provider is an installation's id, or (a plugin the Host ships) its plugin
- * id, as the Plugin Runtime registers it. A plugin provider whose Manifest cannot be read offers nothing (`null`); a provider of the
+ * dual-instance plugin's halves share one), then the Home's. A provider is found by the id the
+ * Plugin Runtime registers an installation under (`resolveActionProviderId`). A plugin provider whose Manifest cannot be read offers nothing (`null`); a provider of the
  * Host's own has none to read (`{}`): it is one whole category if it declares `task_readable`, and offers nothing otherwise (`readableByTask`).
  */
 export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "homePlugins">, reference: LocalHostProjectReference, requestedLocale?: string): Promise<TaskGrantDeclarations> {
@@ -62,15 +62,12 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
     return { entries: list, current, projectReaders };
   });
   const home = host.homePlugins;
-  const provides = (record: PluginInstanceRecord, providerId: string) =>
-    record.install_id === providerId
-    || (record.plugin_id === providerId && record.publisher_trust === "host")
-    || (record.execution === "sandbox" && `plugin:${record.plugin_id}` === providerId);
+  const provides = (record: PluginInstanceRecord, providerId: string) => resolveActionProviderId(record) === providerId;
   const manifestOf = (providerId: string, at = entries): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
     const own = at.find(({ record }) => provides(record, providerId));
     if (own) return own;
-    const record = home?.installation(providerId) ?? (providerId.startsWith("plugin:") ? home?.installation(providerId.slice("plugin:".length)) : undefined);
-    return record && provides(record, providerId) ? { record, manifest: home?.manifest(record.plugin_id) } : undefined;
+    const record = home?.installations().find(entry => entry.state !== "uninstalled" && provides(entry, providerId));
+    return record && { record, manifest: home?.manifest(record.plugin_id) };
   };
   const homeEntries = (home?.installations() ?? []).map(record => ({ record, manifest: home?.manifest(record.plugin_id) }));
   const original = (providerId: string) => entries.find(({ record }) => provides(record, providerId)) ?? homeEntries.find(({ record }) => provides(record, providerId));

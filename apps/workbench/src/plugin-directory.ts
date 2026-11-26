@@ -1,8 +1,8 @@
+import { PLUGIN_OFFERS } from "@molis-ai/molis-work-ui-host";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { DirectoryView, PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
-import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
-import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
+import { PLATFORM_NAVIGATION } from "./platform-surfaces.js";
 
 export type { PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 
@@ -60,7 +60,8 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
     seen.add(id);
     const chosen = entry.chosen === true;
     const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons, chosen); return clean ? [clean] : []; });
-    entries.push({ id, plugin_id: pluginId, name, ...(summary ? { summary } : {}), chosen,
+    const offers = PLUGIN_OFFERS.filter(offer => Array.isArray(entry.offers) && entry.offers.includes(offer));
+    entries.push({ id, plugin_id: pluginId, name, ...(summary ? { summary } : {}), ...(offers.length ? { offers } : {}), chosen,
       ...(chosen ? trustedMarks(entry) : homeMarks(entry)), ui: { views } });
   }
   return entries;
@@ -131,8 +132,7 @@ export function clientPluginDirectory(directory: PluginDirectory, offered: reado
     return { ...(tab ? { side: tab } : {}), ...(item ? { side_item: item } : {}) };
   };
   return [
-    { id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue, ...place(ARTIFACT_NAVIGATION.id) },
-    { id: SESSIONS_NAVIGATION.id, accepts_objects: false, hue: SESSIONS_NAVIGATION.hue, ...place(SESSIONS_NAVIGATION.id) },
+    ...PLATFORM_NAVIGATION.map(({ id, accepts_objects, hue }) => ({ id, accepts_objects, hue, ...place(id) })),
     ...directory.map(entry => ({
     id: entry.id,
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),

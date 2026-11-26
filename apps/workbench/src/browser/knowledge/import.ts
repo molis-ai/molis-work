@@ -15,7 +15,7 @@ const TEXT_FILE = /\.(md|markdown|txt|html|htm)$/iu;
 const SLOW_FILE = /\.(pdf|png|jpe?g|webp|heic|heif|tiff?|bmp|gif|mp3|wav|m4a|aac|aiff?|flac|mp4|mov|m4v|webm)$/iu;
 const skipped = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
 interface Picked { file: File; path: string }
-interface ImportSources { sources: Record<string, boolean>; connections: Array<{ connection_id: string; service_id: string; display_name: string; state: string }> }
+interface ImportSources { offered: Array<{ source: string; service_id: string; title: string }>; connections: Array<{ connection_id: string; service_id: string; display_name: string; state: string }> }
 
 /** A folder's files keep their path inside it; hidden ones and build or dependency folders are left out, as the workspace listing does. */
 const wanted = (path: string) => !path.split("/").some((segment, index, all) => segment.startsWith(".") || (index < all.length - 1 && skipped.has(segment)));
@@ -264,8 +264,9 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     const note = $("[data-knowledge-import-connection-note]");
     try { sources ??= await request()<ImportSources>(base + "/import/sources"); }
     catch (error) { note.textContent = request().text(error, uiText.text("workbench.import.connection-state-cannot-be-loaded")); return; }
-    const source = $<HTMLSelectElement>("[data-knowledge-import-source]").value;
-    const service = source === "google-docs" ? "google-drive" : source;
+    const picker = $<HTMLSelectElement>("[data-knowledge-import-source]");
+    if (!picker.options.length) picker.append(...sources.offered.map(offer => new Option(offer.title, offer.source)));
+    const service = sources.offered.find(offer => offer.source === picker.value)?.service_id;
     const rows = sources.connections.filter(row => row.service_id === service && row.state === "connected");
     const select = $<HTMLSelectElement>("[data-knowledge-import-connection]");
     select.replaceChildren(...rows.map(row => new Option(row.display_name, row.connection_id)));

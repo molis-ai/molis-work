@@ -1,7 +1,6 @@
 import { defineErrorCodes, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import { inspectApiConnection } from "./connector-access.js";
-import { accountReader } from "./account-providers.js";
+import { accountDriver } from "./builtin-drivers.js";
 import { CONNECTOR_CLIS, inspectCliConnection } from "./connector-cli.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
@@ -14,8 +13,7 @@ const errors = defineErrorCodes("connector.records", { unsupported: "unavailable
 /** Capability projection and execution use the same existing read adapter declaration. */
 export const supportsConnectorRecords = (connection: Pick<ConnectorConnectionRecord, "auth_method" | "service_id">): boolean =>
   connection.auth_method === "cli" ? Boolean(Object.hasOwn(CONNECTOR_CLIS, connection.service_id) ? CONNECTOR_CLIS[connection.service_id]?.read : undefined)
-    : ["token", "oauth"].includes(connection.auth_method) && (accountReader(connection.service_id) !== undefined
-      || isCatalogConnectorId(connection.service_id) && getCatalogSpec(connection.service_id).source_available !== false);
+    : ["token", "oauth"].includes(connection.auth_method) && accountDriver(connection.service_id)?.source !== undefined;
 
 /** Whether some account of the service can be read by `connectors.records.read@1`: the same readers `supportsConnectorRecords` takes. */
 export const serviceHasRecordReader = (serviceId: string): boolean =>

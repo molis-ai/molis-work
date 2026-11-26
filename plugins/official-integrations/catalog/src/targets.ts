@@ -1,15 +1,12 @@
+import { oauthTenantSiteOrigin } from "@molis-ai/molis-work-plugin-sdk/oauth";
 import { CatalogLiveError } from "./http.js";
 import type { CatalogAuthContext } from "./types.js";
 
 /** Cloud origins only: no URL-normalized paths, credentials, ports or look-alike suffixes. */
 export function catalogCloudOrigin(raw: string, domain: "atlassian.net" | "salesforce.com"): string {
-  const value = raw.trim().replace(/\/$/u, "");
-  const host = /^https:\/\//iu.test(value) ? value.slice(8) : value;
-  const labels = host.toLowerCase().split(".");
-  if (host.length > 253 || !host.toLowerCase().endsWith(`.${domain}`) || labels.some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(label))) {
-    throw new CatalogLiveError("configuration", undefined, "请检查连接配置");
-  }
-  return `https://${host.toLowerCase()}`;
+  const origin = oauthTenantSiteOrigin(domain, raw);
+  if (!origin) throw new CatalogLiveError("configuration", undefined, "请检查连接配置");
+  return origin;
 }
 
 export function atlassianBase(ctx: CatalogAuthContext, service: "jira" | "confluence"): string {

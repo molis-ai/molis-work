@@ -5,7 +5,7 @@ import type { PluginConnectionServiceDeclaration, PluginConnectionWord } from "@
 import { localeMessageArguments, type LocaleSetProblem } from "./locale-pack.js";
 import { tryOwnedTextRef } from "./text-ref.js";
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & {
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "integrations" | "databases"> & {
   readonly permissions?: PluginManifest["permissions"];
   readonly read_groups?: PluginManifest["read_groups"];
   readonly actions?: PluginManifest["actions"];
@@ -144,7 +144,8 @@ export function directoryPackProblems(manifest: DirectoryWordManifest, pack: UiL
       fix: "在默认语言文件里声明这条短句；不写参数或复数", blocking: true,
     }];
   });
-  const connector = (manifest.connection_services ?? []).flatMap(connectionFields).flatMap(([field, ref]) => {
+  const documents = (manifest.integrations ?? []).map(item => [`集成 ${item.integration_id} 的 title`, item.title] as const);
+  const connector = [...(manifest.connection_services ?? []).flatMap(connectionFields), ...documents].flatMap(([field, ref]) => {
     if (!ref || typeof ref !== "object" || !("key" in ref)) return [];
     const shared = ref.key.startsWith("common.");
     if (shared ? sharedDefault === undefined : pack.owner !== manifest.plugin_id) return [];
@@ -177,5 +178,7 @@ function connectionFields(service: PluginConnectionServiceDeclaration): readonly
       ? [[at + "token label", method.label] as const, [at + "token placeholder", method.placeholder] as const]
       : method.kind === "oauth" ? [[at + "oauth note", method.note] as const, ...(method.settings ?? []).flatMap(setting =>
         [[at + setting.key + " label", setting.label] as const, [at + setting.key + " placeholder", setting.placeholder] as const])] : []),
+    [at + "card purpose", service.card?.purpose], [at + "card provider", service.card?.provider], [at + "card client note", service.card?.client_note],
+    ...(service.card?.credential?.fields ?? []).map(field => [at + "credential label", field.label] as const),
   ];
 }

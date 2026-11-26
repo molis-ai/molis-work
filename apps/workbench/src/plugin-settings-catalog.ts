@@ -6,10 +6,8 @@ import { registeredIconNames } from "@molis-ai/molis-work-design-system";
 import { viewContributionId } from "./declared-stages.js";
 import { builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
 import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
+import { isHostGlobalSettingsSection } from "./platform-settings-registry.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
-
-/** 能力 is four settings categories served from /capabilities/<id> (specs/artifact-positioning S6b). */
-export const CAPABILITY_SETTINGS_SECTIONS = ["library", "connections", "access", "history"] as const;
 
 interface PluginSettingsNavItem {
   readonly section_id: string;
@@ -105,19 +103,4 @@ export function findPluginSettingsNavItem(sectionId: string): PluginSettingsNavI
   // Route discovery precedes project selection. Navigation filtering must not
   // make a registered project's settings page unreachable by its own URL.
   return pluginSettingsNavItemsFrom(listWorkbenchUiContributions()).find((item) => item.section_id === sectionId) ?? null;
-}
-
-export function isHostGlobalSettingsSection(section: string): boolean {
-  return section === "appearance"
-    || section === "models"
-    || section === "assistant"
-    || section === "characters"
-    || section === "prompts"
-    || (CAPABILITY_SETTINGS_SECTIONS as readonly string[]).includes(section)
-    || section === "runtimes"
-    || section === "mcp"
-    || section === "connectors"
-    || section === "projects"
-    || section === "diagnostics"
-    || section === "memory";
 }

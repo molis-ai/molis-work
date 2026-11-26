@@ -2,8 +2,7 @@ import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/a
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostSurfaceRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { StagePagePresentation, UiContribution, UiRenderRequest, UiSurfaceDescriptor, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
+import { HOST_FRAMED_SURFACES, WORKBENCH_SURFACE_CATALOG } from "./host-surfaces.js";
 import { renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
@@ -180,7 +179,7 @@ export function renderDeclaredStages({ enabled, hostSurfaces = false, rendered, 
   const shown = new Set(enabled), refused = new Set(unavailable);
   let page: RenderedStagePage | undefined;
   const panels: Record<string, string> = {}, overlays: string[] = [], surfaces: Array<Pick<UiRenderRequest, "contribution_id" | "surface">> = [];
-  const entries: readonly HostSurfaceRegistration[] = [...BUILTIN_PLUGIN_CATALOG.filter(entry => shown.has(entry.project_plugin_id)), ...(hostSurfaces ? HOST_FRAMED_SURFACES : [])];
+  const entries: readonly HostSurfaceRegistration[] = WORKBENCH_SURFACE_CATALOG.filter(entry => HOST_FRAMED_SURFACES.includes(entry) ? hostSurfaces : shown.has(entry.project_plugin_id));
   const html = entries.flatMap(entry => {
     if (refused.has(entry.project_plugin_id)) return [];
     const contributionId = declaredStageContributionId(entry);

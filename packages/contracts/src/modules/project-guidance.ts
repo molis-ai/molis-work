@@ -109,7 +109,7 @@ export const PROJECT_GUIDANCE_READ_PERMISSION = "projects:guidance-read";
 /** What a write asks for. */
 export const PROJECT_GUIDANCE_WRITE_PERMISSION = "projects:guidance";
 
-/** The same refusals Goals gave, under the platform's name (`goals.project_guidance.*`, `goals.storage.record_unreadable` → `projects.guidance.*`). */
+/** The project guidance refusals, under the platform's name `projects.guidance.*`. */
 export const projectGuidanceErrors = defineErrorCodes("projects.guidance", {
   action_invalid: "invalid",
   already_active: "invalid",

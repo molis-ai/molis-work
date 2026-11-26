@@ -32,6 +32,30 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 /** Each project's registrations that declare `project_runtime`, read from the generated platform registry (PG-067). */
 const PROJECT_RUNTIME_ENTRIES = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.project_runtime);
 
+/**
+ * The workbench files that read the list of shipped plugins directly. Everything else reads the registration it needs through them
+ * (`manifestFor`, `builtinPluginDirectory`, the runtime directory), so what a page knows about plugins is what is installed, shipped or not.
+ * `plugin-workbench.ts` and `stage-renderers.ts` are the trust boundary of in-page code (scripts/check-package-boundaries.mjs): only a
+ * shipped package's renderer runs in the page itself.
+ */
+const SHIPPED_LIST_READERS = ["host-surfaces.ts", "plugin-catalog.ts", "plugin-workbench.ts", "stage-renderers.ts"];
+
+test("PSD-04 the list of shipped plugins is read by four workbench files and no other", async () => {
+  const root = join(repoRoot, "apps", "workbench", "src"), readers: string[] = [];
+  for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".ts") || entry.name === "builtin-plugins.ts") continue;
+    const path = join(entry.parentPath, entry.name);
+    // The package's own index hands the list to the tests and the Host's checks; it does not read it.
+    if (/\bBUILTIN_PLUGIN_CATALOG\b/u.test(await readFile(path, "utf8")) && path !== join(root, "index.ts")) readers.push(path.slice(root.length + 1));
+  }
+  assert.deepEqual(readers.sort(), SHIPPED_LIST_READERS);
+  for (const dir of ["apps/local-host/src", "apps/desktop/src", "packages/ui-host/src"]) {
+    for (const entry of await readdir(join(repoRoot, dir), { recursive: true, withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".ts")) assert.doesNotMatch(await readFile(join(entry.parentPath, entry.name), "utf8"), /\bBUILTIN_PLUGIN_CATALOG\b/u, `${dir}/${entry.name}`);
+    }
+  }
+});
+
 /** Started by `createPluginPlatform` in each project: the declared project instances, and nothing written by hand (BL-616). */
 const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map(
   PROJECT_RUNTIME_ENTRIES.map(entry => [entry.project_plugin_id, entry.project_runtime!.package_name] as const));

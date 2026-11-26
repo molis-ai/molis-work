@@ -5,8 +5,8 @@ import { section } from "./catalog-parts.js";
 
 const title = "Mobile pricing table · review the third column on narrow windows, split panes and long customer names";
 const declaration: OwnedPresentationObject = {
-  owner: "io.molis.work.inbox",
-  kind: "inbox_item",
+  owner: "com.example.drafts",
+  kind: "draft",
   fields: [
     { key: "title", role: "title" }, { key: "status", role: "status" },
     { key: "summary", role: "summary" }, { key: "excerpt", role: "excerpt" },
@@ -31,12 +31,13 @@ const declaration: OwnedPresentationObject = {
 
 const owner = (id: string, name: string, icon: PresentationFormValues["ownerDisplay"]["icon"]) =>
   ({ id, display: { name, icon, hue: presentationOwnerHue(id) } });
-const inbox = owner(declaration.owner, "Inbox", "inbox");
-const goals = owner("io.molis.work.goals", "Goals", "target");
-const coding = owner("io.molis.work.coding", "Coding", "code");
-// The five cool owner hues are shared by more than one plugin, and Inbox, Goals and Coding all hash to indigo. The board's sample
-// rows must still show a second owner's own hue, so the acceptance row belongs to Pages (blue), whose words are a layout review.
-const pages = owner("io.molis.work.pages", "Pages", "note");
+// Made-up owners (44C, D8=A: the board names no real plugin). The five cool owner hues are shared by more than one plugin, and Drafts,
+// Plans and Workshop all hash to indigo. The board's sample rows must still show a second owner's own hue, so the acceptance row
+// belongs to Review (blue), whose words are a layout review.
+const inbox = owner(declaration.owner, "Drafts", "inbox");
+const goals = owner("com.example.plans", "Plans", "target");
+const coding = owner("com.example.workshop", "Workshop", "code");
+const pages = owner("com.example.review", "Review", "note");
 const at = "2026-11-08T17:40:00Z";
 
 export interface CatalogPresentationPlugin {

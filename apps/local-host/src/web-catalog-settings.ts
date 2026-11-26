@@ -1,8 +1,8 @@
-import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.js";
+import { resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { projectPluginJudge } from "./project-action-availability.js";
 import { refusedOwner } from "./web-owner-unavailable.js";
-import type { CapabilitySection, DynamicPluginSettingsNavItem, WebSettingsProject, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
-import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharacters, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import type { CapabilitySection, DynamicPluginSettingsNavItem, MolisWorkSettingsView, PlatformSettingsPage, WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
+import { findPluginSettingsNavItem, platformSettingsAt, pluginSettingsDataAction, renderCharacters, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SettingsDeclaration, SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
@@ -10,30 +10,112 @@ import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-wor
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
-import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { functionsConnectionStatus } from "./judgment-rules-host.js";
 import { capabilitiesView } from "./web-capabilities.js";
-import { callDiagnosticsView } from "./web-call-diagnostics.js";
-import { connectorSettingsView } from "./web-connector-settings.js";
-import { webSearchSettingsView } from "./web-search-http.js";
-import { listConnectorConnectionViews } from "./connector-connection-views.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
-import { modelTemplatePageData } from "./model-provider-setup.js";
-import { withModelChecks } from "./model-provider-checks.js";
-import { modelAddressFromTemplate, modelKeyHint } from "./model-provider-templates.js";
-import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { runningProjectPlatform } from "./project-plugins.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
-import { readText, currentLocale, inLanguagePreview } from "./web-locale.js";
-import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.js";
 import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
 import { agentDisplayModel } from "./agent-definitions/display-words.js";
+import { withConnectorConnections } from "./connector-connection-store.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
+import { functionsConnectionStatus } from "./judgment-rules-host.js";
+import { mcpAccessPageModel } from "./mcp-action-access.js";
+import { withModelChecks } from "./model-provider-checks.js";
+import { modelTemplatePageData } from "./model-provider-setup.js";
+import { modelAddressFromTemplate, modelKeyHint } from "./model-provider-templates.js";
+import { mergePluginDirectories, pagePluginDirectory, runningPluginDirectory } from "./plugin-directory.js";
+import { selectedTypeSafeConnection } from "./typesafe-connection.js";
+import { callDiagnosticsView } from "./web-call-diagnostics.js";
+import { connectorSettingsView } from "./web-connector-settings.js";
+import { webSearchSettingsView } from "./web-search-http.js";
+import { currentLocale, inLanguagePreview, readText } from "./web-locale.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { CatalogRequestContext } from "./web-catalog-routes.js";
+
+/** What a platform settings page is asked with: the request, and the project its settings were opened from. */
+interface SettingsPageRequest {
+  readonly ctx: CatalogRequestContext;
+  readonly projects: readonly WebSettingsProject[];
+  readonly contextProject: WebSettingsProject | null;
+}
+type SettingsPageData = (page: SettingsPageRequest) => Partial<MolisWorkSettingsView> | Promise<Partial<MolisWorkSettingsView>>;
+
+/**
+ * Settings › 角色 (docs/design/role-scope, plan C): the person's default and their own roles, read in the personal space where every
+ * Characters action already answers; a project's default and members are in that project's settings. System and plugin roles are
+ * listed here too.
+ */
+const charactersSettings: SettingsPageData = ({ ctx: { serverOptions: { homeDirectory: home } } }) => ({ plugin_settings_html: renderCharacters({ route_prefix: `/projects/${PERSONAL_SPACE_PROJECT_ID}`, scope: "personal", primitives: { escape: escapeHtml },
+    ...(home && inLanguagePreview() ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(home)?.registrations() ?? [], currentLocale() ?? undefined, "role") } : {}) }) });
+
+/** 设置 › 更新 (U3 §5.4): read only, no store opened. */
+function updateView(home: string) {
+  const held = readRollbackHold(home);
+  return { point: readRollbackPoint(home), held: held ? { held_version: held.held_version, rolled_back_from: held.rolled_back_from.version } : null };
+}
+
+/** The plugins the context project runs, when it is open here; a settings page starts none to list them. */
+async function projectDirectory(host: MolisWorkLocalHost, project: WebSettingsProject | null) {
+  if (!project) return [];
+  return host.withProject(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }), async runtime => {
+    const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
+    return platform ? runningPluginDirectory(platform.supervisor) : [];
+  }).catch(() => []);   // a project that cannot be read now adds no plugin; the Home's and the market's stay
+}
+
+/**
+ * What the Host reads for each platform settings page, beside what every settings page has (`PLATFORM_SETTINGS_REGISTRY` in the workbench
+ * lists the pages). A page that needs nothing of its own has no entry; the settings route asks the opened page's and no other's.
+ */
+export const PLATFORM_SETTINGS_DATA: Readonly<Partial<Record<PlatformSettingsPage, SettingsPageData>>> = {
+  authorizations: ({ ctx: { url } }) => url.searchParams.get("view") === "project-rules" ? { show_project_approval_rules: true } : {},
+  characters: charactersSettings,
+  connectors: async ({ ctx: { localHost, serverOptions: { homeDirectory }, url }, contextProject }) => ({
+    plugin_directory: mergePluginDirectories(await projectDirectory(localHost, contextProject), await pagePluginDirectory(localHost.homePlugins)),
+    ...await connectorSettingsView(localHost, homeDirectory, url, contextProject
+      ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined),
+    ...(homeDirectory ? { functions_settings: {
+      settings: functionsConnectionStatus(homeDirectory),
+      connections: listConnectorConnectionViews(homeDirectory, "typesafe"),
+      selected_connection_id: selectedTypeSafeConnection(homeDirectory)?.connection_id,
+    } } : {}),
+  }),
+  diagnostics: ({ ctx: { localHost, url, composition } }) => ({ ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() }),
+  mcp: async ({ ctx: { serverOptions: { homeDirectory }, localHost, url, runtimeIntegrations, composition }, projects }) => homeDirectory ? {
+    mcp_access: await mcpAccessPageModel({ home: homeDirectory, host: localHost, url, clients: runtimeIntegrations.clientDescriptors(), projects: [...projects], withCatalog: composition.withCatalog }),
+  } : {},
+  models: async ({ ctx: { serverOptions: { homeDirectory }, url, composition } }) => ({ model_settings: await composition.withCatalog({ homeDirectory }, catalog => {
+    const connections = homeDirectory ? listConnectorConnectionViews(homeDirectory, "model-api") : [];
+    const providers = catalog.models.list(), templates = modelTemplatePageData(url.searchParams);
+    const selected = url.searchParams.get("provider");
+    const shown = templates.draft_provider ?? providers.find((provider) => provider.provider_id === selected) ?? providers[0];
+    // Which key each provider holds, read in one pass over the connections rather than one open per provider and connection.
+    const refs = connections.length ? withConnectorConnections(homeDirectory!, (store) =>
+      new Map(connections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id])), "required") : new Map<string | null, string>();
+    return {
+      // Each provider's last real check, so the page says "checked at …" or "never checked" rather than guessing (PF-A04).
+      providers, health: withModelChecks(homeDirectory, providers, catalog.models.health()), connections,
+      selected_connection_ids: Object.fromEntries(providers.map((provider) => [provider.provider_id, refs.get(provider.credential_ref) ?? ""])),
+      selected_provider_id: selected,
+      ...(shown ? {
+        key_hint: modelKeyHint(shown.base_url, templates.draft_template_id),
+        address_from_template: modelAddressFromTemplate(shown.base_url, templates.draft_template_id),
+      } : {}),
+      ...templates,
+    };
+  }) }),
+  prompts: ({ ctx: { serverOptions: { homeDirectory } } }) => homeDirectory && inLanguagePreview()
+    ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined) } : {},
+  runtimes: async ({ ctx: { runtimeIntegrations } }) => ({ runtimes: await runtimeIntegrations.detectAll() }),
+  update: ({ ctx: { serverOptions: { homeDirectory } } }) => homeDirectory ? { update: updateView(homeDirectory) } : {},
+  "web-search": async ({ ctx: { serverOptions: { homeDirectory }, localHost } }) => homeDirectory ? { web_search: await webSearchSettingsView(localHost) } : {},
+};
 
 interface DiscoveredDynamicSettingsPlugin extends DynamicPluginSettingsNavItem {
   readonly manifest: PluginManifest;
@@ -81,7 +163,7 @@ async function discoverDynamicSettingsPlugins(
       await localHost.homePlugins.ready();
       for (const record of localHost.homePlugins.installations(false, true)) {
         if (record.state !== "running") continue;
-        const providerId = record.publisher_trust === "host" ? record.plugin_id : record.execution === "sandbox" ? `plugin:${record.plugin_id}` : record.install_id;
+        const providerId = resolveActionProviderId(record);
         register(localHost.homePlugins.manifest(record.plugin_id), "home", providerId);
       }
     } catch { /* Home plugin host unavailable or preview-only */ }
@@ -97,7 +179,7 @@ async function discoverDynamicSettingsPlugins(
           // A plugin hidden in this project has no settings here, as it has no place in the project's pages.
           if (record.state !== "running" || !shownInProject(record.plugin_id)) continue;
           const manifest = installedPluginManifest(runtime.store.db, record.install_id)?.manifest ?? platform.supervisor.manifest(record.plugin_id);
-          const providerId = record.publisher_trust === "host" ? record.plugin_id : record.execution === "sandbox" ? `plugin:${record.plugin_id}` : record.install_id;
+          const providerId = resolveActionProviderId(record);
           register(manifest, "project", providerId);
         }
       });
@@ -153,15 +235,13 @@ async function pluginMembership(composition: LocalWebComposition, homeDirectory:
 
 /** The settings and capability pages: one GET route, the page the address names, with the facts of the project it was opened from. */
 export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<boolean> {
-  const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
+  const { request, response, url, serverOptions, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|authorizations|characters|prompts|kit|memory|work-records|mcp|connectors|web-search|projects|diagnostics|update|running|sync)$/);
-  const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
-  if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
-  const rules = capabilityPageMatch?.[1] === "rules";
-  const capabilitySection = (rules ? "library" : capabilityPageMatch?.[1]) as CapabilitySection | undefined;
-  const section = (capabilitySection === "connections" ? "connectors" : capabilitySection === "access" ? "mcp" : capabilitySection ?? settingsPageMatch![1]) as WebSettingsSection;
+  const opened = request.method === "GET" ? platformSettingsAt(url.pathname) : null;
+  if (!opened) return false;
+  const { page: section, rules } = opened;
+  const capabilitySection = opened.section.root === "/capabilities/" ? opened.section.id as CapabilitySection : undefined;
   // A page that is not the project list still opens while the catalog is refused for its version (U3 §2.4), with no project to pick;
   // a page whose own facts are in the catalog (the models) meets the same refusal and gets its card.
   const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch((error: unknown) => {
@@ -179,34 +259,9 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     sendJson(response, 404, { error: "找不到所选项目，请返回能力库重新选择。" });
     return true;
   }
-  const characters = section === "characters" ? charactersSettings(serverOptions.homeDirectory) : undefined;
   const capabilities = capabilitySection && serverOptions.homeDirectory ? await capabilitiesView({ section: capabilitySection, url,
     homeDirectory: serverOptions.homeDirectory, host: localHost, withCatalog: composition.withCatalog }) : undefined;
-  const mcp_access = section === "mcp" && serverOptions.homeDirectory ? await mcpAccessPageModel({
-    home: serverOptions.homeDirectory, host: localHost, url, clients: runtimeIntegrations.clientDescriptors(), projects, withCatalog: composition.withCatalog,
-  }) : undefined;
-  const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
-  const modelConnections = section === "models" && serverOptions.homeDirectory
-    ? listConnectorConnectionViews(serverOptions.homeDirectory, "model-api") : [];
-  const model_settings = section === "models" ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
-    const providers = catalog.models.list(), templates = modelTemplatePageData(url.searchParams);
-    const selected = url.searchParams.get("provider");
-    const shown = templates.draft_provider ?? providers.find((provider) => provider.provider_id === selected) ?? providers[0];
-    // Which key each provider holds, read in one pass over the connections rather than one open per provider and connection.
-    const refs = modelConnections.length ? withConnectorConnections(serverOptions.homeDirectory!, (store) =>
-      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id])), "required") : new Map<string | null, string>();
-    return {
-      // Each provider's last real check, so the page says "checked at …" or "never checked" rather than guessing (PF-A04).
-      providers, health: withModelChecks(serverOptions.homeDirectory, providers, catalog.models.health()), connections: modelConnections,
-      selected_connection_ids: Object.fromEntries(providers.map((provider) => [provider.provider_id, refs.get(provider.credential_ref) ?? ""])),
-      selected_provider_id: selected,
-      ...(shown ? {
-        key_hint: modelKeyHint(shown.base_url, templates.draft_template_id),
-        address_from_template: modelAddressFromTemplate(shown.base_url, templates.draft_template_id),
-      } : {}),
-      ...templates,
-    };
-  }) : undefined;
+  const page = await PLATFORM_SETTINGS_DATA[section]?.({ ctx, projects, contextProject }) ?? {};
   const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
   const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
   response.writeHead(200, {
@@ -216,30 +271,17 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   });
   response.end(renderMolisWorkSettings({
     section,
-    ...(section === "prompts" && serverOptions.homeDirectory && inLanguagePreview()
-      ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(serverOptions.homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined) } : {}),
     capabilities: capabilities ? { ...capabilities, rules } : undefined,
-    ...(characters ? { plugin_settings_html: characters.html } : {}),
     ...(dynamicPlugins.length ? { dynamic_plugin_settings: dynamicPlugins.map(({ section_id, plugin_id, label }) => ({ section_id, plugin_id, label })) } : {}),
-    ...(capabilitySection === "connections" && serverOptions.homeDirectory ? { functions_settings: {
-      settings: functionsConnectionStatus(serverOptions.homeDirectory),
-      connections: listConnectorConnectionViews(serverOptions.homeDirectory, "typesafe"),
-      selected_connection_id: selectedTypeSafeConnection(serverOptions.homeDirectory)?.connection_id,
-    } } : {}),
-    ...(model_settings === undefined ? {} : { model_settings }),
     context_project: contextProject,
-    ...(section === "authorizations" && url.searchParams.get("view") === "project-rules" ? { show_project_approval_rules: true } : {}),
     enabled_plugins: membership.plugins,
     hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,
-    runtimes,
-    mcp_access,
-    ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
-    ...(section === "web-search" && serverOptions.homeDirectory ? { web_search: await webSearchSettingsView(localHost) } : {}),
+    runtimes: [],
     projects,
     web_service: await webService.detect(),
-    ...(section === "update" && serverOptions.homeDirectory ? { update: settingsUpdateView(serverOptions.homeDirectory) } : {}),
-    diagnostics: composition.installationDiagnostics(personProjects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
+    diagnostics: composition.installationDiagnostics(personProjects.length),
+    ...page,
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }
@@ -338,26 +380,10 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   return true;
 }
 
-/**
- * Settings › 角色 (docs/design/role-scope, plan C): the person's default and their own roles, read in the personal space where every
- * Characters action already answers; a project's default and members are in that project's settings. System and plugin roles are
- * listed here too.
- */
-function charactersSettings(home: string | undefined): { html: string } {
-  return { html: renderCharacters({ route_prefix: `/projects/${PERSONAL_SPACE_PROJECT_ID}`, scope: "personal", primitives: { escape: escapeSettingsHtml },
-    ...(home && inLanguagePreview() ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(home)?.registrations() ?? [], currentLocale() ?? undefined, "role") } : {}) }) };
-}
-
 function escapeSettingsHtml(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-/** 设置 › 更新 (U3 §5.4): read only, no store opened. */
-function settingsUpdateView(home: string) {
-  const held = readRollbackHold(home);
-  return { point: readRollbackPoint(home), held: held ? { held_version: held.held_version, rolled_back_from: held.rolled_back_from.version } : null };
 }

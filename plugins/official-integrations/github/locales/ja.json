@@ -6,6 +6,7 @@
     "github.connection.inbound": "Feed で未読通知を取得",
     "github.connection.outbound": "接続設定から現在の GitHub アカウントを確認できます。AI が使える機能は機能カタログで確認できます。",
     "github.connection.summary": "この端末のアカウントを接続します。Feed で未読通知を取得し、接続設定でアカウントを確認できます。",
+    "github.connection.purpose": "GitHubの未読通知をプロジェクトに取り込み、コード開発のやり取りを追いやすくします。",
     "github.guide.cli-link": "GitHub CLI のログイン方法を見る",
     "github.guide.mcp-link": "GitHub 公式 MCP を見る",
     "github.guide.oauth-link": "GitHub OAuth App を登録",

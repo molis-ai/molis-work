@@ -1,3 +1,8 @@
+import type { ConnectorCallControl, ConnectorMethodOption } from "../services/connector-host.js";
+import type { WebSearchResult } from "../services/web-search.js";
+import type { ImportedDocumentWarning } from "../modules/artifacts.js";
+import type { IntegrationProviderPort, PluginDefinition } from "./plugin.js";
+import type { IntegrationBinding, PluginConnectionLink, PluginConnectionWord } from "./plugin-integrations.js";
 import type { PublicFeedAddressedDefinition, RepositoryReadRequest, RepositoryReadResult, RssFetchReceipt, SourceCatalogEntry } from "./plugin-source-pull.js";
 
 /**
@@ -6,10 +11,24 @@ import type { PublicFeedAddressedDefinition, RepositoryReadRequest, RepositoryRe
  * lists them, and the Host reads only these declarations, never a service's name.
  */
 export interface IntegrationDrivers {
+  /** Where its integrations stand among the others' (the order services are listed in), smallest first. */
+  readonly order: number;
+  /** The integrations themselves, built over the Host's ports: what a signed sandbox package hands over from its own instance. */
+  readonly integrations?: (ports: IntegrationHostPorts) => readonly IntegrationDriverDefinition[];
+  /** Reading a service's account with its connection's credential, by service. */
+  readonly accounts?: Readonly<Record<string, AccountDriver>>;
+  /** Importing one document from a connected service. */
+  readonly documents?: DocumentDriver;
+  /** The brand mark of a service, an SVG file's text: shown as an isolated image, on a light surface in either theme. */
+  readonly marks?: Readonly<Record<string, string>>;
+  /** A web search through a connected service, by service. */
+  readonly web_search?: Readonly<Record<string, WebSearchDriver>>;
   /** Official command-line clients, by service: the Host runs only their fixed commands. */
   readonly cli?: Readonly<Record<string, CliDriver>>;
-  /** Where those clients' official releases may be downloaded from. */
+  /** Where those clients' official releases and what describes them (a release list, a formula, a checksum) may be downloaded from. */
   readonly cli_release_hosts?: readonly string[];
+  /** The hosts a release file itself is kept on: the only ones a client may be installed from. */
+  readonly cli_release_file_hosts?: readonly string[];
   /** The OAuth return addresses the services were registered under in their providers' consoles, kept byte for byte. */
   readonly oauth_callback_aliases?: readonly OAuthCallbackAlias[];
   /** MCP servers that run on this machine, by service. */
@@ -20,6 +39,76 @@ export interface IntegrationDrivers {
   readonly repository?: RepositoryDriver;
   /** Recent mail, for onboarding. */
   readonly mailbox?: MailboxDriver;
+}
+
+/** What the Host gives the integrations it builds: a provider for each source's binding, and the clock. */
+export interface IntegrationHostPorts {
+  /**
+   * The provider of one source's binding: `own`, over the connection the binding names. A Host that brings its own provider (a test)
+   * answers for every integration instead, asked by the integration's id.
+   */
+  provider(integration_id: string, own: (account: ConnectorSourceAccount, binding: IntegrationBinding) => IntegrationProviderPort): (binding: IntegrationBinding) => IntegrationProviderPort;
+  readonly now?: () => Date;
+}
+/** An integration as the Host starts it, with the words of its connection guides. */
+export type IntegrationDriverDefinition = PluginDefinition & { readonly connectionText?: IntegrationConnectionText };
+export interface IntegrationConnectionText {
+  readonly readLocale: (path: string) => string | null;
+  readonly guides: Readonly<Record<string, readonly IntegrationConnectionGuide[]>>;
+}
+export type IntegrationConnectionGuide = Pick<ConnectorMethodOption, "kind" | "support"> & {
+  readonly note: PluginConnectionWord;
+  readonly connected_note?: PluginConnectionWord;
+  readonly links: readonly PluginConnectionLink[];
+};
+
+/** The account a source reads: the Host owns the connection, its credential and every refresh. */
+export interface ConnectorSourceAccount {
+  /** The credential now; `none` without a usable connection, `needs_auth` when the service must be authorized again. */
+  credential(control: ConnectorCallControl, forceRefresh?: boolean): Promise<{ ok: true; token: string } | { ok: false; status: "none" | "needs_auth" }>;
+  /** A fresh token after the service refused the last one; `null` when there is nothing to refresh with. A refresh that fails throws. */
+  refreshed(control: ConnectorCallControl): Promise<string | null>;
+  /** What the connection keeps beside its token (an authorized site); `undefined` when it keeps nothing. */
+  context(): Record<string, string> | undefined;
+  /** Whether the binding names a connection at all. */
+  readonly bound: boolean;
+}
+
+/** A credential in hand (a check, a preview, a key not saved yet), sent only through `fetch` when the Host gives one. */
+export interface AccountAccess {
+  readonly token: string;
+  readonly context?: Record<string, string>;
+  readonly fetch?: typeof fetch;
+}
+export type AccountIdentity =
+  | { ok: true; login: string; account_id?: string; scopes?: readonly string[] }
+  | { ok: false; failure: string; message: string; http_status?: number; retryAfterAt?: string };
+/** How a service's account is read with its connection's credential. */
+export interface AccountDriver {
+  /** What a connection check asks: who the credential belongs to, or the health of its source. */
+  readonly check: "identity" | "source";
+  /** Who the credential belongs to. */
+  identity?(access: AccountAccess): Promise<AccountIdentity>;
+  /** The account's records; absent: the service has none a preview can read. */
+  source?(access: AccountAccess): IntegrationProviderPort;
+  /** The parts of a saved token (`site|email|token`): the token and what was saved with it. Absent: the secret is the token. */
+  token?(secret: string): { readonly accessToken: string; readonly extra: Record<string, string> };
+}
+
+/** One document read once from a connected service, as a copy. */
+export interface DocumentDriver {
+  read(input: { readonly source: string; readonly url: string }, ports: { readonly token: string; readonly fetch?: typeof fetch; readonly tokenKind?: "access_token" | "app_credentials";
+    readonly signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<{ source: string; source_id: string; source_url: string; title: string; content: string; format: "markdown" | "text"; warnings: ImportedDocumentWarning[] }>;
+  /** Whether a read failed because the service refused the credential. */
+  refused(error: unknown): boolean;
+}
+
+/** A web search through a connected service: one request to its own API. */
+export interface WebSearchDriver {
+  readonly max_query_characters?: number;
+  search(input: { readonly token: string; readonly query: string; readonly count: number; readonly fetch: typeof fetch }): Promise<WebSearchResult[]>;
+  /** What the service answered a failed search with; `null` when the failure is not the service's answer. */
+  failure(error: unknown): { readonly kind: "needs_auth" | "provider" | "network" | "rate_limited" | "configuration"; readonly status?: number; readonly retryAfterAt?: string } | null;
 }
 
 /** What a release resolver may use: the Host's download (limited to the declared release hosts), this machine, and the refusal it raises. */
@@ -51,6 +140,8 @@ export interface CliDriver {
   note?: string;
   /** Fixed variables the client is run with. */
   environment?: Readonly<Record<string, string>>;
+  /** Fixed variables every client the Host installed itself is run with (switching off a client's own updating). */
+  managed_environment?: Readonly<Record<string, string>>;
   /** The identity command only reports status: one real read must also succeed before a connection is registered. */
   verify_read?: true;
   /** The account in what the identity command printed: its label and the stable parts it is known by. Absent: read the common shapes. */

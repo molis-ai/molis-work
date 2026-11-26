@@ -212,6 +212,10 @@ function checkMigratedFeedOwnership(repositoryRoot) {
   return { errors };
 }
 
+const HOST_INTEGRATION_FREE_DIRECTORIES = ["apps/local-host/src", "apps/workbench/src"];
+const GENERATED_DRIVER_REGISTRY = "apps/local-host/src/plugin-registry.generated.ts";
+const INTEGRATION_PACKAGE_PREFIX = "@molis-ai/molis-work-integration-";
+
 export function checkMigratedIntegrationOwnership(repositoryRoot) {
   const errors = [];
   const servicePath = "plugins/native/feed/src/connector-sync.ts";
@@ -279,18 +283,22 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
     }
   }
 
-  for (const composition of [
-    { provider: "github", packageName: "@molis-ai/molis-work-integration-github", forbidden: "api.github.com" },
-    { provider: "gmail", packageName: "@molis-ai/molis-work-integration-gmail", forbidden: "gmail.googleapis.com" },
-  ]) {
-    const legacyPath = `src/feed/connectors/${composition.provider}.ts`;
-    if (fs.existsSync(path.join(repositoryRoot, legacyPath))) {
-      errors.push(`${legacyPath}: migrated Provider compatibility entrypoint must stay deleted`);
+  for (const provider of ["github", "gmail"]) {
+    for (const retired of [`src/feed/connectors/${provider}.ts`, `apps/local-host/src/${provider}-connector.ts`]) {
+      if (fs.existsSync(path.join(repositoryRoot, retired))) {
+        errors.push(`${retired}: the Host keeps no file of its own for one integration; it reads the drivers the integrations export`);
+      }
     }
-    const hostPath = `apps/local-host/src/${composition.provider}-connector.ts`;
-    const source = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-    if (!hasImportFrom(source, composition.packageName) || source.includes(composition.forbidden)) {
-      errors.push(`${hostPath}: Host must compose the public Integration without owning Provider protocol`);
+  }
+  // 44C (user 2026-11-25): the Host and the Workbench take an integration only through the generated registry of drivers. No other
+  // file names an integration package, in code, a comment or a string, and none writes a provider's mail endpoint.
+  for (const directory of HOST_INTEGRATION_FREE_DIRECTORIES) {
+    for (const filePath of filesUnder(path.join(repositoryRoot, directory), candidate => /\.(?:[cm]?ts|[cm]?js)$/u.test(candidate))) {
+      const relative = path.relative(repositoryRoot, filePath).split(path.sep).join("/");
+      if (relative === GENERATED_DRIVER_REGISTRY) continue;
+      const source = fs.readFileSync(filePath, "utf8");
+      if (source.includes(INTEGRATION_PACKAGE_PREFIX)) errors.push(`${relative}: the Host names an integration package outside ${GENERATED_DRIVER_REGISTRY}`);
+      if (source.includes("gmail.googleapis.com")) errors.push(`${relative}: the Host writes a provider's endpoint that belongs to its integration`);
     }
   }
   return { errors };

@@ -158,14 +158,14 @@ const MODE_SAYS: Record<Mode, string> = {
 function skills(say: Say): { readonly weekly: Skill; readonly minutes: Skill; readonly invoice: Skill; readonly schedule: Skill; readonly contract: Skill } {
   return {
     weekly: { id: "weekly", name: say("workbench.catalog-skill-packs.write-the-weekly-review"), what: say("workbench.catalog-skill-packs.every-friday-puts-the-week-s-progress-risks"), pack: say("workbench.catalog-skill-packs.weekly-reports-and-reviews"), mode: "auto",
-      when: say("workbench.catalog-skill-packs.when-the-week-s-work-needs-gathering-into"), tools: ["goals.list", "pages.create"],
+      when: say("workbench.catalog-skill-packs.when-the-week-s-work-needs-gathering-into"), tools: ["roadmap.list", "notebook.create"],
       files: [{ path: "templates/weekly.md", role: say("workbench.catalog-skill-packs.reference"), size: "2 KB" }], used: say("workbench.catalog-skill-packs.last-used-yesterday-17-40-assistant") },
     minutes: { id: "minutes", name: say("workbench.catalog-skill-packs.turn-a-meeting-recording-into-minutes-with-action"), what: say("workbench.catalog-skill-packs.after-a-meeting-turns-the-transcript-into-minutes"), pack: say("workbench.catalog-skill-packs.meeting-helper-transcripts-minutes-and-action-follow-up"), mode: "manual",
-      when: say("workbench.catalog-skill-packs.when-a-meeting-is-over-and-there-is"), tools: ["files.read", "inbox.send"],
+      when: say("workbench.catalog-skill-packs.when-a-meeting-is-over-and-there-is"), tools: ["files.read", "mail.send"],
       files: [{ path: "scripts/split-speakers.py", role: say("workbench.catalog-skill-packs.script-runs"), size: "6 KB" }], used: say("workbench.catalog-skill-packs.last-used-3-days-ago-coding") },
     invoice: { id: "invoice", name: say("workbench.catalog-skill-packs.sort-invoices"), what: say("workbench.catalog-skill-packs.reads-invoice-photos-into-a-table-filed-by"), pack: say("workbench.catalog-skill-packs.finance-tools"), mode: "off",
       when: say("workbench.catalog-skill-packs.when-invoice-photos-or-pdfs-come-in"), tools: ["files.read"], files: [], used: say("workbench.catalog-skill-packs.never-used") },
-    schedule: { id: "schedule", name: say("workbench.catalog-skill-packs.schedule-a-meeting"), what: say("workbench.catalog-skill-packs.suggests-meeting-times-from-everyone-s-free-time"), pack: say("workbench.catalog-skill-packs.scheduling"), mode: "auto",
+    schedule: { id: "meetings", name: say("workbench.catalog-skill-packs.schedule-a-meeting"), what: say("workbench.catalog-skill-packs.suggests-meeting-times-from-everyone-s-free-time"), pack: say("workbench.catalog-skill-packs.scheduling"), mode: "auto",
       unavailable: { word: say("workbench.catalog-skill-packs.unavailable-for-now"), why: say("workbench.catalog-skill-packs.no-calendar-connection-so-it-can-t-be"), fix: say("workbench.catalog-skill-packs.connect") },
       when: say("workbench.catalog-skill-packs.when-a-meeting-needs-a-time-everyone-is"), tools: ["calendar.free_busy"], files: [], used: say("workbench.catalog-skill-packs.last-used-last-week-assistant") },
     contract: { id: "contract", name: say("workbench.catalog-skill-packs.review-contract-clauses"), what: say("workbench.catalog-skill-packs.marks-the-risky-clauses-of-a-contract-one"), pack: say("workbench.catalog-skill-packs.legal-review"), mode: "auto",

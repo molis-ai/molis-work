@@ -8,6 +8,8 @@
     "bitbucket.connection.summary": "リポジトリと PR。",
     "bitbucket.connection.token-label": "Bitbucket トークン",
     "bitbucket.connection.token-placeholder": "email:api-token または OAuth アクセストークン",
+    "bitbucket.credential.atlassian-email": "Atlassianメールアドレス",
+    "bitbucket.credential.api-token": "APIトークン",
     "bitbucket.guide.mcp-connected-note": "Bitbucket ワークスペースは Atlassian 組織に紐づいている必要があります。",
     "bitbucket.guide.mcp-link": "Atlassian Rovo MCP を見る",
     "bitbucket.guide.mcp-note": "Bitbucket ワークスペースは Atlassian 組織に紐づいている必要があります。Molis Work ではまだ接続していません。",

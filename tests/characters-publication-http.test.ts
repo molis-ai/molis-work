@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { readRoleVersion, resolveRoleCharacter } from "../apps/local-host/dist/characters-host.js";
 import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
-import { renderCharacters, renderMolisWorkCharactersClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderCharacters, platformSurfaceClientScript } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
@@ -102,7 +102,7 @@ test("ROLE-01 ROLE-04 ROLE-07 ROLE-08 roles are saved, added to a project, froze
 
 test("Character manager client parses and its server-rendered route is escaped", () => {
   // RAC-69: the bundled client parses, and registers the surface's factory with the workbench's deferred loader (CHR-1).
-  const client = renderMolisWorkCharactersClientScript();
+  const client = platformSurfaceClientScript("/assets/molis-work-plugins/characters.js");
   assert.doesNotThrow(() => new Function(client)); assert.match(client, /molisWorkbenchPluginFactories/);
   const html = renderCharacters({ route_prefix: '/projects/"<script>', primitives: { escape: value => escapeHtml(String(value)) } });
   assert.ok(!html.includes('/projects/"<script>'));

@@ -20,7 +20,7 @@ export const PLUGIN_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
  * The library is the plugin's own declaration (`databases.home` in its Manifest), but only a plugin on the Host's start list is
  * given it, and only if the Home's store registry (`home-stores.ts`, W4-11) holds that library as this plugin's own at the same
  * baseline: so `uninstall --purge-user-data` reaches it, and a library another owner registered (the Host's, a module's, another
- * plugin's) or any other entry of the Home (`feed`, `config`, `agent-runtime`, ...) is refused. It is the same service as the
+ * plugin's) or any other entry of the Home (`config`, `agent-runtime`, another plugin's store, ...) is refused. It is the same service as the
  * Home-level instances have (`openPluginDatabase`). Sandboxed definitions and platforms that reach no Home cannot be given one.
  */
 export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null, scope: "home" | "project"): void {

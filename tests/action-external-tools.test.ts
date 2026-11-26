@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import test from "node:test";
 import ts from "typescript";
-import { renderCharacters, renderMolisWorkCharactersClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderCharacters, platformSurfaceClientScript } from "@molis-ai/molis-work-app-workbench";
 import { TERMINAL_RUNTIMES, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
 import { RUNTIME_DISPLAY_NAMES, SUPPORTED_RUNTIME_IDS } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -178,7 +178,7 @@ test("SRB-07 the page gets names from the host, and the register stays out of it
   const attribute = /data-character-runtime-names="([^"]*)"/u.exec(html)?.[1] ?? "";
   assert.deepEqual(JSON.parse(attribute.replaceAll("&quot;", '"')), { codex: "Codex", "claude-code": "Claude Code", cursor: "Cursor", opencode: "OpenCode", "grok-build": "Grok Build" });
   assert.match(html, /<option value="">自动发现<\/option><option value="codex">Codex<\/option><option value="claude-code">Claude Code<\/option><option value="cursor">Cursor<\/option><option value="opencode">OpenCode<\/option><option value="grok-build">Grok Build<\/option><\/select>/u);
-  const client = renderMolisWorkCharactersClientScript();
+  const client = platformSurfaceClientScript("/assets/molis-work-plugins/characters.js");
   for (const name of ["Grok Build", "CodeArts", "qodercn"]) assert.ok(!client.includes(name), `the Characters page program carries ${name}`);
 });
 

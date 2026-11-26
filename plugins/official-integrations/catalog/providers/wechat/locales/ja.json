@@ -8,6 +8,8 @@
     "wechat.connection.summary": "WeCom メッセージ。",
     "wechat.connection.title": "WeCom（企業微信）",
     "wechat.connection.token-label": "WeCom CorpID・Secret",
+    "wechat.credential.corp-id": "組織ID（CorpID）",
+    "wechat.credential.corp-secret": "アプリシークレット",
     "wechat.directory.name": "WeChat",
     "wechat.guide.token-note": "WeCom カスタムアプリの CorpID と Secret を入力してください。個人の WeChat アカウントにはこの公式 API はありません。",
     "wechat.setup.open-the-wecom-admin-console": "WeCom 管理画面を開く",

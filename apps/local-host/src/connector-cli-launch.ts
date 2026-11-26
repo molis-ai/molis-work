@@ -1,3 +1,4 @@
+import { builtinManagedCliEnvironment } from "./builtin-drivers.js";
 import { powerShellEnvironment } from "./connector-powershell.js";
 import { delimiter, join } from "node:path";
 import { readManagedConnectorTool } from "./connector-tool-install.js";
@@ -13,6 +14,6 @@ export function managedCliLaunch(home: string, installationId: string): ManagedC
     XDG_CONFIG_HOME: join(ownHome, ".config"), XDG_CACHE_HOME: join(ownHome, ".cache"), XDG_DATA_HOME: join(ownHome, ".local", "share"),
     LANG: process.env.LANG || "en_US.UTF-8", TERM: "xterm-256color", NO_COLOR: "1",
     ...(installed.source.kind === "powershell" ? powerShellEnvironment(installed.directory, installed.executable) : {}),
-    SF_AUTOUPDATE_DISABLE: "true", HUBSPOT_NO_AUTO_UPGRADE: "1", HF_HUB_DISABLE_UPDATE_CHECK: "1",
+    ...builtinManagedCliEnvironment(),
   } };
 }

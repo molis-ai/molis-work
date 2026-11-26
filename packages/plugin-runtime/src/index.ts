@@ -9,7 +9,7 @@ import { definitionOrigin, platformDefinition } from "./platform-definitions.js"
 import { pluginManifestDigest } from "./identity.js";
 import { UNINSTALL_PENDING, uninstallRefusal, type UninstallOptions, abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
-import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
+import { resolveActionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
 import { pluginActionProvider, type PluginRuntimeActions } from "./action-provider.js";
@@ -714,7 +714,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions, activation = this.liveContext(record.install_id);
         if (!actions || !activation) throw pluginErrors.contribution_unredeemed("当前插件激活或宿主动作注册服务不可用");
         const registration = pluginActionProvider(manifest, contribution, activation,
-          actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
+          resolveActionProviderId(record), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
             bounded: Boolean(this.options.permissionBound?.(record, definition)),
             checkGrant: permission => { this.capturePermission(record.install_id, permission); }, capturePermissions: permissions => {
               if (!this.options.permissionBound?.(record, definition)) return;
@@ -756,7 +756,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition), permission => this.permissionBound(record, definition, permission), this.startedAt);
+    const activation = createActivationContext(record, definition, resolveActionProviderId(record), permission => this.permissionBound(record, definition, permission), this.startedAt);
     this.contexts.set(record.install_id, activation);
     return activation.context;
   }

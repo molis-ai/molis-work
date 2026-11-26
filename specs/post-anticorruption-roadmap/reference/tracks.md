@@ -241,10 +241,23 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [111-1](batches/111.md#batch-111-item-1) | 星型单向版本化推送引擎、不预记补账、大快照分片与 CAS GC 保护 | C3 | 是 | C1、G |
 | [111-2](batches/111.md#batch-111-item-2) | 全部有业务对象的插件一次完成 `push` 声明（U8）与沙箱支持 | E | 是 | C1 |
 | [111-3](batches/111.md#batch-111-item-3) | 工作台界面定样落地、G1～G5 全量焊死、清退临时白名单与文档收尾 | D | 是 | C1、C3、E、F |
-| [SRV-3-1](batches/srv-3.md#srv-3-item-1) | 团队关键协作实现 | G | 是 | C、D、E |
-| [SRV-3-2](batches/srv-3.md#srv-3-item-2) | 双身份真实协作验证 | C | 否 | D、E、G |
-| [SRV-8-1](batches/srv-8.md#srv-8-item-1) | 自动更新与回退 | F | 是 | G |
-| [SRV-8-2](batches/srv-8.md#srv-8-item-2) | 在线备份与恢复 | G | 是 | D、F |
-| [SRV-8-3](batches/srv-8.md#srv-8-item-3) | 可选崩溃上报 | G | 是 | F |
-| [REL-4-1](batches/rel-4.md#rel-4-item-1) | 合同过渡 U5 | C1 | 是 | A、E |
-| [REL-4-2](batches/rel-4.md#rel-4-item-2) | 副本演练 U6 | F | 是 | — |
+| [112-1](batches/112.md#batch-112-item-1) | 彻底删除 `jelly-whisper` 与 626 MB 模型链、更名 `molis-material` 补日文 OCR | F | 是 | C1、E |
+| [112-2](batches/112.md#batch-112-item-2) | Jelly 瘦身为 4 张关系表（日历＋极简随手记）并清退私有 AI | E | 是 | C1、D |
+| [SRV-2-1](batches/srv-2.md#srv-2-item-1) | Rust/WASM 同步传输核心、Outbox、大附件续传与冲突双留底座 | G | 是 | C1 |
+| [SRV-2-3](batches/srv-2.md#srv-2-item-3) | 首批纯平台＋核心 UPP 插件同步接入与云端字节验收 | G | 是 | D、E |
+| [SRV-3-1](batches/srv-3.md#srv-3-item-1) | 平台通用实时协同合同、访问拦截与 `Pages` 人机共编实现 | G | 是 | C、D、E |
+| [SRV-3-2](batches/srv-3.md#srv-3-item-2) | 双真实独立身份协作验证与未覆盖对象清账 | C | 否 | D、E、G |
+| [SRV-5-1](batches/srv-5.md#srv-5-item-1) | 全量 20 个 UPP 插件＋沙箱插件同步收口、整项目复制／回收站与无阻断恢复 | G | 是 | D、E |
+| [SRV-5-3](batches/srv-5.md#srv-5-item-3) | 正式云服务配额／备份止损演练与两台真实 `arm64` Mac 跨版本验收 | G | 否 | F |
+| [SRV-6-1](batches/srv-6.md#srv-6-item-1) | 团队身份、项目共享邀请、三档统一访问与项目讨论 IM | G | 是 | C1、D |
+| [SRV-6-2](batches/srv-6.md#srv-6-item-2) | 全量 20 插件分层协同、在线光标与人机任务接续 | G | 是 | A、B、D、E |
+| [SRV-6-3](batches/srv-6.md#srv-6-item-3) | 在途撤权、本机副本清理（保本人离线草稿）与双真实成员完整项目验收 | G | 是 | C1、D、E |
+| [SRV-7-1](batches/srv-7.md#srv-7-item-1) | 共享项目获准来源采集、本机有界提炼、分歧保留融合与撤权阻断 | C2 | 是 | G |
+| [SRV-7-2](batches/srv-7.md#srv-7-item-2) | 成员不可撤回二次确认发布、懒加载管理页、三类交接与评测验收 | C2 | 是 | A、B、D、G |
+| [SRV-8-1](batches/srv-8.md#srv-8-item-1) | `arm64` 自动更新、后台秒级副本彩排与防打断回退 | F | 是 | G |
+| [SRV-8-2](batches/srv-8.md#srv-8-item-2) | 本机端到端加密增量定时在线备份与恢复 | G | 是 | D、F |
+| [SRV-8-3](batches/srv-8.md#srv-8-item-3) | 默认关闭、开启前透明预览的可选崩溃上报 | G | 是 | F |
+| [REL-3-1](batches/rel-3.md#rel-3-item-1) | 本机脱敏日志轮转、Node／Rust 崩溃恢复与透明预览诊断包 | F | 是 | C1 |
+| [REL-3-2](batches/rel-3.md#rel-3-item-2) | 平台包可选默认空操作 `DiagnosticLogger` 窄口与关键 `catch` 补记（`BL-812`） | C1 | 是 | A、B、C2、C3 |
+| [REL-4-1](batches/rel-4.md#rel-4-item-1) | 基于 Clean v1 起点的合同过渡 U5 与门禁切换 | C1 | 是 | A、E |
+| [REL-4-2](batches/rel-4.md#rel-4-item-2) | 秒级库级副本演练 U6 与回退衔接 | F | 是 | — |

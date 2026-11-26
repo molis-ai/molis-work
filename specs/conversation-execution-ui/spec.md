@@ -3,8 +3,8 @@
 状态：需求已整理，待实施（2026-11-18；需求维护：Antigravity，实现：第 91 批主会话）。已与[全产品界面、空间布局与行为反馈深度打磨](../product-experience-polish/spec.md)合并统筹，排期为路线书[第 91 批（第一段 91A）](../post-anticorruption-roadmap/reference/batches/91.md)（紧邻续批为[第 91B 批](../post-anticorruption-roadmap/reference/batches/91b.md)，[决定 55](../post-anticorruption-roadmap/reference/decisions.md#decision-55)）。
 
 - **档位与分类**（[开发流程 §1.1、§1.2](../post-anticorruption-roadmap/reference/development-workflow.md#1-分档分类与决策)）：大需求；体验与效果（流式动画、滚动物理、运行时热路径）、横向能力（Design System 流式与滚动原语、平台插件运行流订阅、Agent Host 事件流）、产品线（个人助理、Coding）。
-- **决策标记**：要决策——① 上游 `molis-prologue` 改动是否授权随第 91 批窗口外换一次 `vendor/prologue-sdk`（若不跨窗口换包，上游改动先合入 `molis-prologue` 主线，包随[第 62 批](../post-anticorruption-roadmap/reference/batches/62.md)窗口二换入，`molis-work` 侧照常闭环）；② 若思考折行或紧凑命令尾窗超出组件板 `/__ui/catalog` 既有控件形态，按开发流程第 5 节先出样拍板；③ `CUI-09` 本人看实物走查。其余直接做。
-- **相邻的线**：承接 [35-2](../post-anticorruption-roadmap/reference/batches/35.md#batch-35-item-2)（Coding A 期）、[36A](../post-anticorruption-roadmap/reference/batches/36a.md)（底栏第十三版壳层、Coding 逐屏前后半、动效曲线收口）、[37-2](../post-anticorruption-roadmap/reference/batches/37.md#batch-37-item-2)（按事项工作台状态与每事项主对话）及 [58](../post-anticorruption-roadmap/reference/batches/58.md)／[59](../post-anticorruption-roadmap/reference/batches/59.md)（子代理公共交互组件）；产出的横向原语与流式订阅能力供 Alchemist、灵光、创作台生成插件及后续 [43-1](../post-anticorruption-roadmap/reference/batches/43.md#batch-43-item-1)（项目助理团）、[66](../post-anticorruption-roadmap/reference/batches/66.md)（Coding 自检与多代理评审）直接复用。
+- **决策标记**：已拍板——① 上游 `molis-prologue` 窗口 A 随第 91 批执行唯一一次批准换包（[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58)、[决定 67](../post-anticorruption-roadmap/reference/decisions.md#decision-67) + 2026-11-25 跨仓核实拍板：在已合入 `#142`～`#145` 之上先补齐上游尚未实现的 `A1` 红队 P0 暗伤与脱敏、`A3` `run.ts` 流式持久屏障解耦与 `edit` 防 `$` 损坏、`A4` 新熔断器与 Tauri 修复，再一次性更新 `vendor/prologue-sdk`）；② 若思考折行或紧凑命令尾窗超出组件板 `/__ui/catalog` 既有控件形态，按开发流程第 5 节先出样拍板；③ `CUI-09` 本人看实物走查。其余直接做。
+- **相邻的线**：承接 [35-2](../post-anticorruption-roadmap/reference/batches/35.md#batch-35-item-2)（Coding A 期）、[36A](../post-anticorruption-roadmap/reference/batches/36a.md)（底栏第十三版壳层、Coding 逐屏前后半、动效曲线收口）、[37-2](../post-anticorruption-roadmap/reference/batches/37.md#batch-37-item-2)（按事项工作台状态与每事项主对话，已合入 `#2288`/`#2298`）、[`106`～`111`](../post-anticorruption-roadmap/reference/batches/111.md)（统一工作分区与 `109-2` 开放审查种类）及 [58](../post-anticorruption-roadmap/reference/batches/58.md)／[59](../post-anticorruption-roadmap/reference/batches/59.md)（子代理公共交互组件）；产出的横向原语与流式订阅能力供灵光、创作台生成插件及后续 [43-1](../post-anticorruption-roadmap/reference/batches/43.md#batch-43-item-1)（项目助理团）、[66](../post-anticorruption-roadmap/reference/batches/66.md)（Coding 自检与多代理评审）、[82](../post-anticorruption-roadmap/reference/batches/82.md)（Alchemist 研究场景重写）直接复用。
 - **预警触发条件**（开发流程 §6）：① 插件流式路由／运行流合同形状变更影响其他插件消费者；② 页面单资源体积一次增长超过 `10 KB` 或新增页面资源（红线，先问用户）；③ 触碰回环鉴权、插件页隔离或撤权断流等安全不变量。
 
 ---
@@ -35,7 +35,7 @@
 - **从用户的结果倒推**：用户在个人助理底栏输入框或 Coding 输入框输入诉求并回车发送 → `<16ms` 当帧即看到自己的消息上屏与柔和旋转的状态环 → 模型思考、调工具、跑命令与流式回复连续平滑生长，需要细看时可随时向上滚动阅读而不被新字拉回底部 → 中途切换事项／会话、断网重连或重启窗口后，按版本无损接上最新状态且恢复各自的阅读位置。
 - **每一步都站得住，不新增打断**：本需求是纯体验与性能升级，不增加任何确认框、模式开关或设置项；既有审批卡、提问卡与 Coding 范围重叠确认（`scope-check`）完全沿用已有授权与回执。
 - **AI 与平台边界**：模型提示词、工具权限与上下文策略一字不改，全部放在 [Prologue 手册](../../docs/platform/PROLOGUE-AI.md)既定层；不在 UI 层猜模型意图或掩盖未知副作用。
-- **覆盖完整路径**：首次发送（空会话首轮）、历史会话二次重开（`reveal: false` 不重播渐显）、输入法组合态（IME 回车选词不误发）、发送前取消或校验失败回退草稿、超过 20 秒慢响应安静提示、撤权／切账号／删项目即时断流、中英文双语与浅深色均完整覆盖。
+- **覆盖完整路径**：首次发送（空会话首轮）、历史会话二次重开（`reveal: false` 不重播渐显）、输入法组合态（IME 回车选词不误发）、发送前取消或校验失败回退草稿、超过 20 秒慢响应安静提示、撤权／切账号／删项目即时断流、中／英／日（`zh`/`en`/`ja`）三语零二元语言分支与浅深色均完整覆盖。
 
 ---
 
@@ -128,8 +128,8 @@
 3. **工具生成期与前台长命令增量可观察性（上游 `molis-prologue` → `horizontal/agent-host`）**：
    - Anthropic 与 OpenAI 兼容流解析器在识别工具调用块起点时即发出轻量开始事件，参数流式拼装期间节流发出有界字节数与 `path`／`file_path`／`command` 前缀预览，修复 OpenAI 兼容单工具调用拖至 `[DONE]` 才发出的延迟；补齐审批通过后的执行态同步与前台长命令节流尾行输出（最新 1～3 行与字节数）。
 4. **Agent Host 热路径去重克隆与子代理流映射（`horizontal/agent-host`）**：
-   - 消除 `PrologueRunStore.publish` 在每个 `text-delta` 上的双倍全量 `structuredClone(record.view)`；修复 `prologue-stream.ts` 漏处理 `subagent-started`／`subagent-ended`（对接 58／59 批公共子代理组件与 `run-wait.ts`／运行流唤醒）。
-   - **换包边界**：若用户批准随第 91 批窗口外换包，按规范更新 `vendor/prologue-sdk/`（含 `.sha256`、`.provenance.json` 与全部金样回放）；若不跨窗口换包，`molis-work` 侧先行接好 `AgentHost` 可选事件映射、UI 呈现与模拟端口验证，上游 `molis-prologue` 改动合入主线并登记随[第 62 批](../post-anticorruption-roadmap/reference/batches/62.md)窗口二换入做真模联调。
+   - 在 `#2324` 已落地的闲置 5 分钟会话释放、0 监听早退与 `50ms` 流式合并基线上（不回退 `sessions.restore` 卸载恢复逻辑），将 `PrologueRunStore` 升级为不可变增量事件推送 + `prologue-stream.ts` COW，并修复 `prologue-stream.ts` 漏处理 `subagent-started`／`subagent-ended`（对接 58／59 批公共子代理组件与 `run-wait.ts`／运行流唤醒）。
+   - **换包边界（2026-11-25 跨仓核实确认）**：在已合入上游 `main` 的 `#142`～`#145`（`69f05e12`）基础上，先在上游补齐窗口 A 尚未实现的 `A1` + `A3` + `A4`，再随 `91-2` 一次性更新 `vendor/prologue-sdk/`（含 `.sha256`、`.provenance.json` 与全部金样回放）。
 
 ### 91-3 · 个人助理 SSE 实时增量流、乐观上屏与对话流精修（A 轨）
 

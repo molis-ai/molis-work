@@ -94,14 +94,14 @@
 
 | 编号 | 缺口 | 卡在哪 | 第 62 批要做的 |
 | --- | --- | --- | --- |
-| <a id="g-01"></a>G-01 | Feed 网页查询和炼金术研究仍固定走 SEL 的 AnySearch，不跟设置里的默认网页搜索 | 上游：SEL 没有 Brave、DeepSeek、Tavily 的 Provider（vendored 包，本批不改） | 向上游要三家 Provider，或让 SEL 接受 Host 给的查询端口；换包后 Feed、炼金术改读 `connectors.web_search.query@1` 的默认 |
+| <a id="g-01"></a>G-01 | Feed 网页查询仍固定走 SEL 的 AnySearch，不跟设置里的默认网页搜索（旧炼金术已随 `44B` 删除，第 `82` 批重写研究场景直接走平台默认搜索） | Host 接线：Feed 尚未接入宿主默认网页搜索端口 | 在 `62-1B` 让 Feed 网页查询直接经宿主端口消费 `connectors.web_search.query@1` 的默认来源（无需改造第三方 SEL 包） |
 | <a id="g-02"></a>G-02 | 本批统一目录、Feed 候选与添加校验。可绑定的服务仍受平台连接槽的服务表与 Feed Manifest 约束 | `packages/contracts/src/services/connector-host.ts` 的 `CONNECTOR_REQUEST_SERVICES`、`plugins/native/feed/src/manifest.ts`、`apps/local-host/src/connector-source-pull.ts` | 第 62 批逐服务用真实账号闭环。新沙箱服务要支持按来源选账号时，需一并验证槽、出站与凭据约束 |
-| <a id="g-03"></a>G-03 | 沙箱集成包不能声明 `document_import`、`web_search`（BL-694） | SDK：沙箱集成第一版只收 `source`；文档读取还在宿主的提供方里 | W5-11 把文档读取变成插件操作后，沙箱集成包加 `document_import` 与 `web_search` 的平台操作和拒绝测试 |
+| <a id="g-03"></a>G-03 | 沙箱集成包不能声明 `document_import`、`web_search`（BL-694） | SDK：沙箱集成第一版只收 `source`；文档读取还在宿主的提供方里 | 在 [`69-2`](../post-anticorruption-roadmap/reference/batches/69.md#batch-69-item-2) 随 `W5-11` 文档读取操作化，为沙箱集成包补齐 `document_import` 与 `web_search` 的平台操作和拒绝测试 |
 | <a id="g-04"></a>G-04 | 撞 id 的集成没写出被哪个插件占用（BL-692 余项） | 平台：启动登记只记恢复错误，不记占用方 | 登记冲突时把占用方的插件 id 与标题写进恢复错误，插件页显示 |
 | <a id="g-05"></a>G-05 | 外部集成一轮拉取的用量与超时没实测（BL-693） | Home 已从 `home-plugins.ts`、`home-installed-plugins.ts` 接入沙箱来源。限额仍由 `DEFAULT_SANDBOX_LIMITS` 与一次 200 条约束 | 用真实来源实测，再按结果决定是否调整 `SandboxCallControl.limits` |
 | <a id="g-06"></a>G-06 | 逐服务真实账号验收（ASC-50）：连接、断线、撤权、恢复 | 外部资格：API OAuth 要产品在各服务注册应用；只有 MCP 登录与贴密钥在新 Home 里可走 | 按上表逐行走真实账号；缺产品应用的服务只挡它自己那一行 |
 | <a id="g-07"></a>G-07 | Brave Search、DeepSeek Search、Tavily 按用户确认使用假服务。DeepSeek 的地址及 128 Unicode 字符上限已对上[官方 API](https://api-docs.deepseek.com/zh-cn/api/search/)，Host 在派出前检查长度 | 外部资格：真实密钥与服务计费 | 在隔离 Home 实查账号资格、响应、出处和费用提示 |
 | <a id="g-08"></a>G-08 | 没有官方连接器的工具的接入路径（ASC-41～44） | 平台策略：受管连接、定时导出的落点要 Tool／MCP 策略先定 | 四策略定下后实现四级判断、窄范围接入、批准写入与真实工具走查 |
-| <a id="g-09"></a>G-09 | 项目自动化建议里 Hooks、命令两组只有缺口说明 | SDK：没有可装的 Hook／命令来源声明 | 与第 65 批 Coding 的权限／Hooks 设计一起定声明，建议器按声明出建议并进采用卡 |
+| <a id="g-09"></a>G-09 | 项目自动化建议里 Hooks、命令两组只有缺口说明 | SDK：没有可装的 Hook／命令来源声明 | 在 [`65-3`](../post-anticorruption-roadmap/reference/batches/65.md#batch-65-item-3) 随 Coding 用户 Hooks 落地一并定声明，建议器按声明出建议并进 `automation.adoption.adopt@1` 采用卡 |
 | <a id="g-10"></a>G-10 | 角色不能从助理的采用卡里开 | 平台：角色没有项目级开／关状态 | 角色有了开关后并进 `automation.adoption.adopt@1` |
-| <a id="g-11"></a>G-11 | 操作卡的字段名取动作合同的 `title`，英文界面下仍是中文 | SDK：动作合同的 schema `title` 只有一种语言 | 给 schema 的字段名加 `TextRef`（或按插件词典解析），卡片按界面语言显示 |
+| <a id="g-11"></a>G-11 | 操作卡的字段名取动作合同的 `title`，英文／日文界面下仍是中文 | SDK：动作合同的 schema `title` 只有一种语言 | 在 `62-1B` 给 schema 的字段名加 `TextRef`（或按插件词典解析），卡片按界面当前语言（`zh`/`en`/`ja` 三语）显示 |

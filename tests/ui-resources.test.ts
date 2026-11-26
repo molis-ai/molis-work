@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -204,7 +204,11 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     writeFileSync(packPath, JSON.stringify({ ...registeredPack, messages: { ...registeredPack.messages, "workbench.language.retry": escaped } }));
     assert.throws(probe, /workbench\.language\.retry/, "markup is still refused in a registered Workbench pack");
     writeFileSync(packPath, JSON.stringify(registeredPack));
+    // Normal SSR and all three startup assets work before the component board is ever opened.
+    const boardDirectory = path.join(scratch, "resources/locales/catalog");
+    renameSync(boardDirectory, boardDirectory + ".held");
     const first = probe();
+    renameSync(boardDirectory + ".held", boardDirectory);
     assert.deepEqual(first, { languages: ["zh", "en", "ja", "en-GB"], system: "en-GB", cookie: "en-GB", rejected: "en", href: first.href,
       served: true, word: text, html: "en-GB", intl: "en-GB" });
     assert.match(first.href, /^\/assets\/locale\/workbench\.en-GB\.[a-f0-9]{24}\.js$/u);

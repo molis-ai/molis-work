@@ -236,7 +236,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | --- | --- | --- |
 | 常驻服务 | `apps/local-host/src/installer/web-service-platform.ts`、`web-service-detection.ts`、`web-service-process.ts`、`scripts/start.mjs`（4） | 全靠 `launchctl`；非 darwin 时 `detectWebService` 返回 `unsupported`（「当前系统尚未提供 Molis Work 常驻服务集成」） |
 | 生成插件的沙箱 | `packages/plugin-sandbox/src/runner.ts`、`seatbelt.ts`、`apps/local-host/src/plugin-builder/build-checks.ts`（3） | `runner.ts` 非 darwin 直接抛 `sandbox.unsupported_platform`（失败即关闭），构建检查直接调 `/usr/bin/sandbox-exec` |
-| 素材原生组件 | `apps/local-host/src/material-native.ts`、`apps/local-host/native/materials/build.mjs`（2；Swift 源码 `JellyMaterial.swift` 另算） | 非 darwin 报 `native_unavailable` |
+| 素材原生组件 | `apps/local-host/src/material-native.ts`、`apps/local-host/native/materials/build.mjs`（2；Swift 源码 `MolisMaterial.swift` 另算） | 非 darwin 报 `native_unavailable` |
 | 桌面外壳 | `apps/desktop/adapters/tauri/src/` 的 5 个 `*_macos.rs`；`apps/desktop/tooling/` 的 4 个 `*-macos-*.sh`；`apps/desktop/src-tauri/Cargo.toml`、`tauri.conf.json`（11） | 只有 macOS |
 
 已经带非 macOS 分支、不计入的：密钥库（`packages/storage/src/adapters/file-secret-store.ts` 非 darwin 用安装密钥文件加 AES-GCM）、目录选择器（`directory-picker.ts` 有 darwin、linux、win32 三分支）、浏览器定位（`browser/locate.ts`）、终端 helper 的执行位修正（`horizontal/runtime-host/src/adapters/terminal-pty.ts` 只在 darwin 上做）、侧栏浏览器的快捷键映射（`browser/surface-driver.ts`）。

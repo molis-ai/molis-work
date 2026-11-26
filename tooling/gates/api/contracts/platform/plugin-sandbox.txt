@@ -252,12 +252,6 @@ export interface SandboxMaterialExtraction {
         end_seconds: number;
         text: string;
     }>;
-    frames?: Array<{
-        seconds: number;
-        text: string;
-        confidence?: number | null;
-    }>;
-    duration_seconds?: number;
     coverage: {
         status: 'sufficient' | 'partial' | 'insufficient';
         truncated?: boolean;
@@ -276,7 +270,7 @@ export interface SandboxMaterialRequest {
     timeoutMs?: number;
     textFormat?: 'text' | 'markdown';
     pdfMode?: 'text' | 'ocr';
-    ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US'>;
+    ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US' | 'ja-JP'>;
 }
 
 export interface SandboxMaterialSourceContent {
@@ -288,11 +282,6 @@ export interface SandboxMaterialSourceContent {
     coverage: SandboxMaterialExtraction['coverage'];
     pages?: SandboxMaterialExtraction['pages'];
     segments?: SandboxMaterialExtraction['segments'];
-    frames?: SandboxMaterialExtraction['frames'];
-    model_required?: {
-        approximate_bytes?: number;
-        variant?: string;
-    };
 }
 
 export type SandboxModelAvailability = {

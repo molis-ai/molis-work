@@ -21,12 +21,12 @@ export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, 
   assertActive: () => void, project_id: string | null): PluginMaterialsClient | undefined {
   if (!home || !definition.manifest.permissions.some(item => MATERIAL_PERMISSIONS.includes(item.permission))) return undefined;
   return createPluginMaterialsClient(definition.manifest, {
-    extract: (source, options) => extractHomeMaterial(home.directory, source, options),
+    extract: (source, options) => extractHomeMaterial(source, options),
     readDocuments: (files, options) => readMaterialUploads(files, { signal: options.signal, timeoutMs: options.timeoutMs }),
-    // The same passive check the Host's own screens use; it starts no helper and downloads no model.
+    // The same passive check the Host's own screens use; it starts no helper.
     imageTextAvailable: () => materialImageTextAvailable(),
-    readSource: (url, options) => readMaterialSource(home.directory, url, { signal: options.signal,
-      beforeEffect: options.beforeEffect, onProgress: options.onProgress, allow_model_download: options.allowModelDownload,
+    readSource: (url, options) => readMaterialSource(url, { signal: options.signal,
+      beforeEffect: options.beforeEffect,
       ...(options.allowedDomains ? { allowed_hosts: options.allowedDomains } : {}) }),
     readLocalPage: (url, options) => readMaterialLocalPage(url, { signal: options.signal, beforeDispatch: options.beforeEffect }),
     claimOriginal: (key, offered, options) => registerOriginalFile(home.directory, key, offered, options.beforeEffect),

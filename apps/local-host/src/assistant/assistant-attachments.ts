@@ -63,7 +63,7 @@ export class AssistantMaterialAccess {
   /**
    * A file the person brings, kept by the platform's material service as a conversation attachment (platform capability audit §6):
    * a picture (PNG, JPEG, GIF, WebP, by its bytes) is kept as it is, for the model to see in the round it goes with; any other file
-   * is read once by the platform's readers (PDF, Word, text, a picture's words, a recording's transcript) into bounded text for this
+   * is read once by the platform's readers (PDF, Word, text, a picture's words) into bounded text for this
    * Send's materials. What cannot be read says why (scanned, encrypted, damaged, a kind no reader takes); nothing is guessed.
    */
   async readAttachment(input: { name: string; data: string }, control: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void> } = {}): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {

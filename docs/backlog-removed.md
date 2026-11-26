@@ -127,6 +127,7 @@
 | BL-ui-client-scope-watch-revision | 已完成并删除 | 2026-11-23，公开 `UiClientScope` 补上宿主已有的 `watchRevision` 签名，Git、Coding、Schedule 共用。见 [SCC-01](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-artifact-sdk-handler-binding | 已完成并删除 | 2026-11-23，成果 SDK 的八个动作按现行 schema 推导输入并共用 `bindActionHandler`，Shelf 直接使用平台给的可消费列表。见 [SCC-02、SCC-03](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-coding-changeset-view-shared | 已完成并删除 | 2026-11-23，Coding 和 Diff 通过 SDK `/diff-view` 的 `compareCodingChangeSet` 读取固定变更视图。见 [SCC-04](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
+| BL-b47-prompt-register-newest-fallback | 已修复并删除 | 2026-11-26，同一签名插件跨项目运行时登记在用的最高版。新版退出后恢复旧版默认文字和条目，保留用户改动。旧版无声明时清空登记。最后一个实例停用后可继续编辑，卸载后清除。见[签名包回归](../tests/generated-plugin-prompt-binding.test.ts)和[纯内容包回归](../tests/prompt-registration.test.ts)。 |
 
 其余在 git 历史中曾经出现、后来随事项完成或总表迁移删除的编号，按同一规则处理：先查对应 PR/提交，不为历史编号新建文件，也不复用编号。
 

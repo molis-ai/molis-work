@@ -178,19 +178,19 @@ async function auditDataset(t: TestContext, b: Browser) {
 
 async function auditJelly(t: TestContext, b: Browser) {
   const frame = await pluginFrameBrowser(t, b, "jelly");
-  const read = () => {
+  const items = () => {
     const store = openJellyStore(b.homeDirectory);
-    try { return store.read(); } finally { store.close(); }
+    try { return store.read(rows => rows.items("2000-01-01", "2100-12-31")); } finally { store.close(); }
   };
-  const field = (name: string) => `[data-jelly-field="${name}"]`;
-  const submit = "[data-jelly-item-form] button[type=submit]";
-  const dialog = node("[data-jelly-item-dialog]");
+  const field = (name: string) => `[data-jelly-form] [name="${name}"]`;
+  const save = '[data-jelly-panel] [data-jelly-act="save-item"]';
+  const panel = node("[data-jelly-panel]");
   await navigate(b, frame, "jelly");
-  await frame.waitFor("document.querySelector('[data-jelly-content] [data-jelly-day]')");
-  await frame.click("[data-jelly-new]");
-  await frame.waitFor(`${dialog}.open`);
+  await frame.waitFor("document.querySelector('[data-jelly-page] [data-jelly-day]')");
+  await frame.click('[data-jelly-act="new"]');
+  await frame.waitFor(`!!${panel}`);
   await assertNames(frame, [
-    [field("start_time"), "InputTime", "开始时间"],
+    [field("title"), "textbox", "标题"], [field("start_time"), "InputTime", "开始时间"],
     [field("end_time"), "InputTime", "结束时间"], [field("notes"), "textbox", "备注"],
   ]);
   await assertNamedButtons(frame);
@@ -200,25 +200,23 @@ async function auditJelly(t: TestContext, b: Browser) {
   await typeInto(b, frame, field("title"), "Workshop readout");
   await typeInto(b, frame, field("notes"), "Share the slides after the review.");
   // Native time controls split input into locale-dependent segments. Exercise focus via Tab and use known values for persistence.
-  await frame.evaluate(`${node(field("start_time"))}.value = "09:30"; ${node(field("end_time"))}.value = "10:45"`);
-  const date = await frame.evaluate<string>(`${node(field("end_date"))}.value`);
-  const writes = postCounter(t, b, "/api/plugins/io.molis.work.jelly/commands");
-  await typeInto(b, frame, field("end_date"), "2000-01-01");
-  await activate(b, frame, submit);
-  await frame.waitFor("!document.querySelector('[data-jelly-item-error]').hidden");
-  assert.equal(writes(), 0);
+  // An end before the start on the same day is refused on the page: nothing is written and what was typed stays.
+  await frame.evaluate(`${node(field("start_time"))}.value = "09:30"; ${node(field("end_time"))}.value = "09:00"`);
+  await activate(b, frame, save);
+  await frame.waitFor("!document.querySelector('[data-jelly-panel] .jelly-form-error').hidden");
+  assert.equal(items().length, 0);
   assert.equal(await frame.evaluate(`${node(field("notes"))}.value`), "Share the slides after the review.");
-  await screenshot(b, "jelly-date-error");
-  await typeInto(b, frame, field("end_date"), date);
-  await activate(b, frame, submit);
-  await frame.waitFor(`!${dialog}.open`);
-  const [item] = read().items;
+  await screenshot(b, "jelly-time-error");
+  await frame.evaluate(`${node(field("end_time"))}.value = "10:45"`);
+  await activate(b, frame, save);
+  await frame.waitFor(`!${panel}`);
+  const [item] = items();
   assert.ok(item);
-  assert.deepEqual([writes(), read().items.length, item.title, item.start_time, item.end_time, item.notes],
-    [1, 1, "Workshop readout", 570, 645, "Share the slides after the review."]);
+  assert.deepEqual([items().length, item.title, item.start_time, item.end_time, item.notes],
+    [1, "Workshop readout", 570, 645, "Share the slides after the review."]);
   await frame.click('[data-jelly-mode="list"]');
-  await frame.click("[data-jelly-occurrence]");
-  await frame.waitFor(`${dialog}.open`);
+  await frame.click("[data-jelly-open]");
+  await frame.waitFor(`!!${panel}`);
   assert.deepEqual(await frame.evaluate(`[${node(field("start_time"))}.value, ${node(field("end_time"))}.value, ${node(field("notes"))}.value]`),
     ["09:30", "10:45", "Share the slides after the review."]);
   await screenshot(b, "jelly-reopened");

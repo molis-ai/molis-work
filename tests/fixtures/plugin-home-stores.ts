@@ -5,6 +5,7 @@ import { COGNIA_DATABASE, CogniaStore } from "@molis-ai/molis-work-plugin-cognia
 import { DATASET_DATABASE, DatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_DATABASE, FormStore } from "@molis-ai/molis-work-plugin-form";
 import { JELLY_DATABASE, JellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LINGGUANG_DATABASE, LingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { PAGES_DATABASE, PagesStore, type PagesSql } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, PptStore } from "@molis-ai/molis-work-plugin-ppt";
@@ -83,18 +84,18 @@ function openWithBaseline(home: string, declaration: { store_name: string; versi
   try { db.exec(pragmas); applySqliteBaseline(db, homeSqlitePath(home, declaration.store_name), completeDeclaration(declaration)); return db; }
   catch (error) { db.close(); throw error; }
 }
-export function openJellyStore(home: string): JellyStore {
+/** Jelly's rows over one Home, the Runtime's shape without a caller: `write` runs in one transaction. */
+export interface JellyTestStore { read<T>(run: (store: JellyStore) => T): T; write<T>(run: (store: JellyStore) => T): T; close(): void }
+export function openJellyStore(home: string): JellyTestStore {
   const db = openWithBaseline(home, JELLY_DATABASE, "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-  try {
-    const run = atomically(db);
-    const store = new JellyStore({
-      get: (query, parameters = []) => db.prepare(query).get(...parameters) ?? null,
-      all: (query, parameters = []) => db.prepare(query).all(...parameters),
-      run: (query, parameters = []) => db.prepare(query).run(...parameters),
-    }, run, () => db.close());
-    run(() => store.initialize());
-    return store;
-  } catch (error) { db.close(); throw error; }
+  const run = atomically(db);
+  const transaction: PluginDatabaseTransaction = {
+    get: (query: string, parameters: readonly SQLInputValue[] = []) => db.prepare(query).get(...parameters) ?? null,
+    all: (query: string, parameters: readonly SQLInputValue[] = []) => db.prepare(query).all(...parameters),
+    run: (query: string, parameters: readonly SQLInputValue[] = []) => db.prepare(query).run(...parameters),
+    savepoint: () => { throw new Error("Jelly 不用保存点"); },
+  };
+  return { read: work => work(new JellyStore(transaction)), write: work => run(() => work(new JellyStore(transaction))), close: () => db.close() };
 }
 export function openCogniaStore(home: string): CogniaStore {
   const db = openWithBaseline(home, COGNIA_DATABASE, "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");

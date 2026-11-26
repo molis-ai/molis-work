@@ -38,7 +38,6 @@ Coding 的「代码调查」「独立评审」「独立实现」子角色按 [�
 | `prompt.dataset.name-column` | [plugins/native/dataset/src/prompts.ts](../../plugins/native/dataset/src/prompts.ts) |
 | `prompt.form.draft-questions` | [plugins/native/form/src/prompts.ts](../../plugins/native/form/src/prompts.ts) |
 | `prompt.issues.name` | [plugins/native/issues/src/prompts.ts](../../plugins/native/issues/src/prompts.ts) |
-| `prompt.jelly.decompose` | [plugins/native/jelly/src/prompts.ts](../../plugins/native/jelly/src/prompts.ts) |
 | `prompt.lingguang.conversation` | [plugins/native/lingguang/src/prompts.ts](../../plugins/native/lingguang/src/prompts.ts) |
 | `prompt.pages.generate-from-materials`、`prompt.pages.writing-assistant` | [plugins/native/pages/src/prompts.ts](../../plugins/native/pages/src/prompts.ts) |
 | `prompt.plugin-builder.acceptance`、`prompt.plugin-builder.designer`、`prompt.plugin-builder.experience`、`prompt.plugin-builder.implement`、`prompt.plugin-builder.repair`、`prompt.plugin-builder.revise`、`prompt.plugin-builder.ui`、`prompt.plugin-builder.ui-review` | [horizontal/plugin-studio/src/agent-prompts.ts](../../horizontal/plugin-studio/src/agent-prompts.ts) |

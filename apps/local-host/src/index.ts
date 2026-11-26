@@ -111,6 +111,9 @@ export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
 export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, CATALOG_UPGRADES, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
+// A model choice a plugin declares (a sandbox package's, or a test probe's), and the Prologue inference binding behind it.
+export { createConsumerModelConfiguration, type ConsumerModelConfigurationDeclaration } from "./model-configuration.js";
+export { bindPrologueInference } from "./prologue-inference-host.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";

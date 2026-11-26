@@ -322,7 +322,15 @@ function isWrongLanguageForLocale(message: string, locale: string): boolean {
   const latinWords = core.match(/\b[A-Za-z][A-Za-z'’]{1,}\b/gu) ?? [];
   const hasLatinWord = latinWords.length > 0;
   const base = baseLanguageOf(locale);
-  if (base === "zh") return hasKana;
+  if (base === "zh") {
+    if (hasKana) return true;
+    if (!hasHan && hasLatinWord) {
+      const hasCjkSentencePunct = /[。！？；，]/u.test(core);
+      const singleEnglishError = /^(?:unauthorized|forbidden|timeout|failed|invalid|denied|expired|conflict|unavailable|rejected|cancelled|canceled|aborted)$/iu.test(core);
+      return !hasCjkSentencePunct && (latinWords.length >= 3 || (latinWords.length >= 2 && ENGLISH_PROSE_WORD.test(core)) || singleEnglishError);
+    }
+    return false;
+  }
   if (base === "ja") return !hasKana && (hasHan || hasLatinWord);
   if (!hasHan && !hasKana) return false;
   const cjkCount = hanCount + kanaCount;
@@ -387,6 +395,39 @@ export function localizeWebErrorBody(status: number, value: unknown, localeOverr
     return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
   }
 
+  return value;
+}
+
+/**
+ * Sanitize machine-gateway `{ error, code?, details?, ... }` responses (`R-07`): scrubs raw OS paths,
+ * stack traces, SQLite/Node internals, and upstream `account.*` raw English while preserving contract
+ * schema hints (`输入不符合能力合同：...`) expected by CLI/MCP forwarding clients.
+ */
+export function sanitizeGatewayErrorBody(status: number, value: unknown, localeOverride?: string | null): unknown {
+  if (status < 400 || typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if (typeof record.error !== "string") return value;
+  const raw = record.error;
+  const trimmed = raw.trim();
+  const code = typeof record.code === "string" ? record.code : undefined;
+  const locale = localeOverride ?? activeLocale() ?? pageLocale();
+  if (
+    trimmed.startsWith("输入不符合能力合同：")
+    && !/\n\s*at\s+/u.test(trimmed)
+    && !/(?:^|[\s(:`"'=])(?:\/Users\/|\/home\/|\/var\/|\/tmp\/|\/private\/|\/etc\/|\/opt\/|\/Library\/|file:\/\/\/|[A-Za-z]:\\)/u.test(trimmed)
+  ) {
+    return value;
+  }
+  const technicalKey = classifyTechnicalMessage(raw);
+  if (technicalKey) {
+    const resolvedKey = code && (code.startsWith("account.") || code.startsWith("storage.") || code === "actions.outcome_unknown")
+      ? keyForCodeAndMessage(code, raw, status)
+      : technicalKey;
+    return { ...record, error: readErrorWord(resolvedKey, locale) };
+  }
+  if (shouldAlwaysLocalizeCode(code)) {
+    return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
+  }
   return value;
 }
 

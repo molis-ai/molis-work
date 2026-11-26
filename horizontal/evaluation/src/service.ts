@@ -48,7 +48,7 @@ import {
 import type { EvaluationReplayScenario } from "./replay.js";
 import { isPluginDeliveryRole } from "./rules.js";
 import { executeSampleEvaluationRun } from "./run-executor.js";
-import { EvaluationStore } from "./store.js";
+import { EvaluationStore, normalizeMetricsWindow } from "./store.js";
 
 export interface EvaluationServiceOptions {
   readonly home: string;
@@ -108,16 +108,8 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
   }
 }
 
-function validateMetricsWindow(input: EvaluationMetricsSummarizeInput): void {
-  if (input.since !== undefined && Number.isNaN(Date.parse(input.since))) {
-    throw evaluationErrors.invalid(`指标汇总起始时间不合法：${input.since}`);
-  }
-  if (input.until !== undefined && Number.isNaN(Date.parse(input.until))) {
-    throw evaluationErrors.invalid(`指标汇总结束时间不合法：${input.until}`);
-  }
-  if (input.since && input.until && Date.parse(input.since) > Date.parse(input.until)) {
-    throw evaluationErrors.invalid("指标汇总 since 不能晚于 until");
-  }
+function validateMetricsWindow(input: EvaluationMetricsSummarizeInput): EvaluationMetricsSummarizeInput {
+  return normalizeMetricsWindow(input);
 }
 
 export class EvaluationService {
@@ -328,11 +320,11 @@ export class EvaluationService {
       defineAction(evaluationActions.reviewsRecord, (caller, input) => this.recordReview(caller, input)),
       defineAction(evaluationActions.metricsSummarize, async (caller, input: EvaluationMetricsSummarizeInput): Promise<EvaluationMetricsSummary> => {
         assertPersonCaller(caller);
-        validateMetricsWindow(input);
-        const { runs, sampleCount } = this.store.queryRunsForMetrics(input);
+        const normalized = validateMetricsWindow(input);
+        const { runs, sampleCount } = this.store.queryRunsForMetrics(normalized);
         const nested = retainActionAuthority(caller, originOf(caller, evaluationActions.metricsSummarize));
         const evidence = await readRunFunnelEvidence(this.options.clientFor(caller), nested, runs.map(run => run.view));
-        return summarizeEvaluationMetrics(input, runs, sampleCount, evidence);
+        return summarizeEvaluationMetrics(normalized, runs, sampleCount, evidence);
       }),
     ];
     return {

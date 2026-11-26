@@ -112,12 +112,13 @@ export function createFeedInboxHandlers(feed: FeedApplication, board: string, po
         source_label: item.source_label ?? null, source_kind: item.source_kind ?? null, summary: item.summary ?? "", disposition: item.disposition })),
       sources: source_ids.flatMap(sourceId => found(() => feed.sources.get(board, sourceId))).map(source => ({ source_id: source.source_id, name: source.name })),
     })),
-    bind(feedInboxActions.admit, async ({ item_id }, caller) => {
+    // Not `async`: admission runs synchronously inside the Runtime's write transaction so any throw rolls back cleanly.
+    bind(feedInboxActions.admit, ({ item_id }, caller) => {
       const { entry, created } = admitToInbox(feed, board, item_id, addedByOf(caller.delegated_audience ?? caller.audience));
       // Admission starts the Inbox next-step judgment with the handing-in caller's authority, and judges only the entry it admitted: the
       // action runs beside the project's queue while the model answers.
-      await feed.flushPendingInboxJudgments(retainActionAuthority(caller, feedInboxActions.admit), [entry.entry_id]);
-      return { entry_id: entry.entry_id, status: entry.status, revision: entry.revision, created };
+      return feed.flushPendingInboxJudgments(retainActionAuthority(caller, feedInboxActions.admit), [entry.entry_id])
+        .then(() => ({ entry_id: entry.entry_id, status: entry.status, revision: entry.revision, created }));
     }),
   ];
 }

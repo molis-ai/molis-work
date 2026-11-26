@@ -107,12 +107,20 @@ export function pageRefresh(context: RefreshContext) {
     ...document.querySelectorAll("[data-goal-canvas-shell], [data-goal-frame-surface]"),
     ...allGoalDocumentPanes().map(goalSurfaceOf),
   ]);
-  const refreshCopiedGoalPanes = async (copies: readonly HTMLElement[], cursor: number, primaryGoalId: string, primaryParsed: Document | null, signal: AbortSignal | null) => {
+  const paneInteractionActive = (pane: HTMLElement): boolean => {
+    const active = document.activeElement;
+    if (active && pane.contains(active) && active.closest("[data-live-form], [data-event-form]")) return true;
+    if (pane.querySelector("[data-record-menu][open], .goal-more[open], [aria-busy=true]:is([data-live-form], [data-event-form])")) return true;
+    return [...pane.querySelectorAll<HTMLElement>('[data-live-form][data-live-dirty="true"], [data-event-form][data-live-dirty="true"]')]
+      .some((form) => form.getClientRects().length > 0 || form.closest<HTMLElement>("[data-goal-node-workspace]")?.hidden);
+  };
+  const refreshCopiedGoalPanes = async (copies: readonly HTMLElement[], cursor: number, primaryGoalId: string, primaryParsed: Document | null, signal: AbortSignal | null, force = false) => {
     if (!copies.length) return;
     const read = new Map<string, Document>();
     if (primaryGoalId && primaryParsed) read.set(primaryGoalId, primaryParsed);
     for (const pane of copies) {
       if (!goalRegionVisible([goalSurfaceOf(pane)])) continue;
+      if (!force && paneInteractionActive(pane)) continue;
       const paneGoalId = pane.querySelector<HTMLElement>("[data-goal-view]")?.dataset.goalView || pane.dataset.paneGoalId || "";
       if (!paneGoalId) continue;
       let parsed = read.get(paneGoalId);
@@ -124,6 +132,7 @@ export function pageRefresh(context: RefreshContext) {
         read.set(paneGoalId, parsed);
       }
       if (!goalRegionVisible([goalSurfaceOf(pane)])) continue;
+      if (!force && paneInteractionActive(pane)) continue;
       const next = parsed.querySelector('[data-document-pane] [data-work-surface="goals"]');
       const current = goalSurfaceOf(pane);
       if (current && next) {
@@ -211,7 +220,7 @@ export function pageRefresh(context: RefreshContext) {
       const primaryStale = primaryVisible && (force || page.documentCursor !== cursor || documentPane.dataset.boardCursor !== String(cursor));
       if (!force && cursor === goalData.boardCursor && !primaryStale && !staleCopies.length) return;
       if (!force && cursor === goalData.boardCursor && !primaryStale) {
-        await refreshCopiedGoalPanes(staleCopies, cursor, "", null, signal);
+        await refreshCopiedGoalPanes(staleCopies, cursor, "", null, signal, force);
         return;
       }
       if (!force && searchBusy()) {
@@ -263,7 +272,7 @@ export function pageRefresh(context: RefreshContext) {
       }
       const snapshot = applyCollectionOnly ? null : parsed.cloneNode(true) as Document;
       applyRefresh(goalRefresh, nextState, applyCollectionOnly, cursor);
-      await refreshCopiedGoalPanes(staleCopies, cursor, applyCollectionOnly ? "" : refreshGoalId, snapshot, signal);
+      await refreshCopiedGoalPanes(staleCopies, cursor, applyCollectionOnly ? "" : refreshGoalId, snapshot, signal, force);
       goalData.boardCursor = cursor;
     } catch (error) {
       // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped: the page's

@@ -180,7 +180,7 @@ export const projectWriteCheckersRoute: WebRoute<ProjectRuntimeContext> = { id: 
 /** The project's installed signed packages: their pages and calls, each to the package's own sandboxed process (47-1: the platform's). */
 export const installedPluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "installed-plugins", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken }) =>
   handleInstalledPluginHttp(request, response, url, { store, projectId: options.projectId, homeDirectory: serverOptions.homeDirectory,
-    routePrefix: projectRoutePrefix(options), accountRegistration: composition.accountRegistration, actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
+    routePrefix: projectRoutePrefix(options), accountRegistration: composition.accountRegistration, pageCsp: composition.PAGE_CSP, actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }, controlToken) };
 
 /** The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends. */

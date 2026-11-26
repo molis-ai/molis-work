@@ -1,4 +1,4 @@
-import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
+import { defineErrorCodes, LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { ArtifactIdentityRecord, ArtifactVersionRecord, FixedVersionRecord } from '@molis-ai/molis-work-contracts/modules/artifacts';
 import { canonicalArtifactJson, artifactContentDigest, artifactContentSize, normalizeArtifactMetadata, normalizeArtifactPayload } from './content.js';
 import { normalizeRegistration } from './registration.js';
@@ -67,7 +67,14 @@ export function validateFixedVersionBundle<R extends FixedVersionRecord>(input: 
     if (record.availability === 'available' ? record.unavailable_reason !== null : typeof record.unavailable_reason !== 'string' || !record.unavailable_reason.trim()) fixedVersionInvalid('固定版本可用性不合法');
     if (record.lifecycle_state === 'archived') {
       timestamp(record.archived_at);
-      if (record.archived_by !== identity.owner_actor_id) fixedVersionInvalid('归档作者与 owner 不一致');
+      text(record.archived_by);
+      const allowedArchivers = new Set([
+        identity.owner_actor_id,
+        record.created_by,
+        ...(library && context.homeOwner ? [context.homeOwner] : []),
+        ...(library ? [LOCAL_PERSON_ACTOR_ID] : []),
+      ]);
+      if (!allowedArchivers.has(record.archived_by as string)) fixedVersionInvalid('归档作者与 owner 或生产者不一致');
     } else if (record.archived_at !== null || record.archived_by !== null) fixedVersionInvalid('固定版本归档状态不一致');
     normalizeRegistration(fixedVersionRegistration(value as Omit<R, 'project_id'>, context.projectId, library), { library, readOwner: owner => owner });
   }

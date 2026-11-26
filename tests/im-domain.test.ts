@@ -303,3 +303,18 @@ test("RAC-2716 joining accepts only a 64-hex invitation credential and writes no
     assert.equal(members(), 1, "the real invitation still joins");
   } finally { await f.close(); }
 });
+
+test("F-modules-server-30 renaming a member emits a member event to project discussion rooms", async () => {
+  const f = await fixture();
+  try {
+    const alice = await f.person("Alice");
+    f.db.prepare("INSERT INTO mw_projects VALUES ('project-rename','Rename Project',?,'{}')").run(alice.member.id);
+    f.db.prepare("INSERT INTO mw_access VALUES ('project-rename',?,'owner')").run(alice.member.id);
+    const room = (await f.post(alice.session, "/projects/project-rename/room")).body.room as ImRoom;
+    const before = (f.db.prepare("SELECT COUNT(*) AS n FROM mw_events WHERE scope_kind='room' AND scope_id=? AND kind='member'").get(room.id) as { n: number }).n;
+    const renamed = await f.post(alice.session, "/session", { display_name: "Alice Renamed" });
+    assert.equal(renamed.status, 200);
+    const after = (f.db.prepare("SELECT COUNT(*) AS n FROM mw_events WHERE scope_kind='room' AND scope_id=? AND kind='member' AND entity_id=?").get(room.id, alice.member.id) as { n: number }).n;
+    assert.equal(after, before + 1, "project discussion room receives member event on rename");
+  } finally { await f.close(); }
+});

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
@@ -367,7 +368,7 @@ export class AgentHost implements AgentHostApi {
   descriptors(): AgentRuntimeDescriptor[] {
     return [...this.#adapters.values()]
       .map((adapter) => structuredClone(adapter.descriptor))
-      .sort((left, right) => left.runtime_id.localeCompare(right.runtime_id));
+      .sort((left, right) => compareCodeUnits(left.runtime_id, right.runtime_id));
   }
 
   adapter(runtimeId: string): AgentRuntimeAdapter {

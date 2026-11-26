@@ -134,6 +134,7 @@ export function findHistoryIndexItem(
         type_id: event.kind === "report" ? event.type?.type_id ?? null : null,
         type_name: event.kind === "report" ? event.type?.name ?? null : event.kind === "configuration" ? "配置" : "系统",
         semantic_family: event.kind === "report" ? event.type?.semantic_family ?? null : null,
+        system_operation: event.kind === "system" ? event.payload.operation : null,
         actor_id: event.actor_id,
         actor_kind: event.actor_kind,
       });

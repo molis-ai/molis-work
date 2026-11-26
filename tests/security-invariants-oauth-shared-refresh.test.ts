@@ -585,3 +585,25 @@ test("RAC-2483 a refresh whose answer is dropped takes no new caller, and one wh
     assert.equal(refresh.open, state !== lost, `${name}: ${state === lost ? "closed once the answer is to be dropped" : "still open"}`);
   }
 });
+
+test("F-hc-06 RAC-1085 two concurrent 401 forced refreshes arriving during beforeEffect still share a single token request", { timeout: 30_000 }, async t => {
+  const { home, stored } = await connected(t, false), net = network(t, "Bearer old-access"), port = createPluginConnectionsPort(home);
+  const [one, two] = [call(), call()];
+  try {
+    const readOne = net.holdRead(), first = port.request(target, one.dispatch);
+    await readOne.reached;
+    const readTwo = net.holdRead(), second = port.request(target, two.dispatch);
+    await readTwo.reached;
+    // Pause caller one at its forced-refresh beforeEffect before the HTTP token call starts, while caller two also hits 401.
+    const beforeRefresh = one.hold();
+    readOne.release();
+    await beforeRefresh.reached;
+    readTwo.release();
+    await turn();
+    beforeRefresh.release();
+    net.answerAll();
+    assert.deepEqual([(await first).status, (await second).status], [200, 200]);
+    assert.equal(net.refreshes.length, 1, "concurrent forced refreshes share one token request even when joining during beforeEffect");
+    assert.deepEqual([stored().access, stored().oauth], ["access-0", "refresh-2"]);
+  } finally { net.releaseAll(); }
+});

@@ -168,6 +168,11 @@ export class AcceptanceService {
    */
   async report(caller: AcceptanceCaller, request: AcceptanceReportRequest, ports: AcceptanceEvidencePorts): Promise<AcceptanceView> {
     const subject = this.subject(request.subject), at = this.now();
+    for (const report of request.reports) {
+      if (!report.checked.version.trim() || !report.method.trim() || !report.observed.trim()) {
+        throw acceptanceErrors.invalid("核查版本、方法与观察结果不能为空");
+      }
+    }
     const before = this.store.rows(this.known(caller, subject));
     if (!before.deliveries.length) throw acceptanceErrors.version_unknown("还没有记过交付，没有可核对的版本");
     // `null`: not this object, or not a version that was ever delivered — nothing to weigh.
@@ -200,7 +205,8 @@ export class AcceptanceService {
         const stands = standsOn(rows.deliveries, requirement.requirement_id)!, checked = report.checked.version.trim(), found = findings[index] ?? null;
         // Evidence of a delivered version the requirement does not stand on cannot prove the one it does, whatever it is worth there.
         const finding = found === null ? gap("wrong_object") : checked !== stands.version ? gap("evidence_stale") : found;
-        this.store.addCheck(subjectNo, { requirement_id: requirement.requirement_id, requirement_version: requirement.version, round: rows.deliveries.at(-1)!.round, kind: report.kind ?? "engineering", verdict: report.verdict,
+        const round = finding.gap === "wrong_object" || finding.gap === "evidence_stale" ? stands.round : rows.deliveries.at(-1)!.round;
+        this.store.addCheck(subjectNo, { requirement_id: requirement.requirement_id, requirement_version: requirement.version, round, kind: report.kind ?? "engineering", verdict: report.verdict,
           tier: finding.tier, gap: finding.gap, checked_version: checked, method: report.method.trim(), observed: report.observed.trim(), evidence: (report.evidence ?? []) as AcceptanceEvidenceRef[], reported_at: at },
         { session: caller.session, actor_id: caller.actor_id });
       });
@@ -223,7 +229,11 @@ export class AcceptanceService {
       const subjectNo = this.known(caller, subject), rows = this.store.rows(subjectNo), current = currentRequirements(rows.requirements), latest = rows.deliveries.at(-1);
       const prior = rows.decisions.filter(row => row.decision_id === decisionId);
       if (prior.length) {
-        if (prior.length !== items.length || prior.some(row => row.actor_id !== caller.actor_id)) throw acceptanceErrors.invalid("决定编号已经被别的决定使用");
+        const expected = items.map(item => `${item.id}\u0000${item.version}\u0000${item.decision}\u0000${item.note ?? ""}`).sort();
+        const actual = prior.map(row => `${row.requirement_id}\u0000${row.requirement_version}\u0000${row.decision}\u0000${row.note ?? ""}`).sort();
+        const same = prior.length === items.length && prior.every(row => row.actor_id === caller.actor_id)
+          && expected.every((entry, index) => entry === actual[index]);
+        if (!same) throw acceptanceErrors.invalid("决定编号已经被别的决定使用");
       } else {
         if (!latest) throw acceptanceErrors.version_unknown("还没有记过交付，没有可认可的版本");
         if (latest.version !== request.version.trim()) throw acceptanceErrors.selection_changed("交付的版本在你看过之后变了，请按现在的版本再看一遍", { version: latest.version });

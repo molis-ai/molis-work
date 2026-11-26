@@ -290,3 +290,29 @@ test("RAC-1664 naming counts Unicode characters: a 200-character title or questi
     { code: "actions.input_invalid", message: "请描述问题或添加图片" }, "100001 characters of words is still past the limit");
   assert.equal(fake.calls.length, 4, "the refused words did not reach the model");
 });
+
+test("F-plugins-rest-w2-11: concurrent name calls share one model invocation and an active naming draft is not evicted by 8 newer drafts", async t => {
+  const { store, drafts, count } = await issues(t), draft_id = crypto.randomUUID();
+  await drafts.prepare({ draft_id, description: "保存按钮点击后没有响应" }, caller);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const fake = model(async () => {
+    entered.resolve();
+    await release.promise;
+    return { status: "named", title: "保存按钮无响应", type: "bug" };
+  });
+  const first = drafts.name(draft_id, caller, fake.client);
+  await entered.promise;
+  const second = drafts.name(draft_id, caller, fake.client);
+  for (let i = 0; i < 8; i++) {
+    await drafts.prepare({ draft_id: crypto.randomUUID(), description: `其他草稿 ${i}` }, caller);
+  }
+  release.resolve();
+  const [r1, r2] = await Promise.all([first, second]);
+  assert.equal(fake.calls.length, 1, "concurrent naming of the same draft must invoke the model once");
+  assert.equal(r1.status, "saved");
+  assert.equal(r2.status, "saved");
+  assert.equal((r1 as { issue: Issue }).issue.id, draft_id);
+  assert.equal((r2 as { issue: Issue }).issue.id, draft_id);
+  assert.equal(store.read(draft_id).title, "保存按钮无响应");
+  assert.equal(count(), 1);
+});

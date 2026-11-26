@@ -128,12 +128,13 @@ export function contextSources(value: unknown): ContextSource[] {
     return result;
   });
 }
-export async function readContextSource(home: string, source: ContextSource): Promise<{ name: string; locator: string; files: ImportFile[] }> {
+export async function readContextSource(home: string, source: ContextSource, signal?: AbortSignal): Promise<{ name: string; locator: string; files: ImportFile[] }> {
+  signal?.throwIfAborted();
   if (source.kind === "browser") {
     if (!source.text?.trim()) throw new Error("请粘贴要整理的网页正文");
     return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", bytes: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`) }] };
   }
-  if (source.kind === "gmail") return readOnboardingMail(home, source);
+  if (source.kind === "gmail") return readOnboardingMail(home, source, fetch, signal);
   // Read through the round's project, as its AI: the service passes the reader its own client (context-onboarding-sessions.ts).
   if (source.kind === "sessions") throw new Error("这里读不了外部会话");
   const derivedFiles = !source.files?.length && source.staged_digests && source.metadata
@@ -145,11 +146,12 @@ export async function readContextSource(home: string, source: ContextSource): Pr
 }
 
 /** Recent mail through the mailbox driver: the Host holds the connection, refreshes its token once and checks it is unchanged around every request. */
-export async function readOnboardingMail(home: string, source: ContextSource, fetcher: typeof fetch = fetch): Promise<{ name: string; locator: string; files: ImportFile[] }> {
+export async function readOnboardingMail(home: string, source: ContextSource, fetcher: typeof fetch = fetch, outerSignal?: AbortSignal): Promise<{ name: string; locator: string; files: ImportFile[] }> {
+  outerSignal?.throwIfAborted();
   const driver = builtinMailboxDriver();
   if (!source.connection_id) throw new Error(`请先连接 ${driver.account_title}，或跳过 ${driver.title}`);
   const id = source.connection_id;
-  return withConnectorRequest(home, id, undefined, async signal => {
+  return withConnectorRequest(home, id, outerSignal, async signal => {
     const control = connectorAccountControl(home, id, { signal });
     let access = await resolveApiConnection(home, id, control, driver.service);
     const connection = access.connection;

@@ -115,6 +115,14 @@ export class GoalEventDecisionRecords {
     return row ? mapAppliedDecision(row) : null;
   }
 
+  getAppliedDecisionEventId(projectId: string, goalId: string, decisionId: string): string | null {
+    const row = this.db.prepare(`
+      SELECT event_id FROM goal_event_applied_decisions
+      WHERE decision_id = ? AND project_id = ? AND goal_id = ?
+    `).get(decisionId, projectId, goalId) as { event_id?: unknown } | undefined;
+    return row?.event_id == null ? null : rowText(row.event_id);
+  }
+
   listAppliedDecisions(projectId: string, goalId: string): GoalEventAppliedDecisionView[] {
     return (this.db.prepare(`
       SELECT d.*, d.rowid AS stored_row FROM goal_event_applied_decisions d

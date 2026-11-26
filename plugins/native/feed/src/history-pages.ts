@@ -1,6 +1,6 @@
 import type { FeedApplication } from "./application.js";
 import { isFeedBodyRef } from "./content-ledger.js";
-import { type FeedHistoryReleasePorts, type FeedSourceHistoryRelease } from "./source-history.js";
+import { type FeedHistoryReleasePorts, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 import { FEED_UNASSIGNED_BODY_HOLDER } from "./store/history-reads.js";
 
 const LEDGER_HOLDER_MAX_LENGTH = 200;
@@ -42,6 +42,19 @@ export function* keptProjectBodyPages(
   if (currentSourceId !== null && batch.length > 0) {
     yield { source_id: currentSourceId, refs: batch };
   }
+}
+
+/** Collects every kept body reference and pull operation id of one source before its rows are deleted. */
+export function collectSourceHistoryHolding(feed: FeedApplication, projectId: string, sourceId: string): FeedSourceHistoryHolding {
+  const content_refs: string[] = [];
+  for (const batch of keptBodyPages(feed, projectId, sourceId)) {
+    content_refs.push(...batch);
+  }
+  const operation_ids: string[] = [];
+  for (const batch of feed.reads.history(projectId, sourceId, "operations")) {
+    operation_ids.push(...batch);
+  }
+  return { content_refs, operation_ids };
 }
 
 /** Rows stay until all batches finish. The final release is never issued for an incomplete traversal. */

@@ -402,3 +402,35 @@ test("QEA-40 QEA-162 S-53: resolution refresh preserves other staged blobs and r
   await assert.rejects(readFile(filterRan), { code: "ENOENT" }, "writing and refreshing the index do not execute the other file's clean filter");
   assert.equal(await readFile(hookRan, "utf8"), "hook\n", "only the existing approved index update invokes post-index-change");
 });
+
+test("F-hc2-21: post-dispatch failures in commit and pr-create surface EFFECT_RECONCILE_REQUIRED", { timeout: 60_000 }, async t => {
+  const f = await isolatedRepository(t);
+  const hooks = path.join(f.directory, "failing-hooks");
+  await mkdir(hooks);
+  await writeFile(path.join(hooks, "pre-commit"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  await f.git("config", "core.hooksPath", hooks);
+  await writeFile(path.join(f.root, "nested", "a.txt"), "changed\n");
+  await f.git("add", "nested/a.txt");
+  const commit = await prepareGitOperation(f.workspace, (await readGitSummary(f.workspace)).revision, { action: "commit", message: "Hook fails after dispatch" });
+  await assert.rejects(commit.execute(), (error: unknown) => error instanceof Error && "code" in error
+    && error.code === "EFFECT_RECONCILE_REQUIRED" && /结果未确认/u.test(error.message));
+
+  await f.git("config", "--unset", "core.hooksPath");
+  await f.git("commit", "-qm", "clean commit");
+  await f.git("switch", "-q", "-c", "pr-branch");
+  await f.git("remote", "set-url", "origin", "https://github.com/acme/demo.git");
+  const bin = path.join(f.directory, "gh-bin");
+  await mkdir(bin);
+  await writeFile(path.join(bin, "gh"), `#!/bin/sh\ncase "$1" in\n  --version) echo "gh version 2.0.0";;\n  auth) exit 0;;\n  pr) echo "connection dropped" >&2; exit 1;;\nesac\n`, { mode: 0o755 });
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${bin}${path.delimiter}${originalPath}`;
+  try {
+    const pr = await prepareGitOperation(f.workspace, (await readGitSummary(f.workspace)).revision, {
+      action: "pr-create", base: "main", title: "Dropped PR", body: "", draft: false,
+    });
+    await assert.rejects(pr.execute(), (error: unknown) => error instanceof Error && "code" in error
+      && error.code === "EFFECT_RECONCILE_REQUIRED" && /结果未确认/u.test(error.message));
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});

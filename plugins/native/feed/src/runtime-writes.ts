@@ -1,4 +1,4 @@
-import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginProjectDatabase, PluginProjectDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedRuntimePorts } from "./runtime-ports.js";
 
@@ -31,6 +31,8 @@ export interface FeedWriter {
   ): ActionHandlerBinding[];
 }
 
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (...args: never[]) => unknown;
+
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
 
@@ -58,6 +60,9 @@ export function createFeedWriter(database: PluginProjectDatabase, ports: Pick<Fe
     const commands = new Set(definitions.filter(definition => definition.operation === "command").map(definition => `${definition.capability_id}@${definition.version}`));
     return bindings.map(binding => {
       if (!commands.has(`${binding.capability_id}@${binding.version}`)) return { ...binding };
+      if (binding.handle instanceof AsyncFunction) {
+        throw new ActionError("actions.execution_failed", `Command handler ${binding.capability_id}@${binding.version} must be synchronous before its first wait`);
+      }
       return { ...binding, handle: async (caller: ActionExecutionContext, input: unknown) => {
         let started: unknown;
         // The handler is not awaited inside the transaction (which must finish without waiting); its result is, once the commit is done.

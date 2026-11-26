@@ -24,7 +24,8 @@ export async function writeOwnedText(filePath: string, content: string, mutation
   ) {
     throw installerErrors["installer.home.unknown_file"](`不会覆盖未知用户文件: ${filePath}`);
   }
-  mutations.push({ filePath, previous });
+  const previousMode = previous == null ? undefined : (await pathState(filePath))?.mode;
+  mutations.push({ filePath, previous, ...(previousMode == null ? {} : { mode: previousMode & 0o777 }) });
   await writeAtomic(filePath, content, 0o755);
   return true;
 }
@@ -42,7 +43,8 @@ export async function replaceOwnedJson(
       throw installerErrors["installer.home.unknown_file"](`不会覆盖未知用户文件: ${filePath}`);
     }
   }
-  mutations.push({ filePath, previous });
+  const previousMode = previous == null ? undefined : (await pathState(filePath))?.mode;
+  mutations.push({ filePath, previous, ...(previousMode == null ? {} : { mode: previousMode & 0o777 }) });
   await writeAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
@@ -74,7 +76,7 @@ export async function rollbackTextMutations(mutations: TextMutation[]): Promise<
   for (const mutation of [...mutations].reverse()) {
     try {
       if (mutation.previous == null) await fs.rm(mutation.filePath, { force: true });
-      else await writeAtomic(mutation.filePath, mutation.previous);
+      else await writeAtomic(mutation.filePath, mutation.previous, mutation.mode);
     } catch {
       // Preserve the original error. The next explicit install can repair owned files.
     }
@@ -122,8 +124,10 @@ function parseJson(text: string, filePath: string): unknown {
 
 export async function writeAtomic(filePath: string, content: string, mode?: number): Promise<void> {
   const temporaryPath = `${filePath}.tmp-${randomUUID()}`;
-  await fs.writeFile(temporaryPath, content, mode == null ? undefined : { mode });
+  const permissions = mode == null ? undefined : mode & 0o777;
+  await fs.writeFile(temporaryPath, content, permissions == null ? undefined : { mode: permissions });
   try {
+    if (permissions != null) await fs.chmod(temporaryPath, permissions);
     await fs.rename(temporaryPath, filePath);
   } catch (error) {
     await fs.rm(temporaryPath, { force: true });

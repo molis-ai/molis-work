@@ -7,9 +7,8 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
-import { linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { cogniaActions, linksFor, scanCogniaDirectory, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
 import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
-import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime, person } from "./fixtures/home-runtime.js";
 const text = (path: string, body: string): ImportFile => ({ path, data: Buffer.from(body).toString("base64") });
@@ -214,4 +213,34 @@ test("RAC-1666 an import path is counted in Unicode characters up to 1000 and th
   const material = store.createMaterial({ title: "很长的正文", body: wide(500) });
   assert.deepEqual(store.materials(wide(500)).map(m => m.id), [material.id], "500 characters of search words find the material");
   assert.throws(() => store.materials(wide(501)), { code: "cognia.invalid", message: "搜索词过长" }, "501 characters is still past the search limit");
+}));
+
+test("F-plugins-rest-07: batch_bytes check does not poison subsequent small files, maps too_large code, and enforces actual read bytes in scanner", fixture(async (store) => {
+  const sevenMb = Buffer.alloc(7_000_000, 65).toString("base64");
+  const sixMb = Buffer.alloc(6_000_000, 66).toString("base64");
+  const p = preview(store, [
+    { path: "p1.pdf", data: sevenMb },
+    { path: "p2.pdf", data: sevenMb },
+    { path: "p3.pdf", data: sevenMb },
+    { path: "p4.pdf", data: sevenMb },
+    { path: "overflow.pdf", data: sixMb },
+    text("small.md", "# Keep me"),
+  ]);
+  const overflow = p.entries.find(e => e.path === "overflow.pdf");
+  const small = p.entries.find(e => e.path === "small.md");
+  assert.deepEqual([overflow?.status, overflow?.reason], ["skipped", "too_large"]);
+  assert.equal(small?.status, "new");
+  assert.equal(store.commit(p.id).added, 5);
+
+  const scanned = await scanCogniaDirectory({
+    async read(request) {
+      if (request.kind === "directory") {
+        return { outcome: "directory", entries: Array.from({ length: 5 }, (_, i) => ({ kind: "file" as const, name: `f${i}.pdf`, path: [`f${i}.pdf`], size: 10 })), truncated: false };
+      }
+      return { outcome: "bytes", bytes: 8_000_000, data: "AA==" };
+    },
+  }, "grant-1", ".");
+  assert.equal(scanned.files.filter(file => file.data).length, 4);
+  assert.equal(scanned.files[4]?.reason, "超过文件或批次大小限制");
+  assert.equal(scanned.files[4]?.data, undefined);
 }));

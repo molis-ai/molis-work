@@ -441,13 +441,22 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
       detail = cutHead(error instanceof Error ? error.message : String(error), 500);
     }
     const finishedAt = iso(now());
+    let committed = false;
     if (token && !lifetime.signal.aborted) {
       db.transaction(() => {
         const owned = db.prepare(
           "SELECT lease_token, lease_until FROM schedule_jobs WHERE job_id = ?",
         ).get(job.job_id) as Pick<JobRow, "lease_token" | "lease_until"> | undefined;
         // An expired lease is no longer owned, even before a replacement takes it.
-        if (lifetime.signal.aborted || !options.actionCurrent() || !owned || owned.lease_token !== token || !owned.lease_until || owned.lease_until <= iso(now())) return;
+        const current = options.actionCurrent();
+        if (lifetime.signal.aborted || !current || !owned || owned.lease_token !== token || !owned.lease_until || owned.lease_until <= iso(now())) {
+          if (!controller.signal.aborted) {
+            controller.abort(!current
+              ? new DOMException("Scheduled action authorization ended", "AbortError")
+              : new Error("Schedule execution no longer owned"));
+          }
+          return;
+        }
         db.prepare(`
           INSERT INTO schedule_wakeups (wakeup_id, job_id, due_at, started_at, finished_at, status, detail)
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -462,6 +471,7 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
           SET lease_until = NULL, lease_token = NULL, last_wakeup_id = ?, updated_at = ?
           WHERE job_id = ? AND lease_token = ?
         `).run(wakeupId, finishedAt, job.job_id, token);
+        committed = true;
       }).immediate();
     }
     const wakeup: ScheduleWakeupRecord = {
@@ -473,7 +483,7 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
       status,
       detail,
     };
-    options.ended(wakeup, lifetime.signal.aborted);
+    options.ended(wakeup, lifetime.signal.aborted || !committed);
     return wakeup;
   } finally {
     lifetime.dispose();
@@ -546,10 +556,11 @@ function normalizeObjectRef(value: string): string {
 function nextDueAfter(job: JobRow, at: Date): string {
   if (job.recurrence_kind !== "interval" || !job.interval_ms) return job.next_due_at;
   const interval = Number(job.interval_ms);
-  let next = Date.parse(job.next_due_at) + interval;
+  const base = Date.parse(job.next_due_at);
   const nowMs = at.getTime();
-  while (next <= nowMs) next += interval;
-  return new Date(next).toISOString();
+  if (!Number.isFinite(base)) return new Date(nowMs + interval).toISOString();
+  const steps = base <= nowMs ? Math.floor((nowMs - base) / interval) + 1 : 1;
+  return new Date(base + steps * interval).toISOString();
 }
 
 function toWakeup(row: WakeupRow): ScheduleWakeupRecord {

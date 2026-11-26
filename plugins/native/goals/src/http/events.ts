@@ -4,6 +4,7 @@ import { goalsFailure, goalsRoute } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsRouteContext, GoalsRoutePorts } from "./types.js";
 import { goalsActions } from "../actions.js";
+import { eventDecisionVersion } from "../decision-offers.js";
 
 const HTTP_ALLOWED: Record<string, readonly string[]> = {
   "event-configure": [
@@ -48,8 +49,10 @@ export function goalEventRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     }),
     goalsRoute("goals.event-read", ports, async (context) =>
       ({ status: 200, body: await context.actions.invoke(goalsActions.event, { goal_id: context.params.goalId!, event_id: context.params.eventId! }) })),
-    goalsRoute("goals.event-state", ports, async (context) =>
-      ({ status: 200, body: await context.actions.invoke(goalsActions.state, { goal_id: context.params.goalId! }) })),
+    goalsRoute("goals.event-state", ports, async (context) => {
+      const state = await context.actions.invoke(goalsActions.state, { goal_id: context.params.goalId! });
+      return { status: 200, body: { ...state, review_version: eventDecisionVersion(state) } };
+    }),
     goalsRoute("goals.event-timeline", ports, async (context) =>
       ({ status: 200, body: await context.actions.invoke(goalsActions.history, { goal_id: context.params.goalId!, ...readTimelineQuery(context) }) })),
     ...EVENT_WRITE_ACTIONS.map((action) => goalsRoute(`goals.${action}`, ports, (context) => writeEvent(action, context))),

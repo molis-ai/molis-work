@@ -293,3 +293,59 @@ test("BL492-08 a list read of an approved name that the proxy answers with 198.1
     assert.deepEqual(looked, [], "the name that failed the list was never looked up, so the exception never applied to it");
   } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
 });
+
+test("F-hc-10: Bilibili and Xiaohongshu source readers rethrow authority, cancellation and policy refusals without degrading", async () => {
+  const controlErrors = (): Array<{ label: string; error: Error }> => [
+    { label: "actions.forbidden", error: new ActionError("actions.forbidden", "authority withdrawn") },
+    { label: "private_address", error: Object.assign(new Error("private address"), { code: "material.source.private_address" }) },
+    { label: "domain_not_allowed", error: Object.assign(new Error("domain denied"), { code: "material.source.domain_not_allowed" }) },
+    { label: "AbortError", error: Object.assign(new Error("aborted"), { name: "AbortError" }) },
+  ];
+
+  for (const { label, error } of controlErrors()) {
+    // Bilibili subtitle lookup failure must not fall back to playurl/audio.
+    let biliFetches = 0;
+    const biliUrl = "https://www.bilibili.com/video/BVrefuse";
+    await assert.rejects(readMaterialSource("/unused", biliUrl, {
+      async fetch(target) {
+        biliFetches += 1;
+        if (target === biliUrl) return page(biliUrl, '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVrefuse","cid":456,"title":"标题"}}</script>');
+        if (target.includes("/x/player/v2?")) throw error;
+        throw new Error(`unexpected fallback fetch: ${target}`);
+      },
+      async extractMaterial() { assert.fail("must not reach audio extraction"); },
+    }), caught => caught === error, `bilibili:${label}`);
+    assert.equal(biliFetches, 2, `bilibili:${label} stops without playurl fallback`);
+
+    // Xiaohongshu video failure must not degrade to returning only the note body.
+    let xhsVideoFetches = 0;
+    const xhsUrl = "https://www.xiaohongshu.com/explore/vid123";
+    await assert.rejects(readMaterialSource("/unused", xhsUrl, {
+      async fetch(target) {
+        xhsVideoFetches += 1;
+        if (target === xhsUrl) return page(xhsUrl, noteHTML("vid123", { noteId: "vid123", title: "视频", desc: "正文", type: "video", video: { masterUrl: "https://cdn.example/video.mp4" } }));
+        throw error;
+      },
+      async extractMaterial() { assert.fail("must not reach video extraction"); },
+    }), caught => caught === error, `xhs-video:${label}`);
+    assert.equal(xhsVideoFetches, 2, `xhs-video:${label} stops immediately`);
+
+    // Xiaohongshu image failure must not continue fetching remaining images or return partial results.
+    let xhsImageFetches = 0;
+    const xhsImgUrl = "https://www.xiaohongshu.com/explore/img123";
+    await assert.rejects(readMaterialSource("/unused", xhsImgUrl, {
+      async fetch(target) {
+        xhsImageFetches += 1;
+        if (target === xhsImgUrl) {
+          return page(xhsImgUrl, noteHTML("img123", {
+            noteId: "img123", title: "图文", desc: "正文",
+            imageList: [{ urlDefault: "https://cdn.example/1.png" }, { urlDefault: "https://cdn.example/2.png" }],
+          }));
+        }
+        throw error;
+      },
+      async extractMaterial() { assert.fail("must not reach image extraction"); },
+    }), caught => caught === error, `xhs-image:${label}`);
+    assert.equal(xhsImageFetches, 2, `xhs-image:${label} does not fetch later images`);
+  }
+});

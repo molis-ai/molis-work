@@ -69,6 +69,7 @@ export const codexAdapter: ExternalSessionSourceAdapter = {
         role: entry.role,
         at: entry.at,
         text: entry.text,
+        truncated: entry.truncated,
         step: entry.step,
       }),
     );

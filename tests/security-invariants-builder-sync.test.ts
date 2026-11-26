@@ -316,3 +316,30 @@ test('S-119 PCSYNC-01/14 actual Host rejects malformed authoring items before cr
   try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await client.withCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);assert.equal(existsSync(join(home,'plugin-builder')),false);}finally{await client.close();}
  }
 });
+
+test('F-horiz-runtime-38 Builder sync preserves contract.help and browserResult.blocked while rejecting malformed values',t=>{
+ const f=fixture(t),source=f.create(),design=structuredClone(source.design!);
+ const help={default_topic:'overview',topics:[{id:'overview',title:'概览',sections:[{id:'start',heading:'快速开始',body:'写一条笔记并提交。'}]}]};
+ design.contract.help=help;
+ writeFileSync(join(source.directory!,'contract.json'),JSON.stringify(design.contract));
+ const blockedResult={passed:false,cases:[{id:'add-note',passed:false,detail:'尚未执行：本机未安装 Chrome'}],blocked:'本机未安装 Chrome',at:'2026-10-19T00:00:00Z'};
+ f.stores[0]!.update(source.id,source.revision,row=>{row.design=design;row.browserResult=blockedResult;});
+ const op=f.send();
+ const received=f.stores[1]!.require(source.id);
+ assert.deepEqual(received.design?.contract.help,help);
+ assert.deepEqual(received.browserResult,blockedResult);
+ assert.equal(f.replicas[1]!.next(),null);
+ const validate=(value:unknown)=>validatePrivateValueReplication(value,f.definitions[1]!,{spaceId:f.space.spaceId,projectId,title:'Builder owner',authorize(){}},op.key);
+ const invalidCases:Array<(row:AgentBuild)=>void>=[
+  row=>{Reflect.set(row.design!.contract.help!,'extra','disallowed');},
+  row=>{Reflect.set(row.design!.contract.help!.topics[0]!,'extra','disallowed');},
+  row=>{Reflect.set(row.browserResult!,'blocked',123);},
+  row=>{row.browserResult!.blocked='';},
+  row=>{row.browserResult!.blocked='x'.repeat(4_001);},
+ ];
+ for(const mutate of invalidCases){
+  const copy=structuredClone(op.value) as {content:{builds:AgentBuild[]}};
+  mutate(copy.content.builds[0]!);
+  assert.throws(()=>validate(copy),{code:'plugin_builder.sync_invalid'});
+ }
+});

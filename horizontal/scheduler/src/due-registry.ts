@@ -1,6 +1,6 @@
 import { ActionError, RUN_MISSED_KEPT_MS, runHasExpired } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { DueEntryOwner, DueEntryRecord, DueEntrySource, DueExpiredRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, rollbackPreservingError, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 export type { DueEntryOwner, DueEntryRecord, DueEntrySource, DueExpiredRecord };
 
@@ -53,7 +53,7 @@ export function openDueRegistry(home: string, options: { now?: () => Date } = {}
 
 const iso = (value: string): string => {
   const at = Date.parse(value);
-  if (!/^\d{4}-\d{2}-\d{2}T/u.test(value) || Number.isNaN(at)) throw new ActionError("actions.input_invalid", "到期时间要是带时区的时刻");
+  if (!/^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:?\d{2})$/u.test(value) || Number.isNaN(at)) throw new ActionError("actions.input_invalid", "到期时间要是带时区的时刻");
   return new Date(at).toISOString();
 };
 const rowOf = (row: Record<string, unknown>): DueEntryRecord => ({ install_id: String(row.install_id), plugin_id: String(row.plugin_id),
@@ -195,7 +195,9 @@ export class DueRegistry {
       this.db.exec("COMMIT");
       return value;
     } catch (error) {
-      this.db.exec("ROLLBACK");
+      rollbackPreservingError(error, () => {
+        if (this.db.isTransaction) this.db.exec("ROLLBACK");
+      });
       throw error;
     }
   }
@@ -241,12 +243,16 @@ export class DueTimer {
 
   /** Runs one round now, whatever the timer says; the timer is armed again after it. */
   fire(): Promise<void> {
+    if (this.closed) return Promise.resolve();
     if (this.running) return this.running;
     this.running = (async () => {
       try {
         const { due, expired } = this.registry.takeDue();
-        if (expired.length) this.options.expired?.(expired);
+        if (expired.length) {
+          try { this.options.expired?.(expired); } catch { /* An expired-entry listener never drops due wakeups. */ }
+        }
         for (const entry of due) {
+          if (this.closed) break;
           try { await this.options.wake(entry); } catch (error) { this.options.failed?.(entry, error); }
         }
       } finally {
@@ -257,9 +263,10 @@ export class DueTimer {
     return this.running;
   }
 
-  close(): void {
+  close(): Promise<void> {
     this.closed = true;
     if (this.timer !== undefined) clearTimeout(this.timer);
     this.timer = undefined;
+    return this.running ? this.running.then(() => undefined, () => undefined) : Promise.resolve();
   }
 }

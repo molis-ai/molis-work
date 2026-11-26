@@ -197,3 +197,42 @@ test("S-work-terminals platform work-terminal actions refuse non-person, delegat
     );
   }
 });
+
+test("R-07 F-hc2-20 PTY socket rejects invalid resize dimensions, closes failed page-auth sockets, and localizes errors in en", { timeout: 20_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const server = createServer(), connections = new Set<Socket>();
+  server.on("connection", socket => { connections.add(socket); socket.once("close", () => connections.delete(socket)); });
+  const fixtureToken = ["fixture", "terminal", "r07"].join("-");
+  const pty = attachMolisWorkPtySocket(server, fixtureToken, f.home);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { pty.killAll(); for (const socket of connections) socket.destroy(); await new Promise<void>(resolve => server.close(() => resolve())); });
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const url = `ws://127.0.0.1:${address.port}/pty`;
+
+  // Failed page-auth sends a localized error in en and closes the socket instead of leaving it dangling.
+  const badAuth = new WebSocket(url, { headers: { "accept-language": "en-US" } });
+  t.after(() => badAuth.terminate());
+  const badErrors: Array<Record<string, unknown>> = [];
+  badAuth.on("message", raw => badErrors.push(JSON.parse(raw.toString())));
+  const closed = new Promise<number>(resolve => badAuth.once("close", code => resolve(code)));
+  await new Promise<void>((resolve, reject) => { badAuth.once("open", resolve); badAuth.once("error", reject); });
+  badAuth.send(JSON.stringify({ type: "page-auth", pageId: "non-existent-page-id" }));
+  const closeCode = await closed;
+  assert.equal(closeCode, 1008, "failed page-auth closes the WebSocket with 1008");
+  assert.equal(badErrors[0]?.type, "error");
+  assert.doesNotMatch(String(badErrors[0]?.message ?? ""), /\p{Script=Han}/u, "en socket error is localized without Chinese text");
+
+  // Missing/non-integer resize dimensions return a structured error frame without throwing.
+  const authed = new WebSocket(url, { headers: { "accept-language": "en-US" } });
+  t.after(() => authed.terminate());
+  const messages: Array<Record<string, unknown>> = [];
+  authed.on("message", raw => messages.push(JSON.parse(raw.toString())));
+  await new Promise<void>((resolve, reject) => { authed.once("open", resolve); authed.once("error", reject); });
+  authed.send(JSON.stringify({ type: "auth", token: fixtureToken }));
+  while (!messages.some(m => m.type === "ready")) await new Promise(resolve => setTimeout(resolve, 10));
+  authed.send(JSON.stringify({ type: "resize", panelId: "missing" }));
+  while (!messages.some(m => m.type === "error")) await new Promise(resolve => setTimeout(resolve, 10));
+  const resizeError = messages.find(m => m.type === "error")!;
+  assert.doesNotMatch(String(resizeError.message ?? ""), /\p{Script=Han}/u, "en resize error is localized without Chinese text");
+  assert.doesNotMatch(String(resizeError.message ?? ""), /\/Users\/|\/tmp\//u, "error does not leak OS paths");
+});

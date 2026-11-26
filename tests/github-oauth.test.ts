@@ -529,3 +529,25 @@ test("RAC-2549: the Host, the catalog and the workbench hold no GitHub-only OAut
   // The auth kinds are the four the Host reads, not one per service.
   assert.doesNotMatch(readFileSync(new URL("../packages/contracts/src/services/connector-host.ts", import.meta.url), "utf8"), /ConnectorAuthKind =[^;]*"(github|gmail|notion)"/u);
 });
+
+test("F-hc-05 concurrent device OAuth polls deduplicate and never mark a winning authorization failed or clear its secrets", { timeout: 15_000 }, async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t);
+  const started = await startDeviceOAuth(home, START);
+  time.advance(6);
+  const release = Promise.withResolvers<void>();
+  remote.options.tokenPoll = () => release.promise;
+  remote.options.polls = [tokenAnswer];
+  const polls = Promise.all([
+    pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }),
+    pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }),
+  ]);
+  await settle();
+  await settle();
+  release.resolve();
+  const [first, second] = await polls;
+  assert.deepEqual(first, { status: "authorized", connection_id: started.connection_id });
+  assert.deepEqual(second, { status: "authorized", connection_id: started.connection_id });
+  assert.equal(remote.of(TOKEN_URL).length, 1, "concurrent polls deduplicate into one token exchange");
+  assert.equal(connectorAuthorizationStatus(home, started.authorization_id)?.status, "connected");
+  assert.ok(connectorProtocolSecrets(home, started.connection_id).get("access"), "winning access token remains intact");
+});

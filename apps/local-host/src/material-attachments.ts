@@ -9,9 +9,10 @@ import {
   type ConversationAttachmentImageType, type ConversationAttachmentRequest, type ConversationAttachmentUploadRequest, type MaterialUpload,
 } from "@molis-ai/molis-work-contracts/services/materials";
 import { supportsMaterialExtension } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { extractHomeMaterial } from "./material-home.js";
-import { readMaterialDocuments } from "./material-documents.js";
+import { runMaterialWorker } from "./material-worker.js";
 import { activationPartition } from "./activation-partition.js";
 
 /**
@@ -73,6 +74,7 @@ function decoded(upload: MaterialUpload): { name: string; bytes: Buffer } {
   if (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded)) throw attachmentErrors.invalid_data("文件内容编码无效");
   const bytes = Buffer.from(encoded, "base64");
   if (!bytes.length || bytes.toString("base64") !== encoded) throw attachmentErrors.invalid_data("文件为空或编码无效");
+  if (bytes.length > CONVERSATION_ATTACHMENT_LIMITS.document_bytes) throw attachmentErrors.too_large("文件超过 25 MB，请只带需要的部分");
   return { name, bytes };
 }
 
@@ -81,10 +83,24 @@ async function documentText(home: string, name: string, bytes: Buffer, signal: A
   const extension = path.extname(name).toLowerCase();
   const max = CONVERSATION_ATTACHMENT_LIMITS.text_chars;
   if (extension === ".docx") {
-    const batch = await readMaterialDocuments([{ file_name: name, bytes }], { ...(signal ? { signal } : {}) });
-    const body = batch.documents.map(document => document.content).join("\n\n");
-    const coverage = batch.documents[0]?.coverage ?? { status: "insufficient" as const, issues: batch.warnings };
-    return { text: body.slice(0, max), meta: { chars: Math.min(body.length, max), truncated: body.length > max || coverage.truncated === true, pages: null, coverage: coverage.status, issues: [...coverage.issues, ...batch.warnings].slice(0, 20) } };
+    const { text: body } = await runMaterialWorker<{ text: string }>(
+      "material-office-worker.js",
+      { bytes: new Uint8Array(bytes), type: "docx" },
+      { ...(signal ? { signal } : {}), timeoutMs: 60_000 },
+      "文档",
+    );
+    const text = cutHead(body, max);
+    const truncated = text.length < body.length;
+    return {
+      text,
+      meta: {
+        chars: text.length,
+        truncated,
+        pages: null,
+        coverage: text.trim() ? (truncated ? "partial" : "sufficient") : "insufficient",
+        issues: [],
+      },
+    };
   }
   if (!supportsMaterialExtension(extension)) throw attachmentErrors.unsupported("这种文件还读不了：可以带图片、PDF、Word、文字或常见音视频");
   const read = await extractHomeMaterial(home, { file_name: name, bytes }, { ...(signal ? { signal } : {}), textFormat: "markdown", limits: { maxCharacters: max } });

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { projectGuidanceActions as g } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { createProjectGuidance } from "@molis-ai/molis-work-module-projects";
@@ -149,4 +149,52 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     assert.equal(badEncoding.status, 400);
     assert.equal((await badEncoding.json() as { code?: string }).code, "actions.input_invalid");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("F-hc2-27: /api/project-guidance localizes project_guidance_error for non-zh Accept-Language", async () => {
+  installHostUiText();
+  const home = await mkdtemp(join(tmpdir(), "project-guidance-i18n-"));
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Guidance i18n", actor_id: "user" }));
+  const host = new MolisWorkLocalHost({
+    homeDirectory: home,
+    completeText: null,
+    actionAvailability: (_caller, action) =>
+      action.capability_id === g.read.capability_id
+        ? { available: false, code: "actions.plugin_disabled", reason: "说明停用" }
+        : { available: true },
+  });
+  const token = "guidance-i18n-token-0123456789";
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const response = await fetch(`${origin}/projects/${project.project_id}/api/project-guidance`, {
+      method: "POST",
+      headers: {
+        origin,
+        "accept-language": "en",
+        "content-type": "application/json",
+        "x-molis-work-control-token": token,
+        "x-molis-work-idempotency-key": randomUUID(),
+      },
+      body: JSON.stringify({
+        kind: "constraint",
+        content: "Keep local data private.",
+        reason: "Data boundary",
+        user_confirmed: true,
+        idempotency_key: "i18n-refresh-error",
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { created: boolean; project_guidance: unknown; project_guidance_error: string };
+    assert.equal(body.created, true);
+    assert.equal(body.project_guidance, null);
+    assert.doesNotMatch(body.project_guidance_error, /说明停用/u);
+    assert.ok(body.project_guidance_error.length > 0);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await host.close();
+    await rm(home, { recursive: true, force: true });
+  }
 });

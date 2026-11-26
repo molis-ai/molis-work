@@ -335,3 +335,12 @@ test("S-83 RAC-664 a disabled installation reads nothing, an uninstall takes its
   await platform.runtime.uninstall(f.host.homePlugins!.installation(f.a.id)!.install_id, { retain_private_data: true });
   assert.deepEqual(await f.listed(), [], "kept data does not keep a directory grant");
 });
+
+test("F-hc2-07 S-83 directory read refuses a file larger than the 8 MiB limit before allocating a buffer", async t => {
+  const f = await fixture(t), grant = await (await f.select()).json();
+  const huge = join(f.vault, "oversized.txt");
+  writeFileSync(huge, Buffer.alloc(8 * 1024 * 1024 + 1));
+  f.a.reading({ grant_id: grant.grant_id, path: ["oversized.txt"], kind: "text" });
+  const result = await f.read();
+  assert.equal(result.outcome, "too-large");
+});

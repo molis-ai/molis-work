@@ -591,3 +591,75 @@ test('102-2: process monitor parser rejects malformed ps durations and isolates 
     unwatchB();
   }
 });
+
+test('F-cf2-01 F-cf2-03 sandbox query refuses mutating network requests and materials.attach before reaching Host services', mac, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'sandbox-query-guard-'));
+  const bundlePath = join(directory, 'plugin.mjs');
+  const queryEffects: SandboxEffects = { networkDomains: ['api.example.test'], materials: ['read'] };
+  const queryContract: SandboxPluginContract = {
+    version: 1,
+    pluginId: 'test',
+    revision: 'one',
+    entities: [],
+    pages: [],
+    acceptance: [],
+    operations: [{
+      id: 'readOnly',
+      kind: 'query',
+      input: { type: 'string' },
+      output: { type: 'string' },
+      effects: queryEffects,
+      errors: [],
+      examples: [{ input: '', output: '' }],
+    }],
+  };
+  const seen: string[] = [];
+  await writeFile(bundlePath, `export const operations={readOnly:async(_,sdk)=>{
+    const codes = [];
+    for (const req of [
+      { url: 'https://api.example.test/mutate', method: 'POST', body: '{}' },
+      { url: 'https://api.example.test/item', method: 'DELETE' },
+      { url: 'https://api.example.test/item', method: 'GET', body: 'payload' },
+    ]) {
+      try { await sdk.network.request(req); codes.push('allowed'); } catch (e) { codes.push(e.code); }
+    }
+    const ok = await sdk.network.request({ url: 'https://api.example.test/read', method: 'GET' });
+    codes.push(ok.body);
+    try {
+      await sdk.materials.attach({ file_name: 'a.txt', data_base64: Buffer.from('x').toString('base64') });
+      codes.push('attach-allowed');
+    } catch (e) {
+      codes.push(e.code);
+    }
+    return JSON.stringify(codes);
+  }};`);
+  const runner = await createSandboxRunner({
+    bundlePath,
+    contract: queryContract,
+    identity,
+    grants: queryEffects,
+    services: {
+      network: {
+        async request(_context, req) {
+          seen.push(`net:${req.method ?? 'GET'}`);
+          return { status: 200, headers: {}, body: 'get-ok' };
+        },
+      },
+      materials: {
+        async extract() { throw new Error('unused'); },
+        async readDocuments() { throw new Error('unused'); },
+        async attach() { seen.push('attach'); throw new Error('must not be called'); },
+      },
+    },
+  });
+  try {
+    assert.equal(
+      await runner.call('readOnly', ''),
+      JSON.stringify(['sandbox.not_authorized', 'sandbox.not_authorized', 'sandbox.not_authorized', 'get-ok', 'sandbox.not_authorized']),
+    );
+    assert.deepEqual(seen, ['net:GET']);
+  } finally {
+    await runner.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

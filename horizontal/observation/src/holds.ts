@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   OBSERVATION_RETENTION_NEEDS,
   type ObservationHoldListInput,
@@ -176,7 +176,7 @@ function buildHoldView(db: DatabaseSync, row: StoredHoldRow, nowIso: string): Ob
 
 export async function handleHoldsPut(
   deps: HoldActionDeps,
-  caller: ActionCallContext,
+  caller: ActionExecutionContext,
   input: ObservationHoldPutInput,
 ): Promise<ObservationHoldPutResult> {
   assertPersonCaller(caller);
@@ -187,6 +187,9 @@ export async function handleHoldsPut(
   if (typeof input.project_id === "string" && readable && !readable.has(input.project_id)) {
     throw observationErrors.forbidden("所选项目不存在、已删除或正在关闭");
   }
+  await caller.beforeEffect?.();
+  caller.assert_authority_current?.();
+  caller.signal?.throwIfAborted();
 
   const now = deps.env.now();
   const nowIso = now.toISOString();
@@ -279,15 +282,18 @@ function holdsInVersionSeries(db: DatabaseSync, series: NonNullable<ObservationH
   });
 }
 
-export function handleHoldsRelease(
+export async function handleHoldsRelease(
   deps: HoldActionDeps,
-  caller: ActionCallContext,
+  caller: ActionExecutionContext,
   input: ObservationHoldReleaseInput,
-): ObservationHoldReleaseResult {
+): Promise<ObservationHoldReleaseResult> {
   assertPersonCaller(caller);
   if (input.hold_id === undefined && input.sample_id === undefined && input.targets === undefined && input.version_series === undefined) {
     throw observationErrors.invalid_query("释放留存需要指定保留标识、样本或确切的保留对象");
   }
+  await caller.beforeEffect?.();
+  caller.assert_authority_current?.();
+  caller.signal?.throwIfAborted();
   if (!deps.writer.hasDatabase()) return { released_hold_ids: [], released_record_count: 0 };
   const db = openForHolds(deps.writer);
   const where: string[] = [];

@@ -233,3 +233,27 @@ test("W4-2-06: pages.create with a request id makes the document once; other con
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:write"] }, actions.intakeOffers, selection({})), { code: "actions.forbidden" });
   });
 });
+
+test("F-pm3-15: pages.create and pages.update reject non-integer or out-of-range heading levels for user and agent audiences", async () => {
+  await fixture(async ({ client, caller }) => {
+    const agent: ActionCallContext = { ...caller, audience: "agent" };
+    const { document } = await client.invoke(caller, actions.create, {
+      title: "Valid headings",
+      body: { type: "doc", content: [
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "One" }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Two" }] },
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Three" }] },
+        { type: "heading", content: [{ type: "text", text: "Default" }] },
+      ] },
+    });
+    for (const actor of [caller, agent]) {
+      for (const level of ["1 bad", "r", "tml", 0, 4, 1e9, 1.5, null]) {
+        const invalidBody = { type: "doc" as const, content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Bad" }] }] };
+        await assert.rejects(client.invoke(actor, actions.create, { title: "Bad heading", body: invalidBody }), { code: "pages.invalid" });
+        const nestedInvalid = { type: "doc" as const, content: [{ type: "blockquote", content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Nested" }] }] }] };
+        await assert.rejects(client.invoke(actor, actions.update, { id: document.id, body: nestedInvalid, expected_version: document.version }), { code: "pages.invalid" });
+      }
+    }
+    assert.equal((await client.invoke(caller, actions.list, {})).documents.length, 1);
+  });
+});

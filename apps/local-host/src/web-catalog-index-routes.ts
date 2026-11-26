@@ -49,8 +49,8 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
       changes: listener => onAttentionChange(null, listener) }) },
   { id: "side-files", handle: async ({ request, response, url, serverOptions }) => Boolean(serverOptions.homeDirectory)
     && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory!) },
-  { id: "agent-reviews", handle: ({ request, response, url, agentHost, localHost, agentReady }) => handleUnscopedAgentReviews(request, response, url,
-    { host: localHost, agentHost, actorId: LOCAL_PERSON_ACTOR_ID, computerHolder: () => computerHolderFor(localHost)?.() ?? null, ready: agentReady }) },
+  { id: "agent-reviews", handle: ({ request, response, url, serverOptions, agentHost, localHost, agentReady }) => handleUnscopedAgentReviews(request, response, url,
+    { host: localHost, agentHost, actorId: LOCAL_PERSON_ACTOR_ID, computerHolder: () => computerHolderFor(localHost)?.() ?? null, assertAccountCurrent: serverOptions.assertAccountCurrent, ready: agentReady }) },
   { id: "catalog", handle: async context => {
     const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, projectCount, composition, ptyHost, projectSchedules, webViewCache, agentReady, agentHost } = context;
     await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, projectCount, composition,

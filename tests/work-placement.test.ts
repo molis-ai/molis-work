@@ -649,3 +649,61 @@ test("a form collects on this computer and through answer files, honestly", asyn
   assert.equal(formsQ4.listSubmissions(moved.id).length, 2, "answers go with the form");
   forms.close(); formsQ4.close();
 });
+
+test("F-hc2-17: closing MolisWorkLocalHost while placement carry settling is in flight drains cleanly with zero unhandled rejections", async t => {
+  const { LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
+  const { placementActions } = await import("@molis-ai/molis-work-contracts/services/placement");
+  const home = await mkdtemp(join(tmpdir(), "placement-close-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+
+  const initHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  await initHost.close();
+
+  const db = new DatabaseSync(join(home, "placement", "placement.db"));
+  try {
+    const ledger = createContextLedger(ledgerDatabase(db), {
+      initializeSchema: false,
+      authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id,
+    });
+    ledger.commands.put(PLACEMENT_LEDGER_ACCESS, {
+      key: JSON.stringify(["carrying", "note", "pending-carry"]),
+      source: { module: "plugins", object_type: "note", id: "pending-carry", version: null, scope: PLACEMENT_LEDGER_ACCESS.scope, project_id: null },
+      target: { module: "projects", id: "dest-project", version: null, scope: PLACEMENT_LEDGER_ACCESS.scope, project_id: null },
+      type: "placement.carrying",
+      cause: JSON.stringify({ from: "src-project", to: "dest-project", revision: "1" }),
+    });
+  } finally {
+    db.close();
+  }
+
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  host.configurePersonalPlanning(home, async (_options, run) => {
+    entered.resolve();
+    await release.promise;
+    return run({ listPartitions: () => [] } as never);
+  });
+
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    await host.homeActionClient().invoke(
+      { actor_id: "local-person", audience: "user", project_id: null, permissions: [...LOCAL_OWNER_PERMISSIONS] },
+      placementActions.locate,
+      { object: { kind: "note", id: "pending-carry", project_id: "src-project" } },
+    );
+    await entered.promise;
+    const closing = host.close();
+    release.resolve();
+    await closing;
+    await host.close();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(unhandled, []);
+  } finally {
+    release.resolve();
+    process.off("unhandledRejection", onUnhandled);
+    await host.close();
+  }
+});

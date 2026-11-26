@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, retainActionAuthority, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA, PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA, type PluginNotificationDelivery, type PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedApplication } from "./application.js";
 
@@ -40,13 +40,28 @@ export function createFeedNotificationHandlers(projectId: string, ports: FeedNot
       credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null,
       imported_at: input.created_at, updated_at: input.created_at, item_count: 0, cursor: null,
     });
-    const result = feed.ingestItem({ source, externalId: JSON.stringify([input.sender_install_id, input.sender_generation, input.key]), title: input.title,
-      summary: input.summary, body: input.body, url: `/projects/${encodeURIComponent(projectId)}/plugins/${encodeURIComponent(input.open_plugin_id)}`,
-      occurredAt: input.created_at, attention: { reason: "source_rule", detail: { plugin: input.sender_plugin_id, installation: input.sender_install_id } } });
-    caller.signal?.throwIfAborted();
-    const receipt = { item_id: result.item.item_id, created: result.created } satisfies PluginNotificationDeliveryReceipt;
+    let receipt!: PluginNotificationDeliveryReceipt;
+    const deliveryCaller = retainActionAuthority(caller, feedNotificationActions.receive);
+    // Concurrent delivery judges only the item and Inbox entry it ingested, under its own authority, never draining other producers' queue.
+    const judged = feed.ingestItemJudged(
+      {
+        source,
+        externalId: JSON.stringify([input.sender_install_id, input.sender_generation, input.key]),
+        title: input.title,
+        summary: input.summary,
+        body: input.body,
+        url: `/projects/${encodeURIComponent(projectId)}/plugins/${encodeURIComponent(input.open_plugin_id)}`,
+        occurredAt: input.created_at,
+        attention: { reason: "source_rule", detail: { plugin: input.sender_plugin_id, installation: input.sender_install_id } },
+      },
+      deliveryCaller,
+      result => {
+        caller.signal?.throwIfAborted();
+        receipt = { item_id: result.item.item_id, created: result.created };
+      },
+    );
     // The item is kept when judging it fails afterwards (D4-d): the receipt says so with the failure's code, which the platform logs.
-    return feed.flushPendingJudgments().then(() => receipt, (error: unknown): PluginNotificationDeliveryReceipt => {
+    return judged.then(() => receipt, (error: unknown): PluginNotificationDeliveryReceipt => {
       caller.assert_authority_current?.();
       return { ...receipt, judgment_error_code: error instanceof ActionError ? error.code : "actions.judgment_failed" };
     });

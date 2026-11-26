@@ -454,3 +454,161 @@ test("SRB-12 SRB-15 SRB-16 scope counts, project AI read CAS, suggestion caching
     }
   });
 });
+
+test("F-horiz-runtime-44: cold-start historyAuthorize succeeds in linked_projects and root-exact modes from persisted ws_* workspace cache", async () => {
+  await withTempDir("molis-sessions-cold-auth-", async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const wsDir = path.join(root, "linked-root");
+    for (const d of [homeDir, userHome, path.join(wsDir, ".git")]) await mkdir(d, { recursive: true });
+    await writeClaudeSession(userHome, "p1", "sess-cold-exact", wsDir, "Cold start session", "2026-11-10T10:00:00.000Z");
+
+    const nowIso = "2026-11-10T10:00:00.000Z";
+    const state: { snapshot: SessionProjectSnapshot; searchEvents: number } = {
+      searchEvents: 0,
+      snapshot: {
+        projects: [{ project_id: "proj-1", display_name: "Project One" }],
+        directories: [
+          { workspace_id: "ws-1", canonical_path: wsDir, realpath_verified: true, display_name: "linked-root", project_ids: ["proj-1"], person_project_ids: ["proj-1"], created_at: nowIso, updated_at: nowIso },
+        ],
+        bindings: [],
+      },
+    };
+
+    let sessionKey = "";
+    const svc1 = new SessionsService(homeDir, buildTestPorts(homeDir, userHome, state));
+    try {
+      const s0 = await svc1.scopeRead({}, PERSON_CALLER);
+      await svc1.scopeSet(
+        { expected_revision: s0.scope_revision, sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "linked_projects" } }] },
+        PERSON_CALLER,
+      );
+      await svc1.waitForDiscoveryIdle();
+      await svc1.projectAiReadSet({ allowed: true, expected_revision: 0 }, personInProject("proj-1"));
+      const listed = await svc1.list({ view: "all" }, PERSON_CALLER);
+      assert.equal(listed.sessions.length, 1);
+      assert.equal(listed.sessions[0]?.attribution.state, "automatic");
+      sessionKey = listed.sessions[0]!.session_key;
+    } finally {
+      svc1.close();
+    }
+
+    // Reopen a fresh SessionsService (cold memory cache) and call historyAuthorize directly without warming via list/scopeRead.
+    const svc2 = new SessionsService(homeDir, buildTestPorts(homeDir, userHome, state));
+    const agentCaller: ActionCallContext = { actor_id: "agent:prologue", project_id: "proj-1", audience: "agent", permissions: [] };
+    try {
+      const auth1 = await svc2.historyAuthorize({ session_keys: [sessionKey] }, agentCaller);
+      assert.ok(auth1.scope_revision.length > 0 && auth1.revision.length > 0);
+
+      // Even when dirDigest shifts due to an unrelated project change, cached ws_* identity keeps automatic attribution intact.
+      state.snapshot = {
+        ...state.snapshot,
+        projects: [...state.snapshot.projects, { project_id: "proj-2", display_name: "Project Two" }],
+      };
+      const auth2 = await svc2.historyAuthorize({ session_keys: [sessionKey] }, agentCaller);
+      assert.ok(auth2.revision.length > 0 && auth2.revision !== auth1.revision);
+
+      // Unlinking the root-exact directory still revokes automatic attribution (ws_* never clobbered dir_* session row).
+      state.snapshot = { ...state.snapshot, directories: [] };
+      await assert.rejects(
+        () => svc2.historyAuthorize({ session_keys: [sessionKey] }, agentCaller),
+        (err: unknown) => err instanceof ActionError && err.code === "sessions.not_found",
+      );
+    } finally {
+      svc2.close();
+    }
+  });
+});
+
+for (const trigger of ["narrow", "directoriesChanged"] as const) {
+  test(`F-horiz-runtime-51: cancelling in-flight discovery via ${trigger} reschedules immediately instead of sticking in reading`, async () => {
+    await withTempDir("molis-sessions-cancel-resched-", async root => {
+      const homeDir = path.join(root, "home");
+      const userHome = path.join(root, "user");
+      const wsDir = path.join(root, "ws-p1");
+      for (const d of [homeDir, userHome, wsDir]) await mkdir(d, { recursive: true });
+      await writeClaudeSession(userHome, "p1", "sess-resched", wsDir, "Rescheduled session", "2026-11-10T10:00:00.000Z");
+
+      const nowIso = "2026-11-10T11:00:00.000Z";
+      const state: { snapshot: SessionProjectSnapshot; searchEvents: number; nowIso?: string } = {
+        searchEvents: 0,
+        nowIso,
+        snapshot: {
+          projects: [{ project_id: "proj-1", display_name: "Project One" }],
+          directories: [
+            { workspace_id: "ws-1", canonical_path: wsDir, realpath_verified: true, display_name: "ws-p1", project_ids: ["proj-1"], person_project_ids: ["proj-1"], created_at: nowIso, updated_at: nowIso },
+          ],
+          bindings: [],
+        },
+      };
+
+      const entered = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      let holdFirstList = true;
+      const base = buildTestPorts(homeDir, userHome, state);
+      const svc = new SessionsService(homeDir, {
+        ...base,
+        files: {
+          ...base.files,
+          list: async (r, rel, signal) => {
+            if (holdFirstList) {
+              holdFirstList = false;
+              entered.resolve();
+              await new Promise<void>(resolve => {
+                if (signal.aborted) {
+                  resolve();
+                  return;
+                }
+                const onAbort = () => resolve();
+                signal.addEventListener("abort", onAbort, { once: true });
+                void release.promise.then(() => {
+                  signal.removeEventListener("abort", onAbort);
+                  resolve();
+                });
+              });
+              signal.throwIfAborted();
+            }
+            return base.files.list(r, rel, signal);
+          },
+        },
+      });
+      try {
+        const s0 = await svc.scopeRead({}, PERSON_CALLER);
+        const s1 = await svc.scopeSet(
+          {
+            expected_revision: s0.scope_revision,
+            sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: trigger === "narrow" ? "all" : "linked_projects" } }],
+          },
+          PERSON_CALLER,
+        );
+        await entered.promise;
+
+        if (trigger === "narrow") {
+          await svc.scopeSet(
+            {
+              expected_revision: s1.scope_revision,
+              sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "linked_projects" } }],
+            },
+            PERSON_CALLER,
+          );
+        } else {
+          svc.directoriesChanged();
+        }
+        await svc.waitForDiscoveryIdle();
+
+        // Only 1 second later (far below the 5-minute stale threshold), list() must reschedule the orphaned reading state.
+        state.nowIso = "2026-11-10T11:00:01.000Z";
+        await svc.list({ view: "all" }, PERSON_CALLER);
+        await svc.waitForDiscoveryIdle();
+
+        const converged = await svc.list({ view: "all" }, PERSON_CALLER);
+        const src = converged.sources.find(item => item.entry_id === "claude-code");
+        assert.equal(src?.state, "complete", "orphaned reading source must converge to complete after list()");
+        assert.equal(converged.sessions.length, 1);
+      } finally {
+        release.resolve();
+        svc.close();
+      }
+    });
+  });
+}

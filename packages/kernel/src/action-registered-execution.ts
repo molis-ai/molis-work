@@ -6,7 +6,7 @@ import type { CapabilityRegistry } from "./index.js";
 import { actionExecutionContext, assertReadOnlyEffects, prepareSubjectStateResult } from "./action-execution-context.js";
 import { assertCallerProvenance } from "./action-authorship.js";
 import { type ActionValidator, validateActionValue } from "./action-schema.js";
-import { runActionHandler } from "./action-settlement.js";
+import { assertCurrentAuthority, runActionHandler } from "./action-settlement.js";
 import { consumeTrustedDecision } from "./action-trusted-decision.js";
 import { inDirectoryPass } from "./directory-pass.js";
 import { validateActionInput } from "./version-precondition.js";
@@ -73,7 +73,10 @@ export function registerActionExecution({ registeredDefinition, handler, validat
           await checkDecision.beforeEffect!(); await effects.beforeEffect?.(caller, target);
         } : (caller, target) => effects.beforeEffect?.(caller, target), registry, ref => resolve(context, ref), effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
       checkDecision?.attach(execution);
-      const checked = prepareSubjectStateResult(execution, definition, provider, input, registry, () => executing, value => checkedActionResult(definition, validateOutput, value), assertCurrent);
+      const checked = prepareSubjectStateResult(execution, definition, provider, input, registry, () => executing, value => checkedActionResult(definition, validateOutput, value), () => inDirectoryPass(() => {
+        assertCurrentAuthority(context, reference, definition.action.permissions);
+        assertCurrent();
+      }));
       // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
       const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, checkDecision ? checkDecision.input : input));
       if (handler.execution === "sync") {
@@ -81,7 +84,16 @@ export function registerActionExecution({ registeredDefinition, handler, validat
         finally { executing = false; lifetime?.dispose(); }
       }
       const pending = Promise.resolve(result);
-      return (lifetime ? lifetime.wait(pending) : pending).then(checked).finally(() => { executing = false; lifetime?.dispose(); });
+      const deliver = async (value: unknown) => {
+        if (definition.operation === "query") {
+          if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
+          await context.validate_authority?.(reference);
+          await context.validate_permissions?.(definition.action.permissions);
+        }
+        return checked(value);
+      };
+      const settled = pending.then(deliver);
+      return (lifetime ? lifetime.wait(settled) : settled).finally(() => { executing = false; lifetime?.dispose(); });
     } catch (error) { executing = false; lifetime?.dispose(); throw error; }
   };
 }

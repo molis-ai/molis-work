@@ -93,7 +93,8 @@ export const todoCollection: PluginSyncCollectionDefinition = {
         insert(db, "todo_changes", changeColumns, { ...change, revision_after: Number(change.revision_after) + offset });
         db.prepare("INSERT OR IGNORE INTO todo_imported_changes(change_id,item_id) VALUES (?,?)").run(change.change_id as string,id);
       }
-      for (const request of wire.requests) insert(db, "todo_requests", requestColumns, request);
+      const insertRequest = db.prepare("INSERT OR IGNORE INTO todo_requests (" + requestColumns.join(",") + ") VALUES (" + requestColumns.map(() => "?").join(",") + ")");
+      for (const request of wire.requests) insertRequest.run(...requestColumns.map(column => request[column] as string | number | null));
     },
   };
  }

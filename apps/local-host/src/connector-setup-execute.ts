@@ -1,4 +1,4 @@
-import { defineErrorCodes, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, requireSynchronous, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorAuthorizationStatus, requireConnectorInitiator } from "./connector-authorization-status.js";
 import { startMcpConnection } from "./connector-mcp.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
@@ -17,7 +17,12 @@ export function connectorSetupExecuteHandler(home: string, remember: ConnectorMc
   return { capability_id: connectorSetupExecuteAction.capability_id, version: connectorSetupExecuteAction.version, handle: async (caller, input) => {
     const id = (input as { authorization_id: string }).authorization_id;
     requireConnectorInitiator(home, id, caller);
-    await caller.beforeEffect(); caller.signal?.throwIfAborted();
+    const assertCurrent = () => {
+      caller.signal?.throwIfAborted();
+      requireSynchronous(caller.assert_authority_current?.());
+    };
+    await caller.beforeEffect();
+    assertCurrent();
     const request = connectorAuthorizationStatus(home, id), setup = request?.setup;
     if (!setup || !request) throw errors.invalid("接入请求不存在，请重新准备");
     if (request.status !== "prepared") return request;
@@ -25,7 +30,8 @@ export function connectorSetupExecuteHandler(home: string, remember: ConnectorMc
     if (setup.method !== "mcp" || setup.authentication !== "none" || !["http", "sse"].includes(setup.transport ?? "")) return { status: "needs_person", authorization_id: id, url: `/capabilities/connections?setup=${id}` };
     return withConnectorRequest(home, id, caller.signal, async signal => {
       const result = await startMcpConnection(home, { serviceId: setup.service_id, displayName: setup.display_name, endpoint: setup.endpoint,
-        authentication: "none", transport: setup.transport as "http" | "sse", setupId: id }, { signal, beforeDispatch: caller.beforeEffect });
+        authentication: "none", transport: setup.transport as "http" | "sse", setupId: id }, { signal, beforeDispatch: () => caller.beforeEffect(), assertCurrent });
+      assertCurrent();
       if ("tools" in result) remember(result.connectionId, result.tools, result.resources);
       return { ...connectorAuthorizationStatus(home, id), ...("tools" in result ? { tools: result.tools, resources: result.resources } : {}) };
     });

@@ -443,3 +443,37 @@ test("RAC-1889 the heading of a note and of an acknowledgement is its first 80 w
     }
   });
 });
+
+test("F-goals-09: agent-channel acknowledgement renders localized actor without leaking raw locale keys across zh/en/ja", () => {
+  const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  const record: GoalWorkEventRecord = {
+    event_id: "gevt-agent-ack",
+    project_id: "p1",
+    goal_id: "G1",
+    kind: "system",
+    type_id: null,
+    type_version: null,
+    title: "Agent note ack",
+    actor_id: "agent:codex",
+    actor_kind: "runtime",
+    received_at: "2026-11-26T00:00:00.000Z",
+    journal_seq: 5,
+    config_version: 0,
+    payload: {
+      operation: "input_acknowledged",
+      reference: { event_id: "gevt-note-1", category: "note", operation: "observation_note", title: "API first", journal_seq: 3 },
+      treatment: "noted",
+      note: "Handled in next step",
+      read_cursor: 3,
+      by: { channel: "agent", runtime_id: null, session_id: null },
+    },
+  };
+  for (const locale of ["zh", "en", "ja"] as const) {
+    const html = withGoalLocale(locale, () => renderWorkEventBody(record, t.text, escape, {}, "user"));
+    assert.ok(!html.includes("goals.event-acknowledgement-body."), `${locale} must not leak raw locale key: ${html}`);
+    assert.ok(html.includes("agent:codex"), `${locale} must include actor identity: ${html}`);
+    if (locale === "en") {
+      assert.doesNotMatch(html, /\p{Script=Han}/u, `en acknowledgement body must not leak Chinese: ${html}`);
+    }
+  }
+});

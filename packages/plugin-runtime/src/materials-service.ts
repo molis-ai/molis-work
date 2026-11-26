@@ -2,7 +2,7 @@ import { ActionError, defineErrorCodes, type ActionExecutionContext } from "@mol
 import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRangeContent, PluginOriginalRangeRequest, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, ConversationAttachmentUploadRequest, MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, pluginInvocationReadOnly, type PluginInstance } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
   materials_action_required: "forbidden", materials_permission_undeclared: "forbidden", materials_action_not_concurrent: "forbidden",
@@ -84,9 +84,10 @@ function originalRecordKey(value: unknown): string {
 /** Bind authority from the actual running action, never a caller-shaped business argument. */
 export function createPluginMaterialsClient(manifest: PluginManifest, port: PluginMaterialsPort, gate: PluginMaterialsGate): PluginMaterialsClient {
   const declared = (permission: string) => manifest.permissions.some(item => item.permission === permission);
-  async function run<T>(permission: string, request: PluginMaterialRequest & Pick<PluginMaterialSourceRequest, "allowedDomains">, invoke: (options: PluginMaterialsDispatch, caller: ActionExecutionContext) => Promise<T>): Promise<T> {
+  async function run<T>(permission: string, request: PluginMaterialRequest & Pick<PluginMaterialSourceRequest, "allowedDomains">, invoke: (options: PluginMaterialsDispatch, caller: ActionExecutionContext) => Promise<T>, writes = false): Promise<T> {
     const scope = currentPluginAction();
     if (!scope || !inPluginInstance(scope, gate)) throw errors.materials_action_required("材料只能在本插件自己的动作里读取");
+    if (writes && pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读查询不能写入或变更材料");
     const { definition, caller } = scope;
     if (!definition.action.permissions.includes(permission)) throw errors.materials_permission_undeclared(`动作 ${definition.capability_id} 没有声明 ${permission}`);
     if (definition.action.scheduling !== "concurrent") throw errors.materials_action_not_concurrent("读取材料的动作必须声明 scheduling: concurrent");
@@ -119,7 +120,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
     } } : {}),
     // A conversation attachment is this installation's, in this project: the owner comes from the activation, never from an argument.
     ...(declared("materials:read") && port.attach ? { attach: (upload: MaterialUpload, request: ConversationAttachmentUploadRequest = {}) =>
-      run("materials:read", { signal: request.signal }, options => port.attach!(attachmentOwner(), upload, { ...options, expected_kind: request.expected_kind })) } : {}),
+      run("materials:read", { signal: request.signal }, options => port.attach!(attachmentOwner(), upload, { ...options, expected_kind: request.expected_kind }), true) } : {}),
     ...(declared("materials:read") && port.readAttachment ? { readAttachment: (ref: MaterialRef, request: ConversationAttachmentRequest) =>
       run("materials:read", { signal: request?.signal }, options => port.readAttachment!(attachmentOwner(), ref, { as: request?.as === "image" ? "image" : "text" }, options)) } : {}),
     ...(declared("materials:fetch") ? { readSource: (url: string, request: PluginMaterialRequest & Pick<PluginMaterialSourceRequest, "allowedDomains"> = {}) =>
@@ -136,7 +137,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
           throw errors.materials_original_not_offered("这次操作没有经宿主入口交给本插件的原始文件");
         }
         await original.claimOriginal!(key, offered.path, options);
-      });
+      }, true);
     } } : {}),
     ...(original?.readOriginal ? { readOriginal: async (record_key: string, request: PluginOriginalRequest = {}): Promise<PluginOriginalContent> => {
       const key = originalKey(record_key);
@@ -148,7 +149,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
     } } : {}),
     ...(original?.releaseOriginal ? { releaseOriginal: async (record_key: string) => {
       const key = originalKey(record_key);
-      await run("materials:original", {}, options => original.releaseOriginal!(key, options));
+      await run("materials:original", {}, options => original.releaseOriginal!(key, options), true);
     } } : {}),
   });
 }

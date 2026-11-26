@@ -198,8 +198,34 @@ export function goalsPageClient(host: PageHost) {
   });
   // A split pane's copy of a Goal document loads and binds its own events, apart from the page's document (102-1).
   const copiedDocuments = new WeakMap<HTMLElement, { events: ReturnType<typeof eventDocumentClient>; load: (goalId: string, restore?: EventRestore | null) => Promise<boolean | null> }>();
+  const activeCopies = new Map<HTMLElement, { dispose: () => void; mounted: boolean }>();
+  let copyObserver: MutationObserver | null = null;
+  const pruneDisconnectedCopies = () => {
+    for (const [pane, tracked] of activeCopies) {
+      if (pane.isConnected) {
+        tracked.mounted = true;
+        continue;
+      }
+      if (tracked.mounted) {
+        activeCopies.delete(pane);
+        tracked.dispose();
+      }
+    }
+    if (activeCopies.size === 0 && copyObserver) {
+      copyObserver.disconnect();
+      copyObserver = null;
+    }
+  };
+  const watchCopyRemoval = () => {
+    if (copyObserver) return;
+    const container = document.querySelector("[data-tab-panes]") || document.body;
+    if (!container) return;
+    copyObserver = new MutationObserver(pruneDisconnectedCopies);
+    copyObserver.observe(container, { childList: true, subtree: true });
+  };
   const loadGoalDocumentInto = (targetPane: HTMLElement, goalId: string): Promise<boolean | null> => {
     if (targetPane === documentPane) return loadGoalDocument(goalId);
+    pruneDisconnectedCopies();
     let entry = copiedDocuments.get(targetPane);
     if (!entry) {
       let pendingRestore: EventRestore | null = null;
@@ -227,7 +253,12 @@ export function goalsPageClient(host: PageHost) {
         },
       };
       copiedDocuments.set(targetPane, created);
+      activeCopies.set(targetPane, { dispose: events.dispose, mounted: targetPane.isConnected });
+      watchCopyRemoval();
       entry = created;
+    } else if (targetPane.isConnected) {
+      const tracked = activeCopies.get(targetPane);
+      if (tracked) tracked.mounted = true;
     }
     return entry.load(goalId);
   };
@@ -309,7 +340,13 @@ export function goalsPageClient(host: PageHost) {
     if (collapse) tabs()?.setItemView("goals", undefined, collapse.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane);
   });
   const languageAbort = new AbortController();
-  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
+  window.addEventListener("pagehide", () => {
+    languageAbort.abort();
+    copyObserver?.disconnect();
+    copyObserver = null;
+    for (const tracked of activeCopies.values()) tracked.dispose();
+    activeCopies.clear();
+  }, { once: true });
   document.addEventListener("molis-work:language-changed", () => {
     const graph = momentum.graphElement();
     if (graph?.dataset.loaded === "true") {

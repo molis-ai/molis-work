@@ -66,7 +66,7 @@ export interface GoalEventApplicationPorts {
 export class GoalEventApplication {
   constructor(private readonly ports: GoalEventApplicationPorts) {}
 
-  createIntent(input: CreateGoalIntentInput): CreateGoalIntentResult {
+  createIntent(input: CreateGoalIntentInput, options?: { hangRequirements?: boolean }): CreateGoalIntentResult {
     assertCreateIntentKeys(input);
     const title = input.title?.trim();
     if (!title) throw new ActionError("goals.goal.title_required", "意图创建只需要能辨认的标题");
@@ -77,12 +77,13 @@ export class GoalEventApplication {
     if (priority != null && (!Number.isFinite(priority) || priority < 0 || priority > 100)) {
       throw new ActionError("goals.goal.priority_invalid", "priority 必须是 0 到 100 的数字");
     }
+    const hangRequirements = options?.hangRequirements !== false;
     const hash = intentHash(input);
     return this.ports.events.runImmediate(() => {
       const replay = this.ports.events.intent.replay(input.project_id, input.actor_id, input.idempotency_key, hash);
       if (replay) {
         // The ids are worked out from the request again, so a replay hangs exactly what the first call hung.
-        this.hung(replay.goal.project_id, replay.goal.goal_id, goalIntentRequirements(replay.goal.goal_id, input.requirements));
+        if (hangRequirements) this.hung(replay.goal.project_id, replay.goal.goal_id, goalIntentRequirements(replay.goal.goal_id, input.requirements));
         return { ...replay, replayed: true };
       }
       const result = this.ports.commands.createGoal(input.project_id, {
@@ -110,7 +111,7 @@ export class GoalEventApplication {
         outcome,
         requirements: input.requirements,
       });
-      this.hung(result.goal.project_id, result.goal.goal_id, hung);
+      if (hangRequirements) this.hung(result.goal.project_id, result.goal.goal_id, hung);
       const parentGoalId = input.parent_goal_id?.trim();
       if (parentGoalId) {
         this.ports.commands.addRelation(input.project_id, {

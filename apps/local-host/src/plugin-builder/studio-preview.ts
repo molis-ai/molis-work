@@ -44,8 +44,11 @@ const previewStorageKey = (id: string, home: boolean) => PREVIEW_KEY + (home ? '
  * Preview storage for generated plugins. Every identity is serialized; a callback sees a private copy and
  * the result is committed only after it succeeds while its signal is still live (see SandboxServices).
  */
-function previewServices(storage: PluginPrivateStorage): SandboxServices {
-  const memory = new Map<string, Map<string, SandboxJson>>(), chains = new Map<string, Promise<unknown>>();
+function previewServices(
+  storage: PluginPrivateStorage,
+  chains = new Map<string, Promise<unknown>>(),
+): SandboxServices {
+  const memory = new Map<string, Map<string, SandboxJson>>();
   const identityKey = (identity: Readonly<SandboxIdentity>) => [identity.projectId, identity.installationId, identity.pluginId, identity.namespace].join('|');
   return {
     storage: {
@@ -121,35 +124,69 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
       generate: needsInstallation,
     },
   };
+  const storageChains = new Map<string, Promise<unknown>>();
   const previewFor = (build: AgentBuild): SandboxServices => {
     const capability = build.runtimeScope === 'home' ? homeCapability : projectCapability;
     if (!capability) throw new Error('当前宿主没有提供个人空间的能力服务');
-    return { ...previewServices(storage), ...draftAccountServices, capability, network: networkFor(build) };
+    return { ...previewServices(storage, storageChains), ...draftAccountServices, capability, network: networkFor(build) };
   };
   const clearPreview = (buildId: string) => { for (const home of [false, true]) storage.delete(previewStorageKey(STABLE_PREVIEW + buildId, home)); };
-  const stopRunner = async (buildId: string) => {
-    const current = (['quick', 'slow'] as const).map(lane => { const key = buildId + '|' + lane, entry = studio.runners.get(key); studio.runners.delete(key); return entry; });
+  const runnerChains = new Map<string, Promise<unknown>>();
+  const withRunnerLock = <T>(buildId: string, run: () => Promise<T>): Promise<T> => {
+    const prior = runnerChains.get(buildId) ?? Promise.resolve();
+    const next = prior.then(run, run);
+    const settled = next.then(() => undefined, () => undefined);
+    runnerChains.set(buildId, settled);
+    void settled.then(() => {
+      if (runnerChains.get(buildId) === settled) runnerChains.delete(buildId);
+    });
+    return next;
+  };
+  const stopRunnerUnlocked = async (buildId: string) => {
+    const current = (['quick', 'slow'] as const).map(lane => {
+      const key = buildId + '|' + lane;
+      const entry = studio.runners.get(key);
+      studio.runners.delete(key);
+      return entry;
+    });
     await Promise.all(current.map(entry => entry?.runner.then(runner => runner.stop(), () => undefined)));
   };
+  const stopRunner = (buildId: string) => withRunnerLock(buildId, () => stopRunnerUnlocked(buildId));
   /** The newest bundle that passed the gates for the connected operations. */
-  const runnerFor = async (build: AgentBuild, lane: Lane, capabilities: CatalogCapability[], assertCurrent?: () => void): Promise<SandboxRunner> => {
-    const bundle = build.checks.global?.bundlePath ?? [...build.connected].reverse().map(id => build.checks[id]?.bundlePath).find(Boolean);
-    if (!bundle || !build.design) throw studioProblem("plugin-builder.request.no-feature-to-try", '还没有接通的功能可以试用');
-    const used = new Set(buildEffects(build).capabilities);
-    const policies = capabilities.filter(item => used.has(item.id)).map(item => [item.id, item.version, item.provider_id, item.execution]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-    const info = await stat(bundle), key = `${build.runtimeScope ?? 'project'}:${bundle}:${info.mtimeMs}:${info.size}:${JSON.stringify(policies)}`;
-    assertCurrent?.();
-    const slot = build.id + '|' + lane, current = studio.runners.get(slot);
-    if (current?.key === key) return current.runner;
-    // A newer bundle replaces both lanes, so the trial never mixes versions.
-    if (current) await stopRunner(build.id);
-    assertCurrent?.();
-    const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: buildEffects(build), services: previewFor(build), limits: capabilityLimits(buildEffects(build), capabilities),
-      identity: { projectId: build.runtimeScope === 'home' ? null : options.projectId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
-    studio.runners.set(slot, { key, runner });
-    runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
-    return runner;
-  };
+  const runnerFor = (build: AgentBuild, lane: Lane, capabilities: CatalogCapability[], assertCurrent?: () => void): Promise<SandboxRunner> =>
+    withRunnerLock(build.id, async () => {
+      assertCurrent?.();
+      const bundle = build.checks.global?.bundlePath ?? [...build.connected].reverse().map(id => build.checks[id]?.bundlePath).find(Boolean);
+      if (!bundle || !build.design) throw studioProblem("plugin-builder.request.no-feature-to-try", '还没有接通的功能可以试用');
+      const used = new Set(buildEffects(build).capabilities);
+      const policies = capabilities.filter(item => used.has(item.id)).map(item => [item.id, item.version, item.provider_id, item.execution]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+      const info = await stat(bundle);
+      const key = `${build.runtimeScope ?? 'project'}:${bundle}:${info.mtimeMs}:${info.size}:${JSON.stringify(policies)}`;
+      assertCurrent?.();
+      const slot = build.id + '|' + lane;
+      const current = studio.runners.get(slot);
+      if (current?.key === key) return current.runner;
+      // A newer bundle replaces both lanes, so the trial never mixes versions.
+      const otherSlot = build.id + '|' + (lane === 'quick' ? 'slow' : 'quick');
+      const other = studio.runners.get(otherSlot);
+      if (current || (other && other.key !== key)) {
+        await stopRunnerUnlocked(build.id);
+      }
+      assertCurrent?.();
+      const runner = createSandboxRunner({
+        bundlePath: bundle,
+        contract: build.design.contract,
+        grants: buildEffects(build),
+        services: previewFor(build),
+        limits: capabilityLimits(buildEffects(build), capabilities),
+        identity: { projectId: build.runtimeScope === 'home' ? null : options.projectId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' },
+      });
+      studio.runners.set(slot, { key, runner });
+      void runner.catch(() => {
+        if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot);
+      });
+      return runner;
+    });
   type Trial = { original: string; build: AgentBuild; signal: AbortSignal; case: AbortController; submits: Map<string, number>; fault?: { componentId: string; operationId: string; consumed: boolean } };
   const trials = new Map<string, Trial>();
   studio.callAcceptance = async (buildId, key, componentId, binding, payload, control) => execute(buildId, async () => {

@@ -121,3 +121,42 @@ test("W5-10-PGH-02: real pointer previews without writing, moves or copies on re
   assert.equal(await b.evaluate("document.querySelectorAll('.pages-block-handle,.pages-block-menu,.pages-block-ghost,.pages-drag-preview').length"), 0);
   assert.equal(await b.evaluate("document.documentElement.classList.contains('is-pages-dragging')"), false);
 });
+
+test("F-pm3-19: Alt-copy drag commits into adjacent slot (including single-block doc) and clears drag state on column-wrap slot", { timeout: 90_000 }, async t => {
+  const b = await mount(t);
+  if (!b) return;
+  const texts = () => b.evaluate<string[]>("dragEditor.view.state.doc.content.content.map(node=>node.textContent)");
+  const clean = async () => {
+    assert.equal(await b.evaluate("document.querySelector('.pages-block-ghost').hidden && !document.querySelector('.pages-drag-preview') && !document.documentElement.classList.contains('is-pages-dragging') && !document.querySelector('.ProseMirror .is-dragging')"), true);
+  };
+
+  // Single-block document: Alt-drag to adjacent slot below itself must duplicate the block.
+  await b.evaluate("window.MolisWorkPagesEditor.destroy(dragEditor); void (dragEditor=window.MolisWorkPagesEditor.mount(document.querySelector('#drag-fixture'),{doc:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Solo'}]}]}})); dragEditor.view.focus();");
+  let start = await grip(b);
+  const adjacent = await b.evaluate<Point>(`(() => {
+    const rect=dragEditor.view.nodeDOM(0).getBoundingClientRect();
+    return {x:${start.x},y:rect.bottom+8};
+  })()`);
+  await mouse(b, "mousePressed", start, 1);
+  await mouse(b, "mouseMoved", { x: start.x, y: start.y + 8 }, 1, true);
+  await mouse(b, "mouseMoved", adjacent, 1, true);
+  await b.waitFor("!document.querySelector('.pages-block-ghost').hidden && !!document.querySelector('.pages-drag-preview')");
+  await mouse(b, "mouseReleased", adjacent, 1);
+  assert.deepEqual(await texts(), ["Solo", "Solo"]);
+  await clean();
+
+  // Multi-block document: Alt-drag first block to right of second block (column-wrap indent) clears dragging state cleanly.
+  await b.evaluate("window.MolisWorkPagesEditor.destroy(dragEditor); void (dragEditor=window.MolisWorkPagesEditor.mount(document.querySelector('#drag-fixture'),{doc:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Alpha'}]},{type:'paragraph',content:[{type:'text',text:'Beta'}]}]}})); dragEditor.view.focus();");
+  start = await grip(b);
+  const beside = await b.evaluate<Point>(`(() => {
+    const rect=dragEditor.view.nodeDOM(dragEditor.view.state.doc.child(0).nodeSize).getBoundingClientRect();
+    return {x:rect.left+120,y:rect.bottom+8};
+  })()`);
+  await mouse(b, "mousePressed", start, 1);
+  await mouse(b, "mouseMoved", { x: start.x, y: start.y + 8 }, 1, true);
+  await mouse(b, "mouseMoved", beside, 1, true);
+  await b.waitFor("!document.querySelector('.pages-block-ghost').hidden && !!document.querySelector('.pages-drag-preview')");
+  await mouse(b, "mouseReleased", beside, 1);
+  await clean();
+  await b.evaluate("window.MolisWorkPagesEditor.destroy(dragEditor)");
+});

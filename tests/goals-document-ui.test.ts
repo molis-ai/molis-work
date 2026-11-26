@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
 import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
-import { GOALS_DOCUMENT_UI_CONTRIBUTION_ID, type GoalsDocumentItem, type GoalsDocumentContext } from "@molis-ai/molis-work-plugin-goals";
+import {
+  GOALS_DOCUMENT_UI_CONTRIBUTION_ID,
+  mapJournalHistoryItems,
+  mergeGoalHistoryItems,
+  renderHistoryItemBody,
+  renderWorkEventBody,
+  type GoalsDocumentContext,
+  type GoalsDocumentItem,
+} from "@molis-ai/molis-work-plugin-goals";
+import type { GoalEventTimelineItem, GoalWorkEventRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -134,4 +143,128 @@ test("unowned historical documents hide write triggers and keep reading", () => 
   assert.match(html, /data-event-reader="description"/);
   assert.match(html, /data-event-reader="requirements"/);
   assert.match(html, /data-open-goal-trash/);
+});
+
+test("F-goals-08: history timeline and bodies localize all types, effects, concerns, relations and entities across zh/en/ja", () => {
+  const operations = [
+    "progress_summary", "observation_note", "concern_opened", "concern_resolved",
+    "concern_accepted", "concern_overturned", "decision_requested", "user_decision",
+    "decision_cited", "agreement_set", "closure_submitted", "completion_reopened",
+    "work_resumed", "event_owner_continued", "input_acknowledged",
+  ] as const;
+  const workItems: GoalEventTimelineItem[] = [
+    ...operations.map((op, index) => ({
+      event_id: `ev-${op}`,
+      kind: "system" as const,
+      title: `Title ${op}`,
+      actor_id: "actor-1",
+      actor_kind: "runtime" as const,
+      received_at: `2026-11-26T00:${String(index).padStart(2, "0")}:00.000Z`,
+      journal_seq: index + 1,
+      system_operation: op,
+      type_id: null,
+      type_version: null,
+      type_name: null,
+      semantic_family: null,
+      lane: "other" as const,
+    })),
+    {
+      event_id: "ev-report", kind: "report", title: "Title report", actor_id: "actor-1", actor_kind: "runtime",
+      received_at: "2026-11-26T00:20:00.000Z", journal_seq: 20, system_operation: null,
+      type_id: "t1", type_version: 1, type_name: null, semantic_family: "delivery", lane: "result",
+    },
+    {
+      event_id: "ev-config", kind: "configuration", title: "Title config", actor_id: "actor-1", actor_kind: "runtime",
+      received_at: "2026-11-26T00:21:00.000Z", journal_seq: 21, system_operation: null,
+      type_id: null, type_version: null, type_name: null, semantic_family: null, lane: "other",
+    },
+    {
+      event_id: "ev-system-other", kind: "system", title: "Title sys", actor_id: "actor-1", actor_kind: "runtime",
+      received_at: "2026-11-26T00:22:00.000Z", journal_seq: 22, system_operation: "unknown_op",
+      type_id: null, type_version: null, type_name: null, semantic_family: null, lane: "other",
+    },
+  ];
+  const journalEvents = [
+    { event_id: "j-1", seq: 1, type: "goal.created", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:23:00.000Z", reason: "", payload: {} },
+    { event_id: "j-2", seq: 2, type: "goal.updated", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:24:00.000Z", reason: "", payload: {} },
+    { event_id: "j-3", seq: 3, type: "goal.accepted", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:25:00.000Z", reason: "", payload: {} },
+    { event_id: "j-4", seq: 4, type: "relation.added", object_id: "rel-1", actor_id: "actor-1", at: "2026-11-26T00:26:00.000Z", reason: "Dependency", payload: { from_goal_id: "goal-a", to_goal_id: "goal-b", type: "depends_on" } },
+    { event_id: "j-5", seq: 5, type: "relation.deactivated", object_id: "rel-1", actor_id: "actor-1", at: "2026-11-26T00:27:00.000Z", reason: "Removed", payload: { from_goal_id: "goal-a", to_goal_id: "goal-b", type: "depends_on" } },
+    { event_id: "j-6", seq: 6, type: "goal.custom_event", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:28:00.000Z", reason: "", payload: {} },
+  ];
+  const journalItems = mapJournalHistoryItems(journalEvents, new Set(), {
+    goals: [{ goal_id: "goal-a", title: "Goal A" }, { goal_id: "goal-b", title: "Goal B" }] as never,
+    relations: [{ relation_id: "rel-1", from_goal_id: "goal-a", to_goal_id: "goal-b", type: "depends_on" }] as never,
+  });
+  const merged = mergeGoalHistoryItems({ work: { items: workItems, observed_event_cursor: 30 }, journal: journalItems });
+  assert.equal(merged.length, 24);
+  const enDocItem = item();
+  enDocItem.goal = { ...enDocItem.goal, title: "Goal A", outcome: "Outcome A" };
+  const enHtml = withGoalLocale("en", () => render(enDocItem, {
+    eventDocument: {
+      state: {
+        goal_id: "goal-a", owner: { kind: "event_work", source: "web", adopted_at: "2026-11-26T00:00:00.000Z", adopted_by: "actor-1" },
+        work_status: "open", can_record: true, completion_effect: false, observed_event_cursor: 30, goal_event_cursor: 30,
+        intent: { title: "Goal A", source_kind: "web" }, config: { version: 1 },
+        agreement: { version: 1, outcome: "Outcome A", has_minimum_result_agreement: true },
+        requirements: [], concerns: [],
+        pending_decisions: [{
+          request_id: "req-1", event_id: "ev-decision_requested", question: "Proceed?", purpose: "action",
+          options: [], scope: { requirement_ids: [], event_ids: [], concern_ids: [], action: "publish" },
+          proposed_change: null, commitment: null, status: "pending", created_at: "2026-11-26T00:06:00.000Z",
+        }],
+        applied_decisions: [], current_decisions: [], latest_reports: [], gaps: [], progress_summary: null, closure: null,
+      },
+      timeline: { items: merged, next_cursor: null, observed_event_cursor: 30 },
+      types: [], description: { outcome: "Outcome A", why: "Why", business_logic: "Logic", in_scope: [], out_of_scope: [], constraints: [], required_inputs: [], promised_outputs: [] },
+      transfer: { kind: "none" }, acceptance: null,
+    } as never,
+  }));
+  const navStart = enHtml.indexOf("<nav data-event-timeline");
+  const navEnd = enHtml.indexOf("</nav>", navStart);
+  const enTimeline = enHtml.slice(navStart, navEnd);
+  assert.doesNotMatch(enTimeline, /\p{Script=Han}/u, `English timeline must not leak Chinese labels: ${enTimeline}`);
+  assert.match(enTimeline, /Needs your decision/, "decision_requested must match via type_key in English");
+
+  // user_decision body: authorize_agreement_change, concern_ids label, and single HTML escaping of '&'.
+  const decisionEvent: GoalWorkEventRecord = {
+    event_id: "ev-dec", project_id: "p1", goal_id: "goal-a", kind: "system", type_id: null, type_version: null,
+    title: "Decision", actor_id: "web-user", actor_kind: "user", received_at: "2026-11-26T00:10:00.000Z", journal_seq: 10, config_version: 1,
+    payload: {
+      operation: "user_decision",
+      decision_id: "d-1", governance_decision_id: "gd-1", request_id: null, selected_option_id: null,
+      conclusion: "Approved", accepts_requirements: false,
+      effects: [{ kind: "authorize_agreement_change" }, { kind: "authorize_action", action: "build & deploy" }],
+      scope: { requirement_ids: [], event_ids: [], concern_ids: ["c-1"], action: null },
+      authority_source: "web",
+    },
+  };
+  for (const [locale, expectedEffect, expectedConcern] of [
+    ["zh", "批准约定变更", "问题"],
+    ["en", "Approve agreement change", "Issue"],
+    ["ja", "合意変更を承認", "問題"],
+  ] as const) {
+    const body = withGoalLocale(locale, () => renderWorkEventBody(decisionEvent, t.text, escapeHtml));
+    assert.ok(body.includes(expectedEffect), `${locale} must localize authorize_agreement_change: ${body}`);
+    assert.ok(body.includes(expectedConcern), `${locale} must localize concern scope label: ${body}`);
+    assert.ok(!body.includes("authorize_agreement_change"), `${locale} must not leak raw enum name`);
+    assert.ok(!body.includes("&amp;amp;"), `${locale} must not double-escape ampersand`);
+    assert.ok(body.includes("build &amp; deploy"), `${locale} must escape ampersand once`);
+    if (locale !== "en") assert.ok(!body.includes("Concern"), `${locale} must not hardcode English Concern`);
+    if (locale === "en") assert.doesNotMatch(body, /\p{Script=Han}/u, `en decision body must not leak Chinese: ${body}`);
+  }
+
+  // Journal body rendering in English must localize type and relation without leaking Chinese.
+  const journalCreatedBody = withGoalLocale("en", () => renderHistoryItemBody(
+    journalItems[0]!,
+    { journal: journalEvents[0] as never },
+    { translate: t.text, escapeHtml },
+  ));
+  assert.doesNotMatch(journalCreatedBody, /\p{Script=Han}/u, `en journal body must not leak Chinese: ${journalCreatedBody}`);
+  const journalRelationBody = withGoalLocale("en", () => renderHistoryItemBody(
+    journalItems[3]!,
+    { journal: journalEvents[3] as never },
+    { translate: t.text, escapeHtml },
+  ));
+  assert.doesNotMatch(journalRelationBody, /\p{Script=Han}/u, `en relation journal body must not leak Chinese: ${journalRelationBody}`);
 });

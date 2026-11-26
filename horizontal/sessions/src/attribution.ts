@@ -39,6 +39,11 @@ export function directoryKeyForPath(directoryPath: string): string {
   return `dir_${createHash("sha256").update(directoryPath).digest("hex").slice(0, 24)}`;
 }
 
+/** Disjoint key namespace for `kind: "workspace"` cache rows so root-exact session `dir_*` rows are never overwritten. */
+export function workspaceDirectoryKeyForPath(canonicalPath: string): string {
+  return `ws_${createHash("sha256").update(canonicalPath).digest("hex").slice(0, 24)}`;
+}
+
 export function computeDirectorySnapshotDigest(snapshot: SessionProjectSnapshot, homeDirectory?: string): string {
   const normHome = homeDirectory ? path.resolve(homeDirectory) : null;
   const normalizeWorkspacePath = (p: string): string =>

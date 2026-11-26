@@ -1,6 +1,11 @@
 import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { chmod, mkdtemp, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   SANDBOX_PACKAGE_FILES, STATE_MACHINES_PROVIDER_ID, stateMachineActions,
@@ -15,7 +20,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PACKAGE_PLUGIN_ID, packageFiles, payloadOf } from "./fixtures/sandbox-package.js";
 
@@ -297,4 +302,44 @@ test("SMP-08 the provider stays registered without a Home and answers an empty l
   assert.equal(listed.empty_reason, "no_plugins_in_scope");
   assert.deepEqual(listed.entries.map(entry => entry.owner), ["platform"]);
   assert.deepEqual(projectStateMachines({ builtin: [], installations: [] }), listed.entries, "the page data path and the action share one projection");
+});
+
+test("F-hc2-24: dormant project state_machines.list reads a 0o444 project database strictly read-only without mutating mtime or creating sidecars", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-state-machines-ro-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const created = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog =>
+    catalog.createProject({ display_name: "Read-only dormant project", actor_id: "local-person" }),
+  );
+  const reference = molisWorkHostProjectReference({ projectId: created.project_id, databasePath: created.database_path });
+  // Open and close once through the Host so the catalog-owned database settles cleanly in DELETE journal mode.
+  const first = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+    await first.withProject(reference, () => undefined);
+  } finally {
+    await first.close();
+  }
+  for (const suffix of ["-wal", "-shm", "-journal"]) {
+    assert.equal(existsSync(created.database_path + suffix), false, `precondition: no ${suffix} sidecar`);
+  }
+  await chmod(created.database_path, 0o444);
+  const beforeMtime = (await stat(created.database_path)).mtimeMs;
+
+  const dormant = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  dormant.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  try {
+    const listed = await dormant.actionClient(reference).invoke(
+      { actor_id: "local-person", project_id: created.project_id, audience: "user", permissions: [] },
+      stateMachineActions.list,
+      {},
+    ) as StateMachineListResult;
+    assert.ok(listed.entries.some(entry => entry.owner === "platform" && entry.owner_id === "platform.plugin-runtime"));
+    assert.equal(dormant.projects().length, 0, "state_machines.list never wakes a dormant project runtime");
+    assert.equal((await stat(created.database_path)).mtimeMs, beforeMtime, "read-only query must not mutate project database mtime");
+    for (const suffix of ["-wal", "-shm", "-journal"]) {
+      assert.equal(existsSync(created.database_path + suffix), false, `read-only query must not create ${suffix} sidecar`);
+    }
+  } finally {
+    await dormant.close();
+    await chmod(created.database_path, 0o644).catch(() => {});
+  }
 });

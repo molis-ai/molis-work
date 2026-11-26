@@ -27,6 +27,10 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   assert.equal(read().notes[0]!.title, "行动服务验证笔记"); assert.equal(read().notes[0]!.blocks[0]!.text, "核对来源，再保存结果");
   await click('[data-jelly-decompose]'); await click('[data-jelly-plan-manual]'); await click('[data-jelly-dialog-ok]');
   await waitFor("document.querySelector('[data-jelly-plan-title]')");
+  // F-plugins-rest-03: openPlan renders free-text plan.title directly instead of looking it up as a locale key.
+  const planDialogTitle = await evaluate<string>("document.querySelector('[data-jelly-dialog-title]').textContent");
+  assert.ok(planDialogTitle.includes("行动服务验证笔记") || planDialogTitle.includes("核对来源"), `expected plan title in dialog header, got: ${planDialogTitle}`);
+  assert.doesNotMatch(planDialogTitle, /暂不可用|Unavailable|cannot be shown/i);
   assert.equal(read().notes[0]!.blocks.filter(b => b.kind === "task").length, 0);
   // Deliver the previous progress view close event after the next view has opened.
   await evaluate("document.querySelector('[data-jelly-dialog]').dispatchEvent(new Event('close'))");

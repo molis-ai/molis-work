@@ -49,7 +49,13 @@ test("S-09 a Host header names this machine or nothing: foreign, malformed, user
   assert.equal(loopbackHost("LOCALHOST:4173"), "localhost:4173");
   assert.equal(loopbackHost("[::1]:4173"), "[::1]:4173");
   assert.equal(loopbackHost(" 127.0.0.1:4173 "), "127.0.0.1:4173");
-  for (const value of [undefined, null, "", "   ", "evil.example", "evil.example:4173", "127.0.0.1@evil.example", "127.0.0.1.evil.example", "localhost.evil.example:4173", "[::1", "127.0.0.1:99999", "http://127.0.0.1", "0.0.0.0:4173", "[::ffff:127.0.0.1]:4173"]) {
+  for (const value of [
+    undefined, null, "", "   ", "evil.example", "evil.example:4173", "127.0.0.1@evil.example", "127.0.0.1.evil.example",
+    "localhost.evil.example:4173", "[::1", "127.0.0.1:99999", "http://127.0.0.1", "0.0.0.0:4173", "[::ffff:127.0.0.1]:4173",
+    "evil@127.0.0.1:4173", "127.0.0.1:4173/evil", "127.0.0.1:4173?x=1", "127.0.0.1:4173#frag", "127.0.0.1:4173\\@evil.com",
+    "127.1:4173", "0177.0.0.1:4173", "0x7f000001:4173", "2130706433:4173", "[0:0:0:0:0:0:0:1]:4173", "127.0.0.1\t:4173",
+    "127.0.0.1:", "127.0.0.1:080",
+  ]) {
     assert.equal(loopbackHost(value as string | null | undefined), null, JSON.stringify(value));
   }
 });
@@ -98,6 +104,16 @@ test("S-10 the sandbox proxy and the custom RSS fetch refuse every address of th
   for (const address of ADDRESSES_PUBLIC) {
     assert.equal(isPublicAddress(address), true, `sandbox proxy: ${address}`);
     assert.equal(isDisallowedResolvedAddress(address), false, `custom RSS: ${address}`);
+  }
+  // F-cf-04 / F-TEST-22: malformed IPv6 strings carrying brackets, paths, ports or control characters must return false.
+  for (const malformed of [
+    "2001:4860::8888]/evil",
+    "2001:4860::]:443/foo#",
+    "2001:4860::\t8888",
+    "2001:4860::\n8888",
+  ]) {
+    assert.equal(sharedIsPublicAddress(malformed), false, `shared public address: ${JSON.stringify(malformed)}`);
+    assert.equal(isPublicAddress(malformed), false, `sandbox proxy: ${JSON.stringify(malformed)}`);
   }
 });
 

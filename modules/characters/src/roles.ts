@@ -2,12 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { isDeepStrictEqual } from "node:util";
 import type { BlueprintPartOrigin } from "@molis-ai/molis-work-contracts/modules/characters";
-import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { characterErrors, type CharacterDefaultSelection, type CharacterDefaults, type CharacterDraft, type CharacterMemberEntry, type CharacterOriginalEntry,
+import { PERSONAL_SPACE_PROJECT_ID, parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
+import { characterErrors, parseCharacterTools, type CharacterDefaultSelection, type CharacterDefaults, type CharacterDraft, type CharacterMemberEntry, type CharacterOriginalEntry,
   type CharacterRole, type CharacterRoleAvailability, type CharacterRoleCatalog, type CharacterRoleContent, type CharacterRoleReadQuery, type CharacterRoleReadResult, type CharacterRoleSection,
   type CharacterRoleVersionEntry, type CharacterTemplateAdoptionResult, type CharacterRoleSnapshot, type CharacterRoleResolution,
   type CharacterRoleVersionRef, type CharacterSectionStatus, type CharacterTaskSelection, type CharacterTemplateAdoptionInput, type EffectiveCharacterSelection, type PersonalCharacterRef,
   type PersonalCharacterVersionRef, type ProjectCharacterMemberRef, type ProjectCharacterVersionRef } from "@molis-ai/molis-work-contracts/modules/characters";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 
 // A person's roles beyond the draft (specs/onboarding-coverage/role-service-design.md §2–§4): the fixed versions of an original, a
 // project's members whose two sections each follow the original or are the project's own, the two default layers and how a new
@@ -170,18 +171,22 @@ class CharacterMembers extends CharacterOriginals {
   /** Writes the member's next version with these sections (and state), and a new revision. */
   protected writeMember(row: MemberRow, original: number, sections: StoredSections, state: MemberRow["state"] = row.state, newVersion = true): void {
     const version = row.member_version + Number(newVersion), at = this.now();
-    this.db.prepare("UPDATE character_members SET sections = ?, state = ?, revision = ?, member_version = ?, updated_at = ? WHERE member_id = ? AND owner_actor_id = ? AND revision = ?")
+    const written = this.db.prepare("UPDATE character_members SET sections = ?, state = ?, revision = ?, member_version = ?, updated_at = ? WHERE member_id = ? AND owner_actor_id = ? AND revision = ?")
       .run(JSON.stringify(sections), state, `${version}.${randomUUID()}`, version, at, row.member_id, this.actorId, row.revision);
+    if (written.changes !== 1 && written.changes !== 1n) {
+      throw characterErrors.conflict("这个角色在别处刚改过，请看差异后再决定；当前修改尚未保存");
+    }
     if (newVersion) this.db.prepare("INSERT INTO character_member_versions (member_id, member_version, original_version, saved_at, sections) VALUES (?, ?, ?, ?, ?)")
       .run(row.member_id, version, original, at, JSON.stringify(sections));
   }
 
   /** Overrides the sections given and keeps the other one as it was: an earlier override of the other section is not cleared. */
   saveMember(projectId: string, memberId: string, expectedRevision: string, expectedOriginalVersion: number, values: Partial<SectionValue>): Extract<CharacterRole, { layer: "project" }> {
+    const normalized = normalizeMemberSections(values);
     const { row, original } = this.confirmedMember(projectId, memberId, expectedRevision, expectedOriginalVersion);
     const sections = { ...row.sections } as StoredSections;
     for (const section of SECTIONS) {
-      const value = values[section];
+      const value = normalized[section];
       if (value !== undefined) (sections as Record<string, unknown>)[section] = { mode: "override", based_on_original_version: original, acknowledged_original_version: original, value };
     }
     this.writeMember(row, original, sections);
@@ -191,10 +196,11 @@ class CharacterMembers extends CharacterOriginals {
   /** Both changes must be inside the same Characters transaction. Use the original linked by the confirmed member. */
   saveMemberFollowing(projectId: string, memberId: string, expectedRevision: string, expectedOriginalVersion: number,
     values: Partial<SectionValue>, saveOriginal: (id: string) => number): Extract<CharacterRole, { layer: "project" }> {
+    const normalized = normalizeMemberSections(values);
     const { row } = this.confirmedMember(projectId, memberId, expectedRevision, expectedOriginalVersion);
     const original = saveOriginal(row.character_id);
     const sections = { ...row.sections };
-    for (const section of SECTIONS) if (values[section] !== undefined) sections[section] = { mode: "follow" };
+    for (const section of SECTIONS) if (normalized[section] !== undefined) sections[section] = { mode: "follow" };
     this.writeMember(row, original, sections);
     return this.memberRole(projectId, memberId)!;
   }
@@ -449,11 +455,36 @@ const toolsOf = (content: CharacterRoleContent): Pick<CharacterOriginalEntry, "h
     ...(content.import_snapshot ? { imported_skills: content.import_snapshot.skills.map(skill => ({ id: skill.id, name: skill.name, compatibility: skill.compatibility,
       ...(skill.reason ? { reason: skill.reason } : {}) })) } : {}) });
 
+/** Validate member section inputs with the same rules as `CharactersService` (`parseCharacterTools` / `parseExactActionReferences`). */
+export function normalizeMemberSections(values: Partial<SectionValue>): Partial<SectionValue> {
+  const result: Partial<SectionValue> = {};
+  if (values.work_style !== undefined) {
+    if (!values.work_style || typeof values.work_style.instructions !== "string" || values.work_style.instructions.length > 20_000) {
+      throw characterErrors.invalid("角色指令最多 20000 字符");
+    }
+    result.work_style = { instructions: values.work_style.instructions };
+  }
+  if (values.capabilities !== undefined) {
+    if (!values.capabilities || typeof values.capabilities !== "object") {
+      throw characterErrors.invalid("角色能力配置无效");
+    }
+    let host_tools: string[] | null;
+    try { host_tools = parseCharacterTools(values.capabilities.host_tools); }
+    catch (error) { throw characterErrors.invalid((error as Error).message); }
+    let action_tools: CharacterRoleContent["action_tools"];
+    try {
+      if (values.capabilities.action_tools !== undefined) {
+        action_tools = values.capabilities.action_tools === null ? null : parseExactActionReferences(values.capabilities.action_tools);
+      }
+    } catch (error) { throw characterErrors.invalid((error as Error).message); }
+    result.capabilities = { host_tools, ...(action_tools === undefined ? {} : { action_tools }) };
+  }
+  return result;
+}
+
 /** The request's own content, so a replay with other content under the same id is told apart. Key order does not matter. */
 function requestDigest(value: unknown): string {
-  const canonical = (item: unknown): unknown => Array.isArray(item) ? item.map(canonical)
-    : item && typeof item === "object" ? Object.fromEntries(Object.keys(item).sort().map(key => [key, canonical((item as Record<string, unknown>)[key])])) : item;
-  return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
+  return createHash("sha256").update(canonicalJsonText(value) ?? "").digest("hex");
 }
 
 /** The stable choice a fixed version belongs to: the original, or the member. */

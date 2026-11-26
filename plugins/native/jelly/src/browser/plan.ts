@@ -90,7 +90,8 @@ export function openPlan(page: JellyPage, plan: JellyPlan, source: PlanSource, p
   const html = `${questions}<p class="jelly-muted">${tx("jelly.plan.help")}</p>`
     + `<div class="jelly-plan-refine"><textarea class="mw-textarea" data-jelly-plan-feedback rows="2" placeholder="${tx("jelly.plan.feedback")}"></textarea>${btn("jelly.plan.refresh", "data-jelly-plan-refresh", "refresh")}</div>`
     + plan.actions.map((action, index) => actionHtml(page, action, index)).join("");
-  openGeneric(page, plan.title || "jelly.plan.confirm-title", html, "jelly.plan.confirm", async () => {
+  const title = (plan.title ?? "").trim() || uiText.text("jelly.plan.confirm-title");
+  openGeneric(page, { original: title }, html, "jelly.plan.confirm", async () => {
     capturePlan(page);
     const ids = selectedActions(page, plan);
     await command(page, { type: "plan.apply", plan, note_id: source.kind === "note" ? source.id : undefined, selected_action_ids: ids });

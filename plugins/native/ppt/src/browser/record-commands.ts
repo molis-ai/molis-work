@@ -8,10 +8,15 @@ const urlOf = (page: PptPage, id: string, tail = "") => `${page.api}/${encodeURI
 /** Reads the deck again, asking first when what is typed would be lost. */
 export async function reload(page: PptPage): Promise<void> {
   const { s } = page;
+  const seq = s.editorSeq;
   clearTimeout(s.saveTimer);
   if (s.saveRun) await s.saveRun.catch(() => {});
+  if (seq !== s.editorSeq) return;
   if ((s.saveError || s.editRev > s.savedRev) && !await page.ask(uiText.text("ppt.dialog.reload-confirm"), uiText.text("ppt.action.reload"))) return;
-  const payload = await page.request<Reply>("GET", urlOf(page, page.open().id));
+  if (seq !== s.editorSeq || !s.selected) return;
+  const id = s.selected.id;
+  const payload = await page.request<Reply>("GET", urlOf(page, id));
+  if (seq !== s.editorSeq || s.selected?.id !== id) return;
   page.fillEditor(payload.presentation);
   await page.loadList();
 }
@@ -32,7 +37,9 @@ export async function openDeck(page: PptPage, id: string): Promise<void> {
 }
 
 export async function backToList(page: PptPage): Promise<void> {
+  const seq = page.s.editorSeq;
   await page.save();
+  if (seq !== page.s.editorSeq) return;
   page.closeEditor();
   await page.loadList();
 }
@@ -64,32 +71,42 @@ export async function pinFixed(page: PptPage, wanted: string): Promise<void> {
 
 /** Exports the deck: PowerPoint (the default), the print dialog for PDF, or the JSON data file. */
 export async function exportDeck(page: PptPage, button: HTMLElement): Promise<void> {
+  const { s } = page;
+  const seq = s.editorSeq;
   button.closest("details")?.removeAttribute("open");
   await page.save();
+  if (seq !== s.editorSeq || !s.selected) return;
   const format = button.dataset.pptExport || "pptx";
   if (format === "pdf") { page.printDeck(page.liveRecord()); return; }
   const open = page.open();
   if (format === "pptx") {
     const exported = await page.request<{ content_base64: string; filename: string; mime_type: string; slide_count: number }>("GET", urlOf(page, open.id, "/pptx?expected_version=" + open.version));
+    if (seq !== s.editorSeq || s.selected?.id !== open.id) return;
     const bytes = Uint8Array.from(atob(exported.content_base64), (char) => char.charCodeAt(0));
     await page.host.download(new Blob([bytes], { type: exported.mime_type }), exported.filename);
     page.placed({ verb: "exported", title: open.title, file: { name: exported.filename, format: uiText.text("ppt.export.pptx-format", { count: exported.slide_count }) } });
     return;
   }
   const exported = await page.request<{ content: string; filename: string; mime_type: string }>("GET", urlOf(page, open.id, "/export?expected_version=" + open.version));
+  if (seq !== s.editorSeq || s.selected?.id !== open.id) return;
   await page.host.download(new Blob([exported.content], { type: exported.mime_type }), exported.filename);
   page.placed({ verb: "exported", title: open.title, file: { name: exported.filename, format: uiText.text("ppt.export.json-format") } });
 }
 
 export async function deleteDeck(page: PptPage): Promise<void> {
   const { s } = page;
+  const seq = s.editorSeq;
+  const id = s.selected?.id;
+  if (!id) return;
   const deleted = await page.ask(uiText.text("ppt.dialog.delete-confirm"), uiText.text("ppt.action.delete"), async () => {
+    if (seq !== s.editorSeq || s.selected?.id !== id) return;
     await page.save();
+    if (seq !== s.editorSeq || s.selected?.id !== id) return;
     const open = page.open();
     try { await page.request("POST", urlOf(page, open.id, "/delete"), { expected_version: open.version }); }
-    catch (error) { if ((error as Failure).code === "ppt.conflict") s.saveError = error; throw error; }
+    catch (error) { if (seq === s.editorSeq && s.selected?.id === open.id && (error as Failure).code === "ppt.conflict") s.saveError = error; throw error; }
   });
   if (!deleted) return;
-  page.closeEditor();
+  if (seq === s.editorSeq && s.selected?.id === id) page.closeEditor();
   await page.loadList();
 }

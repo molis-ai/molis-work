@@ -65,9 +65,11 @@ export class CharacterScan {
     let fd: number | undefined;
     try {
       const target = this.safeReal(path);
-      fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW);
+      const before = lstatSync(target);
+      if (!before.isFile()) throw new Error("只能导入普通文件");
+      fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW | (constants.O_NONBLOCK ?? 0));
       const stat = fstatSync(fd);
-      if (!stat.isFile() || stat.size > LIMITS.fileBytes || this.totalBytes + stat.size > LIMITS.totalBytes) throw new Error("文件类型或大小超过导入限制");
+      if (!stat.isFile() || stat.dev !== before.dev || stat.ino !== before.ino || stat.size > LIMITS.fileBytes || this.totalBytes + stat.size > LIMITS.totalBytes) throw new Error("文件类型或大小超过导入限制");
       const bytes = readFileSync(fd);
       if (bytes.length > LIMITS.fileBytes || this.totalBytes + bytes.length > LIMITS.totalBytes) throw new Error("文件读取期间超过导入限制");
       this.totalBytes += bytes.length; return bytes;

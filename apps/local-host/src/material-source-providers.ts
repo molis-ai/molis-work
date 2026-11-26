@@ -1,4 +1,4 @@
-import { decodeMaterialHTMLEntities, fetchMaterialPublicBytes, isMaterialSourceFailure, materialHTMLArticle, materialSourceErrors, validateMaterialPublicURL, type MaterialPublicFetchOptions, type MaterialPublicResponse } from "./material-source-reader.js";
+import { decodeMaterialHTMLEntities, fetchMaterialPublicBytes, materialHTMLArticle, materialSourceErrors, validateMaterialPublicURL, type MaterialPublicFetchOptions, type MaterialPublicResponse } from "./material-source-reader.js";
 import { extractUploadedMaterial, type UploadedMaterial, type MaterialUploadOptions, type MaterialUploadRequest } from "./material-upload.js";
 import { isMaterialFailure } from "./material-text.js";
 import type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -37,6 +37,20 @@ function https(value: unknown): string | null {
 function safeReferer(value: string): string { const url = new URL(value); url.search = ""; url.hash = ""; return url.href; }
 function responseJSON(response: MaterialPublicResponse): unknown { try { return JSON.parse(response.data.toString("utf8")); } catch { throw materialSourceErrors.invalid_json("来源返回的数据无法解析；原链接保留"); } }
 function checkAborted(options: MaterialSourceOptions): void { if (options.signal?.aborted) throw materialSourceErrors.cancelled("来源提取已取消"); }
+function isSourceControlFailure(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") return true;
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code !== "string") return false;
+  return code.startsWith("actions.")
+    || code.startsWith("plugin.")
+    || code === "material.source.private_address"
+    || code === "material.source.domain_not_allowed"
+    || code === "material.source.cancelled";
+}
+function rethrowSourceControlFailure(error: unknown, options: MaterialSourceOptions): void {
+  checkAborted(options);
+  if (isSourceControlFailure(error)) throw error;
+}
 export function materialXiaohongshuNoteID(value: string): string | null {
   // Not a URL is not a Xiaohongshu note.
   let url: URL; try { url = new URL(value); } catch { return null; }
@@ -173,7 +187,7 @@ async function bilibili(home: string, source: string, options: MaterialSourceOpt
       if (segments.length < 30 || segments.reduce((count, segment) => count + (segment.text.match(/\p{L}/gu)?.length ?? 0), 0) < 200) continue;
       const text = segments.map(segment => `[${segment.start_seconds}–${segment.end_seconds} 秒] ${segment.text}`).join("\n");
       return { text, title: typeof video.title === "string" ? video.title : metadata(html, "og:title"), source_url: source, provider: "bilibili", extractor: "bilibili-public-subtitles", segments, coverage: coverage(body.length > 10000 ? ["字幕仅提取前 10000 段"] : [], true) };
-    } catch (error) { checkAborted(options); if (isMaterialSourceFailure(error) && error.code === "material.source.private_address") throw error; }
+    } catch (error) { rethrowSourceControlFailure(error, options); }
   }
   let audio = biliAudio(player);
   if (!audio) { query.set("fnval", "16"); audio = biliAudio(apiData(await request(`https://api.bilibili.com/x/player/playurl?${query}`, { maxBytes: 4_000_000, headers, signal: options.signal }))); }
@@ -196,7 +210,7 @@ async function xiaohongshu(home: string, source: string, options: MaterialSource
     let material: UploadedMaterial | undefined;
     for (const candidate of payload.videos.slice(0, 3)) {
       try { material = (await remoteMaterial(home, candidate, "video", response.final_url, options)).extraction; break; }
-      catch (error) { checkAborted(options); if (isMaterialFailure(error) && error.code === "material.model_required") { if (!hasMaterial) throw error; modelRequired = (error.details ?? {}) as { approximate_bytes?: number; variant?: string }; issues.push("本地语音模型尚未启用；保留正文，视频转写等待明确下载选择"); break; } issues.push(error instanceof Error ? error.message : "视频素材读取失败"); }
+      catch (error) { rethrowSourceControlFailure(error, options); if (isMaterialFailure(error) && error.code === "material.model_required") { if (!hasMaterial) throw error; modelRequired = (error.details ?? {}) as { approximate_bytes?: number; variant?: string }; issues.push("本地语音模型尚未启用；保留正文，视频转写等待明确下载选择"); break; } issues.push(error instanceof Error ? error.message : "视频素材读取失败"); }
     }
     if (material) { parts.push(material.text); hasMaterial ||= !!material.text.trim(); pages.push(...material.pages); segments = material.segments; frames = material.frames; issues.push(...material.coverage.issues); acquired++; }
     else if (!modelRequired) issues.push("公开视频素材不可用");
@@ -205,7 +219,7 @@ async function xiaohongshu(home: string, source: string, options: MaterialSource
     for (const [index, url] of payload.images.slice(0, 20).entries()) {
       checkAborted(options); if (bytes >= maxBinary) { issues.push("图集总下载达到 25 MB 上限"); break; }
       try { const result = await remoteMaterial(home, url, "image", response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
-      catch (error) { checkAborted(options); issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
+      catch (error) { rethrowSourceControlFailure(error, options); issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
     }
     if (payload.images.length) issues.push("图片仅提取文字，未理解纯视觉内容");
   }

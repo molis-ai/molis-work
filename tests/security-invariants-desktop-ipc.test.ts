@@ -104,7 +104,7 @@ test("S-14 the shell's file commands take a page's relative paths and ask the Ho
   const main = readFileSync(MAIN_RS, "utf8");
   const permission = readFileSync(join(SHELL, "permissions", "shelf.toml"), "utf8");
   const client = readFileSync(new URL("../apps/workbench/src/browser/plugin-frame/native-files.ts", import.meta.url), "utf8");
-  for (const old of ["shelf_open_path", "shelf_copy_files", "shelf_drag_out"]) {
+  for (const old of ["shelf_open_path", "shelf_copy_files", "shelf_drag_out", "shelf_admit_paths"]) {
     for (const [where, text] of [["main.rs", main], ["permissions/shelf.toml", permission], ["native-files.ts", client]] as const) assert.equal(text.includes(old), false, `${where} still names ${old}`);
   }
   const allowed = [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(permission)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!);
@@ -142,6 +142,10 @@ test("S-14 the shell's own configuration does not turn on remote IPC for every d
   assert.equal(JSON.stringify(configuration).includes("dangerousRemoteDomainIpcAccess"), false);
   assert.equal(JSON.stringify(configuration).includes("dangerousDisableAssetCspModification"), false);
   assert.equal(configuration.build.frontendDist, "../webview-placeholder");
+  const mainWindow = configuration.app.windows.find(window => window.label === "main") as { create?: boolean } | undefined;
+  assert.equal(mainWindow?.create, false, "F-wb2-33/34: main window is created in setup() with on_new_window attached");
+  const mainSource = readFileSync(MAIN_RS, "utf8");
+  assert.match(mainSource, /\.on_new_window\([\s\S]*?external_links::handle_new_window_request\(&url\)[\s\S]*?NewWindowResponse::Deny/);
 });
 
 test("102-2 S-14 tiered IPC auth enforces main-window active-origin checks and fails closed to fresh HMAC for sensitive commands", () => {

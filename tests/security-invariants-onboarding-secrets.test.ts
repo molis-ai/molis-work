@@ -427,3 +427,45 @@ test("S-onboarding-secret-hold rejected beforeEffect leaves zero staged text fil
   const settled = await waitContextJourney(dir, idRun);
   assert.equal(settled.phase, "review");
 });
+
+test("F-hc-13: startContextJourney forwards its AbortSignal to readSource and aborts it on reopen", async t => {
+  const { dir, served, stageFile } = await setupOnboardingHarness(t);
+  const id = randomUUID();
+  await served.web.post("/api/onboarding/context", { id });
+  const readme = await stageFile(id, "README.md", "# 背景\n测试信号传递。");
+  await served.web.post(`/api/onboarding/context/${id}/selection`, {
+    sources: [{ kind: "files", selected: true, files: [{ path: readme.path, staged: readme.staged }] }],
+  });
+
+  let receivedSignal: AbortSignal | undefined;
+  let abortedObserved = false;
+  const entered = Promise.withResolvers<void>();
+  const aborted = Promise.withResolvers<void>();
+
+  startContextJourney(dir, id, {
+    withCatalog: async () => { throw new Error("unused"); },
+    readSource: async (_home, _source, signal) => {
+      receivedSignal = signal;
+      entered.resolve();
+      await new Promise<void>((_resolve, reject) => {
+        if (!signal) { reject(new Error("missing signal")); return; }
+        if (signal.aborted) { abortedObserved = true; aborted.resolve(); reject(signal.reason); return; }
+        signal.addEventListener("abort", () => {
+          abortedObserved = true;
+          aborted.resolve();
+          reject(signal.reason);
+        }, { once: true });
+      });
+      return { files: [] };
+    },
+  });
+
+  await entered.promise;
+  assert.ok(receivedSignal instanceof AbortSignal, "readSource receives the journey AbortSignal");
+  assert.equal(receivedSignal.aborted, false);
+  const reopened = await served.web.post<JourneyView>(`/api/onboarding/context/${id}/reopen`, {});
+  assert.equal(reopened.phase, "selecting");
+  await aborted.promise;
+  assert.equal(abortedObserved, true);
+  assert.equal(receivedSignal.aborted, true);
+});

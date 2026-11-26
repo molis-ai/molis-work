@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, runningProjectPlatform, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_TYPE, workspaceFileSubjectId, workspaceReadActions,
   WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -348,4 +348,29 @@ test("BSH-08 a Goal takes a fixed version of a project-folder file by its exact 
   await assert.rejects(bind({ ref: { subject: fixed.ref.subject, pin: { mode: "current", read_revision: sha("第一行\nsecond line 🙂\n") } } }),
     (error: unknown) => (error as { code?: string }).code === "actions.input_invalid");
   assert.equal(await count(), before);
+});
+
+test("F-hc2-23 & F-hc2-27: Object.prototype property extensions stay text/plain and binary preview messages localize in en and ja", { timeout: 60_000 }, async t => {
+  installHostUiText();
+  const m = await materialsHome(t);
+  await writeFile(join(m.folder, "foo.constructor"), "constructor body\n");
+  await writeFile(join(m.folder, "bar.__proto__"), "proto body\n");
+  await writeFile(join(m.folder, "raw.bin"), Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04]));
+
+  const page = await m.call<FileEntriesPage>(materialsFileSource.entries, { cursor: null, limit: 500 });
+  for (const name of ["foo.constructor", "bar.__proto__"]) {
+    const entry = page.entries.find(item => item.title === name);
+    assert.ok(entry, `${name} is listed`);
+    assert.equal(entry.media_type, "text/plain", `${name} must not inherit Object.prototype property as media_type`);
+    const content = await m.call<FileContent>(materialsFileSource.content, { subject: entry.subject });
+    assert.equal(content.media_type, "text/plain");
+    assert.equal(content.encoding, "utf8");
+  }
+
+  const binary = page.entries.find(item => item.title === "raw.bin")!;
+  const enBinary = await runWithLocale("en", () => m.call<FileContent>(materialsFileSource.content, { subject: binary.subject }));
+  const jaBinary = await runWithLocale("ja", () => m.call<FileContent>(materialsFileSource.content, { subject: binary.subject }));
+  assert.doesNotMatch(enBinary.data, /这是二进制文件|侧栏只预览文本/u);
+  assert.doesNotMatch(jaBinary.data, /这是二进制文件|侧栏只预览文本/u);
+  assert.notEqual(enBinary.data, jaBinary.data);
 });

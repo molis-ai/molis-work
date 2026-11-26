@@ -3,7 +3,7 @@ import { format, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { signedRoleData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { findSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_METHOD_ACTIONS } from "./assistant-rule-actions.js";
@@ -320,8 +320,10 @@ export class AssistantRoundMaterials {
     let actions: PersonActions | null = null;
     try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { return null; }
     if (!actions) return null;
-    const reader = (await actions.discover().catch(() => [] as ActionView[])).find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(subject.kind));
-    if (!reader) return null;
+    const views = await actions.discover().catch(() => [] as ActionView[]);
+    const lookup = findSubjectReader(views, subject.kind);
+    if (lookup.found !== "one") return null;
+    const reader = lookup.view;
     try { return await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id }) as ActionSubjectContext; }
     catch (error) { return /not_found|missing|deleted/.test((error as { code?: string }).code ?? "") ? "missing" : null; }
   }
@@ -332,10 +334,10 @@ export class AssistantRoundMaterials {
     try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { return null; }
     if (!actions) return null;
     const offered = await actions.discover().catch(() => [] as ActionView[]);
-    const readers = offered.filter(view => isSubjectReader(view.action) && view.availability.available);
     const read = async (kind: string, id: string): Promise<ActionSubjectContext | null> => {
-      const reader = readers.find(view => view.action.subject_kinds.includes(kind));
-      if (!reader) return null;
+      const lookup = findSubjectReader(offered, kind);
+      if (lookup.found !== "one") return null;
+      const reader = lookup.view;
       try { return await actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: id }) as ActionSubjectContext; }
       catch { return null; }
     };
@@ -367,7 +369,6 @@ export class AssistantRoundMaterials {
     if (!actions) throw assistantErrors.unsupported("现在读不到引用的内容，请稍后再试或去掉引用");
     const views = await actions.discover().catch(() => [] as ActionView[]);
     const opener = views.find(view => view.capability_id === "search.open" && view.availability.available);
-    const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
       if (!material.reference || !material.object || "material" in material.reference || "subject" in material.reference) { out.push(material.reference && "subject" in material.reference ? await readPickedPiece(actions, views, { ...material, reference: material.reference }) : material); continue; }
@@ -380,9 +381,11 @@ export class AssistantRoundMaterials {
         if (moved) throw assistantErrors.invalid(`引用的「${material.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」，这项工作读不到它；去掉引用，或在那里继续`);
         throw assistantErrors.invalid(`引用的「${material.title}」${opened.state === "missing" ? "已不存在" : "现在读不到"}（${opened.reason}）；去掉它或重新选择后再发`);
       }
-      const subject = opened.subject, reader = readers.find(view => view.action.subject_kinds.includes(subject.kind));
+      const subject = opened.subject;
+      const lookup = findSubjectReader(views, subject.kind);
       let context: ActionSubjectContext | null = null;
-      if (reader) {
+      if (lookup.found === "one") {
+        const reader = lookup.view;
         try { context = await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id }) as ActionSubjectContext; }
         catch { context = null; }
       }

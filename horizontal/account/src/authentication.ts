@@ -15,7 +15,21 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
   let current: AuthenticationTransaction | undefined;
   const discard = (t: AuthenticationTransaction) => { t.status = "CANCELLED"; t.nextStep = "NONE"; t.operationProof = undefined; t.identityProof = undefined; t.reset = undefined; t.verification = undefined; };
   const keep = (t: AuthenticationTransaction) => {
-    for (const [key, old] of pending) if (Date.parse(old.expiresAt) <= Date.now() || ["CANCELLED", "EXPIRED"].includes(old.status)) { discard(old); pending.delete(key); }
+    for (const [key, old] of pending) if (Date.parse(old.expiresAt) <= Date.now() || ["CANCELLED", "EXPIRED"].includes(old.status)) {
+      discard(old);
+      pending.delete(key);
+      if (current === old) current = undefined;
+    }
+    if (pending.size >= 32) {
+      for (const [key, old] of pending) {
+        if (old.finished === true) {
+          discard(old);
+          pending.delete(key);
+          if (current === old) current = undefined;
+          if (pending.size < 32) break;
+        }
+      }
+    }
     if (pending.size >= 32) throw accountErrors.conflict("Too many account verifications");
     pending.set(t.handle, t);
   };
@@ -38,10 +52,16 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
   async function startLogin(input: unknown, control: AccountCallControl, password: boolean) {
     validAuthentication(password ? "ProductLoginPasswordRequest" : "ProductSendVerificationRequest", input);
     const attempt = sessions.beginLogin(control), t = newAuthentication("LOGIN", password ? "ACCOUNT_PASSWORD" : input.channel === "SMS" ? "PHONE_OTP" : "EMAIL_CODE");
-    if (current) { discard(current); pending.delete(current.handle); }
-    t.attempt = attempt; current = t; keep(t);
+    t.attempt = attempt;
     const guarded = { ...control, initiatorProofRef: t.handle, assertCurrent: () => { control.assertCurrent(); assertAuthentication(t); } };
     try {
+      if (current) {
+        discard(current);
+        pending.delete(current.handle);
+        current = undefined;
+      }
+      keep(t);
+      current = t;
       const result = await protocol.service(t).invoke(password ? "loginPassword" : "sendLoginVerification", { body: {
         ...input, clientId: config.clientId, redirectUri: config.redirectAllowlist[0], state: t.state,
         codeChallenge: authenticationDigest(t.verifier), codeChallengeMethod: "S256", initiatorChallenge: authenticationDigest(t.proof),
@@ -50,7 +70,13 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
       if (password) return await protocol.acceptLogin(t, result.data, guarded);
       t.id = String(result.data.verificationId); t.expiresAt = String(result.data.expiresAt); t.nextStep = "LOGIN_CODE";
       return { verificationId: t.handle, expiresAt: t.expiresAt, retryAfterSeconds: result.data.retryAfterSeconds };
-    } catch (error) { sessions.cancelLogin(attempt); discard(t); pending.delete(t.handle); throw error; }
+    } catch (error) {
+      sessions.cancelLogin(attempt);
+      discard(t);
+      pending.delete(t.handle);
+      if (current === t) current = undefined;
+      throw error;
+    }
     finally { t.busy = false; }
   }
   return {
@@ -74,15 +100,27 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
       validAuthentication("ProductTransactionRequest", input);
       if (["BIND", "REPLACE"].includes(String(input.purpose))) return management.create(input, control);
       const attempt = sessions.beginLogin(control), t = newAuthentication(String(input.purpose), String(input.method));
-      if (current) { discard(current); pending.delete(current.handle); }
-      t.attempt = attempt; current = t; keep(t);
+      t.attempt = attempt;
       try {
+        if (current) {
+        discard(current);
+        pending.delete(current.handle);
+        current = undefined;
+      }
+        keep(t);
+        current = t;
         const result = await protocol.service(t).invoke("createTransaction", { body: { clientId: config.clientId, redirectUri: config.redirectAllowlist[0], state: t.state,
           purpose: t.purpose, method: t.method, codeChallenge: authenticationDigest(t.verifier), codeChallengeMethod: "S256", initiatorChallenge: authenticationDigest(t.proof) } },
           { ...control, assertCurrent: () => { control.assertCurrent(); attempt.assertCurrent(); } });
         if (!isRecord(result.data)) throw accountErrors.upstream_invalid("Invalid authentication result");
         t.id = String(result.data.transactionId); t.expiresAt = String(result.data.expiresAt); t.nextStep = String(result.data.nextStep); return authenticationView(t);
-      } catch (error) { sessions.cancelLogin(attempt); pending.delete(t.handle); throw error; } finally { t.busy = false; }
+      } catch (error) {
+      sessions.cancelLogin(attempt);
+      discard(t);
+      pending.delete(t.handle);
+      if (current === t) current = undefined;
+      throw error;
+    } finally { t.busy = false; }
     },
     async reauthenticate(input: unknown, control: AccountCallControl) { validAuthentication("ProductReauthenticationRequest", input); return management.create(input, control, true); },
     mutate: management.mutate,

@@ -196,3 +196,32 @@ test("QEA-34: an edit during a blocked save survives the older resolution; succe
   await browser.reloadPage(); await show(); await open();
   assert.match(await frame.evaluate<string>("document.querySelector('[data-git-conflict-text]').value"), /<<<<<<< HEAD/u, "a successfully submitted snapshot does not return as a draft");
 });
+
+test("F-plugins-rest-w2-12: conflict parser preserves 8+ equals lines inside ours and recognizes tab-delimited conflict markers", { timeout: 120_000 }, async t => {
+  const ctx = await gitEditor(t, "git", true); if (!ctx) return;
+  const { frame } = ctx;
+  await chooseConflict(frame, 1);
+  await frame.waitFor("!document.querySelector('[data-git-conflict-text]').disabled");
+  const conflictWithRule = [
+    "<<<<<<< HEAD",
+    "Heading",
+    "==========",
+    "ours body",
+    "=======",
+    "theirs body",
+    ">>>>>>> incoming",
+    "",
+  ].join("\n");
+  await edit(ctx, "conflict-text", conflictWithRule);
+  assert.equal(await frame.evaluate("document.querySelectorAll('[data-git-conflict-picks] .git-sc-pick').length"), 1);
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-resolve]').disabled"), true);
+  await frame.click("[data-git-conflict-picks] .git-sc-pick button:first-of-type");
+  assert.equal(
+    await frame.evaluate<string>("document.querySelector('[data-git-conflict-text]').value"),
+    "Heading\n==========\nours body\n",
+    "picking ours must keep the 10-equals line and body intact without leaving real markers",
+  );
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-resolve]').disabled"), false, "10-equals line is not a conflict marker");
+  await edit(ctx, "conflict-text", "=======\t\n");
+  assert.equal(await frame.evaluate("document.querySelector('[data-git-conflict-resolve]').disabled"), true, "tab after 7 equals is still recognized as a conflict marker");
+});

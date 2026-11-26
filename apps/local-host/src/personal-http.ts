@@ -184,7 +184,14 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     return {auth:service,nonce,native:pendingNative,attachOnly:pendingAttachOnly,expires:navigation.expires,complete:navigation.complete,
       accepts(request:IncomingMessage){return pendingNative||webSessions.get(request.headers.cookie)===pendingBrowser;},
       assertCurrent(){if(auth!==service||pendingNavigation!==navigation||loginNonce!==nonce||(!navigation.complete&&!service.loginPending()))throw new Error('LOGIN_CANCELLED');},
-      fail(){if(!navigation.complete&&pendingNavigation===navigation){service.cancelLogin();pendingNavigation=null;loginNonce=null;}},
+      fail() {
+        if (!navigation.complete && pendingNavigation === navigation) {
+          service.cancelLogin();
+          pendingNavigation = null;
+          pendingBrowser = null;
+          loginNonce = null;
+        }
+      },
       async completeLogin(response:ServerResponse){
         // adoptLogin verified the candidate AUTHENTICATED view and persisted it. A later confirmation read can
         // fail for network reasons that must not turn this committed login back into "not signed in"; the next
@@ -247,7 +254,12 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       }
       if(request.method==='POST'&&url.pathname==='/api/personal/login-cancel'){
         if(!navigation||navigation.complete||navigation.id!==url.searchParams.get('attempt')||navigation!==pendingNavigation&&(pendingNavigation!==null||service.loginPending())){sendLocalWebJson(response,409,{error:readErrorWord('common.error.account-page-expired')});return true;}
-        service.cancelLogin();pendingNavigation=null;loginNonce=null;
+        service.cancelLogin();
+        pendingNavigation = null;
+        pendingBrowser = null;
+        loginNonce = null;
+        if(desktop&&desktopNavigation===navigation)desktopNavigation=null;
+        else if(session&&session.navigation===navigation)session.navigation=null;
         if(service.identity()&&(desktop||session?.authenticated)){const lease=service.accountLease(),preparation=refreshPages.snapshot(lease);if(preparation)refreshPages.cancel(preparation.ownerPageId,lease,preparation.id);}
         sendLocalWebJson(response,200,{cancelled:true});return true;
       }
@@ -290,7 +302,14 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       sendLocalWebJson(response,405,{error:readErrorWord('common.error.method-not-allowed')});
     }catch{
       const failedLogin=(['/api/personal/login','/api/personal/switch'].includes(url.pathname))&&navigation!==null&&navigation===pendingNavigation;
-      if(failedLogin)service?.cancelLogin();
+      if(failedLogin){
+        service?.cancelLogin();
+        pendingNavigation=null;
+        pendingBrowser=null;
+        loginNonce=null;
+        if(desktop&&desktopNavigation===navigation)desktopNavigation=null;
+        else if(session&&session.navigation===navigation)session.navigation=null;
+      }
       if(failedLogin&&service?.identity()&&(desktop||session?.authenticated)){
         const lease=service.accountLease(),preparation=refreshPages.snapshot(lease);if(preparation)refreshPages.cancel(preparation.ownerPageId,lease,preparation.id);
       }

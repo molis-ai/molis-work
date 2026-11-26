@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeListEntry, type KnowledgeListRequest, type KnowledgeListResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { codingManifest, knowledgeCatalogMaterial, withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KnowledgeService, PLAIN_SECTION_CHARS, grepLines, outlineOf } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeOrganizer, KnowledgeService, PLAIN_SECTION_CHARS, RoundBudget, grepLines, locateSections, outlineOf } from "@molis-ai/molis-work-service-knowledge";
 import { searchSourceKey } from "@molis-ai/molis-work-contracts/services/search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
@@ -236,4 +238,121 @@ test("PMAT-36 a Coding round that carries 「列出项目资料」 gets the cata
   assert.deepEqual(asked, [{ related_to: "仓库着火", limit: 40 }], "one listing, the related pieces first");
   assert.equal(await knowledgeCatalogMaterial(actions(0), list, "仓库着火"), null, "nothing listed, nothing given");
   assert.equal(await knowledgeCatalogMaterial(actions(3, true), list, "仓库着火"), null, "a listing that fails does not stop the round");
+});
+
+test("F-horiz-runtime-34 read, grep, organize, locate and glob enforce post-await beforeEffect/assertCurrent and rethrow AbortError", async t => {
+  const f = await fixture(t);
+  f.pages.set("p1", { id: "p1", title: "试用说明", body: HANDBOOK, version: 4 });
+  const roundCaller = (id: string, signal?: AbortSignal): ActionCallContext => ({
+    ...reader(), runtime_session_id: id, call_id: `${id}-call`, ...(signal ? { signal } : {}),
+  });
+
+  // 1. Revoking authority during assertActive (after initial beforeEffect) blocks receipt and budget spend in read and grep.
+  for (const op of ["read", "grep"] as const) {
+    const budget = new RoundBudget();
+    let calls = 0, revoked = false;
+    const held = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const service = new KnowledgeService({
+      cards: f.cards, budget, search: (access, input) => f.search.query(access, input),
+      sourceState: async () => {
+        if (++calls === 3) { held.resolve(); await release.promise; }
+        return "active";
+      },
+    });
+    const roundId = `revoke-${op}`;
+    const access = {
+      ...f.access(roundCaller(roundId)),
+      beforeEffect: async () => { if (revoked) throw new ActionError("actions.forbidden", "已撤权"); },
+    };
+    const pending = op === "read"
+      ? service.read(access, { subject: { kind: "page", id: "p1" } })
+      : service.grep(access, { pattern: "MW-0042", subjects: [{ kind: "page", id: "p1" }] });
+    await held.promise;
+    revoked = true;
+    release.resolve();
+    await assert.rejects(pending, { code: "actions.forbidden" });
+    assert.equal(budget.left(roundId), 60_000, `${op} leaves budget untouched`);
+    assert.equal(f.cards.receipts("a", { limit: 20, offset: 0 }).receipts.filter(r => r.runtime_session_id === roundId).length, 0, `${op} writes no receipt`);
+  }
+
+  // 2. AbortError inside KnowledgeSourceReader.read's try/catch and activeResults propagates as AbortError instead of unreadable/empty.
+  const abortError = Object.assign(new Error("aborted"), { name: "AbortError" });
+  let abortReadCalls = 0;
+  const abortingReadService = new KnowledgeService({
+    cards: f.cards, search: (access, input) => f.search.query(access, input),
+    sourceState: async () => {
+      if (++abortReadCalls >= 2) throw abortError;
+      return "active";
+    },
+  });
+  await assert.rejects(() => abortingReadService.read(f.access(reader()), { subject: { kind: "page", id: "p1" } }), { name: "AbortError" });
+  await assert.rejects(() => abortingReadService.activeResults(f.access(reader()), [{ subject: { kind: "page", id: "p1" } }]), { name: "AbortError" });
+
+  // 3. KnowledgeOrganizer re-checks assertCurrent after final sourceState await before store.put.
+  const subject = { kind: "page", id: "org-1" };
+  let stateCalls = 0, current = true;
+  const assertCurrent = () => { if (!current) throw new ActionError("actions.forbidden", "目录授权失效"); };
+  const piece = {
+    subject, source_key: "src:org", provider_id: "pages", plugin_id: "pages", plugin_title: "Pages",
+    revision: "r1", title: "待整理", summary: "", content: "正文内容", content_policy: "context" as const,
+    updated_at: null, open: null, assertCurrent,
+  };
+  const stateHeld = Promise.withResolvers<void>(), stateRelease = Promise.withResolvers<void>();
+  const organizer = new KnowledgeOrganizer({
+    store: f.cards,
+    catalog: async () => ({ pieces: [piece], unsettled: new Set<string>() }),
+    sourceState: async () => {
+      if (++stateCalls === 2) { stateHeld.resolve(); await stateRelease.promise; }
+      return "active";
+    },
+    writer: () => async () => ({ title: "已整理", brief: "简介" }),
+  });
+  t.after(() => organizer.close());
+  const running = organizer.kick("a");
+  await stateHeld.promise;
+  current = false;
+  stateRelease.resolve();
+  await running;
+  assert.equal(f.cards.get("a", subject)?.state, "pending", "stale authority after final state await writes no organized card");
+
+  // 4. locateSections rethrows AbortError and enforces beforeEffect even when trees.length === 0.
+  const locator = async () => ({ sections: [] });
+  await assert.rejects(
+    () => locateSections({ question: "q", subjects: [{ kind: "page", id: "p1" }] }, async () => { throw abortError; }, locator),
+    { name: "AbortError" },
+  );
+  await assert.rejects(
+    () => locateSections(
+      { question: "q", subjects: [{ kind: "page", id: "p1" }] },
+      async () => { throw new ActionError("knowledge.unreadable", "读不到"); },
+      locator,
+      async () => { throw new ActionError("actions.forbidden", "已撤权"); },
+    ),
+    { code: "actions.forbidden" },
+  );
+  const archivedAll = await locateSections(
+    { question: "q", subjects: [{ kind: "page", id: "p1" }] },
+    async () => { throw new ActionError("knowledge.unreadable", "已归档"); },
+    locator,
+    async () => { throw new ActionError("knowledge.unreadable", "已归档"); },
+  );
+  assert.deepEqual([archivedAll.sections, archivedAll.unread.length], [[], 1]);
+
+  // 5. KnowledgeWorkspace.glob rethrows AbortError instead of turning it into unread.
+  const globClient: ActionClient = {
+    discover: async () => [
+      { capability_id: workspaceReadActions.file.capability_id, version: workspaceReadActions.file.version, operation: "query" as const, provider: { provider_id: "ws", title: "WS", kind: "system" }, action: workspaceReadActions.file.action, availability: { available: true } } as ActionView,
+      { capability_id: projectDirectoryActions.get.capability_id, version: projectDirectoryActions.get.version, operation: "query" as const, provider: { provider_id: "proj", title: "Proj", kind: "system" }, action: projectDirectoryActions.get.action, availability: { available: true } } as ActionView,
+    ],
+    invoke: async (_caller, ref) => {
+      if (ref.capability_id === projectDirectoryActions.get.capability_id) {
+        return { directories: [{ workspace_id: "w1", display_name: "Docs", state: "ok", realpath_verified: true }] };
+      }
+      throw abortError;
+    },
+  };
+  await assert.rejects(
+    () => f.knowledge.glob({ client: globClient, caller: reader() }, { pattern: "**/*.md" }),
+    { name: "AbortError" },
+  );
 });

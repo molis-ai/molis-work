@@ -941,3 +941,31 @@ test("MEM-10 MEM-11 generic applies.objects filters recall and forRun for both n
   const recipe = await memory.forRun(assistant(), { query: "架构文档", situation: { objects: [docObj] } });
   assert.deepEqual(recipe?.facts?.objects, [docObj]);
 });
+
+test("F-horiz-runtime-25: character-scope memory changes preserve owning project_id across write, edit and disable", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const charPerson: MemoryCaller = { ...person("project-a"), character: { id: "char-reviewer", title: "审稿助手" } };
+  const created = (await memory.write(charPerson, { scope: "character", text: "审稿先核对数据口径" })).memory!;
+  const updated = (await memory.change(charPerson, {
+    memory_id: created.memory_id,
+    action: "update",
+    text: "审稿先核对数据口径与来源",
+    expected_version: created.version,
+  })).memory!;
+  await memory.change(charPerson, {
+    memory_id: created.memory_id,
+    action: "disable",
+    expected_version: updated.version,
+  });
+
+  const changes = await memory.changes(charPerson, { scope: "character", limit: 20 });
+  assert.ok(changes.length >= 3);
+  for (const change of changes) {
+    assert.equal(change.scope, "character");
+    assert.equal(change.project_id, "project-a");
+  }
+  const stored = env.ledger().changes(LOCAL_PERSON_ACTOR_ID, { scope: "character" });
+  assert.ok(stored.length >= 3);
+  assert.ok(stored.every(record => record.project_id === "project-a"));
+});

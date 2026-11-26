@@ -63,7 +63,7 @@ async function callCodexAppServer<T>(
   signal.throwIfAborted();
   return new Promise<T>((resolvePromise, rejectPromise) => {
     const child = spawn(binary, ["app-server"], {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "ignore"],
       shell: false,
       cwd,
       env,
@@ -91,6 +91,18 @@ async function callCodexAppServer<T>(
       cleanup();
       resolvePromise(val);
     };
+    const writeLine = (payload: Record<string, unknown>) => {
+      if (settled) return;
+      if (child.stdin.destroyed || !child.stdin.writable) {
+        fail(sessionSourceFailure("read_error", "Codex app-server 输入流不可写", true));
+        return;
+      }
+      try {
+        child.stdin.write(`${JSON.stringify(payload)}\n`);
+      } catch {
+        fail(sessionSourceFailure("read_error", "向 Codex app-server 发送请求失败", true));
+      }
+    };
 
     const onAbort = () => fail(signal.reason instanceof Error ? signal.reason : new Error("Aborted"));
     signal.addEventListener("abort", onAbort, { once: true });
@@ -101,9 +113,12 @@ async function callCodexAppServer<T>(
     timer.unref?.();
 
     child.on("error", () => fail(sessionSourceFailure("read_error", "无法启动 Codex app-server", true)));
+    child.stdin.on("error", () => fail(sessionSourceFailure("read_error", "Codex app-server 输入流中断", true)));
+    child.stdout.on("error", () => fail(sessionSourceFailure("read_error", "Codex app-server 输出流中断", true)));
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
+      if (settled) return;
       totalBytes += Buffer.byteLength(chunk, "utf8");
       if (totalBytes > COMMAND_MAX_BUFFER_BYTES) {
         fail(sessionSourceFailure("read_error", "Codex app-server 输出超过上限", false));
@@ -116,20 +131,25 @@ async function callCodexAppServer<T>(
         buffer = buffer.slice(newlineIdx + 1);
         newlineIdx = buffer.indexOf("\n");
         if (!line) continue;
-        let msg: Record<string, unknown>;
+        let parsed: unknown;
         try {
-          msg = JSON.parse(line) as Record<string, unknown>;
+          parsed = JSON.parse(line);
         } catch {
           fail(sessionSourceFailure("parse_error", "Codex app-server 返回了非法 JSON", false));
           return;
         }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          fail(sessionSourceFailure("parse_error", "Codex app-server 返回了非对象 JSON", false));
+          return;
+        }
+        const msg = parsed as Record<string, unknown>;
         if (msg.id === 1) {
           if (msg.error) {
             fail(sessionSourceFailure("version_mismatch", "Codex app-server 初始化失败", false));
             return;
           }
-          child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "initialized", params: {} })}\n`);
-          child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method, params })}\n`);
+          writeLine({ jsonrpc: "2.0", method: "initialized", params: {} });
+          writeLine({ jsonrpc: "2.0", id: 2, method, params });
         } else if (msg.id === 2) {
           if (msg.error) {
             fail(sessionSourceFailure("read_error", "Codex app-server 读取失败", false));
@@ -145,14 +165,12 @@ async function callCodexAppServer<T>(
       if (!settled) fail(sessionSourceFailure("read_error", "Codex app-server 提前退出", true));
     });
 
-    child.stdin.write(
-      `${JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: { clientInfo: { name: "molis-work", version: PRODUCT_VERSION } },
-      })}\n`,
-    );
+    writeLine({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { clientInfo: { name: "molis-work", version: PRODUCT_VERSION } },
+    });
   });
 }
 

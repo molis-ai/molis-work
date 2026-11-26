@@ -1,5 +1,5 @@
 import { realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { UI_FILE_PATTERNS, type UiAppearanceChoice, type UiAppearanceReceipt, type UiAppearanceSelection, type UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isRecord, parseSyncDocumentValue } from "@molis-ai/molis-work-plugin-sdk";
@@ -116,13 +116,19 @@ export const APPEARANCE_STATE_FILE: VersionedFile<AppearanceState> = {
 };
 
 export function createStateFile(home: string, baseline: UiAppearanceSelection) {
-  const path = join(home, APPEARANCE_STATE_PATH), directory = dirname(path);
+  const resolvedHome = resolve(home), path = join(resolvedHome, APPEARANCE_STATE_PATH), directory = dirname(path);
+  const stateDirName = dirname(APPEARANCE_STATE_PATH);
   const read = (): VersionedFileRead<AppearanceState> => {
     try {
+      const root = entryAt(resolvedHome);
+      if (!root || !root.isDirectory() || root.isSymbolicLink()) return { status: "unreadable" };
+      const realHome = realpathSync(resolvedHome);
       const parent = entryAt(directory);
-      if (realpathSync(home) !== home || (parent && !parent.isDirectory())) return { status: "unreadable" };
+      if (parent && (!parent.isDirectory() || parent.isSymbolicLink() || realpathSync(directory) !== join(realHome, stateDirName))) {
+        return { status: "unreadable" };
+      }
     } catch { return { status: "unreadable" }; }
-    return readVersionedFile(APPEARANCE_STATE_FILE, path, home);
+    return readVersionedFile(APPEARANCE_STATE_FILE, path, resolvedHome);
   };
   const empty: AppearanceState = { schema_version: APPEARANCE_STATE_VERSION, selection_revision: 0, selection: baseline,
     last_recoverable: baseline, undo_selection: null, applications: [], sync: null };

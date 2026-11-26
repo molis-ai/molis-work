@@ -874,3 +874,55 @@ test("P1-D2 S-47 declared project page route surfaces stageErrorsOf HTTP status 
   const body = await response.json() as { code?: string; error?: string };
   assert.equal(body.code, "actions.forbidden");
 });
+
+test("F-hc2-11 hiding a third-party Home plugin in a project refuses page open even when mount is omitted", { timeout: 30_000 }, async t => {
+  const probe = homeProbe("hiddenmountless");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await grantHomeProbe(f.host, probe);
+  const project = await f.project("Hidden Home plugin", ["pages"]);
+  const prefix = `/projects/${project.project_id}`;
+  // Third-party Home plugin starts hidden in a project until explicitly shown; omitting `mount` must not bypass visibility.
+  const refusedHidden = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(refusedHidden.status, 403, await refusedHidden.clone().text());
+  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {
+    method: "POST",
+    body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) },
+  });
+  assert.equal(shown.status, 200, await shown.clone().text());
+  const allowed = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(allowed.status, 200, await allowed.clone().text());
+  const hiddenAgain = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {
+    method: "DELETE",
+    body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) },
+  });
+  assert.equal(hiddenAgain.status, 200, await hiddenAgain.clone().text());
+  const refusedAgain = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(refusedAgain.status, 403, await refusedAgain.clone().text());
+});
+
+test("F-hc2-08 S-47 an expired or closing ordinary plugin page is refused and never resurrected across async scope validation", async () => {
+  const home = mkdtempSync(join(tmpdir(), "page-lapse-"));
+  const manifest = { plugin_id: "io.example.lapse", ui: {}, actions: [], routes: [{ route_id: "read", method: "GET", path: "/read" }] } as PluginManifest;
+  const pages = pluginPagesFor(home);
+  const disconnect = pages.connect({ manifest, install_id: "inst-lapse", project_id: "proj-lapse", actor_id: "web-user", assertCurrent() {} });
+  try {
+    const opened = pages.open(manifest.plugin_id, "proj-lapse", "web-user");
+    const request = new IncomingMessage(new Socket());
+    request.method = "GET";
+    request.headers = { "x-molis-plugin-page": opened.page_id };
+    const gate = deferred();
+    const entered = deferred();
+    const binding = pages.bind(request, new URL("http://127.0.0.1/projects/proj-lapse/api/plugins/io.example.lapse/read"), undefined, async () => {
+      entered.resolve();
+      await gate.promise;
+    });
+    await entered.promise;
+    const finishing = pages.finish(opened.page_id, undefined);
+    gate.resolve();
+    await assert.rejects(binding, (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && (error as { code: string }).code === "actions.forbidden"));
+    await finishing;
+  } finally {
+    disconnect();
+    rmSync(home, { recursive: true, force: true });
+  }
+});

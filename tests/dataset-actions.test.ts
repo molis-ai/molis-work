@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { datasetActions as actions, datasetManifest, DATASET_ACTION_PERMISSIONS, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openDatasetStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
@@ -174,4 +174,20 @@ test("RAC-1614: a table received from a workflow cuts its title at 80 whole Unic
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   const received = store.receiveCsv("rac-1614", "表" + "🟢".repeat(80), "列\n值");
   assert.equal(received.title, "表" + "🟢".repeat(79), "the title keeps 80 whole characters, never half of one");
+});
+
+test("F-plugins-rest-w2-08: Dataset CSV import route accepts valid 1-2 MB CSV payloads over HTTP without 413", async t => {
+  const importRoute = datasetManifest.routes?.find(route => route.route_id === "dataset.import");
+  assert.ok((importRoute?.max_body_bytes ?? 0) >= 4_000_000, "dataset.import max_body_bytes covers 2M-char CSV JSON bodies");
+  const { createProject, web } = await openTestHome(t, { host: { completeText: null }, catalogPolicy: true });
+  const project = await createProject("Dataset large import", ["dataset"]);
+  const base = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.dataset/datasets`;
+  const created = await web.post<{ dataset: { id: string; version: number } }>(base, { title: "大表" });
+  const filler = "a".repeat(1_000);
+  const csv = "col\n" + Array.from({ length: 1_400 }, () => filler).join("\n");
+  assert.ok(Buffer.byteLength(csv) > 1_000_000 && Buffer.byteLength(csv) < 2_000_000);
+  const imported = await web.post<{ dataset: { rows: unknown[] } }>(`${base}/${encodeURIComponent(created.dataset.id)}/import-csv`, {
+    csv, expected_version: created.dataset.version,
+  });
+  assert.equal(imported.dataset.rows.length, 1_400);
 });

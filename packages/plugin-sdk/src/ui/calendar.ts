@@ -1,8 +1,32 @@
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
 import { renderButton } from "./button.js";
 import { renderInput } from "./field.js";
+import { activeUiIntlLocale, trySharedUiText } from "./text.js";
 
-const DEFAULT_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+function defaultWeekdays(): readonly string[] {
+  const intlLocale = activeUiIntlLocale();
+  try {
+    const formatter = new Intl.DateTimeFormat(intlLocale, { weekday: "narrow", timeZone: "UTC" });
+    // 2024-01-01 is a Monday in UTC.
+    return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(Date.UTC(2024, 0, 1 + index))));
+  } catch {
+    return ["1", "2", "3", "4", "5", "6", "7"];
+  }
+}
+
+function formatCalendarTitle(year: number, month: number): string {
+  const intlLocale = activeUiIntlLocale();
+  if (intlLocale) {
+    try {
+      return new Intl.DateTimeFormat(intlLocale, { year: "numeric", month: "long", timeZone: "UTC" }).format(
+        new Date(Date.UTC(year, month, 1)),
+      );
+    } catch {
+      // Fall through to neutral ISO year-month when the locale tag is unsupported.
+    }
+  }
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
+}
 
 function civilKey(year: number, month: number, date: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(date).padStart(2, "0")}`;
@@ -17,10 +41,12 @@ export function renderCalendar(options: {
   labelledBy?: string;
   title?: string;
   weekdays?: ReadonlyArray<string>;
+  prevLabel?: string;
+  nextLabel?: string;
   className?: string;
   attrs?: Record<string, AttrValue>;
 }): string {
-  const weekdays = options.weekdays ?? DEFAULT_WEEKDAYS;
+  const weekdays = options.weekdays ?? defaultWeekdays();
   const start = new Date(options.year, options.month, 1);
   const offset = (start.getDay() + 6) % 7;
   start.setDate(1 - offset);
@@ -43,13 +69,13 @@ export function renderCalendar(options: {
     line += "</tr>";
     cells.push(line);
   }
-  const title = options.title ?? `${options.year}年${options.month + 1}月`;
+  const title = options.title ?? formatCalendarTitle(options.year, options.month);
   const prev = renderButton({
     variant: "ghost",
     size: "icon",
     icon: "back",
     iconOnly: true,
-    label: "上个月",
+    label: options.prevLabel ?? trySharedUiText("common.pagination.previous") ?? "‹",
     attrs: { "data-calendar-step": "-1" },
   });
   const next = renderButton({
@@ -57,7 +83,7 @@ export function renderCalendar(options: {
     size: "icon",
     icon: "chevron-right",
     iconOnly: true,
-    label: "下个月",
+    label: options.nextLabel ?? trySharedUiText("common.pagination.next") ?? "›",
     attrs: { "data-calendar-step": "1" },
   });
   return `<section class="${cx("mw-calendar", options.compact && "mw-calendar--compact", options.className)}" data-slot="calendar" data-calendar-year="${options.year}" data-calendar-month="${options.month}"${
@@ -72,6 +98,7 @@ export function renderDatePicker(options: {
   name?: string;
   value?: string;
   placeholder?: string;
+  openLabel?: string;
   className?: string;
   calendar: Parameters<typeof renderCalendar>[0];
 }): string {
@@ -79,14 +106,14 @@ export function renderDatePicker(options: {
     <div class="mw-input-group">${renderInput({
       name: options.name,
       value: options.value,
-      placeholder: options.placeholder ?? "选择日期",
+      placeholder: options.placeholder ?? trySharedUiText("common.interaction.choose-date") ?? "YYYY-MM-DD",
       attrs: { "data-date-picker-input": true, autocomplete: "off" },
     })}${renderButton({
       variant: "ghost",
       size: "icon",
       icon: "calendar",
       iconOnly: true,
-      label: "打开日历",
+      label: options.openLabel ?? trySharedUiText("common.interaction.open-calendar") ?? "…",
       attrs: { "data-date-picker-open": true },
     })}</div>
     ${renderCalendar({ ...options.calendar, className: cx("mw-date-picker__popup", options.calendar.className) })}
@@ -94,5 +121,5 @@ export function renderDatePicker(options: {
 }
 
 export function calendarTitle(year: number, month: number): string {
-  return `${year}年${month + 1}月`;
+  return formatCalendarTitle(year, month);
 }

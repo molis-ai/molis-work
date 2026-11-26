@@ -12,6 +12,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "dragDropEnabled": false,
         "title": "Molis Work",
         "width": 1180,

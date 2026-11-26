@@ -4,12 +4,12 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION, appearanceSelectionActions as actions,
   type UiAppearanceApplyInput, type UiAppearanceSelection } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, createAppearanceOwner, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
-import { upgradeVersionedFile } from '@molis-ai/molis-work-storage';
+import { ensureStorageSpace, personalStorageSpace, upgradeVersionedFile } from '@molis-ai/molis-work-storage';
 
 const person: ActionCallContext = { actor_id: "appearance-person", audience: "user", project_id: null,
   permissions: [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION] };
@@ -281,4 +281,85 @@ test("FSS-71 read the existing locale format, retain cached success, and preserv
   assert.equal(restarted.owner.locale.lastUsed(), "zh");
   restarted.owner.locale.remember("en");
   assert.equal(fs.readFileSync(setup.localeFile, "utf8"), newer);
+});
+
+test("F-horiz-runtime-33 commit preserves ActionError and AbortError in personal space and tolerates symlinked ancestor home paths", async t => {
+  const setup = await isolatedHome(t);
+  const applyHandler = setup.owner.provider().handlers.find(handler => handler.capability_id === actions.apply.capability_id)!;
+  const invokeApply = (caller: ActionExecutionContext, input: UiAppearanceApplyInput) =>
+    applyHandler.handle(caller, input);
+  const baseCaller = (extra: Partial<ActionExecutionContext> = {}): ActionExecutionContext => ({
+    ...person, beforeEffect: async () => {}, assert_authority_current: () => {}, ...extra,
+  });
+
+  // Write rev 1 before personal space exists so the next personal-space commit exercises seed().
+  await setup.client().invoke(actions.apply, select("seed-first", 0));
+  const space = personalStorageSpace("https://auth.example.test", "work", person.actor_id);
+  ensureStorageSpace(setup.home, space);
+
+  // 1. Revoked authority inside personal-space update must stay actions.forbidden (not write_failed / outcome_unknown).
+  let revokeChecks = 0;
+  await assert.rejects(
+    invokeApply(baseCaller({
+      assert_authority_current() {
+        if (++revokeChecks >= 2) throw new ActionError("actions.forbidden", "授权已撤销");
+      },
+    }), restore("revoked-in-update", 1)),
+    { code: "actions.forbidden" },
+  );
+
+  // 2. AbortError during personal-space update must propagate as AbortError.
+  const abort = new AbortController();
+  let abortChecks = 0;
+  await assert.rejects(
+    invokeApply(baseCaller({
+      signal: abort.signal,
+      assert_authority_current() {
+        if (++abortChecks >= 2) abort.abort();
+      },
+    }), restore("aborted-in-update", 1)),
+    (error: unknown) => error instanceof Error && error.name === "AbortError",
+  );
+
+  // 3. Concurrent revision conflict after seed() must stay actions.conflict (not outcome_unknown).
+  let bumped = false;
+  await assert.rejects(
+    invokeApply(baseCaller({
+      assert_authority_current() {
+        if (bumped || !fs.existsSync(setup.path)) return;
+        const disk = JSON.parse(fs.readFileSync(setup.path, "utf8"));
+        if (disk.sync === null) return;
+        bumped = true;
+        disk.selection_revision = 2;
+        disk.selection = baseline;
+        disk.applications.push({
+          actor_id: person.actor_id,
+          choice: { kind: "restore" },
+          applied: { request_id: "raced-elsewhere", selection_revision: 2, selection: baseline },
+        });
+        fs.writeFileSync(setup.path, `${JSON.stringify(disk, null, 2)}\n`);
+      },
+    }), restore("conflict-in-update", 1)),
+    { code: "actions.conflict" },
+  );
+  assert.equal(bumped, true, "seed() wrote sync metadata before the concurrent revision conflict");
+
+  // 4. Ancestor symlink (e.g. /var -> /private/var) is allowed while direct symlink home is refused.
+  const root = await realpath(await mkdtemp(join(tmpdir(), "appearance-symlink-")));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const realParent = join(root, "real-parent"), realHome = join(realParent, "home");
+  fs.mkdirSync(realHome, { recursive: true });
+  const aliasParent = join(root, "alias-parent");
+  fs.symlinkSync(realParent, aliasParent);
+  const aliased = open(join(aliasParent, "home"));
+  t.after(aliased.close);
+  assert.deepEqual((await aliased.client().invoke(actions.get, {})).problems, []);
+  assert.equal((await aliased.client().invoke(actions.apply, select("via-alias", 0))).selection_revision, 1);
+
+  const directLink = join(root, "direct-link");
+  fs.symlinkSync(realHome, directLink);
+  const linked = open(directLink);
+  t.after(linked.close);
+  const linkedView = await linked.client().invoke(actions.get, {});
+  assert.ok(linkedView.problems.some(problem => problem.code === "appearance.state_unreadable"));
 });

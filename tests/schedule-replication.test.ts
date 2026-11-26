@@ -75,3 +75,28 @@ test("malformed payload cannot replace a task, and an active local task cannot b
     } finally { c.close(); }
   } finally { a.close(); b.close(); }
 });
+
+test("F-plugins-rest-01: Schedule sync counts Unicode code points and transfers >1000 turns without unilateral turn or SQL variable limits", () => {
+  const a = fixture(), b = fixture();
+  try {
+    const title = "😀".repeat(80), instructions = "😀".repeat(4_500);
+    a.db.prepare(`INSERT INTO schedule_conversation_tasks
+      (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      "task-1", title, instructions, 9, 30, 1, 0, 0, 0, null,
+      null, null, "2026-10-14T00:00:00.000Z", "2026-10-14T00:00:00.000Z",
+    );
+    const insertTurn = a.db.prepare("INSERT INTO schedule_conversation_turns VALUES (?,?,?,?,?,?)");
+    for (let i = 0; i < 1_005; i++) {
+      insertTurn.run(`turn-${i}`, "task-1", i % 2 === 0 ? "user" : "assistant", i === 0 ? "长".repeat(100_050) : `轮次 ${i}`, 0, "2026-10-14T00:00:00.000Z");
+    }
+    const mutation = a.replica.next();
+    assert.ok(mutation);
+    b.replica.receive({ ...mutation, revision: 1 });
+    assert.equal(b.replica.conflicts().length, 0);
+    const row = b.db.prepare("SELECT title,instructions FROM schedule_conversation_tasks WHERE task_id=?").get("task-1") as { title: string; instructions: string };
+    assert.equal(row.title, title);
+    assert.equal(row.instructions, instructions);
+    assert.equal(b.db.prepare<[], { n: number }>("SELECT COUNT(*) AS n FROM schedule_conversation_turns WHERE task_id='task-1'").get()?.n, 1_005);
+  } finally { a.close(); b.close(); }
+});

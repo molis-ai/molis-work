@@ -6,7 +6,7 @@ import type { JellyPage } from "./types.js";
 const uiText = globalThis.t;
 
 /** The shared dialog: the page fills it for one view at a time; `version` tells a late answer which view it belongs to. */
-export function openGeneric(page: JellyPage, title: string, html: string, ok: string, submit: (() => Promise<unknown>) | null, cleanup?: () => void): void {
+export function openGeneric(page: JellyPage, title: string | { original: string }, html: string, ok: string, submit: (() => Promise<unknown>) | null, cleanup?: () => void): void {
   const dialog = page.$<HTMLDialogElement>("[data-jelly-dialog]");
   const hooks = page.dialog;
   hooks.version++;
@@ -16,7 +16,7 @@ export function openGeneric(page: JellyPage, title: string, html: string, ok: st
   previous?.();
   hooks.submit = submit;
   hooks.cleanup = cleanup ?? null;
-  page.$("[data-jelly-dialog-title]").textContent = uiText.text(title);
+  page.$("[data-jelly-dialog-title]").textContent = typeof title === "string" ? uiText.text(title) : title.original;
   page.$("[data-jelly-dialog-body]").innerHTML = html;
   const button = page.$<HTMLButtonElement>("[data-jelly-dialog-ok]");
   button.textContent = uiText.text(ok || "jelly.action.confirm");

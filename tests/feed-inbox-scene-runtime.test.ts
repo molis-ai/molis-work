@@ -4,7 +4,7 @@ import test from "node:test";
 import type { ActionCallContext, ActionClient, ActionSceneBinding, ActionSceneUsage, ActionSceneView, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-plugin-inbox";
-import { createFeedSceneRuntime, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedSceneRuntime, feedCaptureContent, feedCaptureScene, feedCaptureSubjectRevision, feedInformationPlanContext, feedInformationPlanData, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest, createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, withStagedFeedContent } from "@molis-ai/molis-work-plugin-inbox";
 import { installHostUiText, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 
@@ -31,12 +31,12 @@ const usage = (over: Partial<ActionSceneUsage> = {}): ActionSceneUsage => ({ sce
 const sceneView = (sceneId: string, version: number, compatible: boolean, availability: unknown = { available: true }, reason?: string): ActionSceneView =>
   ({ definition: { scene_id: sceneId, version }, compatible, availability, ...(reason ? { reason } : {}) }) as never;
 
-function feedRuntime(over: { usages?: ActionSceneUsage[]; judgments?: JudgmentRecord[]; item?: (id: string) => FeedItemRecord; views?: ActionSceneView[]; actions?: Partial<ActionClient> } = {}) {
+function feedRuntime(over: { usages?: ActionSceneUsage[]; judgments?: JudgmentRecord[]; item?: (id: string) => FeedItemRecord; views?: ActionSceneView[]; actions?: Partial<ActionClient>; feed?: Partial<FeedApplication> } = {}) {
   const recorded: unknown[] = [];
   const scenes = { usages: async () => over.usages ?? [], discoverScenes: async () => over.views ?? [],
     discoverScenesFor: (_caller: ActionCallContext, refs: readonly ExactActionReference[]) => refs.map(() => over.views ?? []) } as never;
   const actions = { discover: async () => [], invoke: async () => ({ status: "ok", suggested_behavior_ids: [] }), ...over.actions } as never;
-  const runtime = createFeedSceneRuntime({ projectId: PROJECT, feed: {} as FeedApplication, actions, scenes, host: {
+  const runtime = createFeedSceneRuntime({ projectId: PROJECT, feed: (over.feed ?? {}) as FeedApplication, actions, scenes, host: {
     latestJudgments: () => over.judgments ?? [],
     recordJudgment: input => { recorded.push(input); return {} as never; },
     item: over.item ?? (() => itemOf(1)),
@@ -214,4 +214,101 @@ test("FI-6 a callback of the scene that no Inbox action started judges nothing f
   const staged = withStagedFeedContent(new Map([["item-1", { item_id: "item-1", revision: 1, title: "标题", summary: null, body: "正文", materials: [] }]]),
     () => handler.prepare(caller, { entry_id: "entry-1" })) as { input: { content: string } };
   assert.match(staged.input.content, /正文/u);
+});
+
+test("F-pm3-04 Feed capture content, scene preview and information plan redact secrets and cap capture text safely to 8000 characters", async () => {
+  const fakeOpenAiKey = (tag: string) => ["sk", "proj", tag].join("-");
+  const secretTitle = fakeOpenAiKey("secret1234567890abcdef");
+  const secretSummary = ["ghp", "1234567890abcdefghij123456789012"].join("_");
+  const secretTail = fakeOpenAiKey("tail9876543210fedcba");
+  const secretBoundary = fakeOpenAiKey("boundary1234567890abcdef");
+  const secretPrompt = fakeOpenAiKey("prompt1234567890abcdef");
+
+  const longItem: FeedItemRecord = {
+    ...itemOf(1, `标题 ${secretTitle}`),
+    source_id: "src-1",
+    tags: [],
+    summary: `摘要 ${secretSummary}`,
+    body: `${"a".repeat(7960)}🟢${"b".repeat(5000)} ${secretTail}`,
+    materials: [],
+  };
+  const captured = feedCaptureContent(longItem);
+  assert.ok(captured.length <= 8000, `capture content exceeded 8000 UTF-16 units: ${captured.length}`);
+  assert.ok([...captured].length <= 8000, `capture content exceeded 8000 code points: ${[...captured].length}`);
+  assert.equal(captured.isWellFormed(), true, "truncation must not split surrogate pairs");
+  assert.ok(captured.includes("[REDACTED TOKEN]"));
+  for (const secret of [secretTitle, secretSummary, secretTail]) {
+    assert.equal(captured.includes(secret), false, `capture content must not retain ${secret}`);
+  }
+
+  const boundaryItem: FeedItemRecord = {
+    ...itemOf(1, "T"),
+    source_id: "src-1",
+    tags: [],
+    summary: "",
+    body: `${"x".repeat(7989)} ${secretBoundary}${"y".repeat(200)}`,
+    materials: [],
+  };
+  const boundaryCaptured = feedCaptureContent(boundaryItem);
+  assert.ok(boundaryCaptured.length <= 8000 && boundaryCaptured.isWellFormed());
+  assert.equal(boundaryCaptured.includes("sk-proj-"), false, "secret straddling the 8000-unit boundary must be redacted before truncation");
+  assert.equal(boundaryCaptured.includes("boundary123456"), false);
+
+  const invoked: Array<{ content: string }> = [];
+  const runtime = feedRuntime({
+    item: () => longItem,
+    views: [sceneView(feedCaptureScene.scene_id, feedCaptureScene.version, true)],
+    feed: {
+      outRules: {
+        list: () => [{
+          project_id: PROJECT,
+          rule_id: "rule-1",
+          name: "R",
+          enabled: true,
+          match: { contains: "标题" },
+          judgment: FUNCTION,
+          revision: "r1",
+          admission: "suggest",
+          created_at: "",
+          updated_at: "",
+        }],
+      } as never,
+    },
+    actions: {
+      invoke: (async (_caller: unknown, _ref: unknown, input: unknown) => {
+        invoked.push(input as { content: string });
+        return { status: "ok", suggested_behavior_ids: [] };
+      }) as never,
+    },
+  });
+  const prepared = await runtime.handler.prepare(caller, { item_id: longItem.item_id, rule_id: "rule-1" }) as {
+    input: { content: string };
+    state: { content: string };
+  };
+  assert.equal(prepared.input.content, captured);
+  assert.equal(prepared.state.content, captured);
+  assert.equal(
+    feedCaptureSubjectRevision(longItem),
+    feedCaptureSubjectRevision({ ...longItem, body: `${"a".repeat(7960)}🟢${"c".repeat(5000)}` }),
+    "subject revision hashes the same bounded redacted capture content",
+  );
+
+  await runtime.selection.preview(FUNCTION, `检查 ${secretBoundary} ${"z".repeat(9000)}`, caller);
+  assert.equal(invoked.length, 1);
+  assert.ok(invoked[0]!.content.length <= 8000 && invoked[0]!.content.isWellFormed());
+  assert.ok(invoked[0]!.content.includes("[REDACTED TOKEN]"));
+  assert.equal(invoked[0]!.content.includes(secretBoundary), false);
+
+  const planContext = feedInformationPlanContext({
+    sources: [{ source_id: "src-1", name: `源 ${secretSummary}`, enabled: true }],
+    items: [{ item_id: "item-1", source_id: "src-1", title: `标题 ${secretTitle}`, summary: `摘要 ${secretSummary}` }],
+    attention_entries: [{ entry_id: "entry-1", subject_type: "feed_item", subject_id: "item-1", status: "open" }],
+    titleOf: () => `标题 ${secretTitle}`,
+  }, PROJECT, { prompt: `整理 ${secretPrompt}`, selected_item_id: "item-1" });
+  const planData = feedInformationPlanData(planContext, `整理 ${secretPrompt}`);
+  const serializedPlan = JSON.stringify(planContext) + "\n" + planData;
+  assert.ok(serializedPlan.includes("[REDACTED TOKEN]"));
+  for (const secret of [secretTitle, secretSummary, secretPrompt]) {
+    assert.equal(serializedPlan.includes(secret), false, `information plan must not retain ${secret}`);
+  }
 });

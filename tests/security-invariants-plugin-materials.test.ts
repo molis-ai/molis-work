@@ -272,3 +272,80 @@ for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
     assert.equal(replacement.contexts.at(-1)!.services!.storage!.get("late"), null);
   });
 }
+
+test("F-cf2-03 in-process query action refuses materials.attach, claimOriginal, and releaseOriginal without touching the port", async t => {
+  const seen: string[] = [];
+  const permissions = ["storage:private", "materials:read", "materials:original"];
+  const queryAction = {
+    capability_id: "materialsqueryprobe.inspect",
+    version: 1,
+    operation: "query" as const,
+    action: {
+      title: "Inspect materials",
+      description: "Read-only query probe for materials write guards",
+      scope: "home" as const,
+      kind: "query" as const,
+      subject_kinds: [],
+      audiences: ["user" as const],
+      permissions: ["materials:read", "materials:original"],
+      scheduling: "concurrent" as const,
+      input_schema: { type: "object", additionalProperties: false },
+    },
+  };
+  const definition: PluginDefinition = {
+    manifest: {
+      schema_version: 1,
+      host_api_version: 1,
+      plugin_id: "com.example.materialsqueryprobe",
+      version: "1.0.0",
+      name: "materialsqueryprobe",
+      kind: "app",
+      publisher: { publisher_id: "example", signature: "materials-query-probe" },
+      entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+      permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "query guard test" })),
+      capabilities: { provides: [], consumes: [] },
+      artifacts: { produces: [], consumes: [] },
+      ui: { contributions: [] },
+      actions: [queryAction],
+      upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] },
+    },
+    async start(context) {
+      return {
+        kind: "app",
+        actions: [{
+          ...queryAction,
+          handle: async () => {
+            const client = createPluginMaterialsClient(definition.manifest, {
+              extract: async () => { seen.push("extract"); return { text: "ok", extractor: "probe", pages: [], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } }; },
+              readDocuments: async () => ({ documents: [], warnings: [] }),
+              readSource: async () => Promise.reject(new Error("unused")),
+              attach: async () => { seen.push("attach"); throw new Error("must not be called"); },
+              claimOriginal: async () => { seen.push("claimOriginal"); throw new Error("must not be called"); },
+              releaseOriginal: async () => { seen.push("releaseOriginal"); throw new Error("must not be called"); },
+            }, {
+              install_id: context.install_id,
+              installation_generation: context.installation_generation,
+              project_id: null,
+              assertActive: () => { context.services!.storage!.get("authority"); },
+              requireGrant: permission => context.requireGrant(permission),
+            });
+            await assert.rejects(client.attach!({ file_name: "a.txt", data_base64: Buffer.from("x").toString("base64") }), { code: "actions.forbidden" });
+            await assert.rejects(client.claimOriginal!("doc-1"), { code: "actions.forbidden" });
+            await assert.rejects(client.releaseOriginal!("doc-1"), { code: "actions.forbidden" });
+            const extracted = await client.extract!({ file_name: "a.txt", bytes: Buffer.from("ok") });
+            return extracted.text;
+          },
+        }],
+      };
+    },
+  };
+  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [definition] } });
+  const platform = await host.homePlugins!.ready();
+  const install = host.homePlugins!.installation(definition.manifest.plugin_id)!;
+  await platform.runtime.stop(install.install_id);
+  platform.runtime.grant(install.install_id, permissions);
+  await platform.supervisor.restart(definition.manifest.plugin_id);
+  const result = await host.homeActionClient().invoke(person(permissions), queryAction, {});
+  assert.equal(result, "ok");
+  assert.deepEqual(seen, ["extract"]);
+});

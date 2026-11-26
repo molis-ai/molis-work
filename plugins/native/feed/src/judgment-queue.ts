@@ -62,8 +62,17 @@ export class JudgmentQueue {
   judgeOwn<T>(step: () => T, caller?: ActionCallContext, also: readonly FeedItemRecord[] = []): Promise<T> {
     const queuedItems = this.items.length, alreadyQueued = new Set(this.entries.keys());
     // Not an `async` method: the step's own failure is thrown to the caller, not returned as a rejection, so a Runtime that commits the
-    // step as one write can roll all of it back.
-    const result = step();
+    // step as one write can roll all of it back. Roll back anything queued during the failed step so no ghost work remains.
+    let result: T;
+    try {
+      result = step();
+    } catch (error) {
+      this.items.length = queuedItems;
+      for (const key of [...this.entries.keys()]) {
+        if (!alreadyQueued.has(key)) this.entries.delete(key);
+      }
+      throw error;
+    }
     // The step cannot be interleaved with another call, so what the queues gained since the marks above is the step's own.
     const ownItems = this.items.splice(queuedItems);
     const ownEntries = this.takeEntries([...this.entries].filter(([key]) => !alreadyQueued.has(key)).map(([, entry]) => entry.entry_id));

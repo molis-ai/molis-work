@@ -17,10 +17,12 @@ export interface GoalHistoryIndexItem {
   received_at: string;
   title: string;
   type_label: string;
+  type_key?: string;
   lane: GoalHistoryLane;
   actor_id: string;
   actor_kind: "user" | "runtime" | null;
   status_label: string | null;
+  status_key?: string | null;
   relation?: { type: string; label: string; from_id: string; from_title: string; to_id: string; to_title: string; removed: boolean };
 }
 
@@ -44,6 +46,7 @@ function mapWorkTimelineItems(items: readonly GoalEventTimelineItem[]): GoalHist
 }
 
 export function indexItemFromTimeline(item: GoalEventTimelineItem): GoalHistoryIndexItem {
+  const typeKey = workTypeKey(item);
   return {
     item_id: item.event_id,
     source: "event_work",
@@ -53,11 +56,20 @@ export function indexItemFromTimeline(item: GoalEventTimelineItem): GoalHistoryI
     received_at: item.received_at,
     title: item.title,
     type_label: workTypeLabel(item),
+    ...(typeKey ? { type_key: typeKey } : {}),
     lane: item.lane ?? workLane(item),
     actor_id: item.actor_id,
     actor_kind: item.actor_kind,
     status_label: null,
+    status_key: null,
   };
+}
+
+function workTypeKey(item: GoalEventTimelineItem): string | undefined {
+  if (item.kind === "report") return item.type_name ? undefined : "report";
+  if (item.kind === "configuration") return "configuration";
+  const op = item.system_operation ?? "";
+  return Object.hasOwn(SYSTEM_TYPE_LABELS, op) ? op : "system";
 }
 
 function workLane(item: Pick<GoalEventTimelineItem, "kind" | "semantic_family" | "system_operation">): GoalHistoryLane {
@@ -130,10 +142,12 @@ export function mapJournalHistoryItems(
       received_at: event.at,
       title: relation ? `${relation.from_title} → ${relation.label} → ${relation.to_title}` : event.reason?.trim() || JOURNAL_TYPE_LABELS[event.type] || "记录",
       type_label: JOURNAL_TYPE_LABELS[event.type] ?? "记录",
+      type_key: Object.hasOwn(JOURNAL_TYPE_LABELS, event.type) ? event.type : "record",
       lane: "other" as const,
       actor_id: event.actor_id,
       actor_kind: null,
       status_label: relation ? relation.removed ? "已解除" : "已建立" : null,
+      status_key: relation ? (relation.removed ? "removed" : "created") : null,
       ...(relation ? { relation } : {}),
     }];
   });

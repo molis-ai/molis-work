@@ -104,11 +104,25 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
       assert_authority_current: control.assertCurrent,
     });
     return host.homeActionClient().invoke({ ...caller, ...authority }, typeof operation === "string" ? accountActions[operation] : operation, input);
-  }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(options?.session?{...authentication!,create:(input,guard)=>{
-    // S-unified-account-borrowed-home: the installation entry owns login and switching; this Home only re-verifies.
-    if(!input||typeof input!=="object"||!("purpose" in input)||!["BIND","REPLACE"].includes(String(input.purpose)))throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
-    return authentication!.create(input,guard);
-  }}:authentication!, control)), matchesNativeCallback: (url, origin) => {
+  }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(options?.session ? {
+    ...authentication!,
+    create: (input, guard) => {
+      // S-unified-account-borrowed-home: the installation entry owns login and switching; this Home only re-verifies.
+      if (!input || typeof input !== "object" || !("purpose" in input) || !["BIND", "REPLACE"].includes(String(input.purpose))) {
+        throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
+      }
+      return authentication!.create(input, guard);
+    },
+    loginPassword: () => {
+      throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
+    },
+    sendVerification: () => {
+      throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
+    },
+    loginCode: () => {
+      throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
+    },
+  } : authentication!, control)), matchesNativeCallback: (url, origin) => {
     if (!authentication) return false;
     try { assertCurrent(); return authentication.matchesNativeCallback(url, origin); }
     catch { return false; }

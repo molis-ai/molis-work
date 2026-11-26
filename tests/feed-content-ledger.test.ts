@@ -9,11 +9,14 @@ import {
   createEvidenceContentStore,
   createFileSecretStore,
   createLazyFileSecretStore,
+  homeSqlitePath,
+  openBaselineHomeSqlite,
   PROJECT_SECTIONS_INLINE_ENCODING,
   runWithMolisWorkHome,
   sqliteErrorName,
 } from "@molis-ai/molis-work-storage";
-import { createProjectEvidenceContent } from "@molis-ai/molis-work-app-local-host";
+import { createProjectEvidenceContent, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import {
@@ -642,4 +645,38 @@ test("P0-09 createProjectEvidenceContent runs holdEvidence before writing decode
   );
   assert.equal(evidenceB.has(refShared), true);
   assert.equal(evidenceB.read(refShared), sharedBody);
+});
+
+test("F-pm3-06 FEED_HOME_DATABASE declares project_rows so deleting a project clears only that project's holds and unblocks shared-body release", async t => {
+  const parsed = parsePluginManifest(feedManifest);
+  assert.deepEqual(parsed.databases?.home?.project_rows?.tables, [{ table: "feed_content_holds", column: "project_id" }]);
+
+  const home = mkdtempSync(join(tmpdir(), "feed-project-rows-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const baseline = openBaselineHomeSqlite(home, FEED_HOME_DATABASE.store_name, FEED_HOME_DATABASE);
+  baseline.close();
+
+  const evidence = runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
+  const refShared = evidence.write("shared body across projects").contentRef;
+  const refOnlyA = evidence.write("project-a exclusive body").contentRef;
+
+  const library = libraryAt(homeSqlitePath(home, FEED_HOME_DATABASE.store_name));
+  t.after(() => library.db.close());
+  const ledger = createFeedContentLedger(library.store, {
+    collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)),
+  });
+
+  await ledger.hold(noEffect, { project_id: "proj-a", source_id: "src-a" }, [refShared, refOnlyA]);
+  await ledger.hold(noEffect, { project_id: "proj-b", source_id: "src-b" }, [refShared]);
+  assert.equal(library.rows().length, 3);
+
+  assert.equal(await projectDeletedHooksFor(home).clear("feed", "proj-a"), true);
+  assert.deepEqual(library.rows(), [{ content_ref: refShared, project_id: "proj-b", source_id: "src-b" }]);
+
+  assert.deepEqual(
+    await ledger.release(noEffect, { project_id: "proj-b", source_id: "src-b" }, [refShared]),
+    { bodies_deleted: 1, bodies_kept: 0, complete: true },
+  );
+  assert.equal(evidence.has(refShared), false, "once deleted proj-a's hold is cleared, proj-b's release collects the shared body");
+  assert.deepEqual(library.rows(), []);
 });

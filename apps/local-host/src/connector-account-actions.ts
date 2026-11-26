@@ -8,8 +8,9 @@ import { connectorCliActions, connectorCliHandlers } from "./connector-cli-actio
 import { connectorPluginSlotActions, connectorPluginSlotHandlers, connectorPluginSlotSwitch, connectorPluginSlotSwitchHandler, connectorPluginSlotUsages, connectorPluginSlotUsagesHandler, type PluginSlotDirectory } from "./connector-plugin-slot-actions.js";
 import { connectorUsagesSwitchAction, connectorUsagesSwitchHandler } from "./connector-usage-switch.js";
 import { modelProviderSwitch, modelProviderSwitchHandler } from "./model-provider-switch.js";
-import { ActionError, defineErrorCodes, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, requireSynchronous, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { accountDriver } from "./builtin-drivers.js";
+import { withConnectorRequest } from "./connector-lifecycle.js";
 
 import { resolveApiConnection } from "./connector-access.js";
 import { ApiOAuthError, apiOAuthConnectionId, readApiOAuthAccount } from "./connector-api-oauth.js";
@@ -108,14 +109,30 @@ export function connectorAccountActionProvider(home: string, remember: Connector
     definitions: [connectorUsagesAction, projectMcpUsages, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), ...Object.values(webSearchActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
     handlers: [connectorUsagesHandler(home, clientFor), projectMcpUsagesHandler(home, projectMcp, pluginSlots?.projectNames.bind(pluginSlots)), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home, pluginSlots), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: connectorAccountActions.read.version,
       handle: async (caller, input) => {
-        const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id), true), revision = row?.updated_at;
-        // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.
-        if (row?.auth_method === "oauth" && refreshRefused(home, row)) throw accountErrors.needs_auth("这个账号的登录已失效，请重新登录");
-        await caller.beforeEffect();
-        const result = await readConnectorAccount(home, id, { signal: caller.signal ?? AbortSignal.any([]), beforeEffect: () => caller.beforeEffect(), current: () => caller.signal?.throwIfAborted() });
-        await caller.beforeEffect(); caller.signal?.throwIfAborted();
-        if (revision && !rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "connected", authorization: "verified", account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, ...(result.scopes?.length ? { scopes: result.scopes } : {}) })) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
-        return result;
+        const id = (input as { connection_id: string }).connection_id;
+        return withConnectorRequest(home, id, caller.signal, async signal => {
+          const row = withConnectorConnections(home, store => store.get(id), true), revision = row?.updated_at;
+          // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.
+          if (row?.auth_method === "oauth" && refreshRefused(home, row)) throw accountErrors.needs_auth("这个账号的登录已失效，请重新登录");
+          const current = () => {
+            signal.throwIfAborted();
+            requireSynchronous(caller.assert_authority_current?.());
+          };
+          await caller.beforeEffect();
+          current();
+          const result = await readConnectorAccount(home, id, {
+            signal,
+            beforeEffect: async () => {
+              await caller.beforeEffect();
+              current();
+            },
+            current,
+          });
+          await caller.beforeEffect();
+          current();
+          if (revision && !rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "connected", authorization: "verified", account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, ...(result.scopes?.length ? { scopes: result.scopes } : {}) })) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
+          return result;
+        });
       } }, ...connectorManagementHandlers(home, remember, projectMcp, inspect), ...connectorRecordHandlers(home), ...webSearchHandlers(home), connectorSetupHandler(home), connectorSetupExecuteHandler(home, remember), connectorSetupIntentHandler(home, remember), ...connectorLocalHandlers(home, remember), ...connectorCliHandlers(home), ...connectorPluginSlotHandlers(home, pluginSlots)],
   };
 }

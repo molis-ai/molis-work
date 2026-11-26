@@ -26,18 +26,23 @@ import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop"
 import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage } from "@molis-ai/molis-work-app-workbench";
 import {
   MolisWorkLocalHost,
+  PLUGIN_INSTALL_PERMISSIONS,
   createLocalHostWorkbenchRenderer,
   htmlLang,
   installHostUiText,
+  pluginInstallActions,
   readText,
   readUiLocale,
   runWithLocale,
   UI_LOCALE_RELATIVE_PATH,
 } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
 import { PLUGIN_STATEMENT_SQLITE_VERSION } from "@molis-ai/molis-work-plugin-runtime";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
+import { newPublisher, PACKAGE_PLUGIN_ID, signedPackage } from "./fixtures/sandbox-package.js";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "security-invariants-control-token-0123456789abcdef";
@@ -490,7 +495,7 @@ test("S-06 the control token is long and random, written owner-only, and a short
 test("S-21 no answer of the host can be shown in another origin's frame: every route says SAMEORIGIN, and the pages' policy says frame-ancestors 'self'", { timeout: 60_000 }, async t => {
   const host = await startHost(t);
   const routes: Array<[string, string, Record<string, string | undefined>]> = [
-    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/settings/running", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
+    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/settings/running", {}], ["GET", "/plugins/todo", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
     ["GET", "/no/such/page", {}], ["GET", "/locale?lang=en", {}],
     ["GET", "/api/spaces", {}], ["GET", "/api/sync", {}],
     // Refusals carry it as well: the header is made before any route decides.
@@ -500,9 +505,10 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
   for (const [method, path, headers] of routes) {
     const answer = await send(host, method, path, headers);
     assert.equal(answer.headers["x-frame-options"], "SAMEORIGIN", `${method} ${path} (${answer.status}) can be framed by another site`);
-    if (String(answer.headers["content-type"] ?? "").startsWith("text/html") && answer.headers["content-security-policy"]) {
+    if (String(answer.headers["content-type"] ?? "").startsWith("text/html")) {
       pages++;
-      const policy = String(answer.headers["content-security-policy"]);
+      const policy = String(answer.headers["content-security-policy"] ?? "");
+      assert.ok(policy.length > 0, `${method} ${path} (${answer.status}): every HTML response must carry a Content-Security-Policy header`);
       assert.match(policy, /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
       // FRAME-WEBKIT-01: WebKit does not match 'self' inside a sandboxed srcdoc plugin frame, so the page also names its own origin.
       if (policy.includes("script-src 'self'") && !headers.host) {
@@ -524,7 +530,62 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
   const installation=await startHost(t,{},createMolisWorkWebServer);
   const account = await send(installation, "GET", "/api/personal/status");
   assert.equal(account.headers["x-frame-options"], "DENY", "account responses retain their stricter no-framing policy");
-  assert.ok(pages >= 2, `the sweep looked at pages with a policy (${pages})`);
+  const accountEntryHtml = await send(installation, "GET", "/", { "sec-fetch-site": "cross-site", "sec-fetch-dest": "document" });
+  assert.equal(accountEntryHtml.status, 200);
+  assert.equal(accountEntryHtml.headers["x-frame-options"], "DENY");
+  assert.match(String(accountEntryHtml.headers["content-security-policy"] ?? ""), /(?:^|;\s*)frame-ancestors 'none'(?:;|$)/, "space-web-server HTML responses carry strict CSP");
+  assert.ok(pages >= 3, `the sweep looked at pages with a policy (${pages})`);
+});
+
+test("S-21 F-hc-03 installed plugin hosting page route serves strict Content-Security-Policy", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const project = await f.project("Installed Plugin CSP");
+  const publisher = newPublisher();
+  const person: ActionCallContext = {
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    audience: "user",
+    project_id: project.project_id,
+    permissions: PLUGIN_INSTALL_PERMISSIONS,
+    user_action: { source: "management", conversation_ref: "cli:csp", message_ref: "install" },
+  };
+  const client = f.host.actionClient(project.reference);
+  const preview = await client.invoke(person, pluginInstallActions.preview, { bundle: signedPackage(publisher) }) as { preview_id: string };
+  await client.invoke(person, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "CSP Test" });
+  const response = await f.request(`/projects/${project.project_id}/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html/u);
+  assert.equal(response.headers.get("x-frame-options"), "SAMEORIGIN");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.match(response.headers.get("content-security-policy") ?? "", /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, "installed plugin hosting page carries frame-ancestors 'self' CSP");
+});
+
+test("F-hc2-01 malformed request URLs return 400 and never crash single-Home or installation web servers", { timeout: 60_000 }, async t => {
+  const rawRequest = (port: number, payload: string): Promise<string> => new Promise((resolve, reject) => {
+    const socket = net.connect({ host: "127.0.0.1", port });
+    const chunks: Buffer[] = [];
+    socket.on("data", chunk => chunks.push(chunk));
+    socket.on("error", reject);
+    socket.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    socket.on("close", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    socket.write(payload);
+  });
+
+  for (const [label, host] of [
+    ["single-home web-server", await startHost(t)],
+    ["installation space-web-server", await startHost(t, {}, createMolisWorkWebServer)],
+  ] as const) {
+    for (const target of ["//[", "//[::1", "http://[", "http://127.0.0.1:99999/x"]) {
+      const response = await rawRequest(host.port, `GET ${target} HTTP/1.1\r\nHost: 127.0.0.1:${host.port}\r\nConnection: close\r\n\r\n`);
+      assert.match(response, /^HTTP\/1\.1 400 /u, `${label} ${target}: returns HTTP 400 instead of crashing`);
+    }
+    const upgradeResponse = await rawRequest(
+      host.port,
+      `GET //[::1 HTTP/1.1\r\nHost: 127.0.0.1:${host.port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`,
+    );
+    assert.ok(upgradeResponse.length === 0 || /^HTTP\/1\.1 (?:400|403) /u.test(upgradeResponse), `${label}: malformed upgrade does not crash host`);
+    const health = await send(host, "GET", "/health");
+    assert.equal(health.status, 200, `${label}: host remains healthy after malformed URL requests`);
+  }
 });
 
 // ---- P0-04 / P0-05 / P0-06 (F-wb-01, F-wb-02, F-wb2-01) --------------------------------------------------------

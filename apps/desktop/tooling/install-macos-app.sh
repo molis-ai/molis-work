@@ -12,8 +12,22 @@ APP_NAME="$(node "$REPO_ROOT/tooling/release/profile.mjs" --profile "${MOLIS_WOR
 SOURCE="${1:-}"
 APP_DIR="${MOLIS_WORK_APP_DIR:-$HOME/Applications}"
 MOUNT_DIR=""
+STAGE_DIR=""
+BACKUP_DIR=""
+BACKUP_APP=""
+TARGET=""
+SWAP_DONE="0"
 
 cleanup() {
+  if [[ "$SWAP_DONE" != "1" && -n "$BACKUP_APP" && -e "$BACKUP_APP" && -n "$TARGET" && ! -e "$TARGET" ]]; then
+    mv "$BACKUP_APP" "$TARGET" || true
+  fi
+  if [[ -n "$STAGE_DIR" && -d "$STAGE_DIR" ]]; then
+    rm -rf "$STAGE_DIR"
+  fi
+  if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
+    rm -rf "$BACKUP_DIR"
+  fi
   if [[ -n "$MOUNT_DIR" && -d "$MOUNT_DIR" ]]; then
     hdiutil detach "$MOUNT_DIR" -quiet || true
     rmdir "$MOUNT_DIR" 2>/dev/null || true
@@ -42,13 +56,41 @@ fi
 
 mkdir -p "$APP_DIR"
 TARGET="$APP_DIR/$APP_NAME.app"
+STAGE_DIR="$(mktemp -d "$APP_DIR/.molis-work-install.XXXXXX")"
+STAGED_APP="$STAGE_DIR/$APP_NAME.app"
+ditto "$SOURCE" "$STAGED_APP"
+
 if [[ -e "$TARGET" ]]; then
-  TRASH_TARGET="$HOME/.Trash/$APP_NAME.app.$(date +%Y%m%d-%H%M%S)"
-  mkdir -p "$HOME/.Trash"
-  mv "$TARGET" "$TRASH_TARGET"
-  echo "Moved the previous app to $TRASH_TARGET"
+  BACKUP_DIR="$(mktemp -d "$APP_DIR/.molis-work-backup.XXXXXX")"
+  BACKUP_APP="$BACKUP_DIR/$APP_NAME.app"
+  mv "$TARGET" "$BACKUP_APP"
 fi
-ditto "$SOURCE" "$TARGET"
+
+if ! mv "$STAGED_APP" "$TARGET"; then
+  if [[ -n "$BACKUP_APP" && -e "$BACKUP_APP" && ! -e "$TARGET" ]]; then
+    mv "$BACKUP_APP" "$TARGET" || true
+  fi
+  echo "Failed to install $APP_NAME.app; restored the previous installation." >&2
+  exit 1
+fi
+SWAP_DONE="1"
+
+if [[ -n "$BACKUP_APP" && -e "$BACKUP_APP" ]]; then
+  mkdir -p "$HOME/.Trash"
+  STAMP="$(date +%Y%m%d-%H%M%S)"
+  TRASH_TARGET="$HOME/.Trash/$APP_NAME.app.${STAMP}.$$"
+  SUFFIX=0
+  while [[ -e "$TRASH_TARGET" ]]; do
+    SUFFIX=$((SUFFIX + 1))
+    TRASH_TARGET="$HOME/.Trash/$APP_NAME.app.${STAMP}.$$.${SUFFIX}"
+  done
+  if mv "$BACKUP_APP" "$TRASH_TARGET" 2>/dev/null; then
+    echo "Moved the previous app to $TRASH_TARGET"
+  else
+    rm -rf "$BACKUP_APP"
+  fi
+fi
+
 echo "Installed Molis Work to $TARGET"
 if [[ "${MOLIS_WORK_SKIP_OPEN:-0}" != "1" ]]; then
   open "$TARGET"

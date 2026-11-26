@@ -214,7 +214,7 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
   };
   let forgetting: ReturnType<typeof openMemoryForgetting> | undefined;
   try {
-    db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+    db.exec("PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;");
     forgetting = options.storageOwner ? openMemoryForgetting({ homeDirectory: options.homeDirectory, storageOwner: options.storageOwner,
       assertCurrent: () => { if (closed) throw new Error("记忆账本已经关闭"); } }) : undefined;
   } catch (error) { db.close(); throw error; }

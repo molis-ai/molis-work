@@ -46,6 +46,7 @@ function eventOffer(input: Request, readState: (id: string) => GoalEventStateVie
   const goalId = draft?.goal_id ?? goalForRequest(input.request_id);
   if (typeof goalId !== "string" || !goalId.trim()) throw missing();
   const state = readState(goalId);
+  const canDecide = state.can_record && state.work_status !== "cancelled";
   const target = { subject: { kind: "goal", id: state.goal_id }, version: eventDecisionVersion(state) };
   const request = state.pending_decisions.find(row => row.request_id === (draft?.request_id ?? input.request_id)) ?? null;
   if (draft) {
@@ -56,7 +57,7 @@ function eventOffer(input: Request, readState: (id: string) => GoalEventStateVie
     if (typeof label !== "string" || !label.trim()) throw new ActionError("actions.input_invalid", "请给出本人决定的结论");
     const { requirements, accepts, returns } = draftReview(request, command);
     return { target, request: { summary: request?.question ?? state.intent.title, requirements, approver: { kind: "person" },
-      choices: [option("apply", { literal: label }, state.can_record && (!!request || !draft.request_id), accepts, returns)], expires_at: null },
+      choices: [option("apply", { literal: label }, canDecide && (!!request || !draft.request_id), accepts, returns)], expires_at: null },
     commands: { apply: command } };
   }
   if (!request) throw missing();
@@ -67,8 +68,8 @@ function eventOffer(input: Request, readState: (id: string) => GoalEventStateVie
   // Business options carry words and impact. Only this owner's explicit agreement-change alternatives define their effect.
   const explicitEffects = request.purpose === "agreement_change" || !request.scope.requirement_ids.length && !request.scope.concern_ids.length && !request.scope.action;
   const choices = select.map(row => {
-    const choice = option(row.id, { literal: row.label }, state.can_record && explicitEffects);
-    return explicitEffects ? choice : { ...choice, availability: { available: false as const, code: "actions.input_invalid",
+    const choice = option(row.id, { literal: row.label }, canDecide && explicitEffects);
+    return !canDecide || explicitEffects ? choice : { ...choice, availability: { available: false as const, code: "actions.input_invalid",
       reason: { literal: "请先选择决定的具体作用范围和效果" } } };
   });
   return { target, request: { summary: request.question, requirements: [], approver: { kind: "person" }, choices, expires_at: null },

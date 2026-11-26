@@ -514,3 +514,23 @@ test("GET /api/agent/reviews guarantees stable structured field.key on tool-oper
     await localHost.close();
   }
 });
+
+test("F-hc2-27 Host error edge localizes pure English prose errors in zh locale", async () => {
+  const server = await serveNativeHttp(async (_request, response, url) => {
+    if (url.pathname !== "/en-in-zh") return false;
+    runWithLocale("zh", () => sendLocalWebJson(response, 500, {
+      error: "Unexpected failure while loading workspace resource",
+      code: "actions.execution_failed",
+    }));
+    return true;
+  });
+  try {
+    const answer = await server.post("/en-in-zh", "{}");
+    assert.equal(answer.status, 500);
+    assert.equal(answer.body.code, "actions.execution_failed");
+    assert.notEqual(answer.body.error, "Unexpected failure while loading workspace resource");
+    assert.match(String(answer.body.error), /\p{Script=Han}/u, "zh locale replaces raw English prose with Chinese wording");
+  } finally {
+    await server.close();
+  }
+});

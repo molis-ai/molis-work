@@ -187,10 +187,36 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
 /** `install <bundle.json> <project-id> [--pin-as <name>] [--confirm]`: without `--confirm` only shows what installing would mean. */
 async function runInstall(rest: readonly string[], output: PluginCliOutput, host?: PluginCliHost): Promise<number> {
   const [bundle, project, ...flags] = rest;
-  const confirm = flags.includes("--confirm"), pin = flags.indexOf("--pin-as");
-  const pinLabel = pin === -1 ? undefined : flags[pin + 1];
-  const rest2 = flags.filter((flag, index) => flag !== "--confirm" && flag !== "--pin-as" && index !== pin + 1);
-  if (!bundle || !project || rest2.length || (pin !== -1 && !pinLabel)) { output.stderr(usage(host)); return 2; }
+  if (!bundle || !project || bundle.startsWith("-") || project.startsWith("-")) {
+    output.stderr(usage(host));
+    return 2;
+  }
+  let confirm = false;
+  let pinLabel: string | undefined;
+  for (let index = 0; index < flags.length; index += 1) {
+    const flag = flags[index]!;
+    if (flag === "--confirm") {
+      if (confirm) {
+        output.stderr(usage(host));
+        return 2;
+      }
+      confirm = true;
+    } else if (flag === "--pin-as") {
+      if (pinLabel !== undefined) {
+        output.stderr(usage(host));
+        return 2;
+      }
+      const value = flags[++index];
+      if (!value || !value.trim() || value.startsWith("-")) {
+        output.stderr(usage(host));
+        return 2;
+      }
+      pinLabel = value;
+    } else {
+      output.stderr(usage(host));
+      return 2;
+    }
+  }
   try {
     if (!host) throw cliErrors.host_required("install 要在 Molis Work 本体的命令里跑：molis-work plugin install …；molis-work-plugin 是不带 Host 的独立工具，不另建一套安装");
     const result = await host.install({ bundle_path: bundle, project_id: project, confirm, ...(pinLabel ? { pin_label: pinLabel } : {}) });

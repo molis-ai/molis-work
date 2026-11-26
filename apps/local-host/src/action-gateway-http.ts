@@ -9,7 +9,7 @@ import { actionClientAudience } from "./mcp-action-grants.js";
 import { authenticateMcpClientProof } from "./mcp-client-credentials.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { sendLocalGatewayJson as sendJson } from "./web-http.js";
+import { requestAbortSignal, sendLocalGatewayJson as sendJson } from "./web-http.js";
 import { lastUsedLocale } from "./ui-locale-memory.js";
 import { runBackgroundWork } from "./web-locale.js";
 
@@ -18,9 +18,8 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
   home: string, host: MolisWorkLocalHost, withCatalog: LocalWebCatalogRunner, credentialHome = home): Promise<boolean> {
   if (url.pathname !== ACTION_GATEWAY_PATH) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "只支持本机 POST 调用" }); return true; }
-  const abort = new AbortController();
-  const disconnected = () => { if (!response.writableFinished) abort.abort(new ActionError("actions.cancelled", "调用连接已断开")); };
-  response.once("close", disconnected);
+  const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "调用连接已断开"));
+  const abortSignal = disconnected.signal;
   const fail = (error: unknown) => {
     const failure = actionErrorResponse(error);
     if (!response.destroyed) sendJson(response, failure.status, failure.body);
@@ -54,13 +53,13 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
         const project = projectId ? await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId)) : null;
         const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : undefined;
         const checkTransport = () => {
-          abort.signal.throwIfAborted();
+          abortSignal.throwIfAborted();
           identity.assertCurrent();
           if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
         };
         checkTransport();
         const locale = lastUsedLocale(home);
-        const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [], signal: abort.signal, locale,
+        const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [], signal: abortSignal, locale,
           ...(body.operation === "invoke" ? { call_id: body.call_id as string } : {}),
           ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${clientId}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
         await runBackgroundWork(locale, async () => {
@@ -84,7 +83,7 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
     // An invocation runs under the number its process made, so the rows it writes and the answer (success or failure) name that number.
     await (body.operation === "invoke" ? withCallId(body.call_id as string, serve) : serve());
   } catch (error) { fail(error); }
-  finally { response.off("close", disconnected); }
+  finally { disconnected.dispose(); }
   return true;
 }
 

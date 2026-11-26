@@ -33,7 +33,10 @@ function memorySecrets() {
   };
 }
 
-function createFixture(t: test.TestContext, options: { now?: () => Date; platformVersion?: string; demoProjects?: readonly string[] } = {}) {
+function createFixture(
+  t: test.TestContext,
+  options: { now?: () => Date; platformVersion?: string; demoProjects?: readonly string[]; readableProjects?: () => Promise<string[]> } = {},
+) {
   const home = mkdtempSync(join(tmpdir(), "observation-mgmt-"));
   const secrets = memorySecrets();
   let currentNow = options.now ?? (() => new Date("2026-11-14T12:00:00.000Z"));
@@ -44,7 +47,7 @@ function createFixture(t: test.TestContext, options: { now?: () => Date; platfor
     get platformVersion() { return currentVersion; },
     now: () => currentNow(),
     projectClass: id => (demoProjects.has(id) ? "regenerable_demo" : projects.has(id) ? "user" : undefined),
-    readableProjects: async () => [...projects, ...demoProjects],
+    readableProjects: options.readableProjects ?? (async () => [...projects, ...demoProjects]),
   } as ObservationEnvironment;
 
   let layer: ObservationLayer | undefined;
@@ -705,4 +708,62 @@ test("OCL-03 EC-09: interleaved concurrent tasks stay separated by work_ref, cal
     ["action.call", "succeeded"],
     ["agent.run", "succeeded"],
   ]);
+});
+
+test("F-horiz-runtime-21: manual cleanup invalidates read fold cache so an immediate identical read is recorded", async t => {
+  const f = createFixture(t);
+  f.layer.observed(agent(), readAction, exitDone(10, 20, { q: "fold-cleanup" }, { items: ["a"] }));
+  f.layer.flush();
+  assert.equal(readRecords(f.db()).length, 1);
+
+  const cleaned = await f.service.invoke(person(), observationActions.cleanupApply, {
+    project_id: "p1",
+    time_range: "custom",
+    before: "2026-11-15T00:00:00.000Z",
+  });
+  assert.equal(cleaned.deleted_records, 1);
+  assert.equal(readRecords(f.db()).length, 0);
+
+  f.layer.observed(agent(), readAction, exitDone(30, 40, { q: "fold-cleanup" }, { items: ["a"] }));
+  f.layer.flush();
+  assert.equal(readRecords(f.db()).length, 1);
+});
+
+test("F-horiz-runtime-22: cleanup.apply re-checks beforeEffect and cancellation after awaiting readableProjects", async t => {
+  for (const mode of ["abort", "revoke"] as const) {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let gate = false;
+    const f = createFixture(t, {
+      readableProjects: async () => {
+        if (gate) {
+          entered.resolve();
+          await release.promise;
+        }
+        return ["p1", "p2"];
+      },
+    });
+    f.layer.observed(agent(), writeAction, exitDone(10, 20, { keep: mode }, { ok: true }));
+    f.layer.flush();
+    assert.equal(readRecords(f.db()).length, 1);
+
+    gate = true;
+    const ac = new AbortController();
+    let revoked = false;
+    const pending = f.service.invoke(
+      person({
+        project_id: "p1",
+        signal: ac.signal,
+        validate_authority: () => { if (revoked) throw new Error("cleanup authority revoked"); },
+      }),
+      observationActions.cleanupApply,
+      { project_id: "p1", time_range: "custom", before: "2026-11-15T00:00:00.000Z" },
+    );
+    await entered.promise;
+    if (mode === "abort") ac.abort();
+    else revoked = true;
+    release.resolve();
+    await assert.rejects(pending, mode === "abort" ? /abort|cancel|取消/i : /cleanup authority revoked/);
+    assert.equal(readRecords(f.db()).length, 1, `records must remain intact after ${mode} during readableProjects`);
+  }
 });

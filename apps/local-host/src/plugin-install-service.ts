@@ -24,7 +24,7 @@ import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginCo
 import type { InstalledRelease, PackageInstallChoices, PackageInstallSecret } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
 import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
-import { readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sandbox-package.js';
+import { assertSafeManifestPatterns, readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sandbox-package.js';
 import { skillInstallPreviews } from './skill-install-preview.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
@@ -74,7 +74,7 @@ export interface PluginInstallPorts {
    * Refuses an integration package (BL-530) whose plugin id, services or integrations the Home's registry already has from another,
    * built-in or installed (`plugin.integration_declaration_conflict`, naming the id and its holder).
    */
-  assertIntegrationsFree?(manifest: KeptSandboxPackage['manifest']): Promise<void>;
+  assertIntegrationsFree?(manifest: PluginManifest): Promise<void>;
   /** The plugins installed in the project, each with the Manifest it was installed with. */
   installed(projectId: string): Promise<InstalledPluginEntry[]>;
   /** Whether some provider offers this action in the project now: what the preview says of each of a package's `requires`. A Host without it previews no package that requires any. */
@@ -318,12 +318,12 @@ export class PluginInstallService {
   /** Checks a package and says what installing it means. Writes nothing durable: the preview is held in memory for the confirmation. */
   async preview(input: PluginInstallPreviewInput, who: PreviewOwner, caller?: InstallAuthority): Promise<PluginInstallPreviewResult> {
     const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature('bundled' in input ? await this.bundledBundle(input.bundled, caller) : input.bundle);
-    const pkg = readKeptPackage(bundle.payload);
     this.assertPublisherStanding(key_id);
+    assertSafeManifestPatterns(bundle.payload.manifest);
+    const pkg = readKeptPackage(bundle.payload);
     const { manifest } = pkg, runtime_scope = scopeOf(manifest), dual = isDualPackage(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
-    if (manifest.databases?.partition) await validateSandboxHomeSchema(manifest.databases.partition);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
@@ -524,11 +524,42 @@ export class PluginInstallService {
       const choices: PackageInstallChoices = { ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
       if (dual) {
         const homeAlreadySame = homePresent?.record.version === held.pkg.manifest.version;
-        if (!homeAlreadySame) await this.ports.installInHome(release, assertCurrent);
-        try { await this.ports.installInProject(held.project_id, release, assertCurrent, complete); }
+        const dualChoices: PackageInstallChoices | undefined = chosen.secrets.length ? { secrets: chosen.secrets } : undefined;
+        if (!homeAlreadySame) await this.ports.installInHome(release, assertCurrent, undefined, dualChoices);
+        try { await this.ports.installInProject(held.project_id, release, assertCurrent, complete, dualChoices); }
         catch (error) {
           if (!homePresent && this.ports.homeControl) {
             await this.ports.homeControl(held.pkg.manifest.plugin_id, 'uninstall', { keep_data: false }).catch(() => undefined);
+            throw error;
+          }
+          if (homePresent && !homeAlreadySame) {
+            let previousHomeManifest: PluginManifest | undefined;
+            try {
+              previousHomeManifest = this.ports.packages.load(homePresent.record.plugin_id, homePresent.record.publisher_signature, homePresent.record.version).packaged?.manifest;
+            } catch {
+              previousHomeManifest = undefined;
+            }
+            const homeDbChanged = Boolean(
+              previousHomeManifest?.databases?.home && held.pkg.manifest.databases?.home
+              && previousHomeManifest.databases.home.version !== held.pkg.manifest.databases.home.version,
+            );
+            const detail = error instanceof Error ? error.message : String(error);
+            const partialDetails = {
+              ...(error instanceof ActionError && error.details ? error.details : {}),
+              dual_partial_upgrade: true,
+              plugin_id: held.pkg.manifest.plugin_id,
+              project_id: held.project_id,
+              home_version: held.pkg.manifest.version,
+              previous_home_version: homePresent.record.version,
+              home_database_upgraded: homeDbChanged,
+            };
+            const partialMessage = homeDbChanged
+              ? `个人空间部分已升级到 ${held.pkg.manifest.version} 且数据库结构已变更，无法自动回退；项目部分升级失败：${detail}`
+              : `个人空间部分已升级到 ${held.pkg.manifest.version}，但项目部分升级失败（请重试或修复该项目半边）：${detail}`;
+            if (error instanceof ActionError) {
+              throw new ActionError(error.code, partialMessage, { kind: error.kind, details: partialDetails, cause: error });
+            }
+            throw pluginErrors.upgrade_activation_failed(partialMessage, partialDetails);
           }
           throw error;
         }

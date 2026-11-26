@@ -16,16 +16,26 @@ export type OAuthNetworkAnswer = (url: string, init: { method: string; headers: 
  */
 export function oauthNetwork(t: TestContext, answer: OAuthNetworkAnswer): string[] {
   const sent: string[] = [];
-  const lookup = t.mock.method(dns, "lookup", ((_hostname: string, options: unknown, callback?: (error: Error | null, addresses: unknown) => void) => {
+  const originalLookup = dns.lookup.bind(dns);
+  const lookup = t.mock.method(dns, "lookup", ((hostname: string, options: unknown, callback?: (error: Error | null, addresses: unknown) => void) => {
+    if (hostname === "127.0.0.1" || hostname === "::1" || hostname === "localhost") {
+      if (typeof options === "function") return originalLookup(hostname, options as never);
+      return originalLookup(hostname, options as never, callback as never);
+    }
     const done = (typeof options === "function" ? options : callback) as (error: Error | null, addresses: unknown) => void;
     done(null, [{ address: "1.1.1.1", family: 4 }]);
   }) as never);
   const request = t.mock.method(https, "request", ((options: https.RequestOptions & { lookup: (hostname: string | undefined | null, options: object, callback: (error: Error | null) => void) => void }, onResponse: (response: unknown) => void) => {
     const chunks: Buffer[] = [];
+    let activeStream: Readable | undefined;
     const outgoing = Object.assign(new EventEmitter(), {
       reusedSocket: false,
       write(chunk: string | Uint8Array) { chunks.push(Buffer.from(chunk)); return true; },
-      destroy(error?: Error) { if (error) queueMicrotask(() => outgoing.emit("error", error)); return outgoing; },
+      destroy(error?: Error) {
+        activeStream?.destroy();
+        if (error) queueMicrotask(() => outgoing.emit("error", error));
+        return outgoing;
+      },
       end() {
         options.lookup(options.hostname, { all: true }, (error: Error | null) => {
           if (error) { outgoing.emit("error", error); return; }
@@ -34,8 +44,29 @@ export function oauthNetwork(t: TestContext, answer: OAuthNetworkAnswer): string
           sent.push(url);
           Promise.resolve().then(() => answer(url, { method: String(options.method ?? "GET"), headers: { ...options.headers as Record<string, string> }, body: Buffer.concat(chunks).toString() }))
             .then(async response => {
+              const headers = Object.fromEntries(response.headers);
+              const contentType = response.headers.get("content-type") ?? "";
+              if (contentType.includes("text/event-stream") && response.body) {
+                const reader = response.body.getReader();
+                const stream = new Readable({
+                  async read() {
+                    try {
+                      const chunk = await reader.read();
+                      this.push(chunk.done ? null : Buffer.from(chunk.value));
+                    } catch (readError) {
+                      this.destroy(readError instanceof Error ? readError : new Error(String(readError)));
+                    }
+                  },
+                  destroy(destroyError, done) {
+                    void reader.cancel().finally(() => done(destroyError));
+                  },
+                });
+                activeStream = stream;
+                onResponse(Object.assign(stream, { statusCode: response.status, headers }));
+                return;
+              }
               const bytes = Buffer.from(await response.text());
-              onResponse(Object.assign(Readable.from([bytes]), { statusCode: response.status, headers: Object.fromEntries(response.headers) }));
+              onResponse(Object.assign(Readable.from([bytes]), { statusCode: response.status, headers }));
             }, (failure: Error) => outgoing.emit("error", failure));
         });
         return outgoing;

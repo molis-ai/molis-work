@@ -129,5 +129,5 @@ export const goalDirectoryItemSchema = object({ goal_id: text, title: text, work
 const historyFields = { item_id: text, source: enumeration(["event_work", "journal"]),
   original_id: text, event_id: maybeText, journal_seq: count, received_at: text, title: text, type_label: text,
   lane: enumeration(["result", "decision", "problem", "other"]), actor_id: text, actor_kind: actorKind, status_label: maybeText };
-export const goalHistoryItemSchema = object({ ...historyFields, relation: object({ type: text, label: text, from_id: text, from_title: text, to_id: text, to_title: text, removed: boolean }) }, Object.keys(historyFields));
+export const goalHistoryItemSchema = object({ ...historyFields, type_key: text, status_key: maybeText, relation: object({ type: text, label: text, from_id: text, from_title: text, to_id: text, to_title: text, removed: boolean }) }, Object.keys(historyFields));
 export const goalHistoryPageSchema = object({ items: array(goalHistoryItemSchema), next_cursor: maybeText, observed_event_cursor: count });

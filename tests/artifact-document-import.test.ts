@@ -666,6 +666,36 @@ test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the i
   assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);
 });
 
+test("F-modules-server-07 R-05 large offered originals (>6 MiB) do not persist to disk before beforeSave or after abort", async t => {
+  const { library } = await fixture(t);
+  for (const mode of ["revoke", "abort"] as const) {
+    let storedCalls = 0;
+    const controller = new AbortController();
+    const ports: ArtifactDocumentImportPorts = {
+      projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID,
+      routePrefix: "/projects/current", artifacts: library.artifacts,
+      signal: controller.signal,
+      beforeSave: async () => {
+        if (mode === "abort") controller.abort();
+        else throw new Error("revoked before save");
+      },
+      readExternal: async () => { throw new Error("unused"); },
+      readHtml: () => { throw new Error("unused"); },
+      readFileText: async () => ({ text: "extracted body", warnings: [] }),
+      offered: {
+        size_bytes: 7_000_000,
+        read: async () => Buffer.from("extracted body"),
+        store: async () => { storedCalls += 1; return { sha256: "b".repeat(64), size_bytes: 7_000_000 }; },
+      },
+    };
+    await assert.rejects(
+      importArtifactDocument({ source: "file", filename: "large.pdf", original_file: { filename: "large.pdf", mime: "application/pdf" } }, ports),
+      mode === "abort" ? { name: "AbortError" } : /revoked before save/,
+    );
+    assert.equal(storedCalls, 0, `${mode}: offered.store must not run before beforeSave/abort completes`);
+  }
+});
+
 test("RAC-891 a document import takes only the ways of connecting its integration declares: Feishu's CLI login yes, Notion's no", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-import-methods-"));
   t.after(() => rm(home, { recursive: true, force: true }));

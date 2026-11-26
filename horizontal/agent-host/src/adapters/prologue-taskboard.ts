@@ -1,7 +1,7 @@
 import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime, type PolicyRule } from "@prologue/sdk";
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { blockId, isBlock, isPlanStep, PROJECT_STEP } from "./prologue-collaboration.js";
-import { activeNodeId, amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type ReconciledStepMap, type RoundLedger } from "./prologue-plan-steps.js";
+import { activeNodeId, amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type ReconciledStepEntry, type ReconciledStepMap, type RoundLedger } from "./prologue-plan-steps.js";
 import { MOLIS_ACTION_TOOL_PREFIX, SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 import { AGENT_TOOLS } from "../tool-catalog.js";
 
@@ -90,7 +90,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
   /** Whether a session has a round running now: a claim held by one that has not, and gone quiet, is marked expired. */
   alive?: (session: string) => boolean,
   /** Persist a human reconciliation decision on a step whose command ended with an unknown outcome (BL-222). */
-  onReconcileStep?: (run: AgentRunRef, stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>,
+  onReconcileStep?: (run: AgentRunRef, stepId: string, entry: ReconciledStepEntry) => Promise<void>,
   /** Steps of this plan that currently hold unreconciled unknown command outcomes from ended rounds (BL-222). */
   unknownStepsOf?: (place: PlanPlace, session: string) => Promise<ReadonlySet<string>>) {
   const hook = registerConfirmedPlanScopeHook(runtime, original, projectBoard);

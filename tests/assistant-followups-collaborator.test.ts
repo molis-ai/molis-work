@@ -299,3 +299,75 @@ test("BL-missed-runs-never-expire a follow-up time written down only after the p
   assert.equal(h.followUps.runsOverview(window("2026-11-20T09:01:00.000Z", "2026-11-19T09:00:00.000Z")).expired, 1, "said once");
   assert.equal(h.followUps.runsOverview(window("2026-11-20T09:02:00.000Z", "2026-11-20T09:01:00.000Z")).expired, 0, "and not again");
 });
+
+test("F-host-subsystems-03 save rolls back DB row when enqueue fails and forwards control without holdWork", async () => {
+  const db = new DatabaseSync(":memory:");
+  const now = new Date("2026-11-20T08:00:00.000Z");
+  new AssistantStore(db, () => now);
+  const work = { work_id: "w1", title: "跟进", session_id: "s1", archived: false };
+  let beforeCommitSeen = false;
+  let failQueue = false;
+  const schedule: AgentScheduleCapability = {
+    claim: () => ({ survives_window_close: false, why: "test" }),
+    enqueue: async (_input, control) => {
+      beforeCommitSeen = Boolean(control?.beforeCommit);
+      const syncCheck = await control?.beforeCommit?.();
+      syncCheck?.();
+      if (failQueue) throw new Error("queue unavailable");
+      throw new Error("unexpected");
+    },
+    cancel: async () => null,
+    find: () => null,
+    list: () => [],
+    handle: () => () => {},
+  };
+  const followUps = new AssistantFollowUps<Work>({
+    actorId: "person",
+    records: new AssistantFollowUpRecords(db, () => {}),
+    now: () => now,
+    timeZone: "Asia/Shanghai",
+    work: () => work,
+    notify: () => true,
+    setting: () => null,
+    setSetting: () => {},
+    rules: () => [],
+    setRules: () => {},
+    pages: async () => ["home"],
+    host: async () => ({}) as never,
+    state: async () => "idle",
+    executorGone: async () => false,
+    send: async () => undefined,
+    schedule: async () => schedule,
+  });
+
+  // Case 1: control is forwarded to enqueue even when holdWork is absent; cancellation in beforeCommit rolls back DB row.
+  let beforeEffectCalls = 0;
+  let revoked = false;
+  await assert.rejects(
+    followUps.save(
+      { work_id: "w1", text: "检查进展", at: "2026-11-20T09:00:00.000Z", label: "一小时后检查" },
+      {
+        beforeEffect: async () => {
+          beforeEffectCalls += 1;
+          if (beforeEffectCalls === 2) revoked = true;
+        },
+        assertCurrent: () => {
+          if (revoked) throw new Error("control revoked in beforeCommit");
+        },
+      },
+    ),
+    /control revoked in beforeCommit/,
+  );
+  assert.equal(beforeCommitSeen, true);
+  assert.equal(beforeEffectCalls, 2, "control.beforeEffect must run inside enqueue beforeCommit even without holdWork");
+  assert.deepEqual(followUps.list("w1"), [], "failed enqueue must roll back the saved follow-up row");
+
+  // Case 2: queue failure after beforeCommit also rolls back the DB row.
+  failQueue = true;
+  await assert.rejects(
+    followUps.save({ work_id: "w1", text: "再次尝试", at: "2026-11-20T09:00:00.000Z", label: "队列失败" }),
+    /queue unavailable/,
+  );
+  assert.deepEqual(followUps.list("w1"), [], "queue failure must leave no ghost follow-up in SQLite");
+  db.close();
+});

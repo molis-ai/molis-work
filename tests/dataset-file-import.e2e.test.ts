@@ -196,3 +196,30 @@ test('W2-18-DATASET-01/02: an external write during file reading conflicts again
   await evaluate(`document.querySelector('[data-dataset-id="${b.id}"]').click()`); await idle();
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '表 A');
 });
+
+test('F-plugins-rest-w2-13: a delayed autosave response after placement move does not resurrect the moved dataset', { timeout: 45_000 }, async t => {
+  const f = await openImport(t); if (!f) return;
+  const { evaluate, waitFor, idle, a, b } = f;
+  await evaluate(`(() => {
+    const original = window.molisWorkRequest;
+    window.molisWorkRequest = Object.assign(async (url, init) => {
+      const result = await original(url, init);
+      const path = new URL(url, location.origin).pathname;
+      if (init?.method === 'POST' && path.endsWith('/datasets/${a.id}') && !window.heldAutosave) {
+        window.heldAutosave = true;
+        await new Promise(resolve => { window.releaseAutosave = resolve; });
+      }
+      return result;
+    }, original);
+  })()`);
+  await evaluate(`(() => { const el = document.querySelector('[data-dataset-title]'); el.value = '移走前编辑'; el.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await waitFor("typeof window.releaseAutosave === 'function'");
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:placement-changed', { detail: { mode: 'move', from: { kind: 'dataset', id: '${a.id}' }, to: { kind: 'dataset' } } }))`);
+  await waitFor("document.querySelector('[data-dataset-stage-workspace]').hidden");
+  await evaluate('window.releaseAutosave()');
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  assert.equal(await evaluate("document.querySelector('[data-dataset-stage-workspace]').hidden"), true);
+  assert.equal(await evaluate(`document.querySelector('[data-dataset-id="${a.id}"]')?.classList.contains('is-selected') ?? false`), false);
+  await f.click(`[data-dataset-id="${b.id}"]`); await idle();
+  assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '表 B');
+});

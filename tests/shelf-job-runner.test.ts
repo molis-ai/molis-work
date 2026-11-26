@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { isShelfFailure, shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
 
@@ -37,4 +38,53 @@ for (const mode of ["cancel", "abort", "revoke", "source", "model", "shortcut"] 
     assert.equal(saved.status, mode === "cancel" ? "cancelled" : "running"); assert.equal(saved.error, null);
     assert.equal((await store.snapshot()).running_jobs.length, 0);
   } finally { release(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("F-modules-server-19 recordFailure preserves cancelled status under concurrent cancel and keeps shelf.configuration_changed non-failure", async () => {
+  const home = await mkdtemp(join(tmpdir(), "shelf-f19-"));
+  try {
+    // 1. shelf.configuration_changed from host AI port must not file a failed result item.
+    const cfgStore = openTestShelfStore(home, { disabled: true }, {}, shelfTestAi(async () => {
+      throw shelfErrors.configuration_changed("模型连接已变更");
+    }));
+    const item = await cfgStore.admit({ filename: "材料.md", bytes: Buffer.from("原材料") });
+    await assert.rejects(
+      cfgStore.runJob({ recipe: "summarize", item_id: item.item_id }),
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.configuration_changed",
+    );
+    assert.equal((await cfgStore.snapshot()).results.length, 0);
+
+    // 2. If the job row was already marked cancelled before recordFailure writes, recordFailure must not overwrite it as failed or file a failed result.
+    let calls = 0;
+    const cancelHome = await mkdtemp(join(tmpdir(), "shelf-f19-cancel-"));
+    try {
+      const store = openTestShelfStore(cancelHome, { disabled: true }, {}, shelfTestAi(async () => {
+        throw new Error("model error");
+      }));
+      const doc = await store.admit({ filename: "doc.md", bytes: Buffer.from("body") });
+      await assert.rejects(
+        store.runJob({ recipe: "summarize", item_id: doc.item_id }, {
+          beforeEffect: async () => {
+            calls += 1;
+            if (calls === 3) {
+              // Simulate a cancel landing right after catch-path beforeCommit checks and before recordFailure's write lock.
+              const catalogPath = join(store.root, "catalog.json");
+              const catalog = JSON.parse(readFileSync(catalogPath, "utf8")) as { jobs: Array<{ status: string }> };
+              catalog.jobs[0]!.status = "cancelled";
+              writeFileSync(catalogPath, JSON.stringify(catalog));
+            }
+          },
+        }),
+        (error: unknown) => isShelfFailure(error) && error.code === "shelf.cancelled",
+      );
+      const catalog = JSON.parse(readFileSync(join(store.root, "catalog.json"), "utf8")) as { jobs: Array<{ status: string; error: string | null }> };
+      assert.equal(catalog.jobs[0]!.status, "cancelled");
+      assert.equal(catalog.jobs[0]!.error, null);
+      assert.equal((await store.snapshot()).results.length, 0);
+    } finally {
+      await rm(cancelHome, { recursive: true, force: true });
+    }
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

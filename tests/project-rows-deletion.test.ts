@@ -26,7 +26,7 @@ import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
 // Pages, PPT, Forms, Dataset, 灵光 and Workflows keep a library in each partition (U2, batch 107), which goes with the partition whole.
-const DECLARING = ["images", "todo", "work-brief"];
+const DECLARING = ["feed", "images", "todo", "work-brief"];
 /**
  * The libraries all of whose tables are a project's. Images also keeps the person's connections, which belong to no project; RAC-577 is
  * its. Work Brief also keeps the person's own brief (no project); its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).

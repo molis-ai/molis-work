@@ -117,39 +117,102 @@ export function replaceTomlFamily(contents: string, familyName: string, replacem
   return `${before}${before && !before.endsWith("\n") ? "\n" : ""}${replacement.trim()}\n${after}`;
 }
 
+type TopLevelJsonLocation =
+  | { readonly kind: "replace"; readonly start: number; readonly end: number }
+  | {
+    readonly kind: "insert";
+    readonly openBrace: number;
+    readonly closingBrace: number;
+    readonly lastValueEnd: number;
+    readonly hasTrailingComma: boolean;
+  };
+
 export function replaceTopLevelJsonProperty(
   original: string | null,
   root: Record<string, unknown>,
   key: string,
   value: unknown,
+  options: { readonly jsonc?: boolean } = {},
 ): string {
   if (original == null) return `${JSON.stringify({ ...root, [key]: value }, null, 2)}\n`;
-  const span = findTopLevelJsonValueSpan(original, key);
-  if (span) return original.slice(0, span[0]) + JSON.stringify(value) + original.slice(span[1]);
+  const allowComments = options.jsonc ?? true;
+  const location = findTopLevelJsonProperty(original, key, allowComments);
+  if (location?.kind === "replace") {
+    return original.slice(0, location.start) + JSON.stringify(value) + original.slice(location.end);
+  }
+  if (location?.kind === "insert") {
+    return insertTopLevelJsonProperty(original, location, key, value);
+  }
   return `${JSON.stringify({ ...root, [key]: value }, null, detectJsonIndent(original))}${original.endsWith("\n") ? "\n" : ""}`;
 }
 
-function findTopLevelJsonValueSpan(contents: string, requestedKey: string): [number, number] | null {
-  let index = skipWhitespace(contents, 0);
+function insertTopLevelJsonProperty(
+  original: string,
+  location: Extract<TopLevelJsonLocation, { readonly kind: "insert" }>,
+  key: string,
+  value: unknown,
+): string {
+  const entry = `${JSON.stringify(key)}: ${JSON.stringify(value)}`;
+  const newline = original.includes("\r\n") ? "\r\n" : "\n";
+  const indent = " ".repeat(detectJsonIndent(original));
+  if (location.lastValueEnd < 0) {
+    const inside = original.slice(location.openBrace + 1, location.closingBrace);
+    if (inside.includes("\n")) {
+      const lastNewline = inside.lastIndexOf("\n");
+      const head = inside.slice(0, lastNewline + 1);
+      const tail = inside.slice(lastNewline + 1);
+      return `${original.slice(0, location.openBrace + 1)}${head}${indent}${entry}${newline}${tail}${original.slice(location.closingBrace)}`;
+    }
+    const pad = inside.trim() ? " " : "";
+    return `${original.slice(0, location.closingBrace)}${pad}${entry}${pad}${original.slice(location.closingBrace)}`;
+  }
+  const between = original.slice(location.lastValueEnd, location.closingBrace);
+  const comma = location.hasTrailingComma ? "" : ",";
+  if (between.includes("\n")) {
+    const lastNewline = between.lastIndexOf("\n");
+    const head = between.slice(0, lastNewline + 1);
+    const tail = between.slice(lastNewline + 1);
+    return `${original.slice(0, location.lastValueEnd)}${comma}${head}${indent}${entry}${newline}${tail}${original.slice(location.closingBrace)}`;
+  }
+  return `${original.slice(0, location.lastValueEnd)}${comma}${between} ${entry}${original.slice(location.closingBrace)}`;
+}
+
+function findTopLevelJsonProperty(
+  contents: string,
+  requestedKey: string,
+  allowComments: boolean,
+): TopLevelJsonLocation | null {
+  let index = skipTrivia(contents, 0, allowComments);
   if (contents[index] !== "{") return null;
+  const openBrace = index;
   index += 1;
+  let lastValueEnd = -1;
+  let hasTrailingComma = false;
   while (index < contents.length) {
-    index = skipWhitespace(contents, index);
-    if (contents[index] === "}") return null;
+    index = skipTrivia(contents, index, allowComments);
+    if (contents[index] === "}") {
+      return { kind: "insert", openBrace, closingBrace: index, lastValueEnd, hasTrailingComma };
+    }
     if (contents[index] !== '"') return null;
     const keyEnd = scanJsonString(contents, index);
     const key = JSON.parse(contents.slice(index, keyEnd)) as string;
-    index = skipWhitespace(contents, keyEnd);
+    index = skipTrivia(contents, keyEnd, allowComments);
     if (contents[index] !== ":") return null;
-    const valueStart = skipWhitespace(contents, index + 1);
-    const valueEnd = scanJsonValue(contents, valueStart);
-    if (key === requestedKey) return [valueStart, valueEnd];
-    index = skipWhitespace(contents, valueEnd);
+    const valueStart = skipTrivia(contents, index + 1, allowComments);
+    if (valueStart >= contents.length) return null;
+    const valueEnd = scanJsonValue(contents, valueStart, allowComments);
+    if (key === requestedKey) return { kind: "replace", start: valueStart, end: valueEnd };
+    lastValueEnd = valueEnd;
+    hasTrailingComma = false;
+    index = skipTrivia(contents, valueEnd, allowComments);
     if (contents[index] === ",") {
+      hasTrailingComma = true;
       index += 1;
       continue;
     }
-    if (contents[index] === "}") return null;
+    if (contents[index] === "}") {
+      return { kind: "insert", openBrace, closingBrace: index, lastValueEnd, hasTrailingComma };
+    }
     return null;
   }
   return null;
@@ -172,7 +235,7 @@ function scanJsonString(contents: string, start: number): number {
   throw installerErrors["installer.config_invalid"]("JSON 字符串没有结束");
 }
 
-function scanJsonValue(contents: string, start: number): number {
+function scanJsonValue(contents: string, start: number, allowComments: boolean): number {
   const first = contents[start];
   if (first === '"') return scanJsonString(contents, start);
   if (first === "{" || first === "[") {
@@ -187,6 +250,18 @@ function scanJsonValue(contents: string, start: number): number {
         else if (character === '"') inString = false;
         continue;
       }
+      if (allowComments && character === "/" && contents[index + 1] === "/") {
+        index += 2;
+        while (index < contents.length && contents[index] !== "\n") index += 1;
+        continue;
+      }
+      if (allowComments && character === "/" && contents[index + 1] === "*") {
+        index += 2;
+        while (index < contents.length && !(contents[index] === "*" && contents[index + 1] === "/")) index += 1;
+        if (index >= contents.length) throw installerErrors["installer.config_invalid"]("JSON 值没有结束");
+        index += 1;
+        continue;
+      }
       if (character === '"') inString = true;
       else if (character === "{" || character === "[") stack.push(character);
       else if (character === "}" || character === "]") {
@@ -197,7 +272,13 @@ function scanJsonValue(contents: string, start: number): number {
     throw installerErrors["installer.config_invalid"]("JSON 值没有结束");
   }
   let index = start;
-  while (index < contents.length && !/[\s,}]/.test(contents[index])) index += 1;
+  while (
+    index < contents.length
+    && !/[\s,}\]]/.test(contents[index]!)
+    && !(allowComments && contents[index] === "/" && (contents[index + 1] === "/" || contents[index + 1] === "*"))
+  ) {
+    index += 1;
+  }
   return index;
 }
 
@@ -271,9 +352,26 @@ function detectJsonIndent(contents: string): number {
   return match ? Math.min(match[1].length, 8) : 2;
 }
 
-function skipWhitespace(contents: string, start: number): number {
+function skipTrivia(contents: string, start: number, allowComments: boolean): number {
   let index = start;
-  while (index < contents.length && /\s/.test(contents[index])) index += 1;
+  while (index < contents.length) {
+    if (/\s/.test(contents[index]!)) {
+      index += 1;
+      continue;
+    }
+    if (allowComments && contents[index] === "/" && contents[index + 1] === "/") {
+      index += 2;
+      while (index < contents.length && contents[index] !== "\n") index += 1;
+      continue;
+    }
+    if (allowComments && contents[index] === "/" && contents[index + 1] === "*") {
+      index += 2;
+      while (index < contents.length && !(contents[index] === "*" && contents[index + 1] === "/")) index += 1;
+      index = Math.min(index + 2, contents.length);
+      continue;
+    }
+    break;
+  }
   return index;
 }
 

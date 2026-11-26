@@ -2,7 +2,7 @@ import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./installed-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { declaredArtifactTypes } from "./artifact-type-registry.js";
+import { artifactProducerSources, declaredArtifactTypes } from "./artifact-type-registry.js";
 import { matchPageRoute } from "./page-routes.js";
 import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -100,11 +100,11 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
     plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory), builtinMarketDirectory()) };
 }
 
-async function readSubjectArtifactContext(subjectId: string, actions: BoundActionClient, readArtifactDisplay: ReadArtifactDisplay) {
+async function readSubjectArtifactContext(subjectId: string, actions: BoundActionClient, readArtifactDisplay: ReadArtifactDisplay, projectId?: string) {
   let html: string | undefined, outputs = 0;
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   try {
-    const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.subjectEmbeds, { subject_id: subjectId, supported_types: declaredArtifactTypes() }));
+    const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.subjectEmbeds, { subject_id: subjectId, supported_types: declaredArtifactTypes(artifactProducerSources(projectId)) }));
     const delivered = embeds.filter(embed => embed.relationship === "output");
     html = await renderProjectArtifactContext(delivered, readArtifactDisplay);
     outputs = delivered.length;
@@ -128,7 +128,7 @@ async function withStageArtifactContexts(view: MolisWorkWebView, artifactActions
   for (const [key, value] of Object.entries(view.stage_data)) {
     const payload = asStagePayload(value);
     if (!payload?.artifact_subject_id) continue;
-    const artifact_context = await readSubjectArtifactContext(payload.artifact_subject_id, artifactActions, readArtifactDisplay);
+    const artifact_context = await readSubjectArtifactContext(payload.artifact_subject_id, artifactActions, readArtifactDisplay, view.project?.project_id);
     next[key] = { ...payload, artifact_context };
     changed = true;
   }
@@ -205,7 +205,7 @@ export function createLocalProjectPagesHttp(ports: {
       return true;
     }
     const stageData = payload?.artifact_subject_id
-      ? { ...payload, artifact_context: await readSubjectArtifactContext(payload.artifact_subject_id, artifactActions, readArtifactDisplay) }
+      ? { ...payload, artifact_context: await readSubjectArtifactContext(payload.artifact_subject_id, artifactActions, readArtifactDisplay, view.project?.project_id) }
       : rawStage;
     const rendered = declaredPageSurface(match.plugin_id, match.route_id, view, stageData, match.params);
     if (!rendered && match.kind === "fragment") {
@@ -215,7 +215,7 @@ export function createLocalProjectPagesHttp(ports: {
     const html = match.kind === "refresh_document"
       ? renderWorkbenchRefreshDocument({ body_html: rendered, body_attributes: payload?.body_attributes ?? {} })
       : rendered;
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP, "x-content-type-options": "nosniff" });
     response.end(html);
     return true;
   }

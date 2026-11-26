@@ -1,5 +1,5 @@
 import type { ActionSceneBinding, ActionSceneReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -177,27 +177,31 @@ export class FunctionsStore {
   }
 
   addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt: string): JudgmentRuleRecord {
-    const current = this.require(id);
-    assertRuleVersion(current, expectedUpdatedAt);
-    if (current.samples.length >= FUNCTIONS_MAX_SAMPLES) {
-      throw functionsErrors.invalid(`每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
-    }
-    const sample: JudgmentRuleSample = {
-      id: crypto.randomUUID(),
-      label: normalizeSampleLabel(input.label, current.samples.length),
-      input: normalizeSampleInput(input.input),
-    };
-    return this.writeSamples(current, [...current.samples, sample], expectedUpdatedAt);
+    return this.immediate(() => {
+      const current = this.require(id);
+      assertRuleVersion(current, expectedUpdatedAt);
+      if (current.samples.length >= FUNCTIONS_MAX_SAMPLES) {
+        throw functionsErrors.invalid(`每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
+      }
+      const sample: JudgmentRuleSample = {
+        id: crypto.randomUUID(),
+        label: normalizeSampleLabel(input.label, current.samples.length),
+        input: normalizeSampleInput(input.input),
+      };
+      return this.writeSamples(current, [...current.samples, sample], expectedUpdatedAt);
+    });
   }
 
   removeSample(id: string, sampleId: string, expectedUpdatedAt: string): JudgmentRuleRecord {
-    const current = this.require(id);
-    assertRuleVersion(current, expectedUpdatedAt);
-    const samples = current.samples.filter((item) => item.id !== sampleId);
-    if (samples.length === current.samples.length) {
-      throw functionsErrors.sample_not_found("样例不存在");
-    }
-    return this.writeSamples(current, samples, expectedUpdatedAt);
+    return this.immediate(() => {
+      const current = this.require(id);
+      assertRuleVersion(current, expectedUpdatedAt);
+      const samples = current.samples.filter((item) => item.id !== sampleId);
+      if (samples.length === current.samples.length) {
+        throw functionsErrors.sample_not_found("样例不存在");
+      }
+      return this.writeSamples(current, samples, expectedUpdatedAt);
+    });
   }
 
   publish(id: string, expectedUpdatedAt: string, scene?: ActionSceneReference): JudgmentRuleRecord {
@@ -286,10 +290,32 @@ export class FunctionsStore {
     return latestJudgment(this.db, kind, id, projectId, sceneId);
   }
 
+  private savepoints = 0;
+
+  private immediate<T>(operation: () => T): T {
+    const nested = this.db.isTransaction;
+    const name = `_fn_tx_${this.savepoints + 1}`;
+    this.db.exec(nested ? `SAVEPOINT ${name}` : "BEGIN IMMEDIATE");
+    this.savepoints += 1;
+    try {
+      const result = operation();
+      this.db.exec(nested ? `RELEASE ${name}` : "COMMIT");
+      return result;
+    } catch (error) {
+      rollbackPreservingError(error, () => {
+        if (this.db.isTransaction) this.db.exec(nested ? `ROLLBACK TO ${name}; RELEASE ${name}` : "ROLLBACK");
+      });
+      throw error;
+    } finally {
+      this.savepoints -= 1;
+    }
+  }
+
   private writeSamples(current: JudgmentRuleRecord, samples: readonly JudgmentRuleSample[], expectedUpdatedAt: string): JudgmentRuleRecord {
+    // AIC-09: `updated_at` tracks definition changes only; serialize sample edits in an IMMEDIATE transaction and CAS on `samples_json`.
     const written = this.db.prepare(
-      "UPDATE functions SET samples_json = ? WHERE id = ? AND updated_at = ?",
-    ).run(JSON.stringify(samples), current.id, expectedUpdatedAt);
+      "UPDATE functions SET samples_json = ? WHERE id = ? AND updated_at = ? AND samples_json = ?",
+    ).run(JSON.stringify(samples), current.id, expectedUpdatedAt, JSON.stringify(current.samples));
     return this.requireCas(current.id, written.changes);
   }
 }

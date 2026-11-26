@@ -2,12 +2,14 @@ import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.j
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ActionService } from "@molis-ai/molis-work-kernel";
+import { ActionService, compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { defineAction, definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding,
+import { ACTION_USAGE_SCHEMA, ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding,
   type ActionSceneDefinition, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KIT_MANAGE_LINK_SCHEMA } from "@molis-ai/molis-work-contracts/platform/kit-report";
+import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 
 const context: ActionCallContext = { actor_id: "alice", project_id: "project-one", audience: "user", permissions: ["notes:write"] };
 const provider = { provider_id: "system-judgments", title: "判断规则", kind: "system" as const };
@@ -569,4 +571,68 @@ test("ActionService.targets resolves the requested judgment via discoverOne with
   assert.equal(mismatched[0]!.availability.code, "actions.scene_incompatible");
   assert.equal(discoverCalls, 0);
   assert.equal(unrelatedAvailability, 0);
+});
+
+test("F-cf-01 query delivery tail rechecks validate_authority and blocks result after mid-flight revocation", async () => {
+  const service = new ActionService();
+  const secretQuery: ActionDefinition<Record<string, never>, { secret: string }> = {
+    capability_id: "sensitive.query.read",
+    version: 1,
+    operation: "query",
+    action: {
+      title: "Read sensitive data",
+      description: "Query subject to mid-flight authority revocation",
+      kind: "query",
+      scope: "project",
+      scheduling: "concurrent",
+      audiences: ["user"],
+      permissions: ["notes:write"],
+      subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false },
+      output_schema: { type: "object", properties: { secret: { type: "string" } }, required: ["secret"], additionalProperties: false },
+    },
+  };
+  let allowed = true;
+  let authorityChecks = 0;
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  service.registerProvider({
+    provider,
+    definitions: [secretQuery],
+    handlers: [{
+      ...secretQuery,
+      handle: async () => {
+        started.resolve();
+        await release.promise;
+        return { secret: "top-secret-value" };
+      },
+    }],
+  });
+  const call = service.invoke({
+    ...context,
+    validate_authority: () => {
+      authorityChecks += 1;
+      if (!allowed) throw new ActionError("actions.forbidden", "revoked mid-flight");
+    },
+  }, secretQuery, {});
+  await started.promise;
+  allowed = false;
+  release.resolve();
+  await assert.rejects(call, (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden");
+  assert.ok(authorityChecks >= 2, "validate_authority must run both at admission and on query result delivery");
+});
+
+test("F-cf-06 F-cf-11 action-usages/kit-report reject backslash cross-origin hrefs and memory list schemas accept character scope", () => {
+  const checkUsage = compileActionSchema(ACTION_USAGE_SCHEMA);
+  const checkManage = compileActionSchema(KIT_MANAGE_LINK_SCHEMA);
+  assert.equal(checkUsage({ usage_id: "u1", title: "Step 1", enabled: true, href: "/projects/p1/rules/r1?tab=1#top" }), true);
+  assert.equal(checkManage({ href: "/settings/kit", label: "Manage" }), true);
+  for (const badHref of ["//evil.com", "/\\evil.com", "/projects/p1\nHeader: x", "/projects/p1 with space", "https://evil.com"]) {
+    assert.equal(checkUsage({ usage_id: "u1", title: "Step 1", enabled: true, href: badHref }), false, `usage href: ${JSON.stringify(badHref)}`);
+    assert.equal(checkManage({ href: badHref, label: "Manage" }), false, `kit link href: ${JSON.stringify(badHref)}`);
+  }
+  for (const def of [memoryActions.candidates, memoryActions.changes, memoryActions.pairs]) {
+    const validate = compileActionSchema(def.action.input_schema);
+    assert.equal(validate({ scope: "character" }), true, def.capability_id);
+  }
 });

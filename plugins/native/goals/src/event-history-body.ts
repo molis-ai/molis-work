@@ -3,7 +3,35 @@ import type { GoalProgressArtifactSource, GoalEventScope, GoalEventSystemPayload
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { renderAcknowledgementBody, type AcknowledgementContext } from "./event-acknowledgement-body.js";
-import { JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, type GoalHistoryIndexItem } from "./event-history-map.js";
+import type { GoalHistoryIndexItem } from "./event-history-map.js";
+import { goalRelationLabel } from "./relation-presentation.js";
+
+const HISTORY_TYPE_KEYS: Record<string, string> = {
+  progress_summary: "goals.history.type.progress-summary",
+  observation_note: "goals.history.type.observation-note",
+  concern_opened: "goals.history.type.concern-opened",
+  concern_resolved: "goals.history.type.concern-resolved",
+  concern_accepted: "goals.history.type.concern-accepted",
+  concern_overturned: "goals.history.type.concern-overturned",
+  decision_requested: "goals.history.type.decision-requested",
+  user_decision: "goals.history.type.user-decision",
+  decision_cited: "goals.history.type.decision-cited",
+  agreement_set: "goals.history.type.agreement-set",
+  closure_submitted: "goals.history.type.closure-submitted",
+  completion_reopened: "goals.history.type.completion-reopened",
+  work_resumed: "goals.history.type.work-resumed",
+  event_owner_continued: "goals.history.type.event-owner-continued",
+  input_acknowledged: "goals.history.type.input-acknowledged",
+  report: "goals.history.type.report",
+  configuration: "goals.history.type.configuration",
+  system: "goals.history.type.system",
+  "goal.created": "goals.history.journal.created",
+  "goal.updated": "goals.history.journal.updated",
+  "goal.accepted": "goals.history.journal.accepted",
+  "relation.added": "goals.history.journal.relation-added",
+  "relation.deactivated": "goals.history.journal.relation-deactivated",
+  record: "goals.history.type.record",
+};
 
 export function renderProgressSource(source: GoalProgressArtifactSource | undefined, escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
   if (!source) return "";
@@ -26,7 +54,8 @@ export function renderHistoryItemBody(
   const { translate: readText, escapeHtml } = primitives;
   if (item.source === "event_work" && lookups.workEvent) return renderWorkEventBody(lookups.workEvent, readText, escapeHtml, lookups.requirementNames, lookups.acknowledgedActorKind);
   if (item.source === "journal" && lookups.journal) return renderJournal(lookups.journal, readText, escapeHtml, item.relation);
-  return `<article class="event"><h2>${escapeHtml(item.title)}</h2><p class="event-meta">${escapeHtml(item.type_label)} · ${escapeHtml(item.actor_id)}</p><p>${uiText("goals.event-history-body.original-text-currently-unreadable-record-still-keeps-original")}</p></article>`;
+  const fallbackType = item.type_key && Object.hasOwn(HISTORY_TYPE_KEYS, item.type_key) ? uiText.text(HISTORY_TYPE_KEYS[item.type_key]!) : item.type_label;
+  return `<article class="event"><h2>${escapeHtml(item.title)}</h2><p class="event-meta">${escapeHtml(fallbackType)} · ${escapeHtml(item.actor_id)}</p><p>${uiText("goals.event-history-body.original-text-currently-unreadable-record-still-keeps-original")}</p></article>`;
 }
 
 export function renderWorkEventBody(
@@ -40,7 +69,7 @@ export function renderWorkEventBody(
     ? (event.type?.name || uiText.text("goals.event-history-body.work-record"))
     : event.kind === "configuration"
       ? uiText.text("goals.event-history-body.config")
-      : (SYSTEM_TYPE_LABELS[event.payload.operation] ?? uiText.text("goals.event-history-body.system-record"));
+      : (Object.hasOwn(HISTORY_TYPE_KEYS, event.payload.operation) ? uiText.text(HISTORY_TYPE_KEYS[event.payload.operation]!) : uiText.text("goals.event-history-body.system-record"));
   const meta = `${typeName} · ${event.actor_id} · ${formatEventTime(event.received_at)}`;
   if (event.kind === "report") {
     const fields = (event.type?.fields ?? []).map((field) => {
@@ -84,7 +113,7 @@ function renderSystemPayload(
     case "decision_requested":
       return `${heading}<p>${escapeHtml(payload.question)}</p><ul>${payload.options.map((option) => `<li><strong>${escapeHtml(option.label)}</strong> · ${escapeHtml(option.impact)}</li>`).join("")}</ul>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
     case "user_decision": {
-      const effects = payload.effects.map((item) => effectLabel(item.kind, readText) + (item.action ? uiText.text("common.punctuation.in-parens", { value: escapeHtml(item.action) }) : "")).join(uiText.text("common.list.separator"));
+      const effects = payload.effects.map((item) => effectLabel(item.kind, readText) + (item.action ? uiText.text("common.punctuation.in-parens", { value: item.action }) : "")).join(uiText.text("common.list.separator"));
       const option = payload.selected_option_id ? `<p>${uiText("goals.event-history-body.selected-option")} ${escapeHtml(payload.selected_option_id)}</p>` : "";
       return `${heading}<p>${escapeHtml(payload.conclusion)}</p>${option}<p>${uiText("goals.event-history-body.effect")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(effects)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
     }
@@ -117,6 +146,7 @@ function effectLabel(kind: string, _L: GoalsDocumentUiPrimitives["translate"]): 
   if (kind === "reject_concerns") return uiText.text("goals.event-history-body.reject-concern");
   if (kind === "authorize_action") return uiText.text("goals.event-history-body.authorize-action");
   if (kind === "deny_action") return uiText.text("goals.event-history-body.reject-action");
+  if (kind === "authorize_agreement_change") return uiText.text("goals.event-history-body.authorize-agreement-change");
   return kind;
 }
 
@@ -131,7 +161,7 @@ function renderScope(
   const parts = [
     requirements ? `${uiText.text("goals.event-history-body.requirement")} ${requirements}` : "",
     events ? `${uiText.text("goals.event-history-body.event")} ${events}` : "",
-    scope.concern_ids.length ? `${"Concern"} ${escapeHtml(scope.concern_ids.join(uiText.text("common.list.separator")))}` : "",
+    scope.concern_ids.length ? `${uiText.text("goals.event-history-body.concern")} ${escapeHtml(scope.concern_ids.join(uiText.text("common.list.separator")))}` : "",
     scope.action ? `${uiText.text("goals.event-history-body.action")} ${escapeHtml(scope.action)}` : "",
   ].filter(Boolean);
   return parts.length ? `<p>${uiText("goals.event-history-body.scope")}${uiText.text("common.punctuation.label-separator")}${parts.join(" · ")}</p>` : "";
@@ -141,9 +171,10 @@ function renderJournal(event: GoalsDecisionEvent, _readText: GoalsDocumentUiPrim
   if (relationInfo) {
     const relation = relationInfo;
     const status = relation.removed ? uiText.text("goals.event-history-body.removed") : uiText.text("goals.event-history-body.established");
+    const relationLabel = goalRelationLabel(relation.type, "out") ?? relation.label;
     return `<article class="event event-relation"><header><span class="history-state" data-tone="${relation.removed ? "muted" : "positive"}">${relation.removed ? "−" : "+"} ${status}</span><h2>${uiText("goals.event-history-body.goal-relationship-change")}</h2></header>
       <p class="event-meta">${escapeHtml(event.actor_id)} · ${escapeHtml(formatEventTime(event.at))}</p>
-      <div class="history-relation-flow"><button type="button" data-select-goal="${escapeHtml(relation.from_id)}">${escapeHtml(relation.from_title)}</button><span class="history-relation-link">${escapeHtml(relation.label)}<span aria-hidden="true">↓</span></span><button type="button" data-select-goal="${escapeHtml(relation.to_id)}">${escapeHtml(relation.to_title)}</button></div>
+      <div class="history-relation-flow"><button type="button" data-select-goal="${escapeHtml(relation.from_id)}">${escapeHtml(relation.from_title)}</button><span class="history-relation-link">${escapeHtml(relationLabel)}<span aria-hidden="true">↓</span></span><button type="button" data-select-goal="${escapeHtml(relation.to_id)}">${escapeHtml(relation.to_title)}</button></div>
       ${relation.type === "depends_on" ? `<p class="form-note">${uiText("goals.event-history-body.goal-above-needs-goal-below-finish-before-can")}</p>` : ""}
       <h3>${uiText("goals.event-history-body.change-reason")}</h3><p>${escapeHtml(event.reason || uiText.text("goals.event-history-body.no-reason-given"))}</p>
       <details class="form-disclosure"><summary>${uiText("goals.event-history-body.show-original-record-identifier")}</summary><code>${escapeHtml(event.object_id)}</code></details></article>`;
@@ -152,10 +183,10 @@ function renderJournal(event: GoalsDecisionEvent, _readText: GoalsDocumentUiPrim
     ? event.payload as Record<string, unknown>
     : {};
   const relation = typeof payload.type === "string" && payload.from_goal_id && payload.to_goal_id
-    ? uiText.text("goals.event-history-body.relation-between-type", { from: String(payload.from_goal_id), to: String(payload.to_goal_id), type: String(payload.type) })
+    ? uiText.text("goals.event-history-body.relation-between-type", { from: String(payload.from_goal_id), to: String(payload.to_goal_id), type: goalRelationLabel(payload.type, "out") ?? String(payload.type) })
     : "";
   const sentence = event.reason?.trim() || relation || uiText.text("goals.event-history-body.record-keeps-what-happened-time");
-  const typeName = JOURNAL_TYPE_LABELS[event.type] ?? uiText.text("goals.event-history-body.capture");
+  const typeName = Object.hasOwn(HISTORY_TYPE_KEYS, event.type) ? uiText.text(HISTORY_TYPE_KEYS[event.type]!) : uiText.text("goals.event-history-body.capture");
   return `<article class="event"><h2>${escapeHtml(sentence)}</h2><p class="event-meta">${escapeHtml(typeName)} · ${escapeHtml(event.actor_id)} · ${escapeHtml(formatEventTime(event.at))}</p>
     <details class="form-disclosure"><summary>${uiText("goals.event-history-body.show-original-record-identifier")}</summary><code>${escapeHtml(event.object_id)}</code></details>
   </article>`;

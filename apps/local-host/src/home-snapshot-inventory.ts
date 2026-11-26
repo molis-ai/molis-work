@@ -60,8 +60,8 @@ export function assertSnapshotHomeInventory(home: string, registry: HomeSnapshot
   }
 }
 
-export function snapshotEntryDisposition(home: string, store: HomeSnapshotStore, file: string): SnapshotDisposition {
-  return file ? store.snapshot.entry?.(home, file) ?? { kind: "keep" } : { kind: "keep" };
+export function snapshotEntryDisposition(home: string, store: HomeSnapshotStore, file: string, online = false): SnapshotDisposition {
+  return file ? store.snapshot.entry?.(home, file, online) ?? { kind: "keep" } : { kind: "keep" };
 }
 
 export function snapshotDatabaseOptions(store: HomeSnapshotStore, file: string): SqliteSnapshotOptions | undefined {
@@ -80,12 +80,23 @@ export function inventorySnapshotStore(home: string, store: HomeSnapshotStore, o
   if (!root) return answer("absent");
   if (store.snapshot.omit) { exclusions.push({ path: store.path, reason: store.snapshot.omit }); return answer("omitted"); }
   if (store.snapshot.emptyOnly && (!root.isDirectory() || readdirSync(source).length)) throw homeSnapshotErrors.unknown_data(`预留存储非空，不能默认为缓存: ${store.path}`);
+  const isSqliteSidecar = (file: string) => /-(?:journal|wal|shm)$/u.test(file);
   const visit = (file: string) => {
     if (file.includes("\\") || file.split("/").some(part => part === "." || part === "..")) throw homeSnapshotErrors.invalid("快照相对路径无效");
-    const policy = snapshotEntryDisposition(home, store, file), path = file ? join(source, file) : source;
+    const policy = snapshotEntryDisposition(home, store, file, online), path = file ? join(source, file) : source;
     if (policy.kind === "omit") { exclusions.push({ path: store.path + "/" + file, reason: policy.reason }); return; }
-    const info = lstatSync(path);
-    if (info.isSymbolicLink() || realpathSync(path) !== path) throw homeSnapshotErrors.invalid(`快照不跟随链接: ${path}`);
+    const info = lstatSync(path, { throwIfNoEntry: false });
+    if (!info) {
+      if (online && isSqliteSidecar(file)) return;
+      throw homeSnapshotErrors.changed(`快照扫描期间文件已变化: ${store.path}/${file}`);
+    }
+    let resolved: string;
+    try { resolved = realpathSync(path); }
+    catch (error) {
+      if (online && isSqliteSidecar(file) && (error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (info.isSymbolicLink() || resolved !== path) throw homeSnapshotErrors.invalid(`快照不跟随链接: ${path}`);
     const entry = { relative: file, path, info, disposition: policy };
     if (info.isDirectory()) {
       if (policy.kind === "key" || policy.kind === "sealed") throw homeSnapshotErrors.invalid(`密钥或书签必须是普通文件: ${path}`);

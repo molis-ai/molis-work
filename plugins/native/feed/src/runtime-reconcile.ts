@@ -3,6 +3,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundClient, PluginJobControl, PluginJobDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConnectionsClient } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import type { FeedApplication } from "./application.js";
+import { sourceDeletedAt } from "./contract/sources.js";
 import { connectorSlotOf } from "./runtime-connector.js";
 import { keptProjectBodyPages } from "./history-pages.js";
 
@@ -152,18 +153,17 @@ export async function refreshAccountSourceStates(ports: FeedReconcilePorts, cont
   let changed = 0;
   // Source state reads never load the project's messages or materials.
   for (const source of feed.sources.list(projectId)) {
-    const lifecycle = source.config._molis_work_lifecycle as { deleted_at?: string } | undefined;
     const slot = connectorSlotOf(source);
-    if (slot === null || !source.enabled || lifecycle?.deleted_at) continue;
+    if (slot === null || !source.enabled || sourceDeletedAt(source) !== null) continue;
     const account = await connections.describe(slot, source.source_id);
     if (!account.bound) continue;
     const usable = account.state === "connected";
     const status = usable ? (source.status === "disconnected" ? "active" : source.status) : (source.status === "paused" ? "paused" : "disconnected");
     if (status === source.status) continue;
     const moved = await ports.commit(control, () => {
-      // The source may have moved since it was read; only the one that was read is changed.
+      // The source may have moved, paused or retired since it was read; never resurrect a retired or disabled source.
       const latest = feed.sources.get(projectId, source.source_id);
-      if (latest.status !== source.status) return false;
+      if (sourceDeletedAt(latest) !== null || !latest.enabled || latest.status !== source.status) return false;
       feed.sources.upsert({ ...latest, status, updated_at: new Date().toISOString(), last_error_code: usable ? null : "sources.connector_disconnected" });
       return true;
     });

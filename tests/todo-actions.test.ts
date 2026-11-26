@@ -557,3 +557,30 @@ test("ARF-5 mixed and empty batches count only recorded changes and stale observ
   assert.ok(mixed.batch_id);
   assert.deepEqual((await f.me.invoke(actions.revert, { batch_id: mixed.batch_id })).items.map(item => item.id), [dated.id]);
 });
+
+test("F-plugins-rest-04: waiting todos whose follow_up_on is today or past appear in today view and counts", async t => {
+  const f = fixture(t);
+  await f.me.invoke(actions.create, { title: "昨天该问", status: "waiting", waiting: { who: "小张", what: "合同", follow_up_on: "2026-09-27" } });
+  await f.me.invoke(actions.create, { title: "今天该问", status: "waiting", waiting: { who: "王总", what: "回复", follow_up_on: TODAY } });
+  await f.me.invoke(actions.create, { title: "后天再问", status: "waiting", waiting: { who: "小李", what: "预算", follow_up_on: "2026-09-30" } });
+  const today = await f.me.invoke(actions.list, { view: "today" });
+  assert.deepEqual(today.items.map(item => item.title), ["昨天该问", "今天该问"]);
+  assert.equal(today.counts.today, 2);
+  assert.equal(today.counts.waiting, 3);
+});
+
+test("F-plugins-rest-05: quick entry rejects impossible dayOnly dates without calendar overflow and uses calendar math for 下下周", () => {
+  for (const [text, now] of [
+    ["35号会议室开会", new Date(2026, 8, 10, 10, 0)],
+    ["0号方案评审", new Date(2026, 8, 10, 10, 0)],
+    ["30号交报告", new Date(2026, 1, 15, 10, 0)],
+    ["31号开会", new Date(2026, 3, 5, 10, 0)],
+  ] as const) {
+    const parsed = parseTodoQuickText(text, now);
+    assert.deepEqual(parsed.parts, [], text);
+    assert.equal(parsed.title, text, text);
+  }
+  const twoWeeks = parseTodoQuickText("下下周一复盘", new Date(2026, 8, 28, 10, 30));
+  assert.equal(twoWeeks.title, "复盘");
+  assert.deepEqual(twoWeeks.parts, [{ field: "planned_date", phrase: "下下周一", date: "2026-10-12", time: null }]);
+});

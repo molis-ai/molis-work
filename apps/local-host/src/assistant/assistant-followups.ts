@@ -159,10 +159,27 @@ export class AssistantFollowUps<W extends FollowUpWork> {
         time_zone: input.time_zone || ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: ports.now().toISOString() };
       ports.records.save(ports.actorId, followUp);
       this.#runnerFor(schedule);
-      await this.#enqueueCurrent(followUp, work.session_id, schedule, held && {
-        beforeEffect: async () => { await control?.beforeEffect(); },
-        assertCurrent: () => { control?.assertCurrent(); held.assertCurrent(); },
-      });
+      const original = control || held
+        ? {
+            beforeEffect: async () => {
+              await control?.beforeEffect();
+            },
+            assertCurrent: () => {
+              control?.assertCurrent();
+              held?.assertCurrent();
+            },
+          }
+        : undefined;
+      try {
+        await this.#enqueueCurrent(followUp, work.session_id, schedule, original);
+      } catch (error) {
+        try {
+          if (this.#isCurrent(followUp)) ports.records.remove(ports.actorId, followUp.followup_id);
+        } catch {
+          // Preserve the original enqueue failure.
+        }
+        throw error;
+      }
       return followUp;
     } finally { held?.release(); }
   }

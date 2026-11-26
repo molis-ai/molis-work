@@ -41,8 +41,11 @@ export interface SchedulePage {
   created: string;
   /** Whether the project has a workspace, once read: a task that reads files only needs one. */
   ready?: Readiness;
-  /** The last answer of `/grants`, by task: a redraw for new words says it again on the new rows instead of asking again (TGA-22). */
-  taskReads?: ReadonlyMap<string, TaskReads>;
+  /**
+   * The last answer of `/grants`, by task, and the tasks on the list when it was asked: a redraw for new words says it again on the
+   * new rows instead of asking again (TGA-22).
+   */
+  taskReads?: { readonly known: ReadonlyMap<string, TaskReads>; readonly rows: ReadonlySet<string> };
   /** The platform's reads area in the open task's detail (area.ts): its element, and what closes it. */
   area: { readonly element: HTMLElement; readonly control: AbortController } | null;
   /** What the person last changed in the area, by task, with the read of the list under way then (newer than that read's answer). */

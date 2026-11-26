@@ -1,3373 +1,3456 @@
 {
-"01-1": {
-"title": "基线、旧成果与在途需求核对",
-"main": "无",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"01-2": {
-"title": "归档、状态修正与验收单",
-"main": "无",
-"also": [],
-"kind": "文档治理",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"02-1": {
-"title": "遗留事项、主人与唯一待办",
-"main": "无",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"02-2": {
-"title": "共享核心、SQLite 驱动与合同复位",
-"main": "C1",
-"also": [
-"A",
-"B",
-"C2",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "文件路线明确"
-},
-"02-3": {
-"title": "版本归一与重建清理",
-"main": "统筹",
-"also": [],
-"kind": "实现",
-"occupy": false,
-"status": "定",
-"basis": "N4～N37 散在 6 条轨道，又要真实 Home 窗口，没有主轨道。建议统筹排，各改动按所在包占对应轨道"
-},
-"02-4": {
-"title": "升级起点与合同规则 U0",
-"main": "C1",
-"also": [],
-"kind": "文档治理",
-"occupy": false,
-"status": "定",
-"basis": "记录路线明确"
-},
-"02-5": {
-"title": "对外许可口径与 BACKLOG 整理",
-"main": "无",
-"also": [],
-"kind": "文档治理",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"03-1": {
-"title": "资料、工作台、输入和创作台主路径定样",
-"main": "D",
-"also": [
-"A",
-"C1",
-"E"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "记录路线明确"
-},
-"03-2": {
-"title": "文案帮助、创作断点与角色样例用途",
-"main": "D",
-"also": [
-"F",
-"E"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "裁定：定样与清点，不写代码"
-},
-"03-3": {
-"title": "安静准备、观察试用与部分返工定样",
-"main": "A",
-"also": [
-"C",
-"D"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"04-1": {
-"title": "Onboarding 全程设计",
-"main": "F",
-"also": [
-"A",
-"D"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"05-1": {
-"title": "升级链 U1 与金样回放 U2",
-"main": "C1",
-"also": [
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"05-2": {
-"title": "资料、目录与呈现公共合同",
-"main": "C1",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"05-3": {
-"title": "SQLite 第二步切换",
-"main": "C1",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "storage 不归任何轨道，但要和 C1 的 U1 串行，所以建议归 C1"
-},
-"05-4": {
-"title": "版本字段与 schema 输入类型",
-"main": "C1",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"05-5": {
-"title": "编辑器字段整理",
-"main": "C1",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "函数合同和推荐目录都不在独占文件内，建议随 05 的合同队列"
-},
-"06-1": {
-"title": "公共资料与 Files 退役（清单已交 #1805）",
-"main": "C1",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"06-2": {
-"title": "文档记录协议与 SDK 共用实现",
-"main": "C1",
-"also": [
-"A",
-"B",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"06-3": {
-"title": "宿主调用整治与缓存核查",
-"main": "统筹",
-"also": [],
-"kind": "实现",
-"occupy": false,
-"status": "定",
-"basis": "全部落在不归任何轨道的宿主文件，走规则 4 同路径一起落"
-},
-"06-4": {
-"title": "各包调用成本补齐",
-"main": "C1",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "调用成本余项落在 plugin-runtime，也改插件；记录只写「按所在包填空」"
-},
-"07-1": {
-"title": "工作台导航、布局与 Home 插件接入",
-"main": "D",
-"also": [
-"A",
-"B",
-"E",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"07-2": {
-"title": "页面读取与轮询整治",
-"main": "D",
-"also": [
-"A",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "主体是工作台外壳，不在 D 独占文件内；但要和 D 的导航串行"
-},
-"07-3": {
-"title": "Feed 投影归回插件",
-"main": "D",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "需求写 D/E 同片。另外 BL-880 点名的 feed-projection-ui.ts 在 main 已不存在，要先核还有没有活"
-},
-"08-1": {
-"title": "技能包基础能力",
-"main": "C1",
-"also": [
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"09-1": {
-"title": "助理与 Coding 接点",
-"main": "A",
-"also": [
-"B",
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"09-2": {
-"title": "能力包：统一声明与目录",
-"main": "A",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 整批表"
-},
-"10-1": {
-"title": "统一输入公共组件",
-"main": "A",
-"also": [
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"11-1": {
-"title": "三入口接入统一输入",
-"main": "A",
-"also": [
-"B"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"12-1": {
-"title": "Coding 执行、委派与可见状态",
-"main": "B",
-"also": [
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"12-2": {
-"title": "材料进入项目与 Coding 接续",
-"main": "F",
-"also": [
-"B"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"12-3": {
-"title": "草稿与返回能力",
-"main": "",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "待定",
-"basis": "#1896 已将此项加入第 12 批，#1743 尚未分配负责人或轨道，不沿用前两项的归属"
-},
-"13-1": {
-"title": "服务与模型基础连接",
-"main": "D",
-"also": [
-"A",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "只有设置页是轨道文件；记录把同需求的其余部分写在 C、F"
-},
-"14-1": {
-"title": "字体皮肤语言 A 段",
-"main": "D",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"14-2": {
-"title": "回复语言（T10）",
-"main": "D",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 整批表"
-},
-"14-3": {
-"title": "手册与开发流程（T9a、T9b）",
-"main": "D",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 整批表"
-},
-"15-1": {
-"title": "确定组合平台服务",
-"main": "C3",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"15-2": {
-"title": "公共来源、呈现组件与首批入口",
-"main": "D",
-"also": [
-"A",
-"B",
-"C1",
-"C3",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"15-3": {
-"title": "基础首页与 Feed 归属",
-"main": "D",
-"also": [
-"C1",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"16-1": {
-"title": "真实基线与插件切片验收 B 段",
-"main": "D",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"16-2": {
-"title": "现有入口整体切换 C 段",
-"main": "D",
-"also": [
-"E",
-"A",
-"B",
-"C1",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "裁定：记录明确 1·D；规则 3 的切换窗口里 E 不改界面文字"
-},
-"17-1": {
-"title": "风险插件基础完整路径",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"18-1": {
-"title": "Schedule 查询前置",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"19-1": {
-"title": "Work Brief 首页与简报核心",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"20-1": {
-"title": "场景与生成页面公共合同",
-"main": "C1",
-"also": [
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"20-2": {
-"title": "场景包声明",
-"main": "C1",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "跟同批第一项，用户 2026-11-04 确认"
-},
-"21-1": {
-"title": "观测采集设计与评测案例",
-"main": "C3",
-"also": [
-"D"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"22-1": {
-"title": "Sessions 来源与历史合同",
-"main": "C",
-"also": [
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路都在 C 轨（C1／C3）"
-},
-"24-1": {
-"title": "Prologue 采用与任务能力核准",
-"main": "C2",
-"also": [
-"B"
-],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"24-2": {
-"title": "Memory P0 非上游余项",
-"main": "C2",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"24-3": {
-"title": "逐项交付与证据关联合同",
-"main": "C",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "记录路线明确"
-},
-"25-1": {
-"title": "常驻、休眠与单 Home 执行恢复",
-"main": "F",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"25-2": {
-"title": "按主人隔离升级失败 U3",
-"main": "C1",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"25-3": {
-"title": "回到上一版（U6 的回退，从 26-6 提前）",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "从 26-6 拆出，沿 26-6 的轨道"
-},
-"26-1": {
-"title": "签名、公证与安装准备",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"26-2": {
-"title": "正式 OAuth 应用",
-"main": "F",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线明确"
-},
-"26-3": {
-"title": "原生组件预置与自检",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"26-4": {
-"title": "本机日志、崩溃恢复与诊断包",
-"main": "F",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "桌面与设置页明确，但重启、日志主体在宿主，不归任何轨道"
-},
-"26-5": {
-"title": "插件升级 U4",
-"main": "C1",
-"also": [
-"A",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"26-6": {
-"title": "副本演练 U6",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"26-7": {
-"title": "状态与状态机合同与词表",
-"main": "C1",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"26-8": {
-"title": "状态词汇门禁与文档",
-"main": "统筹",
-"also": [
-"C1",
-"D",
-"E"
-],
-"kind": "文档治理",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"27-1": {
-"title": "基础交互体验债",
-"main": "E",
-"also": [
-"A",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"27-2": {
-"title": "代码／Diff 及性能余项",
-"main": "D",
-"also": [
-"B"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录明确 1·D；代码却在 Coding 独占文件。按规则 7 可由 B 落改动"
-},
-"27-3": {
-"title": "首批文案与帮助",
-"main": "D",
-"also": [
-"A",
-"B",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"27-4": {
-"title": "Runtime、Goals 与沙箱余项",
-"main": "C1",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"27-5": {
-"title": "宿主出口、文档门禁与各包清理",
-"main": "统筹",
-"also": [],
-"kind": "实现",
-"occupy": false,
-"status": "定",
-"basis": "各包清理，跨 6 条轨道，建议统筹排，按包占轨道"
-},
-"27-6": {
-"title": "状态词汇门禁与文档",
-"main": "统筹",
-"also": [
-"C1",
-"D",
-"E"
-],
-"kind": "已移到 26-8",
-"occupy": false,
-"status": "定",
-"basis": "用户 2026-11-11 移到 26-8"
-},
-"28-1": {
-"title": "采集事实接入",
-"main": "C3",
-"also": [
-"A",
-"B",
-"C2",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"29-1": {
-"title": "历史查询与记录管理",
-"main": "C3",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"30-1": {
-"title": "最小真实评测路径",
-"main": "C3",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"31-1": {
-"title": "SDK 窗口一",
-"main": "C2",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"31-2": {
-"title": "Memory P1：历史、交换与单一写主人",
-"main": "C2",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 整批表"
-},
-"32-1": {
-"title": "主对话持续接单、后台任务控制与结果回流",
-"main": "A",
-"also": [
-"C"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"32-2": {
-"title": "逐项产物、认可、返工与复核",
-"main": "A",
-"also": [
-"C1",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"32-3": {
-"title": "事项线第一片：外壳、线、事件登记、事件卡与后台任务面板",
-"main": "D",
-"also": [
-"A",
-"C1",
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"33-1": {
-"title": "Coding 任务与环境恢复",
-"main": "B",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"33-2": {
-"title": "材料、大清单与重启接续",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"34-1": {
-"title": "Sessions 历史实现",
-"main": "C3",
-"also": [
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"35-1": {
-"title": "引导接入已有 Sessions",
-"main": "F",
-"also": [
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"35-2": {
-"title": "Coding A 期",
-"main": "B",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"36-1": {
-"title": "角色设置、生效与恢复",
-"main": "C",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"36-2": {
-"title": "主线第一片的合同与服务",
-"main": "C",
-"also": [
-"C1",
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路都在 C 轨（C3／C1）"
-},
-"37-1": {
-"title": "生成页面运行、采用与恢复",
-"main": "C3",
-"also": [
-"C1",
-"D",
-"E",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"37-2": {
-"title": "事项切换与工作台状态",
-"main": "D",
-"also": [
-"B",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"38-1": {
-"title": "插件配置采用",
-"main": "E",
-"also": [
-"C1",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"39-1": {
-"title": "授权、人审与统一管理页",
-"main": "C",
-"also": [
-"A",
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路都在 C 轨（C2／C1）"
-},
-"39-2": {
-"title": "可信决定回平台",
-"main": "C",
-"also": [
-"C1",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位片 3 并入（决定 42）"
-},
-"40-1": {
-"title": "配置、工作交接与使用治理",
-"main": "D",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "页面都在平台设置页；记录只说「沿治理第 6 节」，没点轨道"
-},
-"40-2": {
-"title": "全产品文案与按需帮助",
-"main": "D",
-"also": [
-"A",
-"B",
-"E",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"41-1": {
-"title": "Skill 选用",
-"main": "C2",
-"also": [
-"A",
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"41-2": {
-"title": "规划方法变成技能",
-"main": "C2",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位片 4 并入（决定 42）"
-},
-"42-1": {
-"title": "Skill 创作与改进完整路径",
-"main": "C",
-"also": [
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录写技能包在 C；文件路线认为从对话生成 Skill 落助理"
-},
-"43-1": {
-"title": "项目助理团执行与交付",
-"main": "A",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "委派落助理；记录只说先核运行时，SDK 缺口可能转 C2"
-},
-"43-2": {
-"title": "Dataset 汇总、追加与规模性能",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"44-1": {
-"title": "合同去插件化",
-"main": "C1",
-"also": [
-"C3",
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"44-2": {
-"title": "项目指导回平台",
-"main": "C3",
-"also": [
-"B",
-"C2",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"44-3": {
-"title": "要求与认可：Goals 改为消费平台能力",
-"main": "E",
-"also": [
-"C"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"44-4": {
-"title": "终端执行解耦",
-"main": "C3",
-"also": [
-"B",
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"44-5": {
-"title": "其他插件去点名",
-"main": "E",
-"also": [
-"C1",
-"G"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"44-6": {
-"title": "宿主与工作台去私路、Goals 可移除",
-"main": "统筹",
-"also": [
-"C1",
-"D",
-"E",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"44-7": {
-"title": "删除桌面胶囊、CLI 的 Goals 命令与 `goal-advance`",
-"main": "F",
-"also": [
-"C2",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"44-8": {
-"title": "叙事与命名",
-"main": "无",
-"also": [],
-"kind": "文档治理",
-"occupy": false,
-"status": "定",
-"basis": "2026-11-13 插件同等地位并入（决定 42）"
-},
-"45-1": {
-"title": "首次／项目场景闭环",
-"main": "F",
-"also": [
-"A",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"45-2": {
-"title": "官方场景包：行业观察与写作、写代码",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "跟同批第一项，用户 2026-11-04 确认"
-},
-"46-1": {
-"title": "情境 W4 创建与准备声明",
-"main": "E",
-"also": [
-"C1",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"46-2": {
-"title": "通用任务引导与场景复用",
-"main": "F",
-"also": [
-"A",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"47-1": {
-"title": "正式插件交付的平台前置",
-"main": "C1",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"47-2": {
-"title": "状态机登记与只读查询",
-"main": "C1",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 整批表"
-},
-"48-1": {
-"title": "新插件创建、隔离试用与安装预演",
-"main": "E",
-"also": [
-"C",
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"48-2": {
-"title": "成果、搜索与工作流内容站声明",
-"main": "E",
-"also": [
-"C",
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"48-3": {
-"title": "依赖、来源与权限可见",
-"main": "E",
-"also": [
-"D",
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录在创作台线上；文件路线认为展示页在 D 的设置页"
-},
-"48-4": {
-"title": "首次可用率与返修评测样本",
-"main": "E",
-"also": [
-"C",
-"D"
-],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"48-5": {
-"title": "安装预演与插件目录的状态展示",
-"main": "D",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"48-6": {
-"title": "创作能力经动作目录提供",
-"main": "C3",
-"also": [
-"C1",
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"52-1": {
-"title": "每日简报、设置与中断恢复",
-"main": "A",
-"also": [
-"D",
-"E",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"52-2": {
-"title": "初始日报与工作接续 Skill",
-"main": "A",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录在助理线上；但技能包是新插件包，新插件包归 E"
-},
-"52-3": {
-"title": "官方场景包：个人事务与每日简报",
-"main": "A",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "跟同批第一项，用户 2026-11-04 确认"
-},
-"53-1": {
-"title": "回执与交互余项",
-"main": "A",
-"also": [
-"B",
-"C2",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"53-2": {
-"title": "智能呈现第二片",
-"main": "D",
-"also": [
-"A",
-"C1",
-"C3",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"53-3": {
-"title": "主线第二片",
-"main": "A",
-"also": [
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录写 2～3·A/D/E 没分主次；文件上整理视图在工作台外壳"
-},
-"54-1": {
-"title": "本机语音",
-"main": "A",
-"also": [
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"55-1": {
-"title": "月／季／年重复",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"55-2": {
-"title": "等待分组与时长",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"55-3": {
-"title": "待办整理样本",
-"main": "E",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"55-4": {
-"title": "外部判断连接未连接时的判断",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"55-5": {
-"title": "Shelf 轮盘与快捷键",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"55-6": {
-"title": "工作流查询与映射",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"55-7": {
-"title": "旧 Office 与下载／转写恢复",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"55-8": {
-"title": "连续两期场景",
-"main": "E",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"56-1": {
-"title": "Attention 唤醒、角标与系统通知",
-"main": "F",
-"also": [
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"56-2": {
-"title": "切换后新入口文字与翻译复核",
-"main": "D",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"56-3": {
-"title": "N22 全量迁移与收口",
-"main": "无",
-"also": [
-"A",
-"B",
-"C1",
-"E"
-],
-"kind": "文档治理",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"57-1": {
-"title": "个人工作完整路径",
-"main": "F",
-"also": [
-"B",
-"E"
-],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"58-1": {
-"title": "子代理公共交互组件",
-"main": "A",
-"also": [
-"D",
-"B",
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录写产品半边 3·A、3·B；公共组件文件却归 D"
-},
-"59-1": {
-"title": "子代理双入口接入",
-"main": "A",
-"also": [
-"B"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "助理和 Coding 是两个对等入口，记录也写 3·A、3·B"
-},
-"60-1": {
-"title": "Sessions 控制与交接",
-"main": "C3",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"61-1": {
-"title": "服务矩阵、现有连接与统一搜索",
-"main": "C",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"61-2": {
-"title": "自动化推荐与采用",
-"main": "C",
-"also": [
-"A",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路都在 C 轨（C3／C）"
-},
-"61-3": {
-"title": "交给 SDK 窗口二的缺口清单",
-"main": "C2",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"62-1": {
-"title": "四策略、SDK 补缺与逐服务验收",
-"main": "C2",
-"also": [
-"A",
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"62-2": {
-"title": "项目模型限制与出站边界",
-"main": "C",
-"also": [
-"A",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路都在 C 轨（C2／C）"
-},
-"62-3": {
-"title": "组合候选目录与引用语义",
-"main": "C",
-"also": [
-"C1",
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路都在 C 轨（C3／C）"
-},
-"63-1": {
-"title": "全平台评测扩展（含 Piece 0 埋点补齐与 RSI／SIM 底座）",
-"main": "C3",
-"also": [
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"64-1": {
-"title": "主动发现、持续工作与周期报告",
-"main": "A",
-"also": [
-"C3",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"64-2": {
-"title": "智能组合第三片",
-"main": "C3",
-"also": [
-"A",
-"C2",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"64-3": {
-"title": "主线建议与跨项目个人视图",
-"main": "A",
-"also": [
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"64-4": {
-"title": "初始场景 Skill 与默认配置",
-"main": "A",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "裁定：记录明确在助理线"
-},
-"64-5": {
-"title": "访谈初始化与工作记忆",
-"main": "A",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"64-6": {
-"title": "回执阶段 5",
-"main": "A",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"64-7": {
-"title": "安静准备与观察试用",
-"main": "A",
-"also": [
-"C",
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"65-1": {
-"title": "公共搜索与联网设置",
-"main": "B",
-"also": [
-"C2",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"65-2": {
-"title": "受限命令、依赖与 AI 低风险审批",
-"main": "B",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"65-3": {
-"title": "Hooks 启用、变更、停用与恢复",
-"main": "B",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"66-1": {
-"title": "Coding 自检、评审与有界迭代",
-"main": "B",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"66-2": {
-"title": "简化与安全专科评审",
-"main": "B",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"66-3": {
-"title": "依据三档与同一验收卡",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"67-1": {
-"title": "Computer Use、Git 与 PR／CI 基础接入",
-"main": "B",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"67-2": {
-"title": "评论处理与真实完整任务评估",
-"main": "B",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"68-1": {
-"title": "已装插件持续修订、采用与升级",
-"main": "E",
-"also": [
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"68-2": {
-"title": "生成插件业务数据导出",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"68-3": {
-"title": "缺包、损坏、卸载与重启恢复",
-"main": "E",
-"also": [
-"D"
-],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线明确"
-},
-"68-4": {
-"title": "生成插件呈现与操作面保存",
-"main": "E",
-"also": [
-"D",
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录写 3·D/E；文件路线认为主体是创作台生成"
-},
-"68-5": {
-"title": "各主推角色的可安装、可改用样例",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"68-6": {
-"title": "新插件同口径评测",
-"main": "E",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"69-1": {
-"title": "情境 W5 拖放",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"69-2": {
-"title": "情境 W6 Shelf 与材料篮",
-"main": "E",
-"also": [
-"A",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-1": {
-"title": "本机规则脱敏",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-10": {
-"title": "规划方法扩行业",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-2": {
-"title": "Gmail 全文与附件",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-3": {
-"title": "YouTube 字幕",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"70-4": {
-"title": "PPT 图片与图表",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-5": {
-"title": "Pages 个人模板",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-6": {
-"title": "固定版逐段差异",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-7": {
-"title": "出处追溯",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-8": {
-"title": "结论重看",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"70-9": {
-"title": "Word 与固定版导出",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"71-1": {
-"title": "外观自定义与助理制作 D 段",
-"main": "D",
-"also": [
-"A",
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"71-2": {
-"title": "外观与语言整体交付 E 段",
-"main": "D",
-"also": [
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"72-1": {
-"title": "复杂场景设计定稿 → 77、82",
-"main": "",
-"also": [],
-"kind": "并入",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md（2026-11-18 决定 52）"
-},
-"73-1": {
-"title": "技能包、工作流与生成插件导入导出",
-"main": "C",
-"also": [
-"E",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "裁定：记录明确 3·C"
-},
-"73-2": {
-"title": "场景包与保存操作面导入导出",
-"main": "C",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录路线明确"
-},
-"73-3": {
-"title": "整份 Home 导出与导入 U7",
-"main": "F",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录写「F 与 C1」；主体在宿主快照文件，不归任何轨道"
-},
-"73-4": {
-"title": "业务数据导出回读",
-"main": "无",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "文件路线（不写代码）"
-},
-"75-1": {
-"title": "本机使用统计",
-"main": "F",
-"also": [
-"C3",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "裁定：记录明确 3·F"
-},
-"75-2": {
-"title": "调用用量与费用",
-"main": "F",
-"also": [
-"C3",
-"D",
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "裁定：记录明确 3·F"
-},
-"75-3": {
-"title": "其他应用送入 Work",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"76-1": {
-"title": "全平台与主动效果验收",
-"main": "C3",
-"also": [
-"A"
-],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"77-1": {
-"title": "手动场景组装",
-"main": "E",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "组合体验在创作台；记录写「接通平台场景组装」，也可能是 C3"
-},
-"78-1": {
-"title": "个人助理场景组装入口",
-"main": "E",
-"also": [
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "草稿和接续在创作台；但入口叫个人助理，也可能归 A"
-},
-"82-1": {
-"title": "Alchemist 完整研究场景",
-"main": "E",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "文件路线明确"
-},
-"82-2": {
-"title": "CGS 自媒体创作场景",
-"main": "E",
-"also": [
-"C"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录写技能包 2·C 起；文件上 CGS 是新内容包"
-},
-"83-1": {
-"title": "通用性、角色样例与业务数据验收",
-"main": "无",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"83-2": {
-"title": "创作效果同口径评测",
-"main": "无",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"83-3": {
-"title": "两条创作路径与智能呈现整项验收",
-"main": "无",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"84-1": {
-"title": "Coding C／D 期余项",
-"main": "B",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"84-2": {
-"title": "Coding 交互计划页",
-"main": "B",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"85-1": {
-"title": "代码现代化完整流程",
-"main": "B",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"86-1": {
-"title": "Harness 效率与 RSI 标杆实验",
-"main": "B",
-"also": [
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"89-1": {
-"title": "情境 W7 与总纲收口",
-"main": "E",
-"also": [
-"A",
-"B",
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"89-2": {
-"title": "回执阶段 6 的各场景",
-"main": "E",
-"also": [
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "回执阶段 6 几乎都是插件；记录说各场景另写小 spec，未点轨道"
-},
-"89-3": {
-"title": "Skill 效果比较（三段式评测）",
-"main": "A",
-"also": [
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"90-1": {
-"title": "整条路线最终交付对账",
-"main": "无",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-1-1": {
-"title": "个人同步分支对账",
-"main": "G",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"SRV-1-2": {
-"title": "身份、访问与协作协议",
-"main": "G",
-"also": [
-"C1"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "裁定：共同设计，不写代码"
-},
-"SRV-1-3": {
-"title": "同步合同、Outbox 与版本兼容",
-"main": "C1",
-"also": [
-"G"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-1-4": {
-"title": "团队记忆来源、用途与访问边界",
-"main": "C",
-"also": [
-"G"
-],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"SRV-2-1": {
-"title": "同步服务、账号与传输核心",
-"main": "G",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-2-2": {
-"title": "附件、大对象与冲突恢复",
-"main": "G",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-2-3": {
-"title": "首批插件同步与附件字节验收",
-"main": "G",
-"also": [
-"C1",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-3-1": {
-"title": "团队关键协作实现",
-"main": "G",
-"also": [
-"C",
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-3-2": {
-"title": "双身份真实协作验证",
-"main": "C",
-"also": [
-"D",
-"E",
-"G"
-],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"SRV-4-1": {
-"title": "团队剩余覆盖与交互设计",
-"main": "G",
-"also": [
-"C"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "裁定：定样，不写代码"
-},
-"SRV-4-2": {
-"title": "团队记忆形成、融合与使用设计",
-"main": "C",
-"also": [
-"G"
-],
-"kind": "定样设计",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"SRV-5-1": {
-"title": "逐插件同步、完整历史与公开插件接入",
-"main": "G",
-"also": [
-"B",
-"C3",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-5-2": {
-"title": "全插件同步、项目复制与回收",
-"main": "G",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-5-3": {
-"title": "双 Mac、跨版本与工作接续验收",
-"main": "G",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"SRV-5-4": {
-"title": "附件、大对象与故障恢复验收",
-"main": "G",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "记录路线（不写代码）"
-},
-"SRV-5-5": {
-"title": "正式服务限额、监测与备份恢复",
-"main": "G",
-"also": [],
-"kind": "验收运维",
-"occupy": false,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-6-1": {
-"title": "团队身份、项目共享与统一访问",
-"main": "G",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-6-2": {
-"title": "内容实时协作与工作接续",
-"main": "G",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-6-3": {
-"title": "撤权、离线与跨客户端恢复",
-"main": "G",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-7-1": {
-"title": "团队记忆采集、形成与融合",
-"main": "G",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录归 G；但 tracks.md 的 G 行没列团队记忆的包"
-},
-"SRV-7-2": {
-"title": "团队记忆发布、管理与效果",
-"main": "G",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "同上，包的落点也未定"
-},
-"SRV-8-1": {
-"title": "自动更新与回退",
-"main": "F",
-"also": [
-"G"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-8-2": {
-"title": "在线备份与恢复",
-"main": "G",
-"also": [
-"D",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "两路一致"
-},
-"SRV-8-3": {
-"title": "可选崩溃上报",
-"main": "G",
-"also": [
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "记录写服务一侧归 G；工作量主要在宿主，客户端归 F"
-},
-"26-9": {
-"title": "发行配置收拢",
-"main": "F",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"REL-1-1": {
-"title": "Apple 签名与公证凭据",
-"main": "F",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-1-2": {
-"title": "公开主页、隐私政策与服务条款",
-"main": "F",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-1-3": {
-"title": "正式 OAuth 应用",
-"main": "F",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-1-4": {
-"title": "Prologue SDK 再分发许可",
-"main": "F",
-"also": [],
-"kind": "只读核查",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-2-1": {
-"title": "签名、公证与安装",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-2-2": {
-"title": "原生组件随包预置与首次自检",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-2-3": {
-"title": "官方包与字体的发行核对",
-"main": "F",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-3-1": {
-"title": "本机日志、崩溃恢复与诊断包",
-"main": "F",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-4-1": {
-"title": "合同过渡 U5",
-"main": "C1",
-"also": [
-"A",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-4-2": {
-"title": "副本演练 U6",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"REL-5-1": {
-"title": "M1 发行与第二台 Mac 验收",
-"main": "F",
-"also": [],
-"kind": "验收",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-14 发行批）"
-},
-"41-3": {
-"title": "在设置里写自己的技能",
-"main": "C2",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "batches/41.md"
-},
-"36A-1": {
-"title": "顶部栏：纸上的页签",
-"main": "D",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"36A-2": {
-"title": "底栏：第十三版",
-"main": "D",
-"also": [
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"36A-3": {
-"title": "助理对话框、事件卡与收起态",
-"main": "D",
-"also": [
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"36A-4": {
-"title": "Coding 逐屏",
-"main": "B",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"36A-5": {
-"title": "设置页：一种写法",
-"main": "D",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"36A-6": {
-"title": "首页：项目的第一页",
-"main": "D",
-"also": [
-"C3",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"36A-7": {
-"title": "动效落地与曲线收口",
-"main": "D",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"63A-1": {
-"title": "记忆形成质量（P2-01，原 64-8）",
-"main": "C2",
-"also": [
-"A",
-"B"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"63A-2": {
-"title": "记忆整理（Dreaming）、按需原文与用户控制（原 64-9）",
-"main": "C2",
-"also": [
-"A",
-"B",
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"63A-3": {
-"title": "常驻层（P2-05，原 64-5 的热缓存）",
-"main": "C2",
-"also": [
-"A"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md（2026-11-18）"
-},
-"91-0a": {
-"title": "`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口（已合入 #2221）",
-"main": "D",
-"also": [],
-"kind": "文档治理",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 60）"
-},
-"91-0b": {
-"title": "`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 共享底座 + 组件板 93 节重构 + 设置页 30 页收口（已合入 #2222 + #2230）",
-"main": "D",
-"also": [
-"C1",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 60）"
-},
-"91-0c": {
-"title": "`91-0c` · 平台统一「列表—详情」标准容器、退役插件 `workbench.directory`／`DIRECT_WORK_SURFACE_IDS`、共享样式公共 `mw-*` 去插件名与顶部标签组联动底座（决定 64；含 `BL-b44-shared-styles-plugin-names` 片 1，决定 65）",
-"main": "D",
-"also": [
-"C1",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 64、65）"
-},
-"91-1": {
-"title": "Design System 流式、布局与行为反馈统一底座（已随 `91-0b` #2222 提前交付）",
-"main": "D",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 55）"
-},
-"91-2": {
-"title": "平台运行流合同、Prologue 窗口 A 换包与 Agent Host 热路径减负",
-"main": "C2",
-"also": [
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"91-3": {
-"title": "个人助理 SSE 增量流与对话流精修",
-"main": "A",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"91-4": {
-"title": "Coding SSE 增量流、回滚稳态与过程精修",
-"main": "B",
-"also": [
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表"
-},
-"91-5": {
-"title": "后续开发指引与插件创作台规范同步更新（已随 `91-0a` #2221 + `91-0b` #2222 与补清小修落稳）",
-"main": "D",
-"also": [
-"E"
-],
-"kind": "规范与指引",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 55）"
-},
-"91B-1": {
-"title": "入口、账号、市场、侧栏四视图、IM、Artifacts、Sessions、纯平台 Shelf 与创作台收口",
-"main": "D",
-"also": [
-"C3",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 55、决定 66）"
-},
-"91B-2": {
-"title": "工作主干 9 插件 + 3 个统一连接器驱动全面打磨",
-"main": "E",
-"also": [
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 55）"
-},
-"91B-3": {
-"title": "创作数据 5 + 收集知识 3 + 研发工具（Git/Diff）全面打磨",
-"main": "E",
-"also": [
-"B",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 55）"
-},
-"91B-4": {
-"title": "全站轻动效收口与五层确定性底线防回归门禁",
-"main": "无",
-"also": [
-"B",
-"D",
-"E"
-],
-"kind": "收口与门禁",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 55、决定 57、决定 58）"
-},
-"92-1": {
-"title": "把图片下载的漏测命令补进手册",
-"main": "E",
-"also": [],
-"kind": "文档",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"92-2": {
-"title": "把「打开数据库会不会创建文件」写准确",
-"main": "无",
-"also": [
-"C1"
-],
-"kind": "文档",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"92-3": {
-"title": "让 Goals 测试即使报错也关干净",
-"main": "E",
-"also": [],
-"kind": "测试",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"93-1": {
-"title": "确认页面关掉时，两个正在做的请求各收到自己的取消原因",
-"main": "无",
-"also": [
-"C1"
-],
-"kind": "测试",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"93-2": {
-"title": "关掉侧栏浏览器后，清掉还没挂好的监听",
-"main": "A",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"94-1": {
-"title": "重新安装同版本开发 App 后，用上刚编出来的版本",
-"main": "F",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"95-1": {
-"title": "把 Feed 连数据库的旧函数名改准确",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"95-2": {
-"title": "资讯更新点过「现在做」，睡醒后直接做",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"95-3": {
-"title": "错过的任务统一留七天，到期一次说清跳过了几件",
-"main": "A",
-"also": [
-"E",
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"96-1": {
-"title": "编辑一项定时任务时，只查这一项",
-"main": "C",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"96-2": {
-"title": "定时任务失败时，开着的详情立刻显示原因",
-"main": "E",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"97-1": {
-"title": "助理只汇报结果时，别占用继续干活的次数",
-"main": "A",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"97-2": {
-"title": "同一项目同时办完几件事，助理合起来报一次",
-"main": "A",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"98-1": {
-"title": "让两家插件都能提供同一种材料，还能按来源挑",
-"main": "C1",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"99-1": {
-"title": "在 Coding 的本轮变更里列出确实删掉的文件",
-"main": "B",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 56）"
-},
-"100-1": {
-"title": "路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列",
-"main": "无",
-"also": [],
-"kind": "文档",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"100-2": {
-"title": "反效果门禁精准松绑与 CI 碎作业合并",
-"main": "无",
-"also": [],
-"kind": "收口与门禁",
-"occupy": false,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"101-1": {
-"title": "现役 P0 功能故障、英文模式断链与安全异常修复",
-"main": "D",
-"also": [
-"A",
-"C1",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"101-2": {
-"title": "零误报死文件清理与热路径/生命周期泄漏止血",
-"main": "C2",
-"also": [
-"A",
-"C1",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"102-1": {
-"title": "工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径",
-"main": "D",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"102-2": {
-"title": "沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化",
-"main": "F",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"103-1": {
-"title": "休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发",
-"main": "C1",
-"also": [
-"C3",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"103-2": {
-"title": "Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理",
-"main": "C1",
-"also": [
-"C3",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"104-1": {
-"title": "15+ 插件非 Agent 单次 AI 调用纳管",
-"main": "C2",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"104-2": {
-"title": "面向非技术用户的全站统一报错翻译与安全重试",
-"main": "A",
-"also": [
-"B",
-"C2",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"105-1": {
-"title": "防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批",
-"main": "C2",
-"also": [
-"A",
-"B",
-"C1",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"105-2": {
-"title": "双子代理终态缓存、Mainline 增量校验与日常高频交互润色",
-"main": "A",
-"also": [
-"C2",
-"C3",
-"D"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 58）"
-},
-"44B-0": {
-"title": "P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则",
-"main": "C1",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"44B-1": {
-"title": "合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）",
-"main": "C1",
-"also": [
-"C3",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"44B-2": {
-"title": "Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零",
-"main": "C3",
-"also": [
-"C1",
-"C2",
-"D",
-"E",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"44C-1": {
-"title": "统一提供方身份与平台登记",
-"main": "C1",
-"also": [
-"C3",
-"D",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"44C-2": {
-"title": "集成驱动收尾与厂商分支清零",
-"main": "C1",
-"also": [
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"44C-3": {
-"title": "签名样例、G1 终点与验证欠账",
-"main": "C1",
-"also": [
-"C3",
-"D",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"106-1": {
-"title": "分区根 `partitionRoot()`、保留分区守卫与 `listPartitions()` 全量归类",
-"main": "C1",
-"also": [
-"C3",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"106-2": {
-"title": "Home 单张安装表、`partition_plugins`、`partitions.plugins.set@1` 与新每分区装配",
-"main": "C1",
-"also": [
-"C3",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"106-3": {
-"title": "新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段",
-"main": "C3",
-"also": [
-"C1",
-"G"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"107-1": {
-"title": "6 个独立库插件迁 `databases.partition` 并删业务表 `project_id`",
-"main": "E",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"107-2": {
-"title": "当波删除 `databases.home.partition` 复用器；6 个插件不再用 `project_rows`／`artifact_join`",
-"main": "C1",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"108-1": {
-"title": "Todo、Jelly、Cognia、Images、Issues 迁分区作用域与 `databases.partition`",
-"main": "E",
-"also": [
-"C1",
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"108-2": {
-"title": "个人空间总览上线（承接原 `64-3` 跨项目个人视图）与门禁 G4",
-"main": "C3",
-"also": [
-"A",
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"108-3": {
-"title": "当波删除 `personal:true`、`hidden` 与 `project_reach`",
-"main": "C1",
-"also": [
-"D",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"109-1": {
-"title": "主库插件删 `project_id` 列与 Feed/Work Brief 摘除 Home 半",
-"main": "E",
-"also": [
-"B",
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"109-2": {
-"title": "Workspace Git 与 `projects.workspace.writers.*` 迁入 `plugins/native/git`（D6=B）+ 开放审查种类",
-"main": "B",
-"also": [
-"C1",
-"C2"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"109-3": {
-"title": "第三方沙箱包开放 `databases.partition` + 彻底删除双实例与旧平行装配",
-"main": "C1",
-"also": [
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"110-1": {
-"title": "放置、搜索、记忆与角色去 `project_id: null` 业务双轨",
-"main": "C3",
-"also": [
-"C2",
-"E"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"110-2": {
-"title": "同步收敛、线格式升版、分区启用清单独立同步（V4）与零唤醒发现",
-"main": "G",
-"also": [
-"C1",
-"C3"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"110-3": {
-"title": "MCP 个人空间显式绑定守卫",
-"main": "C1",
-"also": [],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"111-1": {
-"title": "星型单向版本化推送引擎、不预记补账、大快照分片与 CAS GC 保护",
-"main": "C3",
-"also": [
-"C1",
-"G"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"111-2": {
-"title": "全部有业务对象的插件一次完成 `push` 声明（U8）与沙箱支持",
-"main": "E",
-"also": [
-"C1"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-},
-"111-3": {
-"title": "工作台界面定样落地、G1～G5 全量焊死、清退临时白名单与文档收尾",
-"main": "D",
-"also": [
-"C1",
-"C3",
-"E",
-"F"
-],
-"kind": "实现",
-"occupy": true,
-"status": "定",
-"basis": "tracks.md 逐项表（决定 66）"
-}
+  "01-1": {
+    "title": "基线、旧成果与在途需求核对",
+    "main": "无",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "01-2": {
+    "title": "归档、状态修正与验收单",
+    "main": "无",
+    "also": [],
+    "kind": "文档治理",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "02-1": {
+    "title": "遗留事项、主人与唯一待办",
+    "main": "无",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "02-2": {
+    "title": "共享核心、SQLite 驱动与合同复位",
+    "main": "C1",
+    "also": [
+      "A",
+      "B",
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "文件路线明确"
+  },
+  "02-3": {
+    "title": "版本归一与重建清理",
+    "main": "统筹",
+    "also": [],
+    "kind": "实现",
+    "occupy": false,
+    "status": "定",
+    "basis": "N4～N37 散在 6 条轨道，又要真实 Home 窗口，没有主轨道。建议统筹排，各改动按所在包占对应轨道"
+  },
+  "02-4": {
+    "title": "升级起点与合同规则 U0",
+    "main": "C1",
+    "also": [],
+    "kind": "文档治理",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "02-5": {
+    "title": "对外许可口径与 BACKLOG 整理",
+    "main": "无",
+    "also": [],
+    "kind": "文档治理",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "03-1": {
+    "title": "资料、工作台、输入和创作台主路径定样",
+    "main": "D",
+    "also": [
+      "A",
+      "C1",
+      "E"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "03-2": {
+    "title": "文案帮助、创作断点与角色样例用途",
+    "main": "D",
+    "also": [
+      "F",
+      "E"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "裁定：定样与清点，不写代码"
+  },
+  "03-3": {
+    "title": "安静准备、观察试用与部分返工定样",
+    "main": "A",
+    "also": [
+      "C",
+      "D"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "04-1": {
+    "title": "Onboarding 全程设计",
+    "main": "F",
+    "also": [
+      "A",
+      "D"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "05-1": {
+    "title": "升级链 U1 与金样回放 U2",
+    "main": "C1",
+    "also": [
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "05-2": {
+    "title": "资料、目录与呈现公共合同",
+    "main": "C1",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "05-3": {
+    "title": "SQLite 第二步切换",
+    "main": "C1",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "storage 不归任何轨道，但要和 C1 的 U1 串行，所以建议归 C1"
+  },
+  "05-4": {
+    "title": "版本字段与 schema 输入类型",
+    "main": "C1",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "05-5": {
+    "title": "编辑器字段整理",
+    "main": "C1",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "函数合同和推荐目录都不在独占文件内，建议随 05 的合同队列"
+  },
+  "06-1": {
+    "title": "公共资料与 Files 退役（清单已交 #1805）",
+    "main": "C1",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "06-2": {
+    "title": "文档记录协议与 SDK 共用实现",
+    "main": "C1",
+    "also": [
+      "A",
+      "B",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "06-3": {
+    "title": "宿主调用整治与缓存核查",
+    "main": "统筹",
+    "also": [],
+    "kind": "实现",
+    "occupy": false,
+    "status": "定",
+    "basis": "全部落在不归任何轨道的宿主文件，走规则 4 同路径一起落"
+  },
+  "06-4": {
+    "title": "各包调用成本补齐",
+    "main": "C1",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "调用成本余项落在 plugin-runtime，也改插件；记录只写「按所在包填空」"
+  },
+  "07-1": {
+    "title": "工作台导航、布局与 Home 插件接入",
+    "main": "D",
+    "also": [
+      "A",
+      "B",
+      "E",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "07-2": {
+    "title": "页面读取与轮询整治",
+    "main": "D",
+    "also": [
+      "A",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "主体是工作台外壳，不在 D 独占文件内；但要和 D 的导航串行"
+  },
+  "07-3": {
+    "title": "Feed 投影归回插件",
+    "main": "D",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "需求写 D/E 同片。另外 BL-880 点名的 feed-projection-ui.ts 在 main 已不存在，要先核还有没有活"
+  },
+  "08-1": {
+    "title": "技能包基础能力",
+    "main": "C1",
+    "also": [
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "09-1": {
+    "title": "助理与 Coding 接点",
+    "main": "A",
+    "also": [
+      "B",
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "09-2": {
+    "title": "能力包：统一声明与目录",
+    "main": "A",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表"
+  },
+  "10-1": {
+    "title": "统一输入公共组件",
+    "main": "A",
+    "also": [
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "11-1": {
+    "title": "三入口接入统一输入",
+    "main": "A",
+    "also": [
+      "B"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "12-1": {
+    "title": "Coding 执行、委派与可见状态",
+    "main": "B",
+    "also": [
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "12-2": {
+    "title": "材料进入项目与 Coding 接续",
+    "main": "F",
+    "also": [
+      "B"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "12-3": {
+    "title": "草稿与返回能力",
+    "main": "",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "待定",
+    "basis": "#1896 已将此项加入第 12 批，#1743 尚未分配负责人或轨道，不沿用前两项的归属"
+  },
+  "13-1": {
+    "title": "服务与模型基础连接",
+    "main": "D",
+    "also": [
+      "A",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "只有设置页是轨道文件；记录把同需求的其余部分写在 C、F"
+  },
+  "14-1": {
+    "title": "字体皮肤语言 A 段",
+    "main": "D",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "14-2": {
+    "title": "回复语言（T10）",
+    "main": "D",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表"
+  },
+  "14-3": {
+    "title": "手册与开发流程（T9a、T9b）",
+    "main": "D",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表"
+  },
+  "15-1": {
+    "title": "确定组合平台服务",
+    "main": "C3",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "15-2": {
+    "title": "公共来源、呈现组件与首批入口",
+    "main": "D",
+    "also": [
+      "A",
+      "B",
+      "C1",
+      "C3",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "15-3": {
+    "title": "基础首页与 Feed 归属",
+    "main": "D",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "16-1": {
+    "title": "真实基线与插件切片验收 B 段",
+    "main": "D",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "16-2": {
+    "title": "现有入口整体切换 C 段",
+    "main": "D",
+    "also": [
+      "E",
+      "A",
+      "B",
+      "C1",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "裁定：记录明确 1·D；规则 3 的切换窗口里 E 不改界面文字"
+  },
+  "17-1": {
+    "title": "风险插件基础完整路径",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "18-1": {
+    "title": "Schedule 查询前置",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "19-1": {
+    "title": "Work Brief 首页与简报核心",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "20-1": {
+    "title": "场景与生成页面公共合同",
+    "main": "C1",
+    "also": [
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "20-2": {
+    "title": "场景包声明",
+    "main": "C1",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "跟同批第一项，用户 2026-11-04 确认"
+  },
+  "21-1": {
+    "title": "观测采集设计与评测案例",
+    "main": "C3",
+    "also": [
+      "D"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "22-1": {
+    "title": "Sessions 来源与历史合同",
+    "main": "C",
+    "also": [
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路都在 C 轨（C1／C3）"
+  },
+  "24-1": {
+    "title": "Prologue 采用与任务能力核准",
+    "main": "C2",
+    "also": [
+      "B"
+    ],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "24-2": {
+    "title": "Memory P0 非上游余项",
+    "main": "C2",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "24-3": {
+    "title": "逐项交付与证据关联合同",
+    "main": "C",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "25-1": {
+    "title": "常驻、休眠与单 Home 执行恢复",
+    "main": "F",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "25-2": {
+    "title": "按主人隔离升级失败 U3",
+    "main": "C1",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "25-3": {
+    "title": "回到上一版（U6 的回退，从 26-6 提前）",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "从 26-6 拆出，沿 26-6 的轨道"
+  },
+  "26-1": {
+    "title": "签名、公证与安装准备",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "26-2": {
+    "title": "正式 OAuth 应用",
+    "main": "F",
+    "also": [],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "26-3": {
+    "title": "原生组件预置与自检",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "26-4": {
+    "title": "本机日志、崩溃恢复与诊断包",
+    "main": "F",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "桌面与设置页明确，但重启、日志主体在宿主，不归任何轨道"
+  },
+  "26-5": {
+    "title": "插件升级 U4",
+    "main": "C1",
+    "also": [
+      "A",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "26-6": {
+    "title": "副本演练 U6",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "26-7": {
+    "title": "状态与状态机合同与词表",
+    "main": "C1",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "26-8": {
+    "title": "状态词汇门禁与文档",
+    "main": "统筹",
+    "also": [
+      "C1",
+      "D",
+      "E"
+    ],
+    "kind": "文档治理",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "27-1": {
+    "title": "基础交互体验债",
+    "main": "E",
+    "also": [
+      "A",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "27-2": {
+    "title": "代码／Diff 及性能余项",
+    "main": "D",
+    "also": [
+      "B"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录明确 1·D；代码却在 Coding 独占文件。按规则 7 可由 B 落改动"
+  },
+  "27-3": {
+    "title": "首批文案与帮助",
+    "main": "D",
+    "also": [
+      "A",
+      "B",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "27-4": {
+    "title": "Runtime、Goals 与沙箱余项",
+    "main": "C1",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "27-5": {
+    "title": "宿主出口、文档门禁与各包清理",
+    "main": "统筹",
+    "also": [],
+    "kind": "实现",
+    "occupy": false,
+    "status": "定",
+    "basis": "各包清理，跨 6 条轨道，建议统筹排，按包占轨道"
+  },
+  "27-6": {
+    "title": "状态词汇门禁与文档",
+    "main": "统筹",
+    "also": [
+      "C1",
+      "D",
+      "E"
+    ],
+    "kind": "已移到 26-8",
+    "occupy": false,
+    "status": "定",
+    "basis": "用户 2026-11-11 移到 26-8"
+  },
+  "28-1": {
+    "title": "采集事实接入",
+    "main": "C3",
+    "also": [
+      "A",
+      "B",
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "29-1": {
+    "title": "历史查询与记录管理",
+    "main": "C3",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "30-1": {
+    "title": "最小真实评测路径",
+    "main": "C3",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "31-1": {
+    "title": "SDK 窗口一",
+    "main": "C2",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "31-2": {
+    "title": "Memory P1：历史、交换与单一写主人",
+    "main": "C2",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表"
+  },
+  "32-1": {
+    "title": "主对话持续接单、后台任务控制与结果回流",
+    "main": "A",
+    "also": [
+      "C"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "32-2": {
+    "title": "逐项产物、认可、返工与复核",
+    "main": "A",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "32-3": {
+    "title": "事项线第一片：外壳、线、事件登记、事件卡与后台任务面板",
+    "main": "D",
+    "also": [
+      "A",
+      "C1",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "33-1": {
+    "title": "Coding 任务与环境恢复",
+    "main": "B",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "33-2": {
+    "title": "材料、大清单与重启接续",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "34-1": {
+    "title": "Sessions 历史实现",
+    "main": "C3",
+    "also": [
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "35-1": {
+    "title": "引导接入已有 Sessions",
+    "main": "F",
+    "also": [
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "35-2": {
+    "title": "Coding A 期",
+    "main": "B",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "36-1": {
+    "title": "角色设置、生效与恢复",
+    "main": "C",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "36-2": {
+    "title": "主线第一片的合同与服务",
+    "main": "C",
+    "also": [
+      "C1",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路都在 C 轨（C3／C1）"
+  },
+  "37-1": {
+    "title": "生成页面运行、采用与恢复",
+    "main": "C3",
+    "also": [
+      "C1",
+      "D",
+      "E",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "37-2": {
+    "title": "事项切换与工作台状态",
+    "main": "D",
+    "also": [
+      "B",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "38-1": {
+    "title": "插件配置采用",
+    "main": "E",
+    "also": [
+      "C1",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "39-1": {
+    "title": "授权、人审与统一管理页",
+    "main": "C",
+    "also": [
+      "A",
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路都在 C 轨（C2／C1）"
+  },
+  "39-2": {
+    "title": "可信决定回平台",
+    "main": "C",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位片 3 并入（决定 42）"
+  },
+  "40-1": {
+    "title": "配置、工作交接与使用治理",
+    "main": "D",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "页面都在平台设置页；记录只说「沿治理第 6 节」，没点轨道"
+  },
+  "40-2": {
+    "title": "全产品文案与按需帮助",
+    "main": "D",
+    "also": [
+      "A",
+      "B",
+      "E",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "41-1": {
+    "title": "Skill 选用",
+    "main": "C2",
+    "also": [
+      "A",
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "41-2": {
+    "title": "规划方法变成技能",
+    "main": "C2",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位片 4 并入（决定 42）"
+  },
+  "42-1": {
+    "title": "Skill 创作与改进完整路径",
+    "main": "C",
+    "also": [
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录写技能包在 C；文件路线认为从对话生成 Skill 落助理"
+  },
+  "43-1": {
+    "title": "`43-1` · 项目助理团执行与交付（独立 PR）",
+    "main": "A",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "委派落助理；记录只说先核运行时，SDK 缺口可能转 C2"
+  },
+  "43-2": {
+    "title": "`43-2` · Dataset 逐行存储、汇总、追加与问卷去点名自动进表（独立 PR）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "44-1": {
+    "title": "合同去插件化",
+    "main": "C1",
+    "also": [
+      "C3",
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "44-2": {
+    "title": "项目指导回平台",
+    "main": "C3",
+    "also": [
+      "B",
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "44-3": {
+    "title": "要求与认可：Goals 改为消费平台能力",
+    "main": "E",
+    "also": [
+      "C"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "44-4": {
+    "title": "终端执行解耦",
+    "main": "C3",
+    "also": [
+      "B",
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "44-5": {
+    "title": "其他插件去点名",
+    "main": "E",
+    "also": [
+      "C1",
+      "G"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "44-6": {
+    "title": "宿主与工作台去私路、Goals 可移除",
+    "main": "统筹",
+    "also": [
+      "C1",
+      "D",
+      "E",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "44-7": {
+    "title": "删除桌面胶囊、CLI 的 Goals 命令与 `goal-advance`",
+    "main": "F",
+    "also": [
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "44-8": {
+    "title": "叙事与命名",
+    "main": "无",
+    "also": [],
+    "kind": "文档治理",
+    "occupy": false,
+    "status": "定",
+    "basis": "2026-11-13 插件同等地位并入（决定 42）"
+  },
+  "45-1": {
+    "title": "首次／项目／个人空间场景闭环",
+    "main": "F",
+    "also": [
+      "A",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "45-2": {
+    "title": "官方签名场景包：行业观察与写作、写代码",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "跟同批第一项，用户 2026-11-04 确认"
+  },
+  "46-1": {
+    "title": "情境 W4 创建与准备声明",
+    "main": "E",
+    "also": [
+      "C1",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "46-2": {
+    "title": "通用任务引导与场景复用",
+    "main": "F",
+    "also": [
+      "A",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "47-1": {
+    "title": "正式插件交付的平台前置",
+    "main": "C1",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "47-2": {
+    "title": "状态机登记与只读查询",
+    "main": "C1",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表"
+  },
+  "48-1": {
+    "title": "`48-1` · 新插件创建、隔离试用与修通 11-03 全部真断点（归 `48A` PR 1）",
+    "main": "E",
+    "also": [
+      "C",
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "48-2": {
+    "title": "`48-2` · 成果、搜索与工作流内容站声明（归 `48A` PR 1）",
+    "main": "E",
+    "also": [
+      "C",
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "48-3": {
+    "title": "`48-3` · 依赖、来源与权限可见（归 `48B` PR 2）",
+    "main": "E",
+    "also": [
+      "D",
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录在创作台线上；文件路线认为展示页在 D 的设置页"
+  },
+  "48-4": {
+    "title": "`48-4` · 首次可用率与返修评测样本（归 `48B` PR 2）",
+    "main": "E",
+    "also": [
+      "C",
+      "D"
+    ],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "48-5": {
+    "title": "`48-5` · 安装预演与插件目录的状态机展示（归 `48B` PR 2）",
+    "main": "D",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "48-6": {
+    "title": "`48-6` · 创作能力经动作目录提供（归 `48A` PR 1）",
+    "main": "C3",
+    "also": [
+      "C1",
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "52-1": {
+    "title": "每日简报、日历调度规则、设置与中断恢复",
+    "main": "A",
+    "also": [
+      "D",
+      "E",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "52-2": {
+    "title": "初始日报与工作接续 Skill",
+    "main": "A",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录在助理线上；但技能包是新插件包，新插件包归 E"
+  },
+  "52-3": {
+    "title": "官方签名场景包：个人事务与每日简报",
+    "main": "A",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "跟同批第一项，用户 2026-11-04 确认"
+  },
+  "53-1": {
+    "title": "`53-1` · 回执与交互余项（独立 PR）",
+    "main": "A",
+    "also": [
+      "B",
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "53-2": {
+    "title": "`53-2` · 智能呈现第二片（独立 PR）",
+    "main": "D",
+    "also": [
+      "A",
+      "C1",
+      "C3",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "53-3": {
+    "title": "`53-3` · 主线第二片（独立 PR）",
+    "main": "A",
+    "also": [
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录写 2～3·A/D/E 没分主次；文件上整理视图在工作台外壳"
+  },
+  "54-1": {
+    "title": "轻量双通道语音输入（系统离线听写＋可选通用转写接口）",
+    "main": "A",
+    "also": [
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "55-1": {
+    "title": "`55-1` · 月／季／年重复（PR A）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "55-2": {
+    "title": "`55-2` · 等待分组与时长（归 PR B）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "55-3": {
+    "title": "`55-3` · 待办整理样本（归 PR B）",
+    "main": "E",
+    "also": [],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "55-4": {
+    "title": "`55-4` · 外部判断连接未连接时的判断（PR C）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "55-5": {
+    "title": "`55-5` · Shelf 轮盘与快捷键（PR D）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "55-6": {
+    "title": "`55-6` · 工作流查询与映射（PR E）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "55-7": {
+    "title": "`55-7` · 旧版 Office 文件离线提取（PR F）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "55-8": {
+    "title": "`55-8` · 连续两期场景实操与按需开新期（归 PR B）",
+    "main": "E",
+    "also": [],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "56-1": {
+    "title": "`56-1` · Attention 跨分区唤醒、克制分级角标与系统通知（轨道一：独立功能 PR）",
+    "main": "F",
+    "also": [
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "56-2": {
+    "title": "`56-2` · 阶段 2 新入口中 / 英 / 日三语文案与术语总复核（轨道二：独立收尾 PR）",
+    "main": "D",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "56-3": {
+    "title": "`56-3` · N22 全量动作输入推导迁移与绝对门禁收口（轨道三：按分片独立小 PR）",
+    "main": "无",
+    "also": [
+      "A",
+      "B",
+      "C1",
+      "E"
+    ],
+    "kind": "文档治理",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "57-1": {
+    "title": "个人工作完整路径（网页端 + macOS 桌面端 WebKit 双端总验收）",
+    "main": "F",
+    "also": [
+      "B",
+      "E"
+    ],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "58-1": {
+    "title": "子代理公共交互组件",
+    "main": "A",
+    "also": [
+      "D",
+      "B",
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录写产品半边 3·A、3·B；公共组件文件却归 D"
+  },
+  "59-1": {
+    "title": "子代理双入口接入",
+    "main": "A",
+    "also": [
+      "B"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "助理和 Coding 是两个对等入口，记录也写 3·A、3·B"
+  },
+  "60-1": {
+    "title": "`60-1` · 外部会话直接控制与运行中跨工具／转助理交接（PR 1）",
+    "main": "C3",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "61-1": {
+    "title": "服务矩阵、现有连接与统一搜索",
+    "main": "C",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "61-2": {
+    "title": "自动化推荐与采用",
+    "main": "C",
+    "also": [
+      "A",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路都在 C 轨（C3／C）"
+  },
+  "61-3": {
+    "title": "交给 SDK 窗口二的缺口清单",
+    "main": "C2",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "62-1": {
+    "title": "`62-1A` · 四策略与 Agent Host 核心接线（PR 2）",
+    "main": "C2",
+    "also": [
+      "A",
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "62-2": {
+    "title": "`62-2/3` · 项目模型与出站外网边界、统一组合候选目录及 `BL-128` 收口（PR 3）",
+    "main": "C",
+    "also": [
+      "C1",
+      "C2",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路都在 C 轨（C2／C）"
+  },
+  "62-3": {
+    "title": "`62-1B` · 外部服务缺口收口与 48 项逐服务真实闭环验收（PR 4）",
+    "main": "C",
+    "also": [
+      "C1",
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路都在 C 轨（C3／C）"
+  },
+  "63-1": {
+    "title": "`63-1` · Piece 0 观测埋点补齐与批量证据读取合同（PR 1，不必等 `62`）",
+    "main": "C3",
+    "also": [
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "64-1": {
+    "title": "`64-1` · 主动发现、持续工作与周期报告（PR 2）",
+    "main": "A",
+    "also": [
+      "C3",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "64-2": {
+    "title": "`64-2` · 智能组合第三片：跨插件／MCP／Skill 动态拼面与文本形态（PR 3）",
+    "main": "C3",
+    "also": [
+      "A",
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "64-3": {
+    "title": "`64-3` · 主线智能建议与跨项目个人主线视图（PR 4）",
+    "main": "A",
+    "also": [
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "64-4": {
+    "title": "`64-4` · 初始五套主动场景 Skill 与默认配置（PR 1）",
+    "main": "A",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "裁定：记录明确在助理线"
+  },
+  "64-5": {
+    "title": "`64-5` · 访谈初始化与工作记忆衔接（PR 1）",
+    "main": "A",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "64-6": {
+    "title": "`64-6` · 回执阶段 5：材料触发推进与会话历史回查（PR 2）",
+    "main": "A",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "64-7": {
+    "title": "`64-7` · 安静准备与观察试用（PR 2，`PWA-141～143`）",
+    "main": "A",
+    "also": [
+      "C",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "65-1": {
+    "title": "`65-1/2` · 公共搜索联网开关、真沙箱命令规则、依赖下载与 AI 低风险代批（PR 2，`CNW-01～06`、`CEX-01～10`、`CLS-02`）",
+    "main": "B",
+    "also": [
+      "C2",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "65-3": {
+    "title": "`65-3` · 带脚本指纹锁的用户 Hooks 生命周期与 `G-09` 自动化建议收口（PR 3，`CHK-01～04`）",
+    "main": "B",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "66-1": {
+    "title": "`66-1` · 写后即时自修、有界迭代与三档依据验收卡闭环（PR 1，`CQA-09/10`）",
+    "main": "B",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "66-2": {
+    "title": "`66-2` · 共享缓存 5 路多代理评审、简化／安全专科与对抗验证（PR 2，`CQA-01～08/11/12`）",
+    "main": "B",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "67-1": {
+    "title": "`67-1A` · `git` 插件提交签名、PR 防提权清洗与紧凑 PR／CI／评论工作区（PR 1，`R10`、`D2/D5/D6`、`CGH-01～03`）",
+    "main": "B",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "67-2": {
+    "title": "`67-2` · `R12` 八大真实完整任务评估集录入评测后台与基线核验（PR 3）",
+    "main": "B",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "68-1": {
+    "title": "`68-1` + `68-3` · 持续修订双重防误删升级、缺包恢复与创作台 Harness 优化（`68-A`，PR 1）",
+    "main": "E",
+    "also": [
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "68-2": {
+    "title": "`68-2` + `68-4` · 生成插件业务数据导出与智能呈现第四片操作面保存（`68-B`，PR 2）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "68-5": {
+    "title": "`68-5` + `68-6` · 七组角色 14 个纯 UPP 样板插件与同口径评测入后台（`68-C`，PR 3）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "69-1": {
+    "title": "`69-1` · 情境 W5 跨窗格拖放底座与轻重分级放入（PR 1）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "69-2": {
+    "title": "`69-2` · 情境 W6 纯平台 Shelf 材料篮、双输入框落点与 `G-03` 沙箱导入收口（PR 2）",
+    "main": "E",
+    "also": [
+      "A",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-1": {
+    "title": "`70-1` · 本机规则脱敏底座（PR A，安全独立审）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-10": {
+    "title": "`70-10` · 规划方法扩充行业覆盖（PR E）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-2": {
+    "title": "`70-2` · Gmail 全文与受控附件（PR B）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-3": {
+    "title": "`70-3` · YouTube 纯文本字幕轨提取（PR B）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录路线明确"
+  },
+  "70-4": {
+    "title": "`70-4` · PPT 图片与图表（PR C）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-5": {
+    "title": "`70-5` · Pages 个人模板（PR C）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-6": {
+    "title": "`70-6` · 固定版本逐段差异（PR C）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-7": {
+    "title": "`70-7` · 生成内容出处追溯与可编辑标记（PR D）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-8": {
+    "title": "`70-8` · Cognia 材料变更后结论重看清单（PR D）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "70-9": {
+    "title": "`70-9` · Word（`.docx`）与指定固定版导出（PR C）",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "71-1": {
+    "title": "`71-1` · 外观自定义、可读性硬校验、中日文字距优化与助理制作 D 段（PR 1）",
+    "main": "D",
+    "also": [
+      "A",
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "71-2": {
+    "title": "`71-2` · 全入口中 / 英 / 日三语与外观整体交付 E 段（PR 2）",
+    "main": "D",
+    "also": [
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "72-1": {
+    "title": "复杂场景设计定稿 → `77-1`、`82`",
+    "main": "",
+    "also": [],
+    "kind": "并入",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18 决定 52）"
+  },
+  "73-1": {
+    "title": "`73-1` + `73-2` · 单项能力包、生成插件、场景包与保存操作面分享导入导出（`73-A`，PR 1）",
+    "main": "C",
+    "also": [
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "裁定：记录明确 3·C"
+  },
+  "73-3": {
+    "title": "`73-3` + `73-4` · 整份 Home 换机导出导入 `U7` 与生成插件业务数据回读（`73-B`，PR 2）",
+    "main": "F",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录写「F 与 C1」；主体在宿主快照文件，不归任何轨道"
+  },
+  "75-1": {
+    "title": "`75-1` + `75-2` · 本机使用统计与调用用量、KV-Cache 省钱及诚实费用面板（`75-A`，独立 PR 1）",
+    "main": "F",
+    "also": [
+      "C3",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "裁定：记录明确 3·F"
+  },
+  "75-3": {
+    "title": "`75-3` · macOS 其他应用安全送入 Molis Work（`75-B`，独立 PR 2）",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "76-1": {
+    "title": "`76-1` · 全平台与主动效果收官验收（含隔离跨周演练与同 PR 缺陷收口）",
+    "main": "C3",
+    "also": [
+      "A"
+    ],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "77-1": {
+    "title": "`77-1` · 场景组装公共合同定稿（原 `72`）与手动组装 UI 定样（PR 1）",
+    "main": "E",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "组合体验在创作台；记录写「接通平台场景组装」，也可能是 C3"
+  },
+  "78-1": {
+    "title": "`78-1` · 个人助理与创作台同草稿共编、冲突按部件挑选与按轻重分流入口",
+    "main": "E",
+    "also": [
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "草稿和接续在创作台；但入口叫个人助理，也可能归 A"
+  },
+  "82-1": {
+    "title": "`82-A` · Alchemist 完整研究与决策场景（独立并行 PR 1）",
+    "main": "E",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "文件路线明确"
+  },
+  "82-2": {
+    "title": "`82-B` · CGS 七项内容技能包与零新代码自媒体创作场景（独立并行 PR 2）",
+    "main": "E",
+    "also": [
+      "C"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录写技能包 2·C 起；文件上 CGS 是新内容包"
+  },
+  "83-1": {
+    "title": "`83-A` · 创作台通用性轻量场景、14 角色样例 AI 改造实测与「`设置 › 评测`」同口径首期基线（PR 1，合原第 1、2 项）",
+    "main": "无",
+    "also": [],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "83-3": {
+    "title": "`83-B` · 两条创作路径、全站 20 插件＋5 纯平台入口智能呈现、三语文案与 Clean v1 去向清账（PR 2）",
+    "main": "无",
+    "also": [],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "84-1": {
+    "title": "`84-A` · 平台插件 CLI 声明合同、Coding 非交互 `D1/D7` 与极简会话四件套 `C1～C4`（独立并行 PR 1）",
+    "main": "B",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "84-2": {
+    "title": "`84-B` · `E7` Coding 可交互实施计划页（独立并行 PR 2，提前解锁 `85`）",
+    "main": "B",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "85-1": {
+    "title": "`85-1` · 极简一气呵成摸底、单页拍板与逐片行为等价证明的代码现代化工作流",
+    "main": "B",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "86-1": {
+    "title": "`86-A` · Coding 三项效率对照与跨模型提示词瘦身剪枝实验（独立并行 PR 1）",
+    "main": "B",
+    "also": [
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "89-1": {
+    "title": "`89-A` · 情境 `W7` 与总纲收口（独立并行 PR 1）",
+    "main": "E",
+    "also": [
+      "A",
+      "B",
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "89-2": {
+    "title": "`89-B` · 输入回执阶段 6 剩余场景收口（独立并行 PR 2）",
+    "main": "E",
+    "also": [
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "回执阶段 6 几乎都是插件；记录说各场景另写小 spec，未点轨道"
+  },
+  "89-3": {
+    "title": "`89-C` · 全目录 Skill 三段式效果评测与分级治理（独立并行 PR 3）",
+    "main": "A",
+    "also": [
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "90-1": {
+    "title": "`90-1` · 非服务端全路线最终交付对账、门禁总核与 Clean v1 封板交接",
+    "main": "无",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-1-1": {
+    "title": "`SRV-1-1` · 主干个人同步实现与 UPP＋`112` 终态对账",
+    "main": "G",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "SRV-1-2": {
+    "title": "`SRV-1-2` · 身份、三档访问与「富文稿协同＋关系表版本化」分层协作协议",
+    "main": "G",
+    "also": [
+      "C1"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "裁定：共同设计，不写代码"
+  },
+  "SRV-1-3": {
+    "title": "`SRV-1-3` · 同步合同、Outbox 与 `1.0.0` 跨版本过渡兼容",
+    "main": "C1",
+    "also": [
+      "G"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-1-4": {
+    "title": "`SRV-1-4` · 团队记忆来源、不可撤回发布确认与访问隔离边界",
+    "main": "C",
+    "also": [
+      "G"
+    ],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "SRV-2-1": {
+    "title": "`SRV-2-A` · Rust/WASM 同步传输核心、Outbox、大附件分片断点续传与冲突双留底座（PR 1，合原第 1、2 项）",
+    "main": "G",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-2-3": {
+    "title": "`SRV-2-B` · 首批纯平台集合＋核心 UPP 分区插件接入、隐私／配额边界与真实云端字节往返验收（PR 2）",
+    "main": "G",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-3-1": {
+    "title": "`SRV-3-A` · 平台通用实时协同合同、项目三档拦截、在途撤权与 `Pages` 人机共编实现（PR 1）",
+    "main": "G",
+    "also": [
+      "C",
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-3-2": {
+    "title": "`SRV-3-B` · 双真实独立身份端到端协作验证与未覆盖对象清账（PR 2）",
+    "main": "C",
+    "also": [
+      "D",
+      "E",
+      "G"
+    ],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "SRV-4-1": {
+    "title": "`SRV-4-1` · 其余 19 个平等分区插件团队协作覆盖与三语交互定稿",
+    "main": "G",
+    "also": [
+      "C"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "裁定：定样，不写代码"
+  },
+  "SRV-4-2": {
+    "title": "`SRV-4-2` · 团队记忆本机有界提炼、分歧保留、优先级规则与三语交互定稿",
+    "main": "C",
+    "also": [
+      "G"
+    ],
+    "kind": "定样设计",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "SRV-5-1": {
+    "title": "`SRV-5-A` · 全量 20 个 UPP 插件＋公开 SDK 沙箱插件同步收口、整项目复制／回收站与本地优先故障恢复实现（PR 1，合原第 1、2、4 项代码）",
+    "main": "G",
+    "also": [
+      "B",
+      "C3",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-5-3": {
+    "title": "`SRV-5-B` · 正式云环境限额告警／配对备份只读止损演练与双真实 Apple Silicon Mac 跨版本工作接续验收（PR 2，合原第 3、4、5 项实测）",
+    "main": "G",
+    "also": [],
+    "kind": "验收运维",
+    "occupy": false,
+    "status": "定",
+    "basis": "记录路线（不写代码）"
+  },
+  "SRV-6-1": {
+    "title": "`SRV-6-A` · 团队身份、项目共享邀请、三档统一访问拦截与项目讨论 IM（PR 1，原 `79`）",
+    "main": "G",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-6-2": {
+    "title": "`SRV-6-B` · 全量 20 个平等插件分层协同、在线光标与人机任务接续（PR 2，原 `80`）",
+    "main": "G",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-6-3": {
+    "title": "`SRV-6-C` · 在途撤权、本地副本清理（保本人离线草稿）、跨端恢复与双真实成员完整项目验收（PR 3，原 `81`）",
+    "main": "G",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-7-1": {
+    "title": "`SRV-7-A` · 共享项目获准来源采集、本机有界形成、分歧保留融合与撤权阻断（PR 1，原 `87`）",
+    "main": "G",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录归 G；但 tracks.md 的 G 行没列团队记忆的包"
+  },
+  "SRV-7-2": {
+    "title": "`SRV-7-B` · 成员不可撤回二次确认发布、懒加载三语管理页、三类交接消费与「`设置 › 评测`」效果验证（PR 2，原 `88`）",
+    "main": "G",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "同上，包的落点也未定"
+  },
+  "SRV-8-1": {
+    "title": "`SRV-8-A` · `arm64` 自动更新、后台秒级副本彩排与防打断回退（独立并行 PR 1）",
+    "main": "F",
+    "also": [
+      "G"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-8-2": {
+    "title": "`SRV-8-B` · 本机端到端加密增量定时在线备份与防误盖恢复（独立并行 PR 2）",
+    "main": "G",
+    "also": [
+      "D",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "两路一致"
+  },
+  "SRV-8-3": {
+    "title": "`SRV-8-C` · 默认关闭、开启前透明预览脱敏样例的可选崩溃上报（独立并行 PR 3）",
+    "main": "G",
+    "also": [
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "记录写服务一侧归 G；工作量主要在宿主，客户端归 F"
+  },
+  "26-9": {
+    "title": "发行配置收拢",
+    "main": "F",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "REL-1-1": {
+    "title": "`REL-1-1` · Apple Developer 签名证书与 `.p8` 公证 API 密钥",
+    "main": "F",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-1-2": {
+    "title": "`REL-1-2` · 公开产品页、OAuth 隐私政策、服务条款与域名验证",
+    "main": "F",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-1-3": {
+    "title": "`REL-1-3` · 正式外部连接应用（快慢分流，长审不卡 M1）",
+    "main": "F",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-1-4": {
+    "title": "`REL-1-4` · 自研 `@prologue/sdk` 随安装包再分发内部授权落档",
+    "main": "F",
+    "also": [],
+    "kind": "只读核查",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-2-1": {
+    "title": "`REL-2-1` · Apple Silicon（`arm64`）逐件签名、`.p8` API 密钥公证与桌面声明收口",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-2-2": {
+    "title": "`REL-2-2` · 瘦身后原生组件随包预置与首次自检恢复",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-2-3": {
+    "title": "`REL-2-3` · 全套随包官方包正式签名与 OFL／三语字体分发核对",
+    "main": "F",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-3-1": {
+    "title": "`REL-3-A` · 本机脱敏结构化日志轮转、Node／Rust 崩溃恢复与透明预览诊断包导出（PR 1）",
+    "main": "F",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-4-1": {
+    "title": "`REL-4-A` · 基于 Clean v1 起点的合同过渡 `U5` 与门禁切换（独立并行 PR 1）",
+    "main": "C1",
+    "also": [
+      "A",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-4-2": {
+    "title": "`REL-4-B` · 秒级库级副本升级演练 `U6` 与回退衔接（独立并行 PR 2）",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "REL-5-1": {
+    "title": "`REL-5-1` · 无开发环境第二台 Apple Silicon Mac 全套真机验收与 M1（`1.0.0`）正式发行立标",
+    "main": "F",
+    "also": [],
+    "kind": "验收",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-14 发行批）"
+  },
+  "41-3": {
+    "title": "在设置里写自己的技能",
+    "main": "C2",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "batches/41.md"
+  },
+  "36A-1": {
+    "title": "顶部栏：纸上的页签",
+    "main": "D",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "36A-2": {
+    "title": "底栏：第十三版",
+    "main": "D",
+    "also": [
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "36A-3": {
+    "title": "助理对话框、事件卡与收起态",
+    "main": "D",
+    "also": [
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "36A-4": {
+    "title": "Coding 逐屏",
+    "main": "B",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "36A-5": {
+    "title": "设置页：一种写法",
+    "main": "D",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "36A-6": {
+    "title": "首页：项目的第一页",
+    "main": "D",
+    "also": [
+      "C3",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "36A-7": {
+    "title": "动效落地与曲线收口",
+    "main": "D",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "63A-1": {
+    "title": "`63A-1` · 记忆形成质量与结构化情景记忆（PR 2：P2-01，`MEM-45～63`）",
+    "main": "C2",
+    "also": [
+      "A",
+      "B"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "63A-2": {
+    "title": "`63A-2` · Dreaming 空闲整理、按需查会话原话、四种反馈与静态常驻层（PR 3：P2-02～05，`MEM-64～75`）",
+    "main": "C2",
+    "also": [
+      "A",
+      "B",
+      "C1",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md（2026-11-18）"
+  },
+  "91-0a": {
+    "title": "`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口（已合入 #2221）",
+    "main": "D",
+    "also": [],
+    "kind": "文档治理",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 60）"
+  },
+  "91-0b": {
+    "title": "`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 共享底座 + 组件板 93 节重构 + 设置页 30 页收口（已合入 #2222 + #2230）",
+    "main": "D",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 60）"
+  },
+  "91-0c": {
+    "title": "`91-0c` · 平台统一「列表—详情」标准容器、退役插件 `workbench.directory`／`DIRECT_WORK_SURFACE_IDS` 与顶部标签组联动底座（决定 64；`BL-b44-shared-styles-plugin-names` 已由 #2258 提前结清，决定 65）",
+    "main": "D",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 64、65）"
+  },
+  "91-1": {
+    "title": "Design System 流式、布局与行为反馈统一底座（已随 `91-0b` #2222 提前交付）",
+    "main": "D",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 55）"
+  },
+  "91-2": {
+    "title": "平台运行流合同、Prologue 窗口 A 完整换包与 Agent Host 热路径减负",
+    "main": "C2",
+    "also": [
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "91-3": {
+    "title": "个人助理 SSE 增量流与对话流精修",
+    "main": "A",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "91-4": {
+    "title": "Coding SSE 增量流、回滚稳态与过程精修",
+    "main": "B",
+    "also": [
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "91-5": {
+    "title": "后续开发指引与插件创作台规范同步更新（已随 `91-0a` #2221 + `91-0b` #2222 与补清小修落稳）",
+    "main": "D",
+    "also": [
+      "E"
+    ],
+    "kind": "规范与指引",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 55）"
+  },
+  "91B-1": {
+    "title": "`91B-1` · 入口、账号、市场、侧栏四视图、IM 与 5 个纯平台表面（Artifacts、Characters、Sessions、Shelf、创作台）收口",
+    "main": "D",
+    "also": [
+      "C3",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 55、决定 66）"
+  },
+  "91B-2": {
+    "title": "`91B-2` · 工作主干 9 插件 + 官方连接器驱动全面打磨",
+    "main": "E",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 55）"
+  },
+  "91B-3": {
+    "title": "`91B-3` · 创作数据 5 + 收集知识 3 + 研发工具（Git/Diff）全面打磨",
+    "main": "E",
+    "also": [
+      "B",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 55）"
+  },
+  "91B-4": {
+    "title": "`91B-4` · 全站轻动效收口、公共样式账本清零与五层确定性底线防回归门禁",
+    "main": "无",
+    "also": [
+      "B",
+      "D",
+      "E"
+    ],
+    "kind": "收口与门禁",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 55、决定 57、决定 58）"
+  },
+  "92-1": {
+    "title": "把图片下载的漏测命令补进手册",
+    "main": "E",
+    "also": [],
+    "kind": "文档",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "92-2": {
+    "title": "把「打开数据库会不会创建文件」写准确",
+    "main": "无",
+    "also": [
+      "C1"
+    ],
+    "kind": "文档",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "92-3": {
+    "title": "让 Goals 测试即使报错也关干净",
+    "main": "E",
+    "also": [],
+    "kind": "测试",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "93-1": {
+    "title": "确认页面关掉时，两个正在做的请求各收到自己的取消原因",
+    "main": "无",
+    "also": [
+      "C1"
+    ],
+    "kind": "测试",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "93-2": {
+    "title": "关掉侧栏浏览器后，清掉还没挂好的监听",
+    "main": "A",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "94-1": {
+    "title": "重新安装同版本开发 App 后，用上刚编出来的版本",
+    "main": "F",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "95-1": {
+    "title": "把 Feed 连数据库的旧函数名改准确",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "95-2": {
+    "title": "资讯更新点过「现在做」，睡醒后直接做",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "95-3": {
+    "title": "错过的任务统一留七天，到期一次说清跳过了几件",
+    "main": "A",
+    "also": [
+      "E",
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "96-1": {
+    "title": "编辑一项定时任务时，只查这一项",
+    "main": "C",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "96-2": {
+    "title": "定时任务失败时，开着的详情立刻显示原因",
+    "main": "E",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "97-1": {
+    "title": "助理只汇报结果时，别占用继续干活的次数",
+    "main": "A",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "97-2": {
+    "title": "同一项目同时办完几件事，助理合起来报一次",
+    "main": "A",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "98-1": {
+    "title": "让两家插件都能提供同一种材料，还能按来源挑",
+    "main": "C1",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "99-1": {
+    "title": "在 Coding 的本轮变更里列出确实删掉的文件",
+    "main": "B",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 56）"
+  },
+  "100-1": {
+    "title": "路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列",
+    "main": "无",
+    "also": [],
+    "kind": "文档",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "100-2": {
+    "title": "反效果门禁精准松绑与 CI 碎作业合并",
+    "main": "无",
+    "also": [],
+    "kind": "收口与门禁",
+    "occupy": false,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "101-1": {
+    "title": "现役 P0 功能故障、英文模式断链与安全异常修复",
+    "main": "D",
+    "also": [
+      "A",
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "101-2": {
+    "title": "零误报死文件清理与热路径/生命周期泄漏止血",
+    "main": "C2",
+    "also": [
+      "A",
+      "C1",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "102-1": {
+    "title": "工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径",
+    "main": "D",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "102-2": {
+    "title": "沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化",
+    "main": "F",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "103-1": {
+    "title": "休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发",
+    "main": "C1",
+    "also": [
+      "C3",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "103-2": {
+    "title": "Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理",
+    "main": "C1",
+    "also": [
+      "C3",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "104-1": {
+    "title": "全量单次 AI 调用（11 内置插件 + 9 平台能力）双通道纳管与显式备用模型",
+    "main": "C2",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "104-2": {
+    "title": "面向非技术用户的全站结构化三语大白话报错转译与无损安全重试",
+    "main": "A",
+    "also": [
+      "B",
+      "C2",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "105-1": {
+    "title": "防链式 RCE 免批护栏、全分区分类跨重启审批续接与审批列表局部刷新／批量原子底座",
+    "main": "C2",
+    "also": [
+      "A",
+      "B",
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "105-2": {
+    "title": "双子代理终态缓存、Mainline 增量校验与日常高频交互润色",
+    "main": "A",
+    "also": [
+      "C2",
+      "C3",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 58）"
+  },
+  "44B-0": {
+    "title": "P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则",
+    "main": "C1",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "44B-1": {
+    "title": "合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）",
+    "main": "C1",
+    "also": [
+      "C3",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "44B-2": {
+    "title": "Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零",
+    "main": "C3",
+    "also": [
+      "C1",
+      "C2",
+      "D",
+      "E",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "44C-1": {
+    "title": "统一提供方身份、平台页面登记与 `system.shelf` 收口",
+    "main": "C1",
+    "also": [
+      "C3",
+      "D",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "44C-2": {
+    "title": "集成驱动并入 Home 统一运行时、厂商分支与权限硬编码清零",
+    "main": "C1",
+    "also": [
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "44C-3": {
+    "title": "随包放行收紧、签名样例端到端、样板间去插件名与 G1 校准",
+    "main": "C1",
+    "also": [
+      "C3",
+      "D",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "106-1": {
+    "title": "分区根 `partitionRoot()`、保留分区守卫与 `listPartitions()` 全量归类",
+    "main": "C1",
+    "also": [
+      "C3",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "106-2": {
+    "title": "Home 单张安装表、`partition_plugins`、`partitions.plugins.set@1` 与新每分区装配",
+    "main": "C1",
+    "also": [
+      "C3",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "106-3": {
+    "title": "新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段",
+    "main": "C3",
+    "also": [
+      "C1",
+      "G"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "107-1": {
+    "title": "6 个独立库插件迁 `databases.partition` 并删业务表 `project_id`",
+    "main": "E",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "107-2": {
+    "title": "当波删除 `databases.home.partition` 复用器；6 个插件不再用 `project_rows`／`artifact_join`",
+    "main": "C1",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "108-1": {
+    "title": "插件侧接通 `personSettings`／到期回调；Todo、Jelly、Cognia、Images、Issues 迁分区与 `databases.partition`",
+    "main": "E",
+    "also": [
+      "C1",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "108-2": {
+    "title": "个人空间跨项目总览上线（承接原 `64-3`）、助理跨项目授权开关与门禁 G4",
+    "main": "C3",
+    "also": [
+      "A",
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "108-3": {
+    "title": "彻底删除 `personal:true` 与 `hidden`，更新金样与覆盖账本",
+    "main": "C1",
+    "also": [
+      "D",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "109-1": {
+    "title": "`109-1`（PR1）· 主库插件删 `project_id` 列与 Feed/Work Brief 摘除 Home 半",
+    "main": "E",
+    "also": [
+      "B",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "109-2": {
+    "title": "`109-2`（PR2）· Workspace Git 与 `projects.workspace.writers.*` 迁入 `plugins/native/git`（D6=B）+ 开放审查种类",
+    "main": "B",
+    "also": [
+      "C1",
+      "C2"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "109-3": {
+    "title": "`109-3`（PR3）· 沙箱开放 `databases.partition`、全插件合流唯一每分区装配并彻底清零旧双轨",
+    "main": "C1",
+    "also": [
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "110-1": {
+    "title": "放置、搜索、助理上下文与记忆/角色去 `project_id: null` 业务双轨",
+    "main": "C3",
+    "also": [
+      "C2",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "110-2": {
+    "title": "同步收敛（Clean v1 保 v1 拍平）、分区启用清单独立同步（V4）、零唤醒发现与门禁 G5",
+    "main": "G",
+    "also": [
+      "C1",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "110-3": {
+    "title": "MCP 个人空间显式绑定守卫与金样校准",
+    "main": "C1",
+    "also": [],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "111-1": {
+    "title": "`111-1`（PR1）· 存储多库原子事务升级、星型单向版本化推送引擎、不预记补账与大快照/附件保护",
+    "main": "C3",
+    "also": [
+      "C1",
+      "G"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "111-2": {
+    "title": "`111-2`（PR2）· 14 个有业务对象内置插件一次完成 `push` 声明（U8）与第三方沙箱同路支持",
+    "main": "E",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "111-3": {
+    "title": "`111-3`（PR3）· 工作台界面定样落地（按需懒加载）、G1～G5 全量焊死、白名单清空与文档收官",
+    "main": "D",
+    "also": [
+      "C1",
+      "C3",
+      "E",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 66）"
+  },
+  "112-1": {
+    "title": "`112-1` · 彻底删除 `jelly-whisper` 音视频转写包袱与 `molis-material` 中性化（独立并行 PR）",
+    "main": "F",
+    "also": [
+      "C1",
+      "E"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 68）"
+  },
+  "112-2": {
+    "title": "`112-2` · Jelly 插件瘦身（日历＋极简随手记）与标准关系分表重构（独立并行 PR）",
+    "main": "E",
+    "also": [
+      "C1",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表（决定 68）"
+  },
+  "23-1": {
+    "title": "同步与团队共同设计 → SRV-1",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "49-1": {
+    "title": "个人同步核心 → SRV-2",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "50-1": {
+    "title": "团队关键协作 → SRV-3",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "51-1": {
+    "title": "双身份协作实证 → SRV-3",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "60-2": {
+    "title": "`60-2` · 持续跟进汇入观测／每日简报与国内外全厂商适配收口（PR 2）",
+    "main": "C3",
+    "also": [
+      "A"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表（C3）"
+  },
+  "62-0": {
+    "title": "`62-0` · Prologue 窗口 B 剩余能力补齐与 SDK 增量换包（PR 1）",
+    "main": "C2",
+    "also": [
+      "C1"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表（C 轨换包窗口 B）"
+  },
+  "63-2": {
+    "title": "`63-2` · 全平台评测引擎、校准裁判、实验账本、「设置 › 评测」后台与跨批样本库（PR 2）",
+    "main": "C3",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表（C3）"
+  },
+  "63A-0": {
+    "title": "`63A-0` · 拆分 106KB `MemoryService` 巨类与清理 P1 残余债（PR 1：纯重构零行为变化）",
+    "main": "C2",
+    "also": [
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  },
+  "65-0": {
+    "title": "`65-0` · Prologue 窗口 C 双平台 OS 真沙箱、出站域控代理与 SDK 换包（PR 1）",
+    "main": "B",
+    "also": [
+      "C2",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表（B Coding + 窗口 C）"
+  },
+  "67-1b": {
+    "title": "`67-1B` · Coding 挂接桌面操控（`system.computer`）与共用右栏浏览器验证（PR 2，`R8`、`D3`）",
+    "main": "B",
+    "also": [
+      "C3",
+      "F"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表（B Coding）"
+  },
+  "74-1": {
+    "title": "个人同步完整交付 → SRV-5",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "77-2": {
+    "title": "`77-2` · 创作台手动组装、零污染隔离试跑、采用／安装与分享闭环（PR 2）",
+    "main": "E",
+    "also": [
+      "C3",
+      "D"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表（E）"
+  },
+  "79-1": {
+    "title": "团队身份与访问 → SRV-6",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "80-1": {
+    "title": "团队实时协作 → SRV-6",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "81-1": {
+    "title": "团队恢复与首版验收 → SRV-6",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "86-2": {
+    "title": "`86-B` · 插件创作台阶段简化对照实验（独立并行 PR 2）",
+    "main": "B",
+    "also": [
+      "C3",
+      "E"
+    ],
+    "kind": "验收运维",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 整批表（B）"
+  },
+  "87-1": {
+    "title": "团队记忆形成与融合 → SRV-7",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "88-1": {
+    "title": "团队记忆发布、管理与效果 → SRV-7",
+    "main": "无",
+    "also": [],
+    "kind": "移到服务端批",
+    "occupy": false,
+    "status": "定",
+    "basis": "移到服务端批留号"
+  },
+  "REL-3-2": {
+    "title": "`REL-3-B` · 平台包可选注入 `DiagnosticLogger` 合同与关键静默 `catch` 补记（PR 2，结清 `BL-812`）",
+    "main": "C1",
+    "also": [
+      "A",
+      "B",
+      "C2",
+      "C3"
+    ],
+    "kind": "实现",
+    "occupy": true,
+    "status": "定",
+    "basis": "tracks.md 逐项表"
+  }
 }

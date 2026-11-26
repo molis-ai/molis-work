@@ -216,22 +216,22 @@ test('moved redirect batches stay non-claimable and batch 91/92-105 dependencies
   assert.deepEqual(nodes['102.2'].hard, ['100.2']);
   assert.deepEqual(nodes['103.1'].hard, ['101.1', '101.2']);
   assert.deepEqual(nodes['103.2'].hard, ['101.1', '101.2']);
-  assert.deepEqual(nodes['104.1'].hard, ['91.2']);
+  assert.deepEqual(nodes['104.1'].hard, ['91.2', '112.2']);
   assert.deepEqual(nodes['104.2'].hard, ['104.1', '101.1']);
-  assert.deepEqual(nodes['105.1'].hard, ['39.1', '39.2', '100.2', ...U66]);
-  assert.ok(nodes['105.1'].partial.includes('62.1'));
+  assert.deepEqual(nodes['105.1'].hard, ['39.1', '39.2', '100.2', '91.2', ...U66]);
+  assert.ok(nodes['62.1'].hard.includes('105.1'));
   assert.deepEqual(nodes['105.2'].hard, ['100.2', ...U66]);
-  assert.ok(nodes['65.2'].hard.includes('105.1'));
+  assert.ok(nodes['65.1'].hard.includes('105.1'));
   for (const id of [
     '91.0a', '91.0b', '91.0c', '91.1', '91.2', '91.3', '91.4', '91.5', '91B.1', '91B.2', '91B.3', '91B.4',
     '92.1', '92.2', '92.3', '93.1', '93.2', '94', '95.1', '95.2', '95.3', '96.1', '96.2', '97.1', '97.2', '98', '99',
     '100.1', '100.2', '101.1', '101.2', '102.1', '102.2', '103.1', '103.2', '104.1', '104.2', '105.1', '105.2',
     '44B.1', '44B.2', '44B.3', '44C.1', '44C.2', '44C.3', '106.1', '106.2', '106.3', '107.1', '107.2', '108.1', '108.2', '108.3',
-    '109.1', '109.2', '109.3', '110.1', '110.2', '110.3', '111.1', '111.2', '111.3',
+    '109.1', '109.2', '109.3', '110.1', '110.2', '110.3', '111.1', '111.2', '111.3', '112.1', '112.2',
   ]) {
     assert.ok(nodes['90'].hard.includes(id), `90.hard missing ${id}`);
   }
-  for (const bid of ['44B', '44C', '92', '93', '94', '95', '96', '97', '98', '99', '100', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111']) {
+  for (const bid of ['44B', '44C', '92', '93', '94', '95', '96', '97', '98', '99', '100', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112']) {
     const b = snapshot.batches.find(x => x.id === bid);
     assert.ok(b, `missing batch ${bid}`);
     assert.notEqual(b.stage, 'S', `batch ${bid} must not be classified as server stage S`);
@@ -260,7 +260,7 @@ test('batch 91 shows all eight deliveries and releases only 91-0c before the str
 
 test('decision 66 chain 44B → 106～111 is a hard serial chain and every downstream batch waits for 111', () => {
   const nodes = Object.fromEntries(snapshot.batches.flatMap(b => b.nodes.map(n => [n.id, n])));
-  const chain = [['44B', 3], ['106', 3], ['107', 2], ['108', 3], ['109', 3], ['110', 3], ['111', 3]];
+  const chain = [['44B', 3], ['106', 3], ['107', 2], ['108', 3], ['109', 3], ['110', 3], ['111', 3], ['112', 2]];
   for (const [b, n] of chain) assert.equal(snapshot.batches.find(x => x.id === b).items.length, n, `item count of ${b}`);
   // 44B-0 无前置；批内逐项串行；110-3 只等 110-1
   assert.deepEqual(nodes['44B.1'].hard, []);
@@ -272,17 +272,19 @@ test('decision 66 chain 44B → 106～111 is a hard serial chain and every downs
   assert.deepEqual(nodes['44C.3'].hard, ['44C.1', '44C.2']);
   assert.deepEqual(nodes['110.3'].hard, ['110.1']);
   // 每批的第一项等上一批全部项
-  const prevOf = { 106: ['44B.1', '44B.2', '44B.3'], 107: ['106.1', '106.2', '106.3'], 108: ['107.1', '107.2'],
+  assert.deepEqual(nodes['112.1'].hard, ['44B.1', '44B.2', '44B.3']);
+  assert.deepEqual(nodes['112.2'].hard, ['44B.1', '44B.2', '44B.3']);
+  const prevOf = { 106: ['44B.1', '44B.2', '44B.3'], 107: ['106.1', '106.2', '106.3'], 108: ['107.1', '107.2', '112.1', '112.2'],
     109: ['108.1', '108.2', '108.3'], 110: ['109.1', '109.2', '109.3'], 111: ['110.1', '110.2', '110.3'] };
   for (const [b, prev] of Object.entries(prevOf)) assert.deepEqual(nodes[`${b}.1`].hard, prev, `${b}.1`);
-  // 链上不出现下游，也没有环：111 的祖先全在 44B～110
+  // 链上不出现下游，也没有环：111 的祖先全在 44B、112 与 106～110
   const seen = new Set(); const st = ['111.3'];
   while (st.length) { const x = st.pop(); if (seen.has(x)) continue; seen.add(x); st.push(...nodes[x].hard); }
-  for (const x of seen) assert.ok(/^(44B|10[6-9]|110|111)\./.test(x), `111 ancestor outside chain: ${x}`);
+  for (const x of seen) assert.ok(/^(44B|10[6-9]|110|111|112)\./.test(x), `111 ancestor outside chain: ${x}`);
   // 决定 66 点名的下游批次：整批或指定项等 111
   const waits = id => assert.ok(U66.every(h => nodes[id].hard.includes(h)), `${id} must wait for 111`);
-  ['91.2', '91.3', '91.4', '91B.1', '91B.2', '91B.3', '105.1', '105.2', '57', '60', '63', '76', '77', '78', '85', '86', '54',
-    '56.3', '64.3', '67.1', '70d', '73.3', '75.1', '75.3', 'REL-2.1', 'REL-4.1', 'REL-5', 'SRV-3', 'SRV-4', 'SRV-8.1', 'SRV-8.2', 'SRV-8.3'].forEach(waits);
+  ['91.2', '91.3', '91.4', '91B.1', '91B.2', '91B.3', '105.1', '105.2', '57', '60.1', '60.2', '63.1', '63.2', '76', '77.1', '77.2', '78', '85', '86.1', '86.2', '54',
+    '56.3', '64.3', '67.1', '67.1b', '70d', '73.3', '75.1', '75.3', 'REL-2.1', 'REL-3.1', 'REL-4.1', 'REL-5', 'SRV-3', 'SRV-4', 'SRV-8.1', 'SRV-8.2', 'SRV-8.3'].forEach(waits);
   for (const b of ['43', '45', '46', '48', '52', '53', '55', '62', '63A', '65', '66', '68', '69', '71', '82', '83', '84', '89']) {
     for (const n of snapshot.batches.find(x => x.id === b).nodes) waits(n.id);
   }

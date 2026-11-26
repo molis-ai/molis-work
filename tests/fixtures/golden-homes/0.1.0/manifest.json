@@ -163,10 +163,6 @@
       "mode": 448
     },
     {
-      "path": "cognia",
-      "mode": 448
-    },
-    {
       "path": "config",
       "mode": 493
     },
@@ -187,6 +183,10 @@
       "mode": 448
     },
     {
+      "path": "due-registry",
+      "mode": 448
+    },
+    {
       "path": "external-sessions",
       "mode": 448
     },
@@ -199,15 +199,7 @@
       "mode": 448
     },
     {
-      "path": "images",
-      "mode": 448
-    },
-    {
       "path": "interface",
-      "mode": 448
-    },
-    {
-      "path": "issues",
       "mode": 448
     },
     {
@@ -228,6 +220,10 @@
     },
     {
       "path": "observation",
+      "mode": 448
+    },
+    {
+      "path": "person-settings",
       "mode": 448
     },
     {
@@ -383,11 +379,11 @@
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors",
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/due-registry",
       "mode": 448
     },
     {
@@ -403,15 +399,7 @@
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images",
-      "mode": 448
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/interface",
-      "mode": 448
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues",
       "mode": 448
     },
     {
@@ -432,6 +420,10 @@
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/observation",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/person-settings",
       "mode": 448
     },
     {
@@ -483,19 +475,11 @@
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo",
-      "mode": 448
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/web-search",
       "mode": 448
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/work-brief",
-      "mode": 448
-    },
-    {
-      "path": "todo",
       "mode": 448
     },
     {
@@ -608,32 +592,6 @@
       "sha256": "793a282295046b3cad511dcd4075e6b8a35d02ddac7ac091873d465e103b4319"
     },
     {
-      "path": "cognia/cognia.db",
-      "owner": "io.molis.work.cognia",
-      "mode": 384,
-      "payload": "stores/cognia/cognia.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "cognia_domains": 1,
-        "cognia_drafts": 0,
-        "cognia_materials": 1,
-        "cognia_previews": 0,
-        "cognia_sources": 1,
-        "cognia_versions": 2,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
-        "sync_9c148ae77e23da148100ce206111_context": 1,
-        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
-        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_state": 1
-      },
-      "sha256": "4b3d0df32b677a9c3eb7db34fc53da57c726ec2f0b65035fbefcf2eae2597cdf"
-    },
-    {
       "path": "connectors/connectors.db",
       "owner": "apps/local-host",
       "mode": 384,
@@ -675,6 +633,19 @@
         "molis_storage_space": 1
       },
       "sha256": "a0933f78d65ea8db953d409291281bf1926cc4c6621f313b7d96125808e53c57"
+    },
+    {
+      "path": "due-registry/due-registry.db",
+      "owner": "horizontal/scheduler",
+      "mode": 384,
+      "payload": "stores/due-registry/due-registry.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "due_done": 0,
+        "due_entries": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "7b355b78dba71329e32bd368fdfa112a0ed0d3bf52ed7a1db77293b0bd4dfb40"
     },
     {
       "path": "external-sessions/external-sessions.db",
@@ -727,51 +698,6 @@
         "sqlite_sequence": 1
       },
       "sha256": "1f3f595fabf5876e42ca3c1148f91c7a60e32a3d47b6fd9222f74b6e4e36e7fc"
-    },
-    {
-      "path": "images/images.db",
-      "owner": "io.molis.work.images",
-      "mode": 384,
-      "payload": "stores/images/images.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "connection_changes": 0,
-        "connections": 1,
-        "jobs": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
-      },
-      "sha256": "c1c013a8bbc36272e750420aab1f468d294d5db25db374bf1eee6db3f64b8689"
-    },
-    {
-      "path": "issues/issues.db",
-      "owner": "io.molis.work.issues",
-      "mode": 384,
-      "payload": "stores/issues/issues.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "issue_editor_versions": 0,
-        "issues": 1,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
-        "sync_547a53110031b73814823e489835_context": 1,
-        "sync_547a53110031b73814823e489835_replica_changes": 0,
-        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
-        "sync_547a53110031b73814823e489835_replica_heads": 0,
-        "sync_547a53110031b73814823e489835_replica_outbox": 0,
-        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
-        "sync_547a53110031b73814823e489835_replica_state": 1
-      },
-      "sha256": "bacd036bdc22280451180434c04bea0ce06590187ec139873b2933bb47425ad8"
     },
     {
       "path": "jelly/jelly.db",
@@ -866,6 +792,95 @@
       "sha256": "ccf2bb6abe804fca0e1c2f2ec73bbdd825fa3331b07ef8e8fc0a84cd388ee099"
     },
     {
+      "path": "person-settings/person-settings.db",
+      "owner": "horizontal/person-settings",
+      "mode": 384,
+      "payload": "stores/person-settings/person-settings.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "person_settings": 1,
+        "person_settings_replica_changes": 0,
+        "person_settings_replica_conflicts": 0,
+        "person_settings_replica_heads": 0,
+        "person_settings_replica_outbox": 0,
+        "person_settings_replica_resolutions": 0,
+        "person_settings_replica_state": 1,
+        "sqlite_sequence": 1
+      },
+      "sha256": "375591a4c8ff6046e249d46387b49980534d22de101ab15f95531f336b5030ab"
+    },
+    {
+      "path": "personal-space/libraries/cognia.db",
+      "owner": "io.molis.work.cognia",
+      "mode": 384,
+      "payload": "stores/personal-space/libraries/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 1,
+        "cognia_drafts": 0,
+        "cognia_materials": 1,
+        "cognia_previews": 0,
+        "cognia_sources": 1,
+        "cognia_versions": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 5,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "9f740ebce73fe2599a2f87ec33357e44f10e7f2e7718e4db0a0aa02a764e1fed"
+    },
+    {
+      "path": "personal-space/libraries/images.db",
+      "owner": "io.molis.work.images",
+      "mode": 384,
+      "payload": "stores/personal-space/libraries/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jobs": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "e38f903a14bd30a3aa58591b294e4e1ac2ac5888585e16f9a3964e6d5e85f742"
+    },
+    {
+      "path": "personal-space/libraries/issues.db",
+      "owner": "io.molis.work.issues",
+      "mode": 384,
+      "payload": "stores/personal-space/libraries/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "c69f3ddf8151864ac510c27921b68e8be270bc9a137767f3b7588c0e342b3634"
+    },
+    {
       "path": "personal-space/libraries/pages.db",
       "owner": "io.molis.work.pages",
       "mode": 384,
@@ -891,6 +906,33 @@
         "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
       },
       "sha256": "cb89089467406bfe0ce3a91d109f6c1f6c0585330c309b3b50381bc34f8b400e"
+    },
+    {
+      "path": "personal-space/libraries/todo.db",
+      "owner": "io.molis.work.todo",
+      "mode": 384,
+      "payload": "stores/personal-space/libraries/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_overview_rows": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 2,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 3,
+        "todo_editor_versions": 2,
+        "todo_items": 2,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "490369d3354738d8c762d5c9e09fede9ad189d3bf94ff24983c8933f9efa12c0"
     },
     {
       "path": "personal-space/molis-work.db",
@@ -994,6 +1036,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
@@ -1108,8 +1151,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "3c72b58fc914bddf83ef5645625263f0a049b802215e53253db277d5d005444c",
-      "expanded_sha256": "df0928c486fbc4f3d19a9c9868a22abda3188d1f7e9b9bd6cd9ea731ce4a7c04"
+      "sha256": "04af7dada3a2f20603b8904d6b7eb3c6f10bea09416a8eaf5ef92150cbb21e42",
+      "expanded_sha256": "eea9dafa9a10063e958ec53a9fce7f6cc6663d30b2b3917a9e7ef312575a5804"
     },
     {
       "path": "placement/placement.db",
@@ -1321,6 +1364,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -1435,8 +1479,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "0327c6a2dc53b24ac0bcde5c577baff08959c2d5687a79e31dd152eeac2f2b01",
-      "expanded_sha256": "8a24e3062f7ba52d37dc3dac8c954152cbcc8ecff051ddfaa7983541c75f4210"
+      "sha256": "53346fc75f8fec21ea4228b312ccf16c81a9e1609b971efa8d634c5c123923c2",
+      "expanded_sha256": "32e0f81ab9c8610802bef63e74f9a19b2671d70f845af729ad7d7e9325244b32"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1540,6 +1584,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -1654,8 +1699,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "d54d821f9da3d934815fc10d21e41d0ce30aa3ae42c67decdaf9b28446df6403",
-      "expanded_sha256": "95b70556384cc5bb1a333979cb66c108b4700694825c46b7787b230cfb9bc153"
+      "sha256": "e2ba830e8bd16faaf9903be308a75e4277a83d91b3e04bf9d4329ea232feb650",
+      "expanded_sha256": "37ed4c1689b9fc1bb170b93ba275464f23c30efcda82033870f526ebf8c3ef33"
     },
     {
       "path": "projects/project-ae076f4f-3257-40a5-be48-38652812f188/libraries/dataset.db",
@@ -1903,6 +1948,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -2017,8 +2063,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "6e9f5a7b1ab289f03caa1eec79bc6165344f985b209c97a5766e7d2fc6e9c860",
-      "expanded_sha256": "29ec80f95dd7a4d75f8d6c49ed71659097cca695de8f6e8c657d69c9a0aefd53"
+      "sha256": "bd776bc02e3702233074d1ed981b16c24d863d0c894d41a334e506e56422d99e",
+      "expanded_sha256": "503feafb0094777a486e7a35de1128691c73edfaceeb4400673167e4084dd666"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -2135,32 +2181,6 @@
       "sha256": "3caf4ec570abbe379a4817317d1cd200b06094b3923b51abaf69856a9cc41a76"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia/cognia.db",
-      "owner": "io.molis.work.cognia",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia/cognia.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "cognia_domains": 1,
-        "cognia_drafts": 0,
-        "cognia_materials": 1,
-        "cognia_previews": 0,
-        "cognia_sources": 1,
-        "cognia_versions": 2,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
-        "sync_9c148ae77e23da148100ce206111_context": 1,
-        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
-        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_state": 1
-      },
-      "sha256": "40862e5bbba7cc96d7a4dea4d1f9fe7c779d5189e80e1b8a1e857ee26eab679e"
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors/connectors.db",
       "owner": "apps/local-host",
       "mode": 384,
@@ -2178,6 +2198,19 @@
         "molis_storage_space": 1
       },
       "sha256": "a6c0394512878d261397653150fcbbda647ee7df39c38019a55a448235d2b609"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/due-registry/due-registry.db",
+      "owner": "horizontal/scheduler",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/due-registry/due-registry.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "due_done": 0,
+        "due_entries": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "cff4793383ac3a108b130e1d2ddebde4b32f16c5843b0a1f4ac43dba137c2b6a"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/external-sessions/external-sessions.db",
@@ -2230,51 +2263,6 @@
         "sqlite_sequence": 1
       },
       "sha256": "b85e318b4d481afb17bba1569159a20888aa600dc179461b12c04a1d25e8cd82"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images/images.db",
-      "owner": "io.molis.work.images",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images/images.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "connection_changes": 0,
-        "connections": 1,
-        "jobs": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
-      },
-      "sha256": "ff000f16a694123b2c832b89dc7b3ca78144c65bece9e5a0de787b250ae20c8c"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues/issues.db",
-      "owner": "io.molis.work.issues",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues/issues.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "issue_editor_versions": 0,
-        "issues": 1,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
-        "sync_547a53110031b73814823e489835_context": 1,
-        "sync_547a53110031b73814823e489835_replica_changes": 0,
-        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
-        "sync_547a53110031b73814823e489835_replica_heads": 0,
-        "sync_547a53110031b73814823e489835_replica_outbox": 0,
-        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
-        "sync_547a53110031b73814823e489835_replica_state": 1
-      },
-      "sha256": "fe6f543f34bbeaa4e505216223195f63ce24716cc3cff81bad31ab18934a5d42"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db",
@@ -2369,6 +2357,95 @@
       "sha256": "0684df6847bffa0b1a83cc5beff3ff837530267d5ff1c68e096cc8484620a81c"
     },
     {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/person-settings/person-settings.db",
+      "owner": "horizontal/person-settings",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/person-settings/person-settings.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "person_settings": 1,
+        "person_settings_replica_changes": 0,
+        "person_settings_replica_conflicts": 0,
+        "person_settings_replica_heads": 0,
+        "person_settings_replica_outbox": 0,
+        "person_settings_replica_resolutions": 0,
+        "person_settings_replica_state": 1,
+        "sqlite_sequence": 1
+      },
+      "sha256": "7e99ea3dd2f4882079ad4954f72cb0f7e84221f6e5c3d744d692323562e72e9a"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/cognia.db",
+      "owner": "io.molis.work.cognia",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 1,
+        "cognia_drafts": 0,
+        "cognia_materials": 1,
+        "cognia_previews": 0,
+        "cognia_sources": 1,
+        "cognia_versions": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 5,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "890b61396808f17a8d8c61a28549df9cb184592c105f0ae405bcc68ef258fce2"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/images.db",
+      "owner": "io.molis.work.images",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jobs": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "ae6c6c61805ca28d5e8ca52418d7ba48498387f87582d79c6a8814e9fbb8a058"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/issues.db",
+      "owner": "io.molis.work.issues",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "dadaeef589b36c8dc30ce1dae603a67dcccee38512176e8dcc5f135f3bec208c"
+    },
+    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/pages.db",
       "owner": "io.molis.work.pages",
       "mode": 384,
@@ -2394,6 +2471,33 @@
         "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
       },
       "sha256": "fd385ec936752678d4e374aab94af3ec2a96bd7792affca99b55e13c49b5a5da"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/todo.db",
+      "owner": "io.molis.work.todo",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_overview_rows": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 2,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 3,
+        "todo_editor_versions": 2,
+        "todo_items": 2,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "5fd1e0853a3064212561a8cc4753ad0b75751dac5900160d75413c78e08cab35"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/molis-work.db",
@@ -2497,6 +2601,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
@@ -2611,8 +2716,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "20c76e152fb1868a2be39de021932921ed7711a164d4827910a46d7a0b3255a0",
-      "expanded_sha256": "c5135562faeefae85d78df07804719f4fb4222b0d33785a498372c870eaec0bb"
+      "sha256": "31688d632b17d4f035869c8bbd6ea7b39dd395ac8d086e7388e921498e470f7f",
+      "expanded_sha256": "ea139c67c49343e1cdeb1b51166caa90a03979211a7daf4114854b607d93cf98"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db",
@@ -2968,6 +3073,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -3082,8 +3188,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "f547dbcd6071c0e7bbbe93218c6b42e83229dd88fa23422d938ef1d18917f705",
-      "expanded_sha256": "4b3f8017dd40fab02c1a07e7b6bda5338a494f1e4b627cca864593e208de4026"
+      "sha256": "d17db104b81477e70f81fd22be1724d89e3c1fe5e6603e8f1ec85435f8f2f872",
+      "expanded_sha256": "fcae97c38fa51bae6fb0cc5d3ea7cafb548e7122ebd3f6443a8cb7d690127b8a"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3102,34 +3208,6 @@
         "sync_stream_cursors": 0
       },
       "sha256": "bcbc8bae65e14388555dacc7e3cab910cfbd294a456ba703de3f52dbd628a4ab"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db",
-      "owner": "io.molis.work.todo",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
-        "todo_batches": 0,
-        "todo_changes": 3,
-        "todo_deleted_projects": 0,
-        "todo_editor_versions": 2,
-        "todo_imported_changes": 0,
-        "todo_items": 2,
-        "todo_requests": 0,
-        "todo_source_memory": 0
-      },
-      "sha256": "70fc5b27747c7ae9d41f19bd58f6dd8a38844ce096e912a1bbe3b3c5d81e084a"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/web-search/web-search.db",
@@ -3170,34 +3248,6 @@
         "sync_99b05d64d7577ed2f59d3aae7365_replica_state": 1
       },
       "sha256": "cdf82ec6028b5330678e7ffb1bf5b5bb888252ff066189b5a6a9716f2fd73f38"
-    },
-    {
-      "path": "todo/todo.db",
-      "owner": "io.molis.work.todo",
-      "mode": 384,
-      "payload": "stores/todo/todo.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
-        "todo_batches": 0,
-        "todo_changes": 3,
-        "todo_deleted_projects": 0,
-        "todo_editor_versions": 2,
-        "todo_imported_changes": 0,
-        "todo_items": 2,
-        "todo_requests": 0,
-        "todo_source_memory": 0
-      },
-      "sha256": "2ea33d26abd3db17ab6fd2e2c4634edf8773c40333c62f820613c49573f32cc3"
     },
     {
       "path": "web-search/web-search.db",

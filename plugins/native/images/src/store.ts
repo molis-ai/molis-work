@@ -5,6 +5,7 @@ import type { ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesErrors } from "./error.js";
 import { IMAGES_DATABASE } from "./database.js";
+import { removeImagesOverview, writeImagesOverview } from "./overview.js";
 export { IMAGES_DATABASE };
 
 export type { StoredConnection } from "./connections.js";
@@ -17,8 +18,10 @@ export class ImagesStore {
   constructor(private readonly db: PluginDatabaseTransaction, private readonly sync?: PluginSyncClient) {}
 
   recoverInterrupted(): void {
+    const running = (this.db.all("SELECT id FROM jobs WHERE status = 'running'") as Row[]).map(row => String(row.id));
     this.db.run("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running'",
       [INTERRUPTED, new Date().toISOString()]);
+    for (const id of running) { const job = this.findJob(id); if (job) writeImagesOverview(this.db, job); }
   }
 
   referencedFiles(): Set<string> {
@@ -57,6 +60,7 @@ export class ImagesStore {
     }
     const result = this.db.run("DELETE FROM jobs WHERE project_id = ? AND id = ? AND status != 'running'", [projectId, id]);
     if (Number(result.changes) !== 1) throw imagesErrors.running("请先停止生成，再删除记录。");
+    removeImagesOverview(this.db, id);
     return job;
   }
 
@@ -77,12 +81,15 @@ export class ImagesStore {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [job.id, job.project_id, job.request_id, inputHash, job.connection_id, job.connection_name,
         job.api_format, job.model, job.prompt, job.size, job.aspect_ratio, job.status, "[]", "", job.created_at, null]);
+    writeImagesOverview(this.db, { ...job, images: [], error: "", finished_at: null });
     return null;
   }
 
   finish(projectId: string, id: string, status: Exclude<ImageJobStatus, "running">, images: GeneratedImage[], error: string, finishedAt = new Date().toISOString()): void {
-    this.db.run(`UPDATE jobs SET status = ?, images_json = ?, error = ?, finished_at = ?
+    const result = this.db.run(`UPDATE jobs SET status = ?, images_json = ?, error = ?, finished_at = ?
       WHERE project_id = ? AND id = ? AND status = 'running'`, [status, JSON.stringify(images), error, finishedAt, projectId, id]);
+    const job = Number(result.changes) === 1 ? this.findJob(id) : null;
+    if (job) writeImagesOverview(this.db, job);
   }
 }
 

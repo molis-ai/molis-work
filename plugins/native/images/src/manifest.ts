@@ -36,6 +36,8 @@ export const imagesManifest: PluginManifest = {
   actions: Object.values(imagesActions).map(localizeAction),
   // Each partition's own jobs and pictures (specs/unified-partition-plugins §4.2, batch 108); the image services are the person's.
   databases: { partition: IMAGES_DATABASE },
+  // Its generations in the Home's list of background work, read from its own library without starting it (V17, batch 108).
+  overview_projection: { kinds: ["background_task"] },
   person_settings: { keys: IMAGES_PERSON_SETTINGS },
   owner_files: IMAGES_OWNER_FILES,
   image_generation: IMAGES_IMAGE_GENERATION,

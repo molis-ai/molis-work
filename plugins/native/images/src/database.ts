@@ -1,4 +1,4 @@
-import type { PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_TABLE_SQL, type PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones must already be at
@@ -20,4 +20,5 @@ export const IMAGES_DATABASE: PartitionPluginDatabaseDeclaration = {
     UNIQUE (project_id, request_id)
   );
   CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
+  ${OVERVIEW_TABLE_SQL}
 ` };

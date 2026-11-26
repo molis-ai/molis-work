@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { OVERVIEW_TABLE } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesCopy } from "./copy.js";
@@ -31,6 +32,8 @@ export function imagesCollection(files:PluginOwnerFilesReader):PluginSyncCollect
    const wire={format:/* @version format.images.portable */ 1,spaceId:context.spaceId,project:{id:projectId,title:context.project(projectId).title},record:Object.fromEntries(columns.map(c=>[c,row[c]])),images:(JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image=>readPortableImage(files,image))};return validateImageValue(wire,context.spaceId,projectId,id);
   },
   apply(key:string,value:unknown){const {projectId,id}=keyParts(key),row=local(projectId,id);context.project(projectId);if(row?.status==='running')throw imagesErrors.sync_busy('本机正在生成，暂不能覆盖或删除');
+   // A synced generation is never running here, and the device that ran it reported its end: it has no row in this partition's overview.
+   db.prepare(`DELETE FROM ${OVERVIEW_TABLE} WHERE kind='background_task' AND row_id=?`).run(id);
    if(value===null){db.prepare('DELETE FROM jobs WHERE id=? AND project_id=?').run(id,projectId);return;}
    const wire=validateImageValue(value,context.spaceId,projectId,id),images=preparedImages(files,id,wire.images);
    const saved={...wire.record,request_id:'sync:'+id,input_hash:createHash('sha256').update(JSON.stringify(wire.record)).digest('hex'),connection_id:'',runner_id:null,images_json:JSON.stringify(images)};

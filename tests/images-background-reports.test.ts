@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ENDED_SHOWN_MS, imagesBackgroundTasksOf } from "@molis-ai/molis-work-plugin-images";
+import { ENDED_SHOWN_MS, imagesBackgroundTasksOf, imagesOverviewRow } from "@molis-ai/molis-work-plugin-images";
 import type { ImageJob } from "@molis-ai/molis-work-plugin-images/contract";
 
 const packOf = (file: string) => { const pack = parseLocalePack(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), { file }); assert.ok(pack.ok); return pack.value; };
@@ -29,4 +29,17 @@ test("PWA-155 Images' tasks report to the Assistant: a running generation, and o
     ["failed", "failed", "assistant", "没有生成出来", ["厂商拒绝了这个提示"], []],
   ]);
   assert.equal(tasks[1]!.updated_at, ago(60_000), "an ended row is dated by when it ended: its report key is that end");
+});
+
+// UPP-37 (V17): the same rule as the overview row Images writes with the job, in neutral fields only: no step words, no commands.
+test("UPP-37 Images' overview rows: a running generation and one ended in the last ten minutes, reporting to the Assistant", () => {
+  const rows = [job("running", "running", null), job("done", "succeeded", 60_000), job("failed", "interrupted", 5 * 60_000), job("stale", "succeeded", ENDED_SHOWN_MS + 1),
+    job("stopped", "cancelled", 60_000)].map(item => imagesOverviewRow(item, NOW));
+  assert.deepEqual(rows.map(row => row && [row.row_id, row.state, row.waiting, row.reports_to, row.title, row.open]), [
+    ["running", "generating", false, "assistant", "画 running", { surface: "images", id: "running" }],
+    ["done", "done", false, "assistant", "画 done", { surface: "images", id: "done" }],
+    ["failed", "failed", false, "assistant", "画 failed", { surface: "images", id: "failed" }],
+    null, null,
+  ]);
+  assert.equal(rows[1]!.updated_at, ago(60_000));
 });

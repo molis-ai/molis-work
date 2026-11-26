@@ -247,7 +247,7 @@ interface SettingsWriteInput {
 - **谁先改到这个形状**：现有的设置都要按 N35 原地改成这个形状，按消费方需要的先后排，不在本批做。名单写在这里，实现时逐项开片：模型设置（`model_configuration` 并进 `settings_entries`）、项目运行时（`projects.settings.runtime.*`）、记忆（现在的三层 `personal`、`project-default`、`project:<id>` 落成两项：个人记忆偏好只有 `personal` 层；项目记忆偏好的 `project` 层是 `project:<id>`，`personal` 层是 `project-default`，即你给所有项目的默认）、助理的主动回看范围与报告周期（主动助理 §3.1、§9.1）、工作记录的清理期限、各插件设置页里真正可配的项。插件设置页的 `settings_data` 仍然是「页面要显示什么」，与这里不冲突；页面上能改的值改走这对动作。
 - 引导里每项「什么时候问」（复用、本次询问、首次使用时引导、高级入口）是第 46 批的准备声明，不在这里。
 
-采用预览按实际设置主人的 `settings_entries.model_configuration.key` 标出 `model_selection?: true`。逐项页面据此打开已有模型选择器，只读当前可用目录，保存与撤销仍走原设置动作。
+采用预览曾按设置主人的 `settings_entries.model_configuration.key` 标出 `model_selection?: true`，逐项页面据此打开模型选择器。2026-11-26 退役：唯一的主人 Jelly 在第 112-2 批去掉了模型设置，用户选择退役这条路径，不另造测试用主人。`model_selection` 已从预览合同删除，Manifest 也不能再声明 `settings_entries.model_configuration`。逐项页面不再有模型选择器，以普通设置形式出现的模型选择按普通值核对与编辑。
 
 设置写入可带 `recovery`。场景采用时将已看到的原层作为 `previous`，SDK 在同一写事务核对它与当时的原层一致。撤销时将原写请求的编号作为 `undo_of`，SDK 找回同一主人、本人、设置和层的回执，核对要恢复的值、原写后的层修订与撤销请求的完整修订。主人可据此保存一个曾经选过、现在已离线的标识；实际运行仍须满足运行时、连接及本机工具原有的可用条件。若原回执已匹配，且原写入层随后被修改，主人的冲突详情返回该次 `undo_of` 和 `reason: "revision_changed"`。采用记录据此结束该项撤销，保留新的手工选择。缺少原回执或安装换代则仍保留待核对状态。 已确认写入的撤销若只遇到完整版本冲突，仍可继续，重新核对原层后保留别层的改动。回执仍只含原请求和原结果。普通设置页可以沿用原输入。
 

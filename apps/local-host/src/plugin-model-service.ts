@@ -1,10 +1,7 @@
-import { modelPreferenceOwner } from "./model-preference-settings.js";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeInstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginModelConfigurationDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createPluginModelClient, createPluginModelConfigurationClient, pluginModelErrors, type PluginModelPort } from "@molis-ai/molis-work-plugin-runtime";
-import { createConsumerModelConfiguration, modelConfigurationInvalid } from "./model-configuration.js";
-import { sandboxProviderName } from "./sandbox-home-names.js";
+import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createPluginModelClient, pluginModelErrors, type PluginModelPort } from "@molis-ai/molis-work-plugin-runtime";
 import { decodePrologueJsonOutput, reportedTokenTotal } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -25,16 +22,10 @@ import { MODEL_PERMISSIONS } from "./plugin-service-permissions.js";
  * Prologue inference and the one path every other caller of the Host's text model takes. No call id is passed on (user decision 2026-10-10).
  */
 export function pluginModelFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
-  assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
+  assertActive: () => void): PluginModelClient | undefined {
   if (!home || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
-  // `sbx-…` is the provider id the Host derives for a sandboxed package; no declaration may take it (BL-491, S-91).
-  if (declaration && sandboxProviderName(declaration.custom_provider.provider_id)) throw modelConfigurationInvalid("这个供应商名保留给沙箱插件，不能声明");
   const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
-  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate),
-    ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate,
-      definition.manifest.settings_entries?.model_configuration ? modelPreferenceOwner(home.directory, declaration, definition.manifest.settings_entries.model_configuration.key,
-        JSON.stringify([context.install_id, context.installation_generation])) : undefined) } : {}),
-  });
+  return Object.freeze(createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate));
 }
 
 /** Either builds the service: `model:read` for the list and availability, `model:invoke` for those and requests. */

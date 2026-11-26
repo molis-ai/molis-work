@@ -95,7 +95,6 @@ export type BlueprintPreviewPart = PreviewDecision & {
   layer: SettingLayer;
   candidates: BlueprintPreviewCandidate[];
   device_only?: true;
-  model_selection?: true;
   correction_type?: "boolean" | "string" | "json";
   consequences: SettingConsequence[];
   affected_step_ids: string[];
@@ -248,7 +247,7 @@ const previewCandidate = { oneOf: [
 ] };
 const previewFields = {
   part_id: token, title: OWNED_TEXT_REF_SCHEMA, summary: OWNED_TEXT_REF_SCHEMA, proposal: proposalBody, layer: { enum: SETTINGS_LAYERS }, candidates: items(previewCandidate),
-  device_only: { const: true }, model_selection: { const: true }, correction_type: { enum: ["boolean", "string", "json"] }, consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
+  device_only: { const: true }, correction_type: { enum: ["boolean", "string", "json"] }, consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
 } as const;
 const previewPart = { oneOf: [
   closedObjectSchema({ ...previewFields, decision: { enum: actionableDecisions } }, ["part_id", "proposal", "layer", "candidates", "consequences", "affected_step_ids", "decision"]),

@@ -23,7 +23,7 @@ import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths, PARTITION_PATTERN } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
 import { assertSqliteDatabaseFiles, HOME_SECURITY_DIRNAME } from "@molis-ai/molis-work-storage";
-import { homeStores, platformModelPreferences } from "./home-stores.js";
+import { homeStores } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { shippedParts } from "./plugin-registry.js";
@@ -191,7 +191,6 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "apps/local-host", block: { kind: "setting", page: "runtimes" }, pattern: join("runtime-integrations", "*.json"), file: RUNTIME_INTEGRATION_RECEIPT_FILE, paths: runtimeReceipts },
   { owner: "apps/local-host", block: { kind: "setting", page: "models" }, pattern: join(installedPreference.store_name, installedPreference.file_name),
     file: MODEL_PREFERENCE_FILE, paths: installedModelPreferences },
-  ...platformModelPreferences().map(({ owner, path }) => ({ owner, block: { kind: "plugin", plugin_id: owner } as const, pattern: path, file: MODEL_PREFERENCE_FILE })),
 ];
 
 /**

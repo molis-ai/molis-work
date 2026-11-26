@@ -32,7 +32,6 @@ export interface SettingPlan {
 }
 export interface DiscoveredSetting {
   text_owner: string;
-  model_selection?: true;
   entry: SettingEntryDeclaration;
   binding: SettingBinding;
   unavailable?: string;

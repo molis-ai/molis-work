@@ -22,7 +22,6 @@ import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import { registerInstalledActions } from './installed-action-registration.js';
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
-import { assertModelConfigurationEntries } from "./model-configuration-entries.js";
 import { assertImageGenerationEntries } from "./plugin-image-generation-entries.js";
 import { assertProjectCleanupEntries, registerPluginProjectCleanup, type PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import { fixtureAdmission, pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type PluginFixture } from "./home-side.js";
@@ -370,7 +369,6 @@ async function startHomePlatformRuntime(input: {
   const home = pluginHomeFor(options.home);
   assertOwnerFilesEntries(entries, fixtureDeclarationsFor(options.home, "project"), home);
   assertDatabaseEntries(entries, home, "home");
-  assertModelConfigurationEntries(entries, home);
   assertImageGenerationEntries(entries, home);
   assertProjectCleanupEntries(entries);
   identity.remember(entries);
@@ -382,7 +380,7 @@ async function startHomePlatformRuntime(input: {
   let installationDirectory: ReturnType<typeof openPluginInstallationDirectory> | undefined;
   const executor = new HomePluginExecutor({ ...options, storage, active: input.active, record: id => repository.get(id),
     invalidateView: pluginId => livePlatform?.invalidateView(pluginId), wakeView: id => views.wake(id), installations: () => installationDirectory?.client, database: identity.databaseFor,
-    modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
+    imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
     dualInstance: isDualDefinition, localePacks: identity.localePacks });
   // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
   const ledger = new SqlitePluginConsentLedger(db);

@@ -14,8 +14,6 @@ export type SettingLayers = Partial<Record<SettingSource, SandboxJson>>;
 export type SettingLayerRevisions = Partial<Record<SettingLayer, string>>;
 
 export interface SettingsDeclaration {
-  /** Storage and separate connection-management actions for the plugin's declared personal model choice. */
-  model_configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationDeclaration & { key: string };
   entries: SettingEntryDeclaration[];
   read: Pick<ActionReference, "capability_id" | "version">;
   write: Pick<ActionReference, "capability_id" | "version">;

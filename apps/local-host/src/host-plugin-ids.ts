@@ -1,6 +1,7 @@
 import { PLATFORM_SURFACES } from "@molis-ai/molis-work-ui-host";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { bundledPackagesDirectory, releasePackageIds } from "./bundled-packages.js";
+import type { ReleasePackages } from "@molis-ai/molis-work-plugin-runtime";
+import { bundledPackagesDirectory, releasePackageIds, releasePackages } from "./bundled-packages.js";
 import { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 
 /**
@@ -18,3 +19,11 @@ export const HOST_PLUGIN_IDS: ReadonlySet<string> = new Set([...PLATFORM_PLUGIN_
  * The install preview lets such an id in only from the bundled folder itself, so an import from elsewhere cannot take one.
  */
 export const RELEASE_PACKAGE_IDS: ReadonlySet<string> = releasePackageIds(bundledPackagesDirectory());
+
+/**
+ * The same packages as a Runtime checks them, at install and at every start (P-13): each id only under its package's signer as it lies
+ * in the folder the install preview reads (`directory`, the release's own unless a test gave the Host one), which for a package the
+ * release ships unsigned is this Home's own publisher key (`localKey`, read when asked: a Home may make its key later).
+ */
+export const releasePackagesFor = (directory: string | undefined, localKey: () => string | null): ReleasePackages =>
+  releasePackages(directory ?? bundledPackagesDirectory(), RELEASE_PACKAGE_IDS, localKey);

@@ -1027,12 +1027,6 @@
       "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
       "decided": "2026-11-24"
     },
-    "packages/storage/src/adapters/memory-ledger.ts": {
-      "count": 2,
-      "kind": "upgrade-step",
-      "reason": "记忆标记 v1→v2 的一次性升级步骤认旧版写下的 `coding` 场景（`io.molis.work.coding`），随升级链保留，退役随版本基线",
-      "decided": "2026-11-25"
-    },
     "packages/ui-host/src/assistant-review-words.ts": {
       "count": 1,
       "kind": "same-word",

@@ -15,7 +15,7 @@ import { namespacedReplicaDatabase } from '@molis-ai/molis-work-storage';
 import {PersonalSync,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {homeStores,pluginSyncNamespace} from '@molis-ai/molis-work-app-local-host';
+import {pluginSyncNamespace} from '@molis-ai/molis-work-app-local-host';
 import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
 
 import {artifactSyncSelection,createPersonalArtifactRegistration} from '@molis-ai/molis-work-app-local-host';

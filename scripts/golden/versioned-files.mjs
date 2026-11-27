@@ -5,7 +5,7 @@
 // very function the owner reads it with at run time (not a second parser written for this table).
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { inspectSealedSecretsSnapshot } from "@molis-ai/molis-work-storage";
+import { inspectSealedSecretsSnapshot, readSealedSecretSnapshotEntry } from "@molis-ai/molis-work-storage";
 import { goldenFailure } from "./failure.mjs";
 
 const { readUiLocale } = await import("@molis-ai/molis-work-app-local-host");
@@ -24,12 +24,19 @@ const READERS = new Map([
   // (`lastUsedLocale`, say) would pass here without reading anything.
   ["config/ui-locale.json", [({ home }) => readUiLocale(home), "zh"]],
   ["security/secrets.json", [async ({ http, home }, capturedPath) => {
-    // An empty store is a real saved state after the last connection is removed. Inspect the restored file through its owner in both cases.
-    const captured = inspectSealedSecretsSnapshot(home, readFileSync(capturedPath, "utf8"));
-    const restored = inspectSealedSecretsSnapshot(home, readFileSync(path.join(home, "security/secrets.json"), "utf8"));
+    const captured = readFileSync(capturedPath, "utf8");
+    const restored = readFileSync(path.join(home, "security/secrets.json"), "utf8");
+    if (inspectSealedSecretsSnapshot(home, restored).backend !== inspectSealedSecretsSnapshot(home, captured).backend) return false;
+    // Opening the Host creates its own evidence keys. The saved references must still open to their original values,
+    // and a connection removed before capture must not reappear.
+    const savedRefs = Object.keys(JSON.parse(captured).entries);
+    const currentRefs = Object.keys(JSON.parse(restored).entries);
+    const isConnection = ref => ref.startsWith("connector-connection:");
+    if (currentRefs.filter(isConnection).length !== savedRefs.filter(isConnection).length) return false;
+    if (!savedRefs.every(ref => readSealedSecretSnapshotEntry(home, restored, ref) === readSealedSecretSnapshotEntry(home, captured, ref))) return false;
     const { health } = await http("/api/settings/models", GET);
-    const modelHasCredential = health.some(row => row.credential_status === "present");
-    return restored.entries === captured.entries && restored.backend === captured.backend && modelHasCredential === (captured.entries > 0);
+    const model = health.find(row => row.provider_id === "golden-model-seed");
+    return savedRefs.some(isConnection) ? model?.credential_status === "present" : model === undefined;
   }, "true"]],
   ["interface/state.json", [async ({ call }) => {
     const { selection, selection_revision, recovery } = await call("appearance.selection.get", { request_id: "appearance-seed" });

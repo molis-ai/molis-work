@@ -63,11 +63,26 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   assert.deepEqual(rows().notes.map(note => note.body).sort(), ["# 读书\n\n- 第三章", "今天先把周报写完"]);
 
   await reloadPage(); await open();
+  await waitFor(`!!document.querySelector('[data-jelly-day="${dayNote.day}"] .jelly-day-note')`);
   await click('[data-jelly-mode="list"]');
   await waitFor("document.querySelectorAll('[data-jelly-open]').length >= 2");
   await click('[data-jelly-tab="notes"]');
   await waitFor("document.querySelectorAll('[data-jelly-note]').length === 2");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+  if (width === 1440) await t.test("B112-05/13 the month marks a note older than the recent list of 500", async () => {
+    const store = openJellyStore(homeDirectory, projectId!);
+    const stamp = new Date().toISOString();
+    try {
+      store.write(s => {
+        for (let i = 0; i < 500; i++) s.insert("note", { id: "recent-" + i, title: "", body: "Recent note",
+          day: null, revision: 1, created_at: stamp, updated_at: stamp });
+      });
+      assert.ok(!store.read(s => s.notes()).some(note => note.id === dayNote.id));
+    } finally { store.close(); }
+    await reloadPage(); await open();
+    await waitFor(`!!document.querySelector('[data-jelly-day="${dayNote.day}"] .jelly-day-note')`);
+    assert.equal(await evaluate("document.querySelector('[data-jelly-day-note] textarea').value"), dayNote.body);
+  });
 });
 
 test("B112-01 editing a series from an exception only propagates fields changed in the form", { timeout: 90_000 }, async t => {

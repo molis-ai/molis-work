@@ -1,6 +1,6 @@
 # 合同变更流程
 
-2026-11-26 第 112 批复核修复。Jelly 日历查询附带日期范围内的 `note_days`，随手记列表支持可选 `limit`（1 至 500）。撤销仍接收删除命令返回的行，删除系列中的部分日期会附 `series_modified: true`。重分类与部分删除系列的撤销要求行仍存在且版本相符。签名沙箱的模型配置端口只公开候选和当前选择，只写 `provider_id` 与 `model_id`。存储版本与四表金样沿用 Clean v1。[逐项验收](../../specs/batch-112-review-fixes/spec.md)
+2026-11-26 第 112 批复核修复。Jelly 的日历查询返回日程与分类；月视图另经随手记读组的 `jelly.note.days@1` 查询区间内有笔记的日期，随手记列表支持可选 `limit`（1 至 500）。撤销仍接收删除命令返回的行，只删除系列中的部分日期或重分类时，回执的 `modified` 为每条保留行给出类型、ID 和写后内容摘要。撤销在事务内核对写后行，跳过已删除、改写或同 ID 重建且内容不同的行。签名沙箱的模型配置端口只公开候选和当前选择，只写 `provider_id` 与 `model_id`。Jelly 四张业务表沿用 Clean v1；决定 69 后按本批旧库拒绝与恢复用例复验。[逐项验收](../../specs/batch-112-review-fixes/spec.md)
 
 2026-11-26 主线事件卡新增 `system.mainline` 的 `mainline.line.contains@1`，本人在项目内持 `mainline:read` 可给出 `{ subject, window }`，取得 `{ on_line }`。事件卡每次操作沿用事项线的时间窗口和本人可见的事件登记；已有整线读取及插件事件登记合同保持原形。
 

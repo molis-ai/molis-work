@@ -29,6 +29,8 @@
     "jelly.cap.item-subject-read.title": "读取日程内容",
     "jelly.cap.item-update.description": "修改一条单次日程，或标记完成",
     "jelly.cap.item-update.title": "修改日程",
+    "jelly.cap.note-days.description": "列出所选日期范围内写有随手记的日期",
+    "jelly.cap.note-days.title": "查看有随手记的日期",
     "jelly.cap.note-delete.description": "删除一篇随手记，可以撤销",
     "jelly.cap.note-delete.title": "删除随手记",
     "jelly.cap.note-get.description": "读取一篇随手记的全文",

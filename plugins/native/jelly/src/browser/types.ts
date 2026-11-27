@@ -7,7 +7,7 @@ export type JellyHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
 /** A failed action: the Host's Error with its `code`, HTTP `status` and, for a conflict, which row and its revision now. */
 export type Failure = Error & { status?: number; code?: string; details?: { id?: string; revision?: number } };
 export type NoteSummary = Pick<JellyNote, "id" | "title" | "day" | "revision" | "updated_at"> & { excerpt: string };
-export type Rows = { categories?: JellyCategory[]; items?: JellyItem[]; series?: JellySeries[]; notes?: JellyNote[] };
+export type { JellyRestoreRows as Rows, JellyRestoreReceipt } from "../contract.js";
 export type Scope = "onlyThis" | "thisAndFuture" | "all";
 
 /** The entry being written in the side panel: a new one, a one-off entry, or one occurrence of a series. */

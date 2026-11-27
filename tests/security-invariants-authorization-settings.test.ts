@@ -80,7 +80,7 @@ test("H1: the unified settings gate keeps original MCP and Assistant tokens and 
   const across = await get<AuthorizationList>({ owner: "mcp-client" });
   assert.deepEqual(across.entries.map(row => [row.project_id, row.title]).sort(),
     [[project.project_id, "新建待办"], [other.project_id, "新建待办"]].sort());
-  assert.deepEqual(openedProjects, []);
+  assert.equal(openedProjects.length, 0);
   const listed = await get<AuthorizationList>({ project: project.project_id });
   assert.ok(listed.owners.every(owner => owner.state === "complete"), JSON.stringify(listed.owners));
   const entry = listed.entries.find(item => item.owner === "mcp-client" && item.expected === granted.generation)!;

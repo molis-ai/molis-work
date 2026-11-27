@@ -17,6 +17,7 @@ import type {
   NoteEditor,
   NoteSummary,
   Rows,
+  JellyRestoreReceipt,
 } from "./types.js";
 
 const uiText = globalThis.t;
@@ -114,7 +115,7 @@ export function mountJelly(host: JellyHost): void {
       seq = ++calendarSeq;
     state.load = state.loaded ? state.load : "loading";
     try {
-      const calendar = await call<{ categories: JellyCategory[]; items: JellyOccurrence[]; note_days: string[] }>(
+      const calendar = await call<{ categories: JellyCategory[]; items: JellyOccurrence[] }>(
         host, "jelly.calendar.list", range,
       );
       if (seq !== calendarSeq) return;
@@ -123,11 +124,19 @@ export function mountJelly(host: JellyHost): void {
       state.loaded = range;
       state.load = "ready";
       state.error = "";
-      noteDays = new Set(calendar.note_days);
     } catch (error) {
       if (seq !== calendarSeq) return;
       state.load = "failed";
       state.error = messageOf(error);
+      return;
+    }
+    if (state.tab === "calendar" && state.mode === "month") {
+      try {
+        const { days } = await call<{ days: string[] }>(host, "jelly.note.days", range);
+        if (seq === calendarSeq) noteDays = new Set(days);
+      } catch (error) {
+        if (seq === calendarSeq) { noteDays.clear(); fail(error); }
+      }
     }
   }
   async function loadDayNote(): Promise<void> {
@@ -242,7 +251,7 @@ export function mountJelly(host: JellyHost): void {
     if (!editor.note) return;
     clearTimeout(editor.timer);
     const note = editor.note;
-    const { restore } = await call<{ restore: Rows }>(host, "jelly.note.delete", {
+    const { restore } = await call<{ restore: JellyRestoreReceipt }>(host, "jelly.note.delete", {
       id: note.id,
       expected_revision: note.revision,
     });
@@ -398,13 +407,13 @@ export function mountJelly(host: JellyHost): void {
   }
   async function deleteEntry(entry: JellyOccurrence, scope: Draft["scope"] = "onlyThis"): Promise<void> {
     const { restore } = entry.series_id
-      ? await call<{ restore: Rows }>(host, "jelly.series.delete", {
+      ? await call<{ restore: JellyRestoreReceipt }>(host, "jelly.series.delete", {
           id: entry.series_id,
           expected_revision: entry.revision,
           original_date: entry.original_date,
           scope,
         })
-      : await call<{ restore: Rows }>(host, "jelly.item.delete", { id: entry.id, expected_revision: entry.revision });
+      : await call<{ restore: JellyRestoreReceipt }>(host, "jelly.item.delete", { id: entry.id, expected_revision: entry.revision });
     state.draft = null;
     await refresh();
     toast("jelly.item.deleted", { title: entry.title }, () => {
@@ -434,7 +443,7 @@ export function mountJelly(host: JellyHost): void {
     });
     await refresh();
   }
-  async function undo(rows: Rows): Promise<void> {
+  async function undo(rows: JellyRestoreReceipt): Promise<void> {
     try {
       const { rows: restored, skipped } = await call<{ rows: Required<Rows>; skipped: string[] }>(host, "jelly.restore", { rows });
       await refresh();
@@ -462,7 +471,7 @@ export function mountJelly(host: JellyHost): void {
   async function deleteCategory(id: string): Promise<void> {
     const category = state.categories.find((entry) => entry.id === id);
     if (!category) return;
-    const { restore } = await call<{ restore: Rows }>(host, "jelly.category.delete", {
+    const { restore } = await call<{ restore: JellyRestoreReceipt }>(host, "jelly.category.delete", {
       id,
       expected_revision: category.revision,
     });

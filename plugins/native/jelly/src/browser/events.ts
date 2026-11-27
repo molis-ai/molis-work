@@ -18,7 +18,7 @@ export interface JellyPage {
   loadDayNote(): Promise<void>;
   queueSave(editor: NoteEditor): void;
   saveNote(editor: NoteEditor): Promise<void>;
-  openNote(id: string): Promise<void>;
+  openNote(id: string): Promise<boolean>;
   deleteNote(editor: NoteEditor): Promise<void>;
   draftFor(entry: JellyOccurrence | null, day?: string): Draft;
   openEntry(id: string): Promise<void>;

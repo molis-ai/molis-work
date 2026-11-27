@@ -104,4 +104,33 @@ test("B112-01 editing a series from an exception only propagates fields changed 
     assert.deepEqual(items.map(item => item.title), ["all", scope, scope, scope]);
     assert.deepEqual(items.filter(item => item.completed_at).map(item => item.start_date), [completed]);
   }
+  await t.test("B112-12 external selection keeps a conflicting draft and its search until the person resolves it", async () => {
+    const write = async (selector: string, value: string) => frame.evaluate(`(() => {
+      const field = document.querySelector(${JSON.stringify(selector)}); field.value = ${JSON.stringify(value)};
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    })()`);
+    const select = async (id: string) => frame.evaluate(`document.querySelector('[data-jelly="workbench"]').dispatchEvent(
+      new CustomEvent("molis-work:select-item", { cancelable: true, detail: { itemId: ${JSON.stringify(id)} } }))`);
+    const first = (await client.invoke(jellyActions.saveNote, { body: "Original draft" })).note;
+    const target = (await client.invoke(jellyActions.saveNote, { body: "Other note" })).note;
+    await select(first.id);
+    await frame.waitFor(`document.querySelector('[data-jelly-note="${first.id}"]')?.getAttribute('aria-current') === 'true'`);
+    await write("[data-jelly-note-search]", "Original");
+    await frame.waitFor("document.querySelectorAll('[data-jelly-note]').length === 1");
+    await frame.click('[data-jelly-note-mode="write"]');
+    await frame.waitFor("!!document.querySelector('[data-jelly-notes-editor] textarea')");
+    await client.invoke(jellyActions.saveNote, { id: first.id, expected_revision: first.revision, body: "Original remote revision" });
+    await write("[data-jelly-notes-editor] textarea", "Unsaved local draft");
+    await select(target.id);
+    await frame.waitFor("!!document.querySelector('[data-jelly-notes-editor] [data-jelly-act=reload-note]')");
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-notes-editor] textarea').value"), "Unsaved local draft");
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-tab=notes]').getAttribute('aria-selected')"), "true");
+    await frame.click('[data-jelly-act="reload-note"]');
+    await frame.waitFor("document.querySelector('[data-jelly-notes-editor]')?.innerText.includes('Original remote revision')");
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-note-search]').value"), "Original");
+    await select(target.id);
+    await frame.waitFor(`document.querySelector('[data-jelly-note="${target.id}"]')?.getAttribute('aria-current') === 'true'`);
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-note-search]').value"), "");
+    assert.match(await frame.evaluate<string>("document.querySelector('[data-jelly-notes-editor]').innerText"), /Other note/);
+  });
 });

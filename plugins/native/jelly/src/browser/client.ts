@@ -230,12 +230,13 @@ export function mountJelly(host: JellyHost): void {
     return { id: note.id, title: note.title, day: note.day, revision: note.revision, updated_at: note.updated_at,
       excerpt: [...note.body.replace(/\s+/gu, " ").trim()].slice(0, 200).join("") };
   }
-  async function openNote(id: string): Promise<void> {
+  async function openNote(id: string): Promise<boolean> {
     await saveNote(state.note);
-    if (state.note.conflict) return;
+    if (state.note.conflict) return false;
     const { note } = await call<{ note: JellyNote }>(host, "jelly.note.get", { id });
     state.note = { ...blankNote(note.day), note, body: note.body };
     state.noteRead = Boolean(note.body.trim());
+    return true;
   }
   async function deleteNote(editor: NoteEditor): Promise<void> {
     if (!editor.note) return;
@@ -530,7 +531,7 @@ export function mountJelly(host: JellyHost): void {
         throw error;
       };
       try {
-        await openNote(id);
+        if (!await openNote(id)) return;
         state.noteQuery = "";
         await loadNotes();
         const selected = state.note.note;

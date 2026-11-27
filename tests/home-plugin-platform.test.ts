@@ -27,7 +27,7 @@ test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home
   assert.equal((await request(`/api/plugins/${probe.id}/state`)).status, 403);
   const { install } = await grantHomeProbe(host, probe);
   const starts = probe.contexts.length;
-  const [one, two] = await Promise.all([project("First"), project("Second")]);
+  const [one, two] = await Promise.all([project("First", [probe.id]), project("Second", [probe.id])]);
   const directory = await host.homeActionClient().discover(caller);
   const offered = directory.find(action => action.capability_id === probe.state.capability_id)!;
   assert.equal(offered.provider.provider_id, install.install_id);
@@ -52,8 +52,7 @@ test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home
   assert.deepEqual(probe.seen.at(-1)?.page_context, { url: "/", title: null, provenance: "client_reported" });
   const scoped = await request(`/api/plugins/${probe.id}/project?project_id=${one.project_id}`);
   assert.equal(scoped.status, 400); assert.equal((await scoped.json()).code, "actions.project_required");
-  // Under a project's path a Home route runs in that project only when the project shows the plugin (S-31). A fixture is a Home plugin
-  // outside the build, personal and shown in every project that does not hide it (RAC-569), so it runs in the project the path names.
+  // Both projects enabled this Home installation. Each route runs in the project its path names (S-31, RAC-569).
   for (const current of [one, two]) {
     const prefix = `/projects/${current.project_id}`;
     const inside = await request(`${prefix}/api/plugins/${probe.id}/state?project_id=forged`, { headers: { referer: `${origin}${prefix}` } });
@@ -126,7 +125,7 @@ test("W3-06-F-02 local web discovers a scene-only Home installation by actual sc
   probe.definition.start = async context => { const contribution = await original(context); return { kind: "app", action_scenes: contribution.kind === "app" ? contribution.action_scenes : [] }; };
   const { host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   const { platform, install } = await grantHomeProbe(host, probe);
-  const one = await project("Home scene scope");
+  const one = await project("Home scene scope", [probe.id]);
   const catalog = async (prefix = "") => {
     const reply = await request(`${prefix}/api/functions/catalog`);
     assert.equal(reply.status, 200, await reply.clone().text());

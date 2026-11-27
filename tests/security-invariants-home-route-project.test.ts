@@ -107,7 +107,7 @@ test("S-31 a project that does not exist, or does not have the plugin, refuses t
   assert.equal((await disabled.json()).code, "actions.plugin_disabled");
   assert.deepEqual(createRows(home), [], "neither refusal reached the action");
 
-  // RAC-569 (#679, ①): a Home plugin the build does not ship is personal, shown in every project until that project hides it, by its plugin id.
+  // RAC-569: each project adds the external Home registration by plugin id.
   const probeIn = (projectId: string) => request(`/projects/${encodeURIComponent(projectId)}/api/plugins/${probe.id}/state`);
   for (const partition of [hidden.project_id, shown.project_id]) {
     const enabled = await request(`/api/settings/projects/${partition}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(origin, partition) } });

@@ -256,8 +256,7 @@ async function registeredPage(homePlugins: HomePluginHost, key: string): Promise
 }
 
 /**
- * The project the path names, while it exists and reaches this plugin (the shared judgement: a shipped plugin while the project shows it,
- * a personal Home plugin outside the build unless the project hid it); otherwise why not. Asked when the route starts and before each
+ * The project the path names, while it exists and can reach this plugin through its membership. Checked when the route starts and before each
  * write. A dual-instance plugin the build does not ship (a Host's fixture) has no key in the project's list: like its project half,
  * which every project reaches, it is shown wherever the project exists.
  */

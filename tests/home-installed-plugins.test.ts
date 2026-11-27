@@ -1,4 +1,4 @@
-import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -30,7 +30,7 @@ function upgradePackage(publisher: ReturnType<typeof newPublisher>, version = "1
 
 // BL-628 (S-80, S-84, S-91; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): a signed package whose Manifest says
 // `runtime: { scope: "home" }` is installed in the Home: one sandboxed instance every project shares, started and recovered by the Home's
-// plugin host, offered through the Home's action service, reachable from every project unless it hides it, and removed by the same lifecycle
+// plugin host, offered through the Home's action service, reachable from the projects that enable it, and removed by the same lifecycle
 // a project's packages have.
 
 test("RAC-963 RAC-965 a signed package that writes runtime.scope home previews as home and is installed in the Home Runtime, not in the project", mac, async t => {
@@ -48,7 +48,7 @@ test("RAC-963 RAC-965 a signed package that writes runtime.scope home previews a
   }
   finally { project.close(); }
   assert.equal(h.ledger.publishers().length, 1, "the publisher is pinned by the same confirmation");
-  assert.ok(h.host.homePlugins!.outsideBuild().includes(PACKAGE_PLUGIN_ID), "it is one of the personal plugins every project reaches");
+  assert.ok(h.host.homePlugins!.outsideBuild().includes(PACKAGE_PLUGIN_ID), "the Host registers the installed package so a partition can enable it");
 });
 
 test("RAC-965 RAC-969 the package's operations are the Home's actions: the same instance and data from the Home and from a project, and back after a restart", mac, async t => {
@@ -87,7 +87,7 @@ test("RAC-965 a package that cannot start leaves its reason with its installatio
   assert.ok(h.host.homePlugins!.installations().some(record => record.publisher_trust === "host" && record.state === "running"), "the built-in Home plugins run");
 });
 
-test("RAC-968 a running Home package is reached from every project unless the project hides it, and stopping it ends it everywhere", mac, async t => {
+test("RAC-968 each project explicitly enables a running Home package, and stopping its instance ends it everywhere", mac, async t => {
   const home = await openTestHome(t);
   const one = await home.createProject("One"), two = await home.createProject("Two");
   const clientOf = (project: typeof one) => home.host.actionClient(project.reference);
@@ -97,12 +97,16 @@ test("RAC-968 a running Home package is reached from every project unless the pr
   await installer.invoke(person(one.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
   const add = async (project: typeof one, text: string) => operate(clientOf(project), callerOf(project), await operationsOf(clientOf(project), callerOf(project)), "notes.add", { text });
 
+  await assert.rejects(add(one, "before enabling"), refused("actions.plugin_disabled"));
+  await addProjectPlugin(home.web, one.project_id, PACKAGE_PLUGIN_ID);
   assert.equal(await add(one, "from one"), true);
-  assert.equal(await add(two, "from two"), true, "a project that never installed anything reaches the same instance");
+  await assert.rejects(add(two, "before enabling"), refused("actions.plugin_disabled"));
+  await addProjectPlugin(home.web, two.project_id, PACKAGE_PLUGIN_ID);
+  assert.equal(await add(two, "from two"), true, "both enabled projects reach the same Home installation");
   const projectPlugins = `/api/settings/projects/${encodeURIComponent(one.project_id)}/plugins`;
   await home.web.delete(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, one.project_id) });
-  await assert.rejects(add(one, "hidden"), refused("actions.plugin_disabled"), "the project that hid it does not reach it");
-  assert.equal(await add(two, "still reached"), true, "hiding is the project's own");
+  await assert.rejects(add(one, "removed"), refused("actions.plugin_disabled"));
+  assert.equal(await add(two, "still reached"), true, "removing membership in one project leaves the other enabled");
   await home.web.post(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, one.project_id) });
   assert.equal(await add(one, "shown again"), true);
 
@@ -131,6 +135,7 @@ test("RAC-970 RAC-971 a Home package is switched and removed by the install life
   const lifecycle = home.host.homePlugins!;
 
   await install();
+  await addProjectPlugin(home.web, project.project_id, PACKAGE_PLUGIN_ID);
   const installId = lifecycle.installation(PACKAGE_PLUGIN_ID)!.install_id;
   assert.deepEqual(await promptState(), ["enabled"], "its prompts are registered under the Home");
   assert.deepEqual(approvalKeys(), [APPROVED + PACKAGE_PLUGIN_ID], "the person's approval is kept in the Home's store, not in a project's");
@@ -279,6 +284,7 @@ test("RAC-972 deleting a project changes nothing of a Home package: the instance
   const callerOf = (project: typeof kept): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] });
   const preview = await clientOf(doomed).invoke(person(doomed.project_id), ref(pluginInstallActions.preview), { bundle: homePackage() }) as { preview_id: string };
   await clientOf(doomed).invoke(person(doomed.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  for (const project of [doomed, kept]) await addProjectPlugin(home.web, project.project_id, PACKAGE_PLUGIN_ID);
   const call = async (project: typeof kept, localId: string, input: unknown) => operate(clientOf(project), callerOf(project), await operationsOf(clientOf(project), callerOf(project)), localId, input);
   await call(doomed, "notes.add", { text: "written while the doomed project was open" });
   const installId = home.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id;
@@ -320,6 +326,7 @@ test("BL-586 a Home plugin and a project plugin by two publishers under one id b
     return preview.runtime_scope;
   };
   assert.equal(await install(namedNotes("home", WANG.zh, WANG.en), "Wang"), "home");
+  await addProjectPlugin(home.web, project.project_id, PACKAGE_PLUGIN_ID);
   assert.equal(await install(namedNotes("project", LI.zh, LI.en), "Li"), "project", "another publisher's plugin under the same id is another plugin, with its own range");
   await assert.rejects(install(namedNotes("project", "第三家", "Third"), "Third"), refused("plugin.definition_conflict"), "a second publisher in the same range is still refused");
 
@@ -338,7 +345,7 @@ test("BL-586 a Home plugin and a project plugin by two publishers under one id b
   }
   assert.deepEqual([framesIn(zh, "home"), framesIn(zh, "project")], [1, 1], "both stages are drawn, each by its own installation");
 
-  // Hiding the Home one in this project is the Home one's: the project's own plugin by the other publisher is not hidden with it.
+  // Removing the Home membership leaves the other publisher's project installation reachable.
   const membership = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
   await home.web.delete(membership, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, project.project_id) });
   await assert.rejects(operate(client, caller, byScope(await operationsOf(client, caller), "home"), "notes.list", {}), refused("actions.plugin_disabled"));
@@ -387,6 +394,7 @@ test("B47-F1 BL-586 the two installed pages read their own language and records 
     const publisher = publishers[scope];
     const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: namedNotes(scope, titles[scope].zh, titles[scope].en, publisher) }) as { preview_id: string };
     await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: titles[scope].en });
+    if (scope === "home") await addProjectPlugin(browser.web, projectId, PACKAGE_PLUGIN_ID);
     await operate(client, caller, byScope(await operationsOf(client, caller), scope), "notes.add", { text: rows[scope] });
     if (scope === "project") surfaces[scope] = "app-" + sandboxPackageBuildId(PACKAGE_PLUGIN_ID, publisher.identity);
   }

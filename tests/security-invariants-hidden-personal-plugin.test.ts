@@ -200,7 +200,7 @@ test("RAC-582 S-72 a per-partition plugin's routes (Form) are refused in the pro
   await home.web.get(formList(hiding));
 });
 
-test("BCC-08 RAC-569 RAC-582 S-72 a personal Home plugin outside the build (named only by the Host's Home registration) is refused in the project that hid it, by its routes and its actions alike, and works in one that did not", { timeout: 60_000 }, async t => {
+test("BCC-08 RAC-569 RAC-582 S-72 a registered Home plugin outside the build requires explicit membership for both project routes and actions", { timeout: 60_000 }, async t => {
   const probe = homeProbe("outsidebuild");
   const home = await openTestHome(t, { host: { pluginFixtures: { home: [probe.definition] } } });
   await grantHomeProbe(home.host, probe);
@@ -209,7 +209,12 @@ test("BCC-08 RAC-569 RAC-582 S-72 a personal Home plugin outside the build (name
   const save = (project: TestProject) => state(project).replace(/\/state$/u, "/save");
   const probeView: Pick<ActionView, "provider"> = { provider: { provider_id: probe.id, plugin_id: probe.id, title: "probe", kind: "plugin" } };
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
-  assert.equal((await home.web.get<{ project_id: string | null }>(state(hiding))).project_id, hiding.project_id, "shown until the project hides it");
+  await assert.rejects(home.web.get(state(hiding)), { status: 403, code: "actions.plugin_disabled" });
+  assert.equal((await availability(callerIn(hiding.project_id), probeView)).available, false);
+  assert.deepEqual(probe.routed, []);
+  await unhide(home, hiding, probe.id);
+  await unhide(home, showing, probe.id);
+  assert.equal((await home.web.get<{ project_id: string | null }>(state(hiding))).project_id, hiding.project_id);
   assert.deepEqual(probe.routed, [hiding.project_id]);
   assert.deepEqual(probe.seen.map(call => call.project_id), [hiding.project_id]);
   const client = home.host.actionClient(hiding.reference);

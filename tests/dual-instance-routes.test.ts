@@ -82,12 +82,12 @@ test("RAC-1300 RAC-1301 DUAL-09 a stopped Home half: the project half answers th
 test("DUAL-09 S-31 a plugin the Host does not mark as dual-instance keeps the Home's answer: nothing falls through to a project", { timeout: 60_000 }, async t => {
   const probe = homeProbe("splitcontrol");
   const { request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
-  const current = await project("对照");
+  const current = await project("对照", [probe.id]);
   for (const path of [`/api/plugins/${probe.id}/undeclared`, `/projects/${current.project_id}/api/plugins/${probe.id}/state`]) {
     const response = await request(path), body = await response.json() as { code?: string };
     assert.ok([403, 404].includes(response.status), `${path}: ${response.status} ${JSON.stringify(body)}`);
   }
-  // Shown in the project (a personal Home plugin outside the build, RAC-569), it is the Home's own grants that refuse it, not a project half.
+  // Membership permits the project route to reach the Home installation, whose grants still refuse the action.
   const answered = await request(`/projects/${current.project_id}/api/plugins/${probe.id}/state`);
   assert.equal((await answered.json() as { code?: string }).code, "actions.forbidden", "an unmarked fixture is answered by the Home itself");
 });

@@ -112,8 +112,7 @@ export class HomePluginHost {
       ...this.installed?.pages() ?? []];
   }
   /**
-   * The registered Home plugins outside the start list that have no project half, by plugin id: personal plugins of every project
-   * unless it hides them (#679, B3). A dual-instance one is reached through its project half, as before.
+   * Home registrations outside the build that a project can enable by plugin id. A dual-instance plugin uses its project half.
    */
   outsideBuild(): readonly string[] {
     return [...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest.plugin_id).filter(id => !this.dualInstance(id)),

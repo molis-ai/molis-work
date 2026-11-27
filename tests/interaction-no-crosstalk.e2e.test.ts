@@ -505,7 +505,8 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`;
-  const select = (index: number) => child.evaluate(selectScript(index));
+  // Focus inside the plugin page "as a person" (Chrome 158 ignores a script focus() in a frame the person never pressed; #2330).
+  const select = (index: number) => child.evaluate(selectScript(index), undefined, "person");
   const bar = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   // A write that still goes as a card (记成待办 is made at once since W4-1): a plan broken into Goal steps, a proposal.
   const writeButton = `[...document.querySelectorAll('${bar} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;

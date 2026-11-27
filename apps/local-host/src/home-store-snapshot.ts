@@ -114,10 +114,17 @@ export const agentSnapshot: HomeStoreSnapshotPolicy = {
   inspect: (storageRoot, keyRoot, _paths, control) => verifyPrologueNodeStorageContents({ storageRoot, keyRoot, ...control }),
 };
 
+// The Studio agent writes its run history beside the Prologue store. Its JSON records belong to the draft.
+function studioRunHistory(file: string): SnapshotDisposition | undefined {
+  if (/^builder-runs(?:\/[a-f0-9-]+\.json)?$/u.test(file)) return { kind: "keep" };
+  if (/^builder-runs\/[a-f0-9-]+\.json\.tmp$/u.test(file)) return excluded("Uncommitted Studio run record");
+  return undefined;
+}
+
 export const builderSnapshot: HomeStoreSnapshotPolicy = {
   entry: (_home, file) => {
     const run = /^[^/]+\/runs\/[^/]+\/(.+)$/u.exec(file);
-    if (run) return sdkSnapshotEntry(run[1]!);
+    if (run) return studioRunHistory(run[1]!) ?? sdkSnapshotEntry(run[1]!);
     return /(?:^|\/)(?:node_modules|\.cache)(?:\/|$)/u.test(file) ? excluded("Rebuildable build dependencies/cache") : { kind: "keep" };
   },
   database: file => {
@@ -126,7 +133,12 @@ export const builderSnapshot: HomeStoreSnapshotPolicy = {
   },
   restoreEntry: (file, incoming) => {
     const run = /^[^/]+\/runs\/[^/]+\/(.+)$/u.exec(file);
-    if (run) return sdkRestoreEntry(run[1]!, incoming);
+    if (run) {
+      const history = studioRunHistory(run[1]!);
+      if (history?.kind === "keep") return "replace";
+      if (history?.kind === "omit") return incoming ? unknown(file) : history.restore;
+      return sdkRestoreEntry(run[1]!, incoming);
+    }
     return /(?:^|\/)(?:node_modules|\.cache)(?:\/|$)/u.test(file) ? "reset" : "replace";
   },
   inspect: async (dataRoot, keyRoot, paths, control) => {

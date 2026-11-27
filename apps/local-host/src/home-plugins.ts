@@ -233,11 +233,14 @@ export class HomePluginHost {
       // A package switched off is not known to the supervisor after a restart, and is still the person's to switch on.
       ?? this.installed?.releaseFor(pluginId)?.packaged?.manifest;
   }
-  /** Whether the Host's start list (or an installed pinned dual-instance sandbox package, PEQ-06) runs a Home half and project halves. */
-  dualInstance(pluginId: string): boolean {
+  /** Whether the Host itself supplies both halves through its start list or project fixtures. */
+  providesDualInstance(pluginId: string): boolean {
     return this.options.entries.some(entry => entry.dual_instance === true && entry.manifest.plugin_id === pluginId)
-      || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId)
-      || this.installed?.isDualInstance(pluginId) === true;
+      || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId);
+  }
+  /** Includes pinned sandbox packages whose signed Manifest declares both halves (PEQ-06). */
+  dualInstance(pluginId: string): boolean {
+    return this.providesDualInstance(pluginId) || this.installed?.isDualInstance(pluginId) === true;
   }
   /** An installation by its plugin id or its installation id. */
   installation(id: string): PluginInstanceRecord | null {

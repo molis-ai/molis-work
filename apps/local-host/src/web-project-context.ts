@@ -67,7 +67,7 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
     // The Host can directly supply a project half in addition to the catalog's installations (until 109-3).
     const halves = currentHomeStageHalves(home);
-    const provided = halves?.outsideCatalog.filter(entry => !halves.hasPackage(entry.manifest.plugin_id)).map(entry => entry.project_plugin_id) ?? [];
+    const provided = halves?.outsideCatalog.filter(entry => home?.providesDualInstance(entry.manifest.plugin_id)).map(entry => entry.project_plugin_id) ?? [];
     // A standalone database fixture has no catalog record.
     if (!options.project) return { shown: [...BUILTIN_PLUGIN_IDS, ...homePluginsOutsideBuild(homeDirectory), ...provided] };
     // A versioned read needs the revision of exactly the membership it shows, so it reads on its own; the others share one reading (N44).

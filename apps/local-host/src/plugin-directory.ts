@@ -65,7 +65,7 @@ export async function homePluginDirectory(host?: HomePluginHost): Promise<Plugin
   if (!host) return [];
   try {
     const running = runningPluginDirectory((await host.ready()).supervisor)
-      .map(entry => entry.chosen || host.dualInstance(entry.plugin_id) ? entry : { ...entry, home: true as const });
+      .map(entry => entry.chosen || host.providesDualInstance(entry.plugin_id) ? entry : { ...entry, home: true as const });
     const present = new Set(running.map(entry => entry.plugin_id));
     let installed: ReturnType<HomePluginHost["registered"]> = [];
     try { installed = host.registered(); } catch { /* A library that cannot be read now has no stalled package to add; the running ones stay. */ }

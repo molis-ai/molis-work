@@ -42,7 +42,12 @@ async function fixture(t: test.TestContext, kind: Kind) {
   const { home, host, createProject } = await openTestHome(t);
   const aProject = await createProject("Project A", [kind.slug]);
   const bProject = await createProject("Project B", [kind.slug]);
-  const personalProject = await host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home }, catalog => catalog.ensurePersonalSpace());
+  const personalProject = await host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home }, async catalog => {
+    // A new Home's personal space starts with Schedule only (batch 108): the plugin is added there as in each project.
+    const personal = await catalog.ensurePersonalSpace();
+    catalog.addProjectPlugin({ project_id: personal.project_id, plugin_id: kind.slug, actor_id: LOCAL_PERSON_ACTOR_ID });
+    return personal;
+  });
   const personalRef = molisWorkHostProjectReference({ databasePath: personalProject.database_path, projectId: personalProject.project_id });
   const refA = aProject.reference, refB = bProject.reference;
   const person = await host.localPersonContext(refA);

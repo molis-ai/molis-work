@@ -143,7 +143,12 @@ test("a pinned document that moved to another place says so, instead of saying i
   const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
   const pinned = (await post("/api/plugins/io.molis.work.pages/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
   // Moved into the personal space by the placement service, the person's own call: it carries the record between the two partitions' libraries.
-  const personal = await withHostCatalog({ homeDirectory: served.home }, (catalog: MolisWorkProjectCatalog) => catalog.ensurePersonalSpace());
+  const personal = await withHostCatalog({ homeDirectory: served.home }, async (catalog: MolisWorkProjectCatalog) => {
+    // A new Home's personal space starts with Schedule only (batch 108): Pages is added there before the document can move in.
+    const space = await catalog.ensurePersonalSpace();
+    catalog.addProjectPlugin({ project_id: space.project_id, plugin_id: "pages", actor_id: "test" });
+    return space;
+  });
   const person = await served.host.localPersonContext(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
   const mover = bindActionClient(served.host.homeActionClient(), () => ({ ...person, project_id: null,
     permissions: [...new Set([...person.permissions, PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, ...PAGES_ACTION_PERMISSIONS])] }));

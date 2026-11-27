@@ -1189,6 +1189,13 @@ test("FSS-20 FSS-34 FSS-37 the catalog switches its existing document without sa
     ["Font", "Font", "Using Warm draft", "Fit to window", "warm"]);
   await evaluate("document.querySelector('[data-look-fade-back]').click(); document.querySelector('[data-catalog-media-zoom]').click()");
   await waitFor("document.querySelector('[data-look-fade-now]').textContent === 'Using Soft Workbench' && document.querySelector('[data-catalog-media-zoom]').textContent === 'Actual size'");
+  await evaluate("document.querySelector('[data-board-lang=ja]').click()");
+  await waitFor("document.documentElement.lang === 'ja' && document.querySelector('[data-look-fade-now]').textContent === 'Soft Workbenchを使用中'");
+  await evaluate("document.querySelector('[data-look-fade-to]').click()");
+  await waitFor("document.querySelector('[data-look-fade-now]').textContent === '温かみのある下書きを使用中'");
+  await evaluate("document.querySelector('[data-board-lang=zh]').click()");
+  await waitFor("document.documentElement.lang === 'zh-CN' && document.querySelector('[data-look-fade-now]').textContent === '正在用 暖色草稿'");
+  assert.equal(await evaluate("catalogHeading === document.querySelector('h1')"), true);
   assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
 
   assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real catalog rendered its words from the exact packs");

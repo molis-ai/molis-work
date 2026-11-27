@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -121,20 +121,12 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
       const catalogDir = path.join(directory, "catalog");
       const catalogPacks = readPacks(catalogDir, readdirSync(catalogDir).sort());
       assert.deepEqual(catalogPacks.map(pack => pack.locale), locales);
-      const catalogOnlyPrefixes = [
-        "workbench.catalog-board.",
-        "workbench.catalog-kit.",
-        "workbench.collab-specimens.",
-        "workbench.catalog-keep-edits.",
-        "workbench.catalog-home-adoption.",
-        "workbench.catalog-source-ladder.",
-        "workbench.catalog-coding-basics.",
-        "workbench.catalog-skill-selection.",
-      ] as const;
+      const boardKey = /^workbench\.(?:catalog[.-]|collab-specimens\.)/u;
+      for (const key of startupKeys) assert.ok(!boardKey.test(key), `${key}: absent from the startup pack`);
       for (const pack of catalogPacks) {
         for (const key of Object.keys(pack.messages)) {
           assert.ok(
-            catalogOnlyPrefixes.some(prefix => key.startsWith(prefix)) && !startupKeys.has(key),
+            boardKey.test(key) && !startupKeys.has(key),
             `${key}: belongs only to catalog board`,
           );
         }
@@ -212,7 +204,11 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     writeFileSync(packPath, JSON.stringify({ ...registeredPack, messages: { ...registeredPack.messages, "workbench.language.retry": escaped } }));
     assert.throws(probe, /workbench\.language\.retry/, "markup is still refused in a registered Workbench pack");
     writeFileSync(packPath, JSON.stringify(registeredPack));
+    // Normal SSR and all three startup assets work before the component board is ever opened.
+    const boardDirectory = path.join(scratch, "resources/locales/catalog");
+    renameSync(boardDirectory, boardDirectory + ".held");
     const first = probe();
+    renameSync(boardDirectory + ".held", boardDirectory);
     assert.deepEqual(first, { languages: ["zh", "en", "ja", "en-GB"], system: "en-GB", cookie: "en-GB", rejected: "en", href: first.href,
       served: true, word: text, html: "en-GB", intl: "en-GB" });
     assert.match(first.href, /^\/assets\/locale\/workbench\.en-GB\.[a-f0-9]{24}\.js$/u);

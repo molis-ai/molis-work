@@ -311,7 +311,16 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   // The shared Help button is the last toolbar control before the listbox.
   const help = '[data-lingguang=directory] [data-mw-help-trigger][data-mw-help-auto]';
   await waitFor(`document.querySelector(${JSON.stringify(help)})?.getClientRects().length > 0`);
-  await browser.evaluate("document.querySelector('iframe[data-plugin-frame=lingguang]')?.focus()");
+  // The list is the final tab stop in the frame. Give Tab a destination in the
+  // outer document so CDP can send the return keystroke without entering browser chrome.
+  await browser.evaluate(`(() => {
+    const frame = document.querySelector('iframe[data-plugin-frame=lingguang]');
+    const next = document.createElement('button');
+    next.id = 'after-lingguang-frame';
+    next.textContent = 'After Lingguang';
+    frame.after(next);
+    frame.focus();
+  })()`);
   await evaluate(`document.querySelector(${JSON.stringify(help)}).focus()`);
   await waitFor(`document.activeElement.matches(${JSON.stringify(help)})`);
   await key("Tab", "Tab", 9);
@@ -341,10 +350,10 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   await key("Tab", "Tab", 9);
   await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
   await key("Tab", "Tab", 9);
-  await waitFor("!document.querySelector('[data-lingguang-rows]').contains(document.activeElement)");
+  await browser.waitFor("document.activeElement?.id === 'after-lingguang-frame'");
 
   await key("Tab", "Tab", 9, 8);
-  await waitFor("document.activeElement?.matches('[data-lingguang-id]')");
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
   await key("a", "KeyA", 65, 2);
   await waitFor(`(${selectedIds}) === ${JSON.stringify(order.join())}`);
   await key("End", "End", 35);

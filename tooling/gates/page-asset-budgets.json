@@ -52,9 +52,9 @@
   "maxSingleAssetBytes": 1500000,
   "maxPluginAssetBytes": 600000,
   "firstScreen": {
-    "arrival-empty": { "cold": 3300000, "warm": 900000 },
-    "chooser": { "cold": 3700000, "warm": 1250000 },
-    "workbench-default": { "cold": 4300000, "warm": 900000 },
-    "workbench-all-plugins": { "cold": 5100000, "warm": 1200000 }
+    "arrival-empty": { "cold": 1300000, "warm": 500000 },
+    "chooser": { "cold": 1600000, "warm": 800000 },
+    "workbench-default": { "cold": 3300000, "warm": 400000 },
+    "workbench-all-plugins": { "cold": 4200000, "warm": 800000 }
   }
 }

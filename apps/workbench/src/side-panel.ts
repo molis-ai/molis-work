@@ -200,8 +200,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * Public, same-document interface (spec 3.1), as before the side joined the workspace:
  * A Home tool (a tab with `data-side-keys`) is a switch: its chord, here or handed up
  * by a frame as `{ type: "molis:side-key", keys }`, opens it with the keyboard inside its document; pressed again from
- * inside, it closes. ⌘\ / Ctrl+\ (also handed up as `Mod+Backslash`) collapses or opens the side. Tools with a chord load
- * while the page is idle, so the first press shows a ready tool. A tab's own document may report
+ * inside, it closes. ⌘\ / Ctrl+\ (also handed up as `Mod+Backslash`) collapses or opens the side. All view documents load when first shown. A tab's own document may report
  * `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab carries a shared state ring.
  * `molis:side-open` { tab, view?, target?, focus? }. Same-origin frames post the same
  * `{ type: "molis:side-open", ... }`, and `{ type: "molis:side-close" }` to collapse it (the page collapses it from the layout menu). Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
@@ -348,7 +347,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       select(options.tab??current(),options.target,options.restore);
       if(options.focus===true)focusTab();
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
-      if(inner)ready(inner,()=>{inner.focus();inner.contentWindow?.focus();});
+      if(inner)ready(inner,()=>{if(open&&!inner.closest('[hidden],[inert]')){inner.focus();inner.contentWindow?.focus();}});
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       dropHelpTab();
@@ -527,7 +526,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // press lands on is still the one that takes the click.
   new MutationObserver(records=>{if(records.some(record=>record.target!==strip))draw();}).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
   paint();select(current(),undefined,true);
-  (window.requestIdleCallback||setTimeout)(()=>strip.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
   // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A
   // narrow window (760 and under, where only the focused pane shows: the side is a sheet over half the work) loads with the
   // side collapsed, its tabs, current tab and width as kept; the saved open stays, so a wide window opens it again.

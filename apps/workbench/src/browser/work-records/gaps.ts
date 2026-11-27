@@ -19,7 +19,7 @@ import {
 } from "./common.js";
 
 function ownerLabel(owner: string | undefined): string {
-  if (!owner) return readText("workbench.catalog-work-records.gap-all-sources");
+  if (!owner) return readText("workbench.settings-work-records.gap-all-sources");
   if (owner === "shell") return readText("workbench.settings-work-records.src-workbench");
   if (owner === "service:gateway") return readText("workbench.settings-work-records.src-gateway");
   if (owner === "service:agent") return readText("workbench.settings-work-records.src-agent");
@@ -82,10 +82,10 @@ function stateBadge(state: string): string {
   if (state === "not_connected") return statusHtml(readText("workbench.settings-work-records.st-not-connected"), "idle");
   if (state === "not_applicable") return statusHtml(readText("workbench.settings-work-records.st-na"), "quiet");
   if (state === "by_rule") return statusHtml(readText("workbench.settings-work-records.st-by-rule"), "quiet");
-  if (state === "lost") return statusHtml(readText("workbench.catalog-work-records.status-lost"), "blocked");
-  if (state === "truncated") return statusHtml(readText("workbench.catalog-work-records.status-truncated"), "attention");
+  if (state === "lost") return statusHtml(readText("workbench.settings-work-records.status-lost"), "blocked");
+  if (state === "truncated") return statusHtml(readText("workbench.settings-work-records.status-truncated"), "attention");
   if (state === "redacted") return statusHtml(readText("workbench.settings-work-records.st-redacted"), "hold");
-  if (state === "expired") return statusHtml(readText("workbench.catalog-work-records.status-cleared"), "hold");
+  if (state === "expired") return statusHtml(readText("workbench.settings-work-records.status-cleared"), "hold");
   if (state === "purged") return statusHtml(readText("workbench.settings-work-records.st-purged"), "hold");
   return statusHtml(readText("workbench.settings-work-records.st-unavailable"), "attention");
 }

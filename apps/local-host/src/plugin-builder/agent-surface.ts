@@ -81,7 +81,7 @@ export interface Studio {
   stopTrials(): void;
   /** A proposal's picture from the images plugin (W7). */
   imageChoices?(): Promise<{ key: string; title: string }[]>;
-  mockupImage?(jobId: string, imageId: string, owner: import('@molis-ai/molis-work-plugin-studio').StudioImageBinding): Promise<{ base64: string; mime_type: string }>;
+  mockupImage?(jobId: string, imageId: string, owner: import('@molis-ai/molis-work-plugin-studio').StudioImageBinding): Promise<{ bytes: Buffer; type: string } | null>;
 }
 
 const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>();
@@ -219,8 +219,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-not-ready", '这个方案还没有效果图')); return true; }
       const image = picture.binding && await studio.mockupImage!(picture.jobId, picture.imageId, picture.binding).catch(() => null);
       if (!image) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-unreadable", '效果图读取失败')); return true; }
-      response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' });
-      response.end(Buffer.from(image.base64, 'base64'));
+      response.writeHead(200, { 'content-type': image.type, 'content-security-policy': 'sandbox', 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' });
+      response.end(image.bytes);
       return true;
     }
     if (route === '/state' && method === 'GET') {

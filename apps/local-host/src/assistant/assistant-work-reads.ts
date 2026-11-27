@@ -169,7 +169,6 @@ export class AssistantWorkReads {
     const offered: Array<{ method: AssistantMethod; binding?: SignedBinding }> = skills.filter(skill => skill.availability.available).map(skill => ({ method: { kind: "skill", skill } }));
     for (const role of roles) {
       const binding = bound.get(role.install_id);
-      try { binding?.assertCurrent(); } catch { continue; } // A withdrawn installation is no longer offered; an explicit old selection is refused by readRole.
       if (binding) offered.push({ method: roleMethod(role, binding.installation), binding });
     }
     return offered;
@@ -183,6 +182,7 @@ export class AssistantWorkReads {
     const role = found?.method.kind === "role" ? found.method : undefined, binding = found?.binding;
     if (!port || !role || !binding || role.installation.installation_generation !== installed.installation_generation || role.installation.project_id !== installed.project_id
       || selection.version !== undefined && selection.version !== role.version) throw assistantErrors.invalid("角色资料版本已变化，请重新选择");
+    binding.assertCurrent();
     const material = port.readSigned(installed.install_id, role.default_ref);
     const assertCurrent = () => {
       binding.assertCurrent();

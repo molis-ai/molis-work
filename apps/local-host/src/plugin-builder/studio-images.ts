@@ -4,6 +4,7 @@ import { ActionError, IMAGE_GENERATION_ROLES, imageGenerationRoleOf, type Action
 import type { StudioImageBinding } from '@molis-ai/molis-work-plugin-studio';
 import { assertStageInstallation, installedStageIdentity } from '../installed-stage-identity.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
+import { imageTypeOf } from '../material-attachments.js';
 import { currentProjectPlatform } from '../project-plugins.js';
 import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surface.js';
 
@@ -131,7 +132,10 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
     const group = await bound(owner);
     const { job } = await invoke<{ job: Job }>(group, 'generations.get', { id: jobId }, owner);
     if (job.id !== jobId || job.connection_id !== owner.connection_id || !job.images.some(image => image.id === imageId)) throw changed();
-    return invoke<{ base64: string; mime_type: string }>(group, 'image.read', { id: jobId, image_id: imageId }, owner);
+    const image = await invoke<{ base64: string; mime_type: string }>(group, 'image.read', { id: jobId, image_id: imageId }, owner);
+    const bytes = Buffer.from(image.base64, 'base64'), type = imageTypeOf(bytes);
+    if ((type !== 'image/png' && type !== 'image/jpeg' && type !== 'image/webp') || type !== image.mime_type) return null;
+    return { bytes, type };
   };
   return { mockups, mockupImage, imageChoices };
 }

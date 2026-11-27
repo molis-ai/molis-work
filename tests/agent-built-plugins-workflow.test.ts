@@ -770,6 +770,36 @@ test('after the host restarts mid-build, continuing writes only what was not con
   } finally { await workflow.close(); }
 });
 
+async function studioPicture(studio: Awaited<ReturnType<typeof startStudioFixture>>, buildId: string, phase: 'drawing' | 'ready') {
+  const deadline = Date.now() + 25000;
+  while (Date.now() < deadline) {
+    const { build } = await studio.send<{ build: AgentBuild }>('/builds/' + buildId);
+    const found = build.candidates.find(item => item.mockup?.status === phase && item.mockup?.jobId);
+    if (found) return found;
+    if (build.candidates.length && build.candidates.every(item => item.mockup?.status === 'failed')) assert.fail(JSON.stringify(build.candidates.map(item => item.mockup)));
+    await new Promise(resolve => setTimeout(resolve, 30));
+  }
+  throw new Error('Studio did not reach ' + phase);
+}
+
+test('S-03 44C-06 Studio refuses unrecognized bytes and a mismatched media type from a signed image provider', nativeBuildChecks, async t => {
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGN4dvUIAAUkAoCtYlyAAAAAAElFTkSuQmCC';
+  for (const reply of [{ mime_type: 'image/png', base64: Buffer.from('plain sample').toString('base64') }, { mime_type: 'image/jpeg', base64: png }]) {
+    await t.test(reply.mime_type, async t => {
+      const studio = await startStudioFixture(t), { f, project } = studio;
+      const client = f.host.actionClient(project.reference), person = installPerson(project.project_id);
+      const { bundle } = signedImageService('sample', '1.0.0', false, reply);
+      const preview = await client.invoke(person, actionRef(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+      await client.invoke(person, actionRef(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: 'sample' });
+      const { build } = await studio.send<{ build: AgentBuild }>('/builds', { brief: '配图样例' });
+      const ready = await studioPicture(studio, build.id, 'ready');
+      const response = await studio.image(build.id, ready.id);
+      assert.equal(response.status, 404);
+      assert.match(response.headers.get('content-type') ?? '', /application\/json/);
+    });
+  }
+});
+
 test('44C-06 Studio polls the original installed signed service across restart, directory reordering and withdrawal', { timeout: 120_000 }, async t => {
   const studio = await startStudioFixture(t), { f, project } = studio;
   const client = f.host.actionClient(project.reference), who = installPerson(project.project_id);
@@ -799,24 +829,13 @@ test('44C-06 Studio polls the original installed signed service across restart, 
   const incomplete = await install('partial', '1.0.0', true);
   const first = await install('quartz'), second = await install('cobalt');
   const created = await createDraft();
-  async function picture(phase: 'drawing' | 'ready') {
-    const deadline = Date.now() + 25000;
-    while (Date.now() < deadline) {
-      const { build } = await studio.send<{ build: AgentBuild }>('/builds/' + created.build.id);
-      const found = build.candidates.find(item => item.mockup?.status === phase && item.mockup?.jobId);
-      if (found) return found;
-      if (build.candidates.length && build.candidates.every(item => item.mockup?.status === 'failed')) assert.fail(JSON.stringify(build.candidates.map(item => item.mockup)));
-      await new Promise(resolve => setTimeout(resolve, 30));
-    }
-    throw new Error('Studio did not reach ' + phase);
-  }
-  const pending = await picture('drawing'), owner = pending.mockup!.binding!;
+  const pending = await studioPicture(studio, created.build.id, 'drawing'), owner = pending.mockup!.binding!;
   assert.notEqual(owner.connection_id, incomplete.connection);
   const selected = [first, second].find(item => item.connection === owner.connection_id)!;
   assert.ok(selected);
   studio.reverseDirectory();
   await studio.restartStudio();
-  const ready = await picture('ready');
+  const ready = await studioPicture(studio, created.build.id, 'ready');
   assert.deepEqual(ready.mockup!.binding, owner);
   const file = await studio.image(created.build.id, ready.id);
   assert.equal(file.status, 200); assert.equal(file.headers.get('content-type'), 'image/png');

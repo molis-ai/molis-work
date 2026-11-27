@@ -11,7 +11,7 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { effectsFromContract, parsePluginManifest, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import {
-  definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
+  defineWorkflowContentActions, defineSubjectContextAction, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
   intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, isWorkTerminalPromptAction,
   LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -209,6 +209,22 @@ export const operations = {
     await writeState(sdk, state);
     return settingValues(state);
   },
+  'cards.read': async (input, sdk) => {
+    const state = await readState(sdk), item = state.items.find(item => item.id === input.subject_id);
+    if (!item) throw Object.assign(new Error('No such card'), { code: 'actions.missing' });
+    return { subject: { kind: 'sandbox_card', id: item.id }, revision: String(state.revision),
+      title: item.title, content: item.body || item.title, truncated: false, open: { surface: '${SIGNED_SANDBOX_ID}', id: item.id } };
+  },
+  'cards.receive': async (input, sdk) => {
+    const state = await readState(sdk);
+    let item = state.items.find(item => item.request === input.request_id);
+    if (!item) {
+      item = { id: 'received-' + state.items.length, title: input.title, body: input.body, request: input.request_id, bindings: [] };
+      state.items.push(item);
+      await writeState(sdk, state);
+    }
+    return { subject: { kind: 'sandbox_card', id: item.id }, title: item.title };
+  },
   'cards.search': async (_input, sdk) => {
     const state = await readState(sdk);
     return { collection_revision: String(state.revision), next_cursor: null, entries: state.items.map(item => ({
@@ -264,6 +280,8 @@ export const operations = {
 
 function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle {
   const kind = { kind: "sandbox_card", title: "Sandbox card", glyph: "bookmark" };
+  const reader = defineSubjectContextAction("read", 1, kind.kind, kind.title, ["storage:private"]);
+  const { receive } = defineWorkflowContentActions({ id: "sample", title: "Card collection", icon: "bookmark", subject_kind: kind.kind, read_permissions: [], write_permissions: ["storage:private"] });
   const search = defineSearchEntriesAction("s", 1, [{ ...kind, surface: SIGNED_SANDBOX_ID }], "Cards", ["storage:private"]);
   const resumeDef = defineResumeSummaryAction("r", 1, ["sandbox_card"], "r", ["storage:private"]);
   const wtDef = defineWorkTerminalPromptAction("w", 1, "sandbox_card", "w", ["storage:private"]);
@@ -296,6 +314,16 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
           input: SETTINGS_WRITE_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
           errors: [{ code: "actions.conflict", description: "revision changed" }], effects: { storage: ["read", "write"] },
           examples: [{ input: { key: "greeting", layer: "project", change: { set: "Hi" }, expected_revision: "1", request_id: "r1" }, output: { values: [{ key: "greeting", revision: "2", state: "ok", value: "Hi", source: "project" }] } }],
+        },
+        {
+          id: "cards.read", kind: "query", read_protocol: { kind: "subject_context", subject_kind: kind.kind },
+          input: reader.action.input_schema, output: reader.action.output_schema!, errors: [{ code: "actions.missing", description: "Card missing" }], effects: { storage: ["read"] },
+          examples: [{ input: { subject_id: "card-1" }, output: { subject: { kind: kind.kind, id: "card-1" }, revision: "1", title: "Card", content: "Card", truncated: false } }],
+        },
+        {
+          id: "cards.receive", kind: "command", action_protocol: { kind: "workflow_receive", title: "Card collection", subject_kind: kind.kind, icon: "bookmark" },
+          input: receive.action.input_schema, output: receive.action.output_schema!, errors: [], effects: { storage: ["read", "write"] },
+          examples: [{ input: { title: "A", body: "Body", request_id: "one" }, output: { subject: { kind: kind.kind, id: "received-1" }, title: "A" } }],
         },
         {
           id: "cards.search", kind: "query", read_protocol: { kind: "search_entries", kinds: [kind] },
@@ -418,6 +446,18 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.equal(writeReply.values[0]?.value, "Updated from Workbench");
   const settingsAfter = await fetch(`${home.origin}/settings/${SIGNED_SANDBOX_ID}?project=${encodeURIComponent(project.project_id)}`);
   assert.match(await settingsAfter.text(), /Updated from Workbench/);
+
+  // Use the actual card menu route and read back the receiver's persisted content through its own subject reader.
+  const menu = "/projects/" + project.project_id + "/api/mainline/receive";
+  const targets = await (await home.request(menu + "/targets", { method: "POST", body: {} })).json() as { targets: Array<{ station: string; title: string }> };
+  const destination = targets.targets.find(target => target.title === "Card collection");
+  assert.ok(destination);
+  const sent = await home.request(menu, { method: "POST", body: { station: destination.station, source: { kind: "sandbox_card", id: "card-1" }, title: "Delivered", text: "Body from the Workbench" } });
+  const receipt = await sent.json() as { object?: { id: string }; error?: unknown };
+  assert.equal(sent.status, 200, JSON.stringify(receipt));
+  const ownerRead = byLocal("cards.read");
+  const delivered = await projectClient.invoke(person, { capability_id: ownerRead.capability_id, version: ownerRead.version, provider_id: ownerRead.provider.provider_id }, { subject_id: receipt.object!.id }) as { content: string };
+  assert.equal(delivered.content, "Body from the Workbench");
 
   // 3. resume_summary: aggregated by real MolisWorkServer context_resolve.
   const runtimeContext = { runtime_id: "codex", stable_work_context_id: "sbx-standing-ctx", host_declares_stable: true };

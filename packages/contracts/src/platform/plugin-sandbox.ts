@@ -166,6 +166,7 @@ export interface SandboxReadOperation extends SandboxOperationFields {
 /** Fixed platform action protocols whose operations may be queries or commands (`placement_relation` and `settings`). */
 export type SandboxActionProtocol =
   | { kind: 'placement_relation'; relation: string; role: PlacementRelationRole; target?: PlacementRelationTarget; subject_kinds?: readonly string[] }
+  | { kind: 'workflow_receive'; title: string; icon: string; subject_kind: string }
   | { kind: 'settings'; role: 'read' | 'write' };
 
 export interface SandboxProtocolOperation extends SandboxOperationFields {

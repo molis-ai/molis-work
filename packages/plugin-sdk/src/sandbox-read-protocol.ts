@@ -1,5 +1,5 @@
 import {
-  definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineSubjectContextAction, defineWorkTerminalPromptAction,
+  defineWorkflowContentActions, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineSubjectContextAction, defineWorkTerminalPromptAction,
   PLACEMENT_RELATION_ROLES, type ActionDefinition, type ActionMetadata, type PlacementRelationRole, type PlacementRelationTarget,
 } from '@molis-ai/molis-work-contracts/platform/actions';
 import { isUiSubjectContextKind, pluginErrors } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -12,7 +12,7 @@ import {
 import { PLUGIN_ICON_NAMES } from './ui/icon-names.js';
 import { canonicalJsonText, isRecord } from './json-value.js';
 
-interface Identity { pluginId?: string; capabilityId: string; version: number; title: string; scope: ActionMetadata['scope']; permissions: readonly string[] }
+interface Identity { pluginId?: string; stationId?: string; capabilityId: string; version: number; title: string; scope: ActionMetadata['scope']; permissions: readonly string[] }
 const schemaIdentity: Identity = { capabilityId: 'sandbox.protocol', version: 1, title: 'Sandbox read protocol', scope: 'project', permissions: [] };
 const localStores = new Set(['storage', 'artifacts', 'projectDatabase', 'homeDatabase', 'ownerFiles']);
 const invalid = (message: string) => pluginErrors.declaration_invalid(message);
@@ -74,7 +74,7 @@ export function sandboxReadProtocolAction(operation: SandboxReadOperation, ident
   return { ...definition, action: { ...action, effect: 'read', scheduling: 'concurrent', execution: { cost: 'none' } } };
 }
 
-function actionProtocolDefinitionOf(protocol: unknown, operation: SandboxProtocolOperation, { capabilityId, version, title, scope, permissions }: Identity): ActionDefinition {
+function actionProtocolDefinitionOf(protocol: unknown, operation: SandboxProtocolOperation, { stationId, capabilityId, version, title, scope, permissions }: Identity): ActionDefinition {
   if (!isRecord(protocol)) throw invalid('action_protocol must be a fixed protocol object');
   if (protocol.kind === 'placement_relation') {
     const allowedKeys = new Set(['kind', 'relation', 'role', 'target', 'subject_kinds']);
@@ -93,6 +93,16 @@ function actionProtocolDefinitionOf(protocol: unknown, operation: SandboxProtoco
       kinds, title, description: operation.description || title, permissions,
       ...(role === 'list' ? { target: protocol.target as PlacementRelationTarget } : {}),
     });
+  }
+  if (protocol.kind === 'workflow_receive') {
+    if (Object.keys(protocol).length !== 4 || !subjectKind(protocol.title) || !validRelation(protocol.subject_kind)
+      || typeof protocol.icon !== 'string' || !(PLUGIN_ICON_NAMES as readonly string[]).includes(protocol.icon)
+      || operation.kind !== 'command' || scope !== 'project') throw invalid('workflow_receive must be a named project command with a registered icon and object kind');
+    // A published operation keeps its own station across upgrades. Packages cannot register another owner's station id.
+    const id = stationId ?? 'sandbox-station';
+    const { receive } = defineWorkflowContentActions({ id, title: protocol.title, icon: protocol.icon, subject_kind: protocol.subject_kind,
+      read_permissions: [], write_permissions: permissions });
+    return { ...receive, capability_id: capabilityId, version };
   }
   if (protocol.kind === 'settings') {
     const keys = Object.keys(protocol);

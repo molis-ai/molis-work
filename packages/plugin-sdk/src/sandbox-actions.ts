@@ -143,6 +143,10 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
   const problems = [...sandboxBackgroundProblems(input.contract), ...sandboxStartProblems(input.contract), ...reviewDeclarationProblems(input.contract, input.scope, input.dualInstance)];
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
   const scopeOf = (operation: SandboxOperationContract): 'home' | 'project' => {
+    if (operation.action_protocol?.kind === 'workflow_receive') {
+      if (input.scope === 'home' && !input.dualInstance) throw pluginErrors.declaration_invalid('workflow_receive needs a project installation or a project instance');
+      return 'project';
+    }
     if (operation.read_protocol?.kind === 'work_terminal_prompt' || operation.read_protocol?.kind === 'resume_summary'
       || operation.action_protocol?.kind === 'placement_relation') return 'project';
     return input.dualInstance ? (operation.effects.projectDatabase?.length || operation.trusted_review !== undefined ? 'project' : 'home') : input.scope;
@@ -160,7 +164,9 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
       return { ...definition, action: { ...definition.action, ...localized, local_id: operation.id } };
     }
     if (operation.action_protocol !== undefined) {
-      const definition = sandboxActionProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
+      const capabilityId = sandboxActionId(input.buildId, operation.id);
+      const stationId = operation.action_protocol.kind === 'workflow_receive' ? 'pkg-' + createHash('sha256').update(capabilityId).digest('hex').slice(0, 32) : undefined;
+      const definition = sandboxActionProtocolAction(operation, { capabilityId, stationId, version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
       return { ...definition, action: { ...definition.action, ...localized, local_id: operation.id } };

@@ -627,7 +627,9 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     }
     assert.ok(formats.some(item => item.entry === "database.home.catalog" && item.path === `${account}/projects/catalog.db`), "the account Home's copy too");
     // GDC-02: a Mac generation saves settings through the web surface. Computer use records require a separate sample.
-    const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.record"]);
+    // A generated Home has no sandbox plugin that chose a model, so no `plugin-files/*/.model-settings/preference.json` (since batch 112-2
+    // took Jelly's own preference file away, the only built-in one).
+    const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.record", "format.model.preference"]);
     if (process.platform !== "darwin") absent.add("format.computer.settings");
     assert.deepEqual([...new Set(formats.map(item => item.entry))].sort(), Object.keys(PERSISTENT_FORMAT_LOCATIONS).filter(entry => !absent.has(entry)).sort());
   });

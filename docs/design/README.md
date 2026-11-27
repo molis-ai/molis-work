@@ -22,6 +22,7 @@
 - [创作台主路径定样](plugin-studio-main-path/README.md)
 - [运行与恢复定样（第 25、26 批）](runtime-and-recovery/README.md)
 - [主线：顶部事项切换定样（第 37-2 批）](work-mainline-switch/README.md)
+- [Jelly 瘦身定样（第 112-2 批，用户选方案 B：日历旁放当天）](jelly-slim/README.md) — 2026-11-26 新增，实现与定样同一个 PR；落地核对完后按决定 60 移入归档
 - [待办详情页定样（可点，已定稿）](todo-detail/README.md) — 2026-11-21 新增，实现与定样同一个 PR；落地核对完后按决定 60 移入归档
 - [创作台做的插件怎样安装、升级和恢复（第 47 批，用户选 C，2026-11-21 确认第二版）](studio-package-install/README.md) — 实现随第 47 批同一个 PR；落地核对完后按决定 60 移入归档
 

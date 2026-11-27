@@ -11,10 +11,9 @@ const errors = defineErrorCodes("plugin", {
 
 export interface PluginMaterialsDispatch extends PluginMaterialRequest {
   readonly signal: AbortSignal;
-  readonly allowModelDownload: boolean;
   /** Exact host names a source read may contact, when the caller narrowed it; `undefined` allows every public host. */
   readonly allowedDomains?: readonly string[];
-  /** Recheck immediately before a network request, download or native extraction effect. */
+  /** Recheck immediately before a network request or native extraction effect. */
   beforeEffect(): Promise<void>;
 }
 /**
@@ -98,10 +97,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
     const beforeEffect = async () => { current(); await caller.beforeEffect(); current(); };
     await beforeEffect();
     const { limits, timeoutMs, textFormat, pdfMode, ocrLanguages } = request;
-    const result = await invoke({ signal, beforeEffect, limits, timeoutMs, textFormat, pdfMode, ocrLanguages, ...(allowedDomains ? { allowedDomains } : {}),
-      allowModelDownload: caller.audience === "user" && request.allowModelDownload === true,
-      onProgress: progress => { current(); caller.on_progress?.(progress); request.onProgress?.(progress); },
-    }, caller);
+    const result = await invoke({ signal, beforeEffect, limits, timeoutMs, textFormat, pdfMode, ocrLanguages, ...(allowedDomains ? { allowedDomains } : {}) }, caller);
     await beforeEffect();
     return result;
   }

@@ -2,7 +2,7 @@
 
 状态：2026-09-27 按 main（8b609527）之后的代码整理，此后随功能改动逐段更新（含 2026-10-10 的提示词登记 W3-04、2026-10-12 Runtime 插件 `services.model` 与时限表 W3-06 E、2026-10-16 第二部分「AI 行为设计与质量」[`specs/ai-development-handbook`](../../specs/ai-development-handbook/spec.md)，以及 2026-11-23/24 随第 44B 批 `#2294`［Shelf 纯平台化、旧 Alchemist 删除、`packages/system-skills`］与决定 67 `#2301`［四类 Prompt 统一治理、逐调用点 AST 门禁、`s1..sN` 全量技能句柄、`instruction_prompt_id` 解析与 `fencedMaterials` 迁移］的同步校准；其中第 13.6 节明确区分「已落地现役代码」与「待 `91-2`/`104-1`/`62-1` 换包落地的规划设计」）。除明确标注「规划/需求」的段落外，示例与文件位置均为实际代码。执行时的步骤清单在 Skill：[`skills/molis-prologue-ai/SKILL.md`](../../skills/molis-prologue-ai/SKILL.md)；本文解释架构、调用链和为什么。插件的通用写法仍以 [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md) 为准。
 
-用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Jelly 本机 OCR/Whisper、外部 CLI Runtime 暂不纳入。
+用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Host 本机 OCR（`molis-material`）、外部 CLI Runtime 暂不纳入。
 
 **这份手册分两部分，是 Molis Work 做 AI 能力的唯一手册。**
 
@@ -67,7 +67,7 @@ Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native
 
 `systemPrompt` 接收 `InstructedPrompt`，研究维度作为 data，用户内容仍在 userPrompt；Host 在授权复查后解析当前 Home 的用户覆盖并记录使用。用户修改正文不改变领域校验或增加格式纠正次数；原预算/授权检查继续约束纠正调用。
 
-Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实计划内容（1 至 30 个动作，每项有标题）。现在 Jelly 只剩「拆解计划」一条登记指令，没有分段摘要或合并调用；拆解在派出前复查原 Action 的 `beforeEffect`，返回后再复查一次，不把取消或撤权写成成功拆解。
+Jelly 自第 112 批起不再调用模型：私有拆解、提示词和模型设置都已删除，AI 排期由个人助理调用 Jelly 的公开日历动作完成。
 
 生成插件的 `model.generate` 经公共 Action → `installed-plugin-model.ts` → `hostTextGeneration`，返回既有 `{ text }`。模型派出和结果复查继续调用原 Action 的 `beforeEffect`；取消信号来自当前沙箱调用。无需 Builder Agent、工作目录或另一份运行 JSON，旧私有记录保持原位。只有设计和编码继续使用 Builder Agent，其 Run 也通过 SDK `collectRun` 有界收集全部终态，原检查、活动和业务记录仍由构建模块拥有。
 

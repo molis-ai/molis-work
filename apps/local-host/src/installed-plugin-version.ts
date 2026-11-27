@@ -110,7 +110,7 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, relea
         if (approval === null) c.storage.delete(APPROVED_KEY + pluginId); else c.storage.set(APPROVED_KEY + pluginId, approval);
         if (!off) await c.expose(earlier, 'caller');
         if (!same(restored) || !c.trusted(restored)) throw new Error('原安装已变化，不能继续写入恢复结果');
-        c.registerPrompts(earlier, off ? 'disabled' : 'enabled', true);
+        c.registerPrompts(earlier, off ? 'disabled' : 'enabled');
       } catch (failure) { failures.push(failure); }
     } else failures.push(new Error('原发行物当前不可读，不能自动恢复原版本'));
     if (!failures.length) throw error;

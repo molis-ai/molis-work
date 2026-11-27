@@ -43,7 +43,7 @@ private func recognize(_ image: CGImage, languages: [String]?) throws -> (String
     request.recognitionLevel = .accurate; request.usesLanguageCorrection = true
     let supported = try request.supportedRecognitionLanguages()
     if let languages, !languages.allSatisfy({ supported.contains($0) }) { throw MaterialError.failure("unsupported_language", "本机不支持所选识别语言") }
-    request.recognitionLanguages = languages ?? ["zh-Hans", "zh-Hant", "en-US"].filter { supported.contains($0) }
+    request.recognitionLanguages = languages ?? ["zh-Hans", "zh-Hant", "en-US", "ja-JP"].filter { supported.contains($0) }
     try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
     let observations = (request.results ?? []).sorted { left, right in
         if abs(left.boundingBox.midY - right.boundingBox.midY) > 0.012 { return left.boundingBox.midY > right.boundingBox.midY }
@@ -95,14 +95,14 @@ private func extractPDF(_ url: URL, languages: [String]?) throws -> MaterialOutp
     let text = pages.filter { !$0.text.isEmpty }.map { "[第 \($0.number) 页]\n\($0.text)" }.joined(separator: "\n\n")
     return MaterialOutput(text: text, pages: pages, coverage: MaterialCoverage(status: text.isEmpty ? "insufficient" : issues.isEmpty ? "sufficient" : "partial", processed_pages: pages.count, total_pages: document.pageCount, issues: issues), extractor: "macos-pdfkit-vision")
 }
-@main struct JellyMaterialMain {
+@main struct MolisMaterialMain {
     static func main() async {
         do {
             let arguments = Array(CommandLine.arguments.dropFirst())
-            if arguments == ["capabilities"] { try emit(["extractor": "jelly-material", "pdf": "available", "image_ocr": "available"]); return }
-            guard (arguments.count == 2 || (arguments.count == 4 && arguments[2] == "--languages")), arguments[0] == "extract" else { throw MaterialError.failure("invalid_arguments", "用法：jelly-material extract <文件> [--languages 语言列表]，或 capabilities") }
+            if arguments == ["capabilities"] { try emit(["extractor": "molis-material", "pdf": "available", "image_ocr": "available"]); return }
+            guard (arguments.count == 2 || (arguments.count == 4 && arguments[2] == "--languages")), arguments[0] == "extract" else { throw MaterialError.failure("invalid_arguments", "用法：molis-material extract <文件> [--languages 语言列表]，或 capabilities") }
             let languages: [String]? = arguments.count == 4 ? arguments[3].split(separator: ",").map(String.init) : nil
-            if let languages, languages.isEmpty || languages.count > 3 || !languages.allSatisfy({ ["zh-Hans", "zh-Hant", "en-US"].contains($0) }) { throw MaterialError.failure("invalid_arguments", "识别语言无效") }
+            if let languages, languages.isEmpty || languages.count > 4 || !languages.allSatisfy({ ["zh-Hans", "zh-Hant", "en-US", "ja-JP"].contains($0) }) { throw MaterialError.failure("invalid_arguments", "识别语言无效") }
             let url = try checkFile(arguments[1])
             let output = url.pathExtension.lowercased() == "pdf" ? try extractPDF(url, languages: languages) : try extractImage(url, languages: languages)
             try emit(output)

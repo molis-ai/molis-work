@@ -32,7 +32,7 @@ const PERSISTENT_CONSTANTS = new Map([
   ["packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION", "database.search.text-index"],
   ["horizontal/appearance/src/state.ts#APPEARANCE_STATE_VERSION", "format.ui.appearance-state"],
   ["horizontal/appearance/src/locale-memory.ts#SCHEMA_VERSION", "format.ui.last-locale"],
-  // The six files §2.6 of the design puts in the chain and §11.1 did not name (the user agreed to them on 2026-11-07). The last is jelly/preferences.json.
+  // The six files §2.6 of the design puts in the chain and §11.1 did not name (the user agreed to them on 2026-11-07). The last is a plugin's model preference file.
   ["apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION", "format.home.onboarding"],
   ["apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION", "format.project.arrival"],
   ["apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION", "format.browser.site-decisions"],
@@ -43,13 +43,9 @@ const PERSISTENT_CONSTANTS = new Map([
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
-// format.jelly.workspace is the JSON in jelly_workspace.body, a row, not jelly/preferences.json: it is here because that row changes and
-// nothing rebuilds it. A step cannot rewrite it today: the row carries a sha256 checksum checked on read, a built-in plugin's steps are only
-// SQL, and SQLite cannot compute a sha256. The first raise decides how.
 const PERSISTENT_ENTRIES = new Map([
   ["database.ledger_baseline", "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE"],
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
-  ["format.jelly.workspace", "plugins/native/jelly/src/contract.ts#schema_version"],
   // The Runtime integration receipt (registered on 2026-11-17, clean v1 shape without goal-advance link). Goldens hold a fixed-value
   // sample, since only an installed Home has one (scripts/golden/populate.mjs).
   ["format.runtime.integration.receipt", "apps/local-host/src/installer/runtime-integration-receipt.ts#RUNTIME_INTEGRATION_RECEIPT_FILE"],

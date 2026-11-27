@@ -1,36 +1,23 @@
-/** Jelly's private, local workspace. Calendar days are YYYY-MM-DD civil dates. */
+/** Jelly's personal calendar and notes, one row per entry. Calendar days are YYYY-MM-DD civil dates; times are minutes after midnight. */
 export const JELLY_PLUGIN_ID = "io.molis.work.jelly";
 export const JELLY_PROJECT_PLUGIN_ID = "jelly";
-export type JellyPriority = "P0" | "P1" | "P2" | "none";
-export interface JellyCategory { id: string; name: string; color: string; sort_index: number }
-export interface JellySchedule { start_date: string; end_date: string; start_time: number | null; end_time: number | null }
+export interface JellyCategory { id: string; name: string; color: string; sort_index: number; revision: number }
+/** An all-day entry has no times. `time_zone` is where its times were meant (an IANA name). */
+export interface JellySchedule { start_date: string; end_date: string; start_time: number | null; end_time: number | null; time_zone: string }
+/** One calendar entry. Every write bumps `revision`; a change names the revision it was made on, so two edits of one entry never overwrite each other silently. */
 export interface JellyItem extends JellySchedule {
-  id: string; title: string; kind: "task" | "event"; category_id: string;
-  priority: JellyPriority; pinned: boolean; completed_at: string | null;
-  completion_description: string; notes: string; untimed_rank: number;
-  created_at: string; updated_at: string; time_zone: string;
+  id: string; title: string; kind: "task" | "event"; category_id: string; notes: string;
+  completed_at: string | null; revision: number; created_at: string; updated_at: string;
 }
-export interface JellySeries extends JellyItem {
+/** What one occurrence of a series may change: everything but its identity and its repeat rule. */
+export type JellyOccurrencePatch = Partial<Pick<JellyItem, "title" | "kind" | "category_id" | "notes" | "start_date" | "end_date" | "start_time" | "end_time">>;
+/** A weekly repeating entry. Weekdays are 1 (Monday) to 7; `exceptions` and `completions` are keyed by an occurrence's original date. */
+export interface JellySeries extends Omit<JellyItem, "completed_at"> {
   weekdays: number[]; until: string | null;
-  exceptions: Record<string, { deleted?: boolean; patch?: Partial<JellyItem> }>;
-  completions: Record<string, { completed_at: string | null; completion_description: string }>;
+  exceptions: Record<string, { deleted?: true; patch?: JellyOccurrencePatch }>;
+  completions: Record<string, string>;
 }
+/** One day's entry as the calendar shows it: a one-off item, or a series' occurrence (`series_id` and `original_date` set). */
 export interface JellyOccurrence extends JellyItem { series_id: string | null; original_date: string | null }
-export type JellyBlockKind = "paragraph" | "heading1" | "heading2" | "heading3" | "bullet" | "numbered" | "task" | "quote" | "code" | "divider" | "link";
-export interface JellyBlock { id: string; kind: JellyBlockKind; text: string; indent: number; completed_at: string | null; completion_description: string; language?: string; inline_spans?: { text: string; marks: ("bold" | "italic" | "code")[]; link_url?: string }[] }
-export interface JellyNote {
-  id: string; title: string; category_id: string; blocks: JellyBlock[];
-  pinned: boolean; archived_at: string | null; revision: number; created_at: string; updated_at: string;
-}
-export interface JellyRelation { owner_id: string; original_date: string | null; note_id: string; role: "primary" | "reference" }
-export interface JellyTaskLink { item_id: string; note_id: string; block_id: string }
-export interface JellyWorkspace {
-  schema_version: /* @version format.jelly.workspace */ 1; revision: number; categories: JellyCategory[];
-  items: JellyItem[]; series: JellySeries[]; notes: JellyNote[];
-  relations: JellyRelation[]; relation_overrides?: { owner_id: string; original_date: string; primary: "inherit" | "clear" | string; added_reference_ids: string[]; removed_reference_ids: string[] }[]; task_links: JellyTaskLink[]; applied_plan_ids: string[];
-  imported_sources?: { sha256: string; schema_version: number; source: unknown; imported_at: string }[];
-}
-/** One handler serves every command, so the values are `unknown` here: the action schema has checked their shape, and the store checks what needs the workspace. */
-export interface JellyCommand { type: string; [key: string]: unknown }
-export interface JellyPlanAction { id: string; title: string; notes: string; duration_minutes?: 15 | 30 | 45 | 60 | 90; schedule: JellySchedule | null; category_id: string; priority: JellyPriority }
-export interface JellyPlan { id: string; title: string; source_type: "note" | "text"; source_id: string | null; source_hash: string; source_text: string; selection?: { block_ids: string[]; text: string }; clarification_questions?: string[]; actions: JellyPlanAction[]; created_at: string }
+/** A plain-text or Markdown note, kept for a day or on its own. */
+export interface JellyNote { id: string; title: string; body: string; day: string | null; revision: number; created_at: string; updated_at: string }

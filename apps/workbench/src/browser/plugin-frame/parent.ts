@@ -34,7 +34,7 @@ import { pageMaterialsPicker } from "./materials-picker.js";
 import { pageSkillPicks } from "./skill-picks.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
-import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
+import type { FrameConfig, FrameDown, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
 import { frameEnvironment } from "./appearance.js";
 import { forOpeningFrame, frameStageWords, openingFrameLanguage, openingFrameTemplate, pageLanguage, trackFrameLanguage } from "./language.js";
 import { barTakes, pageComposer } from "./composer-parent.js";
@@ -184,7 +184,7 @@ export function sanitizeFrameToastOptions(opt: unknown): boolean | { tone?: "def
 }
 
 /** D0124/D0335: one typed UI boundary, after the live/visible frame check. */
-function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement, claimReload: () => boolean): void {
+function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement, claimReload: () => boolean, port: MessagePort): void {
   const args = message.args;
   if (!Array.isArray(args) || args.length > 3) return;
   const text = (value: unknown, limit = 1000): value is string => typeof value === "string" && value.length <= limit;
@@ -193,7 +193,10 @@ function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { t
     if (text(args[0], 4000)) {
       const normalized = sanitizeFrameToastOptions(args[1]);
       if (normalized !== null) {
-        host.showToast?.(args[0], normalized);
+        // A page's `undo` stays in the frame; the frame sends a token, and 「撤销」 hands it back.
+        const token = args[1] && typeof args[1] === "object" ? (args[1] as Record<string, unknown>).undo : undefined;
+        const undo = typeof token === "string" && /^[0-9]{1,9}$/u.test(token) ? () => port.postMessage({ type: "toast-undo", token } satisfies FrameDown) : undefined;
+        host.showToast?.(args[0], undo ? { ...(typeof normalized === "object" ? normalized : { tone: normalized ? "error" : "default" }), undo } : normalized);
       }
     }
   } else if (message.name === "openPlugin") {
@@ -574,7 +577,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui") {
-        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId, root, claimReload);
+        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId, root, claimReload, port);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
         else navigate(root, message, route(""), returns.link);

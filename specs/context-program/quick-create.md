@@ -14,7 +14,7 @@
 
 ## 2. 现状（均已对照代码核对）
 
-1. **没有统一的「创建 Item」接口。** 各插件有各自的创建动作，名字、输入、有没有来源字段都不同（能力 id 是 `前缀.动作`，不是插件 id）：Todo 的 `todo.items.create`（带 `sources` 来源字段，最多 20 条）、灵光的 `lingguang.create`、Pages 的 `pages.create`、Goals 的 `goals.create` / `goals.tree.submit`（提案，要在 Goals 里确认）、炼金术士的 `alchemist.directions.create`、Jelly 的 `jelly.item.create` / `jelly.note.create`、Schedule 的 `schedule.tasks.create`、Cognia 的 `cognia.material.create`、Shelf 的 `shelf.items.admit`、Characters 的 `characters.create`、Coding 的 `coding.sessions.create`……
+1. **没有统一的「创建 Item」接口。** 各插件有各自的创建动作，名字、输入、有没有来源字段都不同（能力 id 是 `前缀.动作`，不是插件 id）：Todo 的 `todo.items.create`（带 `sources` 来源字段，最多 20 条）、灵光的 `lingguang.create`、Pages 的 `pages.create`、Goals 的 `goals.create` / `goals.tree.submit`（提案，要在 Goals 里确认）、炼金术士的 `alchemist.directions.create`、Jelly 的 `jelly.item.create` / `jelly.note.save`、Schedule 的 `schedule.tasks.create`、Cognia 的 `cognia.material.create`、Shelf 的 `shelf.items.admit`、Characters 的 `characters.create`、Coding 的 `coding.sessions.create`……
 2. **已经有一个小范围的统一合同：工作流内容站**（`packages/contracts/src/platform/workflow-content.ts`）。角色是 `list / read / receive / create`，能力 id 是 `<站>.content.<角色>`；`receive` 收 `{ payload: { title, body, url?, source?, feed_item_id? }, context: { instance_id, step, title? } }`，返回 `{ plugin, item_id, title }`。Form、灵光、Inbox、Dataset、Jelly、Feed、PPT、Pages 这 8 个插件已经实现了它（成果库是第 9 个站，只能列、读，不能收）。但它为工作流设计：幂等键是「工作流实例 + 步骤」（`workflowDeliveryKey` 返回 `workflow:<实例>:<步骤>`，6 个插件用它；Feed 自己拼 `<实例>:<步骤>`；Inbox 沿用 Feed 条目或交给 Feed），不适合「选中一段文字」这类来源。
 3. **助理卡片已经有「先看、再改、再确认」的形态**（`POST /api/assistant/cards`，路由在 `apps/local-host/src/assistant/assistant-http.ts:148`，合同 `AssistantPreparedCard` 在 `packages/contracts/src/services/assistant.ts:134`）：卡片带 `reference`（要调的动作）、`input`（完整输入）、`editable`（可改的字段）、`missing`（还缺的字段）、`source_object`、`materials`（最多 4 段，每段 2 万字）。能否直接执行由 `directEligible`（`assistant-authority.ts:22`）判断。选区动作里的写入类（记成待办、记下灵光）已经走这条路。
 4. **助理能直接用目录里的能力**，所以「对助理说一句话让它建待办」今天已经可能；缺的是**每个插件页面里一个看得见的入口**，和**从选区一键送去哪里**的目的地列表。
@@ -122,7 +122,7 @@ interface ItemIntake {
 | 灵光 | `lingguang.create` + 内容站 | ● 「记下灵光」；同上（`lingguang.fragment.offers`） |
 | Pages | `pages.create` + 内容站 | ● 「存为文档」「追加到文档」 |
 | Inbox | 内容站 `receive`（沿用 Feed 条目或交给 Feed） | ● 「放进收件箱」 |
-| Jelly | `jelly.item.create`、`jelly.note.create` + 内容站 | ◐ 事项、笔记两个入口；含时间时事项最有用 |
+| Jelly | `jelly.item.create`、`jelly.note.save` + 内容站 | ◐ 日程、随手记两个入口；含时间时日程最有用 |
 | Feed | 内容站 `receive`（`feed.content.receive`）、`feed.rules.create`（原写的 `feed.out-rules.create` 是路由 id；`feed.capture` 是场景，不是动作） | ◐ 「加入 Feed」（`receive`）与「建规则」（`feed.rules.create`）两个入口 |
 | Dataset | `dataset.create`（只收可选的标题）+ 内容站 | ◐ 「建成数据表」更适合选中表格文字；带内容的创建走 `receive` |
 | Form | `form.create`（只收可选的标题）+ 内容站 | ◐ 「拟成问卷」；带内容的创建走 `receive` |

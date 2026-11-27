@@ -315,12 +315,12 @@ export interface SandboxConnectionDescription {
 
 /** A file as it crosses the channel: its name and its bytes in base64 (the Host decodes and checks it before it reads any of it). */
 export interface SandboxMaterialFile { file_name: string; data_base64: string }
-/** What a plugin chooses for one read; the Host's own limits, its model downloads and its progress reports are not the plugin's to set. */
+/** What a plugin chooses for one read; the Host's own limits are not the plugin's to set. */
 export interface SandboxMaterialRequest {
   timeoutMs?: number;
   textFormat?: 'text' | 'markdown';
   pdfMode?: 'text' | 'ocr';
-  ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US'>;
+  ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US' | 'ja-JP'>;
 }
 /**
  * What `extract` answers, as plain JSON. These are the sandbox's own types, not the Host's `MaterialExtraction`: the declarations a generated
@@ -333,8 +333,6 @@ export interface SandboxMaterialExtraction {
   extractor: string;
   pages: Array<{ number: number; text: string; method: string; confidence: number | null; lines?: Array<{ text: string; confidence: number | null }> }>;
   segments?: Array<{ start_seconds: number; end_seconds: number; text: string }>;
-  frames?: Array<{ seconds: number; text: string; confidence?: number | null }>;
-  duration_seconds?: number;
   coverage: { status: 'sufficient' | 'partial' | 'insufficient'; truncated?: boolean; processed_pages: number; total_pages: number; issues: string[] };
 }
 /** What `readSource` answers, as plain JSON: the page's text with where it came from (see `SandboxMaterialExtraction`). */
@@ -347,8 +345,6 @@ export interface SandboxMaterialSourceContent {
   coverage: SandboxMaterialExtraction['coverage'];
   pages?: SandboxMaterialExtraction['pages'];
   segments?: SandboxMaterialExtraction['segments'];
-  frames?: SandboxMaterialExtraction['frames'];
-  model_required?: { approximate_bytes?: number; variant?: string };
 }
 /** What `readDocuments` answers, as plain JSON (see `SandboxMaterialExtraction`). */
 export interface SandboxMaterialDocumentBatch {

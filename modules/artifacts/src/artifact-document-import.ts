@@ -84,7 +84,7 @@ export interface ArtifactDocumentImportPorts {
   readExternal(input: { source: ExternalDocumentSource; url: string; connection_id?: string }): Promise<ImportedArtifactDocument>;
   readHtml(html: string): { title: string; content: string } | Promise<{ title: string; content: string }>;
   /** The text of a file kept as its original (PDF, DOCX), read by the Host's extraction; null for a kind it does not read. */
-  readFileText?(file: { filename: string; bytes: Buffer }): Promise<{ text: string; warnings: ImportedDocumentWarning[]; model_required?: ModelRequired } | null>;
+  readFileText?(file: { filename: string; bytes: Buffer }): Promise<{ text: string; warnings: ImportedDocumentWarning[] } | null>;
   /** The file the Host was given for this import, when an `original_file` comes without its bytes. */
   offered?: OfferedOriginal;
   signal?: AbortSignal;
@@ -92,9 +92,6 @@ export interface ArtifactDocumentImportPorts {
   /** Trusted Host checks cancellation/revocation again after external reads and before writes. */
   beforeSave?: () => void | Promise<void>;
 }
-
-/** A transcription that needs the local speech model first (specs/project-knowledge PMAT-48); its size when the helper said it. */
-export interface ModelRequired { approximate_bytes: number | null }
 
 interface PendingOriginal {
   filename: string;
@@ -108,14 +105,8 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   const source = input.source;
   let document: ImportedArtifactDocument;
   let pendingOriginal: PendingOriginal | undefined;
-  // Said to whoever imports, never kept in the snapshot: once the model is there the same file imports again with its text.
-  let modelRequired: ModelRequired | undefined;
-  const readFileText = ports.readFileText && (async (file: { filename: string; bytes: Buffer }) => {
-    const read = await ports.readFileText!(file);
-    modelRequired = read?.model_required;
-    return read;
-  });
-  const told = () => ({ text_available: document.content.trim().length > 0, ...modelRequired ? { model_required: modelRequired } : {} });
+  const readFileText = ports.readFileText;
+  const told = () => ({ text_available: document.content.trim().length > 0 });
   ports.signal?.throwIfAborted();
   if (source === "file") {
     const read = await readFileDocument(input, { readHtml: ports.readHtml, ...readFileText ? { readFileText } : {}, ...ports.offered ? { offered: ports.offered } : {} });

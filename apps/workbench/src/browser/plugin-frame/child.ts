@@ -97,6 +97,20 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
+  // A function cannot cross the frame: the toast's 「撤销」 (`undo`) stays here under a token, and the parent sends the token back when pressed.
+  const undos = new Map<string, () => void>();
+  let undoSeq = 0;
+  const toastArgument = (arg: unknown): unknown => {
+    if (!arg || typeof arg !== "object") return arg;
+    const fields = Object.entries(arg).filter(([key, value]) => key !== "undo" && typeof value !== "function");
+    const undo = (arg as { undo?: unknown }).undo;
+    if (typeof undo !== "function") return Object.fromEntries(fields);
+    const token = String(++undoSeq);
+    undos.set(token, () => undo());
+    const oldest = undos.size > 20 ? undos.keys().next().value : undefined;
+    if (oldest !== undefined) undos.delete(oldest);
+    return Object.fromEntries([...fields, ["undo", token]]);
+  };
   const host = { root, scope, mountPluginClient: ui.mountPluginClient, side: config.side,
     mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope), packageInstall: childPackageInstall(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
@@ -117,7 +131,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? uiText.text(code === "actions.plugin_disabled" ? "common.child.project-has-turned-plugin-off-so-can-t" : "common.child.don-t-have-permission-read-so-can-t") : "",
     api: (path: string, method: "GET" | "POST", body: unknown, fallback = uiText.text("common.child.source-operation-failed")) => call(route(path), { method, body, fallback }),
     openItem: (...args: unknown[]) => intent("openItem", args), openBeside: (...args: unknown[]) => intent("openBeside", args), openPlugin: (...args: unknown[]) => intent("openPlugin", args),
-    hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
+    hideDirectory: () => intent("hideDirectory", []),
+    showToast: (...args: unknown[]) => intent("showToast", args.map(toastArgument)), page: () => config.page,
     status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
       references: (source: string, query: string) => call<SearchReferencesResponse>(route("/api/host/plugin-page-actions"), {
         body: { reference: { capability_id: "search.references", version: /* @version action.search.references */ 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
@@ -147,6 +162,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       if (message.name === "molis:shelf-refresh") window.dispatchEvent(new CustomEvent("molis:shelf-refresh", init));
       else if (message.name === "molis:shelf-send-tui") window.dispatchEvent(new CustomEvent("molis:shelf-send-tui", init));
       else if (message.name === "molis:shelf-notice") window.dispatchEvent(new CustomEvent("molis:shelf-notice", init));
+    }
+    else if (message.type === "toast-undo") {
+      const undo = undos.get(message.token);
+      undos.delete(message.token);
+      undo?.();
     }
     else if (message.type === "dispose") scope.dispose();
   });

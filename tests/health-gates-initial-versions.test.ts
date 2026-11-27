@@ -124,15 +124,15 @@ test("UPG1-i-initial-06: a computed version or a chain for a lower one is not a 
   assert.equal(sourceVersionProblems(CATALOG, "export const CATALOG_SCHEMA_VERSION = 2.5;", chain()).length, 1);
 });
 
-test("UPG1-i-initial-07: the two ledgers and Jelly's schema_version are no constants, and go by their version entries the same way", () => {
+test("UPG1-i-initial-07: the two ledgers and the integration receipt are no constants, and go by their version entries the same way", () => {
   const inspect = (versionEntries: Record<string, number>, chains?: Map<string, unknown>) => initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, ...(chains ? { chains } : {}) });
-  assert.deepEqual(inspect({ "database.ledger_baseline": 1, "database.memory_ledger_baseline": 1, "format.jelly.workspace": 1 }), []);
+  assert.deepEqual(inspect({ "database.ledger_baseline": 1, "database.memory_ledger_baseline": 1, "format.runtime.integration.receipt": 1 }), []);
   assert.match(inspect({ "database.memory_ledger_baseline": 2 })[0]!, /memory-ledger\.ts#MEMORY_LEDGER_BASELINE = 2 .*registered upgrade chain/);
   assert.match(inspect({ "database.ledger_baseline": 2 })[0]!, /installed-plugin-libraries\.ts#LEDGER_BASELINE = 2 .*registered upgrade chain/);
-  assert.match(inspect({ "format.jelly.workspace": 2 })[0]!, /jelly\/src\/contract\.ts#schema_version = 2 .*registered upgrade chain/);
-  const jelly = "plugins/native/jelly/src/contract.ts#schema_version";
-  assert.deepEqual(inspect({ "format.jelly.workspace": 2 }, new Map([[jelly, { version: 2, froms: [1], replay_passed: true }]])), []);
-  assert.equal(inspect({ "format.jelly.workspace": 2 }, new Map([[jelly, { version: 2, froms: [], replay_passed: true }]])).length, 1);
+  assert.match(inspect({ "format.runtime.integration.receipt": 2 })[0]!, /runtime-integration-receipt\.ts#RUNTIME_INTEGRATION_RECEIPT_FILE = 2 .*registered upgrade chain/);
+  const receipt = "apps/local-host/src/installer/runtime-integration-receipt.ts#RUNTIME_INTEGRATION_RECEIPT_FILE";
+  assert.deepEqual(inspect({ "format.runtime.integration.receipt": 2 }, new Map([[receipt, { version: 2, froms: [1], replay_passed: true }]])), []);
+  assert.equal(inspect({ "format.runtime.integration.receipt": 2 }, new Map([[receipt, { version: 2, froms: [], replay_passed: true }]])).length, 1);
   assert.deepEqual(inspect({ "database.other_baseline": 2 }), [], "other baselines stay with scripts/verify-release-versions.mjs");
 });
 
@@ -145,7 +145,8 @@ test("UPG1-i-initial-08: every persistent format named here is still where it sa
     const [file] = definition.split("#") as [string];
     assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), "utf8").includes(`/* @version ${key} */`), `${file} carries ${key}`);
   }
-  assert.equal(PERSISTENT_DEFINITIONS.length, 18);
+  // 17 since batch 112-2 retired format.jelly.workspace (Jelly keeps rows, not one JSON document).
+  assert.equal(PERSISTENT_DEFINITIONS.length, 17);
   // A golden records each one under its version entry, so the entry is the one its definition carries, and the golden knows where it sits.
   for (const definition of PERSISTENT_DEFINITIONS) {
     const [file, name] = definition.split("#") as [string, string], entry = PERSISTENT_FORMAT_ENTRIES[definition];
@@ -204,10 +205,10 @@ test("UPG1-i-initial-19: a literal a marker names without a constant follows the
     [`${file}: /* @version ${privateState} */ = 2 (expected 1; only a registered persistent format may be above the unified origin)`]);
   assert.equal(sourceVersionProblems(file, `const x = { value: /* @version ${privateState} */ "2" };`).length, 1, "a whole number written as text is the same");
   // A persistent format goes up exactly as its constant does: with a consecutive chain and a passed replay.
-  const jelly = "plugins/native/jelly/src/contract.ts", definition = `${jelly}#schema_version`;
-  const stored = (version: number) => `export interface Workspace { schema_version: /* @version format.jelly.workspace */ ${version}; revision: number }`;
-  assert.deepEqual(sourceVersionProblems(jelly, stored(2)), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
-  assert.deepEqual(sourceVersionProblems(jelly, stored(2), new Map([[definition, { version: 2, froms: [1], replay_passed: true }]])), []);
+  const receipt = "apps/local-host/src/installer/runtime-integration-receipt.ts", definition = `${receipt}#RUNTIME_INTEGRATION_RECEIPT_FILE`;
+  const stored = (version: number) => `export interface Receipt { schema_version: /* @version format.runtime.integration.receipt */ ${version}; installed_at: string }`;
+  assert.deepEqual(sourceVersionProblems(receipt, stored(2)), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
+  assert.deepEqual(sourceVersionProblems(receipt, stored(2), new Map([[definition, { version: 2, froms: [1], replay_passed: true }]])), []);
   // A library's version is UPG-01's (stores.tsv and the golden replay), not this half's; it is not held at 1 here.
   assert.deepEqual(sourceVersionProblems("apps/local-host/src/project-database-schema.ts", "export const B = { version: /* @version database.project_database_baseline */ 2 };"), []);
   // One literal is judged once: a named constant's own problem is the one reported, not the marker's too.

@@ -61,7 +61,10 @@ export function openFormStore(home:string,partition:string){const o=ownerSyncFix
 export function openDatasetStore(home:string,partition:string){const o=ownerSyncFixture(home,datasetManifest,datasetBindings,partition);return attached(o,new DatasetStore(o.sql,partition,o.atomically,o.close));}
 export function openPptStore(home:string,partition:string){const o=ownerSyncFixture(home,pptManifest,pptBindings,partition);return attached(o,new PptStore(o.sql,partition,o.atomically,o.close));}
 export function openLingguangStore(home:string,partition:string){const o=ownerSyncFixture(home,lingguangManifest,lingguangBindings,partition);return attached(o,new LingguangStore(o.sql,partition,o.atomically,o.close));}
-export function openJellyStore(home:string){const o=ownerSyncFixture(home,jellyManifest,jellyBindings);const store=new JellyStore(o.sql,o.atomically,o.close);return attached(o,store);}
+/** Jelly's rows over one Home: `read` and `write` hand a store over the owner's library, `write` in one transaction (the Runtime's shape, no caller). */
+export function openJellyStore(home:string){const o=ownerSyncFixture(home,jellyManifest,jellyBindings);
+ const tx={...o.sql,run:(query:string,parameters:readonly unknown[]=[])=>o.sql.run(query,parameters) as {changes:number|bigint},savepoint:()=>{throw new Error('Jelly 不用保存点');}};
+ return attached(o,{read:<T>(run:(store:JellyStore)=>T):T=>run(new JellyStore(tx as never)),write:<T>(run:(store:JellyStore)=>T):T=>o.atomically(()=>run(new JellyStore(tx as never))),close:o.close});}
 export function openCogniaStore(home:string){const o=ownerSyncFixture(home,cogniaManifest,cogniaBindings);return attached(o,new CogniaStore(o.sql,o.atomically,o.close));}
 export const openCogniaSyncStore=(home:string)=>openCogniaStore(home);
 export function openPagesStore(home:string,partition:string){const o=ownerSyncFixture(home,pagesManifest,pagesBindings,partition);return attached(o,new PagesStore(o.sql,partition,new Map(),o.atomically,o.close));}

@@ -160,6 +160,8 @@ export type FrameUp =
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
 export type FrameDown =
   | { type: "task-opened"; id: number; error?: string }
+  /** The person pressed 「撤销」 on a toast this page showed; `token` names the `undo` the page kept. */
+  | { type: "toast-undo"; token: string }
   | { type: "task-input"; input: Readonly<Record<string, string>> }
   | { type: "task-return-focus"; id: number }
   | { type: "frame-asset-source"; handle: string }

@@ -96,7 +96,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 
 ### 3.3 个人插件库（Home 级，`{home}/<名>/<名>.db`）
 
-路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts`），目录权限 0700、文件 0600。备份都是必备份，卸载都是 purge（每个库都登记在 `homeStores()`，由它的 owner 声明：插件的 `<插件>_HOME_STORE`，经插件自己 `registration` 的 `home_store` 带进登记（目录由 `registration` 生成）；插件的库是它 Manifest 的 `databases.home`，登记从 Manifest 推出）。项目里或 Home 里的 Runtime 插件在 Manifest 里声明的库（`databases.home`，PG-022；W3-06 D），必须是登记里**这个插件自己**的库、基线与声明相同（`apps/local-host/src/plugin-database-entries.ts`）：宿主、模块或别的插件的库，以及登记里不是库的条目，都拒绝；测试夹具的库按夹具自己的 id 登记，不能占用已登记的名字（`apps/local-host/src/home-side.ts`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。旧 Home 的 `lingguang/` 目录里历史曾留有 `imports/`（见 6.2）；音视频转写模型缓存已于第 44 批迁至独立平台目录 `materials/models/`。
+路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts`），目录权限 0700、文件 0600。备份都是必备份，卸载都是 purge（每个库都登记在 `homeStores()`，由它的 owner 声明：插件的 `<插件>_HOME_STORE`，经插件自己 `registration` 的 `home_store` 带进登记（目录由 `registration` 生成）；插件的库是它 Manifest 的 `databases.home`，登记从 Manifest 推出）。项目里或 Home 里的 Runtime 插件在 Manifest 里声明的库（`databases.home`，PG-022；W3-06 D），必须是登记里**这个插件自己**的库、基线与声明相同（`apps/local-host/src/plugin-database-entries.ts`）：宿主、模块或别的插件的库，以及登记里不是库的条目，都拒绝；测试夹具的库按夹具自己的 id 登记，不能占用已登记的名字（`apps/local-host/src/home-side.ts`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。旧 Home 的 `lingguang/` 目录里历史曾留有 `imports/`（见 6.2）；音视频转写模型缓存曾于第 44 批迁至独立平台目录 `materials/models/`，第 112 批删除本机语音转写后不再使用。
 
 **按项目分开的库**：原先 Home 库按项目分开的复用器（`databases.home` 的 `partition: "project"`）已随第 107 批删除；每个分区自己一份的库现在是分区独立库（`databases.partition`，见 3.1）。Pages、PPT、Form、Dataset、灵光、Workflows 第 107 批从这一节搬到 3.1，旧的 `{home}/<名>/<名>.db` 不迁移：旧 Home 整体搬开后新建。
 
@@ -106,7 +106,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | `images/images.db` | `plugins/native/images/src/database.ts`（`IMAGES_DATABASE`） | 1 · 回滚 | `connections`、`connection_changes`、`jobs` |
 | `feed-content/feed-content.db` | Feed 的 Home 半：`plugins/native/feed/src/content-ledger.ts`（`FEED_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记 | 1 · 回滚 | `feed_content_holds`（各项目的 Feed 来源引用哪份正文） |
 | `todo/todo.db` | [TODO_HOME_STORE](../../plugins/native/todo/src/store.ts) 登记位置，[TODO_DATABASE](../../plugins/native/todo/src/database.ts) 声明版本与表结构 | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
-| `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
+| `jelly/jelly.db` | `plugins/native/jelly/src/database.ts`（`JELLY_DATABASE`），由 Manifest 的 `databases.home` 登记 | 1 · WAL | `jelly_categories`、`jelly_items`、`jelly_series`、`jelly_notes`（第 112 批起按行存，每行带 `revision`） |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `work-brief/work-brief.db` | Work Brief owner：`plugins/native/work-brief/src/database.ts`（`WORK_BRIEF_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半与 Home 半共用一个库，项目的行由 `project_rows` 随项目删除 | 1 · WAL | `briefs`、`brief_versions`、`brief_edits`、`brief_proposals`、`brief_next_marks`、`brief_requests`、`brief_editor_versions`、平台同步日志 |
 
@@ -259,13 +259,11 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `storage-space.json` | 宿主；`apps/local-host/src/home-stores.ts` 登记：当前 Home 的不可变存储空间归属标识 | JSON · 现行结构 | 从离线快照排除并在原机保留（`omittedSnapshot`/`preserve`） | purge |
 | `spaces/<spaceId>/sync/device.json` | `modules/sync-replication/src/device.ts`：本机当前账号是否自动同步，绑定 spaceId，不含凭据，不随空间策略上传 | JSON · `version` = 1；未创建表示尚未选择，错版或跨空间拒绝 | 必备份；只在同一设备与账号下恢复（`spaces/` 根目录本身在顶层快照中按 `omittedSnapshot`/`preserve` 排除，子空间单独备份） | purge（`spaces` 目录） |
 | `spaces/<spaceId>/sync/sync.db` | `modules/sync-replication/src/database.ts`：空间策略缓存、分区/共同流游标、永久异常隔离与临时接收延迟、附件上传回执和下载暂存；不是附件的第二份业务事实（结构同 3.2 `sync/sync.db`） | SQLite · `user_version` = 1（第 106 批 V7 复位）；下载暂存按集合隔离且固定本机保护模式；旧库升级、高版拒绝，不在打开时补表；校验后 owner 接收完成清暂存 | 与当前空间一同备份；未完成进度可恢复，不单独跨账号复制 | purge（`spaces` 目录） |
-| `jelly/preferences.json` | `apps/local-host/src/model-configuration.ts`：可信 consumer 声明的模型选择偏好与回执（其他声明 `model_configuration` 的插件按 `plugin-files/<install_id>/.model-settings/preference.json` 存放） | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `characters/runs/character-*/` | `apps/local-host/src/character-native-execution.ts:16-19`：交给外部 Agent 执行时临时写出的角色包 | 目录 | 临时 | purge |
 | `artifacts/projects/<编码后的 project_id>/originals/<sha256>` | `modules/artifacts/src/artifact-original-store.ts`（`storeArtifactOriginal`、`openArtifactOriginal`）：成果库导入的超过 6 MB 的原文件，按内容摘要存一份；6 MB 以内的仍在版本记录里（`original_file.data_base64`），两种都是现行形状，按大小选 | 文件目录 · 无版本 | 必备份（人导入的原件，版本记录只存摘要） | purge（`artifacts` 已登记；删项目时整个项目目录删掉） |
 | `context-onboarding/journeys/<journey_id>/{files,texts,notes}/<sha256>` | 宿主；`apps/local-host/src/context-onboarding-staging.ts`：新建项目「来源」一轮的暂存（2026-10-22 起不限份数与大小）——人交来的文件、读出的全文、摘要分批的笔记，各按内容摘要存一份；整理记录只记摘要。项目采用完成后整轮目录删掉；超过 30 天没有继续的整理，宿主启动时与每 6 小时清一次暂存、保留记录（`removeIdleJourneyStaging`） | 文件目录 · 无版本 | 不必备份（采用前的暂存，采用后原件在成果库、全文在 Pages） | purge（随 `context-onboarding` 目录） |
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
 | `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/material-home.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |
-| `materials/models/` | `apps/local-host/src/material-home.ts` 的 `MATERIALS_HOME_STORE` / `modelCacheDirectory`：平台材料服务拥有的音视频转写模型缓存。只有可信 user 调用且明确允许时，原生辅助程序才可下载（`apps/local-host/src/material-native.ts`）；读取音视频时按需创建目录 | 目录 · 无版本 | 可重建（重新下载） | purge（`materials` 目录） |
 | `directory-access/bookmarks.json` | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125`：桌面壳保存的目录授权书签。设了 `MOLIS_WORK_HOME` 时在 Home 里，否则在应用数据目录（第 8 节） | JSON · 无版本 | Home 内原字节及权限由现有 Home payload owner 密封；限原机器原路径，OS 拒绝后须重选；外部 AppData 不复制 | purge |
 
 ### 6.3 配置、日志与安装物
@@ -343,10 +341,10 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | 退役目录不再登记、现行快照不读；旧Home整体搬开后保留，不改旧key、不删除 |
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `security/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `security/secrets.key`）、`security/evidence*/`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；主密钥不在 Home 里 |
-| E 个人内容 | 3.3 的个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`jelly/preferences.json`、`plugin-builder/`、`characters/`、`mainline/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；当前 v1 库的邀请只存哈希，仍含私人正文，见 3.4）、`placement/`、`functions/`、`context-onboarding/`、`external-sessions/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |
+| E 个人内容 | 3.3 的个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`plugin-builder/`、`characters/`、`mainline/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；当前 v1 库的邀请只存哈希，仍含私人正文，见 3.4）、`placement/`、`functions/`、`context-onboarding/`、`external-sessions/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |
 | F 配置 | `config/` 里的 `onboarding.json`、`project-arrival.json`、`ui-locale.json`、`mcp-tools.json`、`desktop.json`，`interface/state.json`、`runtime-integrations/`、`runtime-config-backups/`、`browser/sites.json` | 很小，授权类的丢了不能凭空重建 |
 
-不必备份：`releases/`、`bin/`（可重装），`search/`、`cache/`、`materials/models/`（可重建），`logs/`，`browser/profile/`、`browser/downloads/`、`browser/uploads/`，所有锁与暂存。
+不必备份：`releases/`、`bin/`（可重装），`search/`、`cache/`（可重建），`logs/`，`browser/profile/`、`browser/downloads/`、`browser/uploads/`，所有锁与暂存。
 
 浏览器 profile 的排除意味着恢复后重新登录，`browser/sites.json` 的站点授权仍保留。`directory-access/bookmarks.json` 含目录授权能力，显式 Home 内只密封保存原字节及权限，不能当普通配置导出、刷新或伪造授权；OS 不接受时由用户重选，Home 外 AppData 不复制。CLI `.home` 的独有配置和登录文件必须密封保存。预留的 `backups/` 若非空而没有现行 owner 解释内容，拒绝分类，不能默认为派生缓存。
 
@@ -408,7 +406,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 
 缺口（按处理它的路线图条目）：
 
-- `materials/models/` 是平台材料服务的缓存（`MATERIALS_HOME_STORE`，已随第 44 批 PEQ-09 离开灵光目录）；不随快照备份，首次转写时按需下载。
+- `materials/` 已随第 112 批删除本机语音转写而不再使用：没有代码创建或读写它。旧 Home 里留下的 `materials/models/` 不迁移、不清理，可以手动删除；`homeStores()` 保留一条只排除、不建目录的登记（不随快照备份，恢复时重置，卸载时清除），让带着它的旧 Home 照常做快照，第 90 批 v1 封板时删除（`CONTRACT-CHANGES.md`「当前保留机制」）。
 
 - Home 存储已有单一登记（W4-11）。登记只认 owner 声明的条目，没有门禁去找代码里**没登记**就写进 Home 的新目录；这一点仍靠评审、本表和上面几条用例（讨论挂载那条用例的写法可以照搬到别的入口）。
 - 共享日志表 `events`、`idempotency_records` 的跨 owner 语句已清零：Goals 与 Governance 两个模块改用宿主注入的日志端口（PG-094 S9-1），`shared` 两条登记已删。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。

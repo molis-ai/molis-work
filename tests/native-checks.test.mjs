@@ -219,22 +219,22 @@ test("rust: a repository without Rust files has nothing to check", () => {
 });
 
 // ---- Swift ------------------------------------------------------------------------------------------------------------
-const JELLY = "apps/local-host/native/materials/JellyMaterial.swift";
+const MATERIAL = "apps/local-host/native/materials/MolisMaterial.swift";
 const swift = { skip: haveSwift ? false : "swiftc on macOS is not available here" };
 const CLEAN_SWIFT = `import Foundation\n\n@main struct Tool {\n    static func main() { print("ok") }\n}\n`;
 
 test("swift: a file that type-checks passes", swift, () => {
-  const run = gate(repoWith({ [JELLY]: CLEAN_SWIFT }), ["swift"]);
+  const run = gate(repoWith({ [MATERIAL]: CLEAN_SWIFT }), ["swift"]);
   assert.equal(run.code, 0, run.out);
   assert.match(run.out, /swift checks passed/);
 });
 test("swift: a type error fails", swift, () => {
-  const run = gate(repoWith({ [JELLY]: `import Foundation\n\n@main struct Tool {\n    static func main() { let value: Int = "text"; print(value) }\n}\n` }), ["swift"]);
+  const run = gate(repoWith({ [MATERIAL]: `import Foundation\n\n@main struct Tool {\n    static func main() { let value: Int = "text"; print(value) }\n}\n` }), ["swift"]);
   assert.equal(run.code, 1, run.out);
-  assert.match(run.out, /swiftc -typecheck apps\/local-host\/native\/materials\/JellyMaterial\.swift failed/);
+  assert.match(run.out, /swiftc -typecheck apps\/local-host\/native\/materials\/MolisMaterial\.swift failed/);
 });
 test("swift: a Swift file the checks do not know is refused (no tool needed)", () => {
-  const run = gate(repoWith({ [JELLY]: CLEAN_SWIFT, "apps/local-host/native/other/New.swift": "import Foundation\n" }), ["swift"]);
+  const run = gate(repoWith({ [MATERIAL]: CLEAN_SWIFT, "apps/local-host/native/other/New.swift": "import Foundation\n" }), ["swift"]);
   assert.equal(run.code, 1, run.out);
   assert.match(run.out, /apps\/local-host\/native\/other\/New\.swift is Swift code the checks do not know/);
 });

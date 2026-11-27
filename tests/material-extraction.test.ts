@@ -77,44 +77,44 @@ test("malformed HTML cannot block the Host deadline; cancellation releases its w
   assert.deepEqual(await readMaterialHtml("<head><title>OK</title></head><p>Recovered</p>"), { title: "OK", text: "Recovered" });
   assert.equal(ports(), initial);
 });
-test("read, revoked and aborted uploads leave nothing in the Home", async () => {
-  const home = mkdtempSync(path.join(tmpdir(), "molis-material-ref-"));
-  try {
+test("read, revoked and aborted uploads return the text or stop, and simultaneous reads do not mix", async () => {
+  {
     const upload = { file_name: "old.md", data_base64: Buffer.from("# 原始材料\n保持原件").toString("base64") };
-    assert.equal((await extractUploadedMaterial(home, upload)).text, "# 原始材料\n保持原件");
-    assert.deepEqual(readdirSync(home), [], "the text is returned; the upload itself is not kept");
+    assert.equal((await extractUploadedMaterial(upload)).text, "# 原始材料\n保持原件");
     const cancelled = new AbortController();
-    await assert.rejects(extractUploadedMaterial(home, { file_name: "cancel.md", data_base64: Buffer.from("NEW COPY").toString("base64") }, {
+    await assert.rejects(extractUploadedMaterial({ file_name: "cancel.md", data_base64: Buffer.from("NEW COPY").toString("base64") }, {
       signal: cancelled.signal, beforeEffect() { cancelled.abort(); },
     }), /已取消/);
     const revoked = new Error("permission revoked");
-    await assert.rejects(extractUploadedMaterial(home, upload, { beforeEffect() { throw revoked; } }), error => error === revoked);
-    const simultaneous = await Promise.all(Array.from({ length: 8 }, () => extractUploadedMaterial(home, {
+    await assert.rejects(extractUploadedMaterial(upload, { beforeEffect() { throw revoked; } }), error => error === revoked);
+    const simultaneous = await Promise.all(Array.from({ length: 8 }, () => extractUploadedMaterial({
       file_name: "simultaneous.txt", data_base64: Buffer.from("same concurrent content").toString("base64"),
     })));
     assert.ok(simultaneous.every(result => result.text === "same concurrent content"));
-    assert.deepEqual(readdirSync(home), []);
-  } finally { rmSync(home, { recursive: true, force: true }); }
+  }
 });
 test("native cancellation kills the child and cleans its actual temporary input and run directory", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "molis-material-process-"));
   let runDirectory = "", pid = 0;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   try {
-    const helper = path.join(home, "wait-helper");
-    writeFileSync(helper, `#!${process.execPath}\nprocess.on('SIGTERM',()=>{});process.stderr.write(JSON.stringify({stage:JSON.stringify({file:process.argv[3],pid:process.pid}),progress:0})+'\\n');setInterval(()=>{},1000);\n`, { mode: 0o700 });
+    const helper = path.join(home, "wait-helper"), started = path.join(home, "started.json");
+    writeFileSync(helper, `#!${process.execPath}\nprocess.on('SIGTERM',()=>{});require('node:fs').writeFileSync(${JSON.stringify(started)},JSON.stringify({file:process.argv[3],pid:process.pid}));setInterval(()=>{},1000);\n`, { mode: 0o700 });
     const controller = new AbortController();
-    const extract = createMaterialExtractor({ platform: "darwin", whisperHelperPath: helper, modelDirectory: home });
-    const pending = extract({ file_name: "sample.wav", bytes: Buffer.from("authorized input") }, { signal: controller.signal,
-      onProgress(progress) { const info = JSON.parse(progress.stage); runDirectory = path.dirname(info.file); pid = info.pid; assert.ok(existsSync(info.file)); controller.abort(); },
-    });
+    const extract = createMaterialExtractor({ platform: "darwin", helperPath: helper });
+    const pending = extract({ file_name: "scan.png", bytes: Buffer.from("authorized input") }, { signal: controller.signal });
+    const watcher = setInterval(() => {
+      if (!existsSync(started)) return;
+      clearInterval(watcher); const info = JSON.parse(readFileSync(started, "utf8"));
+      runDirectory = path.dirname(info.file); pid = info.pid; assert.ok(existsSync(info.file)); controller.abort();
+    }, 20);
     const deadline = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error("native cancellation did not finish")), 5000); });
     try {
       await assert.rejects(Promise.race([pending, deadline]), error => error instanceof Error && error.name === "AbortError");
       assert.ok(runDirectory); assert.equal(existsSync(runDirectory), false);
       assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
     } finally {
-      clearTimeout(watchdog);
+      clearTimeout(watchdog); clearInterval(watcher);
       if (pid) { try { process.kill(pid, "SIGKILL"); } catch {} }
       await pending.catch(() => {});
     }
@@ -165,7 +165,7 @@ test("onboarding rejects partially readable PDFs, reads long text whole, preserv
 });
 
 
-test("Host release assets include executable native extraction and its licenses without shipping Swift caches", { skip: process.platform !== "darwin" }, async () => {
+test("Host release assets include the executable native extractor and nothing of the retired speech helper", { skip: process.platform !== "darwin" }, async () => {
   const source = fileURLToPath(new URL("../apps/local-host/", import.meta.url));
   const destination = mkdtempSync(path.join(tmpdir(), "molis-material-release-"));
   try {
@@ -173,11 +173,10 @@ test("Host release assets include executable native extraction and its licenses 
     const entries = (await declaredReleaseFileEntries(source, manifest)).filter(entry => entry.startsWith("native/"));
     await copyReleaseEntries(source, destination, entries);
     const native = path.join(destination, "native", "materials");
-    const capabilities = JSON.parse(execFileSync(path.join(native, "bin", "jelly-material"), ["capabilities"], { encoding: "utf8" }));
-    assert.equal(capabilities.image_ocr, "available"); assert.equal(capabilities.pdf, "available");
-    assert.ok(existsSync(path.join(native, "bin", "jelly-whisper")));
-    assert.ok(existsSync(path.join(native, "licenses", "argmax-oss-swift-LICENSE.txt")));
-    assert.equal(existsSync(path.join(native, "whisper")), false);
+    const capabilities = JSON.parse(execFileSync(path.join(native, "bin", "molis-material"), ["capabilities"], { encoding: "utf8" }));
+    assert.equal(capabilities.image_ocr, "available"); assert.equal(capabilities.pdf, "available"); assert.equal(capabilities.extractor, "molis-material");
+    assert.deepEqual(readdirSync(path.join(native, "bin")), ["molis-material"]);
+    for (const retired of ["whisper", "licenses", "THIRD-PARTY-NOTICES.md"]) assert.equal(existsSync(path.join(native, retired)), false, retired);
   } finally { rmSync(destination, { recursive: true, force: true }); }
 });
 

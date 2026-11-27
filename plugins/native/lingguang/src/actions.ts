@@ -19,8 +19,8 @@ const conversationState = object({ conversation, sparks: { type: "array", items:
 const fields = { title: { type: "string", maxLength: 80 }, body: { type: "string", maxLength: LINGGUANG_BODY_LIMIT } };
 const read = ["lingguang:read"], write = ["lingguang:write"];
 const CONCURRENT = new Set(["conversation.message", "material.read", "source.read"]);
-type MaterialUpload = { file_name: string; data_base64: string; allow_model_download?: boolean };
-type MaterialSource = { url: string; allow_model_download?: boolean };
+type MaterialUpload = { file_name: string; data_base64: string };
+type MaterialSource = { url: string };
 /** Text read from a file or a public page. Reading keeps no spark: the person keeps what they want from it. */
 interface LingguangMaterial { text: string; title?: string; file_name?: string; source_url?: string; partial?: boolean; issues?: string[] }
 /** What the Host's reader returns; only the text and what it says about its coverage are kept. */
@@ -73,10 +73,10 @@ export const lingguangActions = {
   placementExport: defineObjectExportAction("lingguang.placement.export", /* @version action.lingguang.placement.export */ 1, ["lingguang_spark"], "灵光", read),
   placementPut: defineObjectPutAction("lingguang.placement.put", /* @version action.lingguang.placement.put */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
   placementRemove: defineObjectRemoveAction("lingguang.placement.remove", /* @version action.lingguang.placement.remove */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
-  readFile: define<MaterialUpload, LingguangMaterial>("material.read", /* @version action.lingguang.material.read */ 1, "读取文件内容", "提取上传文件的文字（含图片识别与音视频转写），不保存灵光；需要下载本机识别模型时先得到同意", "command",
-    object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 }, allow_model_download: { type: "boolean" } }, ["file_name", "data_base64"]), material, [...write, "materials:read"]),
-  readSource: define<MaterialSource, LingguangMaterial>("source.read", /* @version action.lingguang.source.read */ 1, "读取链接内容", "读取公开网页、视频字幕或播客音频的文字，不保存灵光；遵守原来源的边界", "command",
-    object({ url: { type: "string", minLength: 1, maxLength: 2000 }, allow_model_download: { type: "boolean" } }, ["url"]), material, [...write, "materials:fetch"]),
+  readFile: define<MaterialUpload, LingguangMaterial>("material.read", /* @version action.lingguang.material.read */ 1, "读取文件内容", "提取上传文件的文字（含图片里的文字），不保存灵光；音视频不转写", "command",
+    object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 } }, ["file_name", "data_base64"]), material, [...write, "materials:read"]),
+  readSource: define<MaterialSource, LingguangMaterial>("source.read", /* @version action.lingguang.source.read */ 1, "读取链接内容", "读取公开网页或视频字幕的文字，不保存灵光；遵守原来源的边界", "command",
+    object({ url: { type: "string", minLength: 1, maxLength: 2000 } }, ["url"]), material, [...write, "materials:fetch"]),
   fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", /* @version action.lingguang.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, []),
 };
 /** The complete `lingguang.create` input for a fragment; pure. The same request id saves it once. */

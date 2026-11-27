@@ -397,30 +397,40 @@ const civilToday = () => { const now = new Date(); return `${now.getFullYear()}-
 test("VUX-31: Jelly keeps what a command returned when the re-read after the Assistant's change answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "jelly");
-  const today = civilToday();
+  const today = civilToday(), at = new Date().toISOString();
   const store = openJellyStore(browser.homeDirectory);
-  try { for (const [id, title] of [["late-a", "写周报"], ["late-b", "订会议室"]]) store.execute({ type: "item.create", item: { id, title, kind: "task", start_date: today, end_date: today } }, store.read().revision); } finally { store.close(); }
+  try {
+    store.write((rows) => { for (const [id, title] of [["late-a", "写周报"], ["late-b", "订会议室"]] as const) rows.insert("item", { id, title, kind: "task", category_id: "uncategorized", notes: "",
+      start_date: today, end_date: today, start_time: null, end_time: null, time_zone: "Asia/Shanghai", completed_at: null, revision: 1, created_at: at, updated_at: at }); });
+  } finally { store.close(); }
   await wide(browser); await openPlugin(browser, "jelly");
-  await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')", 20_000);
+  await waitFor("!!document.querySelector('[data-jelly-page] [data-jelly-day]')", 20_000);
   await evaluate("document.querySelector('[data-jelly-mode=list]').click()");
-  await waitFor("document.querySelectorAll('[data-jelly-toggle-item]').length === 2", 10_000);
-  const done = () => evaluate<string[]>("[...document.querySelectorAll('[data-jelly-occurrence].is-done .jelly-item-title')].map((node) => node.textContent)");
-  // The Host answers the page's read of the workspace at once; the answer is held on its way to the page.
-  const hold = await holdReads(browser, ["*io.molis.work.jelly/"], "Response");
+  await waitFor("document.querySelectorAll('[data-jelly-toggle]').length === 2", 10_000);
+  const done = () => evaluate<string[]>("[...document.querySelectorAll('.jelly-row[data-done] .jelly-row-open .jelly-cut')].map((node) => node.textContent)");
+  // Every Jelly read and write is one action call on the same address: the Host answers each at once, and the answers are held on their way to the page.
+  const hold = await holdReads(browser, ["*/api/host/plugin-page-actions"], "Response");
   try {
     await browser.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { work_id: 'w-1', capability_id: 'jelly.item.create' } }))");
-    const stale = await hold.next("io.molis.work.jelly/");
-    // The person ticks an item meanwhile: the command's answer is the newer workspace.
-    await evaluate("document.querySelector('[data-jelly-toggle-item=late-a]').click()");
-    await waitFor("document.querySelectorAll('[data-jelly-occurrence].is-done').length === 1", 10_000);
+    const stale = await hold.next("jelly.calendar.list");
+    /** Lets every held answer but the stale read through until `ready` holds. */
+    const until = async (ready: string) => {
+      for (const end = Date.now() + 10_000; !(await evaluate<boolean>(ready)); await pause(50)) {
+        for (const one of hold.pending()) if (one !== stale) await hold.release(one);
+        assert.ok(Date.now() < end, `${ready}; seen ${JSON.stringify(hold.seen)}`);
+      }
+    };
+    // The person ticks an item meanwhile: the command and the read after it are the newer calendar.
+    await evaluate("document.querySelector('[data-jelly-toggle=late-a]').click()");
+    await until("document.querySelectorAll('.jelly-row[data-done]').length === 1");
     assert.deepEqual(await done(), ["写周报"]);
+    const seen = hold.seen.length;
     await hold.release(stale); await pause(800);
     assert.deepEqual(await done(), ["写周报"], "the earlier read's late answer does not take the tick back");
-    assert.equal(hold.seen.length, 1, "the late answer started nothing more: " + JSON.stringify(hold.seen));
-    // The next command is accepted (it carries the newer revision), not turned away as a conflict.
-    await evaluate("document.querySelector('[data-jelly-toggle-item=late-b]').click()");
-    await waitFor("document.querySelectorAll('[data-jelly-occurrence].is-done').length === 2 || !document.querySelector('[data-jelly-notice]').hidden", 10_000);
-    assert.equal(await evaluate("document.querySelector('[data-jelly-notice]').hidden ? '' : document.querySelector('[data-jelly-notice]').textContent"), "", "no conflict notice");
+    assert.equal(hold.seen.length, seen, "the late answer started nothing more: " + JSON.stringify(hold.seen.slice(seen)));
+    // The next command carries the newer revision, so it is accepted rather than turned away as a conflict.
+    await evaluate("document.querySelector('[data-jelly-toggle=late-b]').click()");
+    await until("document.querySelectorAll('.jelly-row[data-done]').length === 2");
     assert.deepEqual((await done()).sort(), ["写周报", "订会议室"]);
   } finally { await hold.close(); }
 });

@@ -208,6 +208,54 @@ test("S-84 SCS-08 a project enable cancelled or replaced during real executor st
   ], "the real role and method are offered by the same installation after successful enable");
 });
 
+test("S-84 BL-b47-prompt-register-newest-fallback cancelling a second project's enable preserves the last confirmed version", mac, async t => {
+  const f = await serveHomeRuntime(t), observe = observeSignedPackageLifecycle(t);
+  const a = projectPackage(f, await f.project("Running v1")), b = projectPackage(f, await f.project("Disabled v2"));
+  const publisher = newPublisher();
+  await a.install(signedAgentPackage(publisher, { version: "1.0.0" }));
+  const first = observe().runtime;
+  await b.install(signedAgentPackage(publisher, { version: "2.0.0", roles: [{ name: "新版角色", purpose: "仅新版", body: "agent/v2.md" }] }));
+  const { runtime } = observe();
+  await b.disable();
+  const selected = projectInstallation(await b.row());
+  const db = new DatabaseSync(homeSqlitePath(f.home, "agent-declarations"), { readOnly: true });
+  t.after(() => db.close());
+  const stored = () => db.prepare("SELECT registration, updated_at FROM install_declarations WHERE install_id = ? AND owner_id = ?").get(selected.install_id, PACKAGE_PLUGIN_ID);
+  const registry = homeAgentDefinitions(f.home);
+  const roles = () => registry.roles().filter(row => row.owner_id === PACKAGE_PLUGIN_ID).map(row => [row.name, row.source.kind === "plugin" && row.source.state]);
+  const executor = Reflect.get(runtime, "executor") as PluginExecutor, start = executor.start;
+  let gate = hold();
+  t.mock.method(executor, "start", async function(this: PluginExecutor, ...args: Parameters<PluginExecutor["start"]>) {
+    const started = await start.apply(this, args);
+    gate.entered.resolve(); await gate.release.promise;
+    return started;
+  });
+  for (const change of ["keep", "disable", "uninstall"]) {
+    assert.deepEqual(roles(), [["审稿", "enabled"]]);
+    gate = hold();
+    const controller = new AbortController();
+    const pending = b.enable({ ...target, expected_installation: selected }, { signal: controller.signal });
+    try {
+      await enteredBefore(pending, gate.entered.promise);
+      if (change === "disable") await a.disable();
+      if (change === "uninstall") await first.uninstall(selected.install_id);
+      const beforeCancel = stored(), pendingRoles = roles();
+      controller.abort(new ActionError("actions.cancelled", "left the settings page"));
+      gate.release.resolve();
+      await assert.rejects(pending, { code: "actions.cancelled" });
+      assert.deepEqual(stored(), beforeCancel, "cancelling the candidate must not rewrite the remembered row");
+      if (change === "uninstall") assert.equal(beforeCancel, undefined, "a candidate cannot keep an uninstalled declaration");
+      else assert.ok(beforeCancel);
+      assert.deepEqual(pendingRoles, change === "uninstall" ? [] : [["审稿", change === "disable" ? "disabled" : "enabled"]], "a candidate is not offered to another project");
+      assert.deepEqual(roles(), pendingRoles, "only the confirmed role is visible after cancellation");
+    } finally { gate.release.resolve(); }
+    if (change === "disable") await a.enable({ ...target, expected_installation: projectInstallation(await a.row()) });
+  }
+  await b.enable({ ...target, expected_installation: selected });
+  assert.deepEqual(roles(), [["新版角色", "enabled"]]);
+  assert.ok(stored());
+});
+
 test("S-84 SCS-08 a committed start still closes after caller withdrawal and cannot undo a newer disable", mac, async t => {
   const observe = observeSignedPackageLifecycle(t), h = await installedPackageHost();
   try {

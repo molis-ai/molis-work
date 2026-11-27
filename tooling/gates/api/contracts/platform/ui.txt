@@ -1317,6 +1317,7 @@ export interface UiShadowLayer {
 export interface UiShowToastOptions {
     readonly tone?: "default" | "success" | "warning" | "error";
     readonly duration?: "short" | "normal" | "long" | number;
+    readonly undo?: () => void;
 }
 
 export interface UiSideContext {

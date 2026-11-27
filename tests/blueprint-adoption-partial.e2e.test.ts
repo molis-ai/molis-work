@@ -8,14 +8,11 @@ import type { Blueprint, BlueprintPart } from "@molis-ai/molis-work-contracts/pl
 import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { shelfManifest } from "@molis-ai/molis-work-module-shelf/surface";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
 const primary = ".arrival-bar .bar-end .mw-btn--primary";
 const choosePersonal = 'input[name=scene-target][value=personal]';
@@ -71,29 +68,23 @@ test("ONB-21/SPC-02: review, repair, or skip one malformed suggestion while adop
   assert.ok(corrected.state === "ok" && corrected.value === false && corrected.revision !== original.revision);
 });
 
-for (const outcome of ["replacement", "resumed", "manually changed"] as const)
+// Shelf's drop wheel (a device setting a Home plugin owns) stands where Jelly's model choice stood until batch 112-2 retired it. Shelf is a
+// platform part no package can reinstall, so the "replacement" outcome (owner_replaced after a reinstall) has no built-in owner left to run on.
+for (const outcome of ["resumed", "manually changed"] as const)
 test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain write, plugin " + outcome, { timeout: 90_000 }, async t => {
   const env = await openTestHome(t);
   const one = await env.createProject("A"), two = await env.createProject("B");
-  const base = "http://127.0.0.1:9/review";
-  const { withCatalog } = env.host.ensureWebCatalog(env.home, openMolisWorkProjectCatalog);
-  await runWithMolisWorkHome(env.home, () => withCatalog({ homeDirectory: env.home }, catalog => {
-    const connection = withConnectorConnections(env.home, store => {
-      const row = store.createToken({ serviceId: "model-api", displayName: "local review fixture", token: "offline-review-fixture" });
-      store.assertTarget(row.connection_id, "model-api", base);
-      return row;
-    });
-    catalog.models.upsert({ provider_id: "b38-jelly", display_name: "Review fixture", base_url: base, credential_ref: connection.credential_ref!,
-      api_format: "openai-chat-completions", models: ["before", "after"].map(model_id => ({ model_id, enabled: true })) });
-  }));
   const callerA = await env.host.localPersonContext(one.reference), callerB = await env.host.localPersonContext(two.reference);
   const a = bindActionClient(env.host.actionClient(one.reference), () => callerA);
   const b = bindActionClient(env.host.actionClient(two.reference), () => callerB);
-  const selected = { provider_id: "b38-jelly", model_id: "after" };
-  const stale = { provider_id: "b38-jelly", model_id: "before" };
-  const key = jellyManifest.settings_entries!.model_configuration!.key;
+  const homeCaller = await env.host.localPersonContext();
+  const local = env.host.homeActionClient();
+  const prefs = shelfManifest.settings_entries!, key = "shelf.drop_wheel";
+  const wheel = async () => (await local.invoke<{ keys: string[] }, SettingsValues>(homeCaller, prefs.read, { keys: [key] })).values[0]!;
+  const original = await wheel();
+  assert.ok(original.state === "ok" && original.value === true, "the wheel starts on");
   const { draft } = await a.invoke(actions.draftSave, { expected_revision: null,
-    blueprint: blueprint("Replacement review", part("engine", "projects.runtime", "prologue", "project"), part("model", key, selected), part("stale", key, stale)) });
+    blueprint: blueprint("Replacement review", part("engine", "projects.runtime", "prologue", "project"), part("model", key, false), part("stale", key, false)) });
   const preview = await a.invoke(actions.preview, { source: draft.source, target: { kind: "current_project" }, part_ids: ["engine", "model"] });
   const oldPreview = await a.invoke(actions.preview, { source: draft.source, target: { kind: "current_project" }, part_ids: ["stale"] });
   assert.equal(preview.parts[1]?.decision, "update", JSON.stringify(preview.parts[1]));
@@ -107,7 +98,7 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
     const client = normal(...args);
     return { ...client, async invoke(caller: ActionCallContext, ref: ActionReference, input: unknown) {
       const reply = await client.invoke(caller, ref, input);
-      if (!lost && ref.capability_id === jellyManifest.settings_entries!.write.capability_id) {
+      if (!lost && ref.capability_id === prefs.write.capability_id) {
         lost = true;
         throw new Error("Fault injection: owner finished; transport lost the reply");
       }
@@ -137,19 +128,18 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
   const resultPath = `/projects/${one.project_id}/onboarding?scene&adoption=${initial.adoption_id}`;
   if (page && browser) {
     await page.command("Page.enable");
-    await page.command("Network.setCookie", { name: "molis_work_locale", value: outcome === "replacement" ? "en" : "zh", url: env.origin });
+    await page.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: env.origin });
     await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.navigate", { url: env.origin + resultPath })]);
     await page.wait(awaiting);
     assert.equal(await page.evaluate(unavailableHint), false);
   }
-  const preference = join(env.home, "jelly", "preferences.json");
-  const saved = JSON.parse(await readFile(preference, "utf8"));
-  assert.deepEqual(saved.selection, selected);
-  assert.equal(Object.keys(saved.receipts).length, 1);
+  // The owner finished the write whose answer was lost: the wheel is off at a new revision.
+  const saved = await wheel();
+  assert.ok(saved.state === "ok" && saved.value === false && saved.revision !== original.revision);
   const platform = await env.host.homePlugins!.ready();
-  const old = env.host.homePlugins!.installation(jellyManifest.plugin_id);
+  const old = env.host.homePlugins!.installation(shelfManifest.plugin_id);
   assert.ok(old?.installation_generation);
-  platform.supervisor.revoke(jellyManifest.plugin_id);
+  platform.supervisor.revoke(shelfManifest.plugin_id);
   await platform.runtime.stop(old.install_id);
   const stopped = await a.invoke(actions.preview, { source: draft.source, target: { kind: "current_project" }, part_ids: ["model"] });
   assert.ok(stopped.parts[0]?.decision === "skip" && stopped.parts[0].reason === "owner_disabled");
@@ -168,67 +158,34 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
   assert.deepEqual(stoppedStatus.latest_undo?.steps[1], unavailable);
   await page?.wait(`${awaiting} && ${unavailableHint}`);
   assert.equal(await a.invoke(projectSettingsCapabilities.runtime, []), null);
-  assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), saved);
-  if (outcome !== "replacement") {
-    const enabled = await platform.supervisor.enable(jellyManifest.plugin_id);
-    assert.equal(enabled.status, "running");
-    assert.equal(env.host.homePlugins!.installation(jellyManifest.plugin_id)?.installation_generation, old.installation_generation);
-    const reenabledStatus = await a.invoke(actions.read, { adoption_id: initial.adoption_id });
-    assert.deepEqual(reenabledStatus.apply_steps[1], unknown);
-    assert.deepEqual(reenabledStatus.latest_undo?.steps[1], unknown);
-    if (page && browser) {
-      await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.reload")]);
-      await page.wait(`${awaiting} && !(${unavailableHint})`);
-    }
-    const prefs = "/api/plugins/io.molis.work.jelly/preferences/";
-    if (outcome === "manually changed") {
-      const value = (await env.web.post<SettingsValues>(prefs + "read", { keys: [key] })).values[0]!;
-      await env.web.post(prefs + "write", { key, layer: "personal", expected_revision: value.revision,
-        request_id: "choose-another-model", change: { set: stale } });
-    }
-    const continued = await a.invoke(actions.revert, undoRequest);
-    if (outcome === "manually changed") assert.deepEqual(continued.undo.steps[1], { part_id: "model", state: "skipped", reason: "revision_changed" });
-    else assert.equal(continued.undo.steps[1]?.state, "restored");
-    const after = JSON.parse(await readFile(preference, "utf8"));
-    assert.deepEqual(after.selection, outcome === "manually changed" ? stale : null);
-    assert.equal(Object.keys(after.receipts).length, 2);
-    const repeated = await a.invoke(actions.remove, { ...undoRequest, request_id: "remove-finished" });
-    assert.deepEqual(repeated.undo.steps, continued.undo.steps);
-    assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), after);
-    return;
+  // Shelf's own file, read while its runtime is stopped: nothing changed the preference or its receipts.
+  const catalog = join(env.home, "shelf", "catalog.json");
+  const preferences = async () => JSON.parse(await readFile(catalog, "utf8")).preferences as { layers: Record<string, { revision: number }>; receipts: Record<string, unknown> };
+  const kept = await preferences();
+  assert.equal(Object.keys(kept.receipts).length, 1);
+  const enabled = await platform.supervisor.enable(shelfManifest.plugin_id);
+  assert.equal(enabled.status, "running");
+  assert.equal(env.host.homePlugins!.installation(shelfManifest.plugin_id)?.installation_generation, old.installation_generation);
+  assert.deepEqual(await wheel(), saved);
+  const reenabledStatus = await a.invoke(actions.read, { adoption_id: initial.adoption_id });
+  assert.deepEqual(reenabledStatus.apply_steps[1], unknown);
+  assert.deepEqual(reenabledStatus.latest_undo?.steps[1], unknown);
+  if (page && browser) {
+    await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.reload")]);
+    await page.wait(`${awaiting} && !(${unavailableHint})`);
   }
-  await platform.runtime.uninstall(old.install_id, { retain_private_data: true });
-  await env.close();
-  await env.host.close();
-
-  const successor = new MolisWorkLocalHost({ homeDirectory: env.home, completeText: null });
-  try {
-    successor.configurePersonalPlanning(env.home, successor.ensureWebCatalog(env.home, openMolisWorkProjectCatalog).withCatalog);
-    const served = await serveTestHost(null, { home: env.home, host: successor });
-    try {
-      const ready = await successor.homePlugins!.ready();
-      const enabled = await ready.supervisor.enable(jellyManifest.plugin_id);
-      assert.equal(enabled.status, "running", JSON.stringify(enabled));
-      const replacement = successor.homePlugins!.installation(jellyManifest.plugin_id);
-      assert.ok(replacement?.installation_generation);
-      assert.equal(replacement.state, "running");
-      assert.notEqual(replacement.installation_generation, old.installation_generation);
-      const current = await successor.localPersonContext(one.reference);
-      const restarted = bindActionClient(successor.actionClient(one.reference), () => current);
-      const result = await restarted.invoke(actions.remove, { ...undoRequest, request_id: "remove-after-restart" });
-      const replaced = { ...unknown, current: "owner_replaced" };
-      assert.deepEqual(result.undo.steps, [undone.undo.steps[0], replaced]);
-      assert.equal(await restarted.invoke(projectSettingsCapabilities.runtime, []), null);
-      const status = await restarted.invoke(actions.read, { adoption_id: initial.adoption_id });
-      assert.deepEqual(status.apply_steps[1], replaced);
-      assert.deepEqual(status.latest_undo?.steps[1], replaced);
-      if (page && browser) {
-        await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.navigate", { url: served.origin + resultPath })]);
-        await page.wait(`${awaiting} && /was reinstalled/i.test(${pendingRow})`);
-      }
-      assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), saved, "the replacement never receives an old request");
-    } finally { await served.close(); }
-  } finally { await successor.close(); }
+  // A person who turns the wheel back on in Shelf meanwhile keeps that choice: undo does not write over a revision it did not leave.
+  if (outcome === "manually changed") await local.invoke(homeCaller, prefs.write, { key, layer: "personal", expected_revision: saved.revision,
+    request_id: "choose-wheel-again", change: { set: true } });
+  const continued = await a.invoke(actions.revert, undoRequest);
+  if (outcome === "manually changed") assert.deepEqual(continued.undo.steps[1], { part_id: "model", state: "skipped", reason: "revision_changed" });
+  else assert.equal(continued.undo.steps[1]?.state, "restored");
+  const after = await wheel();
+  assert.ok(after.state === "ok" && after.value === true, "on again: put back by undo, or by the person");
+  assert.equal(Object.keys((await preferences()).receipts).length, 2);
+  const repeated = await a.invoke(actions.remove, { ...undoRequest, request_id: "remove-finished" });
+  assert.deepEqual(repeated.undo.steps, continued.undo.steps);
+  assert.deepEqual(await wheel(), after);
 });
 
 test("ONB-33: catalog availability agrees with owner-only Assistant and Shelf reads", async t => {

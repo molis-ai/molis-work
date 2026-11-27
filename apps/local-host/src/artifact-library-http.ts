@@ -20,7 +20,7 @@ import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult
 import type { LocalWebActionClient } from "./local-web-actions.js";
 import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import { importedDocumentWarnings, type ReadArtifactDisplay } from "./artifact-display-words.js";
-import { LOCAL_PAGE_CSP, parseLocalRequestUrl, requestHeader, sendLocalWebJson } from "./web-http.js";
+import { LOCAL_PAGE_CSP, requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 import { responseAbortSignal } from "./web-entry-actions.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
@@ -193,8 +193,7 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
   try {
     const path = join(directory, "original");
     await pipeline(request, createWriteStream(path, { flags: "wx" }));
-    const input: ArtifactFileImport = { source: "file", filename, original_file: { filename, mime },
-      ...parseLocalRequestUrl(request.url)?.searchParams.get("allow_model_download") === "true" ? { allow_model_download: true } : {} };
+    const input: ArtifactFileImport = { source: "file", filename, original_file: { filename, mime } };
     const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
       const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, control, on_progress ? { on_progress } : undefined);
       return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved) } };
@@ -225,7 +224,7 @@ async function importArtifactJson(request: IncomingMessage, response: ServerResp
     const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
     return { status: result.reused ? 200 : 201, body: result };
   };
-  // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
+  // A page that waits on a slow reading (a scanned PDF, an image's text) can ask for the result as NDJSON (QEA-24); a disconnect stops the reading.
   if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
   const result = await answer();
   sendLocalWebJson(response, result.status, result.body);

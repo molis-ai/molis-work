@@ -5,8 +5,8 @@ const PERMISSION_REASONS: Readonly<Record<string, { readonly reason: string; rea
   "lingguang:read": { reason: "读取当前项目的灵光内容、关联信息与对话历史", key: "lingguang.permission.lingguang-read.reason" },
   "lingguang:write": { reason: "新增、修改、移动、复制或丢弃当前项目的灵光，并保存对话记录", key: "lingguang.permission.lingguang-write.reason" },
   "model:invoke": { reason: "调用已配置的文字模型，围绕所选灵光生成对话回复", key: "lingguang.permission.model-invoke.reason" },
-  "materials:read": { reason: "从你上传的文件、图片或音视频中提取文字内容", key: "lingguang.permission.materials-read.reason" },
-  "materials:fetch": { reason: "读取你提供的公开网页、视频字幕或播客音频中的文字", key: "lingguang.permission.materials-fetch.reason" },
+  "materials:read": { reason: "从你上传的文件或图片中提取文字内容", key: "lingguang.permission.materials-read.reason" },
+  "materials:fetch": { reason: "读取你提供的公开网页或视频字幕中的文字", key: "lingguang.permission.materials-fetch.reason" },
   "storage:private": { reason: "在本地保存你的灵光记录与对话历史", key: "lingguang.permission.storage-private.reason" },
 };
 

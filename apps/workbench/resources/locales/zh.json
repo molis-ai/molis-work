@@ -1189,7 +1189,7 @@
     "workbench.assistant-board-frame.assistant-specimen": "助理样例",
     "workbench.assistant-board-frame.bring-three-files-simulated": "带上三个文件（模拟）",
     "workbench.assistant-board-frame.move-one-step-simulated": "推进一步（模拟）",
-    "workbench.assistant-board-frame.simulated-works-turns-host-s-answers-fixed-samples": "这里用固定的工作、对话和回复作演示。回答、核对和提醒只在本页生效，不调用模型，也不会改动其他数据。助理面板、侧栏的六个分组、步骤、输入框、上下文条和附件与工作台相同。",
+    "workbench.assistant-board-frame.simulated-works-turns-host-s-answers-fixed-samples": "模拟：这里的工作、对话和回复都是固定样例。回答、核对和提醒只在本页生效，不调用模型，也不会改动其他数据。助理面板、侧栏的六个分组、步骤、输入框、上下文条和附件与工作台相同。",
     "workbench.assistant-board-samples.mode-discuss": "讨论",
     "workbench.assistant-board-samples.mode-edit": "修改",
     "workbench.assistant-board-samples.mode-execute": "执行",

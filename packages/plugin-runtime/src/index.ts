@@ -113,7 +113,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         || activation && this.contexts.get(installId) !== activation) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
       check?.();
     };
-    current(); return current;
+    check?.(); return current;
   }
 
   private permissionBound(record: PluginInstanceRecord, definition: PluginDefinition, permission: string): (() => void) | undefined {

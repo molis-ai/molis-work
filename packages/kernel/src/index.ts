@@ -61,6 +61,12 @@ export class CapabilityRegistry<Context> {
   private readonly entries = new Map<string, RegisteredCapability<Context>>();
   /** Registration order sorted once per change: every capability call looks something up here. */
   private ordered: HostCapabilityDescriptor[] | null = null;
+  private registryGeneration = 0;
+
+  /** Monotonic counter bumped whenever any capability is registered or withdrawn. */
+  generation(): number {
+    return this.registryGeneration;
+  }
 
   register<Input, Output>(
     definition: ActionDefinition<Input, Output>,
@@ -78,6 +84,7 @@ export class CapabilityRegistry<Context> {
     }
     const token = Symbol(key);
     this.ordered = null;
+    this.registryGeneration += 1;
     this.entries.set(key, {
       token,
       descriptor,
@@ -86,7 +93,11 @@ export class CapabilityRegistry<Context> {
     });
     return () => {
       const current = this.entries.get(key);
-      if (current?.token === token) { this.entries.delete(key); this.ordered = null; }
+      if (current?.token === token) {
+        this.entries.delete(key);
+        this.ordered = null;
+        this.registryGeneration += 1;
+      }
     };
   }
 

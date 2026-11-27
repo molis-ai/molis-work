@@ -31,7 +31,7 @@ export interface PluginHostExecutorOptions {
   actions: { registry: SurfaceInstallRegistry;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
     /** The kernel's scene client for this project: what `services.scenes` of a plugin that declares `scenes:use` is made from (PG-032 P1). */
-    scenes?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneClient;
+    scenes?: import("./local-host-types.js").HostSceneClient;
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;

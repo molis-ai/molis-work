@@ -1,10 +1,19 @@
 import type { HostCapabilityInvocation, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionSelection, CallContext, CallDescription, CallObservation, CallOutcome, SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
-import type { ActionAvailability, ActionCallContext, ActionClient, ActionProvider, ActionReference, ActionSceneDefinition, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionAvailability, ActionCallContext, ActionClient, ActionProvider, ActionReference, ActionSceneClient, ActionSceneDefinition, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Host composition can project a subset of its directory without changing the caller's authority. */
 export interface HostActionClient extends ActionClient {
   discoverMatching?(caller: ActionCallContext, select: ActionSelection): ReturnType<ActionClient["discover"]>;
+}
+
+/** Host-internal scene client supporting narrow single-scene lookup without changing public contracts. */
+export interface HostSceneClient extends ActionSceneClient {
+  discoverScenes(
+    context: ActionCallContext,
+    judgment?: ActionReference,
+    reference?: { readonly scene_id: string; readonly version: number },
+  ): readonly ActionSceneView[] | Promise<readonly ActionSceneView[]>;
 }
 
 /** Standalone consumers can select from the ordinary client's authorized directory. */

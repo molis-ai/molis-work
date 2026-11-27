@@ -95,8 +95,8 @@ import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningPr
 import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionSubject, type BoundActionClient, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostActionClient } from "./local-host-types.js";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionSubject, type BoundActionClient, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostActionClient, HostSceneClient } from "./local-host-types.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { existingPartitionPluginHost, partitionPluginHostFor } from "./partition-plugin-host.js";
@@ -562,11 +562,11 @@ export class MolisWorkLocalHost {
     this.systemFunctions?.refresh();
   }
 
-  sceneClient(reference?: LocalHostProjectReference): ActionSceneClient {
+  sceneClient(reference?: LocalHostProjectReference): HostSceneClient {
     const client = this.host.sceneClient(reference);
     const refresh = () => this.prepareHomeActions();
     return {
-      discoverScenes: async (caller, judgment) => { await refresh(); return client.discoverScenes(caller, judgment); },
+      discoverScenes: async (caller, judgment, sceneRef) => { await refresh(); return client.discoverScenes(caller, judgment, sceneRef); },
       discoverScenesFor: async (caller, judgments, selection) => { await refresh(); return client.discoverScenesFor(caller, judgments, selection); },
       usages: async (caller, judgment) => { await refresh(); return client.usages(caller, judgment); },
       targets: async (caller, judgment, selection) => { await refresh(); return client.targets(caller, judgment, selection); },

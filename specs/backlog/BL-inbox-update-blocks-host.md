@@ -16,3 +16,25 @@
 
 还没做的另一半：每条事项的调用链里仍有约十次整目录 `discover`（`runScene` 的 `requireCompatible`、`beforeEffect` 里 `HostAvailability.check` 的依赖与 `usages`、`stageMetadataUsage`），一次 discover 要算全部动作的可用性。要么让一次更新共用一份目录快照（最后的同步授权检查仍每次现读），要么把逐条记录移出同步路径；两种都要动作服务主人定，不在收口 PR 里做。CI 全量上是否已不再红，看收口 PR 的全量。
 
+## 2026-11-26 进展（`bl/f-scene-batch-discover` 平台窄查询与代际复用本地实测）
+
+在独立工作树基于 `origin/main`（`82b9e61af4`）完成平台层窄查询与按「目录注册表代际 + 读取检查代际（安装记录/项目插件版本）」绑定的核验复用：
+- `packages/kernel`：为 `CapabilityRegistry` 与 `ActionService` 增加单调递增 `directoryGeneration()`，提供单场景 O(1) `sceneViewOne` / `sceneBindingFunction` / `sceneBindingMatches`，对冻结 Schema 的 `actionSchemaAccepts` 与冻结 `allowed_actions` 的 `allowedAction` 做 `WeakMap` 复用，并将非 `subject-offers` 的 `stageMetadataUsage` 收窄为单能力查询；
+- `apps/local-host`：在 `HostAvailability.check` 引入绑定 `(directoryGeneration, currentReadCheckGeneration)` 的 `VerifiedCheckPlan`（命中时仍对根动作、依赖动作与目标场景实时执行 `capabilities.availability`、`actionAvailability`、`sceneViewOne`、`sceneAvailability` 与 `sceneBindingMatches`，任何代际失效或不可用立即回退完整 `resolve`）；收窄 `local-host-scenes`（`check` / `runScene`）与 `PluginSceneService.registeredByThis` 的单场景查询，消除逐条 `usages` 与全场景扫描；预编译 `SqlitePluginRuntimeRepository` 与 `catalogDataStamp` SQLite 语句并在单次 directory pass 内共享安装列表；
+- 安全围栏与回归：保留批处理步间 `setImmediate` 让出事件循环及每次写副作用前的同步 `assertCurrent` / `assertCurrentAuthority` / `beforeEffect`；在 `tests/inbox-action-scenes.test.ts` 新增批处理中途同步撤销权限与中途停用插件立即拒绝后续条目且零落库的回归断言。按顶部约定保留本文件，待开 PR 并在准确提交头上跑过 `full-suite` CI 后再统一销账删除。
+
+| 指标（20 条固定规则 × 5 样本） | 改前（空闲） | 改后（空闲） | 改前（`CPU_THROTTLE=3`） | 改后（`CPU_THROTTLE=3`） |
+| --- | --- | --- | --- | --- |
+| `evaluate` 五样本 p50（含读页 p50） | 1,686 ms（2,067 ms） | 528 ms（728 ms） | 2,689 ms（3,214 ms） | 684 ms（842 ms） |
+| 最大事件循环延迟范围 | 255～580 ms | 138～292 ms | 381～1,130 ms | 127～220 ms |
+| `/health` 返回位置（第 N/20 条） | `[1, 1, 1, 1, 1]` | `[1, 1, 1, 1, 1]` | `[1, 1, 1, 1, 1]` | `[1, 1, 1, 1, 1]` |
+| `ActionService.discover`（单样本 `evaluate` 中位 / 五样本总计；纯单次 POST 为 0） | 57 / 373 | 26 / 181 | 81 / 502 | 26 / 180 |
+| `ActionService.discoverOne`（单样本 `evaluate` 中位 / 五样本总计） | 837 / 4,371 | 251 / 1,387 | 863 / 4,503 | 251 / 1,385 |
+| `ActionService.discoverScenes`（单样本 `evaluate` 中位 / 五样本总计） | 305 / 1,564 | 23 / 150 | 307 / 1,574 | 23 / 150 |
+| `ActionService.usages`（单样本 `evaluate` 中位 / 五样本总计） | 205 / 1,049 | 3 / 35 | 207 / 1,059 | 3 / 35 |
+| `CapabilityRegistry.availability`（单样本 `evaluate` 中位 / 五样本总计） | 21,715 / 125,050 | 13,701 / 70,512 | 29,105 / 162,409 | 13,701 / 70,448 |
+| `local-host-scenes` `checkActionAvailability` / `beforeConsume`（单样本） | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 |
+| 安装记录 `SqlitePluginRuntimeRepository.get`（单样本 `evaluate` 中位 / 五样本总计） | 27,414 / 163,091 | 11,294 / 90,845 | 30,405 / 186,952 | 11,294 / 90,607 |
+| 安装记录 `SqlitePluginRuntimeRepository.list`（单样本 `evaluate` 中位 / 五样本总计） | 2,194 / 13,308 | 1,071 / 7,220 | 2,560 / 15,462 | 1,082 / 7,195 |
+| SQLite `StatementSync.get` 总计（单样本 `evaluate` 中位 / 五样本总计） | 35,550 / 218,247 | 20,061 / 157,333 | 39,835 / 250,548 | 20,090 / 156,729 |
+

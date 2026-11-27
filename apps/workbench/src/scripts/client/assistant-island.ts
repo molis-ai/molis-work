@@ -78,16 +78,23 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const nameMain=(work)=>{if(work&&work.main)work.title=work.character?work.character.title:globalThis.t.text("workbench.assistant-tabs.main-conversation");return work;};
   const named=(res)=>{if(res&&res.work)nameMain(res.work);if(res&&Array.isArray(res.works))res.works.forEach(nameMain);return res;};
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")}).then(named);
-  let executorRequest = 0;
-  const loadExecutors = async () => {
-    if (!project) return;
-    const request = ++executorRequest, result = await api("/executors").catch(() => null);
-    if (!result || request !== executorRequest) return;
-    executors = result.executors || [];
-    if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant";
-    paintAim(); paintSum();
+  let executorRequest = 0, executorsFor = null, executorsLoaded = Promise.resolve();
+  const loadExecutors = () => {
+    if (!project) { executorsFor = null; executorsLoaded = Promise.resolve(); return executorsLoaded; }
+    const targetId = project.id, request = ++executorRequest;
+    executorsFor = targetId;
+    const promise = api("/executors").catch(() => null).then((result) => {
+      if (request !== executorRequest) return;
+      if (!result) { if (executorsFor === targetId) executorsFor = null; return; }
+      executors = result.executors || [];
+      if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant";
+      paintAim(); paintSum();
+    });
+    executorsLoaded = promise;
+    return promise;
   };
-  const executorsLoaded = loadExecutors();
+  const ensureExecutors = () => project && executorsFor !== project.id ? loadExecutors() : executorsLoaded;
+  loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, readText("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
   const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", unreadable: "unavailable", completed: "round-ended" })[state] || state;
@@ -585,7 +592,7 @@ ${ASSISTANT_HEAD_PART}
   const reload = async () => {
     if (!curId) return;
     const id = curId;
-    try { const next = await api("/works/" + encodeURIComponent(id)); if (id === curId) { view = next; render(); } }
+    try { const next = await api("/works/" + encodeURIComponent(id)); if (id === curId) { view = next; if (next?.work?.executor?.kind === "plugin") void ensureExecutors(); render(); } }
     catch (error) {
       if (id !== curId) return;
       if (error.code === "assistant.not_found") { curId = null; remember(); view = null; render(); return; }
@@ -629,7 +636,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     refreshComposerWords();
     paintAim();
     composer?.refresh();
-    void loadExecutors();
+    if (project && (executorsFor === project.id || (panel && !panel.hidden))) void loadExecutors();
   };
   document.addEventListener("molis-work:language-changed", retitleReviews);
   presentation = (${ASSISTANT_MAX_FACTORY})({island,panel});
@@ -696,7 +703,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     if (!panel.hidden && !spacious()) drawerOpen = false;
     paintLayout();
     if (panel.hidden) { conversationObjects?.clear(); setWorks(false); setDetails(false); restIfStale(); }
-    else { void conversationObjects?.update(false); cardHandle?.update(); drawHead(); paintJump(); }
+    else { void ensureExecutors(); void conversationObjects?.update(false); cardHandle?.update(); drawHead(); paintJump(); }
   }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the conversation's head: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
@@ -755,11 +762,11 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
       closeSubtask(); project = chosen; eventTabs = []; nextChar = undefined; talkDraft = ""; nextScope = project ? "project" : "personal";
-      executors = []; nextExec = "assistant"; nextMode = ""; executorRequest++;
+      executors = []; nextExec = "assistant"; nextMode = ""; executorRequest++; executorsFor = null; executorsLoaded = Promise.resolve();
       catalogSeq++; catalog = null; rows = { capabilities: [], methods: [] }; rowsIn = false;
       characterCache.clear();
       void showWork(store.get(scoped("current")));
-      void loadExecutors();
+      if (panel && !panel.hidden) void ensureExecutors();
     },
-    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); disposeWorkItemPill(); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; executorsFor = null; document.removeEventListener("molis-work:language-changed", retitleReviews); disposeWorkItemPill(); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

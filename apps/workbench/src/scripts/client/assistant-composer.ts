@@ -100,8 +100,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
           input.dispatchEvent(new InputEvent("input", { bubbles: true, data: before.length === 1 ? before : null, inputType: "insertText" }));
       }).finally(() => { if (seq === catalogSeq) catalog = null; });
   })();
-  compose.addEventListener("focusin", (event) => { if (isInput(event) || !rowsIn) void readCatalog(); });
-  compose.addEventListener("pointerenter", () => { if (!rowsIn) void readCatalog(); });
+  compose.addEventListener("focusin", (event) => { if (isInput(event) || !rowsIn) void readCatalog(); void ensureExecutors(); });
+  compose.addEventListener("pointerenter", () => { if (!rowsIn) void readCatalog(); void ensureExecutors(); });
   compose.addEventListener("input", (event) => { if (!rowsIn && (event.data === "/" || event.data === "、") && isInput(event)) void readCatalog(); });
   const choose = (material, same) => () => {
     if (!files.some((file) => file.kind === material.kind && same(file))) files.push({ material_id: material.kind + "-" + uuid(), explicit: true, ...material });

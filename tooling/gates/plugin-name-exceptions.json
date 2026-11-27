@@ -1038,12 +1038,6 @@
       "kind": "same-word",
       "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
       "decided": "2026-11-25"
-    },
-    "server/tooling/continuity-demo.mts": {
-      "count": 8,
-      "kind": "qa-tool",
-      "reason": "隔离 QA 的连续性演示脚本，用 Goals 与 Pages 的真实动作演示多端连续；产品不加载它",
-      "decided": "2026-11-25"
     }
   }
 }

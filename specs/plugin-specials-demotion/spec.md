@@ -87,6 +87,17 @@
 
 整套常开插件机制（`always-on-plugins.ts`、`always-on-rules.ts`、同意种类 `always_on`、外壳读取）在 `44B` 随 Shelf 收归纯平台彻底删除。
 
+### 2026-11-26 整改决定
+
+一骏在 44C 整改会话确认保留以下六项。前五项使用 Prologue 公开工具名，最后一项读取旧版记忆数据的实际键。批准限于这些文件内的现有用途，G1 继续计数。
+
+- `apps/local-host/src/agent-host-composition.ts`
+- `horizontal/agent-host/src/adapters/prologue-node-kit.ts`
+- `horizontal/agent-host/src/code-intelligence/coding-tools.ts`
+- `horizontal/agent-host/src/code-intelligence/index.ts`
+- `horizontal/agent-host/src/tool-catalog.ts`
+- `packages/storage/src/adapters/memory-ledger.ts`
+
 ## 4. 盘点二：平台代码里的特例分支（按层）
 
 样例与组件板（约 25 个文件）、只提到插件名的注释另列在 4.9 节，不计入正文数字。

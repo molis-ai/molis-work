@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { PLUGIN_PROJECTS_EXIST_PERMISSION, pluginErrors, type HomePluginDatabaseDeclaration, type PluginDatabaseDeclaration, type PluginManifest, type PluginOwnerFileEntry, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { sandboxAgentDeclarations } from './sandbox-agent-declarations.js';
+import { isSandboxSourceOperation } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_PRESENTATION_CAPABILITY, type TextRef } from '@molis-ai/molis-work-contracts/platform/ui';
 import type { PluginIconName } from './ui/icon.js';
@@ -218,6 +219,11 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     input = { ...input, effects: effectsFromContract(input.contract) };
   }
   assertSandboxUpgradeValidator(sandboxUpgradeFields(input), input.contract);
+  const source = input.contract?.home_source;
+  if (source !== undefined && (!source || typeof source !== 'object' || Object.keys(source).some(key => !['integrations', 'connection_services', 'source_presentations'].includes(key)) || !source.integrations?.length || !source.connection_services?.length || input.runtime?.scope !== 'home' || !input.runtime.dual_instance)) {
+    throw pluginErrors.declaration_invalid('个人来源须在双实例应用的 Home 登记一个来源和它的连接服务');
+  }
+  const appEffects = source && input.contract ? effectsFromContract({ ...input.contract, operations: input.contract.operations.filter(op => !isSandboxSourceOperation(op.id)) }) : input.effects;
   const { contribution_id: uiId } = sandboxUiDeclaration(input);
   const stateMachines = input.contract?.state_machines === undefined ? input.stateMachines : contractStateMachines(input.contract);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
@@ -274,8 +280,9 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ...(stateMachines === undefined ? {} : { state_machines: stateMachines }),
     ...(input.runtime ? { runtime: input.runtime } : {}),
     ...(input.memoryScene === undefined ? {} : { memory_scene: input.memoryScene }),
-    ...sandboxResources(input),
-    permissions: withPermissionReasons([{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(input.effects)], permissionReasons),
+    ...source,
+    ...sandboxResources({ ...input, effects: appEffects }),
+    permissions: withPermissionReasons([{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(appEffects)], permissionReasons),
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],

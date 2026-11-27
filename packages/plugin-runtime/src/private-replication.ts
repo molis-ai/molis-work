@@ -33,6 +33,14 @@ export function privateValueReplicaOwner(db:PluginPrivateStorageDatabase,owner:P
  checkPrivateValueOwner(owner);
  const read=()=>{const row=db.prepare('SELECT item_value FROM plugin_private_values WHERE install_id=? AND item_key=?').get(owner.namespacePrefix+context.projectId,owner.key) as {item_value:string}|undefined;
   const raw=row?.item_value??null;const value:unknown=raw===null?null:JSON.parse(raw);if(raw!==null&&value===null)invalid();return {raw,value};};
+ if(owner.upgradeStored){
+  context.authorize();
+  const local=read(), next=local.raw===null?null:owner.upgradeStored(local.raw);
+  if(next!==null){
+   context.authorize();
+   if(!compareAndSetPrivateValue(db,owner.namespacePrefix+context.projectId,owner.key,local.raw,next))throw errors.sync_private_conflict('私有文档已更新，请重新打开');
+  }
+ }
  return {authorize:context.authorize,
   read(key:string){context.authorize();const id=item(owner,context,key),local=read();if(local.value===null)return null;
    const content=owner.project(local.value,context.projectId,id);if(content===null)return null;

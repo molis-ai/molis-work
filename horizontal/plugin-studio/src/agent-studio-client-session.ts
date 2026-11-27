@@ -30,6 +30,7 @@ export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initia
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
   if(el.hasAttribute('data-as-catalog')){const which=el.dataset.asCatalog||'components';catalogOpen=catalogOpen===which?'':which;tip.hidden=true;renderBoard();return;}
   if(el.dataset.asCandidate){preview=el.dataset.asCandidate;rendered='';schedule();return;}
+  if(el.dataset.asRedraw){run(()=>act('redraw',{candidateId:el.dataset.asRedraw}));return;}
   if(el.dataset.asChoose){run(()=>act('choose',{candidateId:el.dataset.asChoose}));return;}
   if(el.dataset.asPart){run(()=>act('part',{kind:el.dataset.asPart}));return;}
   if(el.dataset.asScope){run(()=>act('scope',{scope:el.dataset.asScope}));return;}

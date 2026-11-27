@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { agentTaskGrantActions, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { homeIntegrationRegistry, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { effectsFromContract, parsePluginManifest, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
@@ -16,7 +16,8 @@ import {
   LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { connectorControl } from "./fixtures/connector-control.js";
+import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_OUTPUT_SCHEMA, SETTINGS_WRITE_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mac, person as sandboxPerson, ref } from "./fixtures/home-sandbox.js";
@@ -201,6 +202,8 @@ function attachedTo(state, key) {
   return { targets: state.items.filter(item => item.bindings.includes(key)).map(item => ({ kind: 'sandbox_card', id: item.id })) };
 }
 export const operations = {
+  'integration.health': async () => ({ ok: true, status: 'connected', message: 'Ready' }),
+  'integration.poll': async (input, sdk) => ({ ok: true, items: [{ externalId: 'sample-' + input.source_id, title: sdk.t.text('sandbox-standing.source'), summary: 'From signed source' }], cursor: '1' }),
   'settings.read': async (_input, sdk) => settingValues(await readState(sdk)),
   'settings.write': async (input, sdk) => {
     const state = await readState(sdk);
@@ -294,6 +297,11 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
       version: 1,
       pluginId: manifest.plugin_id,
       revision: "standing-v1",
+      home_source: {
+        connection_services: [{ service_id: "sample-journal", title: { key: "sandbox-standing.source" }, group_id: "work", summary: "Personal updates", auth_kind: "none",
+          auth: { methods: [] }, capabilities: [{ label: "Read updates", fulfillment: "live" }], origins: ["https://example.org"] }],
+        integrations: [{ integration_id: "sample-journal", kind: "source", service_id: "sample-journal" }],
+      },
       ui: { locales: { default: "en", available: ["en"] } },
       entities: [],
       acceptance: [],
@@ -303,6 +311,8 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
         write_operation: "settings.write",
       },
       operations: [
+        ...(["health", "poll"] as const).map(name => ({ id: SANDBOX_INTEGRATION_OPERATIONS[name], ...structuredClone(SANDBOX_INTEGRATION_CONTRACT[name]), errors: [],
+          examples: [{ input: { source_id: "one", config_json: "{}", has_connection: false, ...(name === "poll" ? { rebuild: false } : {}) }, outputIncludes: {} }] })),
         {
           id: "settings.read", kind: "query", action_protocol: { kind: "settings", role: "read" },
           input: SETTINGS_READ_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
@@ -377,7 +387,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
     };
     Object.assign(manifest, sandboxPluginManifest({
       pluginId: manifest.plugin_id, name: "Signed Sandbox Standing", version: manifest.version,
-      publisher: manifest.publisher, presentation: false, effects: effectsFromContract(contract), contract,
+      publisher: manifest.publisher, runtime: { scope: "home", dual_instance: true }, presentation: false, effects: effectsFromContract(contract), contract,
     }));
     const parts: PluginComponentPlan[] = [
       { id: "title", pageId: "home", regionId: "main", intent: "heading", purpose: "标题", props: { title: "沙箱样例" } },
@@ -388,7 +398,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
     files[SANDBOX_PACKAGE_FILES.interface] = JSON.stringify({ parts, nodes });
     files["locales/en.json"] = JSON.stringify({
       format_version: 1, owner: manifest.plugin_id, locale: "en",
-      messages: { "sandbox-standing.greeting": "Greeting", "sandbox-standing.greeting-summary": "Signed sandbox greeting" },
+      messages: { "sandbox-standing.source": "My journal", "sandbox-standing.greeting": "Greeting", "sandbox-standing.greeting-summary": "Signed sandbox greeting" },
     });
   }, { pluginId: SIGNED_SANDBOX_ID });
 }
@@ -415,6 +425,15 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   const person = await home.host.localPersonContext(project.reference);
   const views = (await projectClient.discover(person)).filter(item => item.provider.plugin_id === SIGNED_SANDBOX_ID);
   const byLocal = (localId: string) => views.find(item => item.action.local_id === localId)!;
+  assert.ok(home.host.homePlugins!.installation(SIGNED_SANDBOX_ID)?.install_id);
+  const registry = await homeIntegrationRegistry(home.home);
+  assert.equal(registry.integration("sample-journal")?.plugin_id, SIGNED_SANDBOX_ID);
+  assert.ok(!views.some(item => item.action.local_id?.startsWith("integration.")));
+  const pull = async () => (await registry.bind("sample-journal", "source", { source_id: "one", connection_id: null, credential_ref: null, config: {} })).connector_driver.poll({ cursor: null }, connectorControl());
+  const pulled = await pull();
+  assert.ok(pulled.ok);
+  assert.equal(pulled.events[0]?.provider_dedupe_id, "sample-one");
+  assert.equal(pulled.events[0]?.payload.title, "My journal");
 
   const kinds = await home.web.get<{ kinds: Record<string, string>; glyphs: Record<string, string> }>(`/projects/${project.project_id}/api/assistant/surface-kinds`);
   assert.equal(kinds.kinds[SIGNED_SANDBOX_ID], "sandbox_card");

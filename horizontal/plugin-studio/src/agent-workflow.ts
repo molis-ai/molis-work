@@ -72,7 +72,12 @@ export interface AgentBuilderPorts {
    * Pictures of proposals (W7), when an image service is configured here. `draw` makes one attempt and resolves when
    * the picture is ready, or with the reason it is not; a failed request is never repeated (it may have cost money).
    */
-  mockups?: { available(): Promise<boolean>; draw(request: { key: string; prompt: string }, signal: AbortSignal): Promise<{ jobId: string; imageId: string } | { reason: string }> };
+  mockups?: {
+    available(): Promise<boolean>;
+    draw(request: { key: string; prompt: string; previous?: AgentProposal['mockup'];
+      checkpoint(value: { binding: import('./agent-model.js').StudioImageBinding; jobId?: string }): void },
+      signal: AbortSignal): Promise<{ jobId: string; imageId: string; binding?: import('./agent-model.js').StudioImageBinding } | { reason: string }>;
+  };
   selectionAvailable?(): boolean;
   browserAcceptance(build: AgentBuild, signal: AbortSignal): Promise<NonNullable<AgentBuild['browserResult']>>;
   /** Shared source modules already in the build (src/*.ts other than the operation files and the entry). */
@@ -119,7 +124,10 @@ export class AgentBuilderWorkflow {
   private closed = false;
   constructor(storage: PluginPrivateStorage, private readonly ports: AgentBuilderPorts) { this.store = new AgentBuilderStore(storage); }
   async initialize() {
-    for (const build of this.store.list()) if (build.active) {
+    for (const build of this.store.list()) {
+      const pending = build.candidates?.filter(proposal => proposal.mockup?.status === 'drawing') ?? [];
+      if (pending.length) void this.drawMockups(build.id, pending, true);
+      if (!build.active) continue;
       const stage = build.active.stage;
       this.change(build.id, value => { value.active = null; value.phase = 'paused'; value.error = studioBuildFailure('build-interrupted', '', { guidance: 'build-continue-after-restart' }); for (const step of value.steps) if (step.status === 'active') step.status = 'cancelled'; });
       // Recovered build jobs continue from persisted files. Design is safe to retry with a new session.
@@ -231,18 +239,31 @@ export class AgentBuilderWorkflow {
    * W7: with an image service, each proposal gets one picture to choose by; without one, nothing changes. Drawing
    * never holds up the person: they can choose before the pictures arrive.
    */
-  private async drawMockups(id: string, proposals: AgentProposal[]) {
+  private async drawMockups(id: string, proposals: AgentProposal[], recovering = false, requested = false) {
     const mockups = this.ports.mockups;
-    if (!mockups || this.closed || !await mockups.available().catch(() => false)) return;
+    if (!mockups || this.closed || !recovering && !requested && !await mockups.available().catch(() => false)) return;
     const abort = new AbortController(); this.drawing.add(abort);
     const set = (candidateId: string, mockup: NonNullable<AgentProposal['mockup']>) => { if (!this.closed) this.change(id, build => { const item = build.candidates.find(candidate => candidate.id === candidateId); if (item) item.mockup = mockup; }); };
     const locale = this.ports.designLanguages?.().current;
     const instructions = instructionText(this.ports, BUILDER_MOCKUP, locale);
     try {
       await Promise.all(proposals.map(async proposal => {
-        set(proposal.id, { status: 'drawing' });
-        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal, instructions, locale) }, abort.signal).catch(error => ({ reason: message(error) }));
-        set(proposal.id, 'jobId' in result ? { status: 'ready', jobId: result.jobId, imageId: result.imageId } : { status: 'failed', reason: result.reason });
+        let picture = proposal.mockup ?? { status: 'drawing' as const };
+        if (recovering && !picture.binding) {
+          set(proposal.id, { status: 'failed', regenerate: true });
+          return;
+        }
+        const previous = proposal.mockup;
+        set(proposal.id, { ...picture, status: 'drawing' });
+        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal, instructions, locale), previous,
+          checkpoint(value) {
+            abort.signal.throwIfAborted();
+            picture = { status: 'drawing', ...value };
+            set(proposal.id, picture);
+          },
+        }, abort.signal).catch(error => ({ reason: message(error) }));
+        if (abort.signal.aborted) return;
+        set(proposal.id, 'jobId' in result ? { status: 'ready', ...result } : { ...picture, status: 'failed', reason: result.reason });
       }));
     } finally { this.drawing.delete(abort); }
   }
@@ -706,6 +727,14 @@ export class AgentBuilderWorkflow {
     }
     if (body.action === 'recheck') { this.launch(id, 'check'); return this.store.require(id); }
     if (body.action === 'choose') return this.choose(id, build.revision, String(body.candidateId));
+    if (body.action === 'redraw') {
+      const proposal = build.candidates.find(item => item.id === body.candidateId && item.mockup?.status === 'failed');
+      if (!proposal) return build;
+      // Set the state synchronously so two clicks cannot schedule two drawings.
+      this.change(id, current => { current.candidates.find(item => item.id === proposal.id)!.mockup = { ...proposal.mockup, status: 'drawing' }; });
+      void this.drawMockups(id, [proposal], Boolean(proposal.mockup?.binding), true);
+      return this.store.require(id);
+    }
     if (body.action === 'resume') { this.launch(id, build.scopeCheckPending ? 'check' : build.pendingVisual ? 'visual' : build.design ? 'build' : build.chosen && build.candidates.length ? 'detail' : 'design'); return this.store.require(id); }
     if (body.action === 'message' || body.action === 'revise' || body.action === 'visual') {
       if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 48_000) throw studioProblem("plugin-builder.request.change-description-required", '请输入具体修改意见');

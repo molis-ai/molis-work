@@ -65,6 +65,8 @@ export interface PrivateValueReplicationOwner {
   assetKind: string;
   namespacePrefix: string;
   key: string;
+  /** Explicit local format upgrade when this replica opens. Null means no upgrade. Never applies to incoming wire data. */
+  upgradeStored?(raw: string): string | null;
   /** Trusted array/id selectors; Runtime derives per-item change keys in the original KV transaction. */
   journal: readonly { array: string; id: string }[];
   project(value: unknown, projectId: string, itemId: string): unknown | null;

@@ -31,6 +31,8 @@
 
 ## 3. 各库版本表
 
+44C 创作台私有值格式 `format.builder.saved-state` 为 2。发布前用旧版草稿验证仅原安装身份不可核实的图片进入待重新生成状态，保留草稿、发行历史及编辑版本。
+
 每个库只认一个当前版本，不符时的处理在最后一列。升级过程见 [U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.3、§2.6。表里有两类东西：Home 里的 SQLite 库，和需要在重建时核对的 JSON 文件（`security/secrets.json`、`config/mcp-tools.json`、`shelf/catalog.json` 与安装/发行清单均由各 owner 拒绝错误格式）。进链的文件要升版本，同一个 PR 带上连续的段（`pnpm health:check` 查）。其他带版本字段的小 JSON 文件（`config/` 下未列入本表的文件）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 
 `scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite`、`openOwnerCopyStore`、`openAggregateCopyOwner` 收到的不是一个已声明的常量（内联对象不行）；`runSqliteUpgrade` 收到的既不是已声明的常量，也不是属性（它转交描述符带的基线，`store.baseline` 这样的属性可以）；「版本」不是整数（写「无」也不行）或定义处不是 `路径#名字`。JSON 文件没有常量可指时，定义处写字段名（`路径#schema_version`、`路径#version`）。脚本按语法读这个文件里叫这个名字的属性，键带不带引号都算：对象里写的数字、类型里写的单个数字，以及字符串和模板里写的 `名字: 数字`，都要是同一个数，并和表相同；有一处的值不是数字（常量名、表达式、`{ version }` 这种简写），就以「定义处写字面量」失败。注释不读；类型写成 `number` 的不算；在别处拼出来的版本（展开另一个对象、算出来的键）读不到。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。

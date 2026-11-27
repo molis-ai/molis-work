@@ -166,6 +166,7 @@ export interface SandboxReadOperation extends SandboxOperationFields {
 /** Fixed platform action protocols whose operations may be queries or commands (`placement_relation` and `settings`). */
 export type SandboxActionProtocol =
   | { kind: 'placement_relation'; relation: string; role: PlacementRelationRole; target?: PlacementRelationTarget; subject_kinds?: readonly string[] }
+  | { kind: 'image_generation'; role: import('./plugin-role-protocols.js').ImageGenerationRole }
   | { kind: 'workflow_receive'; title: string; icon: string; subject_kind: string }
   | { kind: 'settings'; role: 'read' | 'write' };
 
@@ -255,6 +256,8 @@ export interface SandboxPluginContract {
   operations: SandboxOperationContract[];
   presentation?: PresentationDeclaration;
   settings_entries?: SandboxSettingsDeclaration;
+  /** A dual-instance application's personal source is redeemed only by its Home installation. */
+  home_source?: Pick<import('./plugin.js').PluginManifest, 'connection_services' | 'integrations' | 'source_presentations'>;
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   /** Present, possibly empty, on every design made since SMP-11; absent on a contract frozen before it. */
   state_machines?: SandboxStateMachine[];
@@ -619,6 +622,10 @@ const SOURCE: Record<string, SandboxSchema> = {
   source_id: text(128, 1), config_json: text(SANDBOX_INTEGRATION_LIMITS.configLength), has_connection: { type: 'boolean' },
 };
 const object = (properties: Record<string, SandboxSchema>, required: string[]): SandboxSchema => ({ type: 'object', properties, required, additionalProperties: false });
+export function isSandboxSourceOperation(id: string): boolean {
+  return Object.values<string>(SANDBOX_INTEGRATION_OPERATIONS).includes(id);
+}
+
 const ITEM = object({
   externalId: text(256, 1), title: text(512), summary: text(4096), body: text(65_536), url: { type: 'string', format: 'uri', maxLength: 4096 },
   occurredAt: { type: 'string', format: 'date-time' }, kind: { type: 'string', enum: ['message', 'notification', 'issue', 'pr', 'mention', 'update'] },

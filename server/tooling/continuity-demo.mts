@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { parseArgs } from "node:util";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, createImDomain, type ActionFactory } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
-const PAGES_PLUGIN_ID = "io.molis.work.pages", PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document";
+import { documentGenerationRoleOf, workItemPromotionRoleOf, workProgressContinuityRoleOf, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const { values, positionals } = parseArgs({ options: { port: { type: "string", default: "4189" } }, allowPositionals: true });
 if (positionals.length !== 1) throw Error("Pass one explicit isolated QA directory and optionally --port 0");
@@ -40,28 +40,40 @@ const databasePath = join(directory, "project.sqlite"), projectId = "continuity-
 // The project's library starts with the platform's root row; Goals makes its board when the Host first opens the project, and the goal below is its own action's.
 seedDemoBoard(databasePath, projectId);
 const ref = molisWorkHostProjectReference({ projectId, databasePath });
-await host.actionClient(ref).invoke({ actor_id: "desktop", actor_kind: "user", audience: "user", project_id: projectId, permissions: ["goals:read", "goals:write"] },
-  { capability_id: "goals.create", version: /* @version action.goals.create */ 1 },
+const projectClient = host.actionClient(ref);
+const ownerCaller = await host.localPersonContext(ref);
+const directoryActions = (await projectClient.discover(ownerCaller)).filter(view => view.availability.available);
+function exactlyOne<T>(items: readonly T[], role: string): T {
+  if (items.length !== 1) throw Error(`The demo requires one available ${role} (found ${items.length})`);
+  return items[0]!;
+}
+const progress = exactlyOne(directoryActions.filter(view => workProgressContinuityRoleOf(view.action) === "progress.record"), "progress recorder");
+const creator = exactlyOne(directoryActions.filter(view => view.provider.provider_id === progress.provider.provider_id && workItemPromotionRoleOf(view.action) === "create"), "work-item creator");
+const actionRef = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+const permitted = hostContinuityActions();
+const memberPermissions = [...new Set(directoryActions.filter(view => permitted.some(action => action.capability_id === view.capability_id && action.version === view.version && action.provider_id === view.provider.provider_id)).flatMap(view => view.action.permissions))];
+await projectClient.invoke({ ...ownerCaller, actor_id: "desktop", permissions: creator.action.permissions }, actionRef(creator),
   { goal_id: goalId, title: "让工作在手机上继续", outcome: "查看桌面成果，记录下一步，再回桌面接续。", idempotency_key: "goal" });
 const guide = { artifact_id: "handoff-guide", version: 2 };
 await host.withProject(ref, async ({ artifacts }) => {
   // Reopening the QA Home keeps the version already shared with its devices.
   if (artifacts.query.getArtifactVersion(projectId, guide)) return;
-  // Pages runs as its own instance in each partition (batch 107); what it declares is the Manifest this Host ships.
-  const pages = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === PAGES_PLUGIN_ID)?.manifest;
-  const declaration = pages?.artifacts.produces.find(type => type.artifact_type_id === PAGES_ARTIFACT_TYPE_ID);
-  if (!pages || !declaration?.pin) throw Error("The demo needs Pages' declared document artifact");
-  const { pin } = declaration;
-  const pinAction = pages.actions?.find(action => action.capability_id === pin.capability_id && action.version === pin.version);
-  const subjectKind = pinAction?.action.subject_kinds[0];
-  if (!subjectKind) throw Error("The demo needs Pages' document pin subject");
+  const documentOwners = new Set(directoryActions.filter(view => documentGenerationRoleOf(view.action) === "document.get").map(view => view.provider.plugin_id));
+  const candidates = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => documentOwners.has(entry.manifest.plugin_id)).flatMap(({ manifest }) =>
+    manifest.artifacts.produces.flatMap(declaration => {
+      const pin = declaration.pin;
+      const action = pin && directoryActions.find(view => view.provider.plugin_id === manifest.plugin_id && view.capability_id === pin.capability_id && view.version === pin.version);
+      const subjectKind = action?.action.subject_kinds[0];
+      return subjectKind ? [{ producer: manifest, declaration, subjectKind }] : [];
+    }));
+  const { producer, declaration, subjectKind } = exactlyOne(candidates, "pinnable document type");
   const title = "跨设备接续 · 操作说明";
   artifacts.commands.registerVersion({
     ...guide, project_id: projectId, actor_id: "desktop",
     artifact_type_id: declaration.artifact_type_id, schema_version: declaration.schema_version,
     origin: { kind: "pinned", subject: { kind: subjectKind, id: guide.artifact_id }, revision: "2" },
     title, media_type: "text/markdown",
-    producer: { plugin_id: pages.plugin_id, plugin_version: pages.version, binding_signature: pages.publisher.signature },
+    producer: { plugin_id: producer.plugin_id, plugin_version: producer.version, binding_signature: producer.publisher.signature },
     content: { kind: "inline", payload: "跨设备接续操作说明\n\n桌面整理固定成果 → 手机核对并留下下一步 → 桌面继续。\n\n这是隔离项目中的真实保存，不读取私人账号。" },
     metadata: { title }, scope: "team_project", team_share_authorized: true,
   });
@@ -69,12 +81,12 @@ await host.withProject(ref, async ({ artifacts }) => {
 const factory: ActionFactory = ({ memberId, projectId, validate, signal }) => {
   const client = host.actionClient(ref);
   return {
-    caller: { actor_id: memberClientId(memberId), project_id: projectId, audience: "user", actor_kind: "user", permissions: ["goals:read", "goals:write", "artifacts:read"], allowed_actions: hostContinuityActions(), validate_authority: validate, signal },
+    caller: { actor_id: memberClientId(memberId), project_id: projectId, audience: "user", actor_kind: "user", permissions: memberPermissions, allowed_actions: permitted, validate_authority: validate, signal },
     client: {
       discover: caller => client.discover(caller),
       invoke: async (caller, action, input) => {
         const result = await client.invoke(caller, action, input);
-        if (action.capability_id === "goals.progress.record") {
+        if (action.capability_id === progress.capability_id && action.version === progress.version && action.provider_id === progress.provider.provider_id) {
           try { await access(join(directory, "lose-next-response")); }
           catch (error) {
             if (error instanceof Error && "code" in error && error.code === "ENOENT") return result;

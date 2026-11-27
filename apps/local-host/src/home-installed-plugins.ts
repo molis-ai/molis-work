@@ -31,7 +31,7 @@ import { pluginSecrets } from './installed-plugin-secrets.js';
 import { studioStorage } from './plugin-builder/storage.js';
 import type { PluginPlatform } from './plugin-platform.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
-import { sandboxedIntegrationDefinition } from './sandbox-integration.js';
+import { installedAppSource, sandboxedIntegrationDefinition } from './sandbox-integration.js';
 import type { SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { projectReachConsents } from './plugin-project-reach-consent.js';
 import { RecoveryErrors } from './installed-recovery-errors.js';
@@ -137,11 +137,16 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     declaration: identity => sandboxDeclaration(identity, undefined, release => manifestOf(release), { recordFor, releaseFor }),
     granted: grantedCapabilities });
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: options.home, catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
-    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { home: options.home, connections: integrations.connections, assertLive }) } : {} });
+    ...integrations ? { source: (release, context, live, call) => installedAppSource(integrations.connections, release, context, live, call), integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { home: options.home, connections: integrations.connections, assertLive }) } : {} });
   // An integration package offers no actions and no page: what it gives is its sources, held in the Home's registry while it runs (BL-530).
   const attached = new Map<string, symbol>();
   let registry: ReturnType<NonNullable<typeof integrations>['registry']> | undefined;
-  const integrationRegistry = () => registry ??= integrations!.registry();
+  const integrationRegistry = () => {
+    if (registry) return registry;
+    const pending = registry = integrations!.registry();
+    pending.catch(() => { if (registry === pending) registry = undefined; });
+    return pending;
+  };
   const detach = (pluginId: string) => {
     if (!attached.delete(pluginId)) return;
     void integrationRegistry().then(registry => registry.detach(pluginId)).catch(() => undefined);
@@ -149,7 +154,12 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const withdraw = (pluginId: string) => { offers.withdraw(pluginId); detach(pluginId); };
   const exposeActions = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: isClosed, withdraw, changed: offers.changed, catalog });
   const expose = async (release: InstalledRelease, onFailure?: 'caller') => {
-    if (release.packaged?.manifest.kind !== 'integration') return exposeActions(release, onFailure);
+    const packaged = release.packaged;
+    if (!packaged) throw pluginErrors.declaration_invalid('安装需要已校验的签名包');
+    if (packaged.manifest.kind !== 'integration') {
+      await exposeActions(release, onFailure);
+      if (!release.design.contract.home_source) return;
+    }
     const pluginId = release.pluginId, record = recordFor(pluginId), installId = record?.install_id;
     if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
     const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.state === 'running' && now.install_id === installId
@@ -158,7 +168,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     const prior = attached.get(pluginId), token = Symbol(); attached.set(pluginId, token);
     const live = () => attached.get(pluginId) === token && active();
     const forget = () => { if (attached.get(pluginId) === token) { if (prior) attached.set(pluginId, prior); else attached.delete(pluginId); } };
-    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live, release.packaged.localePacks)) forget(); }
+    try { if (!await (await integrationRegistry()).attach(packaged.manifest, installId, () => {
+      const active = platform.supervisor.contribution(pluginId);
+      return active?.kind === 'app' ? active.home_source ?? null : active;
+    }, live, packaged.localePacks)) forget(); }
     catch (error) { forget(); throw error; }
   };
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') => {

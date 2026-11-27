@@ -60,6 +60,7 @@ export interface AgentStudioOptions {
   /** The resident Home's actual action directory and client; never a project fallback. */
   homeActions?: ProjectActions;
   /** The signed packages installed in the Home, for the studio to say which of its own are there. */
+  homeInstallation?(id: string): PluginInstanceRecord | null | undefined;
   homeInstallations?(): Promise<Array<{ record: PluginInstanceRecord; error?: string }>>;
   /** Enables a built-in plugin in this project (by its manifest id), as project settings would. */
   enablePlugin?(pluginId: string): Promise<void>;
@@ -79,7 +80,7 @@ export interface Studio {
   /** Takes back what the studio answers the installed host for its trials. */
   stopTrials(): void;
   /** A proposal's picture from the images plugin (W7). */
-  mockupImage?(jobId: string, imageId: string): Promise<{ base64: string; mime_type: string }>;
+  mockupImage?(jobId: string, imageId: string, owner: import('@molis-ai/molis-work-plugin-studio').StudioImageBinding): Promise<{ base64: string; mime_type: string }>;
 }
 
 const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>();
@@ -141,7 +142,7 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
   const models = studioModels(home, storage);
   const execute = <T>(buildId: string, run: () => Promise<T>) => withPassiveSyncExecution(home, options.projectId, BUILDER_PLUGIN_ID, buildId, run);
   const preview = createStudioPreview(options, studio, installed, execute);
-  const { mockups, mockupImage } = studioImages(options, installed.actions);
+  const { mockups, mockupImage } = studioImages(options, installed);
   studio.mockupImage = mockupImage;
   const choice = options.choice ?? selectionPorts(home);
   studio.workflow = new AgentBuilderWorkflow(storage, builderPorts({ execute, options, home, studio, installed, models, preview, mockups, choice, prompt: builderPrompts(home), instruction: builderInstructions(home) }));
@@ -210,7 +211,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (mockup && method === 'GET') {
       const picture = workflow.store.require(mockup[1]!).candidates.find(item => item.id === mockup[2])?.mockup;
       if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-not-ready", '这个方案还没有效果图')); return true; }
-      const image = await studio.mockupImage!(picture.jobId, picture.imageId).catch(() => null);
+      const image = picture.binding && await studio.mockupImage!(picture.jobId, picture.imageId, picture.binding).catch(() => null);
       if (!image) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-unreadable", '效果图读取失败')); return true; }
       response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
     }

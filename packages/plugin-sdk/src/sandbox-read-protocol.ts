@@ -1,5 +1,6 @@
 import {
   defineWorkflowContentActions, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineSubjectContextAction, defineWorkTerminalPromptAction,
+  IMAGE_GENERATION_PROTOCOL, IMAGE_GENERATION_ROLES, IMAGE_GENERATION_SCHEMAS, type ImageGenerationRole,
   PLACEMENT_RELATION_ROLES, type ActionDefinition, type ActionMetadata, type PlacementRelationRole, type PlacementRelationTarget,
 } from '@molis-ai/molis-work-contracts/platform/actions';
 import { isUiSubjectContextKind, pluginErrors } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -94,6 +95,15 @@ function actionProtocolDefinitionOf(protocol: unknown, operation: SandboxProtoco
       ...(role === 'list' ? { target: protocol.target as PlacementRelationTarget } : {}),
     });
   }
+  if (protocol.kind === 'image_generation') {
+    const role = protocol.role as ImageGenerationRole;
+    if (Object.keys(protocol).length !== 2 || !IMAGE_GENERATION_ROLES.includes(role)
+      || operation.kind !== (role === 'generate' ? 'command' : 'query')) throw invalid('image_generation requires the operation kind of its declared role');
+    const schema = IMAGE_GENERATION_SCHEMAS[role];
+    return { capability_id: capabilityId, version, operation: operation.kind, action: { scope, title, description: operation.description || title,
+      kind: role === 'generate' ? 'operation' : 'query', effect: role === 'generate' ? 'write' : 'read', audiences: ['user'], permissions: [...permissions],
+      subject_kinds: [], ...IMAGE_GENERATION_PROTOCOL[role], input_schema: schema.input, output_schema: schema.output } };
+  }
   if (protocol.kind === 'workflow_receive') {
     if (Object.keys(protocol).length !== 4 || !subjectKind(protocol.title) || !validRelation(protocol.subject_kind)
       || typeof protocol.icon !== 'string' || !(PLUGIN_ICON_NAMES as readonly string[]).includes(protocol.icon)
@@ -129,9 +139,13 @@ function actionProtocolDefinitionOf(protocol: unknown, operation: SandboxProtoco
 
 /** Fixed-schema platform action protocols (`placement_relation` and `settings`) for signed sandbox packages. */
 export function sandboxActionProtocolAction(operation: SandboxProtocolOperation, identity: Identity = schemaIdentity): ActionDefinition {
+  const imageRole = operation.action_protocol?.kind === 'image_generation' ? operation.action_protocol.role : undefined;
   const allowedAccess = operation.kind === 'query' ? ['read'] : ['read', 'write'];
   if (operation.external !== undefined || operation.background_job !== undefined
-    || Object.entries(operation.effects).some(([key, values]) => !localStores.has(key) || !Array.isArray(values) || values.some(value => !allowedAccess.includes(value)))) {
+    || Object.entries(operation.effects).some(([key, values]) => {
+      if (imageRole && key === 'imageGeneration') return !Array.isArray(values) || values.some(value => value !== 'read' && !(imageRole === 'generate' && value === 'generate'));
+      return !localStores.has(key) || !Array.isArray(values) || values.some(value => !allowedAccess.includes(value));
+    })) {
     throw invalid('action_protocol only accepts local store effects matching its operation kind');
   }
   const definition = actionProtocolDefinitionOf(operation.action_protocol, operation, identity);
@@ -139,5 +153,5 @@ export function sandboxActionProtocolAction(operation: SandboxProtocolOperation,
     || canonicalJsonText(operation.output) !== canonicalJsonText(definition.action.output_schema)) {
     throw invalid('action_protocol input and output must be the platform schemas');
   }
-  return { ...definition, action: { ...definition.action, scheduling: 'concurrent', execution: { cost: 'none' } } };
+  return { ...definition, action: { ...definition.action, scheduling: 'concurrent', execution: { cost: imageRole === 'generate' ? 'metered' : 'none' } } };
 }

@@ -200,11 +200,16 @@ function renderDynamicPluginSettingsHtml(
     const summary = entry.summary ? ("literal" in entry.summary ? entry.summary.literal : (entry.summary.fallback ?? "")) : "";
     const valueText = current?.state === "ok" ? (typeof current.value === "string" ? current.value : JSON.stringify(current.value)) : (current?.reason ?? "");
     const source = current?.state === "ok" ? current.source : "unavailable";
-    const revision = current?.revision ?? "";
     const defaultLayer = entry.layers[0] ?? (plugin.scope === "project" ? "project" : "personal");
+    const revision = current?.state === "ok" ? current.layer_revisions?.[defaultLayer] ?? current.revision : "";
+    const options = entry.schema.enum;
+    const field = options?.length ? `<select name="value" data-format="json">${options.map(option => `<option value="${escapeSettingsHtml(JSON.stringify(option))}"${current?.state === "ok" && JSON.stringify(current.value) === JSON.stringify(option) ? " selected" : ""}>${escapeSettingsHtml(typeof option === "string" ? option : JSON.stringify(option))}</option>`).join("")}</select>`
+      : entry.schema.type === "boolean" ? `<input name="value" type="checkbox"${current?.state === "ok" && current.value === true ? " checked" : ""}>`
+      : entry.schema.type === "string" ? `<input name="value" type="text" value="${escapeSettingsHtml(valueText)}">`
+      : `<textarea name="value" data-format="json">${escapeSettingsHtml(valueText)}</textarea>`;
     return `<div class="settings-row" data-plugin-setting-key="${escapeSettingsHtml(entry.key)}" data-plugin-setting-revision="${escapeSettingsHtml(revision)}" data-plugin-setting-layer="${escapeSettingsHtml(defaultLayer)}">
       <div class="settings-row-copy"><strong>${escapeSettingsHtml(title)}</strong>${summary ? `<p>${escapeSettingsHtml(summary)}</p>` : ""}<span class="settings-row-meta">${escapeSettingsHtml(source)}</span></div>
-      <div class="settings-row-control"><span data-plugin-setting-value>${escapeSettingsHtml(valueText)}</span></div>
+      <div class="settings-row-control">${current?.state === "ok" ? `<form data-plugin-setting-editor aria-label="${escapeSettingsHtml(title)}"><label><span class="sr-only">${escapeSettingsHtml(title)}</span>${field}</label><button type="submit" class="mw-btn mw-btn--secondary">${escapeSettingsHtml(readText("workbench.settings.apply"))}</button><output aria-live="polite"></output></form>` : `<span data-plugin-setting-value>${escapeSettingsHtml(valueText)}</span>`}</div>
     </div>`;
   }).join("");
   return `<section class="settings-section" data-dynamic-plugin-settings="${escapeSettingsHtml(plugin.plugin_id)}" data-plugin-install-id="${escapeSettingsHtml(plugin.record.install_id)}" data-manifest-digest="${escapeSettingsHtml(plugin.record.manifest_digest)}" data-installation-generation="${escapeSettingsHtml(plugin.record.installation_generation)}" data-plugin-scope="${plugin.scope}" data-dynamic-plugin-project="${escapeSettingsHtml(projectId ?? "")}">

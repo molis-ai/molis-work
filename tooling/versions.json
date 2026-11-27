@@ -1195,7 +1195,7 @@
     "format.build.manifest": 1,
     "format.builder.build-manifest": 1,
     "format.builder.portable": 1,
-    "format.builder.saved-state": 1,
+    "format.builder.saved-state": 2,
     "format.characters.portable": 1,
     "format.cognia.portable": 1,
     "format.computer.record": 1,

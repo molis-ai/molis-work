@@ -4,11 +4,20 @@ import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions'
 const deletionErrors=defineErrorCodes('plugin_builder',{draft_deletion_unavailable:'unavailable'});
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { AgentBuild, AgentRelease } from './agent-model.js';
-import {nextBuilderRevision,parseBuilderState,type BuilderSavedState} from './agent-state.js';
+import {nextBuilderRevision,parseBuilderState,upgradeBuilderSavedState,type BuilderSavedState} from './agent-state.js';
 import { assertPublicationReady, buildScope, releaseScope } from './agent-publication.js';
 const KEY = 'plugin-builder:agent-built:v1';
 export class AgentBuilderStore {
-  constructor(private readonly storage: PluginPrivateStorage) { if (!storage.compareAndSet) throw new Error('Builder requires atomic compareAndSet storage'); }
+  constructor(private readonly storage: PluginPrivateStorage) {
+    if (!storage.compareAndSet) throw new Error('Builder requires atomic compareAndSet storage');
+    const raw = storage.get(KEY);
+    if (raw === null) return;
+    const upgraded = upgradeBuilderSavedState(raw);
+    if (upgraded !== null && !storage.compareAndSet(KEY, raw, upgraded)) {
+      // Another connection may have already migrated or edited the same saved state.
+      parseBuilderState(storage.get(KEY));
+    }
+  }
   private read() { const raw = this.storage.get(KEY); return { raw, state:parseBuilderState(raw) }; }
   private write(raw: string | null, state: BuilderSavedState) { const value=JSON.stringify(state);parseBuilderState(value);if (!this.storage.compareAndSet!(KEY, raw, value)) throw Object.assign(studioProblem("plugin-builder.request.draft-conflict", '草稿已更新，请重试'), { code: 'revision_conflict' }); }
   list() { return structuredClone(this.read().state.builds).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)); }

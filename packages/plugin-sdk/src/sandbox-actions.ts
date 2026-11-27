@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { isSandboxSourceOperation } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxOperationContract, SandboxPluginContract, SandboxSchema, SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } from '@molis-ai/molis-work-contracts/services/project-approvals';
 import { canonicalJsonText, isRecord } from './json-value.js';
@@ -149,9 +150,10 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
     }
     if (operation.read_protocol?.kind === 'work_terminal_prompt' || operation.read_protocol?.kind === 'resume_summary'
       || operation.action_protocol?.kind === 'placement_relation') return 'project';
+    if (input.dualInstance && input.contract.home_source && !operation.effects.homeDatabase?.length && !operation.effects.modelSettings?.length && !operation.effects.imageGeneration?.length) return 'project';
     return input.dualInstance ? (operation.effects.projectDatabase?.length || operation.trusted_review !== undefined ? 'project' : 'home') : input.scope;
   };
-  return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation).map(operation => {
+  return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation && !(input.contract.home_source && isSandboxSourceOperation(operation.id))).map(operation => {
     const actionScope = scopeOf(operation);
     const localized = {
       ...(operation.title_text === undefined ? {} : { title_text: operation.title_text }),

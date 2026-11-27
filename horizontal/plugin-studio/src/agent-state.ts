@@ -7,7 +7,7 @@ import {validateFrozenStudioWords,validateStudioPlainWords} from './agent-ui-tex
 import type {AgentBuild,AgentBuildSnapshot,AgentDesign,AgentProposal,AgentRelease} from './agent-model.js';
 import {isStudioBuildFailure,isStudioStepLabel} from './studio-collaboration.js';
 
-export interface BuilderSavedState {format:/* @version format.builder.saved-state */ 1;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
+export interface BuilderSavedState {format:/* @version format.builder.saved-state */ 2;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
 const errors=defineErrorCodes('plugin_builder',{store_invalid:'invalid',store_limit:'too_large'});
 const invalid=():never=>{throw errors.store_invalid('创作数据格式版本无效，原内容已保留');};
 function wordsAreValid(design: AgentDesign | null | undefined): boolean {
@@ -36,13 +36,33 @@ function checkSavedUi(design:unknown,nodes:unknown):void{
   validatePluginComponentNodes(nodes,validatePluginComponentPlans(parts,design.contract,ui,connections),design.contract);
  }catch{return invalid();}
 }
+/** One explicit v1→v2 owner upgrade at open. Parsing alone never rewrites a document. */
+export function upgradeBuilderSavedState(raw: string): string | null {
+ const old: unknown = JSON.parse(raw);
+ if (!isRecord(old) || old.format !== 1) return null;
+ if (!Array.isArray(old.builds)) return invalid();
+ for (const build of old.builds) {
+  if (!isRecord(build) || !Array.isArray(build.candidates)) return invalid();
+  for (const candidate of build.candidates) {
+   if (!isRecord(candidate)) return invalid();
+   const picture = candidate.mockup;
+   if (picture === undefined) continue;
+   if (!isRecord(picture) || !['drawing','ready','failed'].includes(String(picture.status))
+      || Object.keys(picture).some(field => !['status','jobId','imageId','reason'].includes(field))) return invalid();
+   candidate.mockup = { status: 'failed', regenerate: true };
+  }
+ }
+ const next = JSON.stringify({ ...old, format: /* @version format.builder.saved-state */ 2 });
+ parseBuilderState(next);
+ return next;
+}
 /** One current owner document. A different format is refused without rewriting or empty-state recovery. */
 export function parseBuilderState(raw:string|null):BuilderSavedState{
- if(raw===null)return {format:/* @version format.builder.saved-state */ 1,builds:[],releases:[],revisions:{}};
+ if(raw===null)return {format:/* @version format.builder.saved-state */ 2,builds:[],releases:[],revisions:{}};
  let value:unknown;try{value=JSON.parse(raw);}catch{return invalid();}
  if(!value||typeof value!=='object'||Array.isArray(value))return invalid();
  const row=value as Record<string,unknown>;
- if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==/* @version format.builder.saved-state */ 1
+ if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==/* @version format.builder.saved-state */ 2
   ||!Array.isArray(row.builds)||!Array.isArray(row.releases)||row.builds.length>10000||row.releases.length>10000
   ||!row.revisions||typeof row.revisions!=='object'||Array.isArray(row.revisions))return invalid();
  const floors=row.revisions as Record<string,unknown>;

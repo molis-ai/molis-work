@@ -9,7 +9,7 @@ import { trustedDecisionSubmitted } from '@molis-ai/molis-work-kernel';
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance, pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
 import { exposedActionReference } from './installed-plugin-exposed-actions.js';
 import { rememberInstalledActionSource } from './installed-action-registration.js';
-import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { isSandboxSourceOperation, type SandboxEffects, type SandboxIdentity, type SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, createBackgroundLane, readOnlySandboxStorage, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from './plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
@@ -49,6 +49,7 @@ function installedOperation(release: InstalledRelease, context: PluginStartConte
 
 /** What the Host lends a sandboxed plugin's definition. */
 export interface SandboxedPluginHost {
+  source?(release: InstalledRelease, context: PluginStartContext, live: () => void, call: import('./sandbox-integration.js').SandboxIntegrationProxyInput['call']): NonNullable<PluginAppContribution['home_source']>;
   capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(context: SandboxServiceContext): Promise<readonly CapabilityExecution[]>;
   backgroundLocale?(): string;
   /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
@@ -142,6 +143,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         ? context.grants.filter(permission => { try { context.requireGrant(permission); return true; } catch { return false; } })
         : context.grants;
       // The approval as this activation may use it (BL-701): an effect whose switch is off never reaches the broker.
+      const owesSource = Boolean(release.design.contract.home_source) && context.project_id == null;
+      if (owesSource && !host.source) throw pluginErrors.home_scope_unavailable('个人来源需要 Home 的连接服务');
       const allowed = effectsForHalf(grantedEffects(approved, liveGrants()), context.project_id, dualInstance);
       const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
       background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256,
@@ -182,7 +185,23 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
           installation: { scope: context.project_id ? 'project' : 'home', install_id: context.install_id,
             installation_generation: context.installation_generation, version: manifest.version, manifest_digest: manifestDigest } }) }],
       };
-      if (manifest.actions) contribution.actions = manifest.actions.map(action => ({ capability_id: action.capability_id, version: action.version,
+      if (owesSource && host.source) {
+        const live = () => { context.requireGrant('storage:private'); host.assertLive?.(identity); };
+        contribution.home_source = host.source(release, context, live, async (id, input, control) => {
+          const beforeEffect = async () => { await control.beforeEffect?.(); control.signal?.throwIfAborted(); live(); };
+          await beforeEffect();
+          const pending = open('quick');
+          try {
+            const runner = await pending;
+            await beforeEffect();
+            return await runner.call(id, input, { ...control, beforeEffect, locale: activeLocale() ?? host.backgroundLocale?.() });
+          } catch (error) {
+            if (GONE.has((error as { code?: string }).code ?? '') && lanes.get('quick') === pending) lanes.delete('quick');
+            throw error;
+          }
+        });
+      }
+      if (manifest.actions) contribution.actions = manifest.actions.filter(action => !dualInstance || action.action.scope === (context.project_id == null ? 'home' : 'project')).map(action => ({ capability_id: action.capability_id, version: action.version,
         handle: async (caller, input) => {
           const response = await contribution.routes![0]!.handle({ method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: caller.actor_id,
             execution: { signal: caller.signal, beforeEffect: caller.beforeEffect, page_context: caller.page_context, locale: caller.locale,
@@ -229,7 +248,7 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
       const call = raw ? { operationId: installedOperation(release, context, body.operation), input: Object.hasOwn(body, 'input') ? body.input : {} }
         : resolvePluginComponentCall(node!, 'read', body.payload ?? {});
       await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
-      const operation = release.design.contract.operations.find(item => item.id === call.operationId && item.id !== upgradeOperation);
+      const operation = release.design.contract.operations.find(item => item.id === call.operationId && item.id !== upgradeOperation && !(release.design.contract.home_source && isSandboxSourceOperation(item.id)));
       if (!operation) throw new ActionError('actions.forbidden', '这个操作不在已安装页面的合同内');
       const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
       // Before any of its code runs, whichever door it came through (BL-701, S-48).

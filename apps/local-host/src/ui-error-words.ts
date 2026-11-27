@@ -459,7 +459,7 @@ export function localizeWebErrorMessage(
   if (shouldAlwaysLocalizeCode(code)) {
     return readErrorWord(keyForCodeAndMessage(code, raw, response.status), locale);
   }
-  if (locale && isWrongLanguageForLocale(raw, locale)) {
+  if (locale && isWrongLanguageForLocale(raw, locale, response.status)) {
     const key = code === "actions.execution_failed" ? fallbackKey : keyForCodeAndMessage(code, raw, response.status);
     return readErrorWord(key, locale);
   }

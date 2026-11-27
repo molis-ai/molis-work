@@ -177,6 +177,7 @@ export function assertSafeRegexPattern(source: string, label: string): void {
       lastGroup = stack.pop()!;
       const parent = stack[stack.length - 1]!;
       if (lastGroup.hasQuantifier) parent.hasQuantifier = true;
+      if (lastGroup.hasAlternation) parent.hasAlternation = true;
       lastAtom = 'group';
       continue;
     }

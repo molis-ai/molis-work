@@ -81,6 +81,7 @@ export function isSafeOAuthPattern(value: unknown): value is string {
       if (!closed) return false;
       const parent = groups[groups.length - 1];
       if (parent && closed.hasQuantifier) parent.hasQuantifier = true;
+      if (parent && closed.hasAlternation) parent.hasAlternation = true;
       lastAtom = "group";
       lastGroup = closed;
       continue;

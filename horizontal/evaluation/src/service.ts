@@ -170,15 +170,28 @@ export class EvaluationService {
       return commit({ holdId: target.hold_id, heldCount });
     } catch (error) {
       if (!written) throw error;
-      const cleanup = { ...retainActionAuthority(caller, origin), signal: undefined, beforeEffect: async () => {} };
-      if (previous) {
-        const { note, expires_at, record_ids } = previous;
-        for (let offset = 0; offset < record_ids.length; offset += 500) {
-          await commitEvaluationSampleHold(client, cleanup, target, { note, project_id: sample.project_id, expires_at },
-            record_ids.slice(offset, offset + 500), offset > 0);
+      // Compensation undoes the uncommitted hold we just wrote; strip the cancelled outer signal/authority closures
+      // so real AbortSignal cancellation rolls the hold back cleanly, and never let a secondary cleanup failure hide `error`.
+      const cleanup: ActionCallContext = {
+        actor_id: caller.actor_id,
+        actor_kind: caller.actor_kind,
+        audience: caller.audience,
+        project_id: caller.project_id,
+        permissions: caller.permissions,
+        ...(caller.locale !== undefined ? { locale: caller.locale } : {}),
+      };
+      try {
+        if (previous) {
+          const { note, expires_at, record_ids } = previous;
+          for (let offset = 0; offset < record_ids.length; offset += 500) {
+            await commitEvaluationSampleHold(client, cleanup, target, { note, project_id: sample.project_id, expires_at },
+              record_ids.slice(offset, offset + 500), offset > 0);
+          }
+        } else {
+          await releaseEvaluationSampleHolds(client, cleanup, [target]);
         }
-      } else {
-        await releaseEvaluationSampleHolds(client, cleanup, [target]);
+      } catch {
+        // Keep the original refusal/cancellation error when the host itself is already closed.
       }
       throw error;
     }

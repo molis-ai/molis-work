@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import {
   OBSERVATION_RETENTION_NEEDS,
   type ObservationHoldListInput,
@@ -180,48 +181,49 @@ export async function handleHoldsPut(
   input: ObservationHoldPutInput,
 ): Promise<ObservationHoldPutResult> {
   assertPersonCaller(caller);
-  const db = openForHolds(deps.writer);
-  authorizeObservationUse(caller, "evaluation", readStoredSettings(db));
+  await caller.beforeEffect?.();
+  caller.assert_authority_current?.();
+  caller.signal?.throwIfAborted();
 
   const readable = await resolveLiveReadableProjects(deps.env);
   if (typeof input.project_id === "string" && readable && !readable.has(input.project_id)) {
     throw observationErrors.forbidden("所选项目不存在、已删除或正在关闭");
   }
-  await caller.beforeEffect?.();
   caller.assert_authority_current?.();
   caller.signal?.throwIfAborted();
 
+  const db = openForHolds(deps.writer);
   const now = deps.env.now();
   const nowIso = now.toISOString();
   const expiresAt = normalizeExpiresAt(input.expires_at, now);
   const owner = (input.owner ?? "system.evaluation").trim();
   const recordIds = [...new Set(input.record_ids)];
-  const findRecord = db.prepare("SELECT seq, project_id FROM records WHERE record_id = ?");
   const held_record_ids: string[] = [];
   const missing_record_ids: string[] = [];
   const resolvedRecords: { readonly record_id: string; readonly seq: number | null }[] = [];
   const seenProjects = new Set<string | null>();
 
-  for (const recordId of recordIds) {
-    const found = findRecord.get(recordId) as { seq: number; project_id: string | null } | undefined;
-    if (!found) {
-      missing_record_ids.push(recordId);
-      resolvedRecords.push({ record_id: recordId, seq: null });
-      continue;
-    }
-    if (found.project_id !== null && readable && !readable.has(found.project_id)) {
-      throw observationErrors.forbidden("留存记录所属项目已删除或正在关闭");
-    }
-    if (input.project_id !== undefined && found.project_id !== input.project_id) {
-      throw observationErrors.forbidden("留存记录不属于指定的项目范围");
-    }
-    seenProjects.add(found.project_id);
-    held_record_ids.push(recordId);
-    resolvedRecords.push({ record_id: recordId, seq: found.seq });
-  }
-
   db.exec("BEGIN IMMEDIATE");
   try {
+    authorizeObservationUse(caller, "evaluation", readStoredSettings(db));
+    const findRecord = db.prepare("SELECT seq, project_id FROM records WHERE record_id = ?");
+    for (const recordId of recordIds) {
+      const found = findRecord.get(recordId) as { seq: number; project_id: string | null } | undefined;
+      if (!found) {
+        missing_record_ids.push(recordId);
+        resolvedRecords.push({ record_id: recordId, seq: null });
+        continue;
+      }
+      if (found.project_id !== null && readable && !readable.has(found.project_id)) {
+        throw observationErrors.forbidden("留存记录所属项目已删除或正在关闭");
+      }
+      if (input.project_id !== undefined && found.project_id !== input.project_id) {
+        throw observationErrors.forbidden("留存记录不属于指定的项目范围");
+      }
+      seenProjects.add(found.project_id);
+      held_record_ids.push(recordId);
+      resolvedRecords.push({ record_id: recordId, seq: found.seq });
+    }
     const existing = db.prepare("SELECT created_at, owner, sample_id, project_id FROM evaluation_holds WHERE hold_id = ?")
       .get(input.hold_id) as Pick<StoredHoldRow, "created_at" | "owner" | "sample_id" | "project_id"> | undefined;
     if ((input.require_same_identity || input.append_records) && existing && (existing.owner !== owner || existing.sample_id !== input.sample_id)) {
@@ -258,7 +260,9 @@ export async function handleHoldsPut(
     }
     db.exec("COMMIT");
   } catch (error) {
-    try { db.exec("ROLLBACK"); } catch { /* already rolled back */ }
+    rollbackPreservingError(error, () => {
+      if (db.isTransaction) db.exec("ROLLBACK");
+    });
     throw error;
   }
 

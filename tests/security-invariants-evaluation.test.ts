@@ -78,6 +78,7 @@ function setupHarness(t: test.TestContext) {
   let cancelBeforeEffectCapability: string | null = null;
   let cancelBeforeEffectOnCall = 0;
   let cancelBeforeEffectCalls = 0;
+  let beforeEffectAction: (() => void) | null = null;
   let beforeEffectHoldCounts: number[] = [];
   const service = new ActionService(undefined, {
     observed: (caller, action, value) => observation.observed(caller, action, value),
@@ -89,6 +90,10 @@ function setupHarness(t: test.TestContext) {
           ? Number((db.prepare("SELECT COUNT(*) AS n FROM evaluation_holds").get() as { n: number }).n)
           : -1);
         if (cancelBeforeEffectOnCall === 0 || cancelBeforeEffectCalls === cancelBeforeEffectOnCall) {
+          if (beforeEffectAction) {
+            beforeEffectAction();
+            return;
+          }
           throw new ActionError("actions.cancelled", `并发操作在落库前已取消：${reference.capability_id}`);
         }
       }
@@ -111,10 +116,11 @@ function setupHarness(t: test.TestContext) {
     service,
     observation,
     evaluation,
-    setCancelBeforeEffect: (capabilityId: string | null, onCall = 0) => {
+    setCancelBeforeEffect: (capabilityId: string | null, onCall = 0, action: (() => void) | null = null) => {
       cancelBeforeEffectCapability = capabilityId;
       cancelBeforeEffectOnCall = onCall;
       cancelBeforeEffectCalls = 0;
+      beforeEffectAction = action;
       beforeEffectHoldCounts = [];
     },
     beforeEffectHoldCounts: () => [...beforeEffectHoldCounts],
@@ -566,4 +572,22 @@ test("S-evaluation-isolation 6: late cancellation after the nested hold write le
   fx.setCancelBeforeEffect(null);
   const after = await fx.service.invoke(person(), observationActions.holdsList, { sample_id: "existing-held@1" });
   assert.equal(after.holds.length, 1, "an idempotent failed put keeps the existing hold");
+
+  // 3. Real AbortController.abort() after the nested hold write must still cleanly roll back the newly created hold.
+  const abortController = new AbortController();
+  fx.setCancelBeforeEffect("evaluation.samples.put", 4, () => abortController.abort(new ActionError("actions.cancelled", "实时信号已取消")));
+  await assert.rejects(
+    fx.service.invoke(
+      person({ signal: abortController.signal }),
+      evaluationActions.samplesPut,
+      sampleFixture({ sample_id: "real-abort-rollback", hold_records: true }),
+    ),
+    refused("actions.cancelled"),
+  );
+  assert.equal(fx.beforeEffectHoldCounts()[3], 2, "the second hold was committed before the real AbortSignal aborted");
+  fx.setCancelBeforeEffect(null);
+  const rolledBack = await fx.service.invoke(person(), observationActions.holdsList, { sample_id: "real-abort-rollback@1" }) as { holds: readonly unknown[] };
+  assert.deepEqual(rolledBack.holds, [], "real AbortController cancellation must roll back the newly written hold");
+  const samplesAfterAbort = await fx.service.invoke(person(), evaluationActions.samplesList, {}) as { samples: readonly { sample_id: string }[] };
+  assert.ok(!samplesAfterAbort.samples.some((sample) => sample.sample_id === "real-abort-rollback"), "aborted sample was not committed");
 });

@@ -84,9 +84,7 @@ export function createConnectionWatch() {
     async waitRetry(ms: number, signal: AbortSignal): Promise<boolean> {
       if (pendingHolds.length > 0) return true;
       if (signal.aborted) {
-        const error = new Error("The operation was aborted");
-        error.name = "AbortError";
-        throw error;
+        throw new DOMException("The operation was aborted", "AbortError");
       }
       return await new Promise<boolean>((resolve, reject) => {
         const cleanup = () => {
@@ -96,9 +94,7 @@ export function createConnectionWatch() {
         };
         const onAbort = () => {
           cleanup();
-          const error = new Error("The operation was aborted");
-          error.name = "AbortError";
-          reject(error);
+          reject(new DOMException("The operation was aborted", "AbortError"));
         };
         const onWake = () => {
           if (pendingHolds.length === 0) return;

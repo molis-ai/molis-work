@@ -16,6 +16,7 @@ import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingHttpHeaders } from 'node:http';
 import { isIP } from 'node:net';
+import { Readable } from 'node:stream';
 import { isPublicAddress } from '@molis-ai/molis-work-contracts/platform/public-address';
 
 const TIMEOUT_MS = 15_000, MAX_BODY = 1024 * 1024;
@@ -229,18 +230,7 @@ export async function sendPublicHttpsResponse(request: PublicHttpsStreamRequest)
         }
         const bodyStream = NO_BODY_STATUSES.has(status) || method.toUpperCase() === 'HEAD'
           ? (incoming.resume(), null)
-          : new ReadableStream<Uint8Array>({
-            start(controller) {
-              incoming.on('data', (chunk: Buffer | Uint8Array) => {
-                controller.enqueue(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
-              });
-              incoming.on('end', () => controller.close());
-              incoming.on('error', error => controller.error(error));
-            },
-            cancel() {
-              incoming.destroy();
-            },
-          });
+          : Readable.toWeb(incoming) as ConstructorParameters<typeof Response>[0];
         done(new Response(bodyStream, { status, statusText: incoming.statusMessage ?? '', headers: responseHeaders }));
       });
       const onConnectTimeout = () => {

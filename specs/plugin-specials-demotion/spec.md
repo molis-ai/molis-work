@@ -1,6 +1,6 @@
 # 特殊逻辑平民化：特殊插件收归平台、平台特例收成公开声明（Platform Specials Demotion）
 
-第 44C 批正在复验。2026-11-26 合入的首轮交付及当时仍缺的项目见[原实施记录](../post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-record)。独立复核后，整改候选已补单包九项、逐一拔除后的冷启与同步恢复、驱动故障隔离和三语置物架投递。原生交互、实物签收与云端结果按候选提交验收。[整改记录](../post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-remediation) · [整改 PR](https://github.com/molis-ai/molis-work/pull/2354)
+状态：第 44C 批正在复验。2026-11-26 合入的首轮交付及当时仍缺的项目见[原实施记录](../post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-record)。独立复核后，整改候选已补单包九项、逐一拔除后的冷启与同步恢复、驱动故障隔离和三语置物架投递。原生交互、实物签收与云端结果按候选提交验收。[整改记录](../post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-remediation) · [整改 PR](https://github.com/molis-ai/molis-work/pull/2354)
 
 44B-0 随 #2262 合入，旧 Alchemist 随 #2279 删除，Shelf 与官方集成随 #2294 迁移，独立复核修复随 #2308 合入。44C 首轮合入提交为 `56a094ec0e`。截至 2026-11-27，个人同步全组合与附件回归的 PR 仍在审。[44B 移交](../post-anticorruption-roadmap/reference/batches/44b.md) · [44C 首轮 PR](https://github.com/molis-ai/molis-work/pull/2333) · [同步 PR](https://github.com/molis-ai/molis-work/pull/2260) · [认领板](https://github.com/molis-ai/molis-work/issues/1743) · [实施总纲](implementation-plan.md)
 

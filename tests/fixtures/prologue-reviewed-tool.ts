@@ -14,4 +14,3 @@ export function response(name?: string, input: unknown = {}): Response {
   emit("message_stop", {});
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
-

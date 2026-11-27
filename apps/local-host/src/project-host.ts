@@ -74,7 +74,7 @@ import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingR
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
 import { computeProjectRestingFingerprint, homeAggregateStoresFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
 import { installedPluginsStarting, releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPartitionPluginPorts, withPreparedProject } from "./project-plugin-ports.js";
+import { reconcileOpenDualProjectHalves, prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPartitionPluginPorts, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
@@ -303,6 +303,7 @@ export class MolisWorkLocalHost {
     if (home) this.assistantStore = assistantStoreFor(home);
     if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims, ownerClosing: () => !!this.closing.started,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
+      reconcileProjectHalves: (pluginId, action) => reconcileOpenDualProjectHalves(this.plugins, pluginId, action),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
         this, this.host, molisWorkHostProjectReference),
       projectArtifacts: projectId => { const open = this.host.openRuntimes().find(runtime => runtime.project_id === projectId);

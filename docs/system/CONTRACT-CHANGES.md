@@ -208,6 +208,7 @@
 ### 存储版本变更登记
 
 44C：`format.builder.saved-state` 1→2，SQLite 私有值的键和数据表不变。配图保存项目、安装范围、安装标识、代次、版本、Manifest 摘要、提供方、连接以及已收到的任务号。按一骏 11 月 26 日的决定，同一版草稿也可在设计中保存作者单独编写的角色名称、用途、正文。旧草稿没有随包角色模板。
+旧版金样 [0.1.1-dev.9](../../tests/fixtures/golden-homes/0.1.1-dev.9/manifest.json) 由配置本地测试模型的旧版创作台保存草稿，经原项目数据库读取格式 1。草稿保存后，经设置删除测试模型和两条临时连接，再捕获 Home。回放恢复项目并经创作台打开草稿。Studio 将运行记录原子写入 `builder-runs/<运行编号>.json`，Home 备份保存已提交文件，恢复时跳过写入中的临时文件。
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
 

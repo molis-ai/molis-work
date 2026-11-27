@@ -1,3 +1,4 @@
+import { PLATFORM_SURFACE_CLIENT_PATHS } from "@molis-ai/molis-work-ui-host/platform-client-paths";
 import { deferredSurfaceClients } from "../../plugin-workbench.js";
 
 /**
@@ -10,6 +11,9 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap(), invalidations = new WeakMap();
   const scope = host.scope;
+  const platformScripts = ${JSON.stringify(PLATFORM_SURFACE_CLIENT_PATHS)};
+  const loadPlatformClient = id => Object.hasOwn(platformScripts, id) ? load(platformScripts[id])
+    : Promise.reject(new Error(globalThis.t.text("common.child.view-entry-missing")));
   const load = url => {
     if (scope.signal.aborted) return Promise.reject(scope.signal.reason);
     if (scripts.has(url)) return scripts.get(url);
@@ -54,7 +58,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
           await globalThis.molisPluginFrames.mount(root, host, pack);
         } else {
           for (const asset of pack.assets) await load(asset);
-          await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
+          await loadPlatformClient(pack.id);
           if (!root.isConnected || scope.signal.aborted) return;
           const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
           if (!factory) throw new Error(globalThis.t.text('common.child.view-entry-missing'));
@@ -108,5 +112,5 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   }
   document.addEventListener('molis-work:place-changed', visible);
   visible();
-  return { prepare, loadBundle: id => load('/assets/molis-work-plugins/' + encodeURIComponent(id) + '.js'), frameAssets: async () => { await load('/assets/molis-work-plugin-frame.js'); globalThis.molisPluginFrames.assets.configure(host.paneMessages); return globalThis.molisPluginFrames.assets; }, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
+  return { prepare, loadPlatformClient, frameAssets: async () => { await load('/assets/molis-work-plugin-frame.js'); globalThis.molisPluginFrames.assets.configure(host.paneMessages); return globalThis.molisPluginFrames.assets; }, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
 }`;

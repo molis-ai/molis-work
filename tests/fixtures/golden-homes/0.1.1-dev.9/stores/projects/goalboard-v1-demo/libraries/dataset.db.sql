@@ -1,0 +1,58 @@
+PRAGMA foreign_keys=OFF;
+BEGIN;
+CREATE TABLE dataset_receipts (request_id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE dataset_source_bindings (
+    source_key TEXT PRIMARY KEY,
+    dataset_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+CREATE TABLE dataset_versions (
+    id TEXT PRIMARY KEY,
+    dataset_id TEXT NOT NULL,
+    note TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+CREATE TABLE datasets (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL,
+    columns_json TEXT NOT NULL,
+    rows_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
+INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_context"("id","project_id") VALUES(1,'goalboard-v1-demo');
+INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_replica_state"("id","device","cursor","applying") VALUES(1,'322089f6193c412bdf6562bbb026b17a',0,0);
+DELETE FROM sqlite_sequence;
+CREATE INDEX sync_aa98c46361f294dbb01ea79b1b42_replica_changes_key ON sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key);
+CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_dataset_versions_aggregate_delete AFTER DELETE ON dataset_versions BEGIN INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',id) FROM datasets WHERE id=OLD.dataset_id AND (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0;  END;
+CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_dataset_versions_aggregate_insert AFTER INSERT ON dataset_versions BEGIN INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',id) FROM datasets WHERE id=NEW.dataset_id AND (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0;  END;
+CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_dataset_versions_aggregate_update AFTER UPDATE ON dataset_versions BEGIN INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',id) FROM datasets WHERE id=NEW.dataset_id AND (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0; INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',id) FROM datasets WHERE id=OLD.dataset_id AND (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_datasets_aggregate_delete AFTER DELETE ON datasets BEGIN INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',OLD.id) WHERE (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0 AND (1=1);
+      INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions VALUES (json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',OLD.id),OLD.version) ON CONFLICT(key) DO UPDATE SET version=MAX(version,excluded.version);
+       END;
+CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_datasets_aggregate_insert AFTER INSERT ON datasets BEGIN INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',NEW.id) WHERE (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0 AND (1=1);
+      INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions VALUES (json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',NEW.id),NEW.version) ON CONFLICT(key) DO UPDATE SET version=MAX(version,excluded.version);
+       END;
+CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_datasets_aggregate_update AFTER UPDATE ON datasets BEGIN INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',NEW.id) WHERE (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0 AND (1=1);
+      INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions VALUES (json_array((SELECT project_id FROM sync_aa98c46361f294dbb01ea79b1b42_context WHERE id=1),'dataset',NEW.id),NEW.version) ON CONFLICT(key) DO UPDATE SET version=MAX(version,excluded.version);
+       END;
+PRAGMA user_version=1;
+COMMIT;

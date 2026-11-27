@@ -7,7 +7,12 @@ import {validateFrozenStudioWords,validateStudioPlainWords} from './agent-ui-tex
 import type {AgentBuild,AgentBuildSnapshot,AgentDesign,AgentProposal,AgentRelease} from './agent-model.js';
 import {isStudioBuildFailure,isStudioStepLabel} from './studio-collaboration.js';
 
-export interface BuilderSavedState {format:/* @version format.builder.saved-state */ 2;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
+export const BUILDER_SAVED_STATE = {
+ version: /* @version format.builder.saved-state */ 2,
+ upgrades: [{ from: 1, apply: upgradeUnboundImages }],
+} as const;
+
+export interface BuilderSavedState {format:typeof BUILDER_SAVED_STATE.version;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
 const errors=defineErrorCodes('plugin_builder',{store_invalid:'invalid',store_limit:'too_large'});
 const invalid=():never=>{throw errors.store_invalid('创作数据格式版本无效，原内容已保留');};
 function wordsAreValid(design: AgentDesign | null | undefined): boolean {
@@ -53,10 +58,8 @@ function checkSavedUi(design:unknown,nodes:unknown):void{
   validatePluginComponentNodes(nodes,validatePluginComponentPlans(parts,design.contract,ui,connections),design.contract);
  }catch{return invalid();}
 }
-/** One explicit v1→v2 owner upgrade at open. Parsing alone never rewrites a document. */
-export function upgradeBuilderSavedState(raw: string): string | null {
- const old: unknown = JSON.parse(raw);
- if (!isRecord(old) || old.format !== 1) return null;
+/** v1 jobs have no verifiable installation or connection. Keep the draft and ask for a new generation. */
+function upgradeUnboundImages(old: Record<string, unknown>): void {
  if (!Array.isArray(old.builds)) return invalid();
  for (const build of old.builds) {
   if (!isRecord(build)) return invalid();
@@ -71,17 +74,28 @@ export function upgradeBuilderSavedState(raw: string): string | null {
    candidate.mockup = { status: 'failed', regenerate: true };
   }
  }
- const next = JSON.stringify({ ...old, format: /* @version format.builder.saved-state */ 2 });
+}
+
+/** Apply each step once before the owner opens its current state. Parsing alone never migrates a draft. */
+export function upgradeBuilderSavedState(raw: string): string | null {
+ const saved: unknown = JSON.parse(raw);
+ if (!isRecord(saved) || saved.format === BUILDER_SAVED_STATE.version) return null;
+ for (const step of BUILDER_SAVED_STATE.upgrades) {
+  if (saved.format !== step.from) continue;
+  step.apply(saved);
+  saved.format = step.from + 1;
+ }
+ const next = JSON.stringify(saved);
  parseBuilderState(next);
  return next;
 }
 /** One current owner document. A different format is refused without rewriting or empty-state recovery. */
 export function parseBuilderState(raw:string|null):BuilderSavedState{
- if(raw===null)return {format:/* @version format.builder.saved-state */ 2,builds:[],releases:[],revisions:{}};
+ if(raw===null)return {format:BUILDER_SAVED_STATE.version,builds:[],releases:[],revisions:{}};
  let value:unknown;try{value=JSON.parse(raw);}catch{return invalid();}
  if(!value||typeof value!=='object'||Array.isArray(value))return invalid();
  const row=value as Record<string,unknown>;
- if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==/* @version format.builder.saved-state */ 2
+ if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==BUILDER_SAVED_STATE.version
   ||!Array.isArray(row.builds)||!Array.isArray(row.releases)||row.builds.length>10000||row.releases.length>10000
   ||!row.revisions||typeof row.revisions!=='object'||Array.isArray(row.revisions))return invalid();
  const floors=row.revisions as Record<string,unknown>;

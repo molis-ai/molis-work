@@ -8,7 +8,7 @@ import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions'
 import type {PrivateValueReplicationOwner} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type {PluginSyncDeclaration} from '@molis-ai/molis-work-contracts/platform/plugin';
 import type {AgentBuild,AgentRelease} from './agent-model.js';
-import {parseBuilderState,nextBuilderRevision,upgradeBuilderSavedState,type BuilderSavedState} from './agent-state.js';
+import {BUILDER_SAVED_STATE,parseBuilderState,nextBuilderRevision,upgradeBuilderSavedState,type BuilderSavedState} from './agent-state.js';
 import {assertBuilderIdle,builderSyncInvalid,portableBuilderBuild,portableBuilderRelease,validateBuilderPortable,type BuilderPortableState} from './sync-shape.js';
 import {captureBuilderDirectory,stageBuilderDirectories,copyEditableBuilderDirectories,type BuilderPortableDirectory} from './sync-files.js';
 
@@ -102,7 +102,7 @@ function restore(value:BuilderPortableState|null,local:BuilderSavedState,project
   const directory=paths.get(String(row.buildId))?.get('release-'+row.version);if(!directory)builderSyncInvalid();
   releases.push({...row,directory,bundlePath:join(directory!,'plugin.mjs'),packagePath:directory} as AgentRelease);
  }
- options.authorize?.();return parseBuilderState(JSON.stringify({format:/* @version format.builder.saved-state */ 2,builds,releases,revisions}));
+ options.authorize?.();return parseBuilderState(JSON.stringify({format:BUILDER_SAVED_STATE.version,builds,releases,revisions}));
 }
 /** Runtime selects one exact private key; independent authoring items have independent change keys. */
 export function builderPrivateValueReplicationOwner(options:BuilderReplicationOptions={}):PrivateValueReplicationOwner{

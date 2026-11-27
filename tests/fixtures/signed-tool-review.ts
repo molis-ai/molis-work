@@ -32,7 +32,10 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
   await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
   await page.command("Page.navigate", { url: served.origin + "/" });
   await page.wait('document.querySelector(".chooser")?.dataset.selected === ' + JSON.stringify(project.project_id));
-  await page.evaluate('document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: { new: true } }))');
+  const object = { kind: "sandbox_card", id: "card-1", title: "Sandbox card" };
+  const handoff = { message_id: "signed-notebook-card", purpose: "delegate", source: { surface: view.provider.plugin_id }, object };
+  await page.evaluate('window.dispatchEvent(new CustomEvent("molis:assistant-message", {detail:' + JSON.stringify(handoff) + '}))');
+  await page.click("[data-step-offer]");
   const composer = "[data-assistant-composer] .mw-composer__input";
   await page.wait('document.querySelector(' + JSON.stringify(composer) + ')?.getBoundingClientRect().width > 0');
   await page.evaluate('(() => { const input = document.querySelector(' + JSON.stringify(composer) + '); input.value = "Use Notebook editing to review and save the proposed wording."; input.dispatchEvent(new Event("input", {bubbles:true})); })()');
@@ -46,6 +49,9 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
     await new Promise(resolve => setTimeout(resolve, 80));
     work = await current();
   }
+  const cardKindIcon = '.assistant-attachment use[href="#icon-bookmark"]';
+  assert.ok(work.rounds.some(round => round.materials.some(material => material.object?.kind === object.kind && material.object.id === object.id)), "the signed card reached this real work");
+  await page.wait('document.querySelector(' + JSON.stringify(cardKindIcon) + ') && document.getElementById("icon-bookmark")');
   const review = work.reviews[0];
   assert.ok(review, "the real Assistant must hold the proposal: " + JSON.stringify({ state: work.work.state, turn, readRule, rounds: work.rounds.slice(-1).map(round => round.run_id) }));
   assert.ok(readRule, "the scripted model received the signed scenario and instructions from the assistant's directory");

@@ -54,10 +54,6 @@
       "reason": "生成图片才写，要真实模型；images.ts 只建连接，不发任务"
     },
     {
-      "path": "plugin-builder/<project_id>/{design,builds,releases,runs}/",
-      "reason": "插件创作台要真实模型才有产物，金样不调模型；创作台也不在这批的回放范围"
-    },
-    {
       "path": "runtime-config-backups/<runtime>/<plan>.bak",
       "reason": "接入本机的 Runtime 配置才写，要真实的 Runtime，生成时不碰本机配置"
     },
@@ -86,10 +82,6 @@
       "reason": "第 37 批新增的项目生成首页 Home 库（按 project_id 分区，首次保存草稿或读写首页版本时按需建库）；现有 0.1.0 金样未保存生成首页，建库、SHA-256 核验、批准恢复、离线快照与删项目由 tests/home-pages-service.test.ts、tests/home-pages-security.e2e.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖。"
     },
     {
-      "path": "due-registry/due-registry.db",
-      "reason": "第 106 批新建的到期登记表；插件登记到期项与总览提醒的入口随第 108 批接上，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
-    },
-    {
       "path": "evidence/evidence.db",
       "reason": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
     },
@@ -110,7 +102,8 @@
         "artifacts.ts",
         "coding.ts",
         "feed.ts",
-        "schedule.ts"
+        "schedule.ts",
+        "plugin-studio.ts"
       ]
     },
     "personal-space/molis-work.db": {
@@ -260,7 +253,7 @@
       ]
     },
     "due-registry/due-registry.db": {
-      "none": "第 106 批新建的到期登记表；插件登记到期项与总览提醒的入口随第 108 批接上，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"
+      "none": "0.1.1-dev.9 已捕获此库。当前回放没有单独修改旧到期项的用例，交给第 108 批到期登记的写入入口验证。"
     },
     "evidence/evidence.db": {
       "none": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"

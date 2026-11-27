@@ -7,7 +7,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { AuthorizationDetail, AuthorizationList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentTaskGrantActions, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { homeIntegrationRegistry, pluginInstallActions, readStudioDistribution, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
+import { homeIntegrationRegistry, pluginInstallActions, readStudioDistribution, withFunctionsService, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { effectsFromContract, parsePluginManifest, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
@@ -32,6 +32,8 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { exerciseReview } from "./fixtures/signed-tool-review.js";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // PEQ-05 (specs/plugin-equal-standing/contract-design.md §5): the repository's third-party sample uses only contracts and the plugin SDK, and
@@ -439,6 +441,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
 }
 
 test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Workbench UI), resume_summary (MCP), placement_relation, and work_terminals (with revokePublisher live-PID kill)", { ...mac, timeout: 90_000 }, async t => {
+  const sendTitle = "Notebook delivery", sendBody = "Content delivered from the open card";
   const home = await openTestHome(t, { host: { functions: { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: { async evaluate(_credential, record) {
     return { primitive: record.primitive, choice: "revise", noul: null, score: null, legend: null, probabilities: {}, confidence: null, model: record.model };
   } } } } });
@@ -472,7 +475,7 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.ok(home.host.homePlugins!.installation(SIGNED_SANDBOX_ID)?.install_id);
   const registry = await homeIntegrationRegistry(home.home);
   assert.equal(registry.integration("sample-journal")?.plugin_id, SIGNED_SANDBOX_ID);
-  assert.ok(!views.some(item => item.action.local_id?.startsWith("integration.")));
+  assert.ok(!views.some((item: ActionView) => item.action.local_id?.startsWith("integration.")));
   const pull = async () => (await registry.bind("sample-journal", "source", { source_id: "one", connection_id: null, credential_ref: null, config: {} })).connector_driver.poll({ cursor: null }, connectorControl());
   const pulled = await pull();
   assert.ok(pulled.ok);
@@ -496,8 +499,14 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   const template = listed.templates.find(role => role.name === "Notebook reviewer" && role.install_id === projectInstall.install_id);
   assert.ok(template);
   await projectClient.invoke(person, characterRoleActions.adoptSigned, { install_id: template.install_id, generation: template.generation, role_id: template.role_id, request_id: "standing-reviewer" });
-  const rolePage = await fetch(home.origin + `/projects/${project.project_id}/api/platform/characters/roles`);
-  assert.equal(rolePage.status, 200); assert.ok((await rolePage.text()).includes("Notebook reviewer"));
+  const rolesApi = "/projects/" + project.project_id + "/api/platform/characters/roles";
+  const rolePage = await home.web.get<CharacterRoleCatalog>(rolesApi);
+  const adopted = rolePage.members.find(member => member.title === "Notebook reviewer");
+  assert.ok(adopted);
+  const roleVersions = await home.web.post<{ versions: CharacterRoleVersionEntry[] }>(rolesApi + "/versions", {
+    role: { kind: "project", member_id: adopted.role.current.member_id },
+  });
+  assert.equal(roleVersions.versions.find(version => version.current)?.content.instructions, "Inspect the original notebook card before recommending an edit.");
 
   const findRecord = () => projectClient.invoke(person, searchActions.query, { query: "mineralogyonereview" }) as Promise<SearchQueryResponse>;
   assert.ok(!JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"));
@@ -521,27 +530,66 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
     await child.evaluate("(() => { const field = document.querySelector('[data-field=word]'); field.value = 'menureview'; field.dispatchEvent(new Event('input', {bubbles:true})); field.form.querySelector('[type=submit]').click(); })()");
     await page.wait("window.observed.local === 1");
     assert.deepEqual(await page.evaluate("window.observed"), { local: 1, outside: 0 });
+
+    const receive = "/projects/" + project.project_id + "/api/mainline/receive";
+    const targets = await home.web.post<{ targets: Array<{ station: string; title: string }> }>(receive + "/targets", {});
+    const station = targets.targets.find(target => target.title === "Card collection");
+    assert.ok(station);
+    await addProjectPlugin(home.web, project.project_id, "feed");
+    const feedItem = await home.host.withProject(project.reference, ({ store }: { store: LocalProjectDatabase }) => {
+      const source = createLocalFeedSourceService(store.db, project.project_id).register({ kind: "web_query", query: "Notebook" }).source;
+      return createLocalFeedApplication(store.db).ingestItem({ source, externalId: "notebook-delivery", title: sendTitle,
+        summary: sendBody, body: sendBody, occurredAt: new Date().toISOString(), attention: false }).item;
+    });
+    await page.viewport(1440, 960);
+    await page.command("Page.navigate", { url: home.origin + "/projects/" + project.project_id + "/" });
+    await page.wait("Number(document.querySelector('[data-work-list=done] [data-n]')?.textContent) > 0");
+    await page.click("[data-work-list=done]");
+    const event = '[data-work-list-rows=done] [data-work-event*="' + feedItem.item_id + '"]';
+    await page.wait("document.querySelector(" + JSON.stringify(event) + ")");
+    await page.click(event);
+    await page.click("[data-info-tab=info]");
+    const menuButton = "[data-assistant-event-card] [data-event-receive-more]";
+    await page.click(menuButton);
+    const receiver = '[data-assistant-event-card] [data-event-receive-menu] [data-event-receive="' + station.station + '"]';
+    await page.wait("document.querySelector(" + JSON.stringify(receiver) + ")?.textContent.includes('Card collection')");
+    await page.click(receiver);
+    await page.wait("document.querySelector(" + JSON.stringify(menuButton) + ")?.textContent.includes('Card collection')");
+    const search = byLocal("cards.search");
+    const directory = await projectClient.invoke(person, { capability_id: search.capability_id, version: search.version, provider_id: search.provider.provider_id }, { cursor: null, limit: 40 }) as { entries: Array<{ title: string; subject: { id: string } }> };
+    const delivered = directory.entries.find(item => item.title === sendTitle);
+    assert.ok(delivered);
+    const reader = byLocal("cards.read");
+    const persisted = await projectClient.invoke(person, { capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: delivered.subject.id }) as { content: string };
+    assert.deepEqual(persisted.content.split("\n").slice(0, 2), [sendTitle, sendBody], "PSD-03 M4: clicking the signed recipient delivers the content to its owner");
   } finally { await browser.close(); }
   const kinds = await home.web.get<{ kinds: Record<string, string>; glyphs: Record<string, string> }>(`/projects/${project.project_id}/api/assistant/surface-kinds`);
   assert.equal(kinds.kinds[SIGNED_SANDBOX_ID], "sandbox_card");
   assert.equal(kinds.glyphs.sandbox_card, "bookmark");
-  const brief = await home.web.get<{ html: string }>(`/api/projects/${project.project_id}/brief`);
+  const brief = await home.web.get<{ html: string; summary: { progress_total: number; progress_done: number } }>(`/api/projects/${project.project_id}/brief`);
+  assert.ok(brief.summary.progress_total >= 1);
+  assert.equal(brief.summary.progress_done, 0);
   assert.match(brief.html, /Sandbox card/, "PSD-03 M2: the project brief renders the signed package's progress item");
 
   // 1. placement_relation: all 5 roles projected & live inside sandbox.
   for (const role of PLACEMENT_RELATION_ROLES) {
     assert.ok(views.some(item => item.action.placement_relation?.relation === "card" && item.action.placement_relation.role === role), `sandbox placement_relation ${role}`);
   }
-  const bound = await projectClient.invoke(person, { capability_id: byLocal("attach.bind").capability_id, version: byLocal("attach.bind").version, provider_id: byLocal("attach.bind").provider.provider_id }, {
-    subject: { kind: "page", id: "doc-sbx" }, target: { kind: "sandbox_card", id: "card-1" },
-  });
-  assert.deepEqual(bound, { targets: [{ kind: "sandbox_card", id: "card-1" }] });
-
   const relation = async (id: string, args: unknown) => { const view = byLocal(id); return projectClient.invoke(person, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, args); };
   const subject = { kind: "page", id: "doc-sbx" }, targetCard = { kind: "sandbox_card", id: "card-1" };
+  const targetCandidate = async () => {
+    const { targets } = await relation("attach.candidates", { subject }) as { targets: Array<{ subject: { kind: string; id: string }; current: boolean }> };
+    return targets.find(row => row.subject.kind === targetCard.kind && row.subject.id === targetCard.id);
+  };
+  assert.deepEqual(await targetCandidate(), { subject: targetCard, current: false });
+  assert.deepEqual(await relation("attach.list", { subject }), { targets: [] });
+  const bound = await relation("attach.bind", { subject, target: targetCard });
+  assert.deepEqual(bound, { targets: [targetCard] });
+  assert.deepEqual(await targetCandidate(), { subject: targetCard, current: true });
   assert.deepEqual(await relation("attach.list", { subject }), bound);
   assert.deepEqual(await relation("attach.release", { subject, target: targetCard }), { targets: [] });
   assert.deepEqual(await relation("attach.list", { subject }), { targets: [] });
+  assert.deepEqual(await targetCandidate(), { subject: targetCard, current: false });
 
   // 2. settings_entries: discovered in Workbench sidebar, rendered on /settings/<plugin_id>, writable via /api/settings/plugin-entries/write.
   const navRes = await fetch(`${home.origin}/settings/appearance?project=${encodeURIComponent(project.project_id)}`);
@@ -589,6 +637,29 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
     resume: { sections: Array<{ plugin_id: string; focus: { subject: { id: string } } | null }> };
   };
   assert.equal(resolved.resume.sections.find(s => s.plugin_id === SIGNED_SANDBOX_ID)?.focus?.subject.id, "card-1");
+
+  const installed = "/projects/" + project.project_id + "/api/plugin-trust";
+  const projectActions = async () => {
+    const available: ActionView[] = await projectClient.discover(person);
+    return available.filter(item => item.provider.plugin_id === SIGNED_SANDBOX_ID);
+  };
+  await home.web.post(installed + "/installed/disable", { plugin_id: SIGNED_SANDBOX_ID });
+  assert.ok(!(await projectActions()).some(item => item.action.local_id === "artifact.save"));
+  assert.equal((await pull()).ok, true, "a project switch leaves the personal source available");
+  const disabled = (await home.web.get<{ plugins: import("@molis-ai/molis-work-contracts/platform/plugin-trust").ProjectPluginInstalledView[] }>(installed + "/overview")).plugins.find(row => row.plugin_id === SIGNED_SANDBOX_ID)!;
+  const { install_id, installation_generation, version, manifest_digest } = disabled;
+  await home.web.post(installed + "/installed/enable", { plugin_id: SIGNED_SANDBOX_ID,
+    expected_installation: { scope: "project", install_id, installation_generation, version, manifest_digest } });
+  assert.ok((await projectActions()).some(item => item.action.local_id === "artifact.save"));
+  await home.web.post("/api/plugins/" + SIGNED_SANDBOX_ID + "/disable", {});
+  assert.equal(registry.integration("sample-journal"), undefined);
+  await assert.rejects(pull);
+  assert.ok(!(await projectActions()).some(item => item.action.local_id === "artifact.save"));
+  await home.web.post("/api/plugins/" + SIGNED_SANDBOX_ID + "/enable", {});
+  const resumed = await pull();
+  assert.ok(resumed.ok);
+  assert.equal(resumed.events[0]?.payload.title, "My journal");
+  assert.ok((await projectActions()).some(item => item.action.local_id === "artifact.save"));
 
   // 4. work_terminals + P0-5 revokePublisher live OS PID death!
   const promptOut = await projectClient.invoke(person, workTerminalActions.prompt, {

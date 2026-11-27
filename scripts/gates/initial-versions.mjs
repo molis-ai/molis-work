@@ -44,6 +44,7 @@ const PERSISTENT_CONSTANTS = new Map([
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
 const PERSISTENT_ENTRIES = new Map([
+  ["format.builder.saved-state", "horizontal/plugin-studio/src/agent-state.ts#BUILDER_SAVED_STATE"],
   ["database.ledger_baseline", "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE"],
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
   // The Runtime integration receipt (registered on 2026-11-17, clean v1 shape without goal-advance link). Goldens hold a fixed-value

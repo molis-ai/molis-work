@@ -167,6 +167,7 @@
 
 ### 升级须知（需要动手）
 
+- **用过旧版主线的人**：新版主线从空库 v1 开始，每件事项单独保存修订号。缺少事项修订列的旧 v1 和旧 v2 都会被拒绝打开，已有库会保留。何时重建由你决定。准备好后，先退出 Molis Work 并停止常驻宿主，备份并移开对应空间的整个 `mainline/` 目录，再启动。新主线从空白开始，旧事项、排列和关联仍在备份中。
 - **动作卡片的 `outcome` 改成文字引用**（2026-11-17，阶段一不留兼容）：合同 `AssistantCard.outcome` 与 SDK `ActionCard.outcome` 现在是 `OwnedTextRef`，不再是句子；自己读它的插件改用 `say.text(card.outcome)`，交给 Host 的卡片只许 `{ literal }` 或平台 `common.action-card.*` 键。助理库升到 2、项目库升到 5、Work Brief 库升到 2，旧句子在升级时原样转成 `{ literal }`，打开 Home 时自动完成；已固定进成果库的简报版本不改。
 
 - **第 36 批：角色的版本、项目成员与默认（阶段一不留兼容）**：固定引用 `characters.list@1`、`characters.runnable@1` 的工作流或插件改用 `characters.roles.list@1`／`characters.roles.resolve@1`；向 `agent.run.start@1` 传成果引用作 `character` 的调用改传 `{kind:"personal",character_id}` 或 `{kind:"project",member_id}`。升级后已有的角色草稿在设置 › 角色里显示「还没保存过」，打开保存一次即成第 1 版，才能被选。

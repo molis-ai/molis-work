@@ -10,7 +10,9 @@ import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 
 // RAC-105-A-16: the resident owns each Home while independent stdio clients exercise the real grants and persistence.
-test("standard Cognia MCP clients share real imports and fixed bytes, isolate Home/read grants, and resume after client restart", { timeout: 45_000 }, async t => {
+// Since batch 108 each Home also creates a project with Cognia and every client server opens that partition: about 11 s here, several
+// times that on a loaded CI runner, so it allows 90 s.
+test("standard Cognia MCP clients share real imports and fixed bytes, isolate Home/read grants, and resume after client restart", { timeout: 90_000 }, async t => {
   const homes = await Promise.all([openTestHome(t), openTestHome(t)]);
   // Cognia works in a partition (batch 108): each Home's clients are bound to one project that has it.
   const projects = new Map(await Promise.all(homes.map(async home => [home, await home.createProject("Knowledge", ["cognia"])] as const)));

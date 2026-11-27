@@ -113,7 +113,9 @@ async function handleReceiveRoutes(request: IncomingMessage, response: ServerRes
           const station = view.action.workflow_content;
           if (station?.role === "receive" && station.id !== PLATFORM_RECEIVE_STATION && view.availability.available && !stations.has(station.id)) stations.set(station.id, { station: station.id, title: station.title, icon: station.icon });
         }
-        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shippedOwnerManifest(PLATFORM_RECEIVE_STATION)!.name, icon: "bookmark" }, ...stations.values()] } };
+        const shelf = shippedOwnerManifest(PLATFORM_RECEIVE_STATION)!;
+        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shelf.name,
+          title_text: { owner: shelf.plugin_id, ...shelf.name_text }, icon: "bookmark" }, ...stations.values()] } };
       }
       const input = body as Record<string, unknown>;
       const title = typeof input.title === "string" ? input.title.slice(0, 200) : "", text = typeof input.text === "string" ? input.text : "";

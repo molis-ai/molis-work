@@ -3,6 +3,7 @@
   "owner": "system.shelf",
   "locale": "zh",
   "messages": {
+    "shelf.directory.name": "Shelf",
     "shelf.directory.summary": "把文件放上来处理副本，原件不动。",
     "shelf.admit.could-not-add-material": "无法添加材料",
     "shelf.admit.done-added-count-could-not": "已加入 {done} 个，{count} 个没加进去：{list}",

@@ -3,6 +3,7 @@
   "owner": "system.shelf",
   "locale": "ja",
   "messages": {
+    "shelf.directory.name": "Shelf",
     "shelf.directory.summary": "ファイルをここに置いてコピー上で処理します。元のファイルは変更しません。",
     "shelf.admit.could-not-add-material": "資料を追加できませんでした",
     "shelf.admit.done-added-count-could-not": "{done} 件を追加しました。{count} 件は追加できませんでした：{list}",

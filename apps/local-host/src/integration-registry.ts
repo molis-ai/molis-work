@@ -1,3 +1,4 @@
+import { hostLog } from "./host-log.js";
 import { randomUUID } from "node:crypto";
 import type { IntegrationDriverDefinition } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
 import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -277,11 +278,17 @@ async function startBuiltinDriver(definition: PluginDefinition, manifest: Plugin
       if (!live || !grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
     },
   });
-  const contribution = await definition.start(context);
-  assertContributionMatchesManifest(manifest, contribution);
-  if (contribution.kind !== "integration") throw pluginErrors.contribution_kind_invalid("Integration Plugin 必须返回 Integration contribution");
-  return { install_id, installation_generation, publisher: manifest.publisher, contribution, async end() {
+  const end = async () => {
     live = false;
     await definition.stop?.(context);
-  } };
+  };
+  try {
+    const contribution = await definition.start(context);
+    assertContributionMatchesManifest(manifest, contribution);
+    if (contribution.kind !== "integration") throw pluginErrors.contribution_kind_invalid("Integration Plugin 必须返回 Integration contribution");
+    return { install_id, installation_generation, publisher: manifest.publisher, contribution, end };
+  } catch (error) {
+    await end().catch(cleanup => hostLog.warn("connections", "builtin_driver_stop_failed", cleanup, { plugin_id: manifest.plugin_id }));
+    throw error;
+  }
 }

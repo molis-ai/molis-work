@@ -84,7 +84,7 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
   };
   for (const id of PROJECT_SCOPED_PLUGIN_IDS) if (!(await enabled()).includes(id)) await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const start = await enabled();
-  assert.deepEqual(builtins.filter(id => !start.includes(id)), [], "the project starts with all 20");
+  assert.deepEqual([...start].sort(), builtins, "the project starts with exactly the shipped members");
   const person = await home.host.localPersonContext(project.reference);
   const assistant: ActionCallContext = { ...person, audience: "agent" };
   const client = home.host.actionClient(project.reference);
@@ -102,6 +102,7 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     .filter(view => view.provider.plugin_id === pluginIdOf.get(id) && view.availability.available).map(view => view.capability_id).sort();
   const left: Record<string, string[]> = {}, back: Record<string, string[]> = {};
   for (const id of builtins) {
+    assert.deepEqual([...(await enabled())].sort(), builtins, `complete membership before removing ${id}`);
     const before = await offered(id);
     await home.web.delete(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
     assert.ok(!(await enabled()).includes(id), `${id} is out of the project`);
@@ -115,6 +116,12 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     if (embeddedBy.length ? still.join() !== before.join() : still.length) left[id] = still;
     assert.ok(Array.isArray(await mcp.client.discover(mcp.caller)), `without ${id}: the project's MCP directory answers`);
     await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+    // Removing a prerequisite also removes its dependents. Restore their membership through the normal settings route.
+    const afterAdd = await enabled();
+    for (const missing of builtins.filter(member => !afterAdd.includes(member))) {
+      if (!(await enabled()).includes(missing)) await home.web.post(at, { plugin_id: missing, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+    }
+    assert.deepEqual([...(await enabled())].sort(), builtins, `complete membership after restoring ${id}`);
     const again = await offered(id);
     if (again.join() !== before.join()) back[id] = again;
   }

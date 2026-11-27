@@ -119,8 +119,8 @@ agent.subagents.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04
 agent.subagents.request	1	platform	query	query	project	read	-	plugin	-	-	-	-	0b4d42c12d48	fd39317e4722	-
 agent.subagents.wait	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	6fa1756fd794	208b25271bb7	046efc93b6ac
 agent.task_grants.clear	1	system.task-grants	command	operation	project	write	-	plugin,user	-	-	-	-	2f8424427527	939c976f491f	-
-agent.task_grants.list	1	system.task-grants	query	query	project	read	-	plugin,user	-	-	-	-	90f264064219	e5f995eece15	-
-agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	user	projects:settings	project	-	-	65c4dcc42cc6	84610c1025f6	-
+agent.task_grants.list	1	system.task-grants	query	query	project	read	-	plugin,user	-	-	-	-	90f264064219	02ae775b1f0e	-
+agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	user	projects:settings	project	-	-	fdc073ce3bef	26634066fdd1	-
 agent.tools.kit.report	1	system.agent-tools	query	query	home	read	concurrent	user	kit:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	4aad19deeef8	-
 agent.write-checks.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	9847fe575350	b3b83129e4d0	-
 agent.write_checkers.list	1	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-

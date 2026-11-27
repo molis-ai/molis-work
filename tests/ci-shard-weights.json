@@ -1354,7 +1354,6 @@
  "tests/plugin-market-upgrade.e2e.test.ts": 20,
  "tests/plugin-materials-allowed-domains.test.ts": 1,
  "tests/plugin-messages.test.ts": 4,
- "tests/plugin-model-configuration.test.ts": 6,
  "tests/plugin-model-generation.test.ts": 7,
  "tests/plugin-model-selection.test.ts": 14,
  "tests/plugin-model-service.test.ts": 33,

@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 4054,
+  "total": 4053,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -783,7 +783,7 @@
     "tests/security-invariants-sandbox-agent-bodies.test.ts": 3,
     "tests/security-invariants-sandbox-background.test.ts": 5,
     "tests/security-invariants-sandbox-connections.test.ts": 7,
-    "tests/security-invariants-sandbox-home-image-port.test.ts": 2,
+    "tests/security-invariants-sandbox-home-image-port.test.ts": 1,
     "tests/security-invariants-sandbox-home-signed-model.test.ts": 3,
     "tests/security-invariants-sandbox-image-ranges.test.ts": 3,
     "tests/security-invariants-sandbox-local-original.test.ts": 2,

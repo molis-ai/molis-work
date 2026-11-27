@@ -752,11 +752,11 @@ await caller.beforeEffect(); // 写业务记录之前
 
 路径是已声明顶层下的严格相对路径，可包含 Unicode；软硬链接、特殊节点和不安全子树均拒绝。create/copy 独占，replace 要已有文件；replaceFileAtomic 使用同目录独占临时文件，rename 前失败保留原字节并清本次临时文件。removeTree 先预检且不删除声明目录顶层。读写无额外32MiB限制，仍受运行环境字节上限约束。没有多文件事务、掉电持久或同 OS 用户并发替换父目录防护的承诺；同步成功后又抛错不会回滚此前合法写入。
 
-## Home 消费者的模型配置、生图与项目清理
+## Home 消费者的生图与项目清理
 
-插件在自己的 Manifest 里声明 `settings_entries.model_configuration` 与 `image_generation`（PG-102，和 `databases.home`、`owner_files` 一样写在 Manifest、不写在宿主条目上；`storage:private`、`model:invoke` 和声明里的权限都要在 Manifest 的 permissions 里），分别得到 `services.model.configuration` 与 `services.imageGeneration`。服务只给宿主启动名单上的那个 definition 对象：声明了却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明它们被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱和升级预检没有这些服务。配置声明固定 preference 文件、custom provider 和 read/save 动作；selection 只读取当前消费者的精确选择，read/save 只在对应设置动作中工作。配置可在模型不可用时修复，真实调用仍要求 model:invoke、并发动作及 beforeEffect，不将显式失效选择回退到别的模型。
+插件在自己的 Manifest 里声明 `image_generation`（PG-102，和 `databases.home`、`owner_files` 一样写在 Manifest、不写在宿主条目上；`storage:private`、`model:invoke` 和声明里的权限都要在 Manifest 的 permissions 里），得到 `services.imageGeneration`。服务只给宿主启动名单上的那个 definition 对象：声明了却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明它被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱和升级预检没有这项服务。
 
-`settings_entries.model_configuration.key` 指向同一声明里可写个人层的模型选择。插件的标准设置动作把输入交给 `services.model.configuration.preferences.read/write`，用于选取已配置的模型及恢复继承。原 `actions.read/save` 提供连接管理界面，沿用本人设置权限。
+插件不在 Manifest 里自报模型选择。设置声明里的 `settings_entries.model_configuration` 已随最后一个主人 Jelly（第 112-2 批）退役，Manifest 写了它会被拒。Home 包要自己的模型选择，在 `contract.json` 里声明 `effects.modelSettings`，由宿主派生存放位置和专用供应商，经 `services.model.configuration` 在人启用的模型里选（BL-491，S-60）。也可以把模型选择当作普通的个人设置，由插件自己的设置动作读写。
 
 生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自 Manifest 的声明；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
 

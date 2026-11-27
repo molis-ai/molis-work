@@ -40,13 +40,14 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
-import type { PluginPlatformHome } from "./home-side.js";
+import { bundledDirectoryFor, type PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import { registerInstalledActions } from './installed-action-registration.js';
-import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from "./host-plugin-ids.js";
+import { HOST_PLUGIN_IDS, releasePackagesFor } from "./host-plugin-ids.js";
+import { localPublisherKeyId } from "./installed-plugin-publisher.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
@@ -297,7 +298,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const dualHomeRunning = (record: PluginInstanceRecord) => dualHomeRunningFor(options.home, isDualId, record);
   const effectiveGrants = (record: PluginInstanceRecord) => effectiveGrantsFor(runtime, isDualId, dualHomeRunning, record);
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
-    { inProcess: options.inProcess, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: options.installDatabase ? { kind: "home" } : { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
+    { inProcess: options.inProcess, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: options.installDatabase ? { kind: "home" } : { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: releasePackagesFor(bundledDirectoryFor(options.home?.directory), () => options.home ? localPublisherKeyId(options.home.directory) : null), ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: installDb, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
       actions: { ...options.actions,

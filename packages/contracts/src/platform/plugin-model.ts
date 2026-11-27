@@ -1,7 +1,7 @@
 import type { BoundedInferenceReceipt } from "../services/agent-host.js";
 import type { ActionAvailability, ActionError } from "./actions.js";
 import type { InstructedPrompt, InstructionPrompt } from "./model-prompts.js";
-export type { PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelConfigurationClient, PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
+export type { PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelConfigurationClient } from "./plugin-model-configuration.js";
 
 /**
  * What one call of the model service may ask for. The defaults are what the Host's text completion has always used
@@ -92,7 +92,7 @@ export type PluginModelAvailability = ActionAvailability & { readonly runtime_la
  * The plugin still checks `beforeEffect()` itself before it writes, and commits against the version it read.
  */
 export interface PluginModelClient {
-  /** The declared Home consumer's model settings; writes only through its exact settings action. */
+  /** A Home package's own model settings (`effects.modelSettings`, BL-491): the Host derives them, no Manifest declares them. */
   readonly configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationClient;
   /** Available model names and capabilities only; no request or credential decryption. Needs `model:read` or `model:invoke`. */
   choices(): readonly PluginModelChoice[];

@@ -22,7 +22,7 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
   const endpoint = "https://1.1.1.1/v1/messages", originalFetch = globalThis.fetch;
   let turn = 0;
   const fetchMock = t.mock.method(globalThis, "fetch", async (url: RequestInfo | URL, init?: RequestInit) => {
-    if (String(url instanceof Request ? url.url : url) !== endpoint) return originalFetch(url, init);
+    if (new URL(url instanceof Request ? url.url : url).origin !== new URL(endpoint).origin) return originalFetch(url, init);
     const body = typeof init?.body === "string" ? init.body : new TextDecoder().decode(init?.body as Uint8Array);
     if (turn++ === 0) return response("find-capabilities", { query: "Notebook editing" });
     if (turn === 2) {

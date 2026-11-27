@@ -8,6 +8,8 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -100,10 +102,54 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
   const pluginIdOf = new Map(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
   const offered = async (id: string) => (await client.discover(assistant) as ActionView[])
     .filter(view => view.provider.plugin_id === pluginIdOf.get(id) && view.availability.available).map(view => view.capability_id).sort();
+  const rpc = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: home.origin },
+    { homeDirectory: home.home, webBaseUrl: home.origin, runtimeContext: { runtime_id: "psd-01", stable_work_context_id: "psd-01-session", host_declares_stable: true } }, home.host, home.origin);
+  t.after(() => rpc.close());
+  let requestId = 0;
+  const callTool = async (ref: { capability_id: string; version: number }, args: object) => {
+    const reply = await rpc.handleMessage({ jsonrpc: "2.0", id: ++requestId, method: "tools/call",
+      params: { name: molisWorkActionToolName(ref), arguments: args } });
+    const result = reply?.result as { isError: boolean; content: Array<{ text: string }> };
+    assert.ok(result?.content[0], JSON.stringify(reply));
+    return { failed: result.isError, value: JSON.parse(result.content[0].text) };
+  };
+  const sourceViews = await home.inspect("runtime:psd-01", project.project_id);
+  const probes = builtins.map(id => {
+    const owner = pluginIdOf.get(id);
+    const view = sourceViews.find(row => row.provider.plugin_id === owner && (row.action.search_source
+      || ["issues.list", "git.operations", "diff.compare"].includes(row.capability_id)));
+    assert.ok(view, `a callable read for ${id}`);
+    const input = view.action.search_source ? { cursor: null, limit: 8 } : view.capability_id === "diff.compare" ? { before: "old value", after: "reviewed value" } : {};
+    return { id, view, input };
+  });
+  await home.grant("runtime:psd-01", project.project_id, [...probes.map(probe => probe.view), pagesActions.list, pagesActions.create]);
+  await home.grant("agent:prologue", project.project_id, probes.map(probe => probe.view));
+  const agentCaller: ActionCallContext = { actor_id: "agent:prologue", actor_kind: "runtime", audience: "agent", project_id: project.project_id, permissions: [] };
+  const callAsAgent = async (ref: { capability_id: string; provider_id: string; version: number }, args: object) => {
+    const auth = await authorizeMcpActions(home.host, agentCaller, home.home, project.reference);
+    return auth.service.invoke(auth.context, ref, args);
+  };
   const left: Record<string, string[]> = {}, back: Record<string, string[]> = {};
   for (const id of builtins) {
     assert.deepEqual([...(await enabled())].sort(), builtins, `complete membership before removing ${id}`);
     const before = await offered(id);
+    const { view, input } = probes.find(probe => probe.id === id)!;
+    const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    const readThroughBoth = async () => {
+      const read = await callAsAgent(ref, input);
+      const wire = await callTool(ref, input);
+      assert.equal(wire.failed, false, `${id} returned ${JSON.stringify(wire.value)}`);
+      if (view.action.search_source) assert.ok(Array.isArray(wire.value.entries));
+      else if (ref.capability_id === "diff.compare") assert.equal(wire.value.identical, false);
+      else assert.ok(Array.isArray(wire.value.operations ?? wire.value.items));
+      assert.ok(read && typeof read === "object", `${id} returned its own action result to the assistant`);
+    };
+    const title = `Removal round ${id}`;
+    const created = await callTool(pagesActions.create, { title, body: doc(title) });
+    assert.equal(created.failed, false, JSON.stringify(created.value));
+    const documentId = created.value.document.id;
+    assert.equal(typeof documentId, "string");
+    await readThroughBoth();
     await home.web.delete(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
     assert.ok(!(await enabled()).includes(id), `${id} is out of the project`);
     for (const path of pages) assert.equal(await status(path), 200, `without ${id}: ${path}`);
@@ -113,6 +159,12 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     const shown = await enabled();
     const embeddedBy = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => shown.includes(entry.project_plugin_id)
       && (entry.manifest.ui.embedded_plugins ?? []).includes(pluginIdOf.get(id)!)).map(entry => entry.project_plugin_id);
+    if (embeddedBy.length) await readThroughBoth();
+    else {
+      await assert.rejects(callAsAgent(ref, input), { code: "actions.plugin_disabled" });
+      const denied = await callTool(ref, input);
+      assert.ok(denied.failed && denied.value.code === "actions.plugin_disabled", `${id}: ${JSON.stringify(denied.value)}`);
+    }
     if (embeddedBy.length ? still.join() !== before.join() : still.length) left[id] = still;
     assert.ok(Array.isArray(await mcp.client.discover(mcp.caller)), `without ${id}: the project's MCP directory answers`);
     await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
@@ -122,6 +174,11 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
       if (!(await enabled()).includes(missing)) await home.web.post(at, { plugin_id: missing, expected_revision: await projectPluginRevision(home.web, project.project_id) });
     }
     assert.deepEqual([...(await enabled())].sort(), builtins, `complete membership after restoring ${id}`);
+    await readThroughBoth();
+    const persisted = await callTool(pagesActions.list, {});
+    assert.equal(persisted.failed, false);
+    assert.ok(persisted.value.documents.some((item: { id: string; title: string }) => item.id === documentId && item.title === title));
+    t.diagnostic(`${id}: ${ref.capability_id} via assistant + tools/call; removed=${embeddedBy.join(",") || "disabled"}; restored; document=${documentId}`);
     const again = await offered(id);
     if (again.join() !== before.join()) back[id] = again;
   }

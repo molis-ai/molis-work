@@ -2,11 +2,10 @@ import { syncBindings } from "./sync-binding.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createJellyActionHandlers } from "./actions.js";
-import { jellyAddDays } from "./calendar.js";
-import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_REFRESH_ENTRY_KEY } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { armJellyWindow, jellyDue, jellyWindowNeeded, writeJellyOverview, writeJellySeriesOverview } from "./overview.js";
+import { OVERVIEW_REFRESH_ENTRY_KEY } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { armJellyWindow, jellyDue, jellyWindowNeeded } from "./overview.js";
 import { jellyManifest } from "./manifest.js";
-import { JellyStore, type JellyStores } from "./store.js";
+import { JellyStore, refillJellyOverview, type JellyStores } from "./store.js";
 import { jellyUiContribution } from "./ui.js";
 
 /** One instance per partition Jelly is enabled in owns that partition's Jelly actions and views. It needs its database and nothing else: no model, no settings. */
@@ -25,11 +24,7 @@ export function createJellyPlugin(): PluginDefinition {
       const roll = async (check: () => void) => {
         await database.transaction(
           async () => check(),
-          (tx) => {
-            const store = new JellyStore(tx), today = new Date().toISOString().slice(0, 10);
-            for (const item of store.items(jellyAddDays(today, -1), jellyAddDays(today, OVERVIEW_EVENT_WINDOW_DAYS))) writeJellyOverview(tx, item);
-            for (const series of store.series()) writeJellySeriesOverview(tx, series);
-          },
+          refillJellyOverview,
         );
         armJellyWindow(database, due, true);
       };

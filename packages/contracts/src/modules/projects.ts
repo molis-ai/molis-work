@@ -70,10 +70,6 @@ export interface ProjectPluginRegistry {
   initial?(projectId: string): readonly ProjectPluginId[];
   /** Plugins that must be enabled together with this one. */
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
-  /**
-   * A Home plugin installed outside the build: on in every project unless the person hid it there (until batch 109-3 removes the Home
-   * runtime). Absent means there is none.
-   */
 }
 
 export interface AddProjectPluginInput {

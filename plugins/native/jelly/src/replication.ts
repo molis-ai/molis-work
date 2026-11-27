@@ -1,8 +1,7 @@
 import { syncError } from "./sync-errors.js";
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { removeJellyOverview, removeJellySeriesOverview, writeJellyOverview, writeJellySeriesOverview } from "./overview.js";
-import { decodeJellyRow, encodeJellyRow, JELLY_TABLES, jellyRowColumns, validateJellyRow, type JellyRowKind, type JellyRows } from "./store.js";
+import { updateJellyOverview, decodeJellyRow, encodeJellyRow, JELLY_TABLES, jellyRowColumns, validateJellyRow, type JellyRowKind, type JellyRows } from "./store.js";
 
 const KINDS = Object.keys(JELLY_TABLES) as JellyRowKind[];
 const LIMIT = 1_000_000;
@@ -23,7 +22,8 @@ export const jellyCollection: PluginSyncCollectionDefinition = {
   create(db, context) {
     const local = (kind: JellyRowKind, id: string) => db.prepare(`SELECT * FROM ${JELLY_TABLES[kind]} WHERE id = ?`).get(id);
     // An entry's overview row is written beside it, as the store writes it, so an entry synced from another device shows in the overview too.
-    const overview = { get: (sql: string, parameters: readonly (string | number | null)[] = []) => db.prepare(sql).get(...parameters),
+    const overview = { all: (sql: string, parameters: readonly (string | number | null)[] = []) => db.prepare(sql).all(...parameters),
+      get: (sql: string, parameters: readonly (string | number | null)[] = []) => db.prepare(sql).get(...parameters),
       run: (sql: string, parameters: readonly (string | number | null)[] = []) => db.prepare(sql).run(...parameters) };
     return {
       authorizeKey(key) { parse(key); context.authorize(); },
@@ -38,8 +38,7 @@ export const jellyCollection: PluginSyncCollectionDefinition = {
         const { kind, id } = parse(key), table = JELLY_TABLES[kind];
         if (value === null) {
           db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
-          if (kind === "item") removeJellyOverview(overview, id);
-          if (kind === "series") removeJellySeriesOverview(overview, id);
+          updateJellyOverview(overview, kind, id, null, true);
           return;
         }
         if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 的一条记录超过同步上限，原记录仍保留在本机", "limit");
@@ -51,12 +50,12 @@ export const jellyCollection: PluginSyncCollectionDefinition = {
         const columns = jellyRowColumns(kind);
         if (!record || typeof record !== "object" || Object.keys(record).sort().join(",") !== [...columns].sort().join(",") || record.id !== id) invalid();
         try { validateJellyRow(kind, record); } catch { invalid("Jelly 同步记录无效"); }
-        const revision = Math.max(Number(local(kind, id)?.revision ?? 0), record.revision) + 1;
+        const previous = local(kind, id);
+        const revision = Math.max(Number(previous?.revision ?? 0), record.revision) + 1;
         const values = encodeJellyRow(kind, { ...record, revision } as JellyRows[typeof kind]);
         db.prepare(`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")}) ON CONFLICT(id) DO UPDATE SET ${columns.filter(column => column !== "id").map(column => `${column} = excluded.${column}`).join(", ")}`).run(...values);
         const stored = local(kind, id);
-        if (kind === "item" && stored) writeJellyOverview(overview, decodeJellyRow("item", stored));
-        if (kind === "series" && stored) writeJellySeriesOverview(overview, decodeJellyRow("series", stored));
+        if (stored) updateJellyOverview(overview, kind, id, decodeJellyRow(kind, stored), Boolean(previous));
       },
     };
   },

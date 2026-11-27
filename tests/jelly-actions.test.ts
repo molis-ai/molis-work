@@ -208,3 +208,17 @@ test("B2R-04 a calendar full of past one-offs still projects the next reminder",
   assert.deepEqual(f.events().find(row => row.row_id === result.item.id), { row_id: result.item.id, title: "Tomorrow",
     starts_at: day + "T10:00:00.000Z", ends_at: day + "T11:00:00.000Z", time_zone: "UTC", all_day: 0, remind_at: day + "T09:55:00.000Z" });
 });
+
+test("B2R-04 completing a projected one-off immediately registers the omitted 501st reminder", { timeout: 90_000 }, async t => {
+  const f = fixture(t), day = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const entry = { start_date: day, end_date: day, start_time: 600, end_time: 660, time_zone: "UTC", reminder_minutes: 5 };
+  const first = (await f.bound.invoke(a.createItem, { item: { ...entry, title: "First" } })).item;
+  for (let i = 1; i < 500; i++) await f.bound.invoke(a.createItem, { item: { ...entry, title: "Busy " + i } });
+  const last = (await f.bound.invoke(a.createItem, { item: { ...entry, start_time: 601, title: "Next reminder" } })).item;
+  assert.equal(f.events().length, 500);
+  assert.ok(!f.events().some(row => row.row_id === last.id));
+  await f.bound.invoke(a.updateItem, { id: first.id, expected_revision: first.revision, patch: { completed: true } });
+  assert.equal(f.events().length, 500);
+  assert.deepEqual(f.events().find(row => row.row_id === last.id), { row_id: last.id, title: "Next reminder", starts_at: day + "T10:01:00.000Z",
+    ends_at: day + "T11:00:00.000Z", time_zone: "UTC", all_day: 0, remind_at: day + "T09:56:00.000Z" });
+});

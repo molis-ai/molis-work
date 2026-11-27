@@ -1,8 +1,9 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type PluginDatabaseTransaction, type PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { JellyCategory, JellyItem, JellyNote, JellySeries } from "./contract.js";
-import { JELLY_UNCATEGORIZED_ID, jellyDate, validateJellyEntry, validateJellySeries, type JellyCategoryIds } from "./calendar.js";
+import { JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDate, validateJellyEntry, validateJellySeries, type JellyCategoryIds } from "./calendar.js";
 import { jellyAssert, jellyErrors } from "./error.js";
+import type { OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
 import { JELLY_DATABASE } from "./database.js";
 import { removeJellyOverview, removeJellySeriesOverview, writeJellyOverview, writeJellySeriesOverview } from "./overview.js";
 export { JELLY_DATABASE };
@@ -60,6 +61,30 @@ export interface JellyStores {
   read<T>(run: (store: JellyStore) => T): T;
   /** One transaction per command: every row it changes is written together, or none is. */
   write<T>(caller: ActionExecutionContext, run: (store: JellyStore) => T): Promise<T>;
+}
+
+type ProjectionDatabase = OverviewRowsWriter & Pick<PluginDatabaseTransaction, "all">;
+
+/** Bring back eligible rows previously omitted by the cap. The plugin reads its own business facts inside the same transaction. */
+export function refillJellyOverview(db: ProjectionDatabase): void {
+  const since = jellyAddDays(new Date().toISOString().slice(0, 10), -7);
+  const absent = db.all(`SELECT i.* FROM jelly_items i WHERE i.completed_at IS NULL AND i.end_date >= ?
+    AND NOT EXISTS (SELECT 1 FROM ${OVERVIEW_TABLE} p WHERE p.kind = 'event' AND p.row_id = i.id)
+    ORDER BY i.start_date, i.id`, [since]);
+  for (const row of absent) writeJellyOverview(db, decodeJellyRow("item", row));
+  for (const row of db.all("SELECT * FROM jelly_series ORDER BY start_date, id")) writeJellySeriesOverview(db, decodeJellyRow("series", row));
+}
+
+/** Local and replicated changes share the same bounded projection and fill a freed slot before the transaction commits. */
+export function updateJellyOverview<K extends JellyRowKind>(db: ProjectionDatabase, kind: K, id: string, row: JellyRows[K] | null, replacing: boolean): void {
+  if (kind !== "item" && kind !== "series") return;
+  const wasFull = replacing && db.get(`SELECT 1 FROM ${OVERVIEW_TABLE} WHERE kind = 'event' LIMIT 1 OFFSET ?`, [OVERVIEW_ROW_LIMIT - 1]);
+  if (kind === "item") {
+    if (row) writeJellyOverview(db, row as JellyItem); else removeJellyOverview(db, id);
+  } else {
+    if (row) writeJellySeriesOverview(db, row as JellySeries); else removeJellySeriesOverview(db, id);
+  }
+  if (wasFull) refillJellyOverview(db);
 }
 
 /** Reads and writes rows. A write names the revision it was made on; a row that moved on since is a conflict for that row alone. */
@@ -121,13 +146,8 @@ export class JellyStore {
     jellyAssert(!this.db.get(`SELECT 1 FROM ${JELLY_TABLES[kind]} WHERE id = ?`, [row.id]), "这个 ID 已经有一条记录");
     const columns = COLUMNS[kind];
     this.db.run(`INSERT INTO ${JELLY_TABLES[kind]} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`, encodeJellyRow(kind, row));
-    this.overview(kind, row);
+    updateJellyOverview(this.db, kind, row.id, row, false);
     return row;
-  }
-  /** Every write of an entry also writes its overview row, in the same transaction (`overview.ts`). */
-  private overview<K extends JellyRowKind>(kind: K, row: JellyRows[K]): void {
-    if (kind === "item") writeJellyOverview(this.db, row as JellyItem);
-    if (kind === "series") writeJellySeriesOverview(this.db, row as JellySeries);
   }
   /** Writes `row` over the stored one only if that is still at `expected`; `row.revision` is the new revision. */
   replace<K extends JellyRowKind>(kind: K, row: JellyRows[K], expected: number): JellyRows[K] {
@@ -137,7 +157,7 @@ export class JellyStore {
     const changed = this.db.run(`UPDATE ${JELLY_TABLES[kind]} SET ${columns.map(column => `${column} = ?`).join(", ")} WHERE id = ? AND revision = ?`,
       [...encodeJellyRow(kind, row).slice(1), row.id, expected]);
     if (changed.changes !== 1) this.conflict(kind, row.id);
-    this.overview(kind, row);
+    updateJellyOverview(this.db, kind, row.id, row, true);
     return row;
   }
   /**
@@ -154,8 +174,7 @@ export class JellyStore {
   delete(kind: JellyRowKind, id: string, expected: number): void {
     const changed = this.db.run(`DELETE FROM ${JELLY_TABLES[kind]} WHERE id = ? AND revision = ?`, [id, expected]);
     if (changed.changes !== 1) this.conflict(kind, id);
-    if (kind === "item") removeJellyOverview(this.db, id);
-    if (kind === "series") removeJellySeriesOverview(this.db, id);
+    updateJellyOverview(this.db, kind, id, null, true);
   }
   /** The row is gone or moved on: say which, and its revision now, so the page can reload that one row. */
   conflict(kind: JellyRowKind, id: string): never {

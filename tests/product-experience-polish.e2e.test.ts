@@ -41,18 +41,23 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await click('[data-plugin-picker-toggle]');
   await reloadPage();
   await waitFor("document.querySelector('[data-dock-pins] [data-top-corner-toggle]')");
-  await click('[data-global-search-open]');
-  await input('[data-global-search]', 'dataset');
-  // Content results arrive after the tool rows and go above them, so a click aimed at a row while the search is still
-  // running can land on another one. Wait until the list has stopped changing, as a person would see it.
-  await waitFor(`(() => {
-    const html = document.querySelector('[data-global-search-results]')?.innerHTML ?? '', now = performance.now();
-    if (globalThis.__searchResults !== html) { globalThis.__searchResults = html; globalThis.__searchResultsAt = now; return false; }
-    return now - globalThis.__searchResultsAt > 400 && Boolean(document.querySelector('[data-global-search-id=dataset]'));
-  })()`, 10_000);
+  const datasetTool = '[data-global-search-kind="plugin"][data-global-search-id="dataset"]';
+  const findDatasetTool = async () => {
+    await click('[data-global-search-open]');
+    await input('[data-global-search]', 'dataset');
+    // Remote hits appear above local tools. Indexing schedules another search, so wait for the displayed
+    // query to finish before taking a picture or aiming at the tool, on either size of screen.
+    await waitFor(`(() => {
+      const status = document.querySelector('[data-global-search-status]');
+      return document.querySelector('[data-global-search]')?.value === 'dataset'
+        && (status?.hidden || status?.dataset.mwState === 'partial')
+        && !!document.querySelector('${datasetTool}');
+    })()`, 20_000);
+  };
+  await findDatasetTool();
   await shot('search-tools');
-  await click('[data-global-search-id=dataset]');
-  await waitFor("document.body.dataset.desktopSurface === 'dataset'");
+  await click(datasetTool);
+  await waitFor("!document.querySelector('[data-global-search-dialog]').open && document.body.dataset.desktopSurface === 'dataset'");
   await views.dataset.click('[data-dataset-empty] [data-dataset-new]');
   await views.dataset.waitFor("!document.querySelector('[data-dataset-stage-workspace]').hidden && document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
   await input('[data-dataset-title]', '产品体验验证');
@@ -111,9 +116,8 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await waitFor("document.body.dataset.desktopSurface === 'pages'");
   await size(390, 844);
   await shot('pages-mobile');
-  await click('[data-global-search-open]');
-  await input('[data-global-search]', 'dataset');
-  await click('[data-global-search-id=dataset]');
+  await findDatasetTool();
+  await click(datasetTool);
   await waitFor("document.body.dataset.desktopSurface === 'dataset' && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
 
   for (const plugin of ['home', 'dataset', 'form', 'ppt', 'lingguang', 'cognia']) {

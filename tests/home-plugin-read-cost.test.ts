@@ -6,8 +6,10 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { bindDatabaseSpace, ensureStorageSpace, personalStorageSpace, releaseHeldHomeSqlite } from "@molis-ai/molis-work-storage";
+
+const pluginRuntimeSchema = () => `${homeStores().stores.find(store => store.path === "plugin-runtime")!.library!.baseline.schema};\nPRAGMA user_version = 1;`;
 
 test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while each read checks current identity and facts", async t => {
   // Each read is the Home ledger's observed publishers, read through the held read-only handle (since 44B no project membership read opens
@@ -26,7 +28,7 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
     const location = db.location();
     assert.ok(location);
     try {
-      db.exec(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8"));
+      db.exec(pluginRuntimeSchema());
       if (withSpace) bindDatabaseSpace(db, ensureStorageSpace(home));
     } finally { db.close(); }
     fixtures.push({ home, catalog, project, file, location });
@@ -114,7 +116,7 @@ test("MEM-42 ASR-12 the next read-only read sees a Home's own pin and its revoca
     t.after(async () => { releaseHeldHomeSqlite(home); await rm(home, { recursive: true, force: true }); });
     mkdirSync(join(home, "plugin-runtime"));
     const db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"));
-    try { db.exec(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")); } finally { db.close(); }
+    try { db.exec(pluginRuntimeSchema()); } finally { db.close(); }
     return new HomeConsentLedger(home);
   };
   const a = await seed(), b = await seed();

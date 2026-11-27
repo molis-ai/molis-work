@@ -22,7 +22,7 @@ import { fullSuiteWorkflow, setupWorkAction, workflow, workflowFiles } from "./f
 //
 // Two sentinels keep forms the guard was not taught from escaping quietly. `mentions()` counts `pnpm` … `install`/`i`
 // loosely on every line with comments stripped, and `problems()` requires the recognised installs to equal both that loose
-// count and the expected count, pinning the real workflows at 10 in ci.yml and 1 each in full-suite.yml and golden-replay-nightly.yml (RAC-1458). Every file
+// count and the expected count, pinning the real workflows under .github/workflows (RAC-1458). Every file
 // under .github/workflows is swept the same way: a file with an install must be listed, or listed in UNGUARDED_INSTALLS
 // where release-macos.yml is knowingly unguarded (T-019 任务书 明令不动, tracked separately) (RAC-1458). A later CI change
 // that adds or removes an install has to update EXPECTED_INSTALLS in the same pull request.
@@ -38,9 +38,9 @@ const INSTALL =
 const LOOSE_INSTALL = /(?<![\w./-])pnpm\b[^\n]*?\s(?:install|i)(?=\s|$|[;&|)])/g;
 
 /** The direct `pnpm install` steps the real workflows are expected to have (shared installs live in setup-work). */
-const EXPECTED_INSTALLS: Record<string, number> = { "ci.yml": 0, "full-suite.yml": 0, "golden-replay-nightly.yml": 0, "visual-audit.yml": 0 };
+const EXPECTED_INSTALLS: Record<string, number> = { "ci.yml": 0, "full-suite.yml": 0, "visual-audit.yml": 0 };
 /** How many times each workflow invokes the shared `./.github/actions/setup-work` composite action. */
-const EXPECTED_SETUP_CALLERS: Record<string, number> = { "ci.yml": 9, "full-suite.yml": 3, "golden-replay-nightly.yml": 1, "visual-audit.yml": 3 };
+const EXPECTED_SETUP_CALLERS: Record<string, number> = { "ci.yml": 7, "full-suite.yml": 3, "visual-audit.yml": 3 };
 /** release-macos.yml installs without a guard on purpose: T-019 任务书 明令不动, tracked separately. */
 const UNGUARDED_INSTALLS: Record<string, number> = { "release-macos.yml": 1 };
 

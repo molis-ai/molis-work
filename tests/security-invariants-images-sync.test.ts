@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {createImagesSyncBindings,imagesActions,imagesManifest} from '@molis-ai/molis-work-plugin-images';
 import {ownerSyncFixture} from './fixtures/plugin-sync-stores.js';
-import {bindPersonalSpaceAuthority} from '@molis-ai/molis-work-app-local-host';
+import {bindPersonalSpaceAuthority,homeStores} from '@molis-ai/molis-work-app-local-host';
 import { ensureStorageSpace, personalStorageSpace, openBaselineHomeSqlite } from '@molis-ai/molis-work-storage';
 
 test('S-128 PCSYNC-IMG-READ-01/02 restored images are readable without a local service, never authority to generate',async t=>{
@@ -62,7 +62,7 @@ test('S-128 PCSYNC-01/23 image restoration refuses foreign identities, execution
  replica.receive({key,operationId:'good',base:0,revision:++revision,value});replica.resolve(key,'remote',revision);assert.equal(replica.cursor(),revision);assert.equal(replica.counts().pending,0);
 });
 test('S-128 PCSYNC-12 Images refuses the old structure and a wrong version with original bytes unchanged',async t=>{
- const currentSql=readFileSync(new URL('./fixtures/home-store-schemas/images.sql',import.meta.url),'utf8');
+ const currentSql=homeStores().stores.find(store=>store.path==='images')!.library!.baseline.schema;
  for(const [version,schema,code] of [[1,currentSql+'; DROP TABLE connection_changes;','storage.schema_structure_mismatch'],[2,currentSql,'storage.store_too_new']] as const){
   const root=mkdtempSync(join(tmpdir(),'sync-old-schema-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
   const home=join(root,'images'),space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);

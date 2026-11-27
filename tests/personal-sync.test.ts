@@ -15,7 +15,7 @@ import { openBaselineHomeSqlite, namespacedReplicaDatabase } from '@molis-ai/mol
 import {PersonalSync,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {pluginSyncNamespace} from '@molis-ai/molis-work-app-local-host';
+import {homeStores,pluginSyncNamespace} from '@molis-ai/molis-work-app-local-host';
 import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
 
 import {artifactSyncSelection,createPersonalArtifactRegistration} from '@molis-ai/molis-work-app-local-host';
@@ -442,7 +442,7 @@ test('PCSYNC-20 Todo preserves deleted project scope across restart and protects
 });
 
 test('PCSYNC-20 newer Todo v2 is refused without changing original rows or bytes',t=>{
- const f=fixture(t),home=f.homes[0],old=openBaselineHomeSqlite(home,'todo',{version:2,schema:readFileSync(new URL('./fixtures/home-store-schemas/todo.sql',import.meta.url),'utf8')});
+ const f=fixture(t),home=f.homes[0],old=openBaselineHomeSqlite(home,'todo',{version:2,schema:homeStores().stores.find(store=>store.path==='todo')!.library!.baseline.schema});
  old.prepare("INSERT INTO todo_source_memory VALUES('source','original','keep',NULL,'preserve original','2026-10-19T00:00:00Z')").run();old.close();
  const file=join(home,'todo','todo.db'),before=readFileSync(file);
  assert.throws(()=>openTodoSyncStore(home),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);

@@ -7,8 +7,8 @@ import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
 import { declarationFindings } from "../scripts/gates/version-declarations.mjs";
 
-// docs/releases/POLICY.md: one product version, and the per-database version table in docs/releases/CHECKLIST.md is the
-// code's. The script is run against this repository (it must pass), and each rule is mutation-verified on a small scratch
+// docs/releases/POLICY.md: one product version and central tooling/versions.json authority.
+// The script is run against this repository (it must pass), and each rule is mutation-verified on a small scratch
 // tree: one violation makes it fail and name the place, the unmutated tree passes.
 const script = fileURLToPath(new URL("../scripts/verify-release-versions.mjs", import.meta.url));
 const repository = fileURLToPath(new URL("..", import.meta.url));
@@ -58,46 +58,28 @@ const failsWith = (result: { code: number | null; out: string }, ...fragments: s
 };
 
 const VERSION = "1.2.3";
-const TABLE = [
-  "| 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |",
-  "| --- | --- | --- | --- | --- | --- |",
-  "| Alpha | `alpha/alpha.db` | 3 | `user_version` | `apps/alpha/src/store.ts#ALPHA_BASELINE` | 拒绝 |",
-  "| Server | `server/server.sqlite` | 1 | `user_version` | `server/src/db.ts#SERVER_BASELINE` | 拒绝 |",
-  "| Catalog | `catalog.db` | 21 | `catalog_meta` | `apps/alpha/src/store.ts#CATALOG_VERSION` | 拒绝 |",
-  "| Characters | `characters.sqlite` | 1 | `user_version` | `apps/alpha/src/characters.ts#PRAGMA user_version` | 只拒绝更高的版本 |",
-].join("\n");
 
 // A scratch repository that satisfies every rule; the tests break one thing at a time.
 const buildFixture = () => {
   put("tooling/versions.json", JSON.stringify({ versions: {}, carriers: [] }));
   put("package.json", JSON.stringify({ name: "root", version: VERSION }));
   ownVersion("package.json", "product.release", VERSION, '("version":")[^"]+(")');
-  ownVersion("apps/alpha/src/store.ts", "database.alpha", 3, '(version: )\\d+()');
-  ownVersion("apps/alpha/src/store.ts", "database.catalog", 21, '(CATALOG_VERSION = )\\d+()');
-  ownVersion("server/src/db.ts", "database.server", 1, '(version: )\\d+()');
   ownVersion("apps/local-host/src/product-version.ts", "product.release", VERSION, '(PRODUCT_VERSION = ")[^"]+(")');
   ownVersion("apps/desktop/src-tauri/tauri.conf.json", "product.release", VERSION, '("version":")[^"]+(")');
   ownVersion("apps/desktop/src-tauri/Cargo.toml", "product.release", VERSION, '(\\[package\\]\\nname = "molis-work-desktop"\\nversion = ")[^"]+(")');
   ownVersion("apps/desktop/src-tauri/Cargo.lock", "product.release", VERSION, '(name = "molis-work-desktop"\\nversion = ")[^"]+(")');
   // These fixtures keep their versions in carriers so the rules below can break one literal at a time.
-  scratchFiles = new Set(["apps/alpha/src/store.ts", "apps/alpha/src/characters.ts", "server/src/db.ts", "apps/local-host/src/product-version.ts"]);
+  scratchFiles = new Set(["apps/local-host/src/product-version.ts"]);
   for (const snapshot of ["actions", "host-actions", "scenes", "host-scenes"]) put(`tooling/gates/actions/${snapshot}.tsv`, "");
   put("pnpm-workspace.yaml", "# comment\npackages:\n  - 'apps/*'\n  - 'server'\n\noverrides:\n  x: 1\n");
   put("apps/alpha/package.json", JSON.stringify({ name: "alpha", version: "0.0.0", private: true }));
-  put("apps/alpha/src/store.ts", [
-    "export const ALPHA_BASELINE: SqliteBaseline = { version: 3, schema: `CREATE TABLE a (id TEXT);` };",
-    "export const CATALOG_VERSION = 21;",
-  ].join("\n"));
-  put("apps/alpha/src/characters.ts", "db.exec(`CREATE TABLE IF NOT EXISTS c (id TEXT); PRAGMA user_version = 1;`);\n");
   put("server/package.json", JSON.stringify({ name: "server", version: "0.0.0", private: true }));
-  put("server/src/db.ts", "export const SERVER_BASELINE: SqliteBaseline = {\n  version: 1,\n  schema: ``,\n};\n");
   put("apps/desktop/src-tauri/tauri.conf.json", JSON.stringify({ productName: "Molis Work", version: VERSION }));
   put("apps/desktop/src-tauri/Cargo.toml", `[package]\nname = "molis-work-desktop"\nversion = "${VERSION}"\n\n[dependencies]\nserde = { version = "1" }\n\n[dependencies.other]\nversion = "7"\n`);
   put("apps/desktop/src-tauri/Cargo.lock", `[[package]]\nname = "other"\nversion = "7.0.0"\n\n[[package]]\nname = "molis-work-desktop"\nversion = "${VERSION}"\ndependencies = [\n "other",\n]\n`);
   put("apps/local-host/src/product-version.ts", `export const PRODUCT_VERSION = "${VERSION}";\n`);
   put(`docs/releases/v${VERSION}.md`, "# notes\n");
   put("docs/releases/CHANGELOG.md", `# Changelog\n\n## [Unreleased]\n\n## [${VERSION}] - 2026-01-01\n\n## [1.2.2] - 2025-12-01\n`);
-  put("docs/releases/CHECKLIST.md", `# Checklist\n\n## 3. 各库版本表\n\n${TABLE}\n\n- trailing text that is not a table row\n\n## 4. Other\n\n| not | the | table |\n| --- | --- | --- |\n| x | y | z |\n`);
 };
 
 beforeEach(() => {
@@ -107,25 +89,18 @@ beforeEach(() => {
 });
 after(() => { for (const directory of scratch) rmSync(directory, { recursive: true, force: true }); });
 
-test("this repository: the version sources agree and the database table is the code's", () => {
+test("this repository: the version sources agree", () => {
   const result = spawnSync(process.execPath, [script, "--root", repository], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   const version = (JSON.parse(readFileSync(path.join(repository, "package.json"), "utf8")) as { version: string }).version;
   assert.equal(result.stdout.split("\n")[0], `Molis Work release version sources agree: ${version}`);
 });
 
-test("this repository: the table lists the JSON files whose version mismatch refuses credentials or authorizations", () => {
-  const checklist = readFileSync(path.join(repository, "docs/releases/CHECKLIST.md"), "utf8");
-  const row = (location: string) => checklist.split("\n").find(line => line.startsWith("|") && line.includes(`\`${location}\``)) ?? "";
-  assert.match(row("security/secrets.json"), /file-secret-store\.ts#FORMAT_VERSION` \| 拒绝读取/);
-  assert.match(row("config/mcp-tools.json"), /mcp-settings-store\.ts#MCP_TOOL_PREFERENCE_VERSION`.*\| 拒绝读取/);
-});
-
 test("a consistent scratch tree passes, and the tag may be v<version>", () => {
   const plain = run();
   assert.equal(plain.code, 0, plain.out);
   assert.match(plain.out, new RegExp(`release version sources agree: ${VERSION}`));
-  assert.match(plain.out, /2 workspace packages are private 0\.0\.0; 4 stores/);
+  assert.match(plain.out, /2 workspace packages are private 0\.0\.0/);
   assert.equal(run("--tag", `v${VERSION}`).code, 0);
   assert.equal(run(`--tag=v${VERSION}`).code, 0);
 });
@@ -204,320 +179,11 @@ test("the current version needs release notes and a CHANGELOG section, [Unreleas
   failsWith(run(), "docs/releases/CHANGELOG.md: the file is missing");
 });
 
-test("the database table must agree with the code, row by row", () => {
-  edit("apps/alpha/src/store.ts", "version: 3", "version: 4");
-  failsWith(run(), "Alpha: the table says 3, the code (apps/alpha/src/store.ts#ALPHA_BASELINE) says 4");
-  buildFixture();
-  edit("docs/releases/CHECKLIST.md", "| 21 |", "| 22 |");
-  failsWith(run(), "Catalog: the table says 22, the code (apps/alpha/src/store.ts#CATALOG_VERSION) says 21");
-  buildFixture();
-  edit("server/src/db.ts", "version: 1", "version: 2");
-  failsWith(run(), "Server: the table says 1, the code (server/src/db.ts#SERVER_BASELINE) says 2");
-  buildFixture();
-  edit("apps/alpha/src/characters.ts", "user_version = 1", "user_version = 2");
-  failsWith(run(), "Characters: the table says 1, the code (apps/alpha/src/characters.ts#PRAGMA user_version) says 2");
-});
-
-test("a row whose definition has vanished, or whose file is gone, fails", () => {
-  edit("apps/alpha/src/store.ts", "ALPHA_BASELINE", "ALPHA_RENAMED");
-  failsWith(run(), "Alpha: apps/alpha/src/store.ts has no ALPHA_BASELINE with a version");
-  buildFixture();
-  rmSyncFile("apps/alpha/src/characters.ts");
-  failsWith(run(), "Characters: apps/alpha/src/characters.ts does not exist");
-});
-
-test("a SqliteBaseline the table does not list fails", () => {
-  put("apps/alpha/src/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
-  failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list");
-  // Outside package sources (tests, build output, dependencies) it does not count.
-  rmSyncFile("apps/alpha/src/more.ts");
-  put("apps/alpha/tests/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
-  put("apps/alpha/src/dist/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
-  put("apps/alpha/src/node_modules/x/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
-  assert.equal(run().code, 0);
-});
-
-test("VG-13 the release table reads a package's .ts, .js, .mts and .mjs under src/, and only those", () => {
-  const baseline = "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n";
-  for (const file of ["apps/alpha/src/more.ts", "apps/alpha/src/more.js", "apps/alpha/src/more.mts", "apps/alpha/src/more.mjs", "apps/alpha/src/deep/tests/more.ts", "apps/alpha/src/target/more.ts", "apps/alpha/src/.build/more.ts", "server/src/more.ts"]) {
-    buildFixture();
-    scratchLiterals(file);
-    put(file, baseline);
-    failsWith(run(), `${file}#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list`);
-    rmSyncFile(file);
-  }
-  for (const file of ["apps/alpha/more.ts", "apps/alpha/tooling/more.ts", "apps/alpha/tests/more.ts", "apps/alpha/src/more.tsx", "apps/alpha/src/more.cjs", "apps/alpha/src/dist/more.ts", "apps/alpha/src/node_modules/x/more.ts", "apps/beta/src/more.ts"]) {
-    buildFixture();
-    scratchLiterals(file);
-    put(file, baseline);
-    const result = run();
-    assert.equal(result.code, 0, `${file}\n${result.out}`);
-    rmSyncFile(file);
-  }
-});
-
-test("a plugin-owned database declaration has a listed literal baseline with the same version", () => {
-  const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
-  const listed = table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 1 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 拒绝 |");
-  ownVersion("apps/alpha/src/plugin.ts", "database.plugin", 1, '(version: )\\d+()');
-  scratchLiterals("apps/alpha/src/plugin.ts");
-  for (const source of [
-    "const PLUGIN_DB: PluginDatabaseDeclaration = { version: 1, schema: `` };",
-    "const PLUGIN_DB = { version: 1, schema: `` } satisfies PluginDatabaseDeclaration;",
-    "const PLUGIN_DB = { version: 1, schema: `` } as PluginDatabaseDeclaration;",
-    "const PLUGIN_DB: HomePluginDatabaseDeclaration = { project_rows: ROWS, version: 1, schema: `` };",
-    "const PLUGIN_DB = { project_rows: { label: \"x\", tables: [] }, version: 1, schema: `` } satisfies HomePluginDatabaseDeclaration;",
-  ]) {
-    put("docs/releases/CHECKLIST.md", table); put("apps/alpha/src/plugin.ts", source);
-    failsWith(run(), "apps/alpha/src/plugin.ts#PLUGIN_DB is a SqliteBaseline the 各库版本表 does not list");
-    put("docs/releases/CHECKLIST.md", listed); assert.equal(run().code, 0, run().out);
-    put("apps/alpha/src/plugin.ts", source.replace("version: 1", "version: 2"));
-    failsWith(run(), "the table says 1", "says 2");
-    put("apps/alpha/src/plugin.ts", source.replace("version: 1", "version: dynamic"));
-    failsWith(run(), "has no PLUGIN_DB with a version");
-  }
-});
-
-test("only the typed Host connection bridge forwards a plugin declaration; other baseline calls remain checked", () => {
-  put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
-  const bridge = "export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration) { return openBaselineHomeSqlite(home, declaration.store_name, declaration); }";
-  put("apps/local-host/src/plugin-database.ts", bridge); assert.equal(run().code, 0, run().out);
-  put("apps/local-host/src/plugin-database.ts", bridge.replace("openPluginDatabaseConnection", "openPluginDatabase"));
-  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
-  put("apps/local-host/src/plugin-database.ts", bridge);
-  put("apps/alpha/src/bridge.ts", bridge);
-  failsWith(run(), "apps/alpha/src/bridge.ts: openBaselineHomeSqlite is called with declaration");
-  rmSyncFile("apps/alpha/src/bridge.ts");
-  put("apps/local-host/src/plugin-database.ts", bridge + "\nopenBaselineHomeSqlite(home, 'other', { version: 1, schema: `` });");
-  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with an inline baseline");
-  put("apps/local-host/src/plugin-database.ts", bridge.replace("declaration: PluginDatabaseDeclaration", "declaration: unknown"));
-  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
-  // Batch 107: the bridge forwards no project any more; passing one again is not the exempt call.
-  put("apps/local-host/src/plugin-database.ts", bridge.replace("declaration);", "declaration, projectId);"));
-  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
-  put("apps/local-host/src/plugin-database.ts", bridge + "\nexport function rogue(home: string, declaration: any, partition?: any) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }");
-  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
-});
-
-test("batch 106: the per-partition library opener forwards a plugin declaration only in its own exact form and call site", () => {
-  put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
-  const file = "apps/local-host/src/partition-plugin-assembly.ts";
-  const opener = "export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) { applySqliteBaseline(writer, file, declaration); }";
-  put(file, opener); assert.equal(run().code, 0, run().out);
-  put(file, opener.replace("openPartitionPluginLibrary", "openPartitionLibrary"));
-  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
-  put(file, opener.replace("declaration: PluginDatabaseDeclaration", "declaration: unknown"));
-  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
-  put(file, opener.replace("(writer, file, declaration)", "(writer, other, declaration)"));
-  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
-  put(file, opener.replace("applySqliteBaseline", "openBaselineHomeSqlite"));
-  failsWith(run(), `${file}: openBaselineHomeSqlite is called with declaration`);
-  put(file, opener + "\napplySqliteBaseline(db, path, { version: 1, schema: `` });");
-  failsWith(run(), `${file}: applySqliteBaseline is called with an inline baseline`);
-  // A sibling function, a commented-out signature, a nested callback, or a second call in the same file must all be refused.
-  put(file, opener + "\nexport function sibling(writer: any, file: string, declaration: any) { applySqliteBaseline(writer, file, declaration); }");
-  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
-  put(file, "// function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) {}\nexport function rogue(writer: any, file: string, declaration: any) { applySqliteBaseline(writer, file, declaration); }");
-  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
-  put(file, "export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) { const run = () => applySqliteBaseline(writer, file, declaration); run(); }");
-  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
-  put(file, "export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) { applySqliteBaseline(writer, file, declaration); applySqliteBaseline(writer, file, declaration); }");
-  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
-  put(file, opener);
-  put("apps/alpha/src/opener.ts", opener);
-  failsWith(run(), "apps/alpha/src/opener.ts: applySqliteBaseline is called with declaration");
-  rmSyncFile("apps/alpha/src/opener.ts");
-});
-
-test("a baseline declared with satisfies or as, or handed over inline, cannot hide from the table", () => {
-  put("apps/alpha/src/more.ts", "export const MORE_BASELINE = { version: 1, schema: `` } satisfies SqliteBaseline;\n");
-  failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list");
-  put("apps/alpha/src/more.ts", "export const MORE_BASELINE = {\n  version: 1,\n  schema: ``,\n} as SqliteBaseline;\n");
-  failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list");
-  rmSyncFile("apps/alpha/src/more.ts");
-
-  put("apps/alpha/src/open.ts", "applySqliteBaseline(db, path, { version: 1, schema: `CREATE TABLE t (a TEXT, b TEXT);` });\n");
-  failsWith(run(), "apps/alpha/src/open.ts: applySqliteBaseline is called with an inline baseline");
-  put("apps/alpha/src/open.ts", "const handle = openBaselineHomeSqlite(home, 'x',\n  makeBaseline(1));\n");
-  failsWith(run(), "apps/alpha/src/open.ts: openBaselineHomeSqlite is called with an inline baseline");
-  put("apps/alpha/src/open.ts", "applySqliteBaseline(db, path, OTHER_BASELINE);\n");
-  failsWith(run(), "apps/alpha/src/open.ts: applySqliteBaseline is called with OTHER_BASELINE, which no package declares as a SqliteBaseline");
-  put("apps/alpha/src/open.ts", "applySqliteBaseline(db, path);\n");
-  failsWith(run(), "apps/alpha/src/open.ts: applySqliteBaseline is called without a baseline");
-
-  // Calls with a declared constant, and the definition of the function itself, are fine.
-  put("apps/alpha/src/open.ts", [
-    "export function applySqliteBaseline(db: Db, path: string, baseline: SqliteBaseline): void {}",
-    "applySqliteBaseline(db, `${home}/(a,b)`, ALPHA_BASELINE);",
-    "const handle = openBaselineHomeSqlite(home, 'alpha',\n  SERVER_BASELINE);",
-  ].join("\n"));
-  assert.equal(run().code, 0, run().out);
-});
-
-// specs/upgrade-continuity/upgrade-chain-design.md §1, §11.3: the steps sit inside the literal and do not disturb the version reader.
-test("UPG1-i-verify-01: a baseline's upgrades do not change the version read from its literal", () => {
-  const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
-  ownVersion("apps/alpha/src/plugin.ts", "database.plugin", 3, '(version: )\\d+()');
-  scratchLiterals("apps/alpha/src/plugin.ts");
-  put("docs/releases/CHECKLIST.md", table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 3 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 低版本升级，高版本拒绝 |"));
-  const steps = '[{ from: 1, version:9, sql: "ALTER TABLE t ADD COLUMN version TEXT" }, { from: 2, run: (db) => { db.exec(`UPDATE t SET version = \'9\'`); } }]';
-  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { upgrades: ${steps}, version: 3, schema: \`\` };`);
-  assert.equal(run().code, 0, run().out);
-  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { version: 4, schema: \`\`, upgrades: ${steps} };`);
-  failsWith(run(), "the table says 3", "says 4");
-  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { schema: \`\`, upgrades: ${steps} };`);
-  failsWith(run(), "has no PLUGIN_DB with a version");
-});
-
-test("UPG1-i-verify-02: the upgrade entry takes what a descriptor carries, not a baseline written at the call", () => {
-  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, store.baseline);\nrunSqliteUpgrade(db, path, store.library.baseline, home);\n");
-  assert.equal(run().code, 0, run().out);
-  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, nobody);\n");
-  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with nobody, which no package declares as a SqliteBaseline");
-  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { version: 2, schema: `CREATE TABLE t (a TEXT);`, upgrades: [] });\n");
-  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
-  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { ...BASE, version: 2 } as SqliteBaseline);\n");
-  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
-  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path);\n");
-  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called without a baseline");
-});
-
-// specs/upgrade-continuity/upgrade-chain-design.md §2.5: the two aggregate copy openers were deleted with U1-d
-// (BL-storage-copy-owner-unused), so the rule has no entry for them and exempts no file for them. What is left to check is that
-// the dead spellings do not come back into the rule (an entry the build cannot call is a branch no mutation can reach), and that
-// the entries that remain still catch a baseline written at a call.
-test("UPG1-i-verify-03: the deleted copy store openers are no entries of the baseline rule, and a baseline written at a call still counts", () => {
-  const source = readFileSync(script, "utf8");
-  for (const gone of ["aggregate-copy-store", "openOwnerCopyStore", "openAggregateCopyOwner"]) {
-    assert.ok(!source.includes(gone), `${gone} is not a baseline entry any more: the file and the openers were deleted with U1-d`);
-  }
-  put("apps/alpha/src/copy.ts", "applySqliteBaseline(db, path, { version: 1, schema: `` });\n");
-  failsWith(run(), "apps/alpha/src/copy.ts: applySqliteBaseline is called with an inline baseline");
-  rmSync(path.join(root, "apps/alpha/src/copy.ts"), { force: true });
-});
-
-test("UPG1-i-verify-04: a typed baseline inside a function is still a baseline the table has to list", () => {
-  put("apps/alpha/src/local.ts", "export function open() { const LOCAL_DB: SqliteBaseline = { version: 1, schema: ``, upgrades: [{ from: 1, sql: `ALTER TABLE t ADD COLUMN c TEXT` }] }; return LOCAL_DB; }\n");
-  failsWith(run(), "LOCAL_DB");
-  rmSync(path.join(root, "apps/alpha/src/local.ts"));
-});
-
-// The detection and the version reader agree on every spelling: a baseline that has to be listed can be listed and checked.
-test("a baseline written with satisfies or as is listed and read like an annotated one", () => {
-  ownVersion("apps/alpha/src/more.ts", "database.more", 4, '(MORE_BASELINE[\\s\\S]*?\\}, version: )\\d+()');
-  ownVersion("apps/alpha/src/more.ts", "database.last", 2, '(LAST_BASELINE[\\s\\S]*?version: )\\d+()');
-  scratchLiterals("apps/alpha/src/more.ts");
-  put("apps/alpha/src/more.ts", [
-    "// the store that's second",
-    "export const MORE_BASELINE = { meta: { version: 9 }, version: 4, schema: `CREATE TABLE m (id TEXT); -- don't` } satisfies SqliteBaseline;",
-    "export const LAST_BASELINE = {",
-    '  /* a comment with a " quote */',
-    "  schema: ``,",
-    "  version: 2,",
-    "} as SqliteBaseline;",
-  ].join("\n"));
-  const withRows = (more: string, last: string) => put("docs/releases/CHECKLIST.md", `# Checklist\n\n## 3. 各库版本表\n\n${TABLE}\n`
-    + `| More | \`more/more.db\` | ${more} | \`user_version\` | \`apps/alpha/src/more.ts#MORE_BASELINE\` | 拒绝 |\n`
-    + `| Last | \`last/last.db\` | ${last} | \`user_version\` | \`apps/alpha/src/more.ts#LAST_BASELINE\` | 拒绝 |\n`);
-  failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list",
-    "apps/alpha/src/more.ts#LAST_BASELINE is a SqliteBaseline the 各库版本表 does not list");
-  withRows("4", "2");
-  assert.equal(run().code, 0, run().out);
-  assert.match(run().out, /6 stores/);
-  withRows("9", "2");
-  failsWith(run(), "More: the table says 9, the code (apps/alpha/src/more.ts#MORE_BASELINE) says 4");
-  withRows("4", "3");
-  failsWith(run(), "Last: the table says 3, the code (apps/alpha/src/more.ts#LAST_BASELINE) says 2");
-  // A version the script cannot read as a number is a failure, not a pass.
-  put("apps/alpha/src/more.ts", "const V = 4;\nexport const MORE_BASELINE = { version: V, schema: `` } satisfies SqliteBaseline;\nexport const LAST_BASELINE = { version: 2, schema: `` } as SqliteBaseline;\n");
-  withRows("4", "2");
-  failsWith(run(), "More: apps/alpha/src/more.ts has no MORE_BASELINE with a version");
-});
-
-const withRow = (row: string) => put("docs/releases/CHECKLIST.md", `# Checklist\n\n## 3. 各库版本表\n\n${TABLE}\n${row}\n`);
-
-test("VG-23 无 and a bare path are refused: no library is without a version, and scripts/gates/store-versions.mjs reads the same cells", () => {
-  put("apps/alpha/src/plain.ts", "export const plain = 'CREATE TABLE IF NOT EXISTS p (id TEXT)';\n");
-  withRow("| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |");
-  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
-  withRow("| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts#plain` | 不检查 |");
-  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
-  withRow("| Plain | `plain.sqlite` | 1 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |");
-  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
-});
-
-test("VG-24 a JSON file's row points at the field the code writes, and every spelling of that field has to say the table's number", () => {
-  scratchLiterals("apps/alpha/src/settings.ts");
-  const row = (version: number, name = "schema_version") => withRow(`| Settings | \`settings.json\` | ${version} | \`${name}\` | \`apps/alpha/src/settings.ts#${name}\` | 当没有 |`);
-  put("apps/alpha/src/settings.ts", "export interface Saved { schema_version: 1; }\nexport const write = () => ({ schema_version: 1, name: 'a' });\n");
-  row(1);
-  assert.equal(run().code, 0, run().out);
-  assert.match(run().out, /5 stores/);
-  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1, name: 'a' });\n");
-  row(1, "version");
-  assert.equal(run().code, 0, run().out);
-
-  put("apps/alpha/src/settings.ts", "export const write = () => ({ schema_version: 1 });\n");
-  row(2);
-  failsWith(run(), "Settings: the table says 2, the code (apps/alpha/src/settings.ts#schema_version) says 1");
-  row(1);
-  put("apps/alpha/src/settings.ts", "export interface Saved { schema_version: 1; }\nexport const write = () => ({ schema_version: 2 });\n");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
-  put("apps/alpha/src/settings.ts", "export const write = (current: number) => ({ schema_version: current });\n");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts writes schema_version: current; write the number itself at every schema_version (定义处写字面量)");
-  put("apps/alpha/src/settings.ts", "export const write = () => ({ name: 'a' });\n");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
-  // Only the two field names read this way: a constant's row still needs the constant.
-  put("apps/alpha/src/settings.ts", "export const write = () => ({ SETTINGS_VERSION: 1 });\n");
-  row(1, "SETTINGS_VERSION");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no SETTINGS_VERSION with a version");
-});
-
-test("VG-41 a JSON file's field is read with its key quoted too, and a field written from a name is refused", () => {
-  scratchLiterals("apps/alpha/src/settings.ts");
-  withRow("| Settings | `settings.json` | 1 | `version` | `apps/alpha/src/settings.ts#version` | 当没有 |");
-  const passes = (source: string) => { put("apps/alpha/src/settings.ts", source); const result = run(); assert.equal(result.code, 0, `${source}\n${result.out}`); };
-  passes("export const write = () => ({ version: 1 });\n// an older file said version: 2\n");
-  passes("export const write = () => ({ \"version\": 1, version_note: 3 });\nexport type Read = { version: number };\n");
-  passes("export const write = () => ({ version: 1 as const });\nexport const text = '{\"version\": 1}';\n");
-  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1 });\nexport const other = () => ({ \"version\": 2 });\n");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
-  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1 });\nexport const text = `{\"version\": 2}`;\n");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
-  put("apps/alpha/src/settings.ts", "export interface Saved { version: 1 }\nexport const write = () => ({ version: 2 });\n");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
-  const FORMAT = "const FORMAT = 1;\n";
-  for (const [source, written] of [
-    [`${FORMAT}export const write = () => ({ version: 1 });\nexport const again = () => ({ version: FORMAT });\n`, "FORMAT"],
-    [`${FORMAT}export const write = () => ({ "version": FORMAT });\n`, "FORMAT"],
-    [`${FORMAT}export const write = () => ({ version: FORMAT as 1 });\n`, "FORMAT"],
-    ["const version = 1;\nexport const write = () => ({ version });\n", "version"],
-    ["export const write = (old: { version: number }) => ({ version: 1, ...old, \"version\": old.version });\n", "old.version"],
-  ]) {
-    put("apps/alpha/src/settings.ts", source);
-    failsWith(run(), `Settings: apps/alpha/src/settings.ts writes version: ${written}; write the number itself at every version (定义处写字面量)`);
-  }
-});
-
-test("the table itself must exist, have the columns, and carry a whole number", () => {
-  put("docs/releases/CHECKLIST.md", "# Checklist\n\nno table\n");
-  failsWith(run(), "no section titled 各库版本表");
-  put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 |\n| --- | --- |\n| Alpha | 3 |\n");
-  failsWith(run(), "the table needs the columns 版本 and 定义处");
-  put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 | 定义处 |\n| --- | --- | --- |\n");
-  failsWith(run(), "the 各库版本表 has no rows");
-  put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 | 定义处 |\n| --- | --- | --- |\n| Alpha | three | `apps/alpha/src/store.ts#ALPHA_BASELINE` |\n");
-  failsWith(run(), "Alpha: needs a whole number in 版本 and `path#NAME` in 定义处");
-  rmSyncFile("docs/releases/CHECKLIST.md");
-  failsWith(run(), "docs/releases/CHECKLIST.md: the file is missing");
-});
-
 test("every finding is listed in one run, not only the first", () => {
   edit("apps/desktop/src-tauri/Cargo.toml", `version = "${VERSION}"`, 'version = "9.9.9"');
   put("apps/alpha/package.json", JSON.stringify({ name: "alpha", version: "2.0.0", private: true }));
   rmSyncFile(`docs/releases/v${VERSION}.md`);
-  edit("apps/alpha/src/store.ts", "version: 3", "version: 5");
-  failsWith(run(), "Cargo.toml: differs from tooling/versions.json", "workspace packages stay 0.0.0", "release notes", "Alpha: the table says 3");
+  failsWith(run(), "Cargo.toml: differs from tooling/versions.json", "workspace packages stay 0.0.0", "release notes");
 });
 
 test("an unusable command line exits 2, not 0 or 1", () => {

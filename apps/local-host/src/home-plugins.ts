@@ -240,6 +240,18 @@ export class HomePluginHost {
       || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId)
       || this.installed?.isDualInstance(pluginId) === true;
   }
+  /** Direct lookup by `install_id` without enumerating or decoding the entire Home install table. */
+  installationById(installId: string): PluginInstanceRecord | null {
+    const platform = this.platform;
+    if (!platform) return null;
+    try {
+      const record = platform.runtime.get(installId);
+      if (record.state === "uninstalled" || perPartitionPlugins(this.options.home).has(record.plugin_id)) return null;
+      return record;
+    } catch {
+      return null;
+    }
+  }
   /** An installation by its plugin id or its installation id. */
   installation(id: string): PluginInstanceRecord | null {
     return this.installations().find(record => (record.plugin_id === id || record.install_id === id) && record.state !== "uninstalled") ?? null;
@@ -254,13 +266,18 @@ export class HomePluginHost {
     if (!home || !this.platform) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
     const check = this.platform.runtime.capturePermission(home.install_id, permission);
     return () => {
-      if (this.installation(home.install_id)?.state !== "running") throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+      if (this.installationById(home.install_id)?.state !== "running") throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
       check();
     };
   }
   invalidateView(id: string): void {
-    const record = this.installation(id);
-    if (record) this.platform?.invalidateView(record.plugin_id);
+    if (!this.platform) return;
+    if (this.platform.supervisor.state(id)) {
+      this.platform.invalidateView(id);
+      return;
+    }
+    const byInstall = this.installationById(id);
+    if (byInstall) this.platform.invalidateView(byInstall.plugin_id);
   }
   /** A project closed: the Home instances' jobs kept in it stop (PG-038). Their bounded executions keep their call's authority and go on. */
   async stopProjectJobs(projectId: string): Promise<void> {

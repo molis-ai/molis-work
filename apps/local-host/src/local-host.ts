@@ -13,7 +13,7 @@ import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata
 import type { ActionSelection } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference,
-  type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionProviderRegistration, type ActionView, type ActionSceneDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
@@ -21,7 +21,7 @@ import { callSignal, hostAuthorityContext, snapshotCaller } from "./local-host-c
 import { ProjectLine, normalizeReference, runsBesideLine } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";
-import type { HostActionClient, HostCapabilityHandler, LocalHostOptions } from "./local-host-types.js";
+import type { HostActionClient, HostCapabilityHandler, HostSceneClient, LocalHostOptions } from "./local-host-types.js";
 import { isMcpToolCapability } from "./mcp-tool-actions.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 
@@ -245,7 +245,7 @@ export class LocalHost<Runtime> {
     };
   }
 
-  sceneClient(reference?: LocalHostProjectReference): ActionSceneClient {
+  sceneClient(reference?: LocalHostProjectReference): HostSceneClient {
     return createSceneClient(this.sceneHost, reference);
   }
 

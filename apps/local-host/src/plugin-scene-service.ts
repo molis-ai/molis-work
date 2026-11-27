@@ -1,11 +1,12 @@
-import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_SCENES_PERMISSION, pluginErrors, type PluginInstanceRecord, type PluginManifest, type PluginSceneClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginAction, inPluginInstance, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import type { HostSceneClient } from "./local-host-types.js";
 import { checkedReference } from "./plugin-action-query.js";
 
 /** What the Host gives `services.scenes` of one installation: the kernel's scene client for the project, and the questions every call asks. */
 export interface PluginSceneServicePorts {
-  readonly scenes: ActionSceneClient | undefined;
+  readonly scenes: HostSceneClient | undefined;
   readonly project_id: string;
   readonly assertActive: () => void;
   readonly record: () => PluginInstanceRecord | null;
@@ -68,7 +69,7 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
    * `scene_id@version` only and rejects a second registration of the same id (`actions.scene_duplicate`), so this answers who holds it.
    */
   const registeredByThis = async (caller: ActionExecutionContext, sceneId: string, version: number) => {
-    const view = (await scenes.discoverScenes(caller)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
+    const view = (await scenes.discoverScenes(caller, undefined, { scene_id: sceneId, version })).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
     if (view && view.provider.plugin_id !== manifest.plugin_id) throw pluginErrors.scene_not_declared(`场景 ${sceneKey(sceneId, version)} 是别的提供方登记的`);
   };
   /** Resolve ownership after reading the rows: a declared id alone does not identify its current provider. */

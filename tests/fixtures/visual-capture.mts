@@ -108,7 +108,7 @@ async function stablePicture(browser: Browser, label: string): Promise<Buffer> {
 }
 
 const STYLE_WIDTH = 1440;
-const STYLES_BEGIN = `(() => {
+const CAPTURE_STYLES = `(() => {
   const running = document.getAnimations().filter(animation => animation.effect?.getTiming().iterations === Infinity)
     .map(animation => ({ animation, time: animation.currentTime, playing: animation.playState === "running" }));
   for (const { animation } of running) { animation.pause(); animation.currentTime = 0; }
@@ -133,12 +133,13 @@ const STYLES_BEGIN = `(() => {
   const label = node => node.localName + (node.id ? "#" + node.id : "") + [...node.classList].slice(0, 3).map(name => "." + name).join("")
     + ([...node.attributes].filter(attribute => attribute.name.startsWith("data-")).slice(0, 1).map(attribute => "[" + attribute.name + "]").join(""));
   const pending = [[document.documentElement, "0", null]];
-  window.__visualStyles = budget => {
-    const until = performance.now() + budget;
-    while (pending.length && performance.now() < until) {
+  try {
+    while (pending.length) {
       const [node, path, parent] = pending.pop();
       if (node.localName === "head" || node.localName === "script" || node.localName === "style") continue;
-      const own = values(getComputedStyle(node));
+      const computed = getComputedStyle(node);
+      if (!node.isConnected || computed.length === 0) throw new Error("Computed style unavailable for " + path);
+      const own = values(computed);
       elements.push([path, label(node), vector(own, parent)]);
       for (const pseudo of ["::before", "::after"]) {
         const style = getComputedStyle(node, pseudo);
@@ -146,14 +147,11 @@ const STYLES_BEGIN = `(() => {
       }
       for (let i = node.children.length - 1; i >= 0; i--) pending.push([node.children[i], path + "/" + i, own]);
     }
-    if (pending.length) return null;
-    delete window.__visualStyles;
-    for (const { animation, time, playing } of running) { animation.currentTime = time; if (playing) animation.play(); }
     return { props, vectors, elements };
-  };
-  return true;
+  } finally {
+    for (const { animation, time, playing } of running) { animation.currentTime = time; if (playing) animation.play(); }
+  }
 })()`;
-const STYLES_STEP = "window.__visualStyles(1000)";
 
 test("visual-compare capture: key surfaces settle to the same picture at every width, light and dark", { timeout: 1_200_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
@@ -184,9 +182,7 @@ test("visual-compare capture: key surfaces settle to the same picture at every w
         await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
         const name = `${surface.id}@${size.width}-${scheme}`;
         await stablePicture(browser, name);
-        await evaluate(STYLES_BEGIN);
-        let snapshot: { elements: unknown[] } | null = null;
-        while (!snapshot) snapshot = await evaluate<{ elements: unknown[] } | null>(STYLES_STEP);
+        const snapshot = await evaluate<{ elements: unknown[] }>(CAPTURE_STYLES);
         assert.ok(snapshot.elements.length > 50, `${name}: the page has its elements`);
         await writeFile(join(out, `${name}.styles.json`), JSON.stringify(snapshot));
         styles.push(name);

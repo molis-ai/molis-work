@@ -553,9 +553,14 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.equal(settingsBefore.status, 200);
   const settingsHtml = await settingsBefore.text();
   assert.match(settingsHtml, /Welcome/);
+  const settingsReader = byLocal("settings.read");
+  const actual = await projectClient.invoke(person, { capability_id: settingsReader.capability_id, version: settingsReader.version, provider_id: settingsReader.provider.provider_id },
+    { keys: ["greeting"] }) as { values: { key: string; revision: string }[] };
+  const greeting = actual.values.find(entry => entry.key === "greeting");
+  assert.ok(greeting);
   const writeReply = await home.web.post<{ values: Array<{ key: string; value: unknown }> }>("/api/settings/plugin-entries/write", {
     ...settingsInstallation(settingsHtml), plugin_id: SIGNED_SANDBOX_ID, project_id: project.project_id,
-    key: "greeting", layer: "project", change: { set: "Updated from Workbench" }, expected_revision: "2", request_id: "sbx-set-1",
+    key: "greeting", layer: "project", change: { set: "Updated from Workbench" }, expected_revision: greeting.revision, request_id: "sbx-set-1",
   });
   assert.equal(writeReply.values[0]?.value, "Updated from Workbench");
   const settingsAfter = await fetch(`${home.origin}/settings/${SIGNED_SANDBOX_ID}?project=${encodeURIComponent(project.project_id)}`);

@@ -25,7 +25,7 @@ import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { integrationDeclarationProblems } from "./integration-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
-import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
+import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { localeDeclarationProblems } from "./locale-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
@@ -111,9 +111,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions, manifest.owner_files);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
-  if (manifest.model_configuration !== undefined) invalid("模型设置须由 settings_entries.model_configuration 绑定");
-  const modelConfiguration = isRecord(manifest.settings_entries) ? manifest.settings_entries.model_configuration : undefined;
-  const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(modelConfiguration, permissions),
+  const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions),
     ...imageGenerationDeclarationProblems(manifest.image_generation, permissions), ...localToolsDeclarationProblems(manifest.local_tools, permissions),
     ...runtimeDeclarationProblems(manifest.runtime)];
   if (serviceProblems.length > 0) invalid(serviceProblems.join("；"));

@@ -16,6 +16,8 @@
 
 ## 在做的
 
+- [第 112 批复核修复](batch-112-review-fixes/spec.md)。Codex 负责素材、Jelly、平台模型合同与两片收尾记录。
+
 - [创作台生成插件的图标与原处连接卡](studio-icon-connection/spec.md)。Codex 负责 BL-1049、BL-1057 的实现与验证。
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
 

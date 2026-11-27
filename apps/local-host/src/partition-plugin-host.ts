@@ -129,7 +129,7 @@ export class PartitionPluginHost {
   /** Ports of the partitions opened now, with the `open` lease each enabled plugin holds there. */
   private readonly open = new Map<string, { ports: ProjectPluginPorts; leases: Map<string, PartitionPluginLease>; off: Map<string, () => void> }>();
   /** Why a plugin did not start in a partition the last time it was asked to; cleared when it starts. */
-  private readonly failures = new Map<string, string>();
+  private readonly failures = new Map<string, { reason: string; code: string | null }>();
   private installs: ReturnType<typeof openHomePluginStore> | undefined;
   private opener: PartitionOpener | undefined;
   private sweep: NodeJS.Timeout | undefined;
@@ -256,7 +256,7 @@ export class PartitionPluginHost {
   }
 
   /** Why the plugin is not running in this partition, when it was asked to and failed. */
-  failure(pluginId: string, partitionId: string): string | undefined {
+  failure(pluginId: string, partitionId: string) {
     return this.failures.get(JSON.stringify([pluginId, partitionId]));
   }
 
@@ -310,9 +310,10 @@ export class PartitionPluginHost {
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           // Which plugin in which partition, and the platform's code for why: never the plugin's own words.
-          const code = error instanceof ActionError ? (error.details as { code?: unknown } | undefined)?.code ?? error.code : undefined;
-          hostLog.warn("plugins", "partition_plugin_start_failed", error, { plugin_id: pluginId, partition_id: partitionId, code: typeof code === "string" ? code : null });
-          this.failures.set(key, reason);
+          const causeCode = error instanceof ActionError ? (error.details as { code?: unknown } | undefined)?.code ?? error.code : undefined;
+          const code = typeof causeCode === "string" ? causeCode : null;
+          hostLog.warn("plugins", "partition_plugin_start_failed", error, { plugin_id: pluginId, partition_id: partitionId, code });
+          this.failures.set(key, { reason, code });
           unfinished.push({ plugin_id: pluginId, desired_enabled: true, reason });
         }
         continue;

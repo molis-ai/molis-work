@@ -78,9 +78,14 @@ export function compareJellyOccurrences(a: JellyOccurrence, b: JellyOccurrence):
   if (a.start_time !== null && b.start_time !== null && a.start_time !== b.start_time) return a.start_time - b.start_time;
   return a.start_date.localeCompare(b.start_date) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
 }
+export function assertJellyDateRange(start: string, end: string): void {
+  const span = jellyDaysBetween(start, end);
+  jellyAssert(span >= 0 && span <= 400, "日历查询范围无效或超过 400 天");
+}
+
 /** Every entry and occurrence that touches `start`..`end` (both included). */
 export function jellyOccurrences(items: readonly JellyItem[], series: readonly JellySeries[], start: string, end: string): JellyOccurrence[] {
-  jellyAssert(jellyDate(end) >= jellyDate(start) && jellyDaysBetween(start, end) <= 400, "日历查询范围无效或超过 400 天");
+  assertJellyDateRange(start, end);
   const result: JellyOccurrence[] = items.filter(item => intersects(item, start, end)).map(item => ({ ...item, series_id: null, original_date: null }));
   for (const value of series) {
     const length = jellyDaysBetween(value.start_date, value.end_date);

@@ -62,7 +62,8 @@ export async function openImagesMcp(t: TestContext) {
     return client;
   };
   // The person saves the image service (an MCP client may use the person's services, not write them: UPP-15). Run while no client is
-  // connected: the seed opens the same Home.
+  // connected: the seed opens the same Home. That is one more Host start and a reconnect per test (about 5 s here, several times that on a
+  // loaded CI runner), which is why these tests allow 90 s.
   const saveConnection = async (project = "a") => JSON.parse(execFileSync(process.execPath,
     [fileURLToPath(new URL("./images-mcp-seed.ts", import.meta.url)), home, project, `http://127.0.0.1:${address.port}/v1`], { encoding: "utf8" })) as { id: string };
   const generate = async (client: Client, connectionId: string) => {

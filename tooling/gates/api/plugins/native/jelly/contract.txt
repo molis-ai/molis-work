@@ -43,6 +43,21 @@ export interface JellyOccurrence extends JellyItem {
 
 export type JellyOccurrencePatch = Partial<Pick<JellyItem, "title" | "kind" | "category_id" | "notes" | "start_date" | "end_date" | "start_time" | "end_time">>;
 
+export type JellyRestoreReceipt = JellyRestoreRows & {
+    modified?: {
+        kind: "item" | "series";
+        id: string;
+        digest: string;
+    }[];
+};
+
+export type JellyRestoreRows = {
+    categories?: JellyCategory[];
+    items?: JellyItem[];
+    series?: JellySeries[];
+    notes?: JellyNote[];
+};
+
 export interface JellySchedule {
     start_date: string;
     end_date: string;

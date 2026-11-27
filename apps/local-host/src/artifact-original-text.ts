@@ -9,9 +9,6 @@ import { runMaterialWorker } from "./material-worker.js";
 /** What officeparser reads, by extension (the worker is told the type; it never sniffs a PDF or anything else). */
 const OFFICE: Record<string, string> = { docx: "docx", pptx: "pptx", xlsx: "xlsx", odt: "odt", ods: "ods", odp: "odp", rtf: "rtf", epub: "epub" };
 const IMAGE = new Set<string>(MATERIAL_EXTENSIONS.image.map(extension => extension.slice(1)));
-/** Audio and video are kept as originals only: nothing on this machine transcribes them (batch 112, user 2026-11-25). */
-const MEDIA = new Set(["mp3", "wav", "m4a", "aac", "aiff", "aif", "flac", "ogg", "mp4", "mov", "m4v", "webm", "avi", "mkv"]);
-const OCR: Pick<MaterialExtractionOptions, "ocrLanguages"> = { ocrLanguages: ["zh-Hans", "en-US", "ja-JP"] };
 /** The import waits for the text (user 2026-10-19: during import, with a time limit); past it the original is kept without text. */
 const LIMIT_MS = { office: 60_000, pdf: 60_000, image: 60_000, scan: 120_000 };
 
@@ -56,8 +53,7 @@ export async function readOriginalText(file: { filename: string; bytes: Buffer }
       const read = await runMaterialWorker<{ text: string }>("material-office-worker.js", { bytes: new Uint8Array(source.bytes), type: OFFICE[extension] }, within(LIMIT_MS.office), "文档");
       return read.text ? { text: read.text, warnings: [] } : nameOnly("workbench.import.warning-empty-document");
     }
-    if (IMAGE.has(extension)) return await native({ ...within(LIMIT_MS.image), ...OCR }, "workbench.import.warning-empty-image");
-    if (MEDIA.has(extension)) return nameOnly("workbench.import.warning-media-original-only");
+    if (IMAGE.has(extension)) return await native(within(LIMIT_MS.image), "workbench.import.warning-empty-image");
     if (extension !== "pdf") {
       // Any other file that is plain UTF-8 text (a CSV, JSON, YAML, source code) is its own text; anything else keeps only its name.
       const text = utf8Text(source.bytes);
@@ -66,7 +62,7 @@ export async function readOriginalText(file: { filename: string; bytes: Buffer }
     const layer = await extractMaterial(source, { ...within(LIMIT_MS.pdf), pdfMode: "text", textFormat: "markdown" });
     if (layer.coverage.status === "sufficient") return { text: layer.text, warnings: [] };
     // Scanned pages have no text layer: recognize the whole PDF, and keep whichever reading has more text.
-    const scanned = await native({ ...within(LIMIT_MS.scan), ...OCR, pdfMode: "ocr" }, "workbench.import.warning-empty-pdf");
+    const scanned = await native({ ...within(LIMIT_MS.scan), pdfMode: "ocr" }, "workbench.import.warning-empty-pdf");
     if (scanned.text.length > layer.text.trim().length) return { text: scanned.text, warnings: [{ key: "workbench.import.warning-scanned-pdf" }] };
     return layer.text.trim() ? { text: layer.text, warnings: [{ key: "workbench.import.warning-partial-pdf" }] } : scanned;
   } catch {

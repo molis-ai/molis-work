@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-26 第 112 批复核修复。Jelly 的日历查询返回日程与分类；月视图另经随手记读组的 `jelly.note.days@1` 查询区间内有笔记的日期，随手记列表支持可选 `limit`（1 至 500）。撤销仍接收删除命令返回的行，只删除系列中的部分日期或重分类时，回执的 `modified` 为每条保留行给出类型、ID 和写后内容摘要。撤销在事务内核对写后行，跳过已删除、改写或同 ID 重建且内容不同的行。签名沙箱的模型配置端口只公开候选和当前选择，只写 `provider_id` 与 `model_id`。Jelly 四张业务表沿用 Clean v1；决定 69 后按本批旧库拒绝与恢复用例复验。[逐项验收](../../specs/batch-112-review-fixes/spec.md)
+
 2026-11-26 主线事件卡新增 `system.mainline` 的 `mainline.line.contains@1`，本人在项目内持 `mainline:read` 可给出 `{ subject, window }`，取得 `{ on_line }`。事件卡每次操作沿用事项线的时间窗口和本人可见的事件登记；已有整线读取及插件事件登记合同保持原形。
 
 2026-11-26 第 112-2 批后续（用户 2026-11-26 选择退役，不另造测试用主人）。Manifest 自报模型选择的路径随最后一个主人 Jelly 退役。`packages/contracts/src/platform/settings.ts` 的 `SettingsDeclaration` 删去 `model_configuration`，`plugin-model-configuration.ts` 删去 `PluginModelConfigurationDeclaration` 与 `PluginModelConfigurationClient.preferences`。SDK 的 `parsePluginManifest` 遇到 `settings_entries.model_configuration` 按未知字段拒绝。Plugin Runtime 删去 `createPluginModelConfigurationClient` 与 `PluginModelConfigurationPort`，错误码 `plugin.model_configuration_action_required` 不再出现。`blueprints.adoption.preview@1`、`blueprints.library.read@1` 的预览项原位删去可选输出 `model_selection`，采用页不再有模型选择器，`/api/settings/models?choices=1` 一并删除。这一字段从未随任何发布写出，金样 Home 里也没有，所以不加升级步骤。Home 包的模型设置（`effects.modelSettings`、`services.model.configuration`、偏好文件 v1）不变。动作与公开 API 快照已刷新。
@@ -54,7 +56,7 @@
 
 同批逐项预览区分建议格式错误、无声明、主人停用和沙箱暂不支持。已保存但离线的选择携带原值、来源和不可用原因。模型连接目录的读取可显式请求 `preference_revision`，用同一次读取的版本提交普通选择。
 
-按一骏 11 月 18 日的决定，旧格式写以下字段会在生效前被拒绝。助理预算改用 `/api/assistant/preferences`，Shelf 设备偏好、工作记录期限与提醒线、Jelly 普通模型选择分别使用 `shelf.preferences.write`、`observation.preferences.write`、`jelly.preferences.write`。先从配对读动作取得版本，再以该版本与请求号提交。工具登记、暂停记录与模型连接管理仍使用各自入口。
+按一骏 11 月 18 日的决定，旧格式写以下字段会在生效前被拒绝。助理预算改用 `/api/assistant/preferences`，Shelf 设备偏好使用 `shelf.preferences.write`，工作记录期限与提醒线使用 `observation.preferences.write`。Jelly 的普通模型选择随第 112 批退役。先从配对读动作取得版本，再以该版本与请求号提交。工具登记、暂停记录与模型连接管理仍使用各自入口。
 
 2026-11-17 质量审查 QEA-124/125：公开动作的 `result_view.link` 增加可选 `home_href_template`，仅供无可信项目上下文的回执使用。动作提供方声明目的地，Contracts 统一校验模板、插值和同源地址，旧项目或共享模板按原合同处理。Skills 的起草动作补个人空间目的地，工作台按设置页实际消费的参数打开该草稿。旧助理卡的已存呈现快照保持原回执，SDK、Workflows 继续共用呈现。阶段一原位更新 API 和动作快照。业务输入输出、动作版本、授权和持久结构均无变化。
 

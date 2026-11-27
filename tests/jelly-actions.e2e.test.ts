@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { jellyActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -44,7 +47,9 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   await waitFor(`!!document.querySelector('[data-jelly-note="${dayNote.id}"]')`);
   await click('[data-jelly-act="new-note"]');
   await waitFor("!!document.querySelector('[data-jelly-notes-editor] [data-jelly-note-body]')");
-  await evaluate(`(() => { const box = document.querySelector('[data-jelly-notes-editor] [data-jelly-note-body]'); box.value = '# 读书\\n\\n- 第三章'; box.dispatchEvent(new InputEvent('input', { bubbles: true })); box.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); })()`);
+  // B112-03: the real keyboard only reaches a visible, focused editor.
+  await waitFor("document.activeElement?.matches('[data-jelly-notes-editor] textarea') && document.activeElement.checkVisibility()");
+  await command("Input.insertText", { text: "# 读书\n\n- 第三章" }, sessionId);
   await waitFor("document.querySelectorAll('[data-jelly-note]').length === 2", 10_000);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
@@ -58,9 +63,89 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   assert.deepEqual(rows().notes.map(note => note.body).sort(), ["# 读书\n\n- 第三章", "今天先把周报写完"]);
 
   await reloadPage(); await open();
+  await waitFor(`!!document.querySelector('[data-jelly-day="${dayNote.day}"] .jelly-day-note')`);
   await click('[data-jelly-mode="list"]');
   await waitFor("document.querySelectorAll('[data-jelly-open]').length >= 2");
   await click('[data-jelly-tab="notes"]');
   await waitFor("document.querySelectorAll('[data-jelly-note]').length === 2");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+  if (width === 1440) await t.test("B112-05/13 the month marks a note older than the recent list of 500", async () => {
+    const store = openJellyStore(homeDirectory, projectId!);
+    const stamp = new Date().toISOString();
+    try {
+      store.write(s => {
+        for (let i = 0; i < 500; i++) s.insert("note", { id: "recent-" + i, title: "", body: "Recent note",
+          day: null, revision: 1, created_at: stamp, updated_at: stamp });
+      });
+      assert.ok(!store.read(s => s.notes()).some(note => note.id === dayNote.id));
+    } finally { store.close(); }
+    await reloadPage(); await open();
+    await waitFor(`!!document.querySelector('[data-jelly-day="${dayNote.day}"] .jelly-day-note')`);
+    await waitFor(`document.querySelector('[data-jelly-day-note] textarea')?.value === ${JSON.stringify(dayNote.body)}`);
+  });
+});
+
+test("B112-01 editing a series from an exception only propagates fields changed in the form", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const frame = await pluginFrameBrowser(t, browser, "jelly");
+  const projectId = browser.projectId!;
+  const caller = { actor_id: "owner", project_id: projectId, audience: "user", permissions: JELLY_ACTION_PERMISSIONS } as const;
+  assert.ok(browser.localHost);
+  const reference = molisWorkHostProjectReference({ projectId, databasePath: browser.databasePath });
+  const client = bindActionClient(browser.localHost.actionClient(reference), () => caller);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=jelly" }, browser.sessionId));
+  await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") await browser.click("[data-plugin-strip] [data-plugin-id=jelly]");
+  await frame.waitFor("document.querySelector('[data-jelly-day][data-selected]')");
+  const month = await frame.evaluate<string>("document.querySelector('[data-jelly-day][data-selected]').dataset.jellyDay.slice(0, 7)");
+  const dates = ["01", "08", "15", "22"].map(day => month + "-" + day);
+  const first = dates[0]!, exception = dates[1]!, completed = dates[2]!, last = dates[3]!;
+  const { series } = await client.invoke(jellyActions.createSeries, { series: {
+    title: "周会", notes: "系列备注", start_date: first, until: last, weekdays: [new Date(first + "T12:00:00Z").getUTCDay() || 7],
+  } });
+  await client.invoke(jellyActions.updateSeries, { id: series.id, expected_revision: 1, scope: "onlyThis", original_date: exception, patch: { notes: "仅此日" } });
+  await client.invoke(jellyActions.updateSeries, { id: series.id, expected_revision: 2, scope: "onlyThis", original_date: completed, patch: { completed: true } });
+  await browser.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect',{detail:{capability_id:'jelly.series.update'}}))");
+  for (const scope of ["all", "thisAndFuture"]) {
+    const selector = '[data-jelly-open="' + series.id + "@" + exception + '"]';
+    await frame.waitFor("!!document.querySelector(" + JSON.stringify(selector) + ")");
+    await frame.click(selector);
+    await frame.click('[data-jelly-scope][value="' + scope + '"]');
+    await frame.evaluate("document.querySelector('[name=title]').value=" + JSON.stringify(scope) + ";document.querySelector('[data-jelly-form]').requestSubmit()");
+    await frame.waitFor("!document.querySelector('[data-jelly-panel]')");
+    const { items } = await client.invoke(jellyActions.calendar, { start: first, end: last });
+    assert.deepEqual(items.map(item => item.notes), ["系列备注", "仅此日", "系列备注", "系列备注"]);
+    assert.deepEqual(items.map(item => item.title), ["all", scope, scope, scope]);
+    assert.deepEqual(items.filter(item => item.completed_at).map(item => item.start_date), [completed]);
+  }
+  await t.test("B112-12 external selection keeps a conflicting draft and its search until the person resolves it", async () => {
+    const write = async (selector: string, value: string) => frame.evaluate(`(() => {
+      const field = document.querySelector(${JSON.stringify(selector)}); field.value = ${JSON.stringify(value)};
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    })()`);
+    const select = async (id: string) => frame.evaluate(`document.querySelector('[data-jelly="workbench"]').dispatchEvent(
+      new CustomEvent("molis-work:select-item", { cancelable: true, detail: { itemId: ${JSON.stringify(id)} } }))`);
+    const first = (await client.invoke(jellyActions.saveNote, { body: "Original draft" })).note;
+    const target = (await client.invoke(jellyActions.saveNote, { body: "Other note" })).note;
+    await select(first.id);
+    await frame.waitFor(`document.querySelector('[data-jelly-note="${first.id}"]')?.getAttribute('aria-current') === 'true'`);
+    await write("[data-jelly-note-search]", "Original");
+    await frame.waitFor("document.querySelectorAll('[data-jelly-note]').length === 1");
+    await frame.click('[data-jelly-note-mode="write"]');
+    await frame.waitFor("!!document.querySelector('[data-jelly-notes-editor] textarea')");
+    await client.invoke(jellyActions.saveNote, { id: first.id, expected_revision: first.revision, body: "Original remote revision" });
+    await write("[data-jelly-notes-editor] textarea", "Unsaved local draft");
+    await select(target.id);
+    await frame.waitFor("!!document.querySelector('[data-jelly-notes-editor] [data-jelly-act=reload-note]')");
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-notes-editor] textarea').value"), "Unsaved local draft");
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-tab=notes]').getAttribute('aria-selected')"), "true");
+    await frame.click('[data-jelly-act="reload-note"]');
+    await frame.waitFor("document.querySelector('[data-jelly-notes-editor]')?.innerText.includes('Original remote revision')");
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-note-search]').value"), "Original");
+    await select(target.id);
+    await frame.waitFor(`document.querySelector('[data-jelly-note="${target.id}"]')?.getAttribute('aria-current') === 'true'`);
+    assert.equal(await frame.evaluate("document.querySelector('[data-jelly-note-search]').value"), "");
+    assert.match(await frame.evaluate<string>("document.querySelector('[data-jelly-notes-editor]').innerText"), /Other note/);
+  });
 });

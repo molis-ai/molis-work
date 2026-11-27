@@ -294,7 +294,7 @@
 |  | [`111-2` · 14 个有业务对象内置插件一次完成 `push` 声明（U8）与第三方沙箱同路支持](reference/batches/111.md#batch-111-item-2) |
 |  | [`111-3` · 工作台界面定样落地（推送弹窗与占用页按需懒加载）、G1～G5 全量焊死、清空临时白名单与文档收尾](reference/batches/111.md#batch-111-item-3) |
 | [112](reference/batches/112.md) | [`112-1` · 彻底删除 `jelly-whisper` 音视频转写与 626 MB 模型下载链（结清 `BL-122`/`BL-398`），图文提取器改名 `molis-material` 并补日文 OCR](reference/batches/112.md#batch-112-item-1)（2026-11-25 用户专项新增，拆 2 个正交并行 PR；已随 [#2337](https://github.com/molis-ai/molis-work/pull/2337) `d866aa2b57` 合入，2026-11-26） |
-|  | [`112-2` · Jelly 彻底瘦身（日历日程＋纯文本/Markdown 极简随手记，砍除私有 AI 拆解/独立模型台/进展页/块级复杂结构）与标准 SQLite 关系分表重构](reference/batches/112.md#batch-112-item-2)（已随 [#2338](https://github.com/molis-ai/molis-work/pull/2338) `17face2867` 合入，2026-11-26；本人验收见 `BL-b112-acceptance`） |
+|  | [`112-2` · Jelly 彻底瘦身（日历日程＋纯文本/Markdown 极简随手记，砍除私有 AI 拆解/独立模型台/进展页/块级复杂结构）与标准 SQLite 关系分表重构](reference/batches/112.md#batch-112-item-2)（已随 [#2338](https://github.com/molis-ai/molis-work/pull/2338) `17face2867` 合入，2026-11-26；平台模型退役见 [#2342](https://github.com/molis-ai/molis-work/pull/2342)，本人验收见 [BL-b112-acceptance](../backlog/BL-b112-acceptance.md)） |
 
 <a id="server-batch"></a>
 

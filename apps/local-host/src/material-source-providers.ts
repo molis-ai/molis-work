@@ -6,6 +6,8 @@ import type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/platf
 import type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale, webLanguage } from "./web-locale.js";
 
+import { readWorkbenchText } from "./ui-error-words.js";
+
 type MaterialSourceMaterial = MaterialSourceContent;
 export interface MaterialSourceOptions extends MaterialUploadOptions {
   /** Exact host names the whole read may contact (the page, its redirects, the API and images it follows to); unset, every public host. */
@@ -164,16 +166,16 @@ async function bilibili(source: string, options: MaterialSourceOptions): Promise
       if (segments.length < 30 || segments.reduce((count, segment) => count + (segment.text.match(/\p{L}/gu)?.length ?? 0), 0) < 200) continue;
       const text = segments.map(segment => `[${segment.start_seconds}–${segment.end_seconds} 秒] ${segment.text}`).join("\n");
       return { text, title: typeof video.title === "string" ? video.title : metadata(html, "og:title"), source_url: source, provider: "bilibili", extractor: "bilibili-public-subtitles", segments, coverage: coverage(body.length > 10000 ? ["字幕仅提取前 10000 段"] : [], true) };
-    } catch (error) { checkAborted(options); if (isMaterialSourceFailure(error) && error.code === "material.source.private_address") throw error; }
+    } catch (error) { checkAborted(options); if (!isMaterialSourceFailure(error) || error.kind === "forbidden" || error.kind === "cancelled" || error.code === "material.source.private_address") throw error; }
   }
-  throw materialSourceErrors.unavailable("没有合格的公开字幕；可以粘贴字幕继续");
+  throw materialSourceErrors.subtitles_missing(readWorkbenchText("common.error.subtitles-missing"));
 }
 async function xiaohongshu(source: string, options: MaterialSourceOptions): Promise<MaterialSourceMaterial> {
   const expected = materialXiaohongshuNoteID(source)!; const { html, response } = await readPage(source, options);
   if (materialXiaohongshuNoteID(response.final_url) !== expected) throw materialSourceErrors.note_mismatch("小红书跳转后的笔记 ID 不一致；未读取其他笔记");
   const payload = parseMaterialXiaohongshu(html, expected); const parts = [payload.title, payload.body, payload.tags.length ? `话题：${payload.tags.map(tag => `#${tag}`).join(" ")}` : undefined].filter((text): text is string => !!text);
   const issues: string[] = []; const pages: NonNullable<MaterialSourceMaterial["pages"]> = []; let acquired = 0; let bytes = 0; let hasMaterial = !!payload.body;
-  if (payload.kind === "video") issues.push("视频不转写，只读取笔记正文");
+  if (payload.kind === "video") issues.push(readWorkbenchText("workbench.material.video-note-text"));
   else {
     if (payload.images.length > 20) issues.push("图集仅提取前 20 张");
     for (const [index, url] of payload.images.slice(0, 20).entries()) {
@@ -194,7 +196,7 @@ export async function readMaterialSource(source: string, options: MaterialSource
     case "xiaohongshu": return xiaohongshu(source, options);
     case "article": {
       const response = await fetcher(options)(source, { maxBytes: 4_000_000, headers: pageHeaders(), signal: options.signal });
-      if (/html/iu.test(response.type)) { const article = materialHTMLArticle(response.data.toString("utf8")); return { ...article, source_url: source, provider: "article", extractor: "public-html", coverage: coverage(["提取公开网页正文，未读取嵌入音视频和图片"], true) }; }
+      if (/html/iu.test(response.type)) { const article = materialHTMLArticle(response.data.toString("utf8")); return { ...article, source_url: source, provider: "article", extractor: "public-html", coverage: coverage([readWorkbenchText("workbench.material.article-text")], true) }; }
       if (/text\/(plain|markdown)/iu.test(response.type)) { const text = response.data.toString("utf8"); return { text, source_url: source, provider: "article", extractor: "public-text", coverage: coverage([], !!text.trim()) }; }
       throw materialSourceErrors.unsupported("来源不属于可读网页；可以上传文件继续");
     }

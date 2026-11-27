@@ -9,8 +9,8 @@ export function signedImageService(key: string, version: string, incomplete: boo
   const publisher = fixturePublisher('44c-images-' + key);
   const pluginId = 'com.example.image-' + key;
   const connection = key.padEnd(222, 'x');
-  const png = key === 'cobalt' ? 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ2QAAAAASUVORK5CYII='
-    : 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const png = key === 'cobalt' ? 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMwTF0NAAIMAUINYmEuAAAAAElFTkSuQmCC'
+    : 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGN4dvUIAAUkAoCtYlyAAAAAAElFTkSuQmCC';
   const bundle = signedPackage(publisher, (files, manifest) => {
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const job = { id: key.padEnd(220, 'j'), connection_id: connection, status: 'running', images: [], error: '' };

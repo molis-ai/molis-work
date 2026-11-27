@@ -22,7 +22,7 @@ import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
-import { pluginInstallActions, handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
+import { pluginControlActions, pluginInstallActions, handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { signedImageService } from './fixtures/signed-image-service.js';
 import { person as installPerson, ref as actionRef } from './fixtures/home-sandbox.js';
@@ -823,6 +823,8 @@ test('44C-06 Studio polls the original installed signed service across restart, 
     assert.notEqual(refreshed.requestId, ready.mockup!.requestId);
     const newFile = await studio.image(created.build.id, ready.id);
     assert.deepEqual(Buffer.from(await newFile.arrayBuffer()), Buffer.from(remaining.png, 'base64'));
+    await client.invoke(who, actionRef(pluginControlActions.disable), { plugin_id: remaining.pluginId });
+    assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'a stopped installation no longer supplies its picture');
   } finally { await browser.close(); }
 });
 

@@ -215,7 +215,7 @@ function attachedTo(state, key) {
 export const operations = {
   'scene.choose': async (input, sdk) => { const result = await sdk.scenes.run('proofread', input); return { status: result.status, suggested_behavior_ids: result.suggested_behavior_ids }; },
   'artifact.save': async (input, sdk) => {
-    const receipt = await sdk.artifacts.put({ artifact_id:'standing-card-one', version:1, artifact_type_id:'com.example.standing.note', schema_version:1,
+    const receipt = await sdk.artifacts.put({ artifact_id:'standing-card-'+input.word, version:1, artifact_type_id:'com.example.standing.note', schema_version:1,
       title:'Notebook record', media_type:'application/json', subject:{kind:'sandbox_card',id:'card-1'}, revision:'1', payload:{special_topic:input.word} });
     return receipt.artifact_id;
   },
@@ -340,7 +340,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
           output: { type: "object", properties: { status: { type: "string" }, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: ["status", "suggested_behavior_ids"], additionalProperties: false },
           effects: { scenes: ["proofread"] }, errors: [], examples: [{ input: { content: "A draft" }, outputIncludes: { status: "ok" } }] },
         { id: "artifact.save", kind: "command", ui_event: "card-saved", input: { type: "object", required: ["word"], properties: { word: { type: "string" } }, additionalProperties: false },
-          output: { type: "string" }, effects: { artifacts: ["write"] }, errors: [], examples: [{ input: { word: "example" }, output: "standing-card-one" }] },
+          output: { type: "string" }, effects: { artifacts: ["write"] }, errors: [], examples: [{ input: { word: "example" }, output: "standing-card-example" }] },
         { id: "artifact.preview", kind: "query", read_protocol: { kind: "artifact_preview" }, input: previewArtifact.action.input_schema, output: previewArtifact.action.output_schema!,
           effects: { artifacts: ["read"] }, errors: [], examples: [{ input: { artifact: {} }, outputIncludes: {} }] },
         ...(["health", "poll"] as const).map(name => ({ id: SANDBOX_INTEGRATION_OPERATIONS[name], ...structuredClone(SANDBOX_INTEGRATION_CONTRACT[name]), errors: [],
@@ -502,10 +502,10 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.equal(rolePage.status, 200); assert.ok((await rolePage.text()).includes("Notebook reviewer"));
 
   const findRecord = () => projectClient.invoke(person, searchActions.query, { query: "mineralogyonereview" }) as Promise<SearchQueryResponse>;
-  assert.ok(!JSON.stringify(await findRecord()).includes("standing-card-one"));
+  assert.ok(!JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"));
   const writer = byLocal("artifact.save");
   await exerciseReview(t, home, project.reference, writer, { word: "mineralogyonereview" });
-  assert.ok(JSON.stringify(await findRecord()).includes("standing-card-one"), "PSD-03 M12: system search found the immutable output by the producer's payload field");
+  assert.ok(JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"), "PSD-03 M12: system search found the immutable output by the producer's payload field");
   const chrome = locateTestChrome(); assert.ok(chrome, "dedicated test browser");
   const browser = await ChromeHarness.start(home.home, { executable: chrome }); assert.ok(browser);
   try {
@@ -520,7 +520,7 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
       stage.addEventListener(${JSON.stringify(eventName)}, () => window.observed.local++);
       outside.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++);
       document.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++); })()`);
-    await child.evaluate("(() => { const field = document.querySelector('[data-field=word]'); field.value = 'mineralogyonereview'; field.dispatchEvent(new Event('input', {bubbles:true})); field.form.querySelector('[type=submit]').click(); })()");
+    await child.evaluate("(() => { const field = document.querySelector('[data-field=word]'); field.value = 'menureview'; field.dispatchEvent(new Event('input', {bubbles:true})); field.form.querySelector('[type=submit]').click(); })()");
     await page.wait("window.observed.local === 1");
     assert.deepEqual(await page.evaluate("window.observed"), { local: 1, outside: 0 });
   } finally { await browser.close(); }

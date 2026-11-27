@@ -9,7 +9,7 @@ import { definitionOrigin, platformDefinition } from "./platform-definitions.js"
 import { pluginManifestDigest } from "./identity.js";
 import { UNINSTALL_PENDING, uninstallRefusal, type UninstallOptions, abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
-import { resolveActionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
+import { resolveActionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure, type ReleasePackages } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
 import { pluginActionProvider, type PluginRuntimeActions } from "./action-provider.js";
@@ -91,8 +91,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
       hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
-      /** The release's own bundled packages under the Host's prefix (`io.molis.work.`), which a non-host install may carry (S-reserved-host-prefix). */
-      releaseIds?: ReadonlySet<string>;
+      /** The release's own bundled packages under the Host's prefix (`io.molis.work.`), which a non-host install may carry only under that package's signer (S-reserved-host-prefix, P-13). */
+      releaseIds?: ReleasePackages;
       actions?: PluginRuntimeActions },
   ) {
     if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单");

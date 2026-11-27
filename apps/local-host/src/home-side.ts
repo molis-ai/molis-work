@@ -41,7 +41,7 @@ export interface PluginPlatformHome {
   assertStorageOwner(): StorageOwner;
 }
 
-type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor" | "directoriesFor" | "prepareDirectory">;
+type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "bundledPluginsDirectory" | "workspaceFor" | "workspacesFor" | "directoriesFor" | "prepareDirectory">;
 
 /**
  * What each Home's Host was built with, by resolved path. A Home has one open Host at a time (its Agent service binds the
@@ -164,6 +164,11 @@ export function fixtureAdmission(entries: readonly PluginPlatformEntry[], instal
 /** The set of definitions the test Host bound to this Home was told it would install by hand. */
 export function installedFixturesFor(homeDirectory: string | undefined): ReadonlySet<PluginDefinition> | undefined {
   return homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.installed : undefined;
+}
+
+/** The bundled folder the Host bound to this Home was given (a test's), or none: the release's own (`bundledPackagesDirectory`). */
+export function bundledDirectoryFor(homeDirectory: string | undefined): string | undefined {
+  return homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.bundledPluginsDirectory : undefined;
 }
 
 export function fixtureDeclarationsFor(homeDirectory: string | undefined, scope: "home" | "project"): PluginPlatformEntry[] {

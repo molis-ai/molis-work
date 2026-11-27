@@ -1,4 +1,3 @@
-import { imageGenerationRoleOf } from '@molis-ai/molis-work-contracts/platform/actions';
 import { studioImageInstallation } from './fixtures/builder-workflow-design.js';
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
@@ -780,25 +779,26 @@ test('44C-06 Studio polls the original installed signed service across restart, 
     await client.invoke(who, actionRef(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: key });
     return fixture;
   };
-  const incomplete = await install('partial', '1.0.0', true);
-  const first = await install('quartz'), second = await install('cobalt');
-  const created = await studio.send<{ build: AgentBuild }>('/builds', { brief: '为签名样例画草图' });
+  const createDraft = () => studio.send<{ build: AgentBuild }>('/builds', { brief: '为签名样例画草图' });
   if (process.platform !== 'darwin') {
-    // These are real installed packages. The platform can register them, while their workers require Seatbelt.
-    const catalog = await f.host.inspectActions(who, project.reference);
-    for (const service of [first, second]) {
-      const list = catalog.find(view => view.provider.plugin_id === service.pluginId && imageGenerationRoleOf(view.action) === 'services.list');
-      assert.ok(list, service.pluginId);
-      const ref = { capability_id: list.capability_id, version: list.version, provider_id: list.provider.provider_id };
-      await assert.rejects(client.invoke({ ...who, permissions: list.action.permissions }, ref, {}), /macOS Seatbelt/);
+    // Confirmation starts the signed worker before publishing its actions. An unsupported OS rolls back the install.
+    for (const key of ['quartz', 'cobalt']) {
+      await assert.rejects(install(key), { code: 'actions.execution_failed', details: { install_phase: 'start' } });
     }
+    const catalog = await f.host.inspectActions(who, project.reference);
+    const providers = new Set(['com.example.image-quartz', 'com.example.image-cobalt']);
+    assert.deepEqual(catalog.filter(view => view.provider.plugin_id && providers.has(view.provider.plugin_id) && view.availability.available), []);
     assert.deepEqual((await studio.send<{ choices: unknown[] }>('/image-services')).choices, []);
+    const created = await createDraft();
     const build = await studio.wait(created.build.id);
     assert.equal(build.phase, 'choosing');
     assert.ok(build.candidates.length && build.candidates.every(candidate => !candidate.mockup?.jobId));
-    t.diagnostic('Installed image providers refused execution on this OS; Studio kept the proposals without an image job.');
+    t.diagnostic('Both signed providers were refused at startup; neither offered an action and Studio kept the proposals without an image job.');
     return;
   }
+  const incomplete = await install('partial', '1.0.0', true);
+  const first = await install('quartz'), second = await install('cobalt');
+  const created = await createDraft();
   async function picture(phase: 'drawing' | 'ready') {
     const deadline = Date.now() + 25000;
     while (Date.now() < deadline) {

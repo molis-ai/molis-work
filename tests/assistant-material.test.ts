@@ -101,3 +101,78 @@ test("new material that shares a Goal with a live work raises one merged notice;
     assert.equal(store.get("web-user", work.work_id).archived, false);
   } finally { await local.close(); }
 });
+
+test("F-host-subsystems-07 ambiguous subject readers across multiple plugins are treated as unavailable rather than missing", async () => {
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-ambiguous", storage_key: "memory:project-ambiguous" };
+  let readerCalls = 0;
+  const noteReaderA = defineSubjectContextAction("fixture.notes_a.read", 1, "note", "笔记 A", []);
+  const noteReaderB = defineSubjectContextAction("fixture.notes_b.read", 1, "note", "笔记 B", []);
+  local.actionRegistry(project).registerProvider({
+    provider: { provider_id: "fixture.notes.a", kind: "plugin", title: "Notes A" },
+    definitions: [noteReaderA],
+    handlers: [{
+      ...noteReaderA,
+      handle: () => {
+        readerCalls += 1;
+        throw Object.assign(new Error("not found in plugin A"), { code: "notes_a.not_found" });
+      },
+    }],
+  });
+  local.actionRegistry(project).registerProvider({
+    provider: { provider_id: "fixture.notes.b", kind: "plugin", title: "Notes B" },
+    definitions: [noteReaderB],
+    handlers: [{
+      ...noteReaderB,
+      handle: (_c, input) => {
+        readerCalls += 1;
+        return subjectContext({ subject: { kind: "note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "B Note", content: "body" });
+      },
+    }],
+  });
+  const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] };
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, {
+    pages: async () => ["home"],
+    host: async () => { throw new Error("no rounds here"); },
+    authority: async () => { throw new Error("no rounds here"); },
+    scopeActions: async () => ({
+      discover: async () => local.actionClient(project).discover(person),
+      invoke: (action, input) => local.actionClient(project).invoke(person, action, input),
+    }),
+  }, "web-user");
+  try {
+    const work = store.create({ actor_id: "web-user", title: "多插件同名对象", scope: { kind: "project", project_id: project.project_id }, origin: null, project_ref: project });
+    store.relations.link({ work_id: work.work_id, project_id: project.project_id }, "material", { kind: "note", id: "n1", revision: "1" }, "测试");
+    const objects = await service.reads.workObjects(work);
+    assert.equal(objects.length, 1);
+    assert.equal(objects[0]!.state, "unavailable", "ambiguous readers must not pick the wrong plugin and report missing");
+    assert.equal(await service.notices.scanNewMaterial(), 0);
+    store.addCard({
+      card_id: "card-ambiguous-1",
+      work_id: work.work_id,
+      run_id: null,
+      revision: 1,
+      title: "Update note",
+      summary: "Update note",
+      provider: "Notes B",
+      capability_title: "Update",
+      effect: "write",
+      reference: { capability_id: "fixture.notes_b.update", version: 1, provider_id: "fixture.notes.b" },
+      input: {},
+      input_schema: { type: "object" },
+      editable: [],
+      missing: [],
+      status: "ready",
+      target: { kind: "note", id: "n1", revision: "1", title: "B Note" },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    await service.offers.sweep(work);
+    assert.equal(store.card(work.work_id, "card-ambiguous-1").status, "ready", "ambiguous reader must not falsely mark card target deleted/stale");
+    assert.equal(readerCalls, 0, "ambiguous subject_kind must not invoke either competing reader");
+  } finally {
+    service.continuations.close();
+    await local.close();
+  }
+});

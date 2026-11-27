@@ -2,6 +2,7 @@ import type { ExternalToolId } from "@molis-ai/molis-work-contracts/platform/ext
 import { getSessionAdapter } from "./adapters/index.js";
 import { executeDiscoveryJob } from "./discovery-runner.js";
 import type { SessionsPorts } from "./ports.js";
+import { findTopLevelTool, isLocationActiveForTool } from "./runtime-view.js";
 import type { SessionsStore } from "./store.js";
 
 export { resolveLocalToolRoot } from "./discovery-runner.js";
@@ -34,12 +35,19 @@ export class DiscoveryCoordinator {
     return this.running.has(this.jobKey(entryId, locationKey));
   }
 
+  isActiveOrQueued(entryId: ExternalToolId, locationKey: string): boolean {
+    const key = this.jobKey(entryId, locationKey);
+    return this.running.has(key) || this.queue.some(item => this.jobKey(item.entry_id, item.location_key) === key);
+  }
+
   resumeInterrupted(): void {
     if (this.closed) return;
     const scopes = this.store.decisions.readScopes();
     const sources = this.store.sources();
     for (const scope of scopes) {
       if (!scope.allowed) continue;
+      const tool = findTopLevelTool(scope.entry_id);
+      if (!tool || !isLocationActiveForTool(tool, scope.location_key, this.ports)) continue;
       const existing = sources.get(this.jobKey(scope.entry_id, scope.location_key));
       if (existing && existing.state === "reading") {
         this.enqueue(scope.entry_id, scope.location_key, false);

@@ -1,3 +1,4 @@
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
@@ -21,7 +22,7 @@ export const issuesCollection: PluginSyncCollectionDefinition = {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
     if (!Array.isArray(parts) || parts.length !== 2 || parts[0] !== "issue" ||
-      typeof parts[1] !== "string" || !parts[1] || parts[1].length > 100) invalid();
+      typeof parts[1] !== "string" || !parts[1].trim() || exceedsCharacters(parts[1], 100)) invalid();
     return parts[1] as string;
   };
   return {
@@ -62,8 +63,8 @@ function validate(value: unknown, id: string, owner: string, spaceId: string): R
   const row = object(envelope.record) as Row;
   exact(row, columns);
   if (row.id !== id || row.submitter_id !== owner || typeof row.title !== "string" ||
-    !row.title.trim() || row.title.length > 200 || typeof row.description !== "string" ||
-    row.description.length > 100_000 || !["bug", "experience", "feature"].includes(String(row.type)) ||
+    !row.title.trim() || exceedsCharacters(row.title, 200) || typeof row.description !== "string" ||
+    exceedsCharacters(row.description, 100_000) || !["bug", "experience", "feature"].includes(String(row.type)) ||
     !["manual", "assistant", "mcp"].includes(String(row.entered_via)) ||
     !Number.isSafeInteger(row.version) || Number(row.version) < 1 ||
     !stamp(row.created_at) || !stamp(row.updated_at)) invalid();
@@ -77,8 +78,8 @@ function validate(value: unknown, id: string, owner: string, spaceId: string): R
   if (context.page !== null) {
     const page = object(context.page);
     exact(page, ["url", "title", "provenance"]);
-    if ((page.url !== null && (typeof page.url !== "string" || page.url.length > 2048)) ||
-      (page.title !== null && (typeof page.title !== "string" || page.title.length > 500)) ||
+    if ((page.url !== null && (typeof page.url !== "string" || exceedsCharacters(page.url, 2048))) ||
+      (page.title !== null && (typeof page.title !== "string" || exceedsCharacters(page.title, 500))) ||
       !["host_snapshot", "client_reported"].includes(String(page.provenance))) invalid();
   }
   const images = parse(row.images_json);

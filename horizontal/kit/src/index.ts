@@ -58,21 +58,35 @@ interface Answer { reporter: Reporter; report?: KitReport; issue?: number }
 
 /** Gather the kit in the caller's scope through the caller's own client: one discovery, one call per reporter, in parallel. */
 export async function gatherKit(caller: ActionCallContext, client: ActionClient, systemWords: SystemPackWords): Promise<KitCatalog> {
+  caller.signal?.throwIfAborted();
   const issues: Issue[] = [];
   const issue = (view: ActionView, message: string) => issues.push({ provider_id: view.provider.provider_id, title: view.provider.title, message }) - 1;
   const reporters = (await client.discover(caller)).filter(view => view.action.input_type === KIT_REPORT_INPUT_TYPE && view.action.output_type === KIT_REPORT_OUTPUT_TYPE)
     .flatMap(view => { const reporter = reporterOf(view); return reporter ? [reporter] : []; });
+  caller.signal?.throwIfAborted();
   const answers = await Promise.all(reporters.map(async (reporter): Promise<Answer> => {
     const { view } = reporter;
     if (!view.availability.available) return { reporter, issue: issue(view, view.availability.reason) };
     // A reporter that does not answer in time is cut off: its packs read 「没读到」, the rest of the page is not held up.
-    const limit = AbortSignal.timeout(KIT_REPORT_TIMEOUT_MS), signal = caller.signal ? AbortSignal.any([caller.signal, limit]) : limit;
+    caller.signal?.throwIfAborted();
+    const controller = new AbortController();
+    const timeoutError = new ActionError("actions.timeout", "上报超时");
+    const onAbort = () => controller.abort(caller.signal!.reason);
+    caller.signal?.addEventListener("abort", onAbort, { once: true });
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const report = await new Promise<KitReport>((resolve, reject) => {
-        const stop = () => reject(new ActionError("actions.timeout", "上报超时"));
-        if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true });
-        client.invoke({ ...caller, signal }, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {}).then(answer => resolve(answer as KitReport), reject);
+        const stop = () => reject(caller.signal?.aborted ? caller.signal.reason : timeoutError);
+        if (caller.signal?.aborted) {
+          reject(caller.signal.reason);
+          return;
+        }
+        controller.signal.addEventListener("abort", stop, { once: true });
+        timer = setTimeout(() => controller.abort(timeoutError), KIT_REPORT_TIMEOUT_MS);
+        client.invoke({ ...caller, signal: controller.signal }, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {})
+          .then(answer => resolve(answer as KitReport), reject);
       });
+      caller.signal?.throwIfAborted();
       const ids = new Set<string>();
       for (const entry of report.entries) {
         if (ids.has(entry.entry_id)) throw kitErrors.report_invalid(`重复的条目 ${entry.entry_id}`);
@@ -80,7 +94,12 @@ export async function gatherKit(caller: ActionCallContext, client: ActionClient,
       }
       return { reporter, report };
     } catch (error) {
+      caller.signal?.throwIfAborted();
+      if (error instanceof Error && error.name === "AbortError") throw error;
       return { reporter, issue: issue(view, error instanceof ActionError ? error.message : "暂时读不到") };
+    } finally {
+      clearTimeout(timer);
+      caller.signal?.removeEventListener("abort", onAbort);
     }
   }));
   const headers = new Map<string, KitReportedPack>();
@@ -149,15 +168,35 @@ function ownedByPlugin(entry: KitReportedEntry, pluginId: string): boolean {
   return true;
 }
 
+/** Normalize a local workbench manage link, rejecting backslashes, control characters, dot/encoded-dot traversal, and non-local origins. */
+function safeLocalPathname(href: string): string | null {
+  if (!href.startsWith("/") || href.startsWith("//") || /[\\\u0000-\u001f\u007f]/u.test(href)) return null;
+  const rawPath = href.split(/[?#]/u, 1)[0] ?? "";
+  if (/%(?:2e|2f|5c)/iu.test(rawPath)) return null;
+  if (rawPath.split("/").some(segment => segment === "." || segment === "..")) return null;
+  try {
+    const parsed = new URL(href, "http://kit.local");
+    if (parsed.origin !== "http://kit.local") return null;
+    if (parsed.pathname.split("/").some(segment => segment === "." || segment === "..")) return null;
+    return parsed.pathname;
+  } catch {
+    return null;
+  }
+}
+
 /** A plugin's own page in the workbench (`/plugins/<plugin_id>`), never the Host's settings or another plugin's. */
 function pluginSurface(href: string, pluginId: string): boolean {
+  const pathname = safeLocalPathname(href);
+  if (!pathname || !pluginId || /[/\\]/u.test(pluginId) || pluginId === "." || pluginId === "..") return false;
   const base = `/plugins/${pluginId}`;
-  return href === base || ["/", "?", "#"].some(next => href.startsWith(base + next));
+  return pathname === base || pathname.startsWith(`${base}/`);
 }
 
 /** The Host's own settings (`/settings/…`, a project's `/projects/<id>/settings/…`, `/capabilities/…`). */
 function hostSettings(href: string): boolean {
-  return /^\/(?:settings|capabilities)(?:[/?#]|$)/u.test(href) || /^\/projects\/[^/?#]+\/settings(?:[/?#]|$)/u.test(href);
+  const pathname = safeLocalPathname(href);
+  if (!pathname) return false;
+  return /^\/(?:settings|capabilities)(?:\/|$)/u.test(pathname) || /^\/projects\/[^/]+\/settings(?:\/|$)/u.test(pathname);
 }
 
 /** Packs from the headers and the two system packs; entries into their packs; each pack's tools and state (§4.4, §4.6). */
@@ -180,7 +219,10 @@ function assemble(systemWords: SystemPackWords, headers: ReadonlyMap<string, Kit
   const tools = kept.filter(entry => entry.kind === "tool");
   for (const pack of packs.values()) fill(pack, kept.filter(entry => entry.pack === pack.pack_id), { assistant, tools }, headers, issues);
   for (const tool of tools) tool.in_packs = [...packs.values()].filter(pack => pack.tools.includes(tool.key)).map(pack => pack.pack_id);
-  for (const pack of packs.values()) pack.state = stateOf(pack, kept, answers);
+  for (const pack of packs.values()) {
+    pack.state = stateOf(pack, kept, answers);
+    pack.roles = pack.roles.slice(0, 64);
+  }
   return { packs: [...packs.values()].sort(byAttention), entries: kept, ...(scenes !== undefined ? { scenes } : {}), issues };
 }
 
@@ -198,7 +240,6 @@ function fill(pack: KitPack, own: readonly KitEntry[], shared: { assistant?: Kit
   }
   const hung = new Set(pack.roles.flatMap(row => row.prompts));
   for (const prompt of prompts) if (!hung.has(prompt.key)) issues.push({ provider_id: prompt.reporter.provider_id, title: prompt.reporter.title, message: `${prompt.name}：挂的角色不在这个包里` });
-  pack.roles = pack.roles.slice(0, 64);
   pack.skills = own.filter(entry => entry.kind === "skill").map(entry => entry.key);
   pack.mcp = own.filter(entry => entry.kind === "mcp").map(entry => entry.key);
   // Tools are the system's: the built-in pack has them all; another pack has those its roles name (§4.3).

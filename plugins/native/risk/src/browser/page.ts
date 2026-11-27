@@ -37,7 +37,8 @@ export const isPermission = (error: unknown) => {
 
 function initialState(): RiskPageState {
   return { view: "overview", filter: { status: "open", impact: "", owner_name: "", linked: "", linkedSubject: null, linkedLabel: "" }, rows: [], anyClosed: false, owners: [], next: null, overviewError: "",
-    loading: true, record: null, recordError: "", review: null, reviewError: "", readOnly: false, recordId: "", editing: false, conflict: null, pop: "", busy: false };
+    loading: true, record: null, recordError: "", review: null, reviewError: "", readOnly: false, recordId: "", editing: false, conflict: null, pop: "", busy: false,
+    overviewEpoch: 0, recordEpoch: 0, noteDraft: "" };
 }
 
 /** The page the parts share, on the root the server drew; null when this view is not on the page. */
@@ -58,7 +59,7 @@ export function riskPage(host: RiskHost, render: (page: RiskPage) => void): Risk
   let timer: ReturnType<typeof setTimeout> | undefined;
   const page: RiskPage = {
     host, scope, root, body, side: root.hasAttribute("data-risk-side"), state: initialState(),
-    render: () => render(page),
+    render: () => { if (scope.alive) render(page); },
     async call<O>(capability: string, input: unknown): Promise<O> {
       const version = VERSIONS[capability];
       if (version === undefined) throw new Error(`unknown action ${capability}`);
@@ -75,13 +76,14 @@ export function riskPage(host: RiskHost, render: (page: RiskPage) => void): Risk
       }
     },
     toast(message: string, failed = false) {
+      if (!scope.alive) return;
       toasts.innerHTML = renderToast({ message, tone: failed ? "danger" : "success" });
       clearTimeout(timer);
-      timer = setTimeout(() => { toasts.innerHTML = ""; }, failed ? 6000 : 2600);
+      timer = setTimeout(() => { if (scope.alive) toasts.innerHTML = ""; }, failed ? 6000 : 2600);
     },
     run(work: () => Promise<unknown>) {
       void Promise.resolve().then(work).catch((error: unknown) => {
-        if (isAbort(error)) return;
+        if (!scope.alive || isAbort(error)) return;
         page.state.busy = false;
         page.toast(error instanceof Error && error.message ? error.message : uiText.text("risk.error.failed"), true);
         page.render();

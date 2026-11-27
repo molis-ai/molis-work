@@ -98,6 +98,7 @@ function listenCharacter(page: Page) {
 export function mountSessionEvents(page: Page) {
   const { s, turns } = page;
   s.earlierWatch = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) void loadEarlier(page); }, { root: turns, rootMargin: "900px 0px 0px 0px" });
+  page.lifetime.own(() => s.earlierWatch.disconnect());
   listenSelect(page);
   listenAssistant(page);
   s.creatingCharacterSession = false;

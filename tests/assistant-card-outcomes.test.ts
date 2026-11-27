@@ -132,3 +132,108 @@ for (const outcome of ["success", "invalid-output", "unknown"] as const) test(`A
   await assistant.offers.runCard(work.work_id, offered.card.card_id, { revision: offered.card.revision });
   assert.equal(calls, 2); assert.equal(store.cards(work.work_id).length, 2, "a call made from a card updates that card and adds no duplicate");
 });
+
+test("F-host-subsystems-01 runCard enforces decision cancellation/signal on assistant cards and before claiming person cards", async t => {
+  const db = new DatabaseSync(":memory:");
+  const store = new AssistantStore(db);
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const host = new AgentHost();
+  const project = { project_id: "card-auth-project", storage_key: "memory:card-auth" };
+  t.after(async () => { await local.close(); db.close(); });
+  let calls = 0;
+  let seenSignal: AbortSignal | undefined;
+  const userAndAgent: ActionDefinition = {
+    ...definition,
+    action: { ...definition.action, audiences: ["user", "agent"] },
+  };
+  local.actionRegistry(project).registerProvider({
+    provider: { provider_id: "fixture.receipts", kind: "plugin", title: "Receipts" },
+    definitions: [userAndAgent],
+    handlers: [{
+      ...userAndAgent,
+      async handle(context) {
+        seenSignal = context.signal;
+        await context.beforeEffect();
+        calls += 1;
+        return { saved: true };
+      },
+    }],
+  });
+  const assistant = new AssistantService(store, {
+    pages: async () => ["home"],
+    host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set()),
+    scopeActions: async (_work, decision) => ({
+      discover: async () => local.actionClient(project).discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["receipts:write"] }),
+      invoke: async (action, input) => {
+        await decision?.beforeEffect();
+        decision?.assertCurrent();
+        return local.actionClient(project).invoke({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["receipts:write"], signal: decision?.signal }, action, input);
+      },
+    }),
+  }, "web-user");
+  t.after(() => assistant.continuations.close());
+
+  const placed = await assistant.offers.offerFromPage({
+    message_id: "cancel-card-0001",
+    source: { surface: "fixture", title: "Receipts" },
+    card: { title: "Save receipt", summary: "Save one receipt", reference: { capability_id: userAndAgent.capability_id, version: 1, provider_id: "fixture.receipts" }, input: {} },
+  }, { project_ref: project });
+  const revoked = new AbortController();
+  const revokedError = new Error("session revoked mid-check");
+  let checkCount = 0;
+  await assert.rejects(
+    assistant.offers.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision }, {
+      project_id: project.project_id,
+      entry: undefined,
+      signal: revoked.signal,
+      beforeEffect: async () => {
+        checkCount += 1;
+        if (checkCount === 1) revoked.abort(revokedError);
+        revoked.signal.throwIfAborted();
+      },
+      assertCurrent: () => revoked.signal.throwIfAborted(),
+    }),
+    error => error === revokedError,
+  );
+  assert.equal(calls, 0, "revoked card must not execute");
+  assert.equal(store.card(placed.work_id, placed.card.card_id).status, "ready", "revoked card must not transition to running or failed");
+
+  const live = new AbortController();
+  const completed = await assistant.offers.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision }, {
+    project_id: project.project_id,
+    entry: undefined,
+    signal: live.signal,
+    beforeEffect: async () => live.signal.throwIfAborted(),
+    assertCurrent: () => live.signal.throwIfAborted(),
+  });
+  assert.equal(completed.status, "done");
+  assert.equal(calls, 1);
+  assert.equal(seenSignal, live.signal, "decision.signal must be forwarded to non-person card invoke");
+
+  // Person card (`runs_as === "person"`): revoking before claim leaves card untouched.
+  const personPlaced = await assistant.offers.placeForPerson({
+    key: "person-card-test",
+    work_title: "Person card",
+    scope: { kind: "project", project_id: project.project_id },
+    source: { surface: "fixture", title: "Receipts" },
+    card: { title: "Person receipt", summary: "Run as person", reference: { capability_id: userAndAgent.capability_id, version: 1, provider_id: "fixture.receipts" }, input: {} },
+  }, { project_ref: project });
+  const personAbort = new AbortController();
+  const personRevoked = new Error("person card revoked");
+  await assert.rejects(
+    assistant.offers.runCard(personPlaced.work_id, personPlaced.card.card_id, { revision: personPlaced.card.revision }, {
+      project_id: project.project_id,
+      entry: undefined,
+      signal: personAbort.signal,
+      beforeEffect: async () => {
+        personAbort.abort(personRevoked);
+        personAbort.signal.throwIfAborted();
+      },
+      assertCurrent: () => personAbort.signal.throwIfAborted(),
+    }),
+    error => error === personRevoked,
+  );
+  assert.equal(calls, 1, "revoked person card must not execute");
+  assert.equal(store.card(personPlaced.work_id, personPlaced.card.card_id).status, "ready", "revoked person card must not transition to running or failed");
+});

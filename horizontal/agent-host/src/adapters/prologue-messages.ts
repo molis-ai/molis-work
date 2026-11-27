@@ -1,9 +1,19 @@
 import type { Envelope, ExactRef, Runtime } from "@prologue/sdk";
 import type { AgentMessageAttachment, AgentPeopleMessageAction, AgentPeopleMessageInput, AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentErrors } from "../errors.js";
 
-/** What the messages need to know about a session: its project, whether it is a subtask, how it is named. */
+/** What the messages need to know about a session: its project, optional full owner tuple, whether it is a subtask, how it is named. */
+interface MessageSessionOwner {
+  project: string;
+  ref: ExactRef<"session">;
+  subtask: boolean;
+  plugin_id?: string;
+  install_id?: string;
+  actor_id?: string;
+}
+
 interface MessageSessions {
-  owner(sessionId: string): Promise<{ project: string; ref: ExactRef<"session">; subtask: boolean } | undefined>;
+  owner(sessionId: string): Promise<MessageSessionOwner | undefined>;
   title(project: string, sessionId: string): Promise<string>;
   /** Tell a round that is running right now; false when the session has no live round. */
   steer(sessionId: string, text: string): Promise<boolean>;
@@ -14,6 +24,13 @@ interface MessageSessions {
    * sender's (P2g): a session that never ran a round has no block yet.
    */
   place(sessionId: string): Promise<void>;
+}
+
+function sameMessageOwner(a: MessageSessionOwner, b: MessageSessionOwner): boolean {
+  return a.project === b.project
+    && a.plugin_id === b.plugin_id
+    && a.install_id === b.install_id
+    && a.actor_id === b.actor_id;
 }
 
 /** A notice goes to this many sessions at most at once (the person's decision). */
@@ -42,8 +59,8 @@ function guardSessionSend(runtime: Runtime, sessions: MessageSessions, hook: str
     const input = context.input as { to?: unknown; recipients?: unknown; kind?: unknown } | undefined;
     const sender = await sessions.owner(context.origin.session);
     if (!sender) return deny("这个会话不属于任何项目，不能发信");
-    // Another session of the project, not a subtask (a subtask's letters go to its parent round only).
-    const elsewhere = async (id: string) => { const other = await sessions.owner(id); return !other || other.subtask || other.project !== sender.project; };
+    // Another session of the same owner in this project, not a subtask (a subtask's letters go to its parent round only).
+    const elsewhere = async (id: string) => { const other = await sessions.owner(id); return !other || other.subtask || !sameMessageOwner(sender, other); };
     // A notice to the sessions whose work overlaps this one's ("overlapping"), or to several named ones: at most five.
     if (input?.to === "overlapping" || Array.isArray(input?.recipients)) {
       if (input.kind !== "notice") return deny("一次发给多个会话的只能是通知（kind 写 notice）");
@@ -160,21 +177,42 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       await runtime.delivery.flush();
     },
     /** A project's messages, or one session's (sent and received), oldest first. */
-    async read(project: string, sessionId?: string): Promise<AgentSessionMessage[]> {
+    async read(project: string, sessionId?: string, allowSession?: (sessionId: string) => Promise<boolean> | boolean): Promise<AgentSessionMessage[]> {
+      if (sessionId && allowSession && !(await allowSession(sessionId))) return [];
       const all = sessionId
         ? [...runtime.delivery.list({ from: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> }), ...runtime.delivery.list({ to: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> })]
         : runtime.delivery.list();
       // Letters between sessions only: what the Runtime writes back itself (`inject`) and the SDK's own follow-ups of a
       // request are not letters anyone sent.
       const mine: Envelope[] = [];
-      for (const envelope of all) if (LETTERS.includes(envelope.kind) && (await sessions.owner(envelope.from.id))?.project === project) mine.push(envelope);
+      for (const envelope of all) {
+        if (!LETTERS.includes(envelope.kind)) continue;
+        const from = await sessions.owner(envelope.from.id), to = await sessions.owner(envelope.to.id);
+        if (!from || !to || from.project !== project || to.project !== project || !sameMessageOwner(from, to)) continue;
+        if (allowSession && (!(await allowSession(envelope.from.id)) || !(await allowSession(envelope.to.id)))) continue;
+        mine.push(envelope);
+      }
       return Promise.all(mine.sort((a, b) => a.sentAtMs - b.sentAtMs).map(envelope => view(envelope, project)));
     },
     /** A message for people, sent on a person's behalf between two sessions of the project. */
-    async sendForPeople(project: string, request: AgentPeopleMessageInput, actorId: string): Promise<AgentSessionMessage> {
+    async sendForPeople(project: string, request: AgentPeopleMessageInput, actorId: string, allowSession?: (sessionId: string) => Promise<boolean> | boolean): Promise<AgentSessionMessage> {
       const from = await sessions.owner(request.from_session), to = await sessions.owner(request.to_session);
-      if (!from || !to || from.project !== project || to.project !== project || from.subtask || to.subtask) throw new Error("只能在这个项目的两个会话之间发信");
+      if (!from || !to || from.project !== project || to.project !== project || from.subtask || to.subtask || !sameMessageOwner(from, to)) throw new Error("只能在这个项目的两个会话之间发信");
+      if (allowSession && (!(await allowSession(request.from_session)) || !(await allowSession(request.to_session)))) throw agentErrors.session_unknown("当前项目找不到这条会话");
       if (request.from_session === request.to_session) throw new Error("不能发给自己");
+      if (request.in_reply_to) {
+        let parent: Envelope | undefined;
+        try { parent = runtime.delivery.get({ kind: "envelope", id: request.in_reply_to, revision: 1 } as ExactRef<"envelope">); }
+        catch { parent = undefined; }
+        const parentFrom = parent && await sessions.owner(parent.from.id);
+        const parentTo = parent && await sessions.owner(parent.to.id);
+        if (!parent || !parentFrom || !parentTo || parentFrom.project !== project || parentTo.project !== project || !sameMessageOwner(from, parentFrom) || !sameMessageOwner(from, parentTo)) {
+          throw agentErrors.session_unknown("这封信不属于这个项目");
+        }
+        if (allowSession && (!(await allowSession(parent.from.id)) || !(await allowSession(parent.to.id)))) {
+          throw agentErrors.session_unknown("这封信不属于当前会话归属");
+        }
+      }
       await runtime.sessions.open(from.ref); await runtime.sessions.open(to.ref);
       const attachments: AgentMessageAttachment[] = request.attachments ?? [];
       const sent = runtime.delivery.send({ from: from.ref, to: to.ref, kind: request.kind, body: request.body, audience: "people", by: actorId,
@@ -185,11 +223,13 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       return view(sent, project);
     },
     /** A person moves a message for people on; who and why go on its history. */
-    async act(project: string, id: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }, actorId: string): Promise<AgentSessionMessage> {
+    async act(project: string, id: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }, actorId: string, allowSession?: (sessionId: string) => Promise<boolean> | boolean): Promise<AgentSessionMessage> {
       const ref = { kind: "envelope", id, revision: 1 } as ExactRef<"envelope">;
       const envelope = runtime.delivery.get(ref);
       if (envelope.audience !== "people") throw new Error("这不是给人处理的信");
-      if ((await sessions.owner(envelope.from.id))?.project !== project) throw new Error("这封信不属于这个项目");
+      const from = await sessions.owner(envelope.from.id), to = await sessions.owner(envelope.to.id);
+      if (!from || !to || from.project !== project || to.project !== project || !sameMessageOwner(from, to)) throw new Error("这封信不属于这个项目");
+      if (allowSession && (!(await allowSession(envelope.from.id)) || !(await allowSession(envelope.to.id)))) throw agentErrors.session_unknown("这封信不属于当前会话归属");
       const at = await now(), how = { by: actorId, ...(detail.event ? { event: detail.event } : {}), ...(detail.note ? { note: detail.note } : {}), ...(detail.attachments ? { attachments: detail.attachments } : {}) };
       const moved = action === "deliver" ? runtime.delivery.markDelivered(ref, at, how)
         : action === "accept" ? runtime.delivery.respond(ref, true, at, how)
@@ -201,9 +241,11 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       return view(moved, project);
     },
     /** The person withdraws an open message. */
-    async cancel(project: string, messageId: string) {
+    async cancel(project: string, messageId: string, allowSession?: (sessionId: string) => Promise<boolean> | boolean) {
       const envelope = runtime.delivery.get({ kind: "envelope", id: messageId, revision: 1 } as ExactRef<"envelope">);
-      if ((await sessions.owner(envelope.from.id))?.project !== project) throw new Error("这封信不属于这个项目");
+      const from = await sessions.owner(envelope.from.id), to = await sessions.owner(envelope.to.id);
+      if (!from || !to || from.project !== project || to.project !== project || !sameMessageOwner(from, to)) throw new Error("这封信不属于这个项目");
+      if (allowSession && (!(await allowSession(envelope.from.id)) || !(await allowSession(envelope.to.id)))) throw agentErrors.session_unknown("这封信不属于当前会话归属");
       if (!OPEN.includes(envelope.state)) throw new Error("这封信已经结束，不能撤回");
       runtime.delivery.cancel(envelope.ref);
       await runtime.delivery.flush();

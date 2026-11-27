@@ -99,11 +99,15 @@ export class GoalEventDecisionRecords {
     );
   }
 
-  getAppliedDecision(projectId: string, goalId: string, decisionId: string): GoalEventAppliedDecisionView | null {
-    const row = this.db.prepare(`
+  private getAppliedDecisionRow(projectId: string, goalId: string, decisionId: string): Row | undefined {
+    return this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_event_applied_decisions
       WHERE decision_id = ? AND project_id = ? AND goal_id = ?
     `).get(decisionId, projectId, goalId) as Row | undefined;
+  }
+
+  getAppliedDecision(projectId: string, goalId: string, decisionId: string): GoalEventAppliedDecisionView | null {
+    const row = this.getAppliedDecisionRow(projectId, goalId, decisionId);
     return row ? mapAppliedDecision(row) : null;
   }
 
@@ -113,6 +117,11 @@ export class GoalEventDecisionRecords {
       WHERE governance_decision_id = ? AND project_id = ? AND goal_id = ?
     `).get(governanceDecisionId, projectId, goalId) as Row | undefined;
     return row ? mapAppliedDecision(row) : null;
+  }
+
+  getAppliedDecisionEventId(projectId: string, goalId: string, decisionId: string): string | null {
+    const row = this.getAppliedDecisionRow(projectId, goalId, decisionId);
+    return row?.event_id == null ? null : rowText(row.event_id);
   }
 
   listAppliedDecisions(projectId: string, goalId: string): GoalEventAppliedDecisionView[] {

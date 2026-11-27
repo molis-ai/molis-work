@@ -408,7 +408,21 @@ export async function commitApiOAuth(home: string, state: string, config: OAuthC
   return { service_id: config.serviceId, ...result, ...(config.returnTo ? { return_to: config.returnTo } : {}) };
 }
 const refreshes = new Map<string, SharedRefresh<string>>();
+const pendingRefreshes = new Map<string, Promise<SharedRefresh<string> | null>>();
 const LOST_AUTHORITY = "等这次刷新的调用已失去授权，换到的令牌不保存";
+
+async function waitForPendingRefresh(ready: Promise<SharedRefresh<string> | null>, control: ConnectorCallControl): Promise<SharedRefresh<string> | null> {
+  control.signal.throwIfAborted();
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(control.signal.reason ?? new Error("刷新已取消"));
+    control.signal.addEventListener("abort", onAbort, { once: true });
+  });
+  aborted.catch(() => {});
+  try { return await Promise.race([ready, aborted]); }
+  finally { control.signal.removeEventListener("abort", onAbort); }
+}
+
 /**
  * A connection's access token, refreshed when asked, when it is about to expire or when only the refresh token is left. Each use checks
  * the connection's binding first (`boundMethod`). One refresh per connection at a time, shared by the calls that need it (RAC-1085,
@@ -418,34 +432,60 @@ const LOST_AUTHORITY = "等这次刷新的调用已失去授权，换到的令�
  */
 export async function resolveApiOAuthToken(home: string, id: string, control: ConnectorCallControl, forceRefresh = false, fetchImpl?: typeof fetch,
   owners: OAuthOwners = registryOwners(home), network?: OAuthNetwork): Promise<string> {
-  await control.beforeEffect(); control.current();
   const key = `${resolve(home)}:${id}`;
-  const inFlight = refreshes.get(key);
-  if (inFlight?.open) return inFlight.join(control);
-  let resolveTurn!: (decided: string | SharedRefresh<string>) => void, rejectTurn!: (error: unknown) => void;
-  const turn = new Promise<string | SharedRefresh<string>>((resolved, rejected) => { resolveTurn = resolved; rejectTurn = rejected; });
-  void serialized(home, id, async () => {
-    let started: SharedRefresh<string> | undefined;
-    try {
-      control.signal.throwIfAborted(); await control.beforeEffect(); control.current();
-      const config = configured(home, id);
-      const owner = await owners(config.serviceId, config.grant);
-      const method = boundMethod(config, owner);
-      const secrets = connectorProtocolSecrets(home, id);
-      const token = secrets.get("access");
-      const expires = Number(secrets.get("expires"));
-      if (token && !forceRefresh && (!expires || expires > Date.now() + 60_000)) { resolveTurn(token); return; }
-      if (!secrets.get("oauth")) throw new ApiOAuthError("访问令牌已失效，请重新授权此连接");
-      const revision = withConnectorConnections(home, store => store.require(id), "required").updated_at;
-      started = startSharedRefresh(control, refresh => renewed(home, id, { config, owner: owner!, method, revision }, refresh, { fetchImpl, network }, owners));
-      refreshes.set(key, started);
-      resolveTurn(started);
-      await started.done;
-    } catch (error) { rejectTurn(error); }
-    finally { if (started && refreshes.get(key) === started) refreshes.delete(key); }
-  });
-  const decided = await turn;
-  return typeof decided === "string" ? decided : decided.first;
+  while (true) {
+    await control.beforeEffect(); control.current();
+    const inFlight = refreshes.get(key);
+    if (inFlight?.open) return inFlight.join(control);
+    const pending = pendingRefreshes.get(key);
+    if (pending) {
+      const started = await waitForPendingRefresh(pending, control);
+      await control.beforeEffect(); control.current();
+      if (started?.open) return started.join(control);
+      continue;
+    }
+    let resolvePending!: (started: SharedRefresh<string> | null) => void;
+    const ready = new Promise<SharedRefresh<string> | null>(resolved => { resolvePending = resolved; });
+    pendingRefreshes.set(key, ready);
+    let resolveTurn!: (decided: string | SharedRefresh<string>) => void, rejectTurn!: (error: unknown) => void;
+    const turn = new Promise<string | SharedRefresh<string>>((resolved, rejected) => { resolveTurn = resolved; rejectTurn = rejected; });
+    const releasePending = (started: SharedRefresh<string> | null) => {
+      if (pendingRefreshes.get(key) === ready) pendingRefreshes.delete(key);
+      resolvePending(started);
+    };
+    void serialized(home, id, async () => {
+      let started: SharedRefresh<string> | undefined;
+      try {
+        control.signal.throwIfAborted(); await control.beforeEffect(); control.current();
+        const config = configured(home, id);
+        const owner = await owners(config.serviceId, config.grant);
+        const method = boundMethod(config, owner);
+        const secrets = connectorProtocolSecrets(home, id);
+        const token = secrets.get("access");
+        const expires = Number(secrets.get("expires"));
+        if (token && !forceRefresh && (!expires || expires > Date.now() + 60_000)) {
+          releasePending(null);
+          resolveTurn(token);
+          return;
+        }
+        if (!secrets.get("oauth")) throw new ApiOAuthError("访问令牌已失效，请重新授权此连接");
+        const revision = withConnectorConnections(home, store => store.require(id), "required").updated_at;
+        started = startSharedRefresh(control, refresh => renewed(home, id, { config, owner: owner!, method, revision }, refresh, { fetchImpl, network }, owners));
+        refreshes.set(key, started);
+        releasePending(started);
+        resolveTurn(started);
+        await started.done;
+      } catch (error) {
+        releasePending(null);
+        rejectTurn(error);
+      } finally {
+        releasePending(null);
+        if (started && refreshes.get(key) === started) refreshes.delete(key);
+      }
+    });
+    const decided = await turn;
+    return typeof decided === "string" ? decided : decided.first;
+  }
 }
 /**
  * One refresh of a connection, as `startSharedRefresh` runs it. Its request is checked before it is sent, never after (a sent refresh is

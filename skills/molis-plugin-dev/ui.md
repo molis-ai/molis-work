@@ -70,7 +70,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 - 插件的工作要在侧栏浏览器里打开或操作某些网站，就在 `permissions` 里声明 `{ permission: "surface:browser", required, reason, origins: ["https://shop.example.com"] }`。`origins` 必须是完整来源，不带路径、查询串或片段，否则 Manifest 当场被拒；其他权限不能带 `origins`。声明会出现在插件市场的卡片上（「会在侧栏浏览器里使用：…」），`molis-work plugin validate` 的输出里也会列出 `browser_sites`。声明只是告诉用户，不代替每一步的确认：动手仍按侧栏浏览器的规则逐步确认，上传文件永远要确认。
 - 门禁：`inspectManifest` 拒绝未知槽和未声明的 contribution；`tests/side-panel-platform.test.ts` 用一个未知插件只靠声明接入、停用后撤下。
 
-`settings-page` 只能挂 `workbench.settings`。设置页要自己的数据时，在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支。**目前设置贡献与 `settings_data` 的宿主接线只覆盖内置目录；已安装的 Runtime 插件虽会经过声明校验，设置贡献发现与数据动作调用尚未接入，写了声明也不会在全局设置中生效。** 来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
+`settings-page` 只能挂 `workbench.settings`。动态安装插件与签名沙箱包可通过声明式 `settings_entries`（配合只读 `settings.read` 与写入 `settings.write`）接入全局设置：宿主经 `apps/local-host/src/web-catalog-settings.ts` 动态发现并渲染设置页，写入走 `/api/settings/plugin-entries/write`，内置与第三方同等可用。若需要自定义设置页 HTML 贡献，可在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支（自定义 `settings_data` HTML 贡献目前只覆盖内置目录，动态安装插件请走声明式 `settings_entries`）。来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
 
 舞台业务事实只由声明的动作结果 `StagePageModel.data` 提供；`context` 只含平台位置与展示上下文，不再提供 `client_data` 转发其他插件事实。需要其他 owner 的内容时，由实际消费者通过公开读取合同取得，不能要求整页壳先读一遍再代传。
 
@@ -128,7 +128,7 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
-搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。隔离页面若完整负责本次选择的读取、保存与打开，在处理器首次等待前同步 `event.preventDefault()` 接管；框架的可取消派发因此不再找行代点。只观察事件、仅处理其他分支时不接管；接管不是成功回执，也不表示撤销业务写入。没有完整处理器的行驱动页面继续按 `searchRow` 打开。当前工作台的搜索、放置与侧栏文件共用构建期插件目录派生的对象标签名单；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），不能仅凭声明假定这些入口已支持动态安装后的对象标签。
+搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。隔离页面若完整负责本次选择的读取、保存与打开，在处理器首次等待前同步 `event.preventDefault()` 接管；框架的可取消派发因此不再找行代点。只观察事件、仅处理其他分支时不接管；接管不是成功回执，也不表示撤销业务写入。没有完整处理器的行驱动页面继续按 `searchRow` 打开。工作台的对象标签名单（`apps/workbench/src/scripts/client/initialization.ts` 的 `itemTabs`）由宿主从运行中各插件 Manifest 写入页面的 `plugin_directory` 动态派生，内置与运行时安装的插件声明 `accepts_objects: true` 后均可按对象开标签（BL-388 已落地）。
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 
@@ -139,10 +139,10 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 ### 动作先问几个问题再接着做
 
 不经 Agent 运行、自己调模型的动作，信息不够时不要猜，也不要自己画问卷：
-- 动作返回 `{ status: "needs_input", interaction }`（合同 `InteractionRequest`，`@molis-ai/molis-work-contracts/services/agent-interaction`）：`interaction_id`、`why`（一句话，卡片标题）、`questions`（现在只用选择题）、`note`（回答后会发生什么，本插件的话，英文写进本插件词典）。输出 schema 写成一个对象，MCP 工具才不会把结果包一层。
+- 动作返回 `{ status: "needs_input", interaction }`（合同 `InteractionRequest`，`@molis-ai/molis-work-contracts/services/agent-interaction`）：`interaction_id`、`why`（一句话，卡片标题）、`questions`（现在只用选择题）、`note`（回答后会发生什么，本插件的话，各语种译文写进本插件词典）。输出 schema 写成一个对象，MCP 工具才不会把结果包一层。
 - 动作自己记住问过的题。人回答后，页面带着 `interaction: { interaction_id, values }` 再调一次动作；动作用 SDK 的 `questionAnswer` 读答案，用 `questionProblems` 对照问过的题检查。有问题就抛本插件的错误码，`details.problems` 放这些原因。
 - 宿主对任何插件路由的回答都会做两件事：给 `needs_input` 加上共享问卷卡的 `interaction.html`；给 `details.problems` 加上逐字段的 `details.errors`。页面只要把 html 放进去，用 `host.interaction(card, { onSubmit })` 绑定，出错时调 `showErrors(details.errors)`。
-- 样例：Form 的「AI 生成题目」（`plugins/native/form/src/drafting.ts`、`draft-client.ts`）。
+- 样例：Form 的「AI 生成题目」（`plugins/native/form/src/drafting.ts`、`plugins/native/form/src/browser/draft.ts`）。
 
 ## 控件与视觉
 

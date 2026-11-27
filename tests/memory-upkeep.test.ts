@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, purgeProjectMemories, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryServiceHome, observeMemoryBackend, scriptedMemoryExtraction, originalMemorySources } from "./fixtures/memory-service-home.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -774,4 +774,62 @@ test("MEM-10 MEM-19 automatic changes record structured policy version and trigg
     assert.equal(scrubbed.reason, null);
     assert.equal(scrubbed.trigger_evidence, undefined);
   }
+});
+
+test("F-horiz-runtime-18: upkeep recovers pending steps across all enabled scopes before starting new maintenance steps", { timeout: 60_000 }, async t => {
+  const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
+  t.mock.timers.enable({ apis: ["Date"], now: clock.now.getTime() });
+  const env = await memoryHome(t, clock);
+  const memory = await env.open();
+  await memory.write(person(), { scope: "project", text: "项目发布核对清单", rests_on: { kind: "page", id: "project-release" } });
+  await memory.write(person(), { scope: "personal", text: "九月底前的临时提醒", kind: "fact", expires_at: "2026-10-01T00:00:00.000Z" });
+
+  const save = env.ledger().saveChange.bind(env.ledger());
+  const fault = t.mock.method(env.ledger(), "saveChange", (record: Parameters<typeof save>[0]) => {
+    if (record.kind === "paused") throw new Error("pending project receipt");
+    return save(record);
+  });
+  await assert.rejects(
+    memory.upkeep(person(), { projects: ["project-a"], objectState: async ref => ref.id === "project-release" ? "missing" : "ok" }),
+    /pending project receipt/,
+  );
+  fault.mock.restore();
+  clock.now = new Date("2026-10-02T00:00:00.000Z");
+  t.mock.timers.setTime(clock.now.getTime());
+
+  const report = await memory.upkeep(person(null), { projects: ["project-a"], objectState: async ref => ref.id === "project-release" ? "missing" : "ok" });
+  assert.equal(report.paused, 1);
+  assert.equal(report.expired, 1);
+  assert.deepEqual(env.ledger().marker(LOCAL_PERSON_ACTOR_ID, "memory-operation:upkeep-pending")?.body, { plans: [] });
+});
+
+test("F-horiz-runtime-18: purging a deleted project clears its upkeep-pending steps so remaining scopes keep running", { timeout: 60_000 }, async t => {
+  const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
+  t.mock.timers.enable({ apis: ["Date"], now: clock.now.getTime() });
+  const env = await memoryHome(t, clock);
+  const memory = await env.open();
+  await memory.write(person(), { scope: "project", text: "将随项目删除的记忆", rests_on: { kind: "page", id: "project-release" } });
+  await memory.write(person(), { scope: "personal", text: "个人过期记忆", kind: "fact", expires_at: "2026-10-01T00:00:00.000Z" });
+
+  const save = env.ledger().saveChange.bind(env.ledger());
+  const fault = t.mock.method(env.ledger(), "saveChange", (record: Parameters<typeof save>[0]) => {
+    if (record.kind === "paused") throw new Error("pending project receipt");
+    return save(record);
+  });
+  await assert.rejects(
+    memory.upkeep(person(), { projects: ["project-a"], objectState: async ref => ref.id === "project-release" ? "missing" : "ok" }),
+    /pending project receipt/,
+  );
+  fault.mock.restore();
+  clock.now = new Date("2026-10-02T00:00:00.000Z");
+  t.mock.timers.setTime(clock.now.getTime());
+
+  await purgeProjectMemories(
+    { backend: env.raw(), ledger: env.ledger(), caller: { ...person("project-a"), operation_id: "delete-project-a-upkeep" } },
+    "project-a",
+  );
+  assert.deepEqual(env.ledger().marker(LOCAL_PERSON_ACTOR_ID, "memory-operation:upkeep-pending")?.body, { plans: [] });
+
+  const report = await memory.upkeep(person(null), { projects: [] });
+  assert.equal(report.expired, 1);
 });

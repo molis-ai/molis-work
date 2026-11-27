@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -129,4 +130,112 @@ for (const width of [1440, 1024, 390]) test(`RISK-04 RISK-05 RISK-06 risk page $
   // RISK-05: 展开成整页 lands the same risk on the stage (the side frame's own open is not sent back to the side).
   await side.click('[data-rk-act="expand"]');
   await browser.waitFor(`document.querySelector('.tab-item[data-tab-kind=item][data-plugin=risk][data-item-id=${JSON.stringify(riskId)}]')`);
+});
+
+test("F-plugins-rest-w2-14 F-plugins-rest-w2-15: Risk preserves unsaved drafts across language switches and ignores out-of-order overview/record responses", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, web } = browser;
+  assert.ok(projectId);
+  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "risk", expected_revision: await projectPluginRevision(web, projectId) });
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=risk` }, sessionId));
+  await browser.surfaceReady("risk");
+  const page = await pluginFrameBrowser(t, browser, "risk");
+  const { evaluate, waitFor, click } = page;
+  const set = (selector: string, value: string) => evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.focus(); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+
+  // F-plugins-rest-w2-15: new-risk form keeps unsaved input across language-changed.
+  await waitFor("document.querySelector('[data-risk-body] .mw-empty')");
+  await click('[data-rk-act="new"]');
+  await waitFor("document.querySelector('form[data-rk-form=new]')");
+  await set("form[data-rk-form=new] input[name=title]", "高影响风险");
+  await set("form[data-rk-form=new] textarea[name=statement]", "切换语言时不应清空未保存正文");
+  await click('[data-rk-act="draft-impact"][data-rk-value="high"]');
+  await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { locale: "en" } }))`);
+  assert.equal(await evaluate("document.querySelector('form[data-rk-form=new] input[name=title]').value"), "高影响风险");
+  assert.equal(await evaluate("document.querySelector('form[data-rk-form=new] textarea[name=statement]').value"), "切换语言时不应清空未保存正文");
+  await click("form[data-rk-form=new] button[type=submit]");
+  await waitFor("document.querySelector('.mw-frame__heading h2')?.textContent?.includes('高影响风险')");
+
+  // F-plugins-rest-w2-15: edit form and note input also keep unsaved text across language-changed.
+  await click('[data-rk-act="edit"]');
+  await waitFor("document.querySelector('form[data-rk-form=edit]')");
+  await set("form[data-rk-form=edit] textarea[name=treatment]", "保留未保存处置方案");
+  await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { locale: "zh" } }))`);
+  assert.equal(await evaluate("document.querySelector('form[data-rk-form=edit] textarea[name=treatment]').value"), "保留未保存处置方案");
+  await click('[data-rk-act="cancel-edit"]');
+  await waitFor("document.querySelector('form[data-rk-form=note] input[name=note]')");
+  await set("form[data-rk-form=note] input[name=note]", "保留未提交备注");
+  await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { locale: "en" } }))`);
+  assert.equal(await evaluate("document.querySelector('form[data-rk-form=note] input[name=note]').value"), "保留未提交备注");
+
+  // Create a second (low-impact) risk so filter and record races are observable.
+  await click('[data-rk-act="back"]');
+  await waitFor("document.querySelectorAll('[data-risk-row]').length === 1");
+  await click('[data-rk-act="new"]');
+  await waitFor("document.querySelector('form[data-rk-form=new]')");
+  await set("form[data-rk-form=new] input[name=title]", "低影响风险");
+  await set("form[data-rk-form=new] textarea[name=statement]", "竞态对照组");
+  await click('[data-rk-act="draft-impact"][data-rk-value="low"]');
+  await click("form[data-rk-form=new] button[type=submit]");
+  await waitFor("document.querySelector('.mw-frame__heading h2')?.textContent?.includes('低影响风险')");
+  await click('[data-rk-act="back"]');
+  await waitFor("document.querySelectorAll('[data-risk-row]').length === 2");
+  const ids = await evaluate<Record<string, string>>("Object.fromEntries([...document.querySelectorAll('[data-risk-row]')].map(r => [r.querySelector('strong').textContent, r.dataset.riskId]))");
+
+  // F-plugins-rest-w2-14: out-of-order overview risk.list and out-of-order risk.get cannot overwrite newer selections.
+  await browser.evaluate(`(() => {
+    const original = window.molisWorkUiTransport;
+    const hold = () => { let release; const wait = new Promise(resolve => { release = resolve; }); return { ready: false, release, wait }; };
+    const gates = window.riskRace = { listHigh: hold(), getFirst: hold() };
+    let heldList = false, heldGet = false;
+    window.molisWorkUiTransport = (url, init) => {
+      const body = typeof init?.body === "string" && new URL(url).pathname.endsWith("/api/host/plugin-page-actions") ? JSON.parse(init.body) : null;
+      if (body?.reference?.capability_id === "risk.list" && body?.input?.impact === "high" && !heldList) {
+        heldList = true;
+        return Promise.resolve(original?.(url, init) ?? fetch(url, init)).then(async res => { gates.listHigh.ready = true; await gates.listHigh.wait; return res; });
+      }
+      if (body?.reference?.capability_id === "risk.get" && body?.input?.risk_id === ${JSON.stringify(ids["高影响风险"])} && !heldGet) {
+        heldGet = true;
+        return Promise.resolve(original?.(url, init) ?? fetch(url, init)).then(async res => { gates.getFirst.ready = true; await gates.getFirst.wait; return res; });
+      }
+      return original?.(url, init);
+    };
+  })()`);
+  await evaluate(`(() => { const s = document.querySelector('select[data-rk-filter=impact]'); s.value = 'high'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await browser.waitFor("window.riskRace.listHigh.ready");
+  // While the first high-impact list read is held in flight, create a newer high-impact risk and trigger the real assistant-effect reload.
+  const pageId = await browser.evaluate<string>("document.querySelector('[data-work-surface=\"risk\"]')?.dataset.pluginPage ?? ''");
+  assert.ok(pageId, "risk plugin page handle must be present");
+  const createResponse = await fetch(`${origin}/projects/${projectId}/api/host/plugin-page-actions`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      origin,
+      "content-type": "application/json",
+      "x-molis-work-control-token": browser.controlToken,
+      "x-molis-work-idempotency-key": randomUUID(),
+      "x-molis-plugin-page": pageId,
+    },
+    body: JSON.stringify({
+      reference: { capability_id: "risk.create", version: 1 },
+      input: { title: "最新高影响风险", statement: "并发刷新期间新增的高影响风险", impact: "high", likelihood: "high" },
+    }),
+  });
+  assert.equal(createResponse.status, 200, `expected risk.create to succeed: ${await createResponse.text()}`);
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { capability_id: 'risk.create' } }))`);
+  await waitFor("document.querySelectorAll('[data-risk-row]').length === 2 && document.querySelector('[data-risk-body]').textContent.includes('最新高影响风险')");
+  await browser.evaluate("window.riskRace.listHigh.release()");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate("document.querySelectorAll('[data-risk-row]').length"), 2, "late stale overview response must not overwrite newer overview rows");
+  assert.match(await evaluate<string>("document.querySelector('[data-risk-body]').textContent"), /最新高影响风险/, "late stale overview response must not drop the newer risk");
+
+  await evaluate(`document.querySelector('[data-risk="workbench"]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(ids["高影响风险"])} } }))`);
+  await browser.waitFor("window.riskRace.getFirst.ready");
+  await evaluate(`document.querySelector('[data-risk="workbench"]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(ids["低影响风险"])} } }))`);
+  await waitFor("document.querySelector('.mw-frame__heading h2')?.textContent?.includes('低影响风险')");
+  await browser.evaluate("window.riskRace.getFirst.release()");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.match(await evaluate<string>("document.querySelector('.mw-frame__heading h2').textContent"), /低影响风险/, "late risk.get response must not overwrite the newer open record");
 });

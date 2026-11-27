@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
-import { rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
-import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { goalReplicationDefinition } from "./fixtures/goals-modules.js";
 import {
   PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, openPluginProjectDatabase, type PluginProjectSchemaInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
@@ -115,4 +120,87 @@ test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business 
     assert.deepEqual(declared.boards!.foreign_keys, [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }]);
     assert.deepEqual(Object.keys(describeSqliteBaseline(GOALS_PROJECT_DATABASE).tables).sort(), GOALS_TABLES);
   } finally { expected.close(); db.close(); rmSync(upgraded.directory, { recursive: true, force: true }); }
+});
+
+test("F-goals-04 & F-goals-06: replication includes acknowledge_goal_event and accepts shared or platform-only requirements", () => {
+  const def = goalReplicationDefinition();
+  assert.ok(def.receiptOperations.includes("acknowledge_goal_event"), "F-goals-06: acknowledge_goal_event must be replicated");
+
+  const dir = mkdtempSync(join(tmpdir(), "goals-replication-val-"));
+  const store = new LocalProjectDatabase(join(dir, "project.db"));
+  const projectId = "proj-repl-val";
+  try {
+    const app = new GoalProjectApplication(store);
+    app.initializeBoard({ project_id: projectId, actor_id: "user-1", idempotency_key: "init" });
+    // Two Goals sharing the same requirement_id in goal_requirement_links.
+    app.goalEvents.createIntent({
+      project_id: projectId,
+      goal_id: "G1",
+      title: "Goal 1",
+      outcome: "Out 1",
+      requirements: [{ requirement_id: "shared-req", statement: "Shared in G1" }],
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "create-g1",
+    });
+    app.goalEvents.createIntent({
+      project_id: projectId,
+      goal_id: "G2",
+      title: "Goal 2",
+      outcome: "Out 2",
+      requirements: [{ requirement_id: "shared-req", statement: "Shared in G2" }],
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "create-g2",
+    });
+    // Add a platform-only requirement not present in goal_requirement_links, bind a type to it, and cite it in a concern.
+    app.setRequirements(projectId, "G1", [
+      { requirement_id: "shared-req", statement: "Shared in G1" },
+      { requirement_id: "platform-only-req", statement: "Platform requirement" },
+    ]);
+    app.goalEvents.configure({
+      project_id: projectId,
+      goal_id: "G1",
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      expected_version: 0,
+      idempotency_key: "cfg-g1",
+      types: [{
+        type_id: "check",
+        version: 1,
+        name: "Check",
+        purpose: "Verify",
+        fields: [{ field_id: "body", name: "Body", purpose: "Note", format: "text", required: true }],
+      }],
+      requirement_bindings: [{ type_id: "check", requirement_id: "platform-only-req" }],
+    });
+    const concern = app.goalEvents.applyConcern({
+      project_id: projectId,
+      goal_id: "G1",
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "concern-g1",
+      action: "open",
+      title: "Platform req check",
+      statement: "Check platform requirement",
+      scope: { requirement_ids: ["platform-only-req"] },
+    });
+    const readReplicaRows = () => Object.fromEntries(
+      def.tables.map(table => [
+        table.name,
+        store.db.prepare(`SELECT ${table.columns.join(", ")} FROM ${table.name}`).all() as Record<string, string | number | null>[],
+      ]),
+    );
+    assert.doesNotThrow(() => def.validate?.(readReplicaRows(), projectId));
+
+    // Malformed scope_json must fail with goals.replica_invalid instead of raw SyntaxError.
+    store.db.prepare("UPDATE goal_event_concerns SET scope_json = ? WHERE concern_id = ?").run("{invalid-json", concern.concern.concern_id);
+    assert.throws(
+      () => def.validate?.(readReplicaRows(), projectId),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.replica_invalid",
+    );
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

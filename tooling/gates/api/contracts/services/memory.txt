@@ -954,7 +954,9 @@ export declare const memoryActions: {
     recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>;
     list: ActionDefinition<MemoryListRequest, MemoryListResponse>;
     write: ActionDefinition<MemoryWriteRequest, MemoryWriteResult>;
-    change: ActionDefinition<MemoryChangeRequest, MemoryChangeResult>;
+    change: ActionDefinition<MemoryChangeRequest & {
+        expected_version: number;
+    }, MemoryChangeResult>;
     history: ActionDefinition<{
         memory_id: string;
     }, MemoryHistoryResponse>;

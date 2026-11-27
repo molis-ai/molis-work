@@ -74,7 +74,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
         activePlan = plan;
         title.textContent = plan.display_name + (plan.action === "remove" ? globalThis.t.text("workbench.settings.removal-preview") : globalThis.t.text("workbench.settings.connection-preview"));
         message.textContent = plan.message;
-        changes.innerHTML = (plan.changes || []).map((change) => "<li><strong>" + escapeText(change.operation === "remove" ? globalThis.t.text("workbench.settings.remove") : change.operation === "replace" ? globalThis.t.text("workbench.settings.replace") : globalThis.t.text("workbench.settings.add")) + "</strong><div><p>" + escapeText(change.target_path) + "</p><small>" + escapeText(change.before) + " → " + escapeText(change.after) + "</small></div></li>").join("") || globalThis.t.text("workbench.settings.li-strong-no-change-strong-div-p-nothing");
+        changes.innerHTML = (plan.changes || []).map((change) => "<li><strong>" + escapeText(change.operation === "remove" ? globalThis.t.text("workbench.settings.remove") : change.operation === "replace" ? globalThis.t.text("workbench.settings.replace") : globalThis.t.text("workbench.settings.add")) + "</strong><div><p>" + escapeText(change.target_path) + "</p><small>" + escapeText(change.before) + " → " + escapeText(change.after) + "</small></div></li>").join("") || "<li><strong>" + escapeText(globalThis.t.text("workbench.settings.no-change")) + "</strong><div><p>" + escapeText(globalThis.t.text("workbench.settings.no-change-detail")) + "</p></div></li>";
         backup.textContent = plan.backup_path || globalThis.t.text("workbench.settings.change-needs-no-backup");
         restart.textContent = (plan.restart_instructions || []).join(" ") || globalThis.t.text("workbench.settings.no-restart-needed");
         confirmRow.hidden = plan.status !== "ready";
@@ -94,7 +94,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
       try {
         const result = await molisWorkRequest("/api/settings/runtimes/" + encodeURIComponent(activePlan.runtime_id) + "/confirm", { body: { plan_id: activePlan.plan_id, decision: "confirmed" }, fallback: globalThis.t.text("workbench.settings.runtime-connection-did-not-finish") });
         message.textContent = result.message;
-        changes.innerHTML = globalThis.t.text("workbench.settings.li-strong-done-strong-div-p") + escapeText(result.message) + "</p></div></li>";
+        changes.innerHTML = "<li><strong>" + escapeText(globalThis.t.text("workbench.settings.done")) + "</strong><div><p>" + escapeText(result.message) + "</p></div></li>";
         confirmRow.hidden = true;
         applyButton.hidden = true;
         reloadOnClose = true;
@@ -154,7 +154,7 @@ export const SETTINGS_CLIENT_SCRIPT = PLUGIN_SETTINGS_EDITOR + SKILL_SETTINGS_CL
 
 export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
   (() => {
-    const bind = (root = document) => {
+    const bind = (root = document, options = {}) => {
     const scope = root && root.querySelector ? root : document;
     const editor = scope.querySelector("[data-guidance-editor]");
     const form = scope.querySelector("[data-guidance-form]");
@@ -322,9 +322,10 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       }
     } catch { /* Ignore unavailable sessionStorage when reading settings receipt. */ }
     // D0225: only an opaque, actor/project/purpose-bound one-time reference crosses the URL.
-    const reference = new URLSearchParams(location.search).get("draft_ref");
+    const reference = new URLSearchParams(options.search || location.search).get("draft_ref");
     if (reference) {
-      history.replaceState(null, "", location.pathname);
+      if (new URLSearchParams(location.search).has("draft_ref")) history.replaceState(null, "", location.pathname);
+      else if (scope.dataset?.settingsSearch) delete scope.dataset.settingsSearch;
       void molisWorkRequest(routePrefix + "/api/contextual/draft-reference/take", { body: { purpose: "project-guidance", reference } }).then(async draft => {
         const [id, version] = JSON.parse(draft.text);
         const data = await molisWorkRequest(routePrefix + "/api/memory/overview?scope=project");

@@ -5,12 +5,53 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { createEvidenceContentStore, createFileSecretStore, sqliteErrorName } from "@molis-ai/molis-work-storage";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedHomePlugin, FEED_CONTENT_LEDGER_BATCH, FEED_FORGET_BATCH, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentLedgerActions, feedManifest,
-  createConnectionWatch, keepFeedReconcile, releaseHeldHistory, type FeedApplication, type FeedContentLedgerStore, type FeedEvidenceCollector, type FeedHistoryReleasePorts,
-  type FeedReconcilePorts } from "@molis-ai/molis-work-plugin-feed";
+import {
+  createEvidenceContentStore,
+  createFileSecretStore,
+  createLazyFileSecretStore,
+  homeSqlitePath,
+  openBaselineHomeSqlite,
+  PROJECT_SECTIONS_INLINE_ENCODING,
+  runWithMolisWorkHome,
+  sqliteErrorName,
+} from "@molis-ai/molis-work-storage";
+import { createProjectEvidenceContent, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import {
+  assembleFeedApplication,
+  createConnectionWatch,
+  createFeedContentLedger,
+  createFeedContentLedgerHandlers,
+  createFeedHomePlugin,
+  FEED_CONTENT_LEDGER_BATCH,
+  FEED_FORGET_BATCH,
+  FEED_HOME_DATABASE,
+  FEED_PLUGIN_ID,
+  FEED_PROJECT_DATABASE,
+  FEED_UNASSIGNED_BODY_HOLDER,
+  feedContentLedgerActions,
+  feedManifest,
+  holdKeptBodies,
+  keepFeedReconcile,
+  releaseHeldHistory,
+  type FeedApplication,
+  type FeedContentLedgerStore,
+  type FeedEvidenceCollector,
+  type FeedHistoryReleasePorts,
+  type FeedReconcilePorts,
+} from "@molis-ai/molis-work-plugin-feed";
+import {
+  FeedModule,
+  feedContentReplicationDefinition,
+  fromProjectConnection,
+  SignalsModule,
+  SourcesModule,
+} from "@molis-ai/molis-work-plugin-feed/store";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundClient, PluginJobControl, PluginManifest, PluginSqlValue, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { feedLedgerPort, unassignedFeedAttention } from "./fixtures/feed-ledger.js";
 
 // RAC-494 and RAC-2718 (the ledger half; the project half comes with Feed's move into the Runtime).
 
@@ -177,9 +218,12 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
   let failing = Number.POSITIVE_INFINITY;
   const asked: string[] = [];
   const ports: FeedReconcilePorts = { feed: standIn<FeedApplication>({ sources: { list: () => snapshot.sources }, reads: {
-    *history(_project: string, sourceId: string) {
-      const refs = sourceId === "s1" ? snapshot.feed_items[0]!.materials.map(row => row.content_ref) : [ref(0)];
-      for (let offset = 0; offset < refs.length; offset += 200) yield refs.slice(offset, offset + 200);
+    *projectBodyRefs() {
+      const rows = [
+        ...snapshot.feed_items[0]!.materials.map(row => ({ source_id: "s1", ref: row.content_ref })),
+        { source_id: "s2", ref: ref(0) },
+      ];
+      for (let offset = 0; offset < rows.length; offset += 200) yield rows.slice(offset, offset + 200);
     },
   } }), projectId: "p1", connections: undefined, commit: async (_control, body) => body(),
     hold: async (sourceId, refs) => {
@@ -308,4 +352,331 @@ test("RAC-2718: a Home with Feed installed somewhere releases from the start, wi
     database: { ...f.library.store.read, transaction: f.library.store.write },
     installations: { list: () => notRead(), get: () => notRead(), projects: () => notRead() } } };
   await assert.doesNotReject(untouched.start(withDirectory as PluginStartContext));
+});
+
+test("P0-09 holdKeptBodies registers active, retain_history retired, source_id IS NULL, and signal refs so cross-project release never deletes shared evidence", async (t) => {
+  const f = fixture(t);
+  const db = openTestSqlite(":memory:");
+  t.after(() => db.close());
+  db.pragma("foreign_keys = ON");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root (project_id) VALUES ('proj-a');");
+  db.exec(FEED_PROJECT_DATABASE.schema);
+  db.exec(ATTENTION_SCHEMA_SQL);
+  db.exec(CONTEXT_LEDGER_SCHEMA);
+
+  const sql = fromProjectConnection(db);
+  const attention = new AttentionModule(db, { exists: () => true });
+  const ledgerPort = feedLedgerPort(createContextLedger(db, { authorize: () => true }));
+  const feedStore = new FeedModule(sql, unassignedFeedAttention(attention), { ledger: ledgerPort });
+  const feed = assembleFeedApplication({
+    sql,
+    ledger: ledgerPort,
+    attention: () => unassignedFeedAttention(attention),
+    subscribeInboxCreated: () => {},
+    appendEvent: () => {},
+  });
+  const sources = new SourcesModule(sql);
+  const signals = new SignalsModule(sql);
+  const at = "2026-11-26T10:00:00.000Z";
+
+  const bodyActive = "active source body";
+  const bodyShared = "shared body retained by project A after retain_history";
+  const bodyUnassigned = "unassigned source_id IS NULL item body";
+  const bodySignal = "signal content_refs_json body";
+  const refActive = f.evidence.write(bodyActive).contentRef;
+  const refShared = f.evidence.write(bodyShared).contentRef;
+  const refUnassigned = f.evidence.write(bodyUnassigned).contentRef;
+  const refSignal = f.evidence.write(bodySignal).contentRef;
+
+  const saveSource = (sourceId: string) => sources.commands.save({
+    project_id: "proj-a",
+    source_id: sourceId,
+    kind: "manual",
+    definition_id: null,
+    sync_kind: "manual",
+    name: sourceId,
+    description: "",
+    status: "active",
+    enabled: true,
+    origin: "molis_work",
+    config: {},
+    schedule: { mode: "manual" },
+    connection_ref: null,
+    account_label: null,
+    last_sync_at: null,
+    last_outcome: null,
+    last_error_code: null,
+    imported_at: at,
+    updated_at: at,
+  });
+
+  saveSource("s-active");
+  saveSource("s-retired");
+
+  const makeMaterial = (materialId: string, contentRef: string, body: string) => ({
+    material_id: materialId,
+    canonical_url: `https://example.test/${materialId}`,
+    title: materialId,
+    source_name: "Feed",
+    published_at: at,
+    preview: body,
+    content_hash: `hash:${materialId}`,
+    content_ref: contentRef,
+    content_available: true,
+    content_type: "text/markdown",
+    character_count: body.length,
+    captured_at: at,
+    provenance: {},
+    selected_for_context: false,
+  });
+
+  feedStore.commands.ingest({
+    project_id: "proj-a",
+    source_id: "s-active",
+    source_kind: "manual",
+    source_label: "s-active",
+    external_id: "ext-active",
+    title: "Active item",
+    summary: "Summary",
+    occurred_at: at,
+    attention: false,
+    material: makeMaterial("mat-active", refActive, bodyActive),
+  });
+  feedStore.commands.ingest({
+    project_id: "proj-a",
+    source_id: "s-retired",
+    source_kind: "manual",
+    source_label: "s-retired",
+    external_id: "ext-retired",
+    title: "Retained item",
+    summary: "Summary",
+    occurred_at: at,
+    attention: false,
+    material: makeMaterial("mat-retired", refShared, bodyShared),
+  });
+  const orphanItem = feedStore.commands.ingest({
+    project_id: "proj-a",
+    source_id: "s-active",
+    source_kind: "manual",
+    source_label: "Manual",
+    external_id: "ext-orphan",
+    title: "Unassigned item",
+    summary: "Summary",
+    occurred_at: at,
+    attention: false,
+    material: makeMaterial("mat-orphan", refUnassigned, bodyUnassigned),
+  }).item;
+  db.prepare("UPDATE feed_items SET source_id = NULL WHERE project_id = ? AND item_id = ?").run("proj-a", orphanItem.item_id);
+
+  // Retire s-retired with retain_history so feed.sources.list("proj-a") no longer lists it.
+  sources.commands.retire("proj-a", "s-retired", "retain_history", at);
+  assert.deepEqual(feed.sources.list("proj-a").map((row) => row.source_id), ["s-active"]);
+
+  signals.commands.submitDraft({
+    project_id: "proj-a",
+    source_id: "s-signal",
+    provider_dedupe_id: "sig-1",
+    kind: "update",
+    occurred_at: at,
+    observed_at: at,
+    payload: { title: "Signal" },
+    content_refs: [refSignal],
+    raw_event_id: "raw-1",
+    adapter: { plugin_id: "fixture", version: "1.0.0" },
+    provenance: { source: "fixture" },
+  });
+
+  // Project B also holds the shared body before reconciliation runs for Project A.
+  await f.ledger.hold(noEffect, { project_id: "proj-b", source_id: "s-b" }, [refShared]);
+
+  await holdKeptBodies({
+    feed,
+    projectId: "proj-a",
+    connections: undefined,
+    commit: async (_control, body) => body(),
+    hold: async (sourceId, contentRefs) => {
+      await f.ledger.hold(noEffect, { project_id: "proj-a", source_id: sourceId }, contentRefs);
+    },
+  });
+
+  const projectAHolds = f.library
+    .rows()
+    .filter((row) => row.project_id === "proj-a")
+    .map((row) => [row.source_id, row.content_ref])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  assert.deepEqual(
+    projectAHolds,
+    [
+      [FEED_UNASSIGNED_BODY_HOLDER, refUnassigned],
+      ["s-active", refActive],
+      ["s-retired", refShared],
+      ["s-signal", refSignal],
+    ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  );
+
+  // Project B deletes its source and releases refShared; Project A's retain_history hold must keep the file alive.
+  assert.deepEqual(
+    await f.ledger.release(noEffect, { project_id: "proj-b", source_id: "s-b" }, [refShared]),
+    { bodies_deleted: 0, bodies_kept: 1, complete: true },
+  );
+  assert.equal(f.evidence.has(refShared), true);
+  assert.equal(f.evidence.read(refShared), bodyShared);
+  assert.equal(f.evidence.has(refActive), true);
+  assert.equal(f.evidence.has(refUnassigned), true);
+  assert.equal(f.evidence.has(refSignal), true);
+});
+
+test("P0-09 createProjectEvidenceContent runs holdEvidence before writing decoded evidence to Home pool", async (t) => {
+  const homeA = mkdtempSync(join(tmpdir(), "feed-evidence-codec-a-"));
+  const homeB = mkdtempSync(join(tmpdir(), "feed-evidence-codec-b-"));
+  t.after(() => {
+    rmSync(homeA, { recursive: true, force: true });
+    rmSync(homeB, { recursive: true, force: true });
+  });
+
+  const evidenceA = runWithMolisWorkHome(homeA, () =>
+    createEvidenceContentStore({ secretStore: createLazyFileSecretStore(homeA) }),
+  );
+  const evidenceB = runWithMolisWorkHome(homeB, () =>
+    createEvidenceContentStore({ secretStore: createLazyFileSecretStore(homeB) }),
+  );
+  const ledgerDb = libraryAt(join(homeB, "ledger.db"));
+  ledgerDb.db.exec(FEED_HOME_DATABASE.schema);
+  t.after(() => ledgerDb.db.close());
+  const ledger = createFeedContentLedger(ledgerDb.store, evidenceB);
+
+  const sharedBody = "Shared synced evidence protected before disk write\n";
+  const refShared = evidenceA.write(sharedBody).contentRef;
+  const at = "2026-11-26T10:00:00.000Z";
+  const spaceId = "space-p0-09";
+  const key = JSON.stringify(["proj-a", "project_feed", "proj-a"]);
+  const definition = feedContentReplicationDefinition();
+  const wire = {
+    ...PROJECT_SECTIONS_INLINE_ENCODING,
+    spaceId,
+    project: { id: "proj-a", title: "Project A" },
+    facts: {
+      [definition.id]: {
+        feed_items: [
+          {
+            project_id: "proj-a",
+            item_id: "item-1",
+            source_id: "src-a",
+            signal_id: null,
+            signal_revision: null,
+            kind: "update",
+            title: "Synced item",
+            summary: "Summary",
+            body: null,
+            source_kind: "manual",
+            source_label: "Manual",
+            external_id: "ext-1",
+            url: null,
+            origin_status: "active",
+            priority: "medium",
+            tags_json: "[]",
+            author: null,
+            disposition: "inbox",
+            read_at: null,
+            revision: 1,
+            source_created_at: at,
+            source_updated_at: at,
+            imported_at: at,
+            updated_at: at,
+          },
+        ],
+        feed_materials: [
+          {
+            project_id: "proj-a",
+            material_id: "mat-1",
+            item_id: "item-1",
+            canonical_url: "https://example.test/1",
+            title: "Synced material",
+            source_name: "Manual",
+            published_at: at,
+            preview: "Preview",
+            content_hash: "hash:1",
+            content_ref: refShared,
+            content_available: 1,
+            content_type: "text/markdown",
+            character_count: sharedBody.length,
+            captured_at: at,
+            provenance_json: "{}",
+            selected_for_context: 0,
+            imported_at: at,
+            updated_at: at,
+          },
+        ],
+        feed_item_events: [],
+      },
+    },
+  };
+
+  const encoder = createProjectEvidenceContent(homeA, [definition], "project_feed", spaceId, () => {});
+  const encoded = encoder.encode(key, wire);
+  assert.ok(encoded.blobs.length > 0);
+
+  let existedDuringHold: boolean | null = null;
+  const decoder = createProjectEvidenceContent(
+    homeB,
+    [definition],
+    "project_feed",
+    spaceId,
+    () => {},
+    async ({ projectId, refs }) => {
+      existedDuringHold = evidenceB.has(refShared);
+      await ledger.hold(noEffect, { project_id: projectId, source_id: "src-a" }, refs);
+    },
+  );
+  await decoder.decode(key, encoded.value, async (ref) => {
+    const found = encoded.blobs.find((blob) => blob.digest === ref.digest && blob.size === ref.size);
+    assert.ok(found);
+    return found.bytes;
+  });
+
+  assert.equal(existedDuringHold, false, "holdEvidence must execute before writing the evidence file to disk");
+  assert.equal(evidenceB.has(refShared), true);
+
+  // Project B holds and then releases refShared; Project A's hold keeps the disk file readable.
+  await ledger.hold(noEffect, { project_id: "proj-b", source_id: "src-b" }, [refShared]);
+  assert.deepEqual(
+    await ledger.release(noEffect, { project_id: "proj-b", source_id: "src-b" }, [refShared]),
+    { bodies_deleted: 0, bodies_kept: 1, complete: true },
+  );
+  assert.equal(evidenceB.has(refShared), true);
+  assert.equal(evidenceB.read(refShared), sharedBody);
+});
+
+test("F-pm3-06 FEED_HOME_DATABASE declares project_rows so deleting a project clears only that project's holds and unblocks shared-body release", async t => {
+  const parsed = parsePluginManifest(feedManifest);
+  assert.deepEqual(parsed.databases?.home?.project_rows?.tables, [{ table: "feed_content_holds", column: "project_id" }]);
+
+  const home = mkdtempSync(join(tmpdir(), "feed-project-rows-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const baseline = openBaselineHomeSqlite(home, FEED_HOME_DATABASE.store_name, FEED_HOME_DATABASE);
+  baseline.close();
+
+  const evidence = runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
+  const refShared = evidence.write("shared body across projects").contentRef;
+  const refOnlyA = evidence.write("project-a exclusive body").contentRef;
+
+  const library = libraryAt(homeSqlitePath(home, FEED_HOME_DATABASE.store_name));
+  t.after(() => library.db.close());
+  const ledger = createFeedContentLedger(library.store, {
+    collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)),
+  });
+
+  await ledger.hold(noEffect, { project_id: "proj-a", source_id: "src-a" }, [refShared, refOnlyA]);
+  await ledger.hold(noEffect, { project_id: "proj-b", source_id: "src-b" }, [refShared]);
+  assert.equal(library.rows().length, 3);
+
+  assert.equal(await projectDeletedHooksFor(home).clear("feed", "proj-a"), true);
+  assert.deepEqual(library.rows(), [{ content_ref: refShared, project_id: "proj-b", source_id: "src-b" }]);
+
+  assert.deepEqual(
+    await ledger.release(noEffect, { project_id: "proj-b", source_id: "src-b" }, [refShared]),
+    { bodies_deleted: 1, bodies_kept: 0, complete: true },
+  );
+  assert.equal(evidence.has(refShared), false, "once deleted proj-a's hold is cleared, proj-b's release collects the shared body");
+  assert.deepEqual(library.rows(), []);
 });

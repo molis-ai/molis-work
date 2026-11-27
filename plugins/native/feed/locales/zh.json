@@ -563,6 +563,7 @@
     "feed.actions.content-release.title": "释放来源持有的正文",
     "feed.actions.content-release.description": "删除来源记录后释放它对留存原文的引用，并清理已无人引用的旧正文。",
     "feed.actions.content-reclaim.title": "收回多余的正文登记",
-    "feed.actions.content-reclaim.description": "在拉取失败、取消或中断后收回未被引用的正文登记，并清理不再需要的旧正文。"
+    "feed.actions.content-reclaim.description": "在拉取失败、取消或中断后收回未被引用的正文登记，并清理不再需要的旧正文。",
+    "feed.project-deletion.data": "Feed 留存正文的引用记录"
   }
 }

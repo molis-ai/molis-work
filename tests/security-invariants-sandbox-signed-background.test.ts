@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import assert from 'node:assert/strict';
 import { ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -142,7 +143,7 @@ test('RAC2873 static package reconstruction rejects invalid local metadata and a
     await assert.rejects(r.h.projectClient().invoke(person(),ref(pluginInstallActions.preview),{bundle:wrong}));
   }
   const tampered=structuredClone(pkg.payload);tampered.manifest.actions![1]!.action.background_job!.status.version=99;
-  assert.throws(()=>readSandboxPackage(tampered),'a hand-written Manifest cannot replace the SDK projection');
+  assert.throws(()=>readSandboxPackage(tampered),{code:'plugin.declaration_invalid'},'a hand-written Manifest cannot replace the SDK projection');
   await r.h.install(pkg);await r.approve();
   assert.equal(await r.call('job.query-start',{job_id:'query'}),'sandbox.not_authorized');
   assert.equal(await r.call('job.query-cancel',{execution_id:'any'}),'sandbox.not_authorized');

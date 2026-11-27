@@ -351,7 +351,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
       setDesktopWorkSurface("home", false, false);
       saveUiState();
     }
-    const initialHashTargetId = decodeURIComponent(location.hash.slice(1));
+    let initialHashTargetId = "";
+    try { initialHashTargetId = decodeURIComponent(location.hash.slice(1)); } catch { /* Ignore malformed URL hash fragment. */ }
     if (!restoredUi && initialHashTargetId) void revealDeepLinkFromId(initialHashTargetId);
     pages.forEach((page) => page.receipts?.());
     immersiveNavigation?.sync();

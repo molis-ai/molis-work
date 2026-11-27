@@ -1,4 +1,4 @@
-import { decodeMaterialHTMLEntities, fetchMaterialPublicBytes, isMaterialSourceFailure, materialHTMLArticle, materialSourceErrors, validateMaterialPublicURL, type MaterialPublicFetchOptions, type MaterialPublicResponse } from "./material-source-reader.js";
+import { decodeMaterialHTMLEntities, fetchMaterialPublicBytes, materialHTMLArticle, materialSourceErrors, validateMaterialPublicURL, type MaterialPublicFetchOptions, type MaterialPublicResponse } from "./material-source-reader.js";
 import { extractUploadedMaterial, type UploadedMaterial, type MaterialUploadOptions } from "./material-upload.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isMaterialFailure } from "./material-text.js";
@@ -40,6 +40,20 @@ function https(value: unknown): string | null {
 function safeReferer(value: string): string { const url = new URL(value); url.search = ""; url.hash = ""; return url.href; }
 function responseJSON(response: MaterialPublicResponse): unknown { try { return JSON.parse(response.data.toString("utf8")); } catch { throw materialSourceErrors.invalid_json("来源返回的数据无法解析；原链接保留"); } }
 function checkAborted(options: MaterialSourceOptions): void { if (options.signal?.aborted) throw materialSourceErrors.cancelled("来源提取已取消"); }
+function isSourceControlFailure(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") return true;
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code !== "string") return false;
+  return code.startsWith("actions.")
+    || code.startsWith("plugin.")
+    || code === "material.source.private_address"
+    || code === "material.source.domain_not_allowed"
+    || code === "material.source.cancelled";
+}
+function rethrowSourceControlFailure(error: unknown, options: MaterialSourceOptions): void {
+  checkAborted(options);
+  if (isSourceControlFailure(error)) throw error;
+}
 export function materialXiaohongshuNoteID(value: string): string | null {
   // Not a URL is not a Xiaohongshu note.
   let url: URL; try { url = new URL(value); } catch { return null; }
@@ -166,7 +180,10 @@ async function bilibili(source: string, options: MaterialSourceOptions): Promise
       if (segments.length < 30 || segments.reduce((count, segment) => count + (segment.text.match(/\p{L}/gu)?.length ?? 0), 0) < 200) continue;
       const text = segments.map(segment => `[${segment.start_seconds}–${segment.end_seconds} 秒] ${segment.text}`).join("\n");
       return { text, title: typeof video.title === "string" ? video.title : metadata(html, "og:title"), source_url: source, provider: "bilibili", extractor: "bilibili-public-subtitles", segments, coverage: coverage(body.length > 10000 ? ["字幕仅提取前 10000 段"] : [], true) };
-    } catch (error) { checkAborted(options); if (!isMaterialSourceFailure(error) || error.kind === "forbidden" || error.kind === "cancelled" || error.code === "material.source.private_address") throw error; }
+    } catch (error) {
+      rethrowSourceControlFailure(error, options);
+      if (!(error instanceof ActionError) || !error.code.startsWith("material.source.") || error.kind === "forbidden" || error.kind === "cancelled") throw error;
+    }
   }
   throw materialSourceErrors.subtitles_missing(readWorkbenchText("common.error.subtitles-missing"));
 }
@@ -181,7 +198,7 @@ async function xiaohongshu(source: string, options: MaterialSourceOptions): Prom
     for (const [index, url] of payload.images.slice(0, 20).entries()) {
       checkAborted(options); if (bytes >= maxBinary) { issues.push("图集总下载达到 25 MB 上限"); break; }
       try { const result = await remoteImage(url, response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
-      catch (error) { checkAborted(options); if (error instanceof ActionError && !isMaterialFailure(error)) throw error; issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
+      catch (error) { rethrowSourceControlFailure(error, options); if (error instanceof ActionError && !isMaterialFailure(error)) throw error; issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
     }
     if (payload.images.length) issues.push("图片仅提取文字，未理解纯视觉内容");
   }

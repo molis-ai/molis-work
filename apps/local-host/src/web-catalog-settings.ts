@@ -1,4 +1,4 @@
-import { resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
+import { resolveActionProviderId, resolveManifestText, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { assertStageInstallation, installedStageIdentity } from "./installed-stage-identity.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectPluginJudge } from "./project-action-availability.js";
@@ -13,6 +13,7 @@ import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-s
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { capabilitiesView } from "./web-capabilities.js";
+import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -34,7 +35,9 @@ import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { callDiagnosticsView } from "./web-call-diagnostics.js";
 import { connectorSettingsView } from "./web-connector-settings.js";
 import { webSearchSettingsView } from "./web-search-http.js";
-import { currentLocale, inLanguagePreview, readText } from "./web-locale.js";
+import { localizeWebErrorMessage, readWorkbenchText } from "./ui-error-words.js";
+import { manifestWordResolver, registeredInstallationText } from "./ui-text-provider.js";
+import { activeLocale, currentLocale, inLanguagePreview, readText } from "./web-locale.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { CatalogRequestContext } from "./web-catalog-routes.js";
@@ -126,6 +129,7 @@ interface DiscoveredDynamicSettingsPlugin extends DynamicPluginSettingsNavItem {
   assertCurrent(): void;
   readonly readAction: ActionDefinition;
   readonly writeAction: ActionDefinition;
+  readonly localePacks: PluginLocaleReader | null;
 }
 
 /**
@@ -138,7 +142,8 @@ async function discoverDynamicSettingsPlugins(
   shownInProject: (pluginId: string) => boolean = () => true,
 ): Promise<DiscoveredDynamicSettingsPlugin[]> {
   const found: DiscoveredDynamicSettingsPlugin[] = [];
-  const register = (manifest: PluginManifest | undefined, scope: "home" | "project", record: PluginInstanceRecord, current: () => PluginInstanceRecord | null) => {
+  const locale = activeLocale() ?? currentLocale();
+  const register = (manifest: PluginManifest | undefined, scope: "home" | "project", record: PluginInstanceRecord, current: () => PluginInstanceRecord | null, localePacks: PluginLocaleReader | null) => {
     if (!manifest?.settings_entries?.entries.length) return;
     if (manifest.ui?.views?.some(view => view.slot === "settings")) return;
     const readAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.read.capability_id && a.version === manifest.settings_entries!.read.version);
@@ -146,10 +151,14 @@ async function discoverDynamicSettingsPlugins(
     if (!readAction || !writeAction || readAction.action.scope !== scope || writeAction.action.scope !== scope) return;
     const providerId = resolveActionProviderId(record);
     const installation = installedStageIdentity(scope, record);
+    const resolve = manifestWordResolver(localePacks, locale);
+    const label = manifest.name_text !== undefined
+      ? resolveManifestText(manifest.plugin_id, manifest.name, manifest.name_text, resolve)
+      : manifest.name;
     found.push({
       section_id: manifest.plugin_id + "~" + scope + "~" + record.install_id,
       plugin_id: manifest.plugin_id,
-      label: manifest.name + " · " + readText(scope === "home" ? "workbench.settings-assistant.personal" : "workbench.settings-assistant.current-project"),
+      label: label + " · " + readText(scope === "home" ? "workbench.settings-assistant.personal" : "workbench.settings-assistant.current-project"),
       manifest,
       declaration: manifest.settings_entries,
       scope,
@@ -157,6 +166,7 @@ async function discoverDynamicSettingsPlugins(
       assertCurrent: () => assertStageInstallation(scope, current(), installation),
       readAction: { ...readAction, provider_id: providerId },
       writeAction: { ...writeAction, provider_id: providerId },
+      localePacks,
     });
   };
   if (localHost.homePlugins) {
@@ -164,7 +174,10 @@ async function discoverDynamicSettingsPlugins(
       await localHost.homePlugins.ready();
       for (const record of localHost.homePlugins.installations(false, true)) {
         if (record.state !== "running") continue;
-        register(localHost.homePlugins.manifest(record.plugin_id), "home", record, () => localHost.homePlugins?.installation(record.install_id) ?? null);
+        const localePacks = record.publisher_trust === "host"
+          ? registeredInstallationText(record)
+          : localHost.homePlugins.packageStage(record.plugin_id)?.packaged?.localePacks ?? null;
+        register(localHost.homePlugins.manifest(record.plugin_id), "home", record, () => localHost.homePlugins?.installation(record.install_id) ?? null, localePacks);
       }
     } catch { /* Home plugin host unavailable or preview-only */ }
   }
@@ -175,11 +188,15 @@ async function discoverDynamicSettingsPlugins(
       await localHost.withProject(projectRef, async runtime => {
         const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
         if (!platform) return;
+        const installedHost = currentInstalledPluginHost(runtime.store, runtime.project_id);
         for (const record of platform.runtime.list()) {
           // A plugin hidden in this project has no settings here, as it has no place in the project's pages.
           if (record.state !== "running" || !shownInProject(record.plugin_id)) continue;
           const manifest = installedPluginManifest(runtime.store.db, record.install_id)?.manifest ?? platform.supervisor.manifest(record.plugin_id);
-          register(manifest, "project", record, () => platform.runtime.get(record.install_id));
+          const localePacks = record.publisher_trust === "host"
+            ? registeredInstallationText(record)
+            : installedHost?.releaseFor(record.plugin_id)?.packaged?.localePacks ?? null;
+          register(manifest, "project", record, () => platform.runtime.get(record.install_id), localePacks);
         }
       });
     } catch { /* Project plugin runtime unavailable */ }
@@ -192,27 +209,41 @@ function renderDynamicPluginSettingsHtml(
   values: SettingsValues,
   projectId: string | null,
 ): string {
+  const locale = activeLocale() ?? currentLocale();
+  const resolve = manifestWordResolver(plugin.localePacks, locale);
+  const resolveEntryText = (ref: SettingsDeclaration["entries"][number]["title"], fallback: string): string => {
+    if ("literal" in ref) return ref.literal;
+    if (ref.key.startsWith("common.") || ref.key.startsWith("workbench.")) {
+      return readWorkbenchText(ref.key, locale, ref.args);
+    }
+    return resolve
+      ? resolve({ owner: plugin.plugin_id, key: ref.key, ...(ref.args ? { args: ref.args } : {}) }, ref.fallback ?? fallback)
+      : (ref.fallback ?? fallback);
+  };
+  const escapeValue = (value: unknown) => escapeHtml(String(value ?? ""));
   const byKey = new Map(values.values.map(item => [item.key, item]));
   const rows = plugin.declaration.entries.map(entry => {
     const current = byKey.get(entry.key);
-    const title = "literal" in entry.title ? entry.title.literal : (entry.title.fallback ?? entry.key);
-    const summary = entry.summary ? ("literal" in entry.summary ? entry.summary.literal : (entry.summary.fallback ?? "")) : "";
-    const valueText = current?.state === "ok" ? (typeof current.value === "string" ? current.value : JSON.stringify(current.value)) : (current?.reason ?? "");
+    const title = resolveEntryText(entry.title, entry.key);
+    const summary = entry.summary ? resolveEntryText(entry.summary, "") : "";
+    const valueText = current?.state === "ok"
+      ? (typeof current.value === "string" ? current.value : JSON.stringify(current.value))
+      : (current?.reason ? localizeWebErrorMessage(current.reason, "common.error.unavailable", locale) : "");
     const source = current?.state === "ok" ? current.source : "unavailable";
     const defaultLayer = entry.layers[0] ?? (plugin.scope === "project" ? "project" : "personal");
     const revision = current?.state === "ok" ? current.layer_revisions?.[defaultLayer] ?? current.revision : "";
     const options = entry.schema.enum;
-    const field = options?.length ? `<select name="value" data-format="json">${options.map(option => `<option value="${escapeSettingsHtml(JSON.stringify(option))}"${current?.state === "ok" && JSON.stringify(current.value) === JSON.stringify(option) ? " selected" : ""}>${escapeSettingsHtml(typeof option === "string" ? option : JSON.stringify(option))}</option>`).join("")}</select>`
+    const field = options?.length ? `<select name="value" data-format="json">${options.map(option => `<option value="${escapeValue(JSON.stringify(option))}"${current?.state === "ok" && JSON.stringify(current.value) === JSON.stringify(option) ? " selected" : ""}>${escapeValue(typeof option === "string" ? option : JSON.stringify(option))}</option>`).join("")}</select>`
       : entry.schema.type === "boolean" ? `<input name="value" type="checkbox"${current?.state === "ok" && current.value === true ? " checked" : ""}>`
-      : entry.schema.type === "string" ? `<input name="value" type="text" value="${escapeSettingsHtml(valueText)}">`
-      : `<textarea name="value" data-format="json">${escapeSettingsHtml(valueText)}</textarea>`;
-    return `<div class="settings-row" data-plugin-setting-key="${escapeSettingsHtml(entry.key)}" data-plugin-setting-revision="${escapeSettingsHtml(revision)}" data-plugin-setting-layer="${escapeSettingsHtml(defaultLayer)}">
-      <div class="settings-row-copy"><strong>${escapeSettingsHtml(title)}</strong>${summary ? `<p>${escapeSettingsHtml(summary)}</p>` : ""}<span class="settings-row-meta">${escapeSettingsHtml(source)}</span></div>
-      <div class="settings-row-control">${current?.state === "ok" ? `<form data-plugin-setting-editor aria-label="${escapeSettingsHtml(title)}"><label><span class="sr-only">${escapeSettingsHtml(title)}</span>${field}</label><button type="submit" class="mw-btn mw-btn--secondary">${escapeSettingsHtml(readText("workbench.settings.apply"))}</button><output aria-live="polite"></output></form>` : `<span data-plugin-setting-value>${escapeSettingsHtml(valueText)}</span>`}</div>
+      : entry.schema.type === "string" ? `<input name="value" type="text" value="${escapeValue(valueText)}">`
+      : `<textarea name="value" data-format="json">${escapeValue(valueText)}</textarea>`;
+    return `<div class="settings-row" data-plugin-setting-key="${escapeValue(entry.key)}" data-plugin-setting-revision="${escapeValue(revision)}" data-plugin-setting-layer="${escapeValue(defaultLayer)}">
+      <div class="settings-row-copy"><strong>${escapeValue(title)}</strong>${summary ? `<p>${escapeValue(summary)}</p>` : ""}<span class="settings-row-meta">${escapeValue(source)}</span></div>
+      <div class="settings-row-control">${current?.state === "ok" ? `<form data-plugin-setting-editor aria-label="${escapeValue(title)}"><label><span class="sr-only">${escapeValue(title)}</span>${field}</label><button type="submit" class="mw-btn mw-btn--secondary">${escapeValue(readText("workbench.settings.apply"))}</button><output aria-live="polite"></output></form>` : `<span data-plugin-setting-value>${escapeValue(valueText)}</span>`}</div>
     </div>`;
   }).join("");
-  return `<section class="settings-section" data-dynamic-plugin-settings="${escapeSettingsHtml(plugin.plugin_id)}" data-plugin-install-id="${escapeSettingsHtml(plugin.record.install_id)}" data-manifest-digest="${escapeSettingsHtml(plugin.record.manifest_digest)}" data-installation-generation="${escapeSettingsHtml(plugin.record.installation_generation)}" data-plugin-scope="${plugin.scope}" data-dynamic-plugin-project="${escapeSettingsHtml(projectId ?? "")}">
-    <header class="settings-section-header"><h1>${escapeSettingsHtml(plugin.label)}</h1></header>
+  return `<section class="settings-section" data-dynamic-plugin-settings="${escapeValue(plugin.plugin_id)}" data-plugin-install-id="${escapeValue(plugin.record.install_id)}" data-manifest-digest="${escapeValue(plugin.record.manifest_digest)}" data-installation-generation="${escapeValue(plugin.record.installation_generation)}" data-plugin-scope="${plugin.scope}" data-dynamic-plugin-project="${escapeValue(projectId ?? "")}">
+    <header class="settings-section-header"><h1>${escapeValue(plugin.label)}</h1></header>
     <div class="settings-card">${rows}</div>
   </section>`;
 }
@@ -354,7 +385,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     };
     const dataAction = pluginSettingsDataAction(pluginSettings.contribution_id);
     const data = dataAction ? await bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS).invoke(dataAction, {}) : undefined;
-    const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: readText } };
+    const model: SettingsPageModel = { context, data, primitives: { escape: escapeHtml, text: readText } };
     plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
     sectionId = pluginSettings.section_id;
   } else {
@@ -385,12 +416,4 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     diagnostics: composition.installationDiagnostics(personProjects.length),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
-}
-
-function escapeSettingsHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }

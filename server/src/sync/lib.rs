@@ -63,7 +63,7 @@ async fn handle(mut req: Request, env: Env) -> ApiResult<Response> {
     {
         require(permanent_cleanup, 409, "SYNC_PURGE_DISABLED")?;
     }
-    if url.path() == "/v1/maintenance" {
+    if req.method() == Method::Post && url.path() == "/v1/maintenance" {
         rate_limit::admit_maintenance(&db, &format!("maintenance:{space}")).await?;
     }
     if url.path().starts_with("/v1/blobs/") {

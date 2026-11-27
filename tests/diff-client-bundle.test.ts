@@ -51,3 +51,80 @@ test("RAC-169 the Diff client is typed browser code bundled by esbuild, asks the
     }
   }
 });
+
+test("F-plugins-rest-w2-10: Diff client resets stale change_index to 0 when a newer turn shrinks to a single file", async () => {
+  class StubElement {
+    disabled = false;
+    hidden = false;
+    textContent = "";
+    innerHTML = "";
+    dataset: Record<string, string> = {};
+    private readonly attrs = new Map<string, string>();
+    constructor(private readonly selector?: string, private readonly children: Record<string, StubElement> = {}) {}
+    matches(query: string) { return query === this.selector; }
+    querySelector(query: string) { return this.children[query] ?? null; }
+    querySelectorAll() { return []; }
+    setAttribute(name: string, value: string) { this.attrs.set(name, value); }
+    replaceChildren() { this.innerHTML = ""; }
+    append() {}
+    closest(query: string) { return query === this.selector ? this : null; }
+  }
+  const spin = new StubElement(".mw-spinner");
+  const reload = new StubElement("[data-companion-refresh]", { ".mw-spinner": spin });
+  const body = new StubElement("[data-companion-content]");
+  const note = new StubElement("[data-companion-status]");
+  const root = new StubElement("[data-companion]", {
+    "[data-companion-refresh]": reload, "[data-companion-content]": body, "[data-companion-status]": note,
+  });
+  const listeners = new Map<string, (event: unknown) => void>();
+  const requested: string[] = [];
+  let singleFile = false;
+  const savedGlobals = {
+    HTMLElement: globalThis.HTMLElement,
+    document: globalThis.document,
+    t: (globalThis as Record<string, unknown>).t,
+    molisWorkRequest: (globalThis as Record<string, unknown>).molisWorkRequest,
+  };
+  Object.assign(globalThis, {
+    HTMLElement: StubElement,
+    document: { createTextNode: (v: string) => v },
+    t: { text: (key: string) => key },
+    molisWorkRequest: Object.assign(async (url: string) => {
+      requested.push(url);
+      if (singleFile && url.endsWith("change_index=1")) {
+        return { view: { phase: "unavailable", group: "change-set", files: [{ path: "only.ts" }] }, html: "<div>unavailable</div>" };
+      }
+      return { view: { phase: "ready", group: "change-set", files: singleFile ? [{ path: "only.ts" }] : [{ path: "a.ts" }, { path: "b.ts" }] },
+        html: singleFile ? "<div>only.ts diff</div>" : `<div>${url}</div>` };
+    }, { show() {} }),
+  });
+  try {
+    const factory = new Function(`return ${DIFF_CLIENT_FACTORY_SCRIPT}`)() as (host: unknown) => unknown;
+    factory({
+      root,
+      pluginRoute: (path: string) => path,
+      mountPluginClient: () => ({
+        alive: true, visible: true,
+        listen: (target: unknown, name: string, cb: (event: unknown) => void) => { if (target === root) listeners.set(name, cb); },
+        whenVisible: (start: (signal: AbortSignal) => void) => { start(new AbortController().signal); return () => {}; },
+        assertCurrent() {},
+      }),
+    });
+    await new Promise(resolve => setImmediate(resolve));
+    const fileBtn = new StubElement('[data-action="diff.show-file"]');
+    fileBtn.dataset.changeIndex = "1";
+    listeners.get("click")?.({ target: fileBtn });
+    await new Promise(resolve => setImmediate(resolve));
+    singleFile = true;
+    listeners.get("click")?.({ target: reload });
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(requested, ["/state?change_index=0", "/state?change_index=1", "/state?change_index=1", "/state?change_index=0"]);
+    assert.equal(body.innerHTML, "<div>only.ts diff</div>");
+  } finally {
+    for (const [key, value] of Object.entries(savedGlobals)) {
+      if (value === undefined) Reflect.deleteProperty(globalThis, key);
+      else Object.assign(globalThis, { [key]: value });
+    }
+  }
+});

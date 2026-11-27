@@ -19,6 +19,8 @@ jobs:
           - runner: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.runner }}
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.0
     steps:
       - uses: actions/checkout@v6
 
@@ -30,7 +32,8 @@ jobs:
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.96.0 --profile minimal
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -61,7 +64,7 @@ jobs:
           printf 'configured=%s\n' "$HAS_APPLE_RELEASE_CREDENTIALS" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF" == refs/tags/v* && "$HAS_APPLE_RELEASE_CREDENTIALS" != "true" ]]; then
             echo "A public macOS release requires Developer ID signing and Apple notarization credentials." >&2
-            echo "See the macOS Secret references in tooling/release/profile.mjs --profile dev --ci-outputs." >&2
+            echo "See the macOS Secret references in tooling/release/profile.mjs --profile release --ci-outputs." >&2
             exit 1
           fi
 
@@ -84,7 +87,7 @@ jobs:
           APPLE_TEAM_ID: ${{ steps.signing.outputs.configured == 'true' && secrets[steps.profile.outputs.teamId] || '' }}
         run: |
           if [[ -z "$BUNDLED_PUBLISHER_KEY" ]]; then
-            echo "The configured development publisher key Secret is required to sign the bundled packages." >&2
+            echo "The configured ${MOLIS_WORK_RELEASE_PROFILE} publisher key Secret (${PUBLISHER_KEY_REF:-unconfigured}) is required to sign the bundled packages." >&2
             exit 1
           fi
           umask 077

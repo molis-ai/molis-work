@@ -307,3 +307,22 @@ test('PCSYNC-OPT-10 cross-day independent milestone version keeps full 30-day re
  const v2After=await f.db.prepare('SELECT retained_until FROM sync_version_retention WHERE space=? AND namespace=? AND revision=?').bind(f.space('alice'),f.namespace,v2).first();
  assert.ok(v2After.retained_until>now+29*86400000,'milestone v2 keeps 30-day retention after later edits');
 });
+
+test('F-modules-server-28/31 GET /v1/maintenance stays read-only with zero D1 writes and trash restore replay returns revision',async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ assert.equal((await f.call('/v1/maintenance','alice',undefined,'GET')).status,404);
+ assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM sync_rate_windows').first()).n,0,'GET /v1/maintenance must not write sync_rate_windows');
+ await f.writeMode('read-only');
+ assert.equal((await f.call('/v1/maintenance','alice',undefined,'GET')).status,404);
+ assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM sync_rate_windows').first()).n,0,'GET /v1/maintenance in read-only mode writes zero rows');
+ await f.writeMode('read-write');
+
+ const delRev=await deleted(f,'replay-trash');
+ const first=await restore(f,delRev,'trash-replay-op','replay-trash');
+ assert.equal(first.status,200);
+ const firstBody=await first.json();
+ assert.ok(Number.isSafeInteger(firstBody.revision) && firstBody.revision>delRev);
+ const second=await restore(f,delRev,'trash-replay-op','replay-trash');
+ assert.equal(second.status,200);
+ assert.deepEqual(await second.json(),firstBody,'idempotent trash restore replay must return the original revision');
+});

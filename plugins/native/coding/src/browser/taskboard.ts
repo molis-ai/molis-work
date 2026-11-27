@@ -1,4 +1,4 @@
-import { renderEmpty, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, renderEmpty, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage, el, part } from "./dom.js";
 import { svg } from "./taskboard-format.js";
 import { drawOutlineRow } from "./taskboard-outline.js";
@@ -32,7 +32,6 @@ interface State {
   readonly notice: HTMLElement;
   readonly title: HTMLElement;
   readonly meta: HTMLElement;
-  readonly empty: string;
   /** The outline's rows are redrawn whole; one listener on the list finds a row's target by its key. */
   readonly outlineTargets: Map<string, BoardTarget>;
   owner: string;
@@ -44,7 +43,7 @@ interface State {
 
 /** What changes the drawing: the graphs, the rounds' phases and executors, the attention items and what is folded. */
 function fingerprint(state: State, data: BoardData): string {
-  return JSON.stringify([state.owner, data.plan, data.taskboard_plans, (data.runs || []).map(run => [run.ref.run_id, run.phase, run.frozen?.character?.title]), data.subagents, data.recovery_required, data.checkpoint_busy, [...state.view.collapsed]]);
+  return JSON.stringify([activeUiLocale(), state.owner, data.plan, data.taskboard_plans, (data.runs || []).map(run => [run.ref.run_id, run.phase, run.frozen?.character?.title]), data.subagents, data.recovery_required, data.checkpoint_busy, [...state.view.collapsed]]);
 }
 
 /** The latest graph in one line: revision, steps done, and who the open steps wait on. */
@@ -83,7 +82,7 @@ function drawOutline(state: State) {
   brief.textContent = line.text;
   brief.hidden = !line.text;
   if (expand) expand.disabled = false;
-  note.textContent = state.loadError || data.error || (groups.length ? uiText.text("coding.board.outline-note") : state.empty);
+  note.textContent = state.loadError || data.error || (groups.length ? uiText.text("coding.board.outline-note") : uiText.text("coding.board.empty"));
   rows.replaceChildren();
   state.outlineTargets.clear();
   for (const group of groups) {
@@ -115,9 +114,9 @@ function drawGroup(state: State, group: BoardGroup): HTMLElement {
 }
 
 /** The board of a session with no plan and no subtask yet: what it is for, and where such work starts. */
-function emptyBoard(state: State): HTMLElement {
+function emptyBoard(): HTMLElement {
   const box = el("div");
-  box.innerHTML = renderEmpty({ icon: "board", title: uiText.text("coding.board.empty-title"), body: state.empty, className: "coding-board-empty" });
+  box.innerHTML = renderEmpty({ icon: "board", title: uiText.text("coding.board.empty-title"), body: uiText.text("coding.board.empty"), className: "coding-board-empty" });
   return box.firstElementChild as HTMLElement;
 }
 
@@ -143,7 +142,7 @@ function drawBoard(state: State) {
   const problem = state.loadError || data.error;
   state.notice.textContent = problem || (groups.length ? uiText.text("coding.board.notice") : "");
   // Nothing planned yet is the shared empty state (screen-polish §6.6), not a footnote under an empty table.
-  state.list.replaceChildren(...(groups.length || problem ? groups.map(group => drawGroup(state, group)) : [emptyBoard(state)]));
+  state.list.replaceChildren(...(groups.length || problem ? groups.map(group => drawGroup(state, group)) : [emptyBoard()]));
   board.scrollTop = scroll;
   // A late completion can redraw the row that just received focus back from the child conversation.
   if (focusedRow && document.activeElement === document.body) {
@@ -185,7 +184,7 @@ export function taskboard(ports: TaskboardPorts): Taskboard {
   const view: RowView = { ports, words, board, list: part(board, "[data-coding-board-list]"), collapsed: new Set(), redraw: () => { state.key = ""; render(state); } };
   const state: State = {
     ports, view, outline, list: view.list, notice: part(board, "[data-coding-board-status]"), title: part(board, "[data-coding-board-title]"), meta: part(board, "[data-coding-board-meta]"),
-    empty: uiText.text("coding.board.empty"), outlineTargets: new Map(), owner: "", data: null, key: "", outlineKey: "", loadError: "",
+    outlineTargets: new Map(), owner: "", data: null, key: "", outlineKey: "", loadError: "",
     input: data => ({ data, translate: readText, words, ports }),
   };
   if (outline) {

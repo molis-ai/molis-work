@@ -80,7 +80,8 @@ function installedUpgradeValidator(release: InstalledRelease, manifest: PluginMa
   return async ({ from, context }: { from: { version: string }; context: PluginUpgradeContext }) => {
     if (!sources.includes(from.version)) return;
     context.assertCurrent?.();
-    assertSandboxActivationScope(context.project_id, release.permissions);
+    const dualInstance = manifest.runtime?.scope === 'home' && manifest.runtime.dual_instance === true;
+    assertSandboxActivationScope(context.project_id, release.permissions, dualInstance);
     const storage = context.services?.storage, authority = context.assertCurrent;
     let accepted: SandboxJson | undefined;
     try {

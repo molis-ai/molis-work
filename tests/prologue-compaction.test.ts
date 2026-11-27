@@ -3,7 +3,8 @@ import test from "node:test";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { compactionSelection, createPrologueCompactor } from "../horizontal/agent-host/dist/adapters/prologue-compaction.js";
 import { UNTRUSTED_MATERIALS_NOTICE } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
@@ -236,4 +237,67 @@ test("Node file observations include the tail of ordinary source files beyond 20
     }
     assert.equal(view.phase,"completed",JSON.stringify(view));assert.equal(requests,2);
   } finally {await adapter.close();await rm(root,{recursive:true,force:true});}
+});
+
+test("a round whose early compaction fails goes on while its history still fits the model's window", { timeout: 60_000 }, async t => {
+  const sseResponse = (text: string, tool?: { name: string; input: unknown }) => {
+    const events: string[] = [];
+    const emit = (type: string, value: Record<string, unknown>) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+    emit("message_start", { message: { id: "fixture", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 30, output_tokens: 0 } } });
+    if (tool) {
+      emit("content_block_start", { index: 0, content_block: { type: "tool_use", id: "call-" + Math.random(), name: tool.name, input: tool.input } });
+    } else {
+      emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
+      emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } });
+    }
+    emit("content_block_stop", { index: 0 });
+    emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn" }, usage: { output_tokens: 8 } });
+    emit("message_stop", {});
+    return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+  };
+  const bodyOf = (init: RequestInit) => JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+  const root = await mkdtemp(join(tmpdir(), "molis-compaction-continue-"));
+  const files = Array.from({ length: 6 }, (_, i) => `part-${i}.md`);
+  for (const name of files) {
+    await writeFile(join(root, name), Array.from({ length: 200 }, (_, i) => `${name} line ${i}: a habit check-in note that makes the context large enough.`).join("\n") + "\n");
+  }
+  let compactions = 0;
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = bodyOf(init);
+    if (!body.tools?.length) {
+      compactions++;
+      return sseResponse("这不是一个选择记录");
+    }
+    calls++;
+    return calls <= files.length ? sseResponse("", { name: "read", input: { path: files[calls - 1] } }) : sseResponse("读完了，每个文件 200 行。");
+  });
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" };
+  const directory = { canonical_path: root, realpath_verified: true };
+  const queue = new AgentReviewQueue();
+  const adapter = await createPrologueNodeAdapter({
+    app: { appId: "io.molis.work.compaction-continue-test", appVersion: "1.0.0" },
+    storageRoot: join(root, "runtime"),
+    reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "test-only",
+  });
+  const host = new AgentHost({ reviews: queue });
+  host.register(adapter);
+  try {
+    const session = await adapter.createSession({ ...owner, directory, title: "整理失败" });
+    const started = await host.start("prologue", { ...owner, session, directory, role_id: "builder", task: "逐个读 part-0.md 到 part-5.md，说各有多少行", session_title: "整理失败" } as never,
+      { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] });
+    let view = await adapter.read(started.ref);
+    for (const deadline = Date.now() + 30_000; !["completed", "failed", "cancelled"].includes(view.phase); view = await adapter.read(started.ref)) {
+      if (Date.now() > deadline) throw new Error("timed out in " + view.phase);
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.ok(compactions >= 1, "the compaction was tried");
+    assert.equal(view.phase, "completed", view.stop_reason);
+    assert.equal(calls, files.length + 1, "the round went on to its answer with the history it had");
+  } finally {
+    await adapter.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });

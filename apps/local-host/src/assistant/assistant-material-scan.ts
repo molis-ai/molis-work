@@ -1,6 +1,6 @@
 import { LOOKBACK_DEFAULT, lookbackHours } from "./assistant-setting-values.js";
 import { assistantWords } from "./assistant-saved-text.js";
-import { isSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { findSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PersonActions } from "./assistant-executor.js";
 import type { WorkIdentity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -64,12 +64,15 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
     const views = await withinTime(actions.discover()).catch((error: unknown) => { looked.problem = error instanceof Error ? error.message : String(error); return [] as ActionView[]; });
     const providers = views.filter(view => view.action.input_type === WORK_EVENTS_INPUT_TYPE && view.action.output_type === WORK_EVENTS_OUTPUT_TYPE && view.availability.available);
     looked.capabilities = views.length; looked.sources = providers.length;
-    const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
     const read = async (subject: { kind: string; id: string }): Promise<ActionSubjectContext | null> => {
-      const reader = readers.find(view => view.action.subject_kinds.includes(subject.kind));
-      if (!reader) return null;
-      try { return await withinTime(actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id })) as ActionSubjectContext; }
-      catch { return null; }
+      const lookup = findSubjectReader(views, subject.kind);
+      if (lookup.found !== "one") return null;
+      const reader = lookup.view;
+      try {
+        return await withinTime(actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id })) as ActionSubjectContext;
+      } catch {
+        return null;
+      }
     };
     // What each live work is about: the objects other objects attach to (a Goal: any kind an owner declares as the other end of a
     // relation placement keeps, `placement_relation`) among the objects it relates to, and the ones their owners attach them to.

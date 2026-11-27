@@ -221,7 +221,7 @@ test("MEM-01 a secret anywhere in a write, or content too deep or too large, is 
   // Classification values, extra ones included, come from the App's declared lists, so no free text (and no secret) can sit there.
   for (const [name, input] of [...places.map(([name, build]) => [name, build(secret, `secret-${name}`)] as const),
     ["too large", { ...save, operation_id: "too-large", text: "x".repeat(1_000_000) }] as const]) {
-    await assert.rejects(memory.write(input), `${name} is refused`);
+    await assert.rejects(memory.write(input), { code: "MEMORY_NOT_ACCEPTED" }, `${name} is refused`);
     assert.deepEqual(f.bytes(), before, `${name}: no entry, candidate or history byte is written`);
   }
   assert.deepEqual(await memory.list(where.scope, where.owner), []);

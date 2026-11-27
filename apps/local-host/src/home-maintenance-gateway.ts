@@ -10,7 +10,7 @@ import { probeMcpResident, probeMcpResidentReport } from "./mcp-resident-health.
 import { resolveConfiguredHome } from "./product-home.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
-import { readLocalWebBody, sendLocalGatewayJson as sendJson } from "./web-http.js";
+import { readLocalWebBody, requestAbortSignal, sendLocalGatewayJson as sendJson } from "./web-http.js";
 
 /** S-07 control gateway for online Home maintenance (online SQLite backup while resident Host holds `storage-owner`). */
 export const HOME_MAINTENANCE_PATH = "/api/internal/home-maintenance";
@@ -40,11 +40,7 @@ export async function handleHomeMaintenanceHttp(
     sendJson(response, 403, { error: "维护接口仅接受本机控制凭据调用" });
     return true;
   }
-  const controller = new AbortController();
-  const disconnected = () => {
-    if (!response.writableFinished) controller.abort(new ActionError("actions.cancelled", "维护调用连接已断开"));
-  };
-  response.once("close", disconnected);
+  const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "维护调用连接已断开"));
   try {
     const body = await readLocalWebBody(request, 64 * 1024);
     if (
@@ -65,12 +61,12 @@ export async function handleHomeMaintenanceHttp(
       ? await createOnlineHomeSnapshot(host, {
         homeDirectory: home,
         destination: body.destination,
-        signal: controller.signal,
+        signal: disconnected.signal,
       })
       : await createHomeSnapshot({
         homeDirectory: home,
         destination: body.destination,
-        signal: controller.signal,
+        signal: disconnected.signal,
       });
     if (!response.destroyed) sendJson(response, 200, { result });
     else if (!response.writableEnded) {
@@ -81,7 +77,7 @@ export async function handleHomeMaintenanceHttp(
     const refused = actionErrorResponse(error);
     if (!response.destroyed) sendJson(response, refused.status, refused.body);
   } finally {
-    response.off("close", disconnected);
+    disconnected.dispose();
   }
   return true;
 }

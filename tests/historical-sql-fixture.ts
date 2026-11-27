@@ -1,5 +1,3 @@
-import type { SessionHandoffGoalContext } from "@molis-ai/molis-work-plugin-work";
-import type { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 
 type SqlDatabase = {
@@ -35,35 +33,4 @@ export function insertHistoricalPolicy(
     input.created_at ?? "2026-09-01T00:00:00.000Z",
     input.project_id,
   );
-}
-
-/** Same current/history assembly Host uses for Session Handoff. */
-export function sessionHandoffGoalContext(
-  app: GoalProjectApplication,
-  projectId: string,
-  goalId: string,
-): SessionHandoffGoalContext {
-  const history = app.goalQueries.readGoalContract(projectId, goalId);
-  const event_work = app.goalEvents.isEventStateOwner(projectId, goalId);
-  const state = event_work ? app.goalEvents.readState(projectId, goalId) : null;
-  return {
-    board: history.board,
-    goal: history.goal,
-    goal_event_cursor: app.goalEvents.readState(projectId, goalId).goal_event_cursor,
-    event_work,
-    event_facts: state
-      ? {
-          work_status: state.work_status,
-          outcome: state.agreement.outcome,
-          next_step: state.progress_summary?.next_step ?? null,
-          pending_decisions: state.pending_decisions.map((item) => item.question),
-          current_decisions: state.current_decisions.map((item) => item.conclusion),
-          gaps: state.gaps.map((item) => item.statement),
-          requirements: state.requirements.map((item) => item.statement),
-          stale_summary: state.progress_summary?.stale === true,
-          resume_required: state.work_status === "completed" || state.work_status === "cancelled",
-          closure_reason: state.closure?.reason ?? null,
-        }
-      : null,
-  };
 }

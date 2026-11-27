@@ -1,7 +1,7 @@
 import { stopEvent } from "./editor-view-ui.js";
 import type { EditorView } from "prosemirror-view";
 import { commitDrag, DragPreview } from "./drag-preview.js";
-import { previewSpan, spanRows } from "./reorder.js";
+import { previewCopySpan, previewSpan, spanRows } from "./reorder.js";
 import { chromePlugin } from "./editor-gap.js";
 import { codeHighlightPlugin } from "./editor-node-media.js";
 import { hoverKey, EMPTY_HOVER } from "./editor-block-selection.js";
@@ -34,13 +34,13 @@ export function createBlockDrag(view: EditorView, handle: HTMLElement, translate
     drag = null;
     if (grip.hasPointerCapture(pointerId)) grip.releasePointerCapture(pointerId);
     if (wasActive) suppressClick = true;
-    const valid = commit && wasActive && motion?.source === view.state.doc
-      && previewSpan(view.state.doc, anchor, head, gap, level);
+    const valid = Boolean(commit && wasActive && motion?.source === view.state.doc
+      && (alt ? previewCopySpan : previewSpan)(view.state.doc, anchor, head, gap, level));
+    let committed = false;
     const apply = () => {
-      if (valid) {
-        commitDrag(view, anchor, head, gap, level,
-          tr => tr.setMeta(hoverKey, { span: null, pos: -1, dragging: false }), alt);
-      } else setHover(motion && motion.source !== view.state.doc ? -1 : from, false);
+      committed = valid && commitDrag(view, anchor, head, gap, level,
+        tr => tr.setMeta(hoverKey, { span: null, pos: -1, dragging: false }), alt);
+      if (!committed) setHover(motion && motion.source !== view.state.doc ? -1 : from, false);
     };
     if (wasActive && motion) motion.finish(apply, ghost.getBoundingClientRect());
     else apply();
@@ -50,7 +50,7 @@ export function createBlockDrag(view: EditorView, handle: HTMLElement, translate
     ghost.style.transform = "";
     handle.classList.remove("is-dragging");
     document.documentElement.classList.remove("is-pages-dragging");
-    if (valid) view.focus();
+    if (committed) view.focus();
   };
   return {
     ghost,

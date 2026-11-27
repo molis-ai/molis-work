@@ -25,7 +25,7 @@ import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { captureWebSessionAuthority } from '../web-sessions.js';
-import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
+import { LOCAL_PAGE_CSP, readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { capabilityCatalog, type CatalogCapability, type ProjectActions } from '../installed-plugin-catalog.js';
 import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -172,7 +172,13 @@ function page(title: string, body: string, configuration: Record<string, unknown
     title, html: body, accountRegistration:options.accountRegistration, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
 }
 function html(response: ServerResponse, body: string) {
-  response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(body);
+  response.writeHead(200, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'content-security-policy': LOCAL_PAGE_CSP,
+    'x-content-type-options': 'nosniff',
+  });
+  response.end(body);
 }
 
 /** The agent-built plugin studio. All mutations reach this dispatcher after the shared local HTTP control guard. */

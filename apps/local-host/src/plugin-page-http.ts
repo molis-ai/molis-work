@@ -119,7 +119,9 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
       if (submit && (typeof component_id !== "string" || !component_id || !Object.hasOwn(body, "payload")))
         throw new ActionError("actions.input_invalid", "组件提交请求无效");
       const beforeBackgroundEffect = async () => {
-        const key = page.project_key ?? builtinPluginByManifestId(page.plugin_id)?.project_plugin_id;
+        const surface = hostSurfaceByManifestId(page.plugin_id);
+        const homeKey = surface ? undefined : localHost.homePlugins?.registered().find(item => item.manifest.plugin_id === page.plugin_id)?.key;
+        const key = page.project_key ?? (surface ? undefined : builtinPluginByManifestId(page.plugin_id)?.project_plugin_id ?? homeKey);
         if (shown && key && !(await shown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
       };
       const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); await page.beforeEffect(); };
@@ -140,12 +142,13 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     const surface = hostSurfaceByManifestId(body.plugin_id);
     const entry = builtinPluginByManifestId(body.plugin_id) ?? surface;
     const selected = await stagePageSelection(context, project, body);
-    const key = selected?.project_key ?? (surface ? undefined : entry?.project_plugin_id);
+    await localHost.homePlugins?.ready();
+    const homeKey = surface ? undefined : localHost.homePlugins?.registered().find(item => item.manifest.plugin_id === body.plugin_id)?.key;
+    const key = selected?.project_key ?? (surface ? undefined : entry?.project_plugin_id ?? homeKey);
     const assertScope = async (readShown = shown) => {
       if (readShown && key && !(await readShown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     };
     await assertScope();
-    await localHost.homePlugins?.ready();
     if (project) await localHost.inspectActions({actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, permissions: [], audience: "user"}, project);
     const registered = entry?.workbench.pageRequests && project ? {
       manifest: entry.manifest, install_id: null, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,

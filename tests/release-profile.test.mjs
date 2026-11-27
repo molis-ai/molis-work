@@ -183,3 +183,17 @@ test("ENV-13: packaged test runtime isolates MCP, CLI, and Host home resolution 
     assert.ok(text.includes("installed-test"), launcher);
   }
 });
+
+test("F-btd-01 F-btd-07: profile.mjs runs without prebuilt local-host dist and release-macos.yml pins Rust 1.96.0", async () => {
+  const profileSource = await readFile(join(root, "tooling/release/profile.mjs"), "utf8");
+  assert.equal(profileSource.includes("@molis-ai/molis-work-app-local-host"), false, "profile.mjs must read release-profiles.json directly so clean checkouts work before pnpm build");
+  const outputs = execFileSync(process.execPath, [join(root, "tooling/release/profile.mjs"), "--profile", "dev", "--ci-outputs"], { encoding: "utf8" });
+  assert.match(outputs, /^profile=dev$/mu);
+  assert.match(outputs, /^publisherKey=MOLIS_WORK_DEV_PUBLISHER_KEY_FILE$/mu);
+  const workflow = await readFile(join(root, ".github/workflows/release-macos.yml"), "utf8");
+  assert.equal(workflow.includes("dtolnay/rust-toolchain@stable"), false);
+  assert.match(workflow, /RUSTUP_TOOLCHAIN:\s*1\.96\.0/u);
+  assert.match(workflow, /rustup toolchain install 1\.96\.0/u);
+  assert.equal(workflow.includes("profile.mjs --profile dev --ci-outputs"), false);
+  assert.equal(workflow.includes("configured development publisher key Secret"), false);
+});

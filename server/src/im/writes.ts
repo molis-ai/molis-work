@@ -19,7 +19,9 @@ export class ImWrites {
   }
 
   memberChanged(memberId: string): void {
-    const rooms = this.db.prepare("SELECT room_id FROM im_members WHERE member_id = ?").all(memberId) as Array<{ room_id: string }>;
+    const rooms = this.db.prepare(`SELECT r.id AS room_id FROM im_rooms r WHERE
+      (r.project_id IS NULL AND EXISTS(SELECT 1 FROM im_members m WHERE m.room_id=r.id AND m.member_id=?))
+      OR (r.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM mw_access a WHERE a.project_id=r.project_id AND a.member_id=?))`).all(memberId, memberId) as Array<{ room_id: string }>;
     for (const room of rooms) this.event(room.room_id, "member", memberId);
   }
 

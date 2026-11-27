@@ -12,7 +12,7 @@ export class ProjectPluginMembershipService {
   ) {}
 
   get(projectId: string): VersionedProjectPluginMembership {
-    return this.repository.transaction(() => this.readSnapshot(projectId.trim()));
+    return this.repository.readTransaction(() => this.readSnapshot(projectId.trim()));
   }
 
   set(projectId: string, actorId: string, input: SetProjectPluginInput): VersionedProjectPluginMembership {

@@ -10,7 +10,7 @@ import { join } from "node:path";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
-import { createScheduleService, SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
+import { createScheduleService, DueTimer, openDueRegistry, SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
 /** A library with the Scheduler's tables, as the project baseline makes them; the service itself never does. */
@@ -598,3 +598,79 @@ for (const { name, act, status, detail } of keptAsItWas) {
     assert.deepEqual(kept.row, { status, detail });
   });
 }
+
+test("F-horiz-runtime-03: interval job with historical due_at advances in O(1) while preserving phase alignment", async () => {
+  const clock = { now: new Date("2026-11-26T00:00:00.000Z") };
+  const { db, schedule, calls } = service(clock);
+  try {
+    const job = schedule.register({
+      plugin_id: "io.molis.work.test.owner",
+      capability_id: "test.wakeup",
+      object_ref: "source:historical",
+      title: "历史周期",
+      due_at: "1970-01-01T00:00:00.000Z",
+      recurrence: { kind: "interval", interval_ms: MIN_SCHEDULE_INTERVAL_MS },
+    });
+    const started = performance.now();
+    const ticked = await schedule.tick();
+    const elapsedMs = performance.now() - started;
+    assert.deepEqual(ticked, { invoked: 1, failed: 0, skipped: 0 });
+    assert.equal(calls.length, 1);
+    assert.ok(elapsedMs < 500, `expected O(1) nextDueAfter, took ${elapsedMs}ms`);
+    assert.equal(schedule.get(job.job_id)?.next_due_at, "2026-11-26T00:00:05.000Z");
+  } finally {
+    await schedule.close();
+    db.close();
+  }
+});
+
+test("F-horiz-runtime-07: DueRegistry enforces timezone suffix and DueTimer isolates expired failures and stops after close", async () => {
+  const home = mkdtempSync(join(tmpdir(), "due-registry-hardening-"));
+  const now = new Date("2026-11-26T10:00:00.000Z");
+  const owner = { install_id: "inst-1", plugin_id: "io.molis.work.test", partition_id: "personal" };
+  const due = openDueRegistry(home, { now: () => now });
+  try {
+    assert.throws(
+      () => due.register(owner, { entry_key: "no-tz", due_at: "2026-11-26T10:00:00" }),
+      (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid",
+    );
+
+    due.register(owner, { entry_key: "old-expired", due_at: "2026-11-10T00:00:00.000Z" });
+    due.register(owner, { entry_key: "due-a", due_at: "2026-11-26T09:58:00.000Z" });
+    due.register(owner, { entry_key: "due-b", due_at: "2026-11-26T09:59:00.000Z" });
+    const woken: string[] = [];
+    const timer = new DueTimer(due, {
+      now: () => now,
+      expired: () => { throw new Error("expired listener boom"); },
+      wake: async entry => { woken.push(entry.entry_key); },
+    });
+    await timer.fire();
+    assert.deepEqual(woken, ["due-a", "due-b"], "throwing expired listener must not drop due entries");
+    await timer.close();
+
+    due.register(owner, { entry_key: "close-a", due_at: "2026-11-26T09:58:00.000Z" });
+    due.register(owner, { entry_key: "close-b", due_at: "2026-11-26T09:59:00.000Z" });
+    const firstEntered = Promise.withResolvers<void>();
+    const releaseFirst = Promise.withResolvers<void>();
+    const wokenBeforeClose: string[] = [];
+    const closingTimer = new DueTimer(due, {
+      now: () => now,
+      wake: async entry => {
+        wokenBeforeClose.push(entry.entry_key);
+        if (entry.entry_key === "close-a") {
+          firstEntered.resolve();
+          await releaseFirst.promise;
+        }
+      },
+    });
+    const firing = closingTimer.fire();
+    await firstEntered.promise;
+    const closed = closingTimer.close();
+    releaseFirst.resolve();
+    await Promise.all([firing, closed]);
+    assert.deepEqual(wokenBeforeClose, ["close-a"], "close() must stop remaining queued wakeups");
+  } finally {
+    due.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});

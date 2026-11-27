@@ -103,7 +103,7 @@ async fn keys(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value> {
         string(&value, "after", 500)?
     };
     selected(db, space, namespace, None).await?;
-    let rows=db.prepare("SELECT p.key,h.revision AS currentRevision,COUNT(DISTINCT p.revision) AS versions,MAX(p.retained_at) AS retainedAt FROM (SELECT space,namespace,key,revision,retained_at FROM sync_history_pins UNION SELECT space,namespace,key,revision,retained_until-2592000000 AS retained_at FROM sync_version_retention WHERE retained_until>unixepoch()*1000) p JOIN sync_heads h ON h.space=p.space AND h.namespace=p.namespace AND h.key=p.key WHERE p.space=? AND p.namespace=? AND p.key>? AND h.purged_at IS NULL AND (h.deleted_at IS NULL OR h.deleted_at>unixepoch()*1000-2592000000) GROUP BY p.key ORDER BY p.key LIMIT 21")
+    let rows=db.prepare("SELECT p.key,h.revision AS currentRevision,COUNT(DISTINCT p.revision) AS versions,MAX(p.retained_at) AS retainedAt FROM (SELECT space,namespace,key,revision,retained_at FROM sync_history_pins UNION SELECT r.space,r.namespace,r.key,r.revision,MAX(e.created_at,r.retained_until-2592000000) AS retained_at FROM sync_version_retention r JOIN sync_events e ON e.space=r.space AND e.namespace=r.namespace AND e.key=r.key AND e.revision=r.revision WHERE r.retained_until>unixepoch()*1000) p JOIN sync_heads h ON h.space=p.space AND h.namespace=p.namespace AND h.key=p.key WHERE p.space=? AND p.namespace=? AND p.key>? AND h.purged_at IS NULL AND (h.deleted_at IS NULL OR h.deleted_at>unixepoch()*1000-2592000000) GROUP BY p.key ORDER BY p.key LIMIT 21")
         .bind(&[space.into(),namespace.into(),after.into()])?.all().await?.results::<Value>()?;
     Ok(
         json!({"items":rows.iter().take(20).collect::<Vec<_>>(),"more":rows.len()>20,"next":rows.get(19).map(|row|row["key"].clone())}),
@@ -130,6 +130,12 @@ async fn archive(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<V
     let key = string(&value["mutation"], "key", 500)?.to_owned();
     let base = integer(&value["mutation"], "base")?;
     require(base > 0, 400, "INVALID_NUMBER")?;
+    let fingerprint = crate::changes::fingerprint_for(&value, "archive", None).await?;
+    if let Some(revision) =
+        crate::changes::replay(db, space, &namespace, &value["mutation"], &fingerprint).await?
+    {
+        return Ok(json!({"accepted":true,"revision":revision}));
+    }
     selected(
         db,
         space,

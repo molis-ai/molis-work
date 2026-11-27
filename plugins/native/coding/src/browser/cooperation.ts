@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { sessionTitle } from "./session-title.js";
 import { drawBackground, drawBanner, drawSection } from "./cooperation-draw.js";
 import type { BackgroundTask, Coop, CooperationClient, CooperationPorts, Delegations, Mail } from "./cooperation-types.js";
@@ -14,16 +14,18 @@ interface Dialog {
 }
 
 /** The last read: for whom, when, and what was drawn from it. */
-interface Reading { owner: string; readAt: number; reading: boolean; drawnKey: string }
+interface Reading { owner: string; readAt: number; ticket: number; inFlightId: string; drawnKey: string }
 
 const REREAD_MS = 3000;
 
 /** Reads the session's delegations, messages and background commands, and draws them when they changed. */
 async function refresh(coop: Coop, reading: Reading, force = false) {
   const { ports } = coop, { api, current, lifetime } = ports, id = current();
-  if (!id || reading.reading) return;
+  if (!id) return;
+  if (!force && reading.inFlightId === id) return;
   if (!force && reading.owner === id && Date.now() - reading.readAt < REREAD_MS) return;
-  reading.reading = true;
+  const ticket = ++reading.ticket;
+  reading.inFlightId = id;
   try {
     const base = "/sessions/" + encodeURIComponent(id);
     const [value, messages, background] = await Promise.all([
@@ -31,13 +33,13 @@ async function refresh(coop: Coop, reading: Reading, force = false) {
       api<{ messages: Mail[] }>(base + "/messages").catch(() => ({ messages: [] as Mail[] })),
       api<{ commands: BackgroundTask[] | null }>(base + "/background").catch(() => ({ commands: null })),
     ]);
-    if (id !== current()) return;
+    if (ticket !== reading.ticket || id !== current()) return;
     coop.backgroundUnknown = background.commands === null;
     coop.commands = background.commands ?? (reading.owner === id ? coop.commands : []);
     reading.owner = id;
     reading.readAt = Date.now();
     coop.mail = messages.messages;
-    const key = JSON.stringify([id, value, coop.mail, coop.commands, coop.backgroundUnknown, ports.rounds().map(round => [round.run_id, round.phase, round.number])]);
+    const key = JSON.stringify([activeUiLocale(), id, value, coop.mail, coop.commands, coop.backgroundUnknown, ports.rounds().map(round => [round.run_id, round.phase, round.number])]);
     if (force || key !== reading.drawnKey) {
       reading.drawnKey = key;
       drawBanner(coop, value.incoming);
@@ -45,10 +47,10 @@ async function refresh(coop: Coop, reading: Reading, force = false) {
       drawBackground(coop);
     }
   } catch {
-    if (!lifetime.alive) return;
+    if (!lifetime.alive || ticket !== reading.ticket) return;
     if (id === current()) coop.banner.hidden = true;
   } finally {
-    reading.reading = false;
+    if (ticket === reading.ticket) reading.inFlightId = "";
   }
 }
 
@@ -107,7 +109,7 @@ async function createDelegation(coop: Coop, dialog: Dialog, reading: Reading, ev
 /** The cooperation panels of a session: the delegation it received, the ones it made, its messages and its background commands. */
 export function cooperationClient(ports: CooperationPorts): CooperationClient {
   const { lifetime, q } = ports;
-  const reading: Reading = { owner: "", readAt: 0, reading: false, drawnKey: "" };
+  const reading: Reading = { owner: "", readAt: 0, ticket: 0, inFlightId: "", drawnKey: "" };
   const coop: Coop = {
     ports, banner: q("[data-coding-delegation-banner]"), section: q("[data-coding-cooperation]"), backgroundSection: q("[data-coding-background]"),
     mail: [], commands: [], backgroundUnknown: false, again: () => refresh(coop, reading, true),
@@ -130,7 +132,11 @@ export function cooperationClient(ports: CooperationPorts): CooperationClient {
     refresh: force => refresh(coop, reading, force),
     openDialog: async () => openDialog(coop, dialog),
     reset() {
+      reading.ticket++;
       reading.owner = "";
+      reading.readAt = 0;
+      reading.inFlightId = "";
+      reading.drawnKey = "";
       coop.mail = [];
       coop.commands = [];
       coop.backgroundUnknown = false;

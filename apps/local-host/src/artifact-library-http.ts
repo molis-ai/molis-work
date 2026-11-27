@@ -13,14 +13,14 @@ import {
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type SubjectArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { artifactContinuers, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
+import { artifactProducerSources, artifactContinuers, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile, isImportedDocumentVersion, type ArtifactReference, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalWebActionClient } from "./local-web-actions.js";
 import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import { importedDocumentWarnings, type ReadArtifactDisplay } from "./artifact-display-words.js";
-import { requestHeader, sendLocalWebJson } from "./web-http.js";
+import { LOCAL_PAGE_CSP, requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 import { responseAbortSignal } from "./web-entry-actions.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
@@ -56,11 +56,12 @@ function escape(value: string): string {
 /** The platform's own pages and answers use the Workbench's current dictionary. */
 const primitives = { escape, text: (value: string) => escape(uiText.text(value)), formatDate: (value: string) => format.date(value, "datetime-with-seconds") };
 
-function continuersFor(version: ArtifactVersionRecord | null) {
+function continuersFor(version: ArtifactVersionRecord | null, projectId: string) {
   if (!version || version.availability !== "available" || version.lifecycle_state === "archived") return [];
-  if (version.artifact_type_id !== IMPORTED_DOCUMENT_TYPE) return artifactContinuers(version);
+  const sources = artifactProducerSources(projectId);
+  if (version.artifact_type_id !== IMPORTED_DOCUMENT_TYPE) return artifactContinuers(version, sources);
   const file = importedDocumentFile(version);
-  return file ? artifactContinuers(version).filter(item => continuerReadsFile(item, file)) : [];
+  return file ? artifactContinuers(version, sources).filter(item => continuerReadsFile(item, file)) : [];
 }
 
 function assertSupportedImportVersion(version: ArtifactVersionRecord | null): void {
@@ -249,7 +250,7 @@ export function createLocalArtifactHttp() {
         const reference = { artifact_id: String(body.reference?.artifact_id ?? ""), version: Number(body.reference?.version) };
         const view = await context.actions.invoke(artifactsActions.read, { reference });
         assertSupportedImportVersion(view.selected);
-        const continuer = continuersFor(view.selected).find(item => item.plugin_id === body.plugin_id);
+        const continuer = continuersFor(view.selected, context.projectId).find(item => item.plugin_id === body.plugin_id);
         if (!view.selected || !continuer || !context.ownerActions) throw artifactsErrors.continue_unavailable("这一版不能在这个插件里继续");
         const result = await context.ownerActions(continuer.action.action.permissions).invoke(continuer.action, { artifact: view.selected }) as ArtifactContinueResult;
         sendLocalWebJson(response, 201, result);
@@ -328,7 +329,7 @@ export function createLocalArtifactHttp() {
           return true;
         }
         const answer = await readReferenceSources(context.actions, reference, source);
-        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": LOCAL_PAGE_CSP, "x-content-type-options": "nosniff" });
         response.end(`<div data-artifact-reference-response lang="${escape(currentLocale())}">${artifactWorkbench.referenceSources(answer, primitives)}</div>`);
         return true;
       }
@@ -336,7 +337,7 @@ export function createLocalArtifactHttp() {
       const languagePreview = fragment === "artifact-workbench" && inLanguagePreview();
       const presentation = await ownerPreview(selected, selected ? context.typeFor(selected) : undefined, selected ? words(selected)?.pluginTitle : undefined, context, languagePreview);
       // 「从这一版继续」 (A4b): who declares it for this type; for an imported file, those whose `file` declaration reads it.
-      const continuers = continuersFor(selected).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title }));
+      const continuers = continuersFor(selected, context.projectId).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title }));
       const links = reference ? await readReferenceSources(context.actions, reference) : undefined;
       const attachTarget = !links
         ? true
@@ -353,6 +354,7 @@ export function createLocalArtifactHttp() {
         : [];
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
+        "content-security-policy": LOCAL_PAGE_CSP, "x-content-type-options": "nosniff",
       });
       response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, importedDocumentWarnings, ...(links ? { links } : {}), ...(attachTarget ? {} : { attachTarget }), continuers, handoffExecutors, pluginInputs,
         languagePreview, typeTitle: version => words(version)?.title }, compact ? "frame-block" : "detail", currentLocale()));

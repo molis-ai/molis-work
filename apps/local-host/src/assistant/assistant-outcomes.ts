@@ -233,12 +233,13 @@ export class AssistantOutcomes {
     const claimed = this.#undoing.get(undoId);
     if (claimed) return claimed;
     const running = (async () => {
+      decision?.assertCurrent();
       let actions: PersonActions | null = null;
       try { actions = await this.ports.scopeActions?.(work, decision) ?? null; } catch { actions = null; }
+      decision?.assertCurrent();
       if (!actions) throw assistantErrors.unsupported("现在不能撤销，请到原处修改");
       try {
         const outcome = await actions.invoke(record.reference, record.input);
-        decision?.assertCurrent();
         const summary = record.reference.provider_id === AUTOMATION_ADOPTION_PROVIDER_ID && outcome && typeof outcome === "object"
           && "summary" in outcome && typeof outcome.summary === "string" ? cutHead(outcome.summary, 600) : undefined;
         this.store.saveUndo(this.actorId, { ...record, state: "undone", undone_at: this.now().toISOString(), detail: summary });

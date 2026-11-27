@@ -858,3 +858,93 @@ test("Connector service writes Gmail identity and keeps only explicit Gmail atte
     assert.equal(JSON.stringify(inbox).includes("Needs a reply"), false);
   });
 });
+
+test("F-pm3-08 connector failure after pending delivery recovery preserves the cursor advanced by Listener", async () => {
+  await withBoard(async (store, home) => {
+    const cursor1 = {
+      v: 1,
+      provider: "github",
+      mode: "live",
+      step: "c1",
+    };
+    const cursor2 = {
+      v: 1,
+      provider: "github",
+      mode: "live",
+      step: "c2",
+    };
+    const retryAfterAt = "2026-08-30T10:15:00.000Z";
+    const seenCursors: unknown[] = [];
+    let attempt = 0;
+    const port: ConnectorPort = {
+      type: "github",
+      async health() { return { ok: true, status: "connected", message: "stub" }; },
+      async sync(input) {
+        attempt += 1;
+        seenCursors.push(input.cursor);
+        if (attempt === 1) {
+          return success([{
+            externalId: "pending-item-1",
+            title: "Recovered before rate limit",
+            summary: "Persisted delivery advances cursor",
+            kind: "issue",
+            priority: "high",
+            tags: ["github"],
+          }], cursor2);
+        }
+        return {
+          ok: false,
+          mode: "live",
+          failure: "rate_limited",
+          message: "GitHub rate limited",
+          action: "Retry later",
+          httpStatus: 403,
+          retryAfterAt,
+        };
+      },
+    };
+
+    const service = connectorService(store, home, port);
+    const source = service.feed.sources.upsert({
+      ...service.accountSource("github"),
+      status: "active",
+      cursor: cursor1,
+      schedule: { mode: "interval", enabled: true, interval_minutes: 30, next_pull_at: null },
+    });
+
+    // Attempt 1: persist delivery then fail acceptance so the run becomes interrupted with a pending delivery.
+    store.db.exec("CREATE TEMP TRIGGER fail_signal_once BEFORE INSERT ON signals BEGIN SELECT RAISE(ABORT, 'pause_before_accept'); END");
+    await assert.rejects(
+      service.sync(source.source_id, { idempotencyKey: "connector-pending-cursor-1" }),
+      { code: "feed.source_sync_interrupted" },
+    );
+    store.db.exec("DROP TRIGGER fail_signal_once");
+    assert.deepEqual(service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, cursor1);
+
+    // Attach per-event cursor_after = cursor2 on the persisted delivery so recovery advances Listener's cursor before the next pull.
+    const cursor2Json = JSON.stringify(cursor2);
+    const updated = store.db.prepare(
+      "UPDATE listener_deliveries SET raw_event_json = json_set(raw_event_json, '$.cursor_after', json(?)), cursor_after_json = ? WHERE project_id = ? AND source_id = ?",
+    ).run(cursor2Json, cursor2Json, DEMO_PROJECT_ID, source.source_id);
+    assert.equal(Number(updated.changes), 1);
+
+    // Attempt 2: recovers the pending delivery (advancing cursor to cursor2), then Provider returns rate_limited.
+    await assert.rejects(
+      service.sync(source.source_id, { idempotencyKey: "connector-pending-cursor-1" }),
+      (error: unknown) => providerFailure(error, "connector.rate_limited"),
+    );
+    assert.deepEqual(seenCursors[1], cursor2, "Listener passed the recovered cursor to the retry pull");
+    const durable = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
+    assert.deepEqual(durable.cursor, cursor2, "failure branch must not overwrite Listener's advanced cursor with the stale pre-pull source");
+    const checkpointRow = store.db.prepare(
+      "SELECT cursor_json FROM listener_instances WHERE project_id = ? AND source_id = ?",
+    ).get(DEMO_PROJECT_ID, source.source_id) as { cursor_json: string };
+    assert.deepEqual(JSON.parse(checkpointRow.cursor_json), cursor2);
+    assert.equal(durable.schedule.mode, "interval");
+    if (durable.schedule.mode === "interval") assert.equal(durable.schedule.next_pull_at, retryAfterAt);
+    assert.equal(
+      service.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter((item) => item.source_id === source.source_id).length,
+      1,
+    );
+  });
+});

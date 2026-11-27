@@ -54,10 +54,10 @@ export function approvalRequiresPerson(snapshot: ProjectApprovalRules, object?: 
   const applicable = snapshot.rules.filter(active);
   const defaults = applicable.flatMap(rule => rule.scope.kind === "project_default" && rule.requires_person !== null
     ? [{ owner: rule.scope.owner, requires_person: rule.requires_person }] : []);
-  const project = defaults.filter(rule => !rule.owner).at(-1);
+  const projectRequiresPerson = defaults.some(rule => !rule.owner && rule.requires_person === true);
   const owns = (owner: ApprovalRuleOwner) => object && ownerKey(owner) === ownerKey(object.owner);
-  const originalDefault = defaults.filter(rule => rule.owner && owns(rule.owner)).at(-1);
-  return project?.requires_person === true || originalDefault?.requires_person === true || !!object && applicable.some(rule => {
+  const ownerDefaultRequiresPerson = defaults.some(rule => rule.owner && owns(rule.owner) && rule.requires_person === true);
+  return projectRequiresPerson || ownerDefaultRequiresPerson || !!object && applicable.some(rule => {
     const scope = rule.scope;
     if (scope.kind === "project_default" || !rule.requires_person || !owns(scope.owner)) return false;
     const matches = (subject: Readonly<{ kind: string; id: string }>) => subject.kind === scope.subject.kind && subject.id === scope.subject.id;
@@ -115,8 +115,8 @@ export function projectApprovalRules(db: SqliteDatabase, projectId: string) {
         : db.prepare<[string, number], RuleRow>(`${query} ${order}`).all(projectId, pageSize + 1);
       const last = rows[pageSize - 1];
       return { revision: current.revision, rules: rows.slice(0, pageSize).map(decodeRule),
-        project_default_requires_person: current.rules.filter(rule => rule.scope.kind === "project_default"
-          && rule.scope.owner === undefined && rule.requires_person !== null).at(-1)?.requires_person === true,
+        project_default_requires_person: current.rules.some(rule => rule.scope.kind === "project_default"
+          && rule.scope.owner === undefined && rule.requires_person === true),
         next_cursor: rows.length > pageSize && last ? { order: last.order, id: last.id } : null };
     },
     commit,

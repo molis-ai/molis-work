@@ -14,6 +14,7 @@ export interface FilesFace {
   show(visible: boolean): void;
   /** The folder the open session's next round runs in; the face follows it unless the person is looking at another one. */
   follow(workspaceId: string): void;
+  retitle(): void;
 }
 
 /**
@@ -115,5 +116,6 @@ export function mountFilesFace(page: Page): FilesFace {
   return {
     show(on) { visible = on; panel.hidden = !on; if (on) void load(); },
     follow() { if (visible && viewing === null) void load(); },
+    retitle() { paint(); },
   };
 }

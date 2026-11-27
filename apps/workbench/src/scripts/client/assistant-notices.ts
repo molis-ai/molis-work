@@ -52,7 +52,9 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
         original.translate = false; original.style.whiteSpace = "pre-wrap";
         item.append(original);
       } else item.append(el("p", "assistant-notice-text", text));
-      if (notice.held) item.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-notice.held", { reason: notice.held.reason })));
+      const heldReason = (reason) => reason === "rule:pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices")
+        : reason === "rule:quiet" ? globalThis.t.text("workbench.settings-assistant.quiet-places") : reason;
+      if (notice.held) item.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-notice.held", { reason: heldReason(notice.held.reason) })));
       const actions = el("div", "assistant-notice-actions");
       const go = el("button", "mw-btn mw-btn--secondary", globalThis.t.text("workbench.assistant-notice.open")); go.type = "button";
       go.dataset.noticeId = notice.notice_id; go.dataset.noticeAction = "open";

@@ -191,11 +191,15 @@ export async function continueRound(page: Page, runId: string | null, reask?: { 
 
 /** An interrupted round is checked first; only a round whose outcomes are all known is closed and continued. */
 export async function recoverAndContinue(page: Page, runId: string) {
-  const { root, s } = page;
+  const { lifetime, root, s } = page;
   if (s.sending || !s.current) return;
   const id = s.current;
+  let recovered = false;
+  s.sending = true;
+  controls(page);
   try {
     const report = await api<RecoveryReport>(page, sessionPath(id) + "/recovery");
+    if (!lifetime.alive || s.current !== id) return;
     const entry = report.runs.find(run => run.run_id === runId);
     // The round's subtasks were cut off with it; they are settled together, or a new round would be refused.
     const blocked = report.runs.find(run => !run.can_close);
@@ -206,12 +210,19 @@ export async function recoverAndContinue(page: Page, runId: string) {
       status(page, uiText.text("coding.run.blocked", { reason: report.blockers.length ? report.blockers.join(uiText.text("common.punctuation.semicolon")) : (blocked || entry)?.blockers?.join(uiText.text("common.punctuation.semicolon")) || uiText.text("coding.run.unknown-operations") }), true);
       return;
     }
-    for (const run of [...report.runs.filter(item => item.subagent), entry]) await api(page, sessionPath(id, run.run_id) + "/recover", "POST", { expected_version: run.version });
-    if (s.current !== id) return;
-    await continueRound(page, runId);
+    for (const run of [...report.runs.filter(item => item.subagent), entry]) {
+      if (!lifetime.alive || s.current !== id) return;
+      await api(page, sessionPath(id, run.run_id) + "/recover", "POST", { expected_version: run.version });
+    }
+    if (!lifetime.alive || s.current !== id) return;
+    recovered = true;
   } catch (error) {
-    if (s.current === id) status(page, errorMessage(error), true);
+    if (lifetime.alive && s.current === id) status(page, errorMessage(error), true);
+  } finally {
+    s.sending = false;
+    controls(page);
   }
+  if (recovered && lifetime.alive && s.current === id) await continueRound(page, runId);
 }
 
 /** How soon the conversation reads again: quickly while a round works, slowly when nothing runs. */

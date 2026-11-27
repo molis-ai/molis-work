@@ -26,7 +26,7 @@ import { declarationsNeedingConsent, keptDataRefusal, verifyPluginPackageSignatu
 import type { InstalledRelease, PackageInstallChoices, PackageInstallSecret } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
 import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
-import { readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sandbox-package.js';
+import { assertSafeManifestPatterns, readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sandbox-package.js';
 import { skillInstallPreviews } from './skill-install-preview.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
@@ -76,7 +76,7 @@ export interface PluginInstallPorts {
    * Refuses an integration package (BL-530) whose plugin id, services or integrations the Home's registry already has from another,
    * built-in or installed (`plugin.integration_declaration_conflict`, naming the id and its holder).
    */
-  assertIntegrationsFree?(manifest: KeptSandboxPackage['manifest']): Promise<void>;
+  assertIntegrationsFree?(manifest: PluginManifest): Promise<void>;
   /** The plugins installed in the project, each with the Manifest it was installed with. */
   installed(projectId: string, keptFor?: string): Promise<InstalledPluginEntry[]>;
   /** Whether some provider offers this action in the project now: what the preview says of each of a package's `requires`. A Host without it previews no package that requires any. */
@@ -329,8 +329,9 @@ export class PluginInstallService {
   /** Checks a package and says what installing it means. Writes nothing durable: the preview is held in memory for the confirmation. */
   async preview(input: PluginInstallPreviewInput, who: PreviewOwner, caller?: InstallAuthority): Promise<PluginInstallPreviewResult> {
     const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature('bundled' in input ? await this.bundledBundle(input.bundled, caller) : input.bundle);
-    const pkg = readKeptPackage(bundle.payload);
     this.assertPublisherStanding(key_id);
+    assertSafeManifestPatterns(bundle.payload.manifest);
+    const pkg = readKeptPackage(bundle.payload);
     const { manifest } = pkg, runtime_scope = scopeOf(manifest), dual = isDualPackage(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
@@ -545,17 +546,52 @@ export class PluginInstallService {
       const afterInstall = (clear: () => Promise<void>) => { cleanup.push(clear); };
       const choices: PackageInstallChoices = { afterInstall, expectedKeptGeneration: inHome ? held.kept.home : held.kept.project, ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
       if (dual) {
-        const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, { afterInstall, expectedKeptGeneration: held.kept.project });
-        if (!homePresent) await this.ports.installInHome(release, assertCurrent, complete, { afterInstall, expectedKeptGeneration: held.kept.home, installOtherHalf: installProjectHalf });
-        else if (held.kept.project && homePresent.record.version !== held.pkg.manifest.version) {
+        const dualSecrets = chosen.secrets.length ? { secrets: chosen.secrets } : {};
+        const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, { afterInstall, expectedKeptGeneration: held.kept.project, ...dualSecrets });
+        if (!homePresent) {
+          await this.ports.installInHome(release, assertCurrent, complete, { afterInstall, expectedKeptGeneration: held.kept.home, ...dualSecrets, installOtherHalf: installProjectHalf });
+        } else if (held.kept.project && homePresent.record.version !== held.pkg.manifest.version) {
           // Prove the replacement project works before moving an existing, possibly shared Home database.
           await this.ports.installInProject(held.project_id, release, assertCurrent, complete, {
-            afterInstall, expectedKeptGeneration: held.kept.project,
-            installOtherHalf: commitProject => this.ports.installInHome(release, assertCurrent, commitProject),
+            afterInstall, expectedKeptGeneration: held.kept.project, ...dualSecrets,
+            installOtherHalf: commitProject => this.ports.installInHome(release, assertCurrent, commitProject, chosen.secrets.length ? dualSecrets : undefined),
           });
         } else {
-          if (homePresent.record.version !== held.pkg.manifest.version) await this.ports.installInHome(release, assertCurrent);
-          await installProjectHalf(complete);
+          const homeAlreadySame = homePresent.record.version === held.pkg.manifest.version;
+          if (!homeAlreadySame) await this.ports.installInHome(release, assertCurrent, undefined, chosen.secrets.length ? dualSecrets : undefined);
+          try { await installProjectHalf(complete); }
+          catch (error) {
+            if (!homeAlreadySame) {
+              let previousHomeManifest: PluginManifest | undefined;
+              try {
+                previousHomeManifest = this.ports.packages.load(homePresent.record.plugin_id, homePresent.record.publisher_signature, homePresent.record.version).packaged?.manifest;
+              } catch {
+                previousHomeManifest = undefined;
+              }
+              const homeDbChanged = Boolean(
+                previousHomeManifest?.databases?.home && held.pkg.manifest.databases?.home
+                && previousHomeManifest.databases.home.version !== held.pkg.manifest.databases.home.version,
+              );
+              const detail = error instanceof Error ? error.message : String(error);
+              const partialDetails = {
+                ...(error instanceof ActionError && error.details ? error.details : {}),
+                dual_partial_upgrade: true,
+                plugin_id: held.pkg.manifest.plugin_id,
+                project_id: held.project_id,
+                home_version: held.pkg.manifest.version,
+                previous_home_version: homePresent.record.version,
+                home_database_upgraded: homeDbChanged,
+              };
+              const partialMessage = homeDbChanged
+                ? `个人空间部分已升级到 ${held.pkg.manifest.version} 且数据库结构已变更，无法自动回退；项目部分升级失败：${detail}`
+                : `个人空间部分已升级到 ${held.pkg.manifest.version}，但项目部分升级失败（请重试或修复该项目半边）：${detail}`;
+              if (error instanceof ActionError) {
+                throw new ActionError(error.code, partialMessage, { kind: error.kind, details: partialDetails, cause: error });
+              }
+              throw pluginErrors.upgrade_activation_failed(partialMessage, partialDetails);
+            }
+            throw error;
+          }
         }
       } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete, choices);
       else await this.ports.installInProject(held.project_id, release, assertCurrent, complete, choices);

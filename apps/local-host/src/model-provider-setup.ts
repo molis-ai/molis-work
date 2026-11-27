@@ -67,7 +67,8 @@ export interface ModelProviderSave {
 function assertSaveable(catalog: MolisWorkProjectCatalog, save: ModelProviderSave) {
   if (save.api_key && save.connection_id) throw new Error(uiText.text("workbench.model-provider-setup.choose-saved-connection-enter-new-api-key-not"));
   if (save.api_key && save.api_key.length < 8) throw new Error(uiText.text("workbench.model-provider-setup.api-key-too-short"));
-  const alreadyStored = Boolean(catalog.models.get(save.provider_id) && catalog.models.hasCredential(save.provider_id));
+  const existingProvider = catalog.models.get(save.provider_id);
+  const alreadyStored = Boolean(existingProvider && (existingProvider.credential_ref.trim() || catalog.models.hasCredential(save.provider_id)));
   if (!save.api_key && !save.connection_id && !alreadyStored) throw new Error(uiText.text("workbench.model-provider-setup.enter-api-key-choose-saved-connection"));
   if (save.check_connection && save.input.models?.some((model) => !model.model_id.trim())) {
     throw new Error(uiText.text("workbench.model-provider-setup.enter-model-id-model-name-provider-s-documentation"));

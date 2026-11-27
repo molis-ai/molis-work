@@ -27,8 +27,8 @@ export function slidesFromMarkdown(markdown: string, fallbackTitle: string): { t
   const clean = (value: string) => value.replace(/[*_`~]/gu, "").replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1").trim();
   const lines = markdown.replace(/\r\n?/gu, "\n").split("\n");
   let title = "";
-  const slides: { title: string; bullets: string[]; notes: string[] }[] = [];
-  let current: { title: string; bullets: string[]; notes: string[] } | null = null;
+  const slides: { title: string; bullets: string[]; notes: string[]; headed: boolean }[] = [];
+  let current: { title: string; bullets: string[]; notes: string[]; headed: boolean } | null = null;
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
@@ -36,15 +36,15 @@ export function slidesFromMarkdown(markdown: string, fallbackTitle: string): { t
     if (heading) {
       const text = clean(heading[2]!);
       if (heading[1] === "#" && !title && !slides.length) { title = text; continue; }
-      current = { title: text, bullets: [], notes: [] };
+      current = { title: text, bullets: [], notes: [], headed: true };
       slides.push(current);
       continue;
     }
-    if (!current) { current = { title: "", bullets: [], notes: [] }; slides.push(current); }
+    if (!current) { current = { title: "", bullets: [], notes: [], headed: false }; slides.push(current); }
     if (line.startsWith(">")) { current.notes.push(clean(line.replace(/^>\s?/u, ""))); continue; }
     const bullet = clean(line.replace(/^([-*+]|\d+[.)])\s+/u, "").replace(/^\[[ xX]\]\s+/u, ""));
     if (!bullet) continue;
-    if (current.bullets.length >= 6 && !/^#{1,3}\s/u.test(raw)) { current = { title: "", bullets: [], notes: [] }; slides.push(current); }
+    if (!current.headed && current.bullets.length >= 6) { current = { title: "", bullets: [], notes: [], headed: false }; slides.push(current); }
     current.bullets.push([...bullet].slice(0, 200).join(""));
   }
   const chosen = slides.filter(slide => slide.title || slide.bullets.length || slide.notes.length).slice(0, 40);

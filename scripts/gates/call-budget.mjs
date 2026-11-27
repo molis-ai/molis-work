@@ -28,7 +28,9 @@ export function contextCallCounts(snapshot, isSource) {
       const imports = node.importClause?.namedBindings;
       if (!imports || !ts.isNamedImports(imports)) continue;
       for (const item of imports.elements) {
-        if (!item.isTypeOnly && item.propertyName?.text === "localWebActionContext") bindings.add(item.name.text);
+        if (!item.isTypeOnly && item.propertyName && names.has(item.propertyName.text)) {
+          bindings.add(item.name.text);
+        }
       }
     }
     let count = 0;
@@ -110,10 +112,10 @@ function newAllowances(head, base, errors) {
 
 export function callBudgetProblems(head, base, required) {
   const errors = [];
-  const before = readBudget(base, `merge-base ${CALL_BUDGET_FILE}`, errors);
+  const before = base ? readBudget(base, `merge-base ${CALL_BUDGET_FILE}`, errors) : {};
   const after = readBudget(head, CALL_BUDGET_FILE, errors, required || Object.keys(before).length > 0);
   const allowed = newAllowances(head, base, errors);
-  if (errors.length) return errors;
+  if (errors.length || !base) return errors;
   for (const key of Object.keys(allowed)) {
     const [scenario, counter] = key.split(".");
     if (!Object.hasOwn(after[scenario] ?? {}, counter)) errors.push(`${CALL_BUDGET_FILE}: an allowance names ${key}, which the budget does not have`);

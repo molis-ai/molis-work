@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import { shouldSaveReviewScreenshots } from './fixtures/review-evidence.js';
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";

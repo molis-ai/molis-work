@@ -161,7 +161,7 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
 
   // POLISH-77: back on the first page after something new. What is new since the last visit is listed; the rest is one press away
   // under 「更早」, and the new rows stay where they are when it opens — two lists of one section, each with its own rows.
-  await b.evaluate(`(() => { const key = Object.keys(localStorage).find(name => name.startsWith('molis-work-home-seen:')); localStorage.setItem(key, ${JSON.stringify(mark)}); })()`);
+  await b.evaluate(`(() => { const key = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).find(name => name?.startsWith('molis-work-home-seen:')); localStorage.setItem(key, ${JSON.stringify(mark)}); })()`);
   await home();
   const session = homeRow("coding_session", selected), less = '[data-work-surface=home] [data-home-control="less"]';
   await b.waitFor(`${visible(session)} && ${visible(more)}`, 15_000);

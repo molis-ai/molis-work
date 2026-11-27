@@ -106,7 +106,163 @@ function promptsOf(value: unknown): SandboxPackagePrompt[] {
   });
 }
 
+const MAX_MANIFEST_PATTERN_CHARS = 256;
+const MAX_MANIFEST_PATTERN_DEFAULT_CHARS = 512;
+const MAX_REGEX_REPEAT_COUNT = 100;
+
+/**
+ * Linear-time structural guard against catastrophic backtracking (ReDoS) before untrusted package manifests reach
+ * `new RegExp(...)` during manifest parsing (`Q-cf2-04`). Rejects nested quantifiers, lookarounds, backreferences,
+ * oversized patterns, and large brace repeat counts.
+ */
+export function assertSafeRegexPattern(source: string, label: string): void {
+  if (typeof source !== 'string' || source.length === 0 || source.length > MAX_MANIFEST_PATTERN_CHARS) {
+    refuse(`${label} 的正则表达式长度超过安全上限`);
+  }
+  const readBraceQuantifier = (index: number): { end: number; repeatsMultiple: boolean } | null => {
+    if (source[index] !== '{') return null;
+    const match = /^\{(\d+)(?:,(\d*))?\}/u.exec(source.slice(index));
+    if (!match) return null;
+    const min = Number(match[1]);
+    const maxRaw = match[2];
+    const max = maxRaw === undefined ? min : maxRaw === '' ? Number.POSITIVE_INFINITY : Number(maxRaw);
+    if (min > MAX_REGEX_REPEAT_COUNT || (Number.isFinite(max) && max > MAX_REGEX_REPEAT_COUNT)) {
+      refuse(`${label} 的正则表达式重复次数超过安全上限`);
+    }
+    return { end: index + match[0].length - 1, repeatsMultiple: max > 1 };
+  };
+  type GroupFrame = { hasQuantifier: boolean; hasAlternation: boolean };
+  const stack: GroupFrame[] = [{ hasQuantifier: false, hasAlternation: false }];
+  let inClass = false;
+  let lastAtom: 'none' | 'char' | 'group' | 'quantifier' = 'none';
+  let lastGroup: GroupFrame | null = null;
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i]!;
+    if (ch === '\\') {
+      const next = source[i + 1];
+      if (!next) refuse(`${label} 的正则表达式转义不完整`);
+      if (!inClass && ((next >= '1' && next <= '9') || next === 'k')) {
+        refuse(`${label} 的正则表达式不能使用反向引用`);
+      }
+      i += 1;
+      if (!inClass) lastAtom = 'char';
+      continue;
+    }
+    if (inClass) {
+      if (ch === ']') {
+        inClass = false;
+        lastAtom = 'char';
+      }
+      continue;
+    }
+    if (ch === '[') {
+      inClass = true;
+      lastGroup = null;
+      continue;
+    }
+    if (ch === '(') {
+      if (source[i + 1] === '?') {
+        const marker = source[i + 2];
+        if (marker === '=' || marker === '!' || (marker === '<' && (source[i + 3] === '=' || source[i + 3] === '!'))) {
+          refuse(`${label} 的正则表达式不能使用环视断言`);
+        }
+      }
+      stack.push({ hasQuantifier: false, hasAlternation: false });
+      lastAtom = 'none';
+      lastGroup = null;
+      continue;
+    }
+    if (ch === ')') {
+      if (stack.length <= 1) refuse(`${label} 的正则表达式括号不匹配`);
+      lastGroup = stack.pop()!;
+      const parent = stack[stack.length - 1]!;
+      if (lastGroup.hasQuantifier) parent.hasQuantifier = true;
+      if (lastGroup.hasAlternation) parent.hasAlternation = true;
+      lastAtom = 'group';
+      continue;
+    }
+    if (ch === '|') {
+      stack[stack.length - 1]!.hasAlternation = true;
+      lastAtom = 'none';
+      lastGroup = null;
+      continue;
+    }
+    if (ch === '*' || ch === '+' || ch === '?' || ch === '{') {
+      let repeatsMultiple = ch === '*' || ch === '+';
+      if (ch === '{') {
+        const brace = readBraceQuantifier(i);
+        if (!brace) {
+          lastAtom = 'char';
+          continue;
+        }
+        i = brace.end;
+        repeatsMultiple = brace.repeatsMultiple;
+      }
+      // Optional lazy/possessive modifier `?` immediately after a quantifier is not a nested quantifier.
+      if (lastAtom === 'quantifier' && ch === '?') { continue; }
+      if (lastAtom === 'quantifier') refuse(`${label} 的正则表达式包含连续量词`);
+      if (repeatsMultiple) {
+        if (lastAtom === 'group' && lastGroup && (lastGroup.hasQuantifier || lastGroup.hasAlternation)) {
+          refuse(`${label} 的正则表达式包含嵌套量词或重复分支，存在性能风险`);
+        }
+        stack[stack.length - 1]!.hasQuantifier = true;
+      }
+      lastAtom = 'quantifier';
+      lastGroup = null;
+      continue;
+    }
+    lastAtom = 'char';
+    lastGroup = null;
+  }
+}
+
+/** Inspect untrusted manifest connection_services / schema regex declarations before `parsePluginManifest` compiles them (`Q-cf2-04`). */
+export function assertSafeManifestPatterns(rawManifest: unknown): void {
+  if (!plain(rawManifest)) return;
+  const services = Array.isArray(rawManifest.connection_services) ? rawManifest.connection_services : [];
+  for (const service of services) {
+    if (!plain(service)) continue;
+    const auth = plain(service.auth) ? service.auth : null;
+    const methods = auth && Array.isArray(auth.methods) ? auth.methods : [];
+    for (const method of methods) {
+      if (!plain(method)) continue;
+      if (plain(method.endpoint_pattern) && typeof method.endpoint_pattern.source === 'string') {
+        assertSafeRegexPattern(method.endpoint_pattern.source, 'endpoint_pattern');
+      }
+      const settings = Array.isArray(method.settings) ? method.settings : [];
+      for (const setting of settings) {
+        if (!plain(setting)) continue;
+        if (typeof setting.pattern === 'string') {
+          assertSafeRegexPattern(setting.pattern, `setting ${String(setting.key ?? '')}`);
+          if (typeof setting.default === 'string' && setting.default.length > MAX_MANIFEST_PATTERN_DEFAULT_CHARS) {
+            refuse(`setting ${String(setting.key ?? '')} 默认值超过安全上限`);
+          }
+        }
+      }
+      const contexts = Array.isArray(method.context) ? method.context : [];
+      for (const entry of contexts) {
+        if (!plain(entry) || !plain(entry.pick)) continue;
+        if (typeof entry.pick.pattern === 'string') {
+          assertSafeRegexPattern(entry.pick.pattern, `context ${String(entry.key ?? '')}`);
+        }
+      }
+      const checkKeeps = (keeps: unknown, scope: string) => {
+        if (!Array.isArray(keeps)) return;
+        for (const keep of keeps) {
+          if (!plain(keep) || !plain(keep.check)) continue;
+          if (typeof keep.check.pattern === 'string') {
+            assertSafeRegexPattern(keep.check.pattern, `${scope} ${String(keep.key ?? '')}`);
+          }
+        }
+      };
+      checkKeeps(method.token_keep, 'token_keep');
+      if (plain(method.identity)) checkKeeps(method.identity.keep, 'identity.keep');
+    }
+  }
+}
+
 export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackage {
+  assertSafeManifestPatterns(payload.manifest);
   const wire = validated('manifest', () => parsePluginPackageManifest(payload.manifest));
   if (wire.kind !== 'app' || (wire.agent !== undefined && !Array.isArray(wire.agent))) refuse('文字正文只用于 app 包');
   const manifest = wire as SandboxPackageManifest;
@@ -199,6 +355,7 @@ export const isContentPackage = (pkg: KeptPackage): pkg is ContentKeptPackage =>
  * path for both: the same signature check before, the same preview and confirmation after.
  */
 export function readKeptPackage(payload: PluginPackagePayload): KeptPackage {
+  assertSafeManifestPatterns(payload.manifest);
   if (payload.manifest?.kind !== 'content') return readKeptSandboxPackage(payload);
   const { manifest, skills, blueprint, locale_files } = parseContentPackage(payload);
   const localePacks = pluginLocaleReader(manifest, path => locale_files?.[path] ?? null);
@@ -223,6 +380,7 @@ export interface SandboxIntegrationPackage {
  * origins; any other declares its own (S-95), checked by the SDK's Manifest rules. Nothing here is written anywhere.
  */
 export function readSandboxIntegrationPackage(payload: PluginPackagePayload): SandboxIntegrationPackage {
+  assertSafeManifestPatterns(payload.manifest);
   const manifest = validated('清单', () => parsePluginManifest(payload.manifest));
   const wanted = [SANDBOX_PACKAGE_FILES.manifest, SANDBOX_PACKAGE_FILES.contract, SANDBOX_PACKAGE_FILES.entrypoint, ...pluginLocaleFilePaths(manifest)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));

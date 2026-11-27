@@ -14,6 +14,7 @@ function prepareHomePluginDatabasePath(home: string, declaration: HomePluginData
   if (!existing || existing.size === 0) {
     // Establish the space in WAL before the fresh file receives any business schema.
     openHomeSqliteDatabase(real, declaration.store_name, db => {
+      db.exec("PRAGMA busy_timeout=5000");
       if (db.prepare("PRAGMA journal_mode=WAL").get()?.journal_mode !== "wal") throw new ActionError("actions.service_unavailable", "插件库初始化日志模式暂不可用");
       db.exec("PRAGMA synchronous=FULL");
     }).close();

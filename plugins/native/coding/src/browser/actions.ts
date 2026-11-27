@@ -111,8 +111,8 @@ export function actionsClient(ports: ActionPorts) {
       error.textContent = uiText.text('coding.actions.session-changed');
       return;
     }
-    const id = session;
-    selections.set(id, structuredClone(chosen));
+    const id = session, previous = selections.get(id), next = structuredClone(chosen);
+    selections.set(id, next);
     controls();
     busy = true;
     submit.disabled = true;
@@ -125,6 +125,11 @@ export function actionsClient(ports: ActionPorts) {
       status(uiText.text('coding.actions.saved'));
     }
     catch (failure) {
+      if (selections.get(id) === next) {
+        if (previous === undefined) selections.delete(id);
+        else selections.set(id, previous);
+        if (current() === id) controls();
+      }
       error.textContent = uiText.text('coding.choice.save-failed', { reason: errorMessage(failure) });
     }
     finally {
@@ -143,7 +148,10 @@ function cardRenderer(ports: ActionPorts) {
   return (block: Element, run: CardRun) => {
     let box = block.querySelector<HTMLElement>(':scope > [data-coding-cards]');
     if (!run.cards?.length) {
-      box?.remove();
+      if (box) {
+        for (const node of Array.from(box.children) as CardNode[]) node.ix?.destroy();
+        box.remove();
+      }
       return null;
     }
     if (!box) {

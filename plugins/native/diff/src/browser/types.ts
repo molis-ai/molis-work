@@ -17,5 +17,12 @@ export interface Host {
   openPlugin?(plugin: string): void;
 }
 
+/** Minimal fields Diff's page reads from `/state`'s comparison payload. */
+export interface StateView {
+  readonly phase?: string;
+  readonly group?: string | null;
+  readonly files?: readonly unknown[];
+}
+
 /** The plugin's `/state`: the comparison and its drawn HTML. */
-export interface StateAnswer { readonly view: unknown; readonly html?: string }
+export interface StateAnswer { readonly view: StateView | null; readonly html?: string }

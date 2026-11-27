@@ -81,6 +81,8 @@ export interface InstalledArtifactView {
   knownPluginIds(): readonly string[];
   /** False once the project the supervisor belongs to has closed; a closed view has no installs in effect. */
   alive(): boolean;
+  /** Project that owns this view, or null/undefined for Home-scoped views visible across projects unless shadowed. */
+  readonly project_id?: string | null;
 }
 
 /**
@@ -88,37 +90,47 @@ export interface InstalledArtifactView {
  * install, an uninstall, an enable, a disable and an upgrade show at once, with nothing rebuilt (RAC-415).
  */
 class InstalledArtifactDirectory {
-  readonly #views = new Set<InstalledArtifactView>();
+  readonly #views = new Map<InstalledArtifactView, string | null | undefined>();
 
-  watch(view: InstalledArtifactView): () => void {
-    this.#views.add(view);
+  watch(view: InstalledArtifactView, projectId?: string | null): () => void {
+    this.#views.set(view, projectId !== undefined ? projectId : view.project_id);
     return () => { this.#views.delete(view); };
   }
 
-  effective(): PluginManifest[] {
+  effective(projectId?: string | null): PluginManifest[] {
     const seen = new Set<string>();
-    return this.#ask(view => view.effectiveManifests()).filter(manifest => !seen.has(manifest.plugin_id) && seen.add(manifest.plugin_id));
+    return this.#ask(projectId, view => view.effectiveManifests()).filter(manifest => !seen.has(manifest.plugin_id) && seen.add(manifest.plugin_id));
   }
 
-  known(): Set<string> {
-    return new Set(this.#ask(view => view.knownPluginIds()));
+  known(projectId?: string | null): Set<string> {
+    return new Set(this.#ask(projectId, view => view.knownPluginIds()));
   }
 
   /** A view whose project has closed is dropped; any other failure of a view is the reader's to see. */
-  #ask<T>(read: (view: InstalledArtifactView) => readonly T[]): T[] {
-    return [...this.#views].flatMap(view => {
-      if (view.alive()) return [...read(view)];
-      this.#views.delete(view);
-      return [];
-    });
+  #ask<T>(projectId: string | null | undefined, read: (view: InstalledArtifactView) => readonly T[]): T[] {
+    const scoped: InstalledArtifactView[] = [];
+    const shared: InstalledArtifactView[] = [];
+    for (const [view, owner] of [...this.#views]) {
+      if (!view.alive()) {
+        this.#views.delete(view);
+        continue;
+      }
+      if (projectId === undefined) scoped.push(view);
+      else if (projectId === null) {
+        if (owner == null) shared.push(view);
+      } else if (owner === projectId) scoped.push(view);
+      else if (owner == null) shared.push(view);
+    }
+    return [...scoped, ...shared].flatMap(view => [...read(view)]);
   }
 }
 
 export const installedArtifacts = new InstalledArtifactDirectory();
 
 /** What a supervisor and its Runtime say is in effect: the Manifests of enabled installs that are not uninstalled and have not failed to start, and every Plugin they have held. */
-export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: PluginRuntime, alive: () => boolean): InstalledArtifactView {
+export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: PluginRuntime, alive: () => boolean, projectId?: string | null): InstalledArtifactView {
   return {
+    ...(projectId !== undefined ? { project_id: projectId } : {}),
     alive,
     providerId: pluginId => {
       const install = supervisor.installation(pluginId);
@@ -140,8 +152,8 @@ export const artifactManifestSource = (manifest: PluginManifest, surface: string
  * that is installed and enabled is read from its installed Manifest (an upgrade shows); one that has been installed here but is no
  * longer in effect (disabled, uninstalled) declares nothing, so its types and link kinds are no longer written.
  */
-export function artifactProducerSources(): readonly ArtifactProducerSource[] {
-  const effective = installedArtifacts.effective(), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known();
+export function artifactProducerSources(projectId?: string | null): readonly ArtifactProducerSource[] {
+  const effective = installedArtifacts.effective(projectId), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known(projectId);
   const shipped = shippedParts().flatMap(entry => {
     const installed = byId.get(entry.manifest.plugin_id);
     if (installed) return [artifactManifestSource(installed, entry.project_plugin_id)];

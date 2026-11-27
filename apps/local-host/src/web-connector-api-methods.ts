@@ -21,7 +21,8 @@ const ROOT = "/api/settings/connectors/methods";
 const isOAuthCallback = (pathname: string) => pathname === OAUTH_CALLBACK || oauthCallbackAlias(pathname) !== undefined;
 const ITEM = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/(verify|preview)$/u;
 export async function handleConnectorApiMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string | undefined,
-  mcpTools: ConnectorMcpDirectory["remember"], beforeEffect: () => void | Promise<void>): Promise<boolean> {
+  mcpTools: ConnectorMcpDirectory["remember"], beforeEffect: () => void | Promise<void>,
+  control?: { signal?: AbortSignal; assertCurrent?: () => void }): Promise<boolean> {
   const item = ITEM.exec(url.pathname);
   if (!home || (!item && !isOAuthCallback(url.pathname) && !url.pathname.startsWith(`${ROOT}/oauth/`) && !url.pathname.startsWith(`${ROOT}/device/`) && !url.pathname.startsWith(`${ROOT}/cli/`))) return false;
   try {
@@ -47,8 +48,8 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     } else if (url.pathname === `${ROOT}/oauth/complete`) json(response, 200, await completeApiOAuth(home, { origin, returnedUrl: str("returned_url") }));
     else if (url.pathname === `${ROOT}/device/start`) json(response, 200, await startDeviceOAuth(home, { serviceId: str("service_id"), displayName: str("display_name"), clientId: str("client_id"), origin,
       connectionId: str("connection_id") || undefined, setupId: str("setup_id") || undefined }));
-    else if (url.pathname === `${ROOT}/device/poll`) json(response, 200, await pollDeviceOAuth(home, { origin, state: str("state") }));
-    else if (url.pathname === `${ROOT}/cli/install`) json(response, 200, await installPreparedCli(home, str("setup_id"), { beforeEffect }));
+    else if (url.pathname === `${ROOT}/device/poll`) json(response, 200, await pollDeviceOAuth(home, { origin, state: str("state"), ...(control?.signal ? { signal: control.signal } : {}) }));
+    else if (url.pathname === `${ROOT}/cli/install`) json(response, 200, await installPreparedCli(home, str("setup_id"), { beforeEffect, ...(control?.signal ? { signal: control.signal } : {}) }));
     else if (url.pathname === `${ROOT}/cli/status`) {
       const installed = str("setup_id") ? cliRequestInstallation(home, str("setup_id"), str("service_id")) : undefined;
       json(response, 200, { ...cliAvailability(str("service_id")), ...(installed ? { installed: true } : {}) });
@@ -71,18 +72,26 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     }
     else if (url.pathname === `${ROOT}/cli/job`) json(response, 200, cliLoginJob(home, str("job_id"), typeof body.input === "string" ? body.input : undefined, body.cancel === true));
     else if (url.pathname === `${ROOT}/cli/connect`) {
-      if (str("setup_id")) { json(response, 200, await connectPreparedCli(home, str("setup_id"), { beforeEffect }, str("service_id"))); return true; }
+      if (str("setup_id")) { json(response, 200, await connectPreparedCli(home, str("setup_id"), { beforeEffect, ...(control?.signal ? { signal: control.signal } : {}) }, str("service_id"))); return true; }
       const setup = startConnectorSetupSubmission(home, str("setup_id") || undefined, { service_id: str("service_id"), method: "cli" });
       try {
-        const result = await connectCli(home, { serviceId: str("service_id"), displayName: str("display_name") }, undefined, beforeEffect, setup?.submit);
+        const result = await connectCli(home, { serviceId: str("service_id"), displayName: str("display_name") }, control?.signal, beforeEffect, setup?.submit);
         json(response, "status" in result && result.status === "pending" ? 202 : 200, result);
       } catch (error) { setup?.fail(); throw error; }
     }
     else if (item) {
+      await beforeEffect();
+      control?.assertCurrent?.();
       const row = withConnectorConnections(home, store => store.require(item[1]!), "required");
-      json(response, 200, row.auth_method === "mcp" ? await inspectMcpConnection(home, row.connection_id).then(result => { mcpTools(row.connection_id, result.tools as ConnectorMcpTool[], result.resources); return result; })
-        : row.auth_method === "cli" ? await inspectCliConnection(home, row.connection_id, item[2] === "preview")
-          : await inspectApiConnection(home, row.connection_id, item[2] === "preview"));
+      json(response, 200, row.auth_method === "mcp"
+        ? await inspectMcpConnection(home, row.connection_id, { signal: control?.signal, beforeDispatch: beforeEffect, assertCurrent: control?.assertCurrent }).then(result => {
+          control?.assertCurrent?.();
+          mcpTools(row.connection_id, result.tools as ConnectorMcpTool[], result.resources);
+          return result;
+        })
+        : row.auth_method === "cli"
+          ? await inspectCliConnection(home, row.connection_id, item[2] === "preview", control?.signal, beforeEffect)
+          : await inspectApiConnection(home, row.connection_id, item[2] === "preview", control?.signal, beforeEffect, undefined, control?.assertCurrent));
     } else json(response, 404, { error: "连接操作不存在" });
   } catch (error) {
     if (request.method === "GET" && isOAuthCallback(url.pathname)) {

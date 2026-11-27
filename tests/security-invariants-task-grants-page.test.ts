@@ -155,3 +155,40 @@ test("S-task-grants-page TGA-24 TGA-26 the route lists every task once and names
   const after = await a.call<Listed>({ mode: "list" });
   assert.deepEqual(after.subjects.map(subject => [subject.plugin_install_id, subject.key]).sort(), [[a.install, "zlate"], [a.other, "daily"]].sort());
 });
+
+test("R-06 F-hc2-43 task-grants titles skips an empty filtered first page instead of returning empty entries with next_cursor, and rejects prototype mode names", { timeout: 60_000 }, async t => {
+  const contexts: PluginStartContext[] = [];
+  const notes: ActionDefinition = { capability_id: "skipfilter.notes.list", version: 1, operation: "query", action: { title: "Notes", description: "Reads notes",
+    kind: "query", scope: "project", audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: empty, output_schema: { type: "object" } } };
+  const search = defineSearchEntriesAction("skipfilter.search.entries", 1, [{ kind: "grants_task", title: "任务", surface: "skipfilter" }, { kind: "grants_note", title: "笔记", surface: "skipfilter" }], "任务", []);
+  const entries = [
+    ...Array.from({ length: 500 }, (_, index) => entry("grants_note", `n${index}`, `不是任务 ${index}`)),
+    entry("grants_task", "second-page-task", "第二页里的任务"),
+  ];
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.skipfilter", version: "1.0.0", name: "skipfilter", kind: "app",
+    publisher: { publisher_id: "example", signature: "skipfilter" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [notes, search],
+    read_groups: [{ group_id: "notes", title: "笔记", description: "这个插件的笔记", actions: [notes.capability_id] }],
+    task_subjects: { kind: "grants_task" } },
+  async start(context) { contexts.push(context); return { kind: "app", actions: [{ ...notes, handle: () => ({ notes: [] }) },
+    { ...search, handle: (_caller: unknown, input: unknown) => searchEntriesPage(entries, input as SearchEntriesInput) }] }; } };
+
+  const f = await serveHomeRuntime(t, { pluginFixtures: { project: [definition] } });
+  const project = await f.project("Grants empty page");
+  await f.host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] }, project.reference);
+  const install = contexts.at(-1)?.install_id;
+  assert.ok(install);
+  const endpoint = `/projects/${project.project_id}/api/settings/task-grants`;
+
+  const protoMode = await f.request(endpoint, { method: "POST", body: { mode: "toString" } });
+  assert.equal(protoMode.status, 400);
+  assert.equal(((await protoMode.json()) as { code?: string }).code, "actions.input_invalid");
+
+  const titlesResponse = await f.request(endpoint, { method: "POST", body: { mode: "titles", plugin_install_id: install, cursor: null } });
+  assert.equal(titlesResponse.status, 200, await titlesResponse.clone().text());
+  const titles = await titlesResponse.json() as { entries: Array<{ key: string; title: string }>; next_cursor: string | null };
+  assert.equal(titles.entries.length, 1, "skips the 500 non-task first page and surfaces the matching second-page task");
+  assert.equal(titles.entries[0]?.key, "second-page-task");
+  assert.equal(titles.entries[0]?.title, "第二页里的任务");
+  assert.equal(titles.next_cursor, null);
+});

@@ -37,6 +37,12 @@ export const THEME_BOOTSTRAP_SCRIPT = `
 
 export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
 (() => {
+  const boundKey = Symbol.for("molis-work:preferences-bound");
+  if (document[boundKey]) {
+    globalThis.molisWorkPreferences?.sync?.();
+    return;
+  }
+  document[boundKey] = true;
   const themeKey = "${MOLIS_WORK_THEME_STORAGE_KEY}";
   const densityKey = "${MOLIS_WORK_DENSITY_STORAGE_KEY}";
   const terminalThemeKey = "${MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY}";
@@ -137,12 +143,13 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
     if (event.key === densityKey) applyDensity(readDensity());
     if (event.key === terminalThemeKey) applyTerminalTheme(readTerminalTheme());
   });
-  document.addEventListener("click", (event) => {
+  window.addEventListener("click", (event) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target instanceof Element ? event.target : null;
     const anchor = target?.closest("a[href]");
-    if (!anchor || anchor.hasAttribute("download") || anchor.getAttribute("target")) return;
-    const destination = new URL(anchor.href, location.href);
+    if (!(anchor instanceof HTMLAnchorElement) || anchor.hasAttribute("download") || anchor.getAttribute("target")) return;
+    let destination;
+    try { destination = new URL(anchor.href, location.href); } catch { return; }
     if (destination.origin !== location.origin) return;
     if (destination.pathname === location.pathname && destination.search === location.search && destination.hash) return;
     document.body.dataset.navigationPending = "true";

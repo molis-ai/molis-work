@@ -1,8 +1,8 @@
 import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ArtifactLinkSubjectsResult, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { logLinkSubjectsFailure, logPreviewFailure } from "./host-log.js";
-import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference, type ArtifactActionPorts } from "@molis-ai/molis-work-module-artifacts";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference, type ArtifactActionPorts, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactLinkKinds, artifactLinkSubjectActions } from "./artifact-type-registry.js";
+import { artifactLinkKinds, artifactLinkSubjectActions, artifactProducerSources } from "./artifact-type-registry.js";
 import { projectArtifactDeclaration } from "./declared-types.js";
 import { readProjectReference } from "./project-file-reference.js";
 import { hostErrors } from "./host-errors.js";
@@ -30,8 +30,23 @@ export function artifactLinkSubjectsPort(client: ActionClient | undefined, decla
   };
 }
 
+function dynamicArtifactLinkKinds(projectId: string): ArtifactLinkKinds {
+  const current = () => artifactLinkKinds(artifactProducerSources(projectId));
+  return {
+    get size() { return current().size; },
+    get: key => current().get(key),
+    has: key => current().has(key),
+    entries: () => current().entries(),
+    keys: () => current().keys(),
+    values: () => current().values(),
+    forEach: (callback, thisArg) => { current().forEach(callback, thisArg); },
+    [Symbol.iterator]: () => current()[Symbol.iterator](),
+  };
+}
+
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor" | "prepareDirectory">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveConfiguredHome();
+  const sources = () => artifactProducerSources(runtime.project_id);
   // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
   const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id };
   return {
@@ -40,8 +55,8 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
     handlers: createArtifactActionHandlers({
       projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
-      linkKinds: artifactLinkKinds(),
-      linkSubjects: artifactLinkSubjectsPort(client),
+      linkKinds: dynamicArtifactLinkKinds(runtime.project_id),
+      linkSubjects: artifactLinkSubjectsPort(client, () => artifactLinkSubjectActions(sources())),
       typeTitle: (_, record) => projectArtifactDeclaration(runtime.store.db, record)?.title ?? null,
       searchableFields: (_, record) => projectArtifactDeclaration(runtime.store.db, record)?.searchable_fields,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.

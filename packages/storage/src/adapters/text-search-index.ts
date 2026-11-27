@@ -11,6 +11,7 @@ import type {
   SearchIndexSourceRecord,
 } from "@molis-ai/molis-work-contracts/services/search";
 import { SEARCH_INDEX_CONTENT_CHARS } from "@molis-ai/molis-work-contracts/services/search";
+import { sqliteErrorName } from "../sqlite-connection.js";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 
@@ -205,27 +206,58 @@ function inTransaction<T>(db: DatabaseSync, run: () => T): T {
   catch (error) { try { db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw error; }
 }
 
+const SEARCH_INDEX_INTEGRITY_ERROR = Symbol("searchIndexIntegrityError");
+
+export function searchIndexIntegrityError(message: string): Error {
+  const error = new Error(message);
+  Object.defineProperty(error, SEARCH_INDEX_INTEGRITY_ERROR, { value: true });
+  return error;
+}
+
+const REBUILDABLE_SQLITE_ERRORS = new Set(["SQLITE_CORRUPT", "SQLITE_NOTADB", "SQLITE_FORMAT"]);
+
+/** Only unrecoverable SQLite corruption may trigger deleting and rebuilding the cache file; lock contention and foreign space ownership must propagate. */
+export function isRebuildableSearchDbError(error: unknown): boolean {
+  if (error && typeof error === "object" && SEARCH_INDEX_INTEGRITY_ERROR in error) return true;
+  const name = sqliteErrorName(error);
+  return typeof name === "string" && REBUILDABLE_SQLITE_ERRORS.has(name);
+}
+
 /** Open (or create) the Home's search index. A missing, corrupt or outdated index is rebuilt empty. */
 export function openTextSearchIndex(options: TextSearchIndexOptions): SearchIndexPort {
   const path = homeSqlitePath(options.homeDirectory, TEXT_SEARCH_STORE);
   const open = (): DatabaseSync => {
-    const db = openHomeSqliteDatabase(options.homeDirectory, TEXT_SEARCH_STORE);
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
-    const check = prepareFtsStatement(db, "PRAGMA quick_check").all() as Row[];
-    if (!check.every(row => Object.values(row).every(value => value === "ok"))) throw new Error("search index failed integrity check");
-    return db;
+    const handle = openHomeSqliteDatabase(options.homeDirectory, TEXT_SEARCH_STORE, undefined, {
+      busyTimeoutMs: 5000,
+      journalMode: "wal",
+      synchronous: "NORMAL",
+    });
+    try {
+      const check = prepareFtsStatement(handle, "PRAGMA quick_check").all() as Row[];
+      if (!check.every(row => Object.values(row).every(value => value === "ok"))) {
+        throw searchIndexIntegrityError("search index failed integrity check");
+      }
+      return handle;
+    } catch (error) {
+      try { handle.close(); } catch { /* closing failed handle */ }
+      throw error;
+    }
   };
   let db: DatabaseSync;
-  try { db = open(); }
-  catch {
+  try {
+    db = open();
+  } catch (error) {
+    if (!isRebuildableSearchDbError(error)) throw error;
     for (const suffix of ["", "-wal", "-shm"]) if (existsSync(path + suffix)) rmSync(path + suffix, { force: true });
     db = open();
   }
-  db.exec("CREATE TABLE IF NOT EXISTS search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-  const version = (prepareFtsStatement(db, "SELECT value FROM search_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
-  if (version !== SCHEMA_VERSION) {
-    db.exec("DROP TABLE IF EXISTS search_fts; DROP TABLE IF EXISTS search_documents; DROP TABLE IF EXISTS search_sources;");
-    db.exec(`
+  try {
+    inTransaction(db, () => {
+      db.exec("CREATE TABLE IF NOT EXISTS search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+      const version = (prepareFtsStatement(db, "SELECT value FROM search_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
+      if (version !== SCHEMA_VERSION) {
+        db.exec("DROP TABLE IF EXISTS search_fts; DROP TABLE IF EXISTS search_documents; DROP TABLE IF EXISTS search_sources;");
+        db.exec(`
       CREATE TABLE search_sources (
         source_key TEXT PRIMARY KEY, project_id TEXT, provider_id TEXT NOT NULL, capability_id TEXT NOT NULL, version INTEGER NOT NULL,
         plugin_id TEXT NOT NULL, title TEXT NOT NULL, collection_revision TEXT, state TEXT NOT NULL, error TEXT, synced_at INTEGER, checked_at INTEGER
@@ -238,7 +270,12 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       CREATE INDEX search_documents_project ON search_documents (project_id);
       CREATE VIRTUAL TABLE search_fts USING fts5(title, body, content='', contentless_delete=1, tokenize='unicode61 remove_diacritics 0', prefix='2 3');
     `);
-    prepareFtsStatement(db, "INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(SCHEMA_VERSION);
+        prepareFtsStatement(db, "INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(SCHEMA_VERSION);
+      }
+    });
+  } catch (error) {
+    try { db.close(); } catch { /* closing failed handle */ }
+    throw error;
   }
 
   const transaction = <T>(run: () => T): T => inTransaction(db, run);

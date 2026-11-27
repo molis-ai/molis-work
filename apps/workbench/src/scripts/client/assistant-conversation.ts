@@ -62,8 +62,8 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`${ASSISTANT_SUBTASK_ENTRY_
       onSubmit: async () => {
         const button = card.querySelector("[type=submit]"); if (!button || button.dataset.loading !== undefined) return;
         clearTimeout(saving); button.disabled = true; button.dataset.loading = ""; button.prepend(Object.assign(el("span", "mw-spinner"), { ariaHidden: "true" }));
-        try { view = await api(path + "/answer", "POST", { ...held(), run_id: round.run_id, pending_revision: question.pending_revision }); render(); poll(); }
-        catch (error) { if (error.body?.details?.errors) client.showErrors(error.body.details.errors, { focus: true }); else showError(error); }
+        try { const next = await api(path + "/answer", "POST", { ...held(), run_id: round.run_id, pending_revision: question.pending_revision }); if (adoptView(work.work_id, next)) poll(); }
+        catch (error) { if (curId !== work.work_id) return; if (error.body?.details?.errors) client.showErrors(error.body.details.errors, { focus: true }); else showError(error); }
         finally { button.disabled = false; delete button.dataset.loading; button.querySelector(".mw-spinner")?.remove(); }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
@@ -84,7 +84,7 @@ ${ASSISTANT_REVIEW_PART}
       mounted = mountWorkReview(card, review, {
         current: () => card.isConnected,
         decide: (decision, version) => api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision, version }),
-        refresh: next => { view = next; render(); poll(); }, error: showError,
+        refresh: next => { if (adoptView(work.work_id, next)) poll(); }, error: (error) => showWorkError(work.work_id, error),
       });
       mountedReviews.set(card, mounted);
     } else mounted.update(review);
@@ -125,10 +125,10 @@ ${ASSISTANT_REVIEW_PART}
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
         // The next steps are the Host's: read the work again so a card that ran is no longer offered (FLOW-04).
-        render(); void reload();
+        if (curId === work.work_id) { render(); void reload(); }
         // A card set aside leaves the list: focus moves to the next card, or back to the input when none is left.
-        if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
-      } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
+        if (hadFocus && curId === work.work_id) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
+      } catch (error) { showWorkError(work.work_id, error); lock(false); if (hadFocus && button.isConnected) button.focus(); }
     } });
     if (node.querySelector("[data-assistant-adoption-confirm]")) host.records?.watchCard(node, work.work_id, card.card_id, card.revision);
     const pending = node.querySelector("[data-assistant-connection]");

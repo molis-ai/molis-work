@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { MolisWorkLocalHost, installHostUiText, pluginInstallActions, projectDeletedHooksFor, readMcpToolPreference, taskGrantActionProvider } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, installHostUiText, liveHostJudgmentRuleAuthoringCatalog, pluginInstallActions, projectDeletedHooksFor, readMcpToolPreference, runWithLocale, taskGrantActionProvider } from "@molis-ai/molis-work-app-local-host";
 import {
   LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionView, type ExactActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -741,4 +741,52 @@ test("agent.task_grants.list localizes read_groups title_text and description_te
   const zhGroup = zhListed.categories.find(item => item.plugin_id === PACKAGE_PLUGIN_ID && item.group_id === "notes");
   assert.deepEqual([enGroup?.title, enGroup?.description], ["Notes", "Read project notes"]);
   assert.deepEqual([zhGroup?.title, zhGroup?.description], ["项目笔记", "读取本项目里的笔记"]);
+});
+
+test("F-hc2-25: closing a project before task_grants.set commits fails with actions.host_closed and writes zero grants", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Closing project");
+  let checks = 0;
+  let closing: Promise<unknown> | undefined;
+  const caller: ActionCallContext = {
+    ...w.person(a.project),
+    validate_authority: async () => {
+      checks += 1;
+      // Trigger project close without awaiting it inside this action's own authority hook (which would deadlock waiting for itself to drain).
+      if (checks === 2) closing = w.localHost.closeProject(a.project.reference);
+    },
+  };
+  try {
+    await assert.rejects(
+      w.call(a.project, caller, agentTaskGrantActions.set, {
+        plugin_install_id: a.install,
+        key: "daily",
+        categories: [a.group],
+        expected_revision: "",
+      }),
+      { code: "actions.host_closed" },
+    );
+  } finally {
+    await closing;
+  }
+  assert.deepEqual(await w.records("agent:task:"), [], "no grants were persisted after the project closed");
+});
+
+test("F-hc2-27: task_grants.list multi-action separator and judgment rule authoring catalog localize in en and ja", { timeout: 120_000 }, async t => {
+  installHostUiText();
+  const w = await world(t), a = await w.open("Localized list");
+  t.after(a.shelfAdds([shelfAdded]));
+  const enList = await w.call<TaskGrantListResult>(a.project, { ...w.person(a.project), locale: "en" }, agentTaskGrantActions.list, {});
+  const enShelf = enList.categories.find(category => category.provider_id === a.shelf.provider_id);
+  assert.ok(enShelf, "shelf category is present");
+  assert.equal(enShelf.description.includes("、"), false, `en description must not use Chinese enumeration comma: ${enShelf.description}`);
+  assert.equal(enShelf.description.includes(", "), true, `en description uses localized separator: ${enShelf.description}`);
+
+  const enCatalog = runWithLocale("en", () => liveHostJudgmentRuleAuthoringCatalog([], []));
+  const jaCatalog = runWithLocale("ja", () => liveHostJudgmentRuleAuthoringCatalog([], []));
+  const enDest = enCatalog.destinations[0]!;
+  const jaDest = jaCatalog.destinations[0]!;
+  for (const text of [enDest.when, enDest.configure_at, enDest.effect, jaDest.when, jaDest.configure_at, jaDest.effect]) {
+    assert.doesNotMatch(text, /发布后|系统里建好的|每次拿到结果/u);
+  }
+  assert.notEqual(enDest.configure_at, jaDest.configure_at);
 });

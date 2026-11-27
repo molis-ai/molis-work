@@ -3,7 +3,7 @@ export class ImError extends Error {
 }
 
 export function textInput(value: unknown, label: string, max: number): string {
-  if (typeof value !== "string" || !value.trim() || value.length > max) {
+  if (typeof value !== "string" || !value.trim() || value.length > max || value.includes("\u0000")) {
     throw new ImError("im.invalid_input", `${label}不能为空，且不能超过 ${max} 字`);
   }
   return value.trim();

@@ -6,7 +6,7 @@ import { FILE_PREVIEW_STYLES } from "@molis-ai/molis-work-design-system";
 export const ARTIFACT_EMBED_STYLES = `
   .project-reference-dialog { width:min(760px, calc(100vw - 32px)); }
   .project-reference-body { margin:0; max-height:min(60dvh, 560px); overflow:auto; overscroll-behavior:contain; white-space:pre-wrap; overflow-wrap:anywhere;
-    padding:12px; border-radius:8px; background:var(--surface-soft); font:12px/1.6 var(--mono, ui-monospace, monospace); }
+    padding:12px; border-radius:8px; background:var(--surface-soft); font:12px/1.6 var(--font-mono); }
   .artifact-embed { padding:24px 0; overflow-wrap:anywhere; }
   .artifact-embed + .artifact-embed { border-top:1px solid var(--line); }
   .artifact-embed header { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }

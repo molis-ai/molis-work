@@ -82,6 +82,7 @@ export interface PptState {
   aiAvailable: boolean;
   aiUnavailableReason: string;
   listSeq: number;
+  editorSeq: number;
   outlineMode: OutlineMode;
   outlineKind: OutlineKind;
   outline: OutlineAttempt | null;

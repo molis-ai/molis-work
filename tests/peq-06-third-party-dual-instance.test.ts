@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -266,6 +267,7 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   assert.equal(h.host.homePlugins!.installation(DUAL_PLUGIN_ID)?.state, "disabled");
   await assert.rejects(
     operate(clientA, projectACaller, projectAViews, "project.list", {}),
+    (error: { code?: string }) => ["actions.plugin_unavailable", "actions.missing", "actions.stopped", "actions.provider_changed", "actions.forbidden"].includes(error?.code ?? ""),
     "disabling Home half immediately blocks Project A operations",
   );
   await served.web.post("/api/settings/plugin-permissions/enable", { plugin_id: DUAL_PLUGIN_ID });

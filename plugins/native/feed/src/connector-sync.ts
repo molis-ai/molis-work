@@ -120,25 +120,26 @@ export class FeedConnectorSync {
         ? `${source.name} 授权已失效或不可用，请打开任务设置中的“管理账号连接”重新授权。`
         : action ? `${message} — ${action}` : message;
       await write(() => {
+        const latest = this.feed.sources.get(this.projectId, source.source_id);
         const retrySchedule = failure === "rate_limited"
           && retryAfterAt
-          && source.schedule.mode === "interval"
-          ? { ...source.schedule, next_pull_at: retryAfterAt }
-          : source.schedule;
+          && latest.schedule.mode === "interval"
+          ? { ...latest.schedule, next_pull_at: retryAfterAt }
+          : latest.schedule;
         this.feed.sources.upsert({
-          ...source,
+          ...latest,
           status: failure === "rate_limited" ? "active" : "error",
           schedule: retrySchedule,
           last_outcome: "failed",
           last_error_code: listenerResult.error_code,
           updated_at: completedAt,
         });
-        this.ports.appendEvent(this.projectId, source.source_id, "feed_connector.sync_failed", `${source.name} 同步失败：${message}`, {
+        this.ports.appendEvent(this.projectId, latest.source_id, "feed_connector.sync_failed", `${latest.name} 同步失败：${message}`, {
           failure,
           ...(action ? { action } : {}),
           ...(retryAfterAt ? { retry_after_at: retryAfterAt } : {}),
         });
-        this.recordActionableSourceFault(source, listenerResult.error_code!, publicMessage, completedAt);
+        this.recordActionableSourceFault(latest, listenerResult.error_code!, publicMessage, completedAt);
       });
       await this.feed.flushPendingJudgments();
       throw feedErrors.connector_failed(publicMessage, { error_code: listenerResult.error_code! });

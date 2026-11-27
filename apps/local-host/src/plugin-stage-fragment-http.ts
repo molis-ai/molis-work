@@ -4,7 +4,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { stageObjectAction, stageDataAction, stageDataInput } from "@molis-ai/molis-work-app-workbench";
 import { readRuntimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
-import { sendLocalWebJson } from "./web-http.js";
+import { LOCAL_PAGE_CSP, requestAbortSignal, sendLocalWebJson } from "./web-http.js";
 import { htmlLang } from "./web-locale.js";
 
 export const PLUGIN_STAGE_PREFIX = "/api/stage/";
@@ -36,9 +36,7 @@ function stageRequest(url: URL): { plugin: string; object?: { id: string; surfac
 /** A stage or object is read and drawn by one actual running owner; a late reply never reaches another instance. */
 export async function handlePluginStageFragmentHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: PluginStageFragmentPorts): Promise<boolean> {
   if (request.method !== "GET" || !url.pathname.startsWith(PLUGIN_STAGE_PREFIX)) return false;
-  const abort = new AbortController();
-  const disconnected = () => { if (!response.writableEnded) abort.abort(new ActionError("actions.cancelled", "页面读取已取消")); };
-  request.once("aborted", disconnected); response.once("close", disconnected);
+  const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "页面读取已取消"));
   try {
     const target = stageRequest(url);
     if (!target) return false;
@@ -61,21 +59,21 @@ export async function handlePluginStageFragmentHttp(request: IncomingMessage, re
       if (!allowed.has(key) || key === "object_id" || Object.hasOwn(input, key) || value.length > 2000) throw new ActionError("actions.input_invalid", "舞台参数未声明或无效");
       input[key] = value;
     }
-    abort.signal.throwIfAborted();
+    disconnected.signal.throwIfAborted();
     ports.invalidateWebView();
-    const data = await readRuntimeStageOwner(owner, (action, bound) => ports.bind(action, bound, abort.signal), target.object ? { ...input, object_id: target.object.id } : input, Boolean(target.object));
+    const data = await readRuntimeStageOwner(owner, (action, bound) => ports.bind(action, bound, disconnected.signal), target.object ? { ...input, object_id: target.object.id } : input, Boolean(target.object));
     if (!(await ports.shown()).includes(target.plugin)) throw new ActionError("actions.plugin_disabled", "此项目不再显示该插件");
-    abort.signal.throwIfAborted(); owner.assertCurrent();
+    disconnected.signal.throwIfAborted(); owner.assertCurrent();
     const model = ports.renderer.stageFragmentModel(target.plugin, { ...ports.context, shown_plugins: showing }, data, target.object);
     owner.assertCurrent();
     const html = owner.view.render({ contribution_id: owner.view.descriptor.contribution_id, surface, model });
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-language": htmlLang(), "cache-control": "no-store", "x-content-type-options": "nosniff" });
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-language": htmlLang(), "cache-control": "no-store", "content-security-policy": LOCAL_PAGE_CSP, "x-content-type-options": "nosniff" });
     response.end(html);
   } catch (error) {
     const refusal = actionErrorResponse(error);
     sendLocalWebJson(response, refusal.status, refusal.body);
   } finally {
-    request.off("aborted", disconnected); response.off("close", disconnected);
+    disconnected.dispose();
   }
   return true;
 }

@@ -49,6 +49,6 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 1. **构建先行**：`pnpm build`（单包可用 `pnpm --filter <包> run build`），确保测试读到最新产物。
 2. **静态与边界门禁**：`pnpm health:check` + `pnpm boundary:check` + `pnpm plugin-styles:check` + `node scripts/run-tests.mjs tests/soft-workbench-refinement.test.ts tests/ui-baseline.test.ts tests/ui-resources.test.ts tests/cursor-skill-links.test.ts --jobs 1`。
 3. **文案与三语巡检**：`node scripts/gates/translations.mjs --missing` + `node scripts/audit-ui-copy.mjs`（文案五条校准标尺、中/英/日三语准绳与黑话清单见 [`skills/molis-plugin-dev/text-and-appearance.md`](../molis-plugin-dev/text-and-appearance.md)）。
-4. **体积与首屏核对**：`pnpm page-assets:check` + `node scripts/gates/first-screen.mjs --base origin/main`（单资源涨超 `10 KB` 或新增资产/路由先问用户）。
+4. **体积与首屏核对**：`pnpm page-assets:check` + `node scripts/gates/first-screen.mjs --base origin/main`（按 `tooling/gates/page-asset-budgets.json` 预算表验收；预算内免逐字节许可，调高上限、把资源移出路由或新增未登记路由资产须先问用户）。
 5. **视觉与交互定向回归**：按改动面跑 `pnpm visual:compare` 及受影响的 `tests/visual-order.e2e.test.ts` / `tests/touch-targets.e2e.test.ts` / `tests/busy-feedback.e2e.test.ts` / `tests/save-failure.e2e.test.ts`；改了 `skills/molis-plugin-dev/` 或 `plugin-builder` 提示词必跑 `pnpm studio:replay` 与隔离 `smoke`。
 6. **隔离真页目视复核**：在隔离 `MOLIS_WORK_HOME`（绝不动真实 `~/.molis-work`）检查 **浅色 + 深色**、**简体中文 + English + 日本語**（原地切换无残留、三项语言切换条不折行不溢出）、**1440px 全宽 / 680px 二分屏 / 390px 窄屏**、**键盘 Tab 焦点与触控热区**。

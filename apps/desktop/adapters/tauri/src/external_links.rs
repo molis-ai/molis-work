@@ -32,10 +32,7 @@ fn validated_external_url(value: &str) -> Result<Url, String> {
     Ok(url)
 }
 
-/// The main-window capability permits this command only from Molis Work's local host.
-#[tauri::command]
-pub fn open_external_url(url: String) -> Result<(), String> {
-    let url = validated_external_url(&url)?;
+fn launch_external_browser(url: &Url) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let status = std::process::Command::new("/usr/bin/open")
@@ -72,9 +69,36 @@ pub fn open_external_url(url: String) -> Result<(), String> {
     }
 }
 
+pub(crate) fn new_window_target(url: &Url) -> Option<Url> {
+    validated_external_url(url.as_str()).ok()
+}
+
+/// Handles `window.open` / `target="_blank"` from the main WebView: opens safe HTTP(S) links in
+/// the system browser off the UI thread while the caller returns `NewWindowResponse::Deny`.
+pub(crate) fn handle_new_window_request(url: &Url) {
+    let Some(safe) = new_window_target(url) else {
+        return;
+    };
+    let _ = std::thread::Builder::new()
+        .name("molis-open-external".into())
+        .spawn(move || {
+            if let Err(error) = launch_external_browser(&safe) {
+                eprintln!("on_new_window open browser error: {error}");
+            }
+        });
+}
+
+/// The main-window capability permits this command only from Molis Work's local host.
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    let url = validated_external_url(&url)?;
+    launch_external_browser(&url)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::validated_external_url;
+    use super::{new_window_target, validated_external_url};
+    use tauri::Url;
 
     #[test]
     fn web_links_preserve_paths_query_and_fragments() {
@@ -100,5 +124,24 @@ mod tests {
         assert!(
             validated_external_url(&format!("https://example.com/{}", "x".repeat(4096))).is_err()
         );
+    }
+
+    #[test]
+    fn new_window_target_allows_only_safe_http_and_https_urls() {
+        let oauth = Url::parse("https://accounts.example.com/oauth?state=abc&redirect=1").unwrap();
+        assert_eq!(new_window_target(&oauth), Some(oauth));
+        let local = Url::parse("http://127.0.0.1:4173/projects/demo").unwrap();
+        assert_eq!(new_window_target(&local), Some(local));
+        for blocked in [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "data:text/html,<script>alert(1)</script>",
+            "about:blank",
+            "mailto:person@example.com",
+            "https://user:secret@example.com/oauth",
+        ] {
+            let parsed = Url::parse(blocked).unwrap();
+            assert_eq!(new_window_target(&parsed), None, "accepted {blocked}");
+        }
     }
 }

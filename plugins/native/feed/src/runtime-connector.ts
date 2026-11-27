@@ -1,5 +1,6 @@
 import { feedErrors } from "./contract/feed.js";
 import type { SignalCommands } from "./contract/signals.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { pluginErrors, type IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConnectionsClient } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import type { PluginConnectorSourceClient } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
@@ -102,10 +103,91 @@ const KINDS: ReadonlySet<unknown> = new Set(["message", "notification", "issue",
 const PRIORITIES: ReadonlySet<unknown> = new Set(["low", "medium", "high", "urgent"]);
 const text = (value: unknown): string | undefined => typeof value === "string" ? value : undefined;
 
+const ATTENTION_DETAIL_MAX_KEYS = 32;
+const ATTENTION_DETAIL_MAX_ARRAY = 32;
+const ATTENTION_DETAIL_MAX_STRING = 500;
+const ATTENTION_DETAIL_MAX_DEPTH = 3;
+const ATTENTION_DETAIL_MAX_NODES = 128;
+const ATTENTION_DETAIL_MAX_BYTES = 4096;
+const ATTENTION_DETAIL_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/u;
+const ATTENTION_DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const ATTENTION_FORBIDDEN_TOKENS = ["title", "summary", "body", "message", "content", "credential", "cursor"] as const;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function sanitizeDetailValue(
+  value: unknown,
+  depth: number,
+  budget: { nodes: number },
+): { ok: true; value: unknown } | { ok: false } {
+  if (budget.nodes >= ATTENTION_DETAIL_MAX_NODES) {
+    return { ok: false };
+  }
+  budget.nodes += 1;
+  if (value === null || typeof value === "boolean") {
+    return { ok: true, value };
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? { ok: true, value } : { ok: false };
+  }
+  if (typeof value === "string") {
+    return { ok: true, value: cutHead(value, ATTENTION_DETAIL_MAX_STRING) };
+  }
+  if (Array.isArray(value)) {
+    if (depth >= ATTENTION_DETAIL_MAX_DEPTH) {
+      return { ok: false };
+    }
+    const items: unknown[] = [];
+    for (const element of value) {
+      if (items.length >= ATTENTION_DETAIL_MAX_ARRAY) break;
+      const sanitized = sanitizeDetailValue(element, depth + 1, budget);
+      if (sanitized.ok) items.push(sanitized.value);
+    }
+    return { ok: true, value: items };
+  }
+  if (isPlainObject(value)) {
+    if (depth >= ATTENTION_DETAIL_MAX_DEPTH) {
+      return { ok: false };
+    }
+    const out: Record<string, unknown> = {};
+    let count = 0;
+    for (const [key, nested] of Object.entries(value)) {
+      if (count >= ATTENTION_DETAIL_MAX_KEYS) break;
+      if (ATTENTION_DANGEROUS_KEYS.has(key) || !ATTENTION_DETAIL_KEY_PATTERN.test(key)) continue;
+      const lowered = key.toLowerCase();
+      if (ATTENTION_FORBIDDEN_TOKENS.some((token) => lowered.includes(token))) continue;
+      const sanitized = sanitizeDetailValue(nested, depth + 1, budget);
+      if (!sanitized.ok) continue;
+      out[key] = sanitized.value;
+      count += 1;
+    }
+    return { ok: true, value: out };
+  }
+  return { ok: false };
+}
+
+function sanitizeAttentionDetail(raw: unknown): Record<string, unknown> | undefined {
+  if (!isPlainObject(raw)) return undefined;
+  const sanitized = sanitizeDetailValue(raw, 0, { nodes: 0 });
+  if (!sanitized.ok || !isPlainObject(sanitized.value)) return undefined;
+  const result = sanitized.value;
+  const entries = Object.entries(result);
+  while (entries.length > 0 && Buffer.byteLength(JSON.stringify(Object.fromEntries(entries)), "utf8") > ATTENTION_DETAIL_MAX_BYTES) {
+    entries.pop();
+  }
+  return Object.fromEntries(entries);
+}
+
 const attentionOf = (value: unknown): IntegrationProviderItem["attention"] => {
   if (value === false) return false;
   if (!value || typeof value !== "object" || !("reason" in value) || value.reason !== "source_rule") return undefined;
-  const detail = "detail" in value && value.detail && typeof value.detail === "object" && !Array.isArray(value.detail) ? Object.fromEntries(Object.entries(value.detail)) : undefined;
+  const detail = "detail" in value ? sanitizeAttentionDetail(value.detail) : undefined;
   return { reason: "source_rule", ...(detail ? { detail } : {}) };
 };
 

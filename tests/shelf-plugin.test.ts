@@ -162,6 +162,50 @@ test("a folder over 32 MB is refused whole with a message that says how to split
   });
 });
 
+test("F-modules-server-16/17 artifact_source dedupes across empty project_path with backfill and admitFolder rejects duplicate/prefix-conflict paths and malformed base64", async () => {
+  const { createShelfActionHandlers, shelfActions } = await import("@molis-ai/molis-work-module-shelf/surface");
+  await withHome(async (home) => {
+    const store = openTestShelfStore(home, NO_AGENT, { extract: extractMaterial });
+    const syncedSource = {
+      project_id: "proj-1", project_path: "",
+      reference: { artifact_id: "art-1", version: 1 },
+      producer_plugin_id: "io.molis.work.coding", content_hash: "a".repeat(64),
+    };
+    const first = await store.admit({ filename: "report.md", bytes: Buffer.from("body"), mime: "text/markdown", artifact_source: syncedSource });
+    const second = await store.admit({ filename: "report.md", bytes: Buffer.from("body"), mime: "text/markdown", artifact_source: { ...syncedSource, project_path: "/projects/proj-1" } });
+    assert.equal(second.item_id, first.item_id, "re-receiving after cross-device sync must not duplicate the copy");
+    assert.equal(second.artifact_source?.project_path, "/projects/proj-1", "re-receiving backfills local project_path");
+
+    // Duplicate normalized paths ("a.txt" and "./a.txt") and file/directory prefix conflicts ("dir" and "dir/file.txt") are refused.
+    await assert.rejects(
+      store.admitFolder({ name: "dup", entries: [{ relative: "a.txt", bytes: Buffer.from("1") }, { relative: "./a.txt", bytes: Buffer.from("2") }] }),
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.invalid",
+    );
+    await assert.rejects(
+      store.admitFolder({ name: "prefix", entries: [{ relative: "dir", bytes: Buffer.from("1") }, { relative: "dir/file.txt", bytes: Buffer.from("2") }] }),
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.invalid",
+    );
+
+    // Action handler rejects malformed base64 strictly.
+    const handlers = createShelfActionHandlers({
+      snapshot: () => store.snapshot(), settings: () => store.settings(), saveSettings: p => store.saveSettings(p),
+      admit: i => store.admit(i), admitText: (b, t, c) => store.admitText(b, t, c), captureUrl: u => store.admitUrl(u),
+      claimOriginal: id => store.claimOriginal(id), admitFolder: i => store.admitFolder(i),
+      readChild: (id, r) => store.readChild(id, r), seedSample: () => store.seedSample(), hide: id => store.hide(id),
+      deleteCopy: id => store.deleteCopy(id), runJob: i => store.runJob(i), cancelJob: id => store.cancelJob(id),
+      useAsMaterial: id => store.useAsMaterial(id), addClipboard: (b, e) => store.addClipboard(b, e),
+      clipboardToMaterial: id => store.clipboardToMaterial(id), deleteClipboard: id => store.deleteClipboard(id),
+      writeCopy: (id, t, h) => store.writeCopy(id, t, h), readFile: id => store.readFile(id),
+    });
+    const admitFolderHandler = handlers.find(h => h.capability_id === shelfActions.admitFolder.capability_id)!;
+    const caller = { actor_id: "user", project_id: null, audience: "user" as const, permissions: [], beforeEffect: async () => {} };
+    await assert.rejects(
+      admitFolderHandler.handle(caller, { name: "bad", entries: [{ relative: "a.txt", bytes_base64: "not-valid-base64!!" }] }),
+      (error: unknown) => isShelfFailure(error) && error.code === "shelf.invalid",
+    );
+  });
+});
+
 test("hide, delete, clipboard, and use-as-material keep copies off the original path", async () => {
   await withHome(async (home) => {
     const store = openTestShelfStore(home, NO_AGENT, { extract: extractMaterial });
@@ -325,8 +369,12 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
         hidden: false,
         created_at: "2026-09-17T00:00:00.000Z",
         source_item_id: null,
+        source_item_ids: [],
         job_id: null,
         preview_text: SAMPLE_PDF_TEXT,
+        status: "done",
+        failure_reason: null,
+        children: [],
       }],
       selected_id: "item_pdf",
   }));

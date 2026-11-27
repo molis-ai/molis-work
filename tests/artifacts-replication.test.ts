@@ -65,3 +65,22 @@ test('state imports use owner journal once and reject forged archive owners or d
   const forged=structuredClone(value);forged.versions[0].archived_by='another-user';assert.throws(()=>b.replication.apply(forged),/owner/);
   const divergent=structuredClone(value);divergent.versions[0].archived_at='2026-09-30T01:00:00.000Z';assert.throws(()=>b.replication.apply(divergent),/归档历史冲突/);
 });
+
+test('F-modules-server-04 artifact archived by homeOwner or local person round-trips cleanly and preserves archived_by',t=>{
+  const a=fixture(t,'project-shared'),b=fixture(t,'project-shared');
+  const homeOwner='local-person';
+  const aOwner=new ArtifactsModule({db:a.db as ArtifactsSqliteDatabase,...a.options,homeOwner});
+  const bRepl=createArtifactReplication(b.db as ArtifactsSqliteDatabase,{...b.context,homeOwner},b.options);
+  aOwner.commands.registerVersion({
+    project_id:'project-shared',artifact_id:'artifact',version:1,actor_id:'plugin-writer',artifact_type_id:'io.example.report',schema_version:1,
+    origin:{kind:'imported',file_name:'report.json'},title:'Report',media_type:'application/json',
+    producer:{plugin_id:'io.example.writer',plugin_version:'1.0.0',binding_signature:'publisher-binding'},
+    content:{kind:'inline',payload:{title:'Report',text:'Body'}},
+  });
+  aOwner.commands.archiveVersion({project_id:'project-shared',artifact_id:'artifact',version:1,actor_id:homeOwner});
+  const payload=createArtifactReplication(a.db as ArtifactsSqliteDatabase,{...a.context,homeOwner},a.options).read('artifact')!;
+  bRepl.apply(JSON.parse(JSON.stringify(payload)));
+  const restored=b.owner.query.getArtifactVersion('project-shared',{artifact_id:'artifact',version:1});
+  assert.equal(restored?.lifecycle_state,'archived');
+  assert.equal(restored?.archived_by,homeOwner);
+});

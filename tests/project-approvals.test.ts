@@ -244,3 +244,80 @@ test("APR-19: platform sync replicates system.acceptance trusted decisions and r
     assert.equal(projectReviewDecisions(badTo, "p1").count(), 0);
   }
 });
+
+test("F-horiz-runtime-23: concurrent same-request decisions record a structured conflict without raw SQLite UNIQUE errors and support remote resolve", t => {
+  const from = projectLibrary(t), to = projectLibrary(t);
+  const sender = projectApprovalReplica(from, "p1", "same-space", () => undefined);
+  const receiver = projectApprovalReplica(to, "p1", "same-space", () => undefined);
+
+  const remoteRecord = from.transaction(() =>
+    projectReviewDecisions(from, "p1").commit(request, person, frozen, coverage, at, current.assertCurrent).record,
+  ).immediate();
+  const localRecord = to.transaction(() =>
+    projectReviewDecisions(to, "p1").commit({ ...request, choice_id: "return" }, person, frozen, coverage, at, current.assertCurrent).record,
+  ).immediate();
+
+  const outbound = sender.next()!;
+  assert.ok(outbound);
+  receiver.receive({ ...outbound, revision: 1 });
+
+  const conflicts = receiver.conflicts();
+  assert.equal(conflicts.length, 1);
+  assert.doesNotMatch(conflicts[0]!.reason, /UNIQUE constraint failed/u);
+  assert.deepEqual(projectReviewDecisions(to, "p1").read(localRecord.decision_id), localRecord);
+
+  receiver.resolve(conflicts[0]!.key, "remote", 1);
+  assert.equal(receiver.conflicts().length, 0);
+  assert.deepEqual(projectReviewDecisions(to, "p1").read(remoteRecord.decision_id), remoteRecord);
+  assert.equal(projectReviewDecisions(to, "p1").read(localRecord.decision_id), null);
+});
+
+test("F-horiz-runtime-23: sync rejects malformed rule state/revision and dual-active scopes, and active rules merge conservatively", async t => {
+  const from = projectLibrary(t), to = projectLibrary(t);
+  const sender = projectApprovalReplica(from, "p1", "same-space", () => undefined);
+  const receiver = projectApprovalReplica(to, "p1", "same-space", () => undefined);
+
+  const fromRules = projectApprovalRules(from, "p1");
+  const toRules = projectApprovalRules(to, "p1");
+  await fromRules.change({
+    kind: "set", expected_revision: fromRules.read().revision, scope: { kind: "project_default" },
+    requires_person: false, reason: "device-a relax",
+  }, person.actor_id, at, current);
+  await toRules.change({
+    kind: "set", expected_revision: toRules.read().revision, scope: { kind: "project_default" },
+    requires_person: true, reason: "device-b strict",
+  }, person.actor_id, at, current);
+
+  const outbound = sender.next()!;
+  assert.ok(outbound);
+  receiver.receive({ ...outbound, revision: 1 });
+  assert.equal(receiver.conflicts().length, 1);
+  assert.equal(approvalRequiresPerson(toRules.read()), true);
+
+  for (const mutate of [
+    (rule: Record<string, unknown>) => ({ ...rule, state: "active", revision: 2 }),
+    (rule: Record<string, unknown>) => ({ ...rule, state: "withdrawn", revision: 1, changed_by: null, changed_at: null, change_reason: null }),
+  ]) {
+    const badTo = projectLibrary(t);
+    const badReceiver = projectApprovalReplica(badTo, "p1", "same-space", () => undefined);
+    const tampered = structuredClone(outbound.value) as { decisions: unknown[]; rules: Record<string, unknown>[] };
+    tampered.rules = [mutate(tampered.rules[0]!)];
+    badReceiver.receive({ ...outbound, revision: 1, operationId: "bad-rule", value: tampered });
+    assert.equal(badReceiver.conflicts().length, 1);
+    assert.deepEqual(projectApprovalRules(badTo, "p1").read().rules, []);
+  }
+
+  // Conservative merge if two active project_default rules (true + later false) coexist in storage or snapshot.
+  const dualDb = projectLibrary(t);
+  const dualRules = projectApprovalRules(dualDb, "p1");
+  await dualRules.change({
+    kind: "set", expected_revision: dualRules.read().revision, scope: { kind: "project_default" },
+    requires_person: true, reason: "strict",
+  }, person.actor_id, at, current);
+  dualDb.prepare(`INSERT INTO project_approval_rules
+    (id, project_id, scope_json, rule_order, requires_person, revision, state, created_by, created_at, reason)
+    VALUES (?, ?, ?, ?, ?, 1, 'active', ?, ?, ?)`)
+    .run("dual-false-later", "p1", "{\"kind\":\"project_default\"}", 99, 0, person.actor_id, at, "later-false");
+  assert.equal(approvalRequiresPerson(dualRules.read()), true);
+  assert.equal(dualRules.page().project_default_requires_person, true);
+});

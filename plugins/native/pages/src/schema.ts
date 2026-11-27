@@ -41,6 +41,19 @@ function cellDom(tag: "td" | "th", node: Node): [string, Record<string, string>,
   return [tag, attrs, 0];
 }
 
+/** Heading level supported by Pages (h1–h3). Non-integer or out-of-range values clamp safely to 1..3. */
+export function safePagesHeadingLevel(value: unknown): 1 | 2 | 3 {
+  const raw = typeof value === "number"
+    ? value
+    : typeof value === "string" && /^\s*[+-]?\d+\s*$/u.test(value)
+      ? Number(value)
+      : Number.NaN;
+  if (!Number.isInteger(raw)) return 1;
+  if (raw <= 1) return 1;
+  if (raw >= 3) return 3;
+  return 2;
+}
+
 const NOTE = { note: { default: "" } };
 
 function noted(attrs: NodeSpec["attrs"] = {}): NodeSpec["attrs"] {
@@ -62,7 +75,16 @@ const nodes = {
     toDOM: (node) => ["p", domAttrs(node), 0],
   } satisfies NodeSpec,
   heading: {
-    attrs: noted({ level: { default: 1 } }),
+    attrs: noted({
+      level: {
+        default: 1,
+        validate(value: unknown) {
+          if (value !== 1 && value !== 2 && value !== 3) {
+            throw new RangeError(`Invalid heading level: ${String(value)}`);
+          }
+        },
+      },
+    }),
     content: "inline*",
     group: "block",
     defining: true,
@@ -71,7 +93,7 @@ const nodes = {
       { tag: "h2", attrs: { level: 2 } },
       { tag: "h3", attrs: { level: 3 } },
     ],
-    toDOM: (node) => ["h" + node.attrs.level, domAttrs(node), 0],
+    toDOM: (node) => [`h${safePagesHeadingLevel(node.attrs.level)}`, domAttrs(node), 0],
   } satisfies NodeSpec,
   bullet_list: {
     content: "list_item+",

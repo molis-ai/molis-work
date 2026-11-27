@@ -6,7 +6,7 @@ import { sandboxPackageBuildId } from '@molis-ai/molis-work-plugin-sdk';
  * a content package whose files no longer match its declarations (a body, a resource's digest) is not read back, and does not run.
  */
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { atomicWriteFileSync, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginInstanceRecord, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -58,12 +58,15 @@ export class SandboxPackageStore {
   save(bundle: PluginPackageBundle, pkg: KeptPackage): string {
     const { manifest } = pkg, directory = this.directory(manifest.plugin_id, manifest.publisher.signature, manifest.version);
     const text = JSON.stringify(bundle);
-    if (existsSync(join(directory, BUNDLE_FILE))) {
-      if (readFileSync(join(directory, BUNDLE_FILE), 'utf8') !== text) throw pluginErrors.package_invalid('这个版本已经有一份内容不同的包，不能覆盖');
+    const bundlePath = join(directory, BUNDLE_FILE);
+    if (lstatSync(bundlePath, { throwIfNoEntry: false })) {
+      if (readSnapshotFile(bundlePath, 64 * 1024 * 1024).toString('utf8') !== text) throw pluginErrors.package_invalid('这个版本已经有一份内容不同的包，不能覆盖');
       return directory;
     }
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const write = (name: string, content: string | Uint8Array) => { const path = join(directory, name); writeFileSync(path, content, { flag: 'w', mode: 0o600 }); chmodSync(path, 0o400); };
+    const write = (name: string, content: string | Uint8Array) => {
+      atomicWriteFileSync(join(directory, name), typeof content === 'string' ? content : Buffer.from(content), { mode: 0o400, durable: true });
+    };
     if ('entrypoint' in pkg) write(SANDBOX_PACKAGE_FILES.entrypoint, pkg.entrypoint);
     write(BUNDLE_FILE, text);
     return directory;
@@ -77,8 +80,10 @@ export class SandboxPackageStore {
     const root = join(this.home, 'plugin-packages');
     if (!existsSync(root)) return undefined;
     for (const name of readdirSync(root)) {
+      const path = join(root, name, BUNDLE_FILE);
       try {
-        const manifest = (JSON.parse(readFileSync(join(root, name, BUNDLE_FILE), 'utf8')) as { payload?: { manifest?: { plugin_id?: unknown; publisher?: { signature?: unknown }; runtime?: { scope?: unknown; dual_instance?: unknown } } } }).payload?.manifest;
+        if (!lstatSync(path, { throwIfNoEntry: false })?.isFile()) continue;
+        const manifest = (JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as { payload?: { manifest?: { plugin_id?: unknown; publisher?: { signature?: unknown }; runtime?: { scope?: unknown; dual_instance?: unknown } } } }).payload?.manifest;
         // Another publisher's plugin under the same id is another plugin, with its own range (BL-586).
         if (manifest?.plugin_id === pluginId && manifest.publisher?.signature === keyId) {
           if (manifest.runtime?.scope === 'home') return manifest.runtime.dual_instance === true ? 'dual' : 'home';
@@ -116,7 +121,10 @@ export class SandboxPackageStore {
     if (!existsSync(root)) return [];
     const releases: NonNullable<InstalledRelease['packaged']>[] = [];
     for (const name of readdirSync(root)) {
-      const path = join(root, name, BUNDLE_FILE);
+      const dir = join(root, name);
+      if (!lstatSync(dir, { throwIfNoEntry: false })?.isDirectory()) continue;
+      const path = join(dir, BUNDLE_FILE);
+      if (!lstatSync(path, { throwIfNoEntry: false })?.isFile()) continue;
       const { payload } = JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as PluginPackageBundle;
       if (payload.manifest.plugin_id !== pluginId || payload.manifest.publisher.signature !== keyId) continue;
       releases.push(this.load(pluginId, keyId, payload.manifest.version).packaged!);
@@ -134,7 +142,10 @@ export class SandboxPackageStore {
     if (!existsSync(root)) return [];
     const releases: NonNullable<InstalledRelease['packaged']>[] = [];
     for (const name of readdirSync(root)) {
-      const path = join(root, name, BUNDLE_FILE);
+      const dir = join(root, name);
+      if (!lstatSync(dir, { throwIfNoEntry: false })?.isDirectory()) continue;
+      const path = join(dir, BUNDLE_FILE);
+      if (!lstatSync(path, { throwIfNoEntry: false })?.isFile()) continue;
       const { payload } = JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as PluginPackageBundle;
       if (payload.manifest.plugin_id !== pluginId) continue;
       const keyId = payload.manifest.publisher.signature;
@@ -221,7 +232,7 @@ export class SandboxPackageStore {
     const { pkg, bundle } = this.readEnvelope(directory, pluginId, keyId, version);
     if ('entrypoint' in pkg) {
       let entry: Buffer;
-      try { entry = readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint)); } catch (error) { throw missingOr(error, '找不到已安装插件的代码：' + pluginId + ' ' + version); }
+      try { entry = readSnapshotFile(join(directory, SANDBOX_PACKAGE_FILES.entrypoint), 16 * 1024 * 1024); } catch (error) { throw missingOr(error, '找不到已安装插件的代码：' + pluginId + ' ' + version); }
       if (!entry.equals(Buffer.from(pkg.entrypoint))) throw pluginErrors.package_invalid('已存的插件代码被改过：' + pluginId + ' ' + version);
     }
     return { pkg, bundle, directory };
@@ -230,7 +241,7 @@ export class SandboxPackageStore {
   /** The kept bundle's text exactly as written, after the same checks as a load: what 「导出这个包」 hands out, never re-signed (capability-pack §4.9). */
   keptText(pluginId: string, keyId: string, version: string): string {
     const { directory } = this.read(pluginId, keyId, version);
-    return readFileSync(join(directory, BUNDLE_FILE), 'utf8');
+    return readSnapshotFile(join(directory, BUNDLE_FILE), 64 * 1024 * 1024).toString('utf8');
   }
 
   load(pluginId: string, keyId: string, version: string): InstalledRelease {

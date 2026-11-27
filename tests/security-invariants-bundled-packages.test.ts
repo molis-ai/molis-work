@@ -183,7 +183,7 @@ test("08-10 S-bundled-packages the bundled folder is the release's own, beside t
   assert.deepEqual(given, [], "only a test gives the Host a bundled folder");
 });
 
-test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design and accessibility pack is listed to the person only, registers nothing until it is installed through preview and confirm, then its five Skills come from the verified package; altered, it is refused", mac, async () => {
+test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design and accessibility pack is listed to the person only, registers nothing until it is installed through preview and confirm, then its five Skills come from the verified package; altered, it is refused", { timeout: 90_000 }, async () => {
   const b = await bundledFolder();
   const host = new MolisWorkLocalHost({ homeDirectory: b.home, completeText: null, bundledPluginsDirectory: b.folder });
   const databasePath = join(b.home, "project.sqlite"); seedDemoBoard(databasePath);
@@ -196,8 +196,8 @@ test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design a
     const homeInstalled = async () => (await client.invoke(person, ref(pluginInstallActions.homeInstalled), {}) as { plugins: Array<{ plugin_id: string; state: string }> })
       .plugins.filter(item => item.plugin_id === PLUGIN_ID).map(item => item.state);
 
-    await assert.rejects(client.invoke({ ...person, audience: "agent" }, ref(pluginInstallActions.bundled), {}), "not offered to an Agent");
-    await assert.rejects(client.invoke({ ...person, permissions: [] }, ref(pluginInstallActions.bundled), {}), "not without the person's install permission");
+    await assert.rejects(client.invoke({ ...person, audience: "agent" }, ref(pluginInstallActions.bundled), {}), { code: "actions.forbidden" }, "not offered to an Agent");
+    await assert.rejects(client.invoke({ ...person, permissions: [] }, ref(pluginInstallActions.bundled), {}), { code: "actions.forbidden" }, "not without the person's install permission");
     const list = await client.invoke(person, ref(pluginInstallActions.bundled), {}) as BundledPluginList;
     assert.deepEqual(list.plugins.map(item => [item.plugin_id, item.publisher.pinned_label]), [[PLUGIN_ID, null]]);
     assert.deepEqual(ours(), [], "before it is installed: no method registered, so not in the Skill catalog");
@@ -220,7 +220,7 @@ test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design a
     const after = await client.invoke(person, ref(pluginInstallActions.bundled), {}) as BundledPluginList;
     assert.deepEqual([after.plugins, after.refused.map(item => item.code)], [[], ["plugin.signature_invalid"]]);
     await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), /Plugin 内容或签名已改变/u);
-    await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundle: {}, bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), "one package at a time");
+    await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundle: {}, bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), { code: "actions.input_invalid" }, "one package at a time");
   } finally { await host.close(); await b.done(); }
 });
 
@@ -292,7 +292,7 @@ test("44C P-13: Home and project retain the prior signed release across restart 
 // 用户 2026-11-14 定（specs/prologue-strategies/skill.md §10）: until Molis Work has a publisher key of its own (batch 26, 26-1) the
 // official packs ship unsigned (`<plugin_id>.draft.json`), and the Home that installs one signs it with its own publisher identity —
 // the trust of a Skill folder imported from this machine, no more. Lying there still gives it nothing; a Host that cannot sign lists none.
-test("S-bundled-packages an unsigned bundled pack is signed by this Home only when the person installs it, through the same preview and confirmation; a draft with a publisher, beside a signed one, or on a Host that cannot sign is refused", mac, async () => {
+test("S-bundled-packages an unsigned bundled pack is signed by this Home only when the person installs it, through the same preview and confirmation; a draft with a publisher, beside a signed one, or on a Host that cannot sign is refused", { timeout: 90_000 }, async () => {
   const base = await mkdtemp(join(tmpdir(), "molis-work-bundled-draft-")), folder = join(base, "bundled-plugins"), home = join(base, "home");
   await mkdir(home);
   const { file } = await packBundledDraft(PACK, folder);
@@ -310,7 +310,7 @@ test("S-bundled-packages an unsigned bundled pack is signed by this Home only wh
     assert.deepEqual(before.plugins.map(item => [item.plugin_id, item.signed_here, item.publisher.key_id, item.publisher.pinned_label]), [[PLUGIN_ID, true, "", null]], "listed as this Home's to sign; the Home has no identity yet");
     assert.equal(existsSync(join(home, "config", "plugin-publisher.json")), false, "listing makes no identity");
     assert.deepEqual(ours(), [], "and registers nothing");
-    await assert.rejects(client.invoke({ ...person, audience: "agent" }, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), "an Agent cannot have it signed");
+    await assert.rejects(client.invoke({ ...person, audience: "agent" }, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), { code: "actions.forbidden" }, "an Agent cannot have it signed");
 
     const preview = await client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }) as { preview_id: string; publisher: { key_id: string; pinned_label: string | null } };
     assert.deepEqual(ours(), [], "signing for the preview installs nothing");

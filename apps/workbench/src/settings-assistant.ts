@@ -87,6 +87,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
             <button class="mw-toggle" type="button" data-assistant-scope="project" aria-pressed="true">${uiText("workbench.settings-assistant.current-project")}</button>
             <button class="mw-toggle" type="button" data-assistant-scope="personal" aria-pressed="false">${uiText("workbench.settings-assistant.personal")}</button>
           </div>` })}
+        <p class="settings-form-error" data-assistant-capabilities-error role="alert" hidden></p>
         <div data-assistant-capabilities aria-live="polite"><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>` } }),
     })}
     ${renderSettingsSection({
@@ -143,8 +144,15 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const readText = globalThis.t.text;
   const project = root.dataset.project || "";
   const body = root.querySelector("[data-assistant-capabilities]");
+  const capError = root.querySelector("[data-assistant-capabilities-error]");
   const search = root.querySelector("[data-assistant-capability-search]");
-  let scope = project ? "project" : "personal", rows = [];
+  let scope = project ? "project" : "personal", rows = [], loadSeq = 0, contribSeq = 0;
+  const showCapError = (failure) => {
+    if (!capError) return;
+    if (!failure) { capError.hidden = true; capError.textContent = ""; return; }
+    molisWorkRequest.show(capError, failure);
+    capError.hidden = false;
+  };
   if (!project) { const group = root.querySelector("[data-assistant-scope-group]"); if (group) group.hidden = true; }
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
   // The Assistant's routes answer for the project whose path they are under; the Home's own, for personal work.
@@ -201,11 +209,11 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
           return saved;
         };
         toggle.addEventListener("change", async () => {
-          toggle.disabled = true;
+          toggle.disabled = true; showCapError(null);
           try { Object.assign(row, await save({ enabled: toggle.checked })); if (body.contains(item)) paint(); }
           catch (failure) {
             if (failure.status === 409 && failure.body?.details?.current) Object.assign(row, failure.body.details.current);
-            if (body.contains(item)) { paint(); alert(molisWorkRequest.text(failure)); }
+            if (body.contains(item)) { paint(); showCapError(failure); }
           }
         });
         item.append(settingRow(row.title, row.description || "", [el("span", "assistant-capability-effect", EFFECT[row.effect] ? globalThis.t.text(EFFECT[row.effect]) : row.effect), control]));
@@ -213,11 +221,11 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         if (row.reversible && row.enabled) {
           const ask = switchOf(Boolean(row.confirm_always)), box = ask.toggle;
           box.addEventListener("change", async () => {
-            box.disabled = true;
+            box.disabled = true; showCapError(null);
             try { Object.assign(row, await save({ confirm_always: box.checked })); }
             catch (failure) {
               if (failure.status === 409 && failure.body?.details?.current) Object.assign(row, failure.body.details.current);
-              if (body.contains(item)) { paint(); alert(molisWorkRequest.text(failure)); }
+              if (body.contains(item)) { paint(); showCapError(failure); }
             }
             finally { box.disabled = false; }
           });
@@ -229,15 +237,23 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     });
   }
   const load = async () => {
+    const seq = ++loadSeq, currentScope = scope;
+    showCapError(null);
     body.replaceChildren(note(globalThis.t.text("workbench.settings-assistant.loading")));
-    try { rows = (await api("/capabilities")).capabilities; paint(); }
-    catch (failure) { body.replaceChildren(problem(failure)); }
+    try {
+      const data = await api("/capabilities");
+      if (seq !== loadSeq || scope !== currentScope || !root.isConnected) return;
+      rows = data.capabilities; paint();
+    } catch (failure) {
+      if (seq !== loadSeq || scope !== currentScope || !root.isConnected) return;
+      body.replaceChildren(problem(failure));
+    }
   };
   root.querySelectorAll("[data-assistant-scope]").forEach((button) => button.addEventListener("click", () => {
     scope = button.dataset.assistantScope;
     root.querySelectorAll("[data-assistant-scope]").forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
-    contributions.dataset.loaded = ""; if (contributionsFold.open) loadContributions();
-    load();
+    contributions.dataset.loaded = ""; contribSeq++; if (contributionsFold.open) void loadContributions();
+    void load();
   }));
   search.addEventListener("input", paint);
   // The row's own <details>: a toggle does not bubble, so it is listened for where it happens.
@@ -245,10 +261,13 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const contributionsBody = root.querySelector("[data-assistant-contributions-body]");
   const AREA = { context: "workbench.settings-assistant.object-context", results: "workbench.settings-assistant.result-links", capabilities: "workbench.settings-assistant.capability-descriptions" };
   const loadContributions = async () => {
-    if (contributions.dataset.loaded) return;
-    contributions.dataset.loaded = "1";
+    if (contributions.dataset.loaded === scope) return;
+    const seq = ++contribSeq, currentScope = scope;
+    contributions.dataset.loaded = currentScope;
+    contributionsBody.replaceChildren(note(globalThis.t.text("workbench.settings-assistant.loading")));
     try {
       const data = await api("/contributions");
+      if (seq !== contribSeq || scope !== currentScope || !root.isConnected) return;
       const list = el("ul", "prompt-diagnostics-list");
       data.contributions.forEach((item) => {
         const row = el("li", "prompt-diagnostics-owner");
@@ -264,9 +283,12 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         list.append(row);
       });
       contributionsBody.replaceChildren(data.contributions.length ? list : el("p", "mw-settings-section__note", globalThis.t.text("workbench.settings-assistant.no-plugin-opens-capabilities-assistant-here")));
-    } catch (failure) { delete contributions.dataset.loaded; contributionsBody.replaceChildren(problem(failure)); }
+    } catch (failure) {
+      if (seq !== contribSeq || scope !== currentScope || !root.isConnected) return;
+      delete contributions.dataset.loaded; contributionsBody.replaceChildren(problem(failure));
+    }
   };
-  contributionsFold.addEventListener("toggle", () => { if (contributionsFold.open) loadContributions(); });
+  contributionsFold.addEventListener("toggle", () => { if (contributionsFold.open) void loadContributions(); });
   // Attention rules belong to the person, not to a project: always the Home's own route.
   const rulesApi = (path, payload) => molisWorkRequest("/api/assistant" + path, { body: payload });
   // The pages a rule may name are the ones installed: the server sends them with the rules, so this page keeps no list of plugins.
@@ -296,6 +318,10 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const describe = (rule) => (rule.kind === "pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices") : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")))
     + (rule.except.length ? globalThis.t.text("common.punctuation.semicolon") + rule.except.map((kind) => globalThis.t.text(KIND[kind] || kind)).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.still-notify") : "")
     + (rule.until ? globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-assistant.until") + " " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: rule.until, style: "datetime-with-seconds" } }) : "");
+  const ruleTitle = (rule) => rule.kind === "pause"
+    ? globalThis.t.text("workbench.settings-assistant.paused-until") + " " + (rule.until ? globalThis.format.date(rule.until, "time") : "")
+    : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere"))
+      + (rule.except.length ? globalThis.t.text("common.punctuation.clause-separator") + rule.except.map((kind) => globalThis.t.text(KIND[kind] || kind)).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.excepted") : "");
   const paintRules = (rules) => {
     rulesList.replaceChildren();
     if (!rules.length) { rulesList.append(note(globalThis.t.text("workbench.settings-assistant.no-rules-yet-when-something-needs-assistant-shows"))); return; }
@@ -303,11 +329,12 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     rules.forEach((rule) => {
       const item = el("li"); item.dataset.ruleId = rule.rule_id;
       const expired = rule.until && new Date(rule.until) <= new Date();
-      const { control, toggle } = switchOf(rule.enabled, globalThis.t.text("workbench.settings-assistant.enable-rule", { label: rule.label }));
-      toggle.addEventListener("change", () => run(() => rulesApi("/rules", { rule_id: rule.rule_id, rule: Object.assign({}, rule, { enabled: toggle.checked }) })));
+      const title = rule.label === "rule:quiet" || rule.label === "rule:pause" ? ruleTitle(rule) : rule.label;
+      const { control, toggle } = switchOf(rule.enabled, globalThis.t.text("workbench.settings-assistant.enable-rule", { label: title }));
+      toggle.addEventListener("change", () => void run(() => rulesApi("/rules", { rule_id: rule.rule_id, rule: Object.assign({}, rule, { enabled: toggle.checked }) })));
       const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("common.control.delete")); remove.type = "button";
-      remove.addEventListener("click", () => run(() => rulesApi("/rules/remove", { rule_id: rule.rule_id })));
-      item.append(settingRow(rule.label, describe(rule) + (expired ? " · " + globalThis.t.text("workbench.settings-assistant.expired") : ""), [control, remove]));
+      remove.addEventListener("click", () => void run(() => rulesApi("/rules/remove", { rule_id: rule.rule_id })));
+      item.append(settingRow(title, describe(rule) + (expired ? " · " + globalThis.t.text("workbench.settings-assistant.expired") : ""), [control, remove]));
       list.append(item);
     });
     rulesList.append(list);
@@ -333,17 +360,16 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     event.preventDefault();
     const form = event.currentTarget, surfaces = chosen();
     const except = exceptOf(form);
-    const label = (surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")) + (except.length ? globalThis.t.text("common.punctuation.clause-separator") + except.map((kind) => globalThis.t.text(KIND[kind])).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.excepted") : "");
-    add(form, { kind: "quiet", surfaces, except, label }, () => { surfacesBox.querySelectorAll('[aria-pressed="true"]').forEach((chip) => chip.setAttribute("aria-pressed", "false")); paintChosen(); });
+    void add(form, { kind: "quiet", surfaces, except, label: "rule:quiet" }, () => { surfacesBox.querySelectorAll('[aria-pressed="true"]').forEach((chip) => chip.setAttribute("aria-pressed", "false")); paintChosen(); });
   });
   root.querySelector("[data-assistant-rule-pause]").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.currentTarget, choice = form.querySelector("[data-assistant-rule-duration]").value;
     const until = choice === "day" ? (() => { const end = new Date(); end.setHours(23, 59, 0, 0); return end; })() : new Date(Date.now() + Number(choice) * 60000);
     const except = exceptOf(form);
-    add(form, { kind: "pause", surfaces: [], except, until: until.toISOString(), label: globalThis.t.text("workbench.settings-assistant.paused-until") + " " + globalThis.format.date(until.toISOString(), "time") });
+    void add(form, { kind: "pause", surfaces: [], except, until: until.toISOString(), label: "rule:pause" });
   });
-  run(() => rulesApi("/rules"));
+  void run(() => rulesApi("/rules"));
   // Memory is managed on its own pages (个人 → 记忆, 项目记忆): here only how much there is and whether the Assistant may use it.
   const memorySummary = root.querySelector("[data-assistant-memory-summary]");
   (async () => {
@@ -516,8 +542,8 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     catch (failure) { for (const error of [budgetError, rangeError, reportError, overviewError]) { molisWorkRequest.show(error, failure); error.hidden = false; } }
   }
   void loadPreferences(); void refreshUsage();
-  if (location.hash === "#contributions") { contributionsFold.open = true; loadContributions(); }
-  load();
+  if (location.hash === "#contributions") { contributionsFold.open = true; void loadContributions(); }
+  void load();
 
   // 使用电脑: the master switch (off by default), the helper's system-permission status, and the forbidden apps the person added.
   const computer = root.querySelector("[data-assistant-computer]");
@@ -532,11 +558,16 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     const appPicker = computer.querySelector("[data-computer-app-picker]");
     let currentForbidden = [];
     let discoveredApps = [];
+    let appsError = null;
     const PERM = { accessibility: globalThis.t.text("workbench.settings-assistant.accessibility"), screen_recording: globalThis.t.text("workbench.settings-assistant.screen-recording"), input_monitoring: globalThis.t.text("workbench.settings-assistant.input-monitoring") };
     const computerApi=(path,payload)=>molisWorkRequest("/api/computer"+path,{body:payload,fallback:globalThis.t.text("workbench.settings-assistant.not-done-please-try-again")});
     const paintAppPicker = () => {
       if (!appPicker) return;
       appPicker.replaceChildren();
+      if (appsError) {
+        appPicker.append(problem(appsError));
+        return;
+      }
       if (!discoveredApps.length) {
         appPicker.append(note(globalThis.t.text("workbench.settings-assistant.no-local-apps-found")));
         return;
@@ -601,14 +632,40 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       } catch (failure) { molisWorkRequest.show(permsEl,failure); }
     };
     const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { molisWorkRequest.show(computerError,failure); computerError.hidden = false; } };
-    enable.addEventListener("change", () => runComputer(async () => { const data = await computerApi("/settings", { enabled: enable.checked }); enable.checked = data.enabled; await paintPerms(); }));
-    forbidForm.addEventListener("submit", (event) => { event.preventDefault(); const id = String(forbidId.value || "").trim(); if (!id) return; runComputer(async () => { const data = await computerApi("/forbidden", { bundle_id: id, name: id }); forbidId.value = ""; paintForbidden(data.forbidden); }); });
-    runComputer(async () => {
-      const [data, appsData] = await Promise.all([
+    enable.addEventListener("change", () => {
+      const wanted = enable.checked;
+      enable.disabled = true;
+      void runComputer(async () => {
+        try {
+          const data = await computerApi("/settings", { enabled: wanted });
+          enable.checked = data.enabled;
+          await paintPerms();
+        } catch (failure) {
+          enable.checked = !wanted;
+          throw failure;
+        } finally {
+          enable.disabled = false;
+        }
+      });
+    });
+    forbidForm.addEventListener("submit", (event) => { event.preventDefault(); const id = String(forbidId.value || "").trim(); if (!id) return; void runComputer(async () => { const data = await computerApi("/forbidden", { bundle_id: id, name: id }); forbidId.value = ""; paintForbidden(data.forbidden); }); });
+    void runComputer(async () => {
+      const [settingsRes, appsRes] = await Promise.allSettled([
         computerApi("/settings"),
-        computerApi("/apps").catch(() => ({ apps: [] })),
+        computerApi("/apps"),
       ]);
-      discoveredApps = Array.isArray(appsData?.apps) ? appsData.apps : [];
+      if (appsRes.status === "fulfilled") {
+        appsError = null;
+        discoveredApps = Array.isArray(appsRes.value?.apps) ? appsRes.value.apps : [];
+      } else {
+        appsError = appsRes.reason;
+        discoveredApps = [];
+      }
+      if (settingsRes.status === "rejected") {
+        paintAppPicker();
+        throw settingsRes.reason;
+      }
+      const data = settingsRes.value;
       enable.checked = data.enabled;
       paintForbidden(data.forbidden);
       await paintPerms();

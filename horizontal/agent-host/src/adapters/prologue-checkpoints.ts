@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { WORKSPACE_REWIND_KIND, type Effect, type ExactRef, type Runtime } from "@prologue/sdk";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import type { AgentCheckpoint, AgentCheckpointsCapability, AgentReviewDecisionInput, AgentReviewReceipt, AgentReviewRequest, AgentRewindReviewDocument, AgentWorkingDirectory } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewQueue, ReviewDecisionCommit } from "../reviews.js";
 import type { ReviewDecisionStore } from "../review-decisions.js";
@@ -129,7 +130,7 @@ async function sessionCheckpoints(runtime: Runtime, queue: AgentReviewQueue, ind
         ...(rewound.has(item.checkpointId) ? { rewound_at: rewound.get(item.checkpointId)! } : {}) });
     }
   }
-  return result.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return result.sort((a, b) => compareCodeUnits(b.created_at, a.created_at));
 }
 
 /** Carries the person's decision to the SDK's pending approval: only while the round that asked still holds it and the effect still waits. */

@@ -14,7 +14,7 @@ async function until(check: () => boolean | Promise<boolean>) {
   while (!await check()) { assert.ok(Date.now()<end,'condition did not recover within 15 seconds'); await new Promise(resolve=>setTimeout(resolve,50)); }
 }
 
-test('WUA-32 logout clears account browser caches while preserving unrelated local data', {timeout:90_000}, async () => {
+test('WUA-32 WUA-35 logout clears account browser caches while preserving unrelated local data and single-window reconnect', {timeout:90_000}, async () => {
   const home=mkdtempSync(join(tmpdir(),'molis-account-cache-'));
   const previous=process.env.MOLIS_WORK_ACCOUNT_CONFIG,auth=v2AccountPeer();
   await new Promise<void>(resolve=>auth.server.listen(0,'127.0.0.1',resolve));

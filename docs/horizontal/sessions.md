@@ -2,7 +2,7 @@
 
 **白话：** 在本人打开的读取范围内，把这台电脑上以及已连接账号里的外部 AI 开发工具会话找出来，按来源实时只读对话历史、帮你把会话归到对应项目、在个人搜索里找得到，也能在个人助理当前这一轮显式拿来当参考；不导入对话全文，不往外部工具发消息，也不托管或恢复外部进程。
 
-**提供：** 外部会话索引、目录关系缓存、来源进度、读取范围与项目 AI 读取开关、本人归属决定与模型归属建议；系统动作（提供方 `system.sessions`）`sessions.list@1`、`sessions.history.read@1`、`sessions.scope.read@1`、`sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.discovery.run@1`、`sessions.attribution.set@1`、`sessions.attribution.suggest@1`、`sessions.tool.search@1`、`sessions.connector.usages@1`，以及系统搜索来源 `sessions.search.entries@1` 与助理单轮读取 `sessions.subject.read@1`。需求与合同见 [sessions-rebuild/spec.md](../../specs/sessions-rebuild/spec.md) 与 [contract-design.md](../../specs/sessions-rebuild/contract-design.md)。
+**提供：** 外部会话索引、目录关系缓存、来源进度、读取范围与项目 AI 读取开关、本人归属决定与模型归属建议；系统动作（提供方 `system.sessions`）`sessions.list@1`、`sessions.history.read@1`、`sessions.history.authorize@1`、`sessions.scope.read@1`、`sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.discovery.run@1`、`sessions.attribution.set@1`、`sessions.attribution.suggest@1`、`sessions.tool.search@1`、`sessions.connector.usages@1`，以及系统搜索来源 `sessions.search.entries@1` 与助理单轮读取 `sessions.subject.read@1`。需求与合同见 [sessions-rebuild/spec.md](../../specs/sessions-rebuild/spec.md) 与 [contract-design.md](../../specs/sessions-rebuild/contract-design.md)。
 
 **不拥有：** 外部会话的对话全文、执行状态与原工具配置（始终归原外部工具）；项目的身份与文件夹设置（归 `modules/projects`）；远端或 CLI 连接与账号凭据（归 `horizontal/connector-host`）；终端进程与回放（归 `horizontal/runtime-host`）。`<Home>/external-sessions/external-sessions.db` 只存索引、目录缓存、读取范围、项目 AI 读取开关、归属决定与归属建议；**不存对话全文**。标题可以取自工具标题或首条用户消息的短摘要，AI 建议会缓存模型给出的短引文（`evidence`）；这两类短摘要不是转录副本。
 
@@ -11,7 +11,7 @@
 1. **工具登记表是唯一事实表。** `packages/contracts/src/platform/external-tools.ts` 的 `EXTERNAL_TOOLS` 逐入口登记会话存储、读取方式与适配器状态；`horizontal/sessions` 在运行时如实报告 `not_allowed`、`reading`、`complete`、`needs_login`、`version_unreadable`、`failed`、`unsupported` 七种来源状态，并在有原因时区分 `login_expired`/`connection_removed`/`account_changed`、`version_mismatch`/`parse_error`、`tool_missing`/`timed_out`/`read_error`、`adapter_pending`/`tool_gap`。没有适配器的入口不会被伪装成「暂无会话」。
 2. **十个首期适配器，读取能力按合同如实区分。**
    - **Codex**：`codex app-server` stdio JSON-RPC 只读 `thread/list` + `thread/read`（含子代理 `forked_from`）；不使用本地 JSONL 回退。
-   - **Claude Code**：`~/.claude/projects/*/*.jsonl`，跳过 `isSidechain: true` 与空壳快照。`<项目>/<会话>/subagents/agent-*.jsonl` 是子代理轨迹：记在所属会话下（`forked_from`，库里 `subagent = 1`），可按会话键读取，列表与搜索不显示（第 103 批，用户 2026-11-21 定）。
+   - **Claude Code**：`~/.claude/projects/*/*.jsonl`，跳过 `isSidechain: true` 与空壳快照。`<项目>/<会话>/subagents/agent-*.jsonl` 是子代理轨迹：记在所属会话下（`forked_from`，库里 `subagent = 1`），`sessions.list@1` 与搜索默认隐藏，但单条按精确 `session_key` 查询（`store.getSession`）仍允许直接读取其详情、历史与归属校验（第 103 批，用户 2026-11-21 定）。
    - **Gemini CLI**：`~/.gemini/tmp/**/*.json`，过滤 `logs.json`/`settings.json`/`projects.json`，省略 `thoughts`，附件标 `[附件未读取]`。
    - **Pi Agent**：`~/.pi/agent/sessions/**/*.jsonl`，通用 JSONL 解析。
    - **GitHub Copilot Coding Agent**：云端 `gh agent-task list --json ...` / `view --log`；走 `cli` 连接，前后核对账号指纹；私有仓库需要 `repo` 权限，权限不足/账号切换按 `login_expired`/`account_changed` 处理。
@@ -34,6 +34,7 @@
 
 ## 读取重查、搜索与个人助理单轮边界
 
-1. **返回前逐条重查（`S-sessions-recheck-before-return`）：** `sessions.list@1`、`sessions.history.read@1`、`sessions.tool.search@1`、`sessions.search.entries@1`、`sessions.subject.read@1` 每次返回前都重新核对来源读取范围、目录白名单、连接器启用状态与调用方受众；关掉来源或缩窄目录后，已缓存的 `session_key` 立即拒 `sessions.not_allowed`／`sessions.not_found`（等待途中变化拒 `sessions.scope_changed`）。云端 `cli` 连接在读取原文/工具搜索前核对账号指纹；账号切换后不返回正文，来源报 `needs_login`/`account_changed`，列表可能仍显示已缓存的标题/目录直到下一次读取或刷新。
+1. **返回前逐条重查（`S-sessions-recheck-before-return`）：** `sessions.list@1`、`sessions.history.read@1`、`sessions.history.authorize@1`、`sessions.tool.search@1`、`sessions.search.entries@1`、`sessions.subject.read@1` 每次返回前都重新核对来源读取范围、目录白名单、连接器启用状态与调用方受众；关掉来源或缩窄目录后，已缓存的 `session_key` 立即拒 `sessions.not_allowed`／`sessions.not_found`（等待途中变化拒 `sessions.scope_changed`）。云端 `cli` 连接在读取原文/工具搜索前核对账号指纹；账号切换后不返回正文，来源报 `needs_login`/`account_changed`，列表可能仍显示已缓存的标题/目录直到下一次读取或刷新。
+   - **子代理外部会话直读口径（`getSession`）：** 列表（`sessions.list@1`）与检索（`sessions.search.entries@1`、`sessions.tool.search@1`）默认过滤 `subagent = 1` 的子代理轨迹，不将其混入顶层会话列表；而单条按精确 `session_key` 读取的入口（`store.getSession`，覆盖 `sessions.history.read@1`、`sessions.history.authorize@1`、`sessions.subject.read@1` 与 `sessions.attribution.set@1`）**允许直接读取子代理外部会话**，并与普通会话执行同等活跃来源、读取范围、项目归属及调用方授权复核。
 2. **非可信原文（`S-sessions-untrusted-text`）：** 正文统一按纯文本分段返回，不拼 HTML，二进制与图片只标 `[附件未读取]`，单条 64 KB、单页 256 KB、全文扫描 32 MB 有界截断。
-3. **只有本人做决定、AI 只在当前轮显式引用（`S-sessions-person-decides`）：** 十个面向本人的动作只对非委托 `user` 开放；插件、工作流、MCP、项目内 Coding／角色 Agent、主动助理、记忆提炼、评测与 `knowledge.*` 一律拿不到外部会话正文。个人助理只在本人把外部会话作为当前查看对象或显式选区发起这一轮、且会话未归项目或所归项目已由本人打开 `session_project_ai_reads` 时，经 `sessions.subject.read@1` 读取有界标题/目录/工具名或使用本人明确选中的片段；选区正文进本轮不可信围栏，不进下一轮历史、落盘材料或记忆来源。
+3. **只有本人做决定、AI 只在当前轮显式引用（`S-sessions-person-decides`）：** 面向本人的管理与原文读取动作只对非委托 `user` 开放（其中 `sessions.history.authorize@1` 按现有历史读取许可核验 `user` / `agent` 指定 `session_keys` 的范围版本与归属）；插件、工作流、MCP、项目内 Coding／角色 Agent、主动助理、记忆提炼、评测与 `knowledge.*` 一律拿不到外部会话正文。个人助理只在本人把外部会话作为当前查看对象或显式选区发起这一轮、且会话未归项目或所归项目已由本人打开 `session_project_ai_reads` 时，经 `sessions.subject.read@1` 读取有界标题/目录/工具名或使用本人明确选中的片段；选区正文进本轮不可信围栏，不进下一轮历史、落盘材料或记忆来源。

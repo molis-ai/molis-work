@@ -246,7 +246,7 @@ test('AC-M1-05 all six adapters reject unknown fields, oversize, physical paths 
   const sourceOnlyPath = '/private/tmp/only-on-source';
   await source.withCatalog({ homeDirectory: source.home }, catalog =>
     catalog.commit(() => catalog.renameProject(project.project_id, sourceOnlyPath, owner, project.display_name)));
-  assert.throws(() => attention.withReplica(replica => replica.next()), 'attention does not publish a physical path used as the project title');
+  assert.throws(() => attention.withReplica(replica => replica.next()), (error: unknown) => error instanceof Error && /\.sync_invalid$/u.test(String((error as { code?: string }).code ?? "")), 'attention does not publish a physical path used as the project title');
   await source.withCatalog({ homeDirectory: source.home }, catalog =>
     catalog.commit(() => catalog.renameProject(project.project_id, project.display_name, owner, sourceOnlyPath)));
 
@@ -275,7 +275,7 @@ test('AC-M1-05 all six adapters reject unknown fields, oversize, physical paths 
         (value.data as { blueprint: { title: { literal: string } } }).blueprint.title.literal = mark;
       } else (value.data as { instructions: string }).instructions = mark;
       const event = { ...mutation, value, revision: index + 1, operationId: 'invalid-config-' + index };
-      assert.throws(() => destination.withReplica(replica => replica.receive(event)), origin.title);
+      assert.throws(() => destination.withReplica(replica => replica.receive(event)), (error: unknown) => error instanceof Error && 'code' in error && (error.code === 'actions.input_invalid' || error.code === 'storage.sync_sections_invalid'), origin.title);
       assert.equal(destination.withReplica(replica => replica.counts().conflicts), 0, origin.title);
       assert.deepEqual(await read(target), original, origin.title);
     }

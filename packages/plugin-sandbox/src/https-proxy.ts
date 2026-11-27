@@ -41,13 +41,26 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
   return { async request(context, input, authorization): Promise<SandboxNetworkResponse> {
     const url = validateNetworkRequest(input, authorization.domains, requestBytes);
     const signal = AbortSignal.any([context.signal, AbortSignal.timeout(timeoutMs)]);
-    const bounded = <T>(work: Promise<T>): Promise<T> => new Promise((resolve, reject) => {
-      const abort = () => reject(new SandboxError('sandbox.network_timeout', 'HTTPS request cancelled or timed out'));
+    const abortError = (dispatched: boolean): SandboxError => {
+      const outcome = dispatched ? 'unknown' : undefined;
+      if (context.signal.aborted) {
+        const reason = context.signal.reason;
+        if (reason instanceof SandboxError) {
+          return dispatched && reason.outcome !== 'unknown'
+            ? new SandboxError(reason.code, reason.message, 'unknown')
+            : reason;
+        }
+        return new SandboxError('sandbox.cancelled', 'HTTPS request cancelled', outcome);
+      }
+      return new SandboxError('sandbox.network_timeout', 'HTTPS request timed out', outcome);
+    };
+    const bounded = <T>(work: Promise<T>, dispatched = false): Promise<T> => new Promise((resolve, reject) => {
+      const abort = () => reject(abortError(dispatched));
       signal.addEventListener('abort', abort, { once: true });
       work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort)).catch(() => {});
       if (signal.aborted) abort();
     });
-    signal.throwIfAborted();
+    if (signal.aborted) throw abortError(false);
     const addresses = await bounded(options.resolveHostname
       ? options.resolveHostname(url.hostname, signal)
       : lookup(url.hostname, { all: true, verbatim: true }));
@@ -67,7 +80,7 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
     }
     if (Buffer.byteLength(JSON.stringify(headers)) + Buffer.byteLength(input.body ?? '') > requestBytes) throw new SandboxError('sandbox.request_too_large', 'Injected HTTPS request exceeds limit');
     await bounded(Promise.resolve(context.beforeEffect?.()));
-    signal.throwIfAborted();
+    if (signal.aborted) throw abortError(false);
     return bounded(new Promise<SandboxNetworkResponse>((resolve, reject) => {
       // Fixed IP connection, original hostname for TLS certificate verification and SNI.
       // No global agent, proxy environment, redirects, or second DNS lookup.
@@ -82,7 +95,7 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
           if (bytes > responseBytes) { res.destroy(new SandboxError('sandbox.response_too_large', 'HTTPS response exceeds limit')); return; }
           chunks.push(chunk);
         });
-        res.on('error', error => reject(error instanceof SandboxError ? error : new SandboxError('sandbox.network_error', 'HTTPS response failed')));
+        res.on('error', error => reject(error instanceof SandboxError ? error : signal.aborted ? abortError(true) : new SandboxError('sandbox.network_error', 'HTTPS response failed', 'unknown')));
         res.on('end', () => {
           const responseHeaders = Object.fromEntries(Object.entries(res.headers).filter(([k]) => !['set-cookie', 'set-cookie2'].includes(k)).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v ?? '']));
           const response = { status: res.statusCode ?? 0, headers: responseHeaders, body: Buffer.concat(chunks).toString('utf8') };
@@ -94,8 +107,8 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
           resolve(response);
         });
       });
-      req.on('error', error => reject(error instanceof SandboxError ? error : new SandboxError('sandbox.network_error', 'HTTPS connection failed')));
+      req.on('error', error => reject(error instanceof SandboxError ? error : signal.aborted ? abortError(true) : new SandboxError('sandbox.network_error', 'HTTPS connection failed', 'unknown')));
       req.end(input.body);
-    }));
+    }), true);
   } };
 }

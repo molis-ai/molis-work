@@ -44,7 +44,7 @@ export function codingTimelineWords(readText: (text: string, values?: Record<str
   const named = (name: string): ReturnType<typeof kind> => name.startsWith("coding.find-symbol") ? symbols : other(name);
   /** A call the timeline has no words for reads as its own name. */
   const other = (name: string): ReturnType<typeof kind> =>
-    ({ key: "other", icon: "activity", tally: "calls", verb: name, doing: uiText.text("coding.call.other.doing", { name }) });
+    ({ key: "other", icon: "activity", tally: "calls", verb: name, get doing() { return uiText.text("coding.call.other.doing", { name }); } });
   /** "读取 4 个文件" / "Files read: 4" for a run of one kind; a kind that is not counted is just its verb. */
   const tally = (entry: ReturnType<typeof kind>, count: number) => entry.tally === "" ? entry.verb
     : readText(`coding.call.${entry.key}.count`, { count, name: entry.verb });

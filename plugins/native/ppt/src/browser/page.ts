@@ -35,7 +35,7 @@ const elementsOf = (bench: HTMLElement): Elements => {
 
 const initialState = (): PptState => ({
   records: [], selected: null, slideKey: "", saveTimer: undefined, editRev: 0, savedRev: 0, saveRun: null, saveError: null, busy: false,
-  aiAvailable: false, aiUnavailableReason: "", listSeq: 0, outlineMode: "local", outlineKind: "text", outline: null,
+  aiAvailable: false, aiUnavailableReason: "", listSeq: 0, editorSeq: 0, outlineMode: "local", outlineKind: "text", outline: null,
 });
 
 const notInstalled = (name: string) => () => { throw new Error(`PPT page: ${name} is not installed`); };

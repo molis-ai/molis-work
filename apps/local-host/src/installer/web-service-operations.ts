@@ -8,6 +8,15 @@ import { WebServiceEnvironment, readText, writeAtomic, digest, errorMessage } fr
 import { detectWebService } from "./web-service-detection.js";
 import { WebServiceProcess } from "./web-service-process.js";
 
+async function lstatOrNull(filePath: string): Promise<import("node:fs").Stats | null> {
+  try {
+    return await fs.lstat(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 /** Runs confirmed service operations, preserving files and prior running state on failure. */
 export class WebServiceOperations {
   constructor(private readonly environment: WebServiceEnvironment, private readonly process: WebServiceProcess) {}
@@ -23,8 +32,10 @@ export class WebServiceOperations {
     if (detection.state === "conflict") {
       throw installerErrors["installer.service.conflict"](detection.message);
     }
-    const previousPlistMode = previousPlist == null ? undefined : (await fs.lstat(this.environment.plistPath)).mode; authority.current();
-    const previousReceiptMode = previousReceipt == null ? undefined : (await fs.lstat(this.environment.receiptPath)).mode; authority.current();
+    const previousPlistMode = previousPlist == null ? undefined : (await lstatOrNull(this.environment.plistPath))?.mode;
+    authority.current();
+    const previousReceiptMode = previousReceipt == null ? undefined : (await lstatOrNull(this.environment.receiptPath))?.mode;
+    authority.current();
     const previouslyRunning = detection.running;
     let serviceMutated = false;
     let plistIdentity: import("node:fs").Stats | null = null, receiptIdentity: import("node:fs").Stats | null = null;
@@ -136,28 +147,53 @@ export class WebServiceOperations {
 
   async remove(authority: ConfirmationAuthority = unboundConfirmation): Promise<void> {
     authority.current();
-    const detection = await this.detect(); authority.current();
-    if (!detection.owned) throw installerErrors["installer.service.conflict"]("LaunchAgent 不属于 Molis Work，拒绝移除");
-    const beforePlist = await readText(this.environment.plistPath); authority.current();
-    const beforeReceipt = await readText(this.environment.receiptPath); authority.current();
-    const plistIdentity = await fs.lstat(this.environment.plistPath); authority.current();
-    const receiptIdentity = await fs.lstat(this.environment.receiptPath); authority.current();
-    let plistRemoved = false, receiptRemoved = false;
+    const detection = await this.detect();
+    authority.current();
+    if (!detection.owned) {
+      throw installerErrors["installer.service.conflict"]("LaunchAgent 不属于 Molis Work，拒绝移除");
+    }
+    const beforePlist = await readText(this.environment.plistPath);
+    authority.current();
+    const beforeReceipt = await readText(this.environment.receiptPath);
+    authority.current();
+    const plistIdentity = beforePlist == null ? null : await lstatOrNull(this.environment.plistPath);
+    authority.current();
+    const receiptIdentity = beforeReceipt == null ? null : await lstatOrNull(this.environment.receiptPath);
+    authority.current();
+    let plistRemoved = false;
+    let receiptRemoved = false;
     try {
-      await this.process.stop(authority); authority.current();
-      if (!await textWriteMatches(this.environment.plistPath, beforePlist, plistIdentity)) throw installerErrors["installer.service.plan_stale"]("LaunchAgent 状态在移除前发生变化");
-      authority.current(); authority.effect();
-      await fs.rm(this.environment.plistPath, { force: true }); plistRemoved = true; authority.current();
-      if (!await textWriteMatches(this.environment.receiptPath, beforeReceipt, receiptIdentity)) throw installerErrors["installer.service.plan_stale"]("LaunchAgent 收据在移除前发生变化");
-      authority.current(); authority.effect();
-      await fs.rm(this.environment.receiptPath, { force: true }); receiptRemoved = true; authority.current();
+      await this.process.stop(authority);
+      authority.current();
+      if (!await textWriteMatches(this.environment.plistPath, beforePlist, plistIdentity)) {
+        throw installerErrors["installer.service.plan_stale"]("LaunchAgent 状态在移除前发生变化");
+      }
+      if (beforePlist != null) {
+        authority.current();
+        authority.effect();
+        await fs.rm(this.environment.plistPath, { force: true });
+        plistRemoved = true;
+        authority.current();
+      }
+      if (!await textWriteMatches(this.environment.receiptPath, beforeReceipt, receiptIdentity)) {
+        throw installerErrors["installer.service.plan_stale"]("LaunchAgent 收据在移除前发生变化");
+      }
+      if (beforeReceipt != null) {
+        authority.current();
+        authority.effect();
+        await fs.rm(this.environment.receiptPath, { force: true });
+        receiptRemoved = true;
+        authority.current();
+      }
     } catch (error) {
       // A cancelled remove may restore only the files it removed, never issue a new OS transition.
       for (const [target, before, identity, removed] of [
         [this.environment.plistPath, beforePlist, plistIdentity, plistRemoved],
         [this.environment.receiptPath, beforeReceipt, receiptIdentity, receiptRemoved],
       ] as const) {
-        if (removed && await textWriteMatches(target, null, null)) await replaceTextFile(target, before, identity.mode);
+        if (removed && before != null && await textWriteMatches(target, null, null)) {
+          await replaceTextFile(target, before, identity?.mode);
+        }
       }
       throw error;
     }

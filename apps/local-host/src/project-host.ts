@@ -83,6 +83,7 @@ import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { resolveConfiguredHome } from "./product-home.js";
 import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
+import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { hostBlueprints } from "./blueprint-host.js";
@@ -256,7 +257,8 @@ export class MolisWorkLocalHost {
           options.onRuntimeOpen?.(reference); await this.observation?.projectOpened(reference.project_id);
           const store = new LocalProjectDatabase(reference.storage_key, { homeStorage });
           const clock = options.clock ?? (() => new Date());
-          const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
+          const versions = openProjectVersionStores(store, clock, projectId => this.search?.changed(ARTIFACTS_PROVIDER_ID, projectId));
+          const runtime: MolisWorkProjectRuntime = { store, ...versions, project_id: reference.project_id };
           try {
             // The per-partition plugins' installation records are the Home install table's, for every reader of this partition (batch 107).
             if (options.homeDirectory) partitionPluginHostFor(options.homeDirectory, startPartitionPluginInstance).noteStore(store, reference.project_id);

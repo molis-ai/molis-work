@@ -57,8 +57,14 @@ export function restoreArtifactVersions(store: LocalProjectDatabase, projectId: 
  * The 成果库 and the process items of one open project library. The project's runtime opens them once, and the Host's actions and
  * the plugin platform both write through that pair (D3). Each refuses an undeclared type of a producer the Host holds a Manifest for, and any write by a plugin that is no longer in effect (A7, S-69.1, S-70.4).
  */
-export function openProjectVersionStores(store: LocalProjectDatabase, clock: () => Date = () => new Date()): ProjectVersionStores {
-  const journal = { now: () => clock().toISOString(), appendEvent: store.appendEvent.bind(store), eventCursor: store.eventCursor.bind(store), declared: projectTypeDeclared(store.db) };
+export function openProjectVersionStores(store: LocalProjectDatabase, clock: () => Date = () => new Date(), artifactChanged?: (projectId: string) => void): ProjectVersionStores {
+  const appendEvent: typeof store.appendEvent = event => {
+    const cursor = store.appendEvent(event);
+    // Publication, archive and availability share this journal. Refresh after the synchronous transaction unwinds.
+    if (artifactChanged && event.objectType === "artifact") queueMicrotask(() => artifactChanged(event.projectId));
+    return cursor;
+  };
+  const journal = { now: () => clock().toISOString(), appendEvent, eventCursor: store.eventCursor.bind(store), declared: projectTypeDeclared(store.db) };
   const { artifacts, processItems } = projectVersionStores({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, ...journal });
   return { artifacts: { query: artifacts.query, commands: artifacts.commands }, processItems: { query: processItems.query, commands: processItems.commands } };
 }

@@ -139,7 +139,8 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
     directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
       ? directoryForHome(options.home.directory).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
-        project_id: options.project_id, actor_id: options.actor_id, assertCurrent: () => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); } }) : undefined;
+        project_id: options.project_id, actor_id: options.actor_id, person_level: manifest.databases?.partition !== undefined,
+        assertCurrent: () => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); } }) : undefined;
     scheduler = pluginSchedulerFor(manifest, context, projectLibrary?.client, options.scheduler, assertActive, {
       client: options.actions.client, plugin_caller: pluginCaller, provider_id: providerId, record: () => options.record?.(context.install_id) ?? null });
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);

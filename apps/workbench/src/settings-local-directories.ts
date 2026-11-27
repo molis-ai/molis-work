@@ -51,7 +51,7 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
     const changed = grant.directory_status === "changed";
     item.append(el("p", changed ? "settings-form-error" : "settings-muted", changed
       ? globalThis.t.text("workbench.settings-local-directories.no-longer-valid-original-folder-could-not-be") : globalThis.t.text("workbench.settings-local-directories.folder-verified")));
-    item.append(el("p", "settings-muted", (grant.project_id ? globalThis.t.text("workbench.settings-local-directories.project-named", { name: grant.project_name }) : globalThis.t.text("workbench.settings-local-directories.personal-space")) + " · " + globalThis.t.text("workbench.settings-local-directories.allowed-at", { at: when(grant.granted_at) })));
+    item.append(el("p", "settings-muted", (grant.project_id ? globalThis.t.text("workbench.settings-local-directories.project-named", { name: grant.project_name }) : globalThis.t.text("workbench.settings-local-directories.every-space")) + " · " + globalThis.t.text("workbench.settings-local-directories.allowed-at", { at: when(grant.granted_at) })));
     item.append(el("p", "settings-muted", grant.read_count ? globalThis.t.text("workbench.settings-local-directories.reads-n", { n: grant.read_count }) + " · " + globalThis.t.text("workbench.settings-local-directories.last-at", { at: when(grant.last_read_at) }) : globalThis.t.text("workbench.settings-local-directories.not-read-yet")));
     if (grant.reads.length) {
       const details = el("details", "local-directory-reads");

@@ -8,6 +8,7 @@ import { OverviewService, overviewReach, type OverviewGrant, type OverviewLibrar
 import { homeSqlitePath, openHomeSqliteFile, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
 import { attentionOverviewRows } from "@molis-ai/molis-work-module-attention-resumption";
 import { partitionPluginScope, type PartitionPluginLease } from "./partition-plugin-assembly.js";
+import { directoryForHome } from "./plugin-directory-service.js";
 import { partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
 
 /**
@@ -196,8 +197,8 @@ function ifStore(home: string, store: string, work: () => void): void {
 /**
  * An installation was removed from one partition (`partitionId`), or from the Home altogether (`null`/`undefined`, clearing every
  * partition): its due entries and overview rows go, always (they are the platform's, like an authorization). Its evidence holds go with
- * its data (`dataGoes`). Its person settings go when its data goes and no other place still has it installed (`installedElsewhere` false):
- * they follow the person, not one partition.
+ * its data (`dataGoes`). Its person settings and the local directories the person let it read go when its data goes and no other place
+ * still has it installed (`installedElsewhere` false): they follow the person, not one partition.
  */
 export function forgetInstallationPlatformRecords(home: string, installId: string, partitionId: string | null | undefined, options: { readonly dataGoes: boolean; readonly installedElsewhere: boolean }): void {
   const partition = partitionId ?? undefined;
@@ -222,6 +223,8 @@ export function forgetRetainedPlatformRecords(home: string, installId: string, p
     const settings = openPersonSettings(home);
     try { settings.clearInstall(installId); } finally { settings.close(); }
   });
+  // The local directories the person let it read follow them like their settings (batch 108): they go with the last place it was in.
+  directoryForHome(home).forgetInstallation(installId, null);
 }
 
 /** A synchronized write or a restore reached a partition while no services run: mark its libraries dirty in the overview index, if there is one. */

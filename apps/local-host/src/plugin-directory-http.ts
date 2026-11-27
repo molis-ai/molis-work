@@ -31,7 +31,7 @@ export async function handleDirectoryGrantHttp(context: WebRequestContext, proje
   return false;
 }
 
-/** Each grant as the person reads it: which plugin, which folder, in which project, and what read it lately. */
+/** Each grant as the person reads it: which plugin, which folder, in which project (none: a per-partition plugin's, or a Home-level one's, in every space), and what read it lately. */
 async function listGrants(context: WebRequestContext, grants: Awaited<ReturnType<ReturnType<typeof directoryForHome>["list"]>>) {
   const names = grants.some(grant => grant.project_id) ? new Map(await context.composition.withCatalog({ homeDirectory: context.serverOptions.homeDirectory },
     catalog => catalog.listPartitions().map(project => [project.project_id, project.display_name] as const))) : new Map<string, string>();

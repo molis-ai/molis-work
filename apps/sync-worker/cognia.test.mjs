@@ -7,6 +7,7 @@ import {cogniaManifest} from '@molis-ai/molis-work-plugin-cognia';
 import {openCogniaStore} from '../../tests/fixtures/plugin-sync-stores.ts';
 import {runtimePersonalSync,prepareSyncTestHome} from '../../tests/fixtures/runtime-personal-sync.ts';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
+import { PERSONAL_SPACE_PROJECT_ID } from '@molis-ai/molis-work-contracts/platform/actions';
 import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
 import { cloudFixture } from './testing.mjs';
 
@@ -14,10 +15,12 @@ test('PCSYNC-11/15/22/23 Cognia knowledge graph retains bytes, historical citati
  const f=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-cognia-sync-'));
  const previous=process.env.MOLIS_WORK_SYNC_ORIGIN;process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_ORIGIN;else process.env.MOLIS_WORK_SYNC_ORIGIN=previous;});t.mock.method(globalThis,'fetch',f.transport);
  const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b'].map(n=>join(root,n));homes.forEach(h=>{ensureStorageSpace(h,space);prepareSyncTestHome(h);});
- for(const home of homes)await withMolisWorkProjectCatalog({homeDirectory:home},()=>{});
+ for (const home of homes) await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog =>
+  catalog.addProjectPlugin({ project_id: PERSONAL_SPACE_PROJECT_ID, plugin_id: 'cognia', actor_id: 'alice' }));
  const runtimes=await Promise.all(homes.map(home=>runtimePersonalSync(home,space,()=>{},{accessToken:async()=>'alice',authOrigin:'https://auth.example.test'})));
  t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
- const stores=homes.map(home=>openCogniaStore(home)); // Cognia keeps a library in each partition (batch 108): the personal space heret.after(()=>stores.forEach(s=>s.close()));
+ const stores = homes.map(home => openCogniaStore(home, PERSONAL_SPACE_PROJECT_ID));
+ t.after(() => stores.forEach(store => store.close()));
  const domain=stores[0].createDomain('Notes'),original=stores[0].createMaterial({title:'Original',body:'Original evidence🙂',domain_id:domain.id});
  stores[0].updateMaterial(original.id,{title:'Current',body:'Current evidence🙂',domain_id:domain.id});
  const binary=Buffer.alloc(600000,43),preview=stores[0].preview({kind:'markdown',name:'Vault',locator:'local:/never-upload-this-machine-directory',files:[{path:'files/saved.pdf',data:binary.toString('base64')}]});

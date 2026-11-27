@@ -15,6 +15,7 @@ import { restrictTaskGrant, taskGrantHostPorts, taskGrantSubjects } from "./task
 import { assistantActionPolicyView, writeAssistantActionPolicy } from "./assistant/assistant-action-policy.js";
 import type { AssistantStore } from "./assistant/assistant-store.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
+import { heldInstalls } from "./plugin-holders.js";
 import { shippedParts } from "./plugin-registry.js";
 import { directoryWordResolver, drawRegisteredText, registeredInstallationText } from "./ui-text-provider.js";
 
@@ -83,7 +84,7 @@ export async function defaultMcpAuthorizations(host: MolisWorkLocalHost, prefere
 }
 
 export async function authorizationOwnerTitles(host: MolisWorkLocalHost, project?: LocalHostProjectReference,
-  extraProjects: readonly LocalHostProjectReference[] = []): Promise<ReadonlyMap<string, string>> {
+  otherScopes?: { home: string; projects: ReadonlySet<string> }): Promise<ReadonlyMap<string, string>> {
   const names = new Map<string, string>();
   for (const { provider } of host.inspectActionMetadata({ actor_id: actor, project_id: project?.project_id ?? null, audience: "user", permissions: [] }, project)) {
     for (const id of [provider.provider_id, provider.plugin_id, provider.plugin_install_id]) if (id && provider.title) names.set(id, provider.title);
@@ -97,14 +98,11 @@ export async function authorizationOwnerTitles(host: MolisWorkLocalHost, project
     const title = manifest ? projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(registeredInstallationText(record))).name : record.plugin_id;
     names.set(record.install_id, title); names.set(record.plugin_id, title);
   }
-  const seen = new Set<string>();
-  for (const ref of [...(project ? [project] : []), ...extraProjects]) {
-    if (seen.has(ref.project_id)) continue;
-    seen.add(ref.project_id);
-    for (const { record, manifest } of await host.withProject(ref, runtime => installedPluginEntries(runtime.store.db)).catch(() => [])) {
-      const title = manifest ? projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(registeredInstallationText(record))).name : record.plugin_id;
-      names.set(record.install_id, title); names.set(record.plugin_id, title);
-    }
+  const selected = project ? await host.withProject(project, runtime => installedPluginEntries(runtime.store.db)).catch(() => []) : [];
+  const other = otherScopes ? heldInstalls(otherScopes.home, undefined, { home: false, projects: otherScopes.projects }) : [];
+  for (const { record, manifest } of [...selected, ...other]) {
+    const title = manifest ? projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(registeredInstallationText(record))).name : record.plugin_id;
+    names.set(record.install_id, title); names.set(record.plugin_id, title);
   }
   names.set(ASSISTANT_PLUGIN_ID, t.text("workbench.settings-renderer.assistant"));
   return names;

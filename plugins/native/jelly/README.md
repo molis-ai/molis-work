@@ -35,10 +35,10 @@ Jelly 是日历和随手记，在个人空间或哪个项目里启用，就在�
 
 ## 动作
 
-共 18 项动作，输入类型都由 schema 推导（`InferActionInput`），处理器不写 `input as`：
+核心和搜索共 19 项动作，输入类型都由 schema 推导（`InferActionInput`），处理器不写 `input as`：
 
-- **核心 15 项**（`src/actions.ts`），名字都以 `jelly.` 开头：
-  - 读：`calendar.list`、`item.get`、`note.list`、`note.get`
+- **核心 16 项**（`src/actions.ts`），名字都以 `jelly.` 开头：
+  - 读：`calendar.list` 读区间内的日程和分类，`item.get` 读一条日程。随手记读组的 `note.days` 给出所选区间有笔记的日期，`note.list` 可按日期和数量取摘要，`note.get` 读正文
   - 日程：`item.create`、`item.update`、`item.delete`、`series.create`、`series.update`、`series.delete`
   - 分类：`category.save`、`category.delete`
   - 随手记：`note.save`、`note.delete`
@@ -48,7 +48,7 @@ Jelly 是日历和随手记，在个人空间或哪个项目里启用，就在�
 
 写入规则：
 
-- 删除类动作返回删掉的行，撤销用 `jelly.restore` 把它们放回；之后又被改过的行不放回，列在 `skipped` 里，其余照样放回。页面的撤销按钮在宿主的 `host.showToast` 里（页面在框里时，框替它把按下传回来）。
+- 删除类动作返回删掉的行，撤销用 `jelly.restore` 把它们放回；分类删除会将日程移到「未分类」。这些日程与只删除部分日期的系列，撤销时须与删除操作留下的行逐项相符；之后另改或另删的行列在 `skipped` 里，其余照样放回。页面的撤销按钮在宿主的 `host.showToast` 里（页面在框里时，框替它把按下传回来）。
 - 重复系列的改动按范围分三种：只改这一次（`onlyThis`）、改这次和以后（`thisAndFuture`，旧系列在前一天截止，另起一个新系列）、改全部（`all`）。
   - 挪日期按这一次现在的位置量（单独挪过的也算），整个系列挪同样的天数，星期跟着转；`weekdays` 只有和原来不同才算改了规则。
   - 单独改过的日子和完成记录跟着挪，只去掉不再落在系列上的。

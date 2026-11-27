@@ -16,7 +16,7 @@ import { feedInformationPlanAction } from "@molis-ai/molis-work-plugin-feed";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
 /** A plugin's model choice as its Manifest declares it (a sandbox plugin's is the same shape). */
-const PROBE_MODEL_CONFIGURATION = { preference: { store_name: "probe", file_name: "preferences.json" }, custom_provider: { provider_id: "probe-text", display_name: "探针模型" },
+const PROBE_MODEL_CONFIGURATION = { preference: { store_name: "probe", file_name: "preferences.json" }, reserved_provider_id: "probe-text",
   actions: { read: { capability_id: "probe.model.settings", version: 1 }, save: { capability_id: "probe.model.configure", version: 1 } } };
 import { asideReply } from "./fixtures/ending-review.js";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";

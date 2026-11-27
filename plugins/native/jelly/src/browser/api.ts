@@ -5,6 +5,7 @@ const uiText = globalThis.t;
 const VERSIONS = {
   "jelly.calendar.list": /* @version action.jelly.calendar.list */ 1,
   "jelly.item.get": /* @version action.jelly.item.get */ 1,
+  "jelly.note.days": /* @version action.jelly.note.days */ 1,
   "jelly.note.list": /* @version action.jelly.note.list */ 1,
   "jelly.note.get": /* @version action.jelly.note.get */ 1,
   "jelly.item.create": /* @version action.jelly.item.create */ 1,

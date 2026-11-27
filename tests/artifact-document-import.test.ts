@@ -665,12 +665,22 @@ test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the i
     offered: { size_bytes: stored.size_bytes, store: async () => stored,
       read: async () => { throw Object.assign(new RangeError("File size (3000000000) is greater than 2 GiB"), { code: "ERR_FS_FILE_TOO_LARGE" }); } },
   };
-  const result = await importArtifactDocument({ source: "file", filename: "录像.mov", original_file: { filename: "录像.mov", mime: "video/quicktime" } }, ports);
+  const result = await importArtifactDocument({ source: "file", filename: "报告.pdf", original_file: { filename: "报告.pdf", mime: "application/pdf" } }, ports);
   assert.equal(readText, 0, "no text is read from bytes the Host could not hold");
   assert.equal(result.text_available, false); // QEA-28: an original-only result remains successful without claiming text.
   assert.deepEqual(result.warnings, [{ owner: "workbench", key: "workbench.import.warning-original-too-big" }]);
   const original = (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
   assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);
+  // B112-08: streamed media are saved exactly once, without re-reading the original.
+  for (const [filename, mime, size] of [["录像.mov", "application/octet-stream", 3_000_000_000], ["录音", "audio/wav", 7_000_000]] as const) {
+    let writes = 0;
+    const media = await importArtifactDocument({ source: "file", filename, original_file: { filename, mime } }, {
+      ...ports, offered: { size_bytes: size, store: async () => { writes++; return { ...stored, size_bytes: size }; },
+        read: async () => assert.fail("media already in original storage must never be read for extraction") },
+    });
+    assert.equal(writes, 1); assert.equal(media.text_available, false);
+    assert.deepEqual(media.warnings, [{ owner: "workbench", key: "workbench.import.warning-media-original-only" }]);
+  }
 });
 
 test("RAC-891 a document import takes only the ways of connecting its integration declares: Feishu's CLI login yes, Notion's no", async t => {

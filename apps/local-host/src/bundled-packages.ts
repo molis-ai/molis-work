@@ -5,7 +5,7 @@
  * installing one is the same preview and confirmation, its publisher is not pinned in advance, and none goes through a built-in
  * `registration` or gets the build's trust. Reading them installs nothing, registers no Skill and keeps no setting.
  */
-import { constants, readdirSync } from 'node:fs';
+import { constants, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { lstat, open, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,7 @@ import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { HOST_PLUGIN_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { completeContentPackagePayload } from '@molis-ai/molis-work-plugin-sdk';
-import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
+import { verifyPluginPackageSignature, type ReleasePackages } from '@molis-ai/molis-work-plugin-runtime';
 import { readKeptPackage, type KeptPackage } from './sandbox-package.js';
 
 /** A signed package is at most this big, as the CLI and the install read one. */
@@ -38,6 +38,39 @@ export function releasePackageIds(directory: string): ReadonlySet<string> {
   try { names = readdirSync(directory); } catch { return new Set(); }
   return new Set(names.map(name => name.endsWith(DRAFT_SUFFIX) ? name.slice(0, -DRAFT_SUFFIX.length) : name.endsWith('.json') ? name.slice(0, -'.json'.length) : '')
     .filter(id => id.startsWith(HOST_PLUGIN_ID_PREFIX)));
+}
+
+/**
+ * The release's packages under the Host's prefix as the Runtime checks them at install and at every start (S-reserved-host-prefix, 44C
+ * P-13): an id the folder carries, signed as the folder's package is. A package the folder ships signed (`<plugin_id>.json`) installs
+ * only under the key that signed it there, verified once; one it ships unsigned (`<plugin_id>.draft.json`) only under this Home's own
+ * publisher key (`localKey`), the one that signs it when the person installs it. A version older than the folder's still passes, since
+ * the signer is what is bound; a package with the same id signed by anyone else does not.
+ */
+export function releasePackages(directory: string, ids: ReadonlySet<string>, localKey: () => string | null): ReleasePackages {
+  const signers = new Map<string, string | null>();
+  const signerOf = (pluginId: string): string | null => {
+    if (!signers.has(pluginId)) signers.set(pluginId, signedKeyOf(path.join(directory, `${pluginId}.json`), pluginId));
+    return signers.get(pluginId) ?? null;
+  };
+  return {
+    has: pluginId => ids.has(pluginId),
+    signedBy(pluginId, signature) {
+      if (!ids.has(pluginId)) return false;
+      const signed = signerOf(pluginId);
+      return signature === (signed ?? localKey());
+    },
+  };
+}
+
+/** The key that signed the release's package at `file` if it lies there as a regular file, verifies and is the package for `pluginId`; otherwise none. */
+function signedKeyOf(file: string, pluginId: string): string | null {
+  try {
+    const stat = lstatSync(file, { throwIfNoEntry: false });
+    if (!stat?.isFile() || stat.size > MAX_PACKAGE_BYTES) return null;
+    const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(readFileSync(file, 'utf8')) as unknown);
+    return readKeptPackage(bundle.payload).manifest.plugin_id === pluginId ? key_id : null;
+  } catch { return null; }
 }
 
 /** One bundled package that verified: its file in the folder, the signed bundle as it lies there, its Manifest as read, and the key that signed it. */

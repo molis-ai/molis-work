@@ -1,5 +1,11 @@
 # 合同变更流程
 
+2026-11-26 主线事件卡新增 `system.mainline` 的 `mainline.line.contains@1`，本人在项目内持 `mainline:read` 可给出 `{ subject, window }`，取得 `{ on_line }`。事件卡每次操作沿用事项线的时间窗口和本人可见的事件登记；已有整线读取及插件事件登记合同保持原形。
+
+2026-11-26 第 112-2 批后续（用户 2026-11-26 选择退役，不另造测试用主人）。Manifest 自报模型选择的路径随最后一个主人 Jelly 退役。`packages/contracts/src/platform/settings.ts` 的 `SettingsDeclaration` 删去 `model_configuration`，`plugin-model-configuration.ts` 删去 `PluginModelConfigurationDeclaration` 与 `PluginModelConfigurationClient.preferences`。SDK 的 `parsePluginManifest` 遇到 `settings_entries.model_configuration` 按未知字段拒绝。Plugin Runtime 删去 `createPluginModelConfigurationClient` 与 `PluginModelConfigurationPort`，错误码 `plugin.model_configuration_action_required` 不再出现。`blueprints.adoption.preview@1`、`blueprints.library.read@1` 的预览项原位删去可选输出 `model_selection`，采用页不再有模型选择器，`/api/settings/models?choices=1` 一并删除。这一字段从未随任何发布写出，金样 Home 里也没有，所以不加升级步骤。Home 包的模型设置（`effects.modelSettings`、`services.model.configuration`、偏好文件 v1）不变。动作与公开 API 快照已刷新。
+
+2026-11-26 第 112-1 批（删除本机语音转写，用户 2026-11-25 决定 68）。合同阶段一收窄，同 PR 改完全部仓库内消费者，仓库外无消费者：`contracts/services/materials` 的 `MaterialExtractionOptions` 去掉 `allowModelDownload`、`onProgress`，`MaterialExtraction` 去掉 `frames`、`duration_seconds`，`MaterialSourceContent` 去掉 `frames`、`model_required`，识别语言加 `ja-JP`；`platform/plugin` 的 `PluginMaterialSourceRequest` 只留 `signal` 与 `allowedDomains`；`platform/plugin-sandbox` 同步去掉这三个字段并加 `ja-JP`；SDK `MATERIAL_EXTENSIONS` 去掉 `media`（音视频上传以 `material.unsupported` 拒绝）。动作同版本收窄：`artifacts.import.file@1` 输入去 `allow_model_download`、输出去 `model_required`，`artifacts.import.external@1` 输出去 `model_required`，`lingguang.material.read@1`、`lingguang.source.read@1` 输入去 `allow_model_download`。Home 的 `materials/` 只留一条只排除的登记（见「当前保留机制」）。
+
 2026-11-25 第 44C 批（44C-1 身份与登记收口）。`PluginStartContext` 新增必有的 `provider_id`：插件启动时拿到自己的动作提供方编号，由 Plugin Runtime 按安装身份给（宿主构建的插件是插件编号，签名沙箱包是 `plugin:<插件编号>`，其余是安装编号），插件不再自己拼 `plugin:<编号>`；签名沙箱包经 Runtime 注册的动作，提供方原来随宿主传的回调、缺省是安装编号，现在一律 `plugin:<插件编号>`，钉住这类动作 `provider_id` 的调用方会看到新编号（仓库内调用方同批改完）；平台各处经 `@molis-ai/molis-work-plugin-runtime` 的 `resolveActionProviderId` 读同一条规则。消费方：内置插件与夹具的 `start`（读得到新字段，不读也不变）、宿主的沙箱执行器与动作客户端。`packages/contracts/src/platform/ui.ts` 新增常量 `PLATFORM_RECEIVE_STATION`（`system.shelf`）：事项线「放到」的平台接收站原来写插件名 `shelf`，现在写平台部件的提供方编号；已存的线上状态是运行时读出，没有存储变更。常量放在 `platform/ui` 而不是 `services/mainline`：画事项线的页面只取这一个编号，不随它载入主线动作表（约 17 KB）。`packages/contracts/src/platform/plugin-role-protocols.ts` 新增第 6 种角色协议「生图」（`IMAGE_GENERATION_ROLES`、`IMAGE_GENERATION_PROTOCOL`、`imageGenerationRoleOf`，八个 `type.molis.imagegen.*` 类型各 v1）：Images 的 `images.connections.list`、`images.jobs.start`、`images.jobs.get`、`images.images.read` 标上对应角色，动作版本、输入输出结构不变；消费方是创作台画方案配图，按角色找提供方，不再点 Images 的名。两项都没有旧取值兼容读取。
 
 2026-11-25 第 44C 批（44C-2 集成驱动与服务卡）。①`packages/contracts/src/platform/integration-drivers.ts` 的 `IntegrationDrivers` 成为集成包交给宿主的唯一驱动合同：新增必有的 `order`，可选的 `integrations`（由宿主的 `IntegrationHostPorts` 建集成定义，与签名沙箱集成进同一个登记）、`accounts`（`AccountDriver`）、`documents`（`DocumentDriver`）、`web_search`（`WebSearchDriver`）、`marks`、`cli_release_file_hosts`，`CliDriver` 增可选 `managed_environment`；同一服务两份声明，宿主启动即拒。②`services/connector-host`：`ConnectorRequestCredential` 的 `private-token`、`x-figma-token` 两个取值换成 `{ header }`；`ConnectorRequestTenant` 的单个站点字段换成 `site_keys`，另加可选 `gateway`；新增 `connectorGatewayBase`；`ConnectorDirectoryEntry` 增可选 `card`（`ConnectorCardView`）。③`PluginConnectionServiceDeclaration` 增可选 `card`，`PluginIntegrationDeclaration` 增可选 `title`（只用于 `document_import`），SDK 的 Manifest 校验同步收下并逐项核对。④`plugin-sdk/oauth` 新增 `oauthTenantSiteOrigin`。⑤成果库查询 `artifacts.import.sources@1` 的输出增 `offered`（来源、服务与名字，按声明的顺序），原两项不变。消费方：四个官方集成包、宿主连接器与成果库、设置页服务卡、侧栏导入框，已同批改完。插件作者：已有清单不必改；读 `CONNECTOR_REQUEST_SERVICES` 凭据取值或租户字段的要改成新形状。无数据迁移。
@@ -159,12 +165,14 @@
 
 ### 当前保留机制
 
+
 - **个人同步 M1-B2（用户已批准）**。项目库、Agent 定义库、蓝图库、Functions 库和外观文件各自保留一段 v1→v2 升级。四个库新增 owner 同步日志并登记已有可同步记录，外观保留选择和回执并加入同步状态。读取只认 v2，转换由既有独立升级入口执行。Attention 保留现有集合的 v1 标识和日志。
 
 以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
+| 退役的 `materials/` Home 条目（第 112-1 批，用户 2026-11-26 选择） | 本机语音转写删除后没有代码创建或读写 `{home}/materials`；旧 Home 可能还留着 `materials/models/`。`homeStores()` 保留一条只排除、不建目录的登记（不随快照备份、恢复时重置、卸载时清除），只为让旧 Home 照常做快照，不读其中任何内容 | `apps/local-host`；第 90 批 v1 封板时删除 |
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
 | 产品文案中的「回填」说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
@@ -185,6 +193,16 @@
 第 44 批插件同等地位收口（2026-11-19 合并 main #2163 后，用户批准选项 A 随发布前 v1 清理一并拍平；2026-11-20 独立复核整改经用户批准 A2 进一步补齐 `acceptance_*` 表 SQLite `CHECK` 约束）：项目指导（`guidance_entries`、`guidance_revisions`）、要求与认可（`acceptance_*` 含同步约束 CHECK、移出原独立 Home 库 `acceptance/acceptance.db`）和去掉闭合 CHECK 的 `inbox_entries` 直接落入项目库 v1 基线；Goals 私有库去掉指导与旧要求/判断/结论表、改留 `goal_requirement_links` 与 `goal_event_closures.acceptance_round`，随 `project_goals` 同步集合一起拍平为 v1；放置库（`placement.attached_in`）、上手旅程库（平台形状 `drafts` 与 `summary_open`）与外部 Runtime 接入收据（`format.runtime.integration.receipt` 保持 v1、去掉 `skill_path`/`skill_target`）均保持 v1、零迁移段、零读时兼容。PEQ-03 平台禁止 import 插件包门禁的迁移例外为空（Goals 同步决定摘要经 `PluginRegistration.approval_outcomes` 通用登记接入）。`projects/*/molis-work.db` 与 `projects/*/molis-work.db#io.molis.work.goals` 的同版 v1 结构变更按确切 `(from → to)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，并在干净 v1 基线上重新生成唯一 `0.1.0` 金样（含 `acceptance` 写入与 `codex.json` 接入收据）。
 
 第 106 批合后复查修复（2026-11-25，决定 66 C11 发布前 Clean v1 口径）：`horizontal/person-settings` 的 `person-settings/person-settings.db` 移去与主键 `PRIMARY KEY (install_id, key)` 冲突的 `UNIQUE (plugin_id, key)` 约束（该库为第 106 批新建且零生产写入、未入金样），保持 v1 不升版，确切 `(b6c54dfe0fa5eaa5 → 0aa8b1771c6fe435)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，与目录库同版例外及 `v1-reset-exceptions.json` 一并于第 107 批清退。
+
+第 112 批 112-2 Jelly 瘦身（用户 2026-11-26 选 Clean v1）：
+- **库结构**：`jelly/jelly.db` 删去四张旧表：`jelly_workspace`（`singleton = 1` 的整库 JSON）、`jelly_note_versions`、`jelly_history`、`jelly_previews`。改为按行存的四张表 `jelly_categories`、`jelly_items`、`jelly_series`、`jelly_notes`，每行带自己的 `revision`。同步技术表随集合 `jelly.entries` 换了命名空间。
+- **版本**：`database.jelly_database` 保持 v1，不升版。没有升级段，也没有读旧结构的兼容分支，旧 `singleton` 行不迁移。
+- **已有的 Home**：库号同为 1 而结构不同，Jelly 在已有旧库的 Home 上打开时按结构不符拒绝，不改动旧文件。用户选的做法是更新后手动删掉 `jelly/jelly.db`，Jelly 从空开始（平台不代删）。金样已就地改写，所以金样回放查不出这一点，这里留文字记录。
+- **门禁与金样**：确切的哈希对 `(f8ed975502abc63b → 07e620872874959d)` 登记在 `tooling/gates/schemas/same-version-exceptions.json`。三份金样的 Jelly 库就地改写为新结构，各含一行 `jelly_notes`。
+- **同批退役**：
+  - `jelly/preferences.json`，即 Jelly 自己的模型选择。`format.model.preference` 只剩沙箱插件的 `plugin-files/<install_id>/.model-settings/preference.json`。金样里的 `jelly/preferences.json` 一并删除。
+  - `format.jelly.workspace`、`format.jelly.portable`、`prompt.jelly.decompose`。
+  - 同步集合 `jelly_workspace`。
 ### 存储版本变更登记
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
@@ -199,6 +217,8 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `mainline/mainline.db` | 2 → 1 | 2026-11-26 一骏决定，带事项修订的表结构作为 v1 从空库开始 | 旧结构 v1 报结构不符，v2 报版本过高，原文件保留。重建由本人决定，停宿主、备份并移开该空间整个主线库目录后再启动。 |
+| `mainline/mainline.db` | 1 → 2 | #2347 增加逐事项修订，旧事项经升级从 1 起步 | 历史升级段见提交 `977a7cbde7`，已随上列 v1 复位撤下。 |
 | `memory/memory.db` | 1 → 2 | 2026-11-24 架构审查修复（用户确认补齐 `b3429bd1cc` 显式升级段）：将 `memory_markers` 中 `b3429bd1cc` 之前内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`，避免旧已完成记录永久误报 `needs-reconcile`，普通打开只认 v2 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
 | `projects/<project_id>/molis-work.db` | 2 → 3 | 第 44B 批 PR3：「等你」同步改用平台身份 `system.attention`、脱离 Inbox（44b.md 用户 2026-11-23 定的 2→3）；升级段只建平台自己的同步流水并把已有注意事项登记为待同步，不改业务表 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
@@ -333,7 +353,7 @@
 | `work-brief/work-brief.db` | 2 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
 | `characters/characters.sqlite` | 2 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
 | `shelf/catalog.json` | 2 → 1 | 同上 | 保留现行完整目录与偏好回执形状，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
-| `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 2 → 1 | 同上 | 保留现行完整模型偏好与回执形状，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
+| `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 2 → 1 | 同上 | 保留现行完整模型偏好与回执形状，清空历史升级段，重新生成干净 0.1.0 v1 金样。（`jelly/preferences.json` 于第 112 批随 Jelly 的模型设置退役，现只剩 `plugin-files/` 一份。） |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -379,6 +399,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - 第 5 节列的前置还没做完。
 
 ## 8. 阶段一已做、对插件作者有影响的合同改动
+
+- BL-b47-package-install-discard-kept-data：`plugins.install.preview@1` 返回布尔值 `kept_data_incompatible`。确认结果的可选字段 `retained_cleanup_incomplete` 表示新版已经装好，部分旧数据清理失败；两个入口均提示检查磁盘空间和文件夹权限。为 true 时，只有本人受保护入口在 `plugins.install.confirm@1` 显式传 `discard_kept_data: true` 才可放弃此次预览对应的旧数据；省略或 false 保留数据并拒绝安装。一骏确认清理范围包括该安装的私有数据、当前项目内签名和归属登记均吻合的业务表，以及本次涉及的个人空间实例自己的数据库。取消保留全部。两个动作原位更新，页面仍只收到原有结果。
 
 - 2026-11-08，D0038（用户选择 D）：工作台页面改为 `molis-work-page-session` meta 与 `x-molis-work-page-session` 请求头，只传 HttpOnly 会话配对的 CSRF 证明；账号状态从返回 `viewToken` 改为非授权的 `viewScope` 修订标识。页面不得依赖宿主控制令牌或把证明当作进程凭据；共用 UI 请求助手及 socket 消费者同期更新，旧页面须刷新。不新增读取兼容。CLI/MCP 的私有控制认证、独立客户端证明和原生身份保持各自检查；动作 id/schema、Manifest 与持久库版本不变。见 [实施及验收](../../specs/archive/daily-quality-d0038/spec.md)。
 

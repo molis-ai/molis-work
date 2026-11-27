@@ -160,7 +160,7 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
       return host.installationScope.run(operation);
     },
     assertIntegrationsFree: async manifest => (await homeIntegrationRegistry(home)).assertFree(manifest),
-    installed: projectId => installedPluginsInProject(source, projectId),
+    installed: (projectId, keptFor) => installedPluginsInProject(source, projectId, keptFor),
     offers: (projectId, reference) => {
       const project = source.host.projects().find(row => row.project_id === projectId);
       return project !== undefined && source.host.client(project).availability(reference).available;
@@ -168,7 +168,7 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
     repair: (input, caller) => repairInstalledPackage(source, input, caller),
     control: (projectId, input) => controlPackageInProject(source, projectId, input),
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
-    homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected, source),
+    homeInstalled: keptFor => installedHomePlugins(source.homePlugins(), keptFor), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected, source),
     homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller, source),
     onPublisherRevoked: keyId => {
       disposeWorkTerminalsForPublisher(home, keyId);

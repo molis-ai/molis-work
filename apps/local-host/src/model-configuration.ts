@@ -5,8 +5,7 @@ import { randomUUID } from "node:crypto";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginModelConfigurationDeclaration, PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginModelConfigurationPort } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { openConfiguredModels as openProviders, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl as validBaseUrl } from "./configured-models.js";
 import { hostHasTextModel } from "./host-complete-text.js";
@@ -15,8 +14,17 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { atomicWriteFileSync, assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
 
 const errors = defineErrorCodes("host", { model_configuration_invalid: "invalid" });
-/** What the settings need of a declaration: where the choice is kept and the id of the consumer's own provider (a Home package's settings are derived without actions, BL-491). */
-export type ConsumerModelConfigurationDeclaration = Pick<PluginModelConfigurationDeclaration, "preference" | "custom_provider">;
+/** Where a consumer's choice is kept and the id of its own provider; the Host derives both for a Home package (`sandboxModelDeclaration`, BL-491). */
+export interface ConsumerModelConfigurationDeclaration {
+  readonly preference: { readonly store_name: string; readonly file_name: string };
+  readonly custom_provider: { readonly provider_id: string; readonly display_name: string };
+}
+/** Synchronous owner calls: after the caller's authority is checked there is no wait before a persistent effect. */
+export interface ConsumerModelConfigurationPort {
+  selection(): PluginModelSelection | undefined;
+  read(options?: { preference_revision: true }): PluginModelConfigurationView;
+  save(input: PluginModelConfigurationInput): PluginModelConfigurationView;
+}
 export const modelConfigurationInvalid = errors.model_configuration_invalid;
 const MODEL_PREFERENCE_SCHEMA_VERSION = /* @version format.model.preference */ 1;
 const MODEL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [];
@@ -151,7 +159,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
   return readSettings(home, declaration);
 }
 /** The Host owns this consumer binding; provider and connector facts remain behind their existing owners. */
-export function createConsumerModelConfiguration(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationPort {
+export function createConsumerModelConfiguration(home: string, declaration: ConsumerModelConfigurationDeclaration): ConsumerModelConfigurationPort {
   return {
     selection: () => readModelPreference(home, declaration).selection ?? undefined,
     read: options => readSettings(home, declaration, options?.preference_revision),

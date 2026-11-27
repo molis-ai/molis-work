@@ -31,8 +31,6 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "database.home.catalog": { store: "projects/catalog.db" },
   "database.ledger_baseline": { store: "plugin-libraries/plugin-libraries.db" },
   "database.memory_ledger_baseline": { store: "memory/memory.db" },
-  // The JSON in the one row of jelly_workspace, not jelly/preferences.json (format.model.preference).
-  "format.jelly.workspace": { store: "jelly/jelly.db", rows: "SELECT json_extract(body, '$.schema_version') AS version FROM jelly_workspace" },
   "format.secret-store.map": { file: "security/secrets.json", field: "version" },
   "format.mcp.tool-preference": { file: "config/mcp-tools.json", field: "version" },
   "format.shelf.catalog": { file: "shelf/catalog.json", field: "version" },
@@ -43,8 +41,9 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "format.computer.record": { file: "computer/records/*/record.json", field: "version" },
   "format.ui.appearance-state": { file: "interface/state.json", field: "schema_version" },
   "format.ui.last-locale": { file: "config/ui-locale.json", field: "schema_version" },
-  "format.model.preference": { file: "jelly/preferences.json", field: "schema_version" },
   // A sample with fixed values: only an installed Home has a receipt (scripts/golden/populate.mjs `runtimeReceiptSample`).
+  // Each sandbox plugin's model choice (apps/local-host/src/sandbox-model-settings.ts); no golden holds one yet, so raising it fails until one does.
+  "format.model.preference": { file: "plugin-files/*/.model-settings/preference.json", field: "schema_version" },
   "format.runtime.integration.receipt": { file: "runtime-integrations/*", field: "schema_version" },
   "format.home.installation": { absent: "config/installation.json is written by the installer, and a golden Home is made by running a Host, not by installing one" },
   "database.search.text-index": { absent: "search/ is a rebuildable index the snapshot leaves out (upgrade-chain-design §2.3); its first raise is the user's call" },

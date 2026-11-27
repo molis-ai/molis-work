@@ -37,8 +37,10 @@ function declaredManifest(given: PluginRuntimeDatabase, record: PluginInstanceRe
 }
 
 /** Every installation of a project that has not been uninstalled, each with the Manifest it was installed with (undefined when that cannot be read). */
-export function installedPluginEntries(db: PluginRuntimeDatabase): Array<{ record: PluginInstanceRecord; manifest: PluginManifest | undefined }> {
-  return pluginInstallRecords(db).list().filter(record => record.state !== "uninstalled").map(record => ({ record, manifest: declaredManifest(db, record) }));
+export function installedPluginEntries(db: PluginRuntimeDatabase, keptFor?: string): Array<{ record: PluginInstanceRecord; manifest: PluginManifest | undefined }> {
+  return pluginInstallRecords(db).list().flatMap(record => record.state !== "uninstalled"
+    ? [{ record, manifest: declaredManifest(db, record) }]
+    : record.plugin_id === keptFor && record.retain_private_data ? [{ record, manifest: undefined }] : []);
 }
 
 /** A project's installation and its Manifest, for a check that needs what it declares; `null` when it is not installed there. */

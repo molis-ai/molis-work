@@ -1,52 +1,32 @@
 import { objectSchema as object, arraySchema as array, nullableSchema as nullable } from "@molis-ai/molis-work-plugin-sdk";
 
 export const text = { type: "string" } as const;
-export const id = { type: "string", minLength: 1 } as const;
+export const id = { type: "string", minLength: 1, maxLength: 200 } as const;
 export const boolean = { type: "boolean" } as const;
+/** A row's revision: 1 when created, one more with every write. The uncategorized category is 0 until its colour is first changed. */
 export const revision = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } as const;
 export const date = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" } as const;
-export const ids = { ...array(id), uniqueItems: true } as const;
-export const priority = { enum: ["P0", "P1", "P2", "none"] } as const;
-const scheduleFields = { start_date: date, end_date: date, start_time: nullable({ type: "integer", minimum: 0, maximum: 1439 }), end_time: nullable({ type: "integer", minimum: 0, maximum: 1439 }) } as const;
-export const schedule = object(scheduleFields);
-const mutableItemFields = { kind: { enum: ["task", "event"] }, title: { ...id, pattern: "\\S" }, category_id: id, priority, pinned: boolean, ...scheduleFields, completion_description: text, notes: text, untimed_rank: { type: "number" } } as const;
-const itemFields = { id, ...mutableItemFields, kind: { enum: ["task", "event"] }, completed_at: nullable(text), created_at: text, updated_at: text, time_zone: text };
-export const item = object(itemFields);
-// Creation owns generated timestamps; updates cannot change identity or completion state.
-const createItemFields = { id, ...mutableItemFields, completed_at: nullable(text), time_zone: text } as const;
-export const itemInput = object(createItemFields, ["title", "start_date"]);
-export const itemPatch = object(mutableItemFields, []);
-const seriesFields = { weekdays: { type: "array", items: { type: "integer", minimum: 1, maximum: 7 }, uniqueItems: true, minItems: 1 }, until: nullable(date) } as const;
-export const seriesInput = object({ ...createItemFields, ...seriesFields }, ["title", "start_date", "weekdays"]);
-export const seriesPatch = object({ ...mutableItemFields, ...seriesFields }, []);
-export const series = object({ ...itemFields, ...seriesFields,
-  exceptions: { type: "object", additionalProperties: object({ deleted: boolean, patch: object(itemFields, []) }, []) },
-  completions: { type: "object", additionalProperties: object({ completed_at: nullable(text), completion_description: text }) },
-});
-export const occurrence = object({ ...itemFields, series_id: nullable(id), original_date: nullable(date) });
-export const categoryFields = { id, name: id, color: text, sort_index: revision };
-export const category = object(categoryFields);
-const blockFields = { id, kind: { enum: ["paragraph", "heading1", "heading2", "heading3", "bullet", "numbered", "task", "quote", "code", "divider", "link"] }, text,
-  indent: { type: "integer", minimum: 0 }, completed_at: nullable(text), completion_description: text, language: text,
-  inline_spans: array(object({ text, marks: array({ enum: ["bold", "italic", "code"] }), link_url: text }, ["text", "marks"])),
-} as const;
-const block = object(blockFields, ["id", "kind", "text", "indent", "completed_at", "completion_description"]);
-const blockInput = object(blockFields, []);
-export const note = object({ id, title: text, category_id: id, blocks: array(block), pinned: boolean, archived_at: nullable(text), revision, created_at: text, updated_at: text });
-export const noteInputFields = { title: text, category_id: id, blocks: array(blockInput), html: text, markdown: text } as const;
-const sha = { type: "string", pattern: "^[a-f0-9]{64}$" } as const;
-export const relationFields = { owner_id: id, original_date: nullable(date), note_id: id, role: { enum: ["primary", "reference"] } } as const;
-export const selection = object({ block_ids: ids, text });
-export const plan = object({ id, title: text, source_type: { enum: ["note", "text"] }, source_id: nullable(id), source_hash: sha, source_text: text, selection, clarification_questions: array(text),
-  actions: array(object({ id, title: id, notes: text, duration_minutes: { enum: [15, 30, 45, 60, 90] }, schedule: nullable(schedule), category_id: id, priority }, ["id", "title", "notes", "schedule", "category_id", "priority"])), created_at: text,
-}, ["id", "title", "source_type", "source_id", "source_hash", "source_text", "actions", "created_at"]);
-// Native Swift backups and Work exports have different versioned contracts. The import owner
-// decodes and validates the complete source; consumers must pass the unchanged preview source.
-export const importSource = { anyOf: [{ type: "string" }, { type: "object" }], description: "原 Jelly 或 Work 的完整 JSON 备份；提交时须与预览内容完全相同" } as const;
-export const workspace = object({ schema_version: { const: /* @version format.jelly.workspace */ 1 }, revision, categories: array(category), items: array(item), series: array(series), notes: array(note), relations: array(object(relationFields)),
-  relation_overrides: array(object({ owner_id: id, original_date: date, primary: text, added_reference_ids: ids, removed_reference_ids: ids })),
-  task_links: array(object({ item_id: id, note_id: id, block_id: id })), applied_plan_ids: ids,
-  imported_sources: array(object({ sha256: sha, schema_version: { type: "integer", minimum: 1 }, source: { type: "object" }, imported_at: text })),
-}, ["schema_version", "revision", "categories", "items", "series", "notes", "relations", "task_links", "applied_plan_ids"]);
-export const stateResult = object({ state: workspace });
-export const preview = object({ confirmation_token: id, revision, counts: { type: "object", additionalProperties: { type: "integer" } }, warnings: array(text) });
+const minute = nullable({ type: "integer", minimum: 0, maximum: 1439 });
+const title = { type: "string", minLength: 1, maxLength: 500, pattern: "\\S" } as const;
+const kind = { enum: ["task", "event"] } as const;
+const weekdays = { type: "array", items: { type: "integer", minimum: 1, maximum: 7 }, uniqueItems: true, minItems: 1 } as const;
+export const scope = { enum: ["onlyThis", "thisAndFuture", "all"], description: "重复日程改哪些：只这一次、这次和以后、整个系列" } as const;
+
+const occurrenceFields = { title: text, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute } as const;
+const entryFields = { id, ...occurrenceFields, time_zone: text, revision, created_at: text, updated_at: text } as const;
+export const category = object({ id, name: text, color: text, sort_index: revision, revision });
+export const item = object({ ...entryFields, completed_at: nullable(text) });
+export const series = object({ ...entryFields, weekdays, until: nullable(date),
+  exceptions: { type: "object", additionalProperties: object({ deleted: { const: true }, patch: object(occurrenceFields, []) }, []) },
+  completions: { type: "object", additionalProperties: text } });
+export const occurrence = object({ ...entryFields, completed_at: nullable(text), series_id: nullable(id), original_date: nullable(date) });
+export const note = object({ id, title: text, body: text, day: nullable(date), revision, created_at: text, updated_at: text });
+export const noteSummary = object({ id, title: text, day: nullable(date), revision, updated_at: text, excerpt: text });
+/** Rows taken back by `jelly.restore`, as the command that removed or moved them returned them. */
+export const rows = object({ categories: array(category), items: array(item), series: array(series), notes: array(note) }, []);
+
+/** A new entry. Times are both given or both left out (all day); the time zone defaults to the Home's. */
+export const itemInput = object({ id, title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, time_zone: text, completed: boolean }, ["title", "start_date"]);
+export const itemPatch = object({ title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, time_zone: text, completed: boolean }, []);
+export const seriesInput = object({ id, title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, time_zone: text, weekdays, until: nullable(date) }, ["title", "start_date", "weekdays"]);
+export const seriesPatch = object({ title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, weekdays, until: nullable(date), completed: boolean }, []);

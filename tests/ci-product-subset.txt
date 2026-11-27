@@ -388,7 +388,7 @@ tests/interaction-examples.test.ts
 tests/interaction-reask.test.ts
 tests/interaction-recovery.test.ts
 tests/jelly-calendar.test.ts
-tests/jelly-content.test.ts
+tests/jelly-replication.test.ts
 tests/lingguang-store.test.ts
 tests/list-silent-refresh.test.ts
 tests/local-host-checkpoint.test.ts

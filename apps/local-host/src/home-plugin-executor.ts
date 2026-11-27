@@ -1,4 +1,3 @@
-import { observationPluginDataCleared } from "./observation-host.js";
 import { pluginInteraction } from "./plugin-interaction.js";
 import { installedPageRelease, pluginPagesFor } from "./plugin-page-authority.js";
 import { installedComponentSubmit } from "./installed-action-registration.js";
@@ -68,7 +67,6 @@ export class HomePluginExecutor implements PluginExecutor {
     home: string; actorId: string; client: ActionClient; registry: ActionRegistryPort;
     database(definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined;
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
-    modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
     /** The Host's start list said this is the Home half of a dual-instance plugin (specs/archive/dual-instance-plugins). */
     dualInstance(definition: PluginDefinition): boolean;
@@ -156,8 +154,8 @@ export class HomePluginExecutor implements PluginExecutor {
         try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
       });
       const authorized = { ...context, requireGrant: authorize };
-      // A sandboxed package has no `model_configuration` or `image_generation` block: its settings and image connections are derived from its contract's effects (BL-491).
-      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.settings_entries?.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);
+      // A sandboxed package has no `image_generation` block: its model settings and image connections are derived from its contract's effects (BL-491).
+      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive), home, definition, authorized, assertActive);
       const imageGeneration = sandboxImageGenerationFor(home, definition, authorized, assertActive)
         ?? pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
       const localTools = pluginLocalToolsFor(definition, authorized, assertActive);
@@ -244,17 +242,17 @@ export class HomePluginExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
+    // A following install can discard even a retained library. Its statement process must have exited.
+    await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
     if (record.execution === "sandbox" && !record.retain_private_data) {
       removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
       forgetSandboxImageBindings(this.options.home, record.install_id);
       // Its own library goes too, once its statement process has exited, and only the one the ledger and its verified Manifest agree on (BL-915 A).
-      await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
       const manifest = new SandboxPackageStore(this.options.home).installedManifest(record), declared = manifest?.databases?.home;
       const kept = removeInstalledPluginLibrary(this.options.home, record, manifest && declared ? pluginSyncDatabaseDeclaration(manifest, declared) : undefined, pluginHomeFor(this.options.home).stores);
       if (kept) noteRetained(null, record.install_id, { kind: "home_library", reason: kept.reason });
     }
     // Its work records in every project, and the content of the calls it answered or made, go with its data (observation-collection §6).
-    if (!record.retain_private_data) observationPluginDataCleared(this.options.home, record);
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }
   prepareReinstall(record: PluginInstanceRecord): void {
@@ -266,7 +264,6 @@ export class HomePluginExecutor implements PluginExecutor {
   }
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: { directory: this.options.home }, project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
-    observationPluginDataCleared(this.options.home, record);
   }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);

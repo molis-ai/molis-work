@@ -9,10 +9,10 @@ import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline 
 // arranged and what each holds. Only names of light items, references and the arrangement are kept (MLN-12): never an object's title,
 // state or body. Every query names the owner and the project, so another person's or another project's rows are never read.
 
-/** The store's one current schema (repository-anti-corruption §4.1). A new library: version 1. */
+/** The store's one current schema (repository-anti-corruption §4.1). */
 export const MAINLINE_BASELINE: SqliteBaseline = { version: /* @version database.mainline_baseline */ 1, schema: `
 CREATE TABLE mainline_items (owner_actor_id TEXT NOT NULL, project_id TEXT NOT NULL, item_id TEXT NOT NULL,
-  name TEXT, source_kind TEXT, source_id TEXT, created_at TEXT NOT NULL,
+  name TEXT, source_kind TEXT, source_id TEXT, created_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (owner_actor_id, project_id, item_id),
   CHECK ((name IS NULL) != (source_kind IS NULL)), CHECK ((source_kind IS NULL) = (source_id IS NULL)));
 CREATE UNIQUE INDEX mainline_items_source ON mainline_items (owner_actor_id, project_id, source_kind, source_id) WHERE source_kind IS NOT NULL;
@@ -75,9 +75,13 @@ export class MainlineStore {
   }
 
   item(itemId: string): WorkItem | null {
-    const row = this.db.prepare("SELECT item_id, name, source_kind, source_id, created_at FROM mainline_items WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?")
-      .get(this.actorId, this.projectId, itemId) as ItemRow | undefined;
-    return row ? itemOf(row) : null;
+    return this.itemWithRevision(itemId)?.item ?? null;
+  }
+
+  itemWithRevision(itemId: string): { item: WorkItem; revision: string } | null {
+    const row = this.db.prepare("SELECT item_id, name, source_kind, source_id, created_at, revision FROM mainline_items WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?")
+      .get(this.actorId, this.projectId, itemId) as (ItemRow & { revision: number }) | undefined;
+    return row ? { item: itemOf(row), revision: String(row.revision) } : null;
   }
 
   /** Resolve the name before a conversion asks the source owner to create anything. */
@@ -141,12 +145,16 @@ export class MainlineStore {
       const { revision, arrangement } = this.arrangement();
       this.requireRevision(expected, revision);
       const result = change(arrangement);
-      const next = `${Number(revision.split(".")[0]) + 1}.${randomUUID()}`, at = this.now();
-      this.db.prepare(`INSERT INTO mainline_arrangements (owner_actor_id, project_id, revision, arrangement, updated_at) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT (owner_actor_id, project_id) DO UPDATE SET revision = excluded.revision, arrangement = excluded.arrangement, updated_at = excluded.updated_at`)
-        .run(this.actorId, this.projectId, next, JSON.stringify(arrangement), at);
+      this.saveArrangement(revision, arrangement);
       return result;
     });
+  }
+
+  private saveArrangement(revision: string, arrangement: Arrangement): void {
+    const next = `${Number(revision.split(".")[0]) + 1}.${randomUUID()}`, at = this.now();
+    this.db.prepare(`INSERT INTO mainline_arrangements (owner_actor_id, project_id, revision, arrangement, updated_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT (owner_actor_id, project_id) DO UPDATE SET revision = excluded.revision, arrangement = excluded.arrangement, updated_at = excluded.updated_at`)
+      .run(this.actorId, this.projectId, next, JSON.stringify(arrangement), at);
   }
 
   private insert(item: WorkItem): void {
@@ -178,7 +186,7 @@ export class MainlineStore {
     return this.write(expected, () => {
       this.lightItemName(itemId);
       if (this.itemOf(source)) throw mainlineErrors.conflict("这个对象已经是另一件事项", { current: this.read() });
-      this.db.prepare("UPDATE mainline_items SET name = NULL, source_kind = ?, source_id = ? WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?")
+      this.db.prepare("UPDATE mainline_items SET name = NULL, source_kind = ?, source_id = ?, revision = revision + 1 WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?")
         .run(source.kind, source.id, this.actorId, this.projectId, itemId);
       return this.item(itemId)!;
     });
@@ -189,7 +197,9 @@ export class MainlineStore {
       const item = this.item(itemId);
       if (!item) throw missing();
       if (item.source) throw new ActionError("actions.input_invalid", "由对象变成的事项，名字向来源读，不在这里改");
-      this.db.prepare("UPDATE mainline_items SET name = ? WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").run(checkedName(name), this.actorId, this.projectId, itemId);
+      const next = checkedName(name);
+      if (next === item.name) return;
+      this.db.prepare("UPDATE mainline_items SET name = ?, revision = revision + 1 WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").run(next, this.actorId, this.projectId, itemId);
     });
   }
 
@@ -209,8 +219,9 @@ export class MainlineStore {
 
   /** Put away as done, or back where it came from (its group, else the first). */
   complete(expected: string, itemId: string, completed: boolean): void {
-    this.write(expected, arrangement => {
-      if (!this.item(itemId)) throw missing();
+    this.transaction(() => {
+      const { revision, arrangement } = this.arrangement();
+      this.requireRevision(expected, revision);
       const group = arrangement.groups.find(candidate => candidate.items.some(entry => entry.item_id === itemId));
       const done = arrangement.completed.findIndex(entry => entry.item_id === itemId);
       if (completed) {
@@ -224,6 +235,7 @@ export class MainlineStore {
         const [entry] = arrangement.completed.splice(done, 1);
         placeInGroup(arrangement, itemId, arrangement.groups.some(candidate => candidate.group_id === entry!.from) ? entry!.from : undefined);
       }
+      this.saveArrangement(revision, arrangement);
     });
   }
 
@@ -318,8 +330,14 @@ export class MainlineStore {
   }
 }
 
-function checkedName(name: string): string {
+export function nonblankName(name: string): string {
   const trimmed = name.trim();
-  if (!trimmed || trimmed.length > MAINLINE_LIMITS.name) throw mainlineErrors.limit(`名字不能为空，最多 ${MAINLINE_LIMITS.name} 字`);
+  if (!trimmed) throw new ActionError("actions.input_invalid", "名字不能为空");
+  return trimmed;
+}
+
+function checkedName(name: string): string {
+  const trimmed = nonblankName(name);
+  if (trimmed.length > MAINLINE_LIMITS.name) throw mainlineErrors.limit(`名字最多 ${MAINLINE_LIMITS.name} 字`);
   return trimmed;
 }

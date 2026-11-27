@@ -3,6 +3,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import {
   ActionError,
   defineErrorCodes,
+  type ActionUserAction,
   type BoundActionClient,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
@@ -10,6 +11,7 @@ import type { PackageInstallSecret } from "./installed-release.js";
 import { installedStageSurface } from "./installed-stage-section.js";
 import { pageOwnerClient, trustedPluginPage } from "./plugin-connection-slots-http.js";
 import { pluginInstallActions } from "./plugin-install-actions.js";
+import { withPackageDiscardEntry } from "./plugin-consent-settings-entry.js";
 import { stageInstallSecrets, type PluginInstallConfirmResult } from "./plugin-install-service.js";
 import type { WebRequestContext } from "./web-route-table.js";
 
@@ -57,6 +59,7 @@ export interface PageInstallPermission {
 
 /** What only the trusted shell reads (never the frame): the package as the Host verified it, and how it stands against what is installed. */
 export interface PageInstallView {
+  kept_data_incompatible: boolean;
   preview_id: string;
   plugin_id: string;
   name: string;
@@ -78,10 +81,11 @@ const sheetClient = (
   context: WebRequestContext,
   project: LocalHostProjectReference,
   page: ReturnType<typeof trustedPluginPage>["page"],
+  action?: ActionUserAction,
 ): Promise<BoundActionClient> =>
   pageOwnerClient(context, project, page, {
     actor_kind: "user",
-    user_action: {
+    user_action: action ?? {
       source: "web",
       conversation_ref: `web:${project.project_id}`,
       message_ref: `web:request:${randomUUID()}`,
@@ -151,6 +155,7 @@ export async function pagePackageInstall(
     });
     return {
       preview_id: shown.preview_id,
+      kept_data_incompatible: shown.kept_data_incompatible,
       plugin_id: shown.preview.plugin_id,
       name: shown.name,
       version: shown.preview.version,
@@ -179,13 +184,14 @@ export async function pagePackageInstall(
   if (
     body?.operation === "confirm" &&
     typeof body.preview_id === "string" &&
-    keys.every((key) => ["operation", "preview_id", "optional", "secrets"].includes(key))
+    (body.discard_kept_data === undefined || typeof body.discard_kept_data === "boolean") &&
+    keys.every((key) => ["operation", "preview_id", "optional", "secrets", "discard_kept_data"].includes(key))
   ) {
     const sheet = sheets.get(body.preview_id);
-    sheets.delete(body.preview_id);
     // The preview is the one this page's sheet showed the person, in this project; another page's, or one that has lapsed, installs nothing.
     if (!sheet || sheet.page_id !== pageId || sheet.project_id !== project.project_id)
       throw pageInstallErrors.preview_unknown("这次安装的确认已经失效，请重新打开");
+    sheets.delete(body.preview_id);
     if (!sheet.trusted)
       throw pageInstallErrors.publisher_untrusted("这个发布者还没有被你信任：请到 设置 › 插件 里导入这个安装包并确认");
     const optional = body.optional;
@@ -195,15 +201,18 @@ export async function pagePackageInstall(
     )
       throw invalid("可选权限的格式不对");
     const secrets = secretsOf(body.secrets, sheet.refs);
-    const client = await sheetClient(context, project, page);
-    await page.beforeEffect();
-    if (secrets.length) stageInstallSecrets(body.preview_id, secrets);
-    const done = await client.invoke(pluginInstallActions.confirm, {
-      preview_id: body.preview_id,
-      consent: true,
-      ...(sheet.pin ? { pin_label: sheet.pin } : {}),
-      ...(optional === undefined ? {} : { optional_permissions: optional as string[] }),
-    });
+    const preview_id = body.preview_id;
+    const confirm = async (action?: ActionUserAction) => {
+      const client = await sheetClient(context, project, page, action);
+      await page.beforeEffect();
+      if (secrets.length) stageInstallSecrets(preview_id, secrets);
+      return client.invoke(pluginInstallActions.confirm, {
+        preview_id, consent: true, ...(action ? { discard_kept_data: true } : {}),
+        ...(sheet.pin ? { pin_label: sheet.pin } : {}),
+        ...(optional === undefined ? {} : { optional_permissions: optional as string[] }),
+      });
+    };
+    const done = body.discard_kept_data === true ? await withPackageDiscardEntry(preview_id, confirm) : await confirm();
     // Where the installed plugin opens, for the sheet's own 「打开」: the shell's, never told to the page.
     const release = sheet.home
       ? context.localHost.homePlugins?.packageStage(done.plugin_id)

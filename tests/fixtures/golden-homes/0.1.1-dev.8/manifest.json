@@ -784,22 +784,22 @@
       "payload": "stores/jelly/jelly.db.sql",
       "schema_version": 1,
       "tables": {
-        "jelly_history": 2,
-        "jelly_note_versions": 1,
-        "jelly_previews": 0,
-        "jelly_workspace": 1,
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 1,
+        "jelly_series": 0,
         "molis_storage_space": 1,
-        "sqlite_sequence": 2,
-        "sync_fdf2cac8555825a37edee87d5d45_aggregate_editor_versions": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_context": 1,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_changes": 2,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_conflicts": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_heads": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_outbox": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_resolutions": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_state": 1
+        "sqlite_sequence": 1,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
       },
-      "sha256": "fa901c8e2222cb85019e4b34ab5d6ee9e52fa03fab7d501cf209229797bd046e"
+      "sha256": "5f27401991b48cef8ef6117d4c3ec16b36f88da73ed5a62991c7a8ccef84c760"
     },
     {
       "path": "knowledge/knowledge.db",
@@ -827,7 +827,7 @@
         "mainline_items": 1,
         "molis_storage_space": 1
       },
-      "sha256": "077e13fbc469f596e204b9f4a54d5daba0a9454b2c825e5727743c501d51aa36"
+      "sha256": "87159e671170f2f7486cf1ff088041def9cdb1ccb56a58987615a5db63738073"
     },
     {
       "path": "memory/memory.db",
@@ -2287,22 +2287,22 @@
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db.sql",
       "schema_version": 1,
       "tables": {
-        "jelly_history": 2,
-        "jelly_note_versions": 1,
-        "jelly_previews": 0,
-        "jelly_workspace": 1,
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 1,
+        "jelly_series": 0,
         "molis_storage_space": 1,
-        "sqlite_sequence": 2,
-        "sync_fdf2cac8555825a37edee87d5d45_aggregate_editor_versions": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_context": 1,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_changes": 2,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_conflicts": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_heads": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_outbox": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_resolutions": 0,
-        "sync_fdf2cac8555825a37edee87d5d45_replica_state": 1
+        "sqlite_sequence": 1,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
       },
-      "sha256": "cdb569258f937e5c10262c8867fdeec8f4e541e6876c8d16879bde38901eb115"
+      "sha256": "f618bd449fd411af79afcbf42387b5a516766baa665b95fcfa11ae8e3be11583"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db",
@@ -2330,7 +2330,7 @@
         "mainline_items": 1,
         "molis_storage_space": 1
       },
-      "sha256": "3c8675a2fcf54679ad8bb90bcd3c77d878afa8ce403559f4284a386e2cea0719"
+      "sha256": "05d64954284796db1493094b03da8ff4a1b2bdc894dd196a9666f12db7eebb6e"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db",
@@ -3487,14 +3487,6 @@
       "sha256": "04a9d52e77a7c527b6697f6d910415523f8ae782e3b53e2ca47c56b3f9c6d0a9"
     },
     {
-      "path": "jelly/preferences.json",
-      "owner": "io.molis.work.jelly",
-      "mode": 384,
-      "payload": "files/jelly/preferences.json",
-      "size": 1033,
-      "sha256": "a32aa2fe37fee43fa7f12a4ef8b29c5bf0f0879b8594f2ae1c4ad33bdaa9fc3a"
-    },
-    {
       "path": "memory-forgetting-v2.json",
       "owner": "packages/storage",
       "mode": 384,
@@ -3898,23 +3890,8 @@
       "version": 1
     },
     {
-      "entry": "format.jelly.workspace",
-      "path": "jelly/jelly.db",
-      "version": 1
-    },
-    {
-      "entry": "format.jelly.workspace",
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db",
-      "version": 1
-    },
-    {
       "entry": "format.mcp.tool-preference",
       "path": "config/mcp-tools.json",
-      "version": 1
-    },
-    {
-      "entry": "format.model.preference",
-      "path": "jelly/preferences.json",
       "version": 1
     },
     {

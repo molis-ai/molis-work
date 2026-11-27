@@ -3494,11 +3494,6 @@ export interface MaterialSourceContent {
     coverage: MaterialExtraction["coverage"];
     pages?: MaterialExtraction["pages"];
     segments?: MaterialExtraction["segments"];
-    frames?: MaterialExtraction["frames"];
-    model_required?: {
-        approximate_bytes?: number;
-        variant?: string;
-    };
 }
 
 export interface MissedRun extends ScheduledRun {
@@ -5212,7 +5207,7 @@ export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
 
 export type PluginMaterialRequest = MaterialExtractionOptions;
 
-export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress"> & {
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal"> & {
     readonly allowedDomains?: readonly string[];
 };
 
@@ -5259,29 +5254,10 @@ export interface PluginModelClient {
 
 export interface PluginModelConfigurationClient {
     selection(): PluginModelSelection | undefined;
-    readonly preferences?: {
-        read(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsReadInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
-        write(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsWriteInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
-    };
     read(options?: {
         preference_revision: true;
     }): Promise<PluginModelConfigurationView>;
     save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
-}
-
-export interface PluginModelConfigurationDeclaration {
-    readonly preference: {
-        readonly store_name: string;
-        readonly file_name: string;
-    };
-    readonly custom_provider: {
-        readonly provider_id: string;
-        readonly display_name: string;
-    };
-    readonly actions: {
-        readonly read: Pick<ActionReference, "capability_id" | "version">;
-        readonly save: Pick<ActionReference, "capability_id" | "version">;
-    };
 }
 
 export interface PluginModelConfigurationInput {
@@ -8205,12 +8181,12 @@ export declare const WORK_ITEM_NEXT_OUTPUT_SCHEMA: {
                                 readonly text: {
                                     readonly type: "string";
                                     readonly minLength: 1;
-                                    readonly maxLength: number;
+                                    readonly maxLength: 200;
                                 };
                                 readonly waiting_on: {
                                     readonly type: "string";
                                     readonly minLength: 1;
-                                    readonly maxLength: number;
+                                    readonly maxLength: 200;
                                 };
                                 readonly start: {
                                     readonly type: "object";
@@ -8253,6 +8229,53 @@ export declare const WORK_ITEM_NEXT_OUTPUT_SCHEMA: {
         };
     };
     readonly required: readonly ["items"];
+    readonly additionalProperties: false;
+};
+
+export declare const WORK_ITEM_NEXT_STEP_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly text: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly waiting_on: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly start: {
+            readonly type: "object";
+            readonly properties: {
+                readonly action: {
+                    readonly required: readonly ["capability_id", "version", "provider_id"];
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly capability_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                        readonly version: {
+                            readonly type: "integer";
+                            readonly minimum: 1;
+                        };
+                        readonly provider_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                    };
+                    readonly additionalProperties: false;
+                };
+                readonly input: {
+                    readonly type: "object";
+                };
+            };
+            readonly required: readonly ["action", "input"];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly required: readonly ["text"];
     readonly additionalProperties: false;
 };
 
@@ -8412,12 +8435,12 @@ export declare const WORK_ITEM_PARTS: {
                                         readonly text: {
                                             readonly type: "string";
                                             readonly minLength: 1;
-                                            readonly maxLength: number;
+                                            readonly maxLength: 200;
                                         };
                                         readonly waiting_on: {
                                             readonly type: "string";
                                             readonly minLength: 1;
-                                            readonly maxLength: number;
+                                            readonly maxLength: 200;
                                         };
                                         readonly start: {
                                             readonly type: "object";

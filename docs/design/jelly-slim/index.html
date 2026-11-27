@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jelly 瘦身定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="jelly-slim.css">
+  <script src="../kit/kit.js"></script>
+</head>
+<body class="js-body">
+  <div id="icons" hidden></div>
+  <header class="js-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>Jelly 瘦身</b>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="方案" id="plan">
+      <button type="button" class="mw-toggle" value="a">方案 A · 两个页签</button>
+      <button type="button" class="mw-toggle" value="b">方案 B · 日历旁放当天</button>
+    </span>
+    <span class="js-proto-states" id="states"></span>
+    <span class="js-grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
+      <button type="button" class="mw-toggle" value="1440">1440</button>
+      <button type="button" class="mw-toggle" value="1024">1024</button>
+      <button type="button" class="mw-toggle" value="390">390</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" value="light">浅色</button>
+      <button type="button" class="mw-toggle" value="dark">深色</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="语言" id="lang">
+      <button type="button" class="mw-toggle" value="zh">中文</button>
+      <button type="button" class="mw-toggle" value="en">English</button>
+      <button type="button" class="mw-toggle" value="ja">日本語</button>
+    </span>
+  </header>
+  <main class="js-doc">
+    <h2>Jelly 瘦身后：日历日程＋极简随手记</h2>
+    <p class="lead">只留两件事：排日程、随手记。私有 AI 拆解、模型设置、进展页、块编辑器、整库导入导出都去掉；撤销交给工作台底部的提示条。上面切方案、状态、宽度、深浅色和语言；窗口里的东西可以点。</p>
+    <div class="js-fit" id="fit"><div class="js-win" id="win"></div></div>
+    <div class="js-say" aria-live="polite"><b id="step"></b><span id="say"></span></div>
+    <div class="js-notes" id="notes"></div>
+  </main>
+  <script>
+    document.getElementById("icons").innerHTML = window.mwKitSprite;
+    const client = document.createElement("script");
+    client.textContent = window.mwKitClient;
+    document.body.appendChild(client);
+  </script>
+  <script src="jelly-slim.js"></script>
+</body>
+</html>

@@ -161,7 +161,6 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/browser/plugin-frame/home-page-document.ts": "生成首页隔离框：给已校验的生成首页组装 strict hash-only CSP 的 srcdoc 文档",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
-  "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",
   "plugins/native/pages/src/browser/document.ts": "导出：Pages 的 HTML 文件",
   "plugins/native/ppt/src/browser/present.ts": "打印：PPT 打印框",
 };

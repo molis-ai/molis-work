@@ -8,14 +8,16 @@ import { extractMaterialText, materialErrors } from "./material-text.js";
 const defaults: MaterialLimits = { maxBytes: 25 * 1024 * 1024, maxCharacters: 2_000_000, maxTextBytes: 8_000_000, maxPages: 200 };
 const ceilings: MaterialLimits = { ...defaults, maxBytes: 32 * 1024 * 1024 };
 const materialTextExtensions = new Set<string>(MATERIAL_EXTENSIONS.text);
+/** The recognition languages the macOS helper takes (`native/materials/MolisMaterial.swift` keeps the same list). */
+const OCR_LANGUAGES: readonly string[] = ["zh-Hans", "zh-Hant", "en-US", "ja-JP"];
 function checkedLimits(options: MaterialExtractionOptions): MaterialLimits {
   const limits = { ...defaults, ...options.limits };
   for (const [key, value] of Object.entries(limits)) {
     if (!Number.isSafeInteger(value) || value <= 0 || value > ceilings[key as keyof MaterialLimits]) throw materialErrors.invalid_limits("提取容量上限无效");
   }
   if (options.timeoutMs !== undefined && (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0 || options.timeoutMs > 30 * 60_000)) throw materialErrors.invalid_limits("提取超时设置无效");
-  if (options.ocrLanguages !== undefined && (!options.ocrLanguages.length || options.ocrLanguages.length > 3
-    || options.ocrLanguages.some(language => !["zh-Hans", "zh-Hant", "en-US"].includes(language)))) throw materialErrors.invalid_limits("文字识别语言无效");
+  if (options.ocrLanguages !== undefined && (!options.ocrLanguages.length || options.ocrLanguages.length > OCR_LANGUAGES.length
+    || options.ocrLanguages.some(language => !OCR_LANGUAGES.includes(language)))) throw materialErrors.invalid_limits("文字识别语言无效");
   return limits;
 }
 function extractPdf(source: MaterialSource, options: MaterialExtractionOptions, limits: MaterialLimits): Promise<MaterialExtraction> {

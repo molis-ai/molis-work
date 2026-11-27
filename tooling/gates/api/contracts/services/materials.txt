@@ -81,12 +81,6 @@ export interface MaterialExtraction {
         end_seconds: number;
         text: string;
     }[];
-    frames?: {
-        seconds: number;
-        text: string;
-        confidence?: number | null;
-    }[];
-    duration_seconds?: number;
     coverage: {
         status: MaterialCoverageStatus;
         truncated?: boolean;
@@ -102,12 +96,7 @@ export interface MaterialExtractionOptions {
     timeoutMs?: number;
     textFormat?: "text" | "markdown";
     pdfMode?: "text" | "ocr";
-    ocrLanguages?: readonly ("zh-Hans" | "zh-Hant" | "en-US")[];
-    allowModelDownload?: boolean;
-    onProgress?: (progress: {
-        stage: string;
-        progress: number;
-    }) => void;
+    ocrLanguages?: readonly ("zh-Hans" | "zh-Hant" | "en-US" | "ja-JP")[];
 }
 
 export type MaterialExtractor = (source: MaterialSource, options?: MaterialExtractionOptions) => Promise<MaterialExtraction>;
@@ -146,11 +135,6 @@ export interface MaterialSourceContent {
     coverage: MaterialExtraction["coverage"];
     pages?: MaterialExtraction["pages"];
     segments?: MaterialExtraction["segments"];
-    frames?: MaterialExtraction["frames"];
-    model_required?: {
-        approximate_bytes?: number;
-        variant?: string;
-    };
 }
 
 export interface MaterialUpload {

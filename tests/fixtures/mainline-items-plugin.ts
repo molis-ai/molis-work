@@ -21,7 +21,7 @@ import { startProjectPlugins } from "./plugin-callers.js";
 export const NOTES_PLUGIN_ID = "com.example.notes";
 const READ = "notes:read", WRITE = "notes:write";
 
-export interface Note { id: string; title: string; status: "open" | "review" | "done"; due_at?: string; happened_at?: string }
+export interface Note { id: string; revision?: string; title: string; status: "open" | "review" | "done"; due_at?: string; happened_at?: string }
 
 export function notesPlugin() {
   const state = {
@@ -57,7 +57,7 @@ export function notesPlugin() {
     return { kind: "app", views: [], actions: [
       { ...reader, handle: (_caller: ActionExecutionContext, input: unknown) => {
         const found = note((input as { subject_id: string }).subject_id);
-        return { subject: { kind: "note", id: found.id }, revision: "1", title: found.title, content: `正文：${found.title}`, truncated: false };
+        return { subject: { kind: "note", id: found.id }, revision: found.revision ?? "1", title: found.title, content: `正文：${found.title}`, truncated: false };
       } },
       { ...memoReader, handle: (_caller: ActionExecutionContext, input: unknown) => {
         const id = (input as { subject_id: string }).subject_id;

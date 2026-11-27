@@ -59,7 +59,7 @@ export function renderLingguangWorkbench(_model: LingguangUiModel): string {
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-lingguang-capture>${icon("plus")}<span>${uiText("lingguang.action.capture")}</span></button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-import-file title="${uiText("lingguang.action.import-hint")}">${icon("upload")}<span>${uiText("lingguang.action.import")}</span></button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-read-link title="${uiText("lingguang.action.link-hint")}">${icon("link")}<span>${uiText("lingguang.action.link")}</span></button>
-        <input type="file" data-lingguang-file accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.pdf,image/*,text/*,audio/*,video/*" hidden>
+        <input type="file" data-lingguang-file accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.pdf,image/*,text/*" hidden>
         <div class="lingguang-selection-bar" data-lingguang-selection hidden>
           <span data-lingguang-selected-count></span>
           <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-clear-selection>${uiText("lingguang.action.clear")}</button>
@@ -126,7 +126,7 @@ export function renderLingguangWorkbench(_model: LingguangUiModel): string {
     <dialog class="mw-dialog creative-confirm" data-lingguang-reading aria-label="${uiText("lingguang.reading.title")}">
       <form class="creative-confirm-form" method="dialog">
         <p data-lingguang-reading-text>${uiText("lingguang.reading.loading")}</p>
-        <progress class="lingguang-reading-progress" data-lingguang-reading-progress max="1" value="0"></progress>
+        <progress class="lingguang-reading-progress"></progress>
         <p class="lingguang-note">${uiText("lingguang.reading.note")}</p>
         <div class="creative-confirm-actions"><button class="mw-btn mw-btn--ghost" value="cancel">${uiText("lingguang.dialog.cancel")}</button></div>
       </form>

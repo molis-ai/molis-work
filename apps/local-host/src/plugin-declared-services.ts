@@ -18,15 +18,13 @@ const HOME_ONLY = [
 ] as const;
 
 /**
- * Files, model settings and image generation are a Home instance's: a project plugin that declares one is refused, unless it is the
+ * Files, image generation and local tools are a Home instance's: a project plugin that declares one is refused, unless it is the
  * project half of a dual-instance plugin, which shares its Manifest with the Home half and is given none of them.
  */
 export function assertHomeOnlyDeclarations(homeEntries: readonly { definition: PluginDefinition; dual_instance?: true }[], projectEntries: readonly { definition: PluginDefinition }[]): void {
   for (const { definition } of projectEntries) {
     const id = definition.manifest.plugin_id;
     if (homeEntries.some(other => other.dual_instance && other.definition.manifest.plugin_id === id)) continue;
-    if (definition.manifest.settings_entries?.model_configuration)
-      throw pluginErrors.declaration_invalid(`项目插件 ${id} 不能声明模型设置服务：它不是双实例插件在项目里的那一半`);
     for (const [field, service] of HOME_ONLY) {
       // Sandbox files use the existing installation-scoped port in either scope, never the native Home root.
       if (field === "owner_files" && definition.execution === "sandbox") continue;

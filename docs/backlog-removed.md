@@ -7,6 +7,11 @@
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
 | BL-inbox-update-blocks-host | 已完成并删除 | 2026-11-26，#2351（Full suite run `45955228649` 全绿）：`packages/kernel` 增加单调递增 `directoryGeneration()`、单场景 O(1) `sceneViewOne` / `sceneBindingFunction` / `sceneBindingMatches`、冻结 Schema / `allowed_actions` 的 `WeakMap` 复用及非 `subject-offers` 的 `stageMetadataUsage` 窄查询；`apps/local-host` 在 `HostAvailability.check` 引入绑定 `(directoryGeneration, currentReadCheckGeneration)` 的 `VerifiedCheckPlan`（命中时仍逐项实时校验可用性与场景绑定，代际或可用性变化立即回退完整 `resolve`），收窄 `local-host-scenes`（`check` / `runScene`）与 `PluginSceneService.registeredByThis` 单场景点查并预编译 `SqlitePluginRuntimeRepository` / `catalogDataStamp` 语句。20 条固定规则 × 5 样本实测：`evaluate` p50 空闲 `1,686→528 ms`（含读页 `2,067→728 ms`）、`CPU_THROTTLE=3` `2,689→684 ms`（含读页 `3,214→842 ms`），最大事件循环延迟 `381～1,130→127～220 ms`，单样本 `discoverScenes` `305→23`、`usages` `205→3`、`discoverOne` `837→251`、纯单次 POST `discover=0`；中途同步撤权/停用立即拒绝且零落库回归见 `tests/inbox-action-scenes.test.ts` |
+| BL-jelly-command-readers | 已完成并删除 | 2026-11-26：它留着 Jelly 表驱动处理器的读值函数与 `store` 那层的 `as`，因为全部命令共用一个 `JellyCommand`（值是 `unknown`）。第 112-2 批删掉了 `JellyCommand` 与共用处理器，18 个动作各自由 schema 推导输入（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-closeout)，[#2338](https://github.com/molis-ai/molis-work/pull/2338)） |
+| BL-b36-review-followups | 已完成并删除 | 2026-11-26。主线按事项保存修订号，新事项从 1 起算。改名、转换及来源版本变化会更新读取修订号。空名字统一报错，重复完成保留排列版本，两处共用下一步合同。两处提供方身份已由 [44C #2333](https://github.com/molis-ai/molis-work/pull/2333) 统一。[事项合同](../specs/work-mainline/contract-design.md) |
+| BL-work-line-event-card-line-read | 已完成并删除 | 2026-11-26。事件卡按本人权限、对象种类及时间窗口核对是否在线，每次核对只发现一次目录，只问声明了该对象种类的登记方，任务总表读取次数为 0。[事件卡合同](../specs/work-line/spec.md#44-点一个事件) |
+| BL-122 | 不再适用并删除 | 2026-11-26：它要把 `jelly-whisper` 的 SwiftPM 包构建改成挡合并；第 112-1 批连根删除了 `jelly-whisper`（WhisperKit、626 MB 语音模型下载链）和 CI 里那一步 `continue-on-error`，Swift 检查只剩挡合并的类型检查（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |
+| BL-398 | 不再适用并删除 | 2026-11-26：关对话框停不下本机语音模型的下载与转写；第 112-1 批删除了本机转写与模型下载，音视频导入只保存原件，这条下载不再存在（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |
 | BL-639 | 不再适用并删除 | 2026-11-25：它问的是 `databases.home` 按项目拆的分区库升级后怎么办；第 107 批删掉了那个复用器，分区库改为每个分区一份 `databases.partition`，版本按库声明的一份现行结构开（[107](../specs/post-anticorruption-roadmap/reference/batches/107.md)） |
 | BL-1055 | 已完成并删除 | SDK 与设计系统共用折叠组件，Images、Goals 已接入，Files 旧面板随 #2009 退役。[SCF-01](../specs/archive/shared-ui-folds/spec.md#验收标准) |
 | BL-1061 | 已完成并删除 | 连接行、原处连接卡和设计系统的自然高度折叠共用选择器函数。[SCF-02](../specs/archive/shared-ui-folds/spec.md#验收标准) |
@@ -128,6 +133,7 @@
 | BL-ui-client-scope-watch-revision | 已完成并删除 | 2026-11-23，公开 `UiClientScope` 补上宿主已有的 `watchRevision` 签名，Git、Coding、Schedule 共用。见 [SCC-01](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-artifact-sdk-handler-binding | 已完成并删除 | 2026-11-23，成果 SDK 的八个动作按现行 schema 推导输入并共用 `bindActionHandler`，Shelf 直接使用平台给的可消费列表。见 [SCC-02、SCC-03](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-coding-changeset-view-shared | 已完成并删除 | 2026-11-23，Coding 和 Diff 通过 SDK `/diff-view` 的 `compareCodingChangeSet` 读取固定变更视图。见 [SCC-04](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
+| BL-b47-prompt-register-newest-fallback | 已修复并删除 | 2026-11-26，同一签名插件跨项目运行时登记在用的最高版。新版退出后恢复旧版默认文字和条目，保留用户改动。旧版无声明时清空登记。最后一个实例停用后可继续编辑，卸载后清除。见[签名包回归](../tests/generated-plugin-prompt-binding.test.ts)和[纯内容包回归](../tests/prompt-registration.test.ts)。 |
 
 其余在 git 历史中曾经出现、后来随事项完成或总表迁移删除的编号，按同一规则处理：先查对应 PR/提交，不为历史编号新建文件，也不复用编号。
 

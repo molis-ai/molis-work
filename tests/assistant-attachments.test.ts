@@ -90,6 +90,8 @@ test("B35-R5 a PDF the person brings is kept as a conversation attachment and re
     assert.match(material.text ?? "", /Q4 plan brief[\s\S]*Weekly sync moves to Wednesday/);
     await assert.rejects(service.materialAccess.readAttachment({ name: "broken.pdf", data: Buffer.from("%PDF-1.4\nnot really a pdf").toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid" && /PDF/i.test(error.message), "a damaged PDF says why");
     await assert.rejects(service.materialAccess.readAttachment({ name: "archive.zip", data: Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]).toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.unsupported" && /这种文件还读不了/.test(error.message));
+    // Batch 112: audio and video are not transcribed, and the refusal says so.
+    await assert.rejects(service.materialAccess.readAttachment({ name: "clip.mp3", data: Buffer.from([0x49, 0x44, 0x33, 4, 0, 0]).toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.unsupported" && /音视频不转写/.test(error.message));
     await assert.rejects(service.materialAccess.readAttachment({ name: "empty.pdf", data: "" }), /没有收到文件/);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

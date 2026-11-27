@@ -144,7 +144,7 @@ test("RAC-31 RAC-33 Lingguang Runtime stream keeps failure code/details; rejecte
   const { spark } = await f.http<{ spark: { id: string } }>("", { title: "Error test" });
   const { conversation } = await f.http<{ conversation: { id: string } }>("/conversations", { spark_ids: [spark.id] });
   const reply = `/conversations/${conversation.id}/messages`;
-  for (const error of [new ActionError("material.model_required", "转写需要下载语音模型", { kind: "invalid", details: { approximate_bytes: 626_000_000, variant: "base" } }),
+  for (const error of [new ActionError("material.output_too_large", "提取正文超过容量上限", { kind: "invalid", details: { max_characters: 2_000_000, unit: "characters" } }),
     new ActionError("actions.connection_required", "请先配置文字模型")]) {
     failure = error;
     const response = await f.request(reply, { body: "继续" });

@@ -44,7 +44,7 @@ test('SDK-1 PUB-1 the real workflow publishes complete signed bytes, preserves B
   assert.equal(readdirSync(release.directory).length, 6);
 });
 
-test('FSS-20 FSS-74 Studio freezes only complete, bound locale files and preserves original v1 draft and release semantics', async t => {
+test('FSS-20 FSS-74 Studio freezes only complete, bound locale files and preserves the saved design and its history', async t => {
   const home = await mkdtemp(join(tmpdir(), 'molis-studio-words-'));
   const h = readyPublication(home, 'author', 'project');
   t.after(async () => { await h.workflow.close(); await rm(home, { recursive: true, force: true }); });
@@ -70,7 +70,7 @@ test('FSS-20 FSS-74 Studio freezes only complete, bound locale files and preserv
     value.history.push({ design: structuredClone(frozen), nodes: [], connected: [] });
   });
   const key = 'plugin-builder:agent-built:v1', raw = h.storage.get(key)!;
-  assert.equal(JSON.parse(raw).format, 1);
+  assert.equal(JSON.parse(raw).format, 2);
   assert.throws(() => h.workflow.store.update(current.id, current.revision, value => { delete value.history[0]!.design!.localePacks; }), { code: 'plugin_builder.store_invalid' });
   assert.equal(h.storage.get(key), raw, 'rejected history cannot reach CAS');
   const invalidWords = (candidate: AgentBuild, history: boolean) => {

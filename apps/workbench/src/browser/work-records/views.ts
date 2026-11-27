@@ -181,7 +181,7 @@ export function renderSpaceTab(S: WorkRecordsState, projects: readonly WorkRecor
 
   const byKindMap = new Map(sp.by_kind.map((x) => [x.kind, x.bytes || 0]));
   const barHtml = renderCategoryBar({
-    label: readText("workbench.catalog-work-records.usage-by-kind"),
+    label: readText("workbench.settings-work-records.usage-by-kind"),
     segments: [
       ...kindsMeta().map((k) => {
         const val = byKindMap.get(k.id) || 0;
@@ -189,7 +189,7 @@ export function renderSpaceTab(S: WorkRecordsState, projects: readonly WorkRecor
       }),
       (() => {
         const val = byKindMap.get("files") || 0;
-        return { hue: "muted" as const, label: readText("workbench.catalog-work-records.files-and-images"), value: val, formatted: fmtBytes(val) };
+        return { hue: "muted" as const, label: readText("workbench.settings-work-records.files-and-images"), value: val, formatted: fmtBytes(val) };
       })(),
     ],
   });
@@ -200,7 +200,7 @@ export function renderSpaceTab(S: WorkRecordsState, projects: readonly WorkRecor
   const deltaWord = earliest
     ? readText("workbench.settings-work-records.space-delta", { since: earliest, count: fmtNum(Math.max(projCount, projects.length || 0)) })
     : readText("workbench.settings-work-records.space-delta-empty");
-  const statHtml = `<article class="mw-stat"><p>${esc(readText("workbench.catalog-work-records.used-by-work-records"))}</p><strong>${esc(numWord)}<small>${esc(unitWord)}</small></strong><p class="mw-stat__delta">${esc(deltaWord)}</p>${barHtml}</article>`;
+  const statHtml = `<article class="mw-stat"><p>${esc(readText("workbench.settings-work-records.used-by-work-records"))}</p><strong>${esc(numWord)}<small>${esc(unitWord)}</small></strong><p class="mw-stat__delta">${esc(deltaWord)}</p>${barHtml}</article>`;
 
   const on = remGb != null || S.editingRem;
   const draftVal = S.editingRem ? S.remDraftGb : (remGb ?? 2);

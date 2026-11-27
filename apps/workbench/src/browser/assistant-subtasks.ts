@@ -16,11 +16,7 @@ import type { AssistantScope } from "@molis-ai/molis-work-contracts/services/ass
 interface AssistantTaskOpen { interaction(root: HTMLElement, host: InteractionClientHost): InteractionClient; reviews: AssistantWorkReviewMount; base: string; signal: AbortSignal; focus: HTMLElement | null; work_id: string; parent_run_id?: string; child_id?: string }
 const sdkPath = (target: string) => { const [, work, run, child] = JSON.parse(target) as string[]; return `/works/${encodeURIComponent(work!)}/sdk-subtasks/${encodeURIComponent(run!)}/${encodeURIComponent(child!)}`; };
 const kind = (target: string) => (JSON.parse(target) as string[])[0];
-const say: typeof t.text = (key, values) => {
-  if (key === "extend-budget") return t.text("workbench.catalog-recovery.attempt-extend-action");
-  if (key === "budget-exhausted") return t.text("workbench.catalog-recovery.attempt-header", values);
-  return t.text(`workbench.subtask-conversation.${key === "unavailable" ? "not-available" : key}`);
-};
+const say: typeof t.text = (key, values) => t.text(`workbench.subtask-conversation.${key === "unavailable" ? "not-available" : key}`, values);
 
 /** The native Assistant borrows the task panel's same float; it never changes the main conversation or main input receiver. */
 export function installAssistantSubtasks(factories: AssistantSubtaskReviewFactories): void {

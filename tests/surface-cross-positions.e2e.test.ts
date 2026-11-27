@@ -638,13 +638,20 @@ test("IUI-06 QEA-189: the original Attention menu removes and restores a known o
       const url = new URL(input instanceof Request ? input.url : String(input), location.href);
       const body = url.pathname === ${quoted(endpoint)} && typeof init?.body === "string" ? JSON.parse(init.body) : null;
       if (!body || body.count || body.correct) return send.call(window, input, init);
-      window.fetch = send;
       try {
         const response = await send.call(window, input, init);
         const value = await response.clone().json();
+        window.fetch = send;
         requestAnimationFrame(() => requestAnimationFrame(() => resolve(value.corrections_revision)));
         return response;
-      } catch (error) { reject(error); throw error; }
+      } catch (error) {
+        // A newer refresh aborts its predecessor. Observe the replacement response.
+        if (!init?.signal?.aborted) {
+          window.fetch = send;
+          reject(error);
+        }
+        throw error;
+      }
     };
     window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: "refresh-work", capability_id: "feed.items.disposition" } }));
   })`);

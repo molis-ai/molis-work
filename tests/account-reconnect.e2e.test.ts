@@ -48,6 +48,8 @@ test('WUA-35 real browser reconnects its original page, saves embedded drafts, t
     stage='open personal workspace';
     await page.command('Page.navigate',{url:origin+'/projects/personal/'});
     await page.wait("Boolean(document.querySelector('#mw-account-menu')) && document.querySelector('[data-personal-action=logout]')?.hidden===false");
+    // Include a real embedded draft participant before testing the account transition.
+    await page.evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'plugin', view: 'issues/capture' }, cancelable: true }))");
     await page.wait("[...document.querySelectorAll('iframe')].some(f=>{try{return Boolean(f.contentWindow?.molisWorkAccountTransition)&&!f.contentDocument.body.hasAttribute('data-account-registering');}catch{return false;}})");
     assert.equal(streams.size,1,'the embedded carrier saves through its parent instead of opening an account stream');
     const originalPage=[...pageIds][0];assert.ok(originalPage);

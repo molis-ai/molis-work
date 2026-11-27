@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { lstatSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -588,14 +589,28 @@ test("FSS-53 translations.mjs enforces 0 missing keys and arg parity across all 
   assert.ok(rogueNested.problems.some(item => item.includes("apps/workbench/resources/locales/rogue/zh.json: no locale declaration reaches this file")));
 });
 
-test("audit-ui-copy.mjs enforces tightened zh rules, cross-language en/ja leak checks, and source multi-locale hygiene", async () => {
+test("audit-ui-copy.mjs enforces tightened zh rules, cross-language en/ja leak checks, and source multi-locale hygiene", async t => {
   type AuditFinding = { file: string; key: string; rule: string; label: string; text: string };
   const auditModule = (await import(new URL("../scripts/audit-ui-copy.mjs", import.meta.url).href)) as {
+    auditRepositoryCopy: (root: string) => AuditFinding[];
     auditLocaleText: (input: { file: string; locale: string; key: string; text: string; categoryFilter?: string | null }) => AuditFinding[];
     auditSourceText: (file: string, source: string, options?: { category?: string | null }) => AuditFinding[];
   };
   const localeRules = (file: string, locale: string, key: string, text: string) =>
     auditModule.auditLocaleText({ file, locale, key, text }).map((item) => item.rule);
+
+  // D-1: both deployed Workbench packs are scanned, even if a product label refers to a specimen.
+  const root = mkdtempSync(path.join(tmpdir(), "molis-copy-packs-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const locales = path.join(root, "apps/workbench/resources/locales");
+  mkdirSync(path.join(locales, "catalog"), { recursive: true });
+  const sharedKey = "workbench.appearance-picker.in-the-specimen", boardKey = "workbench.catalog-board.example";
+  writeFileSync(path.join(locales, "zh.json"), packText("zh", { [sharedKey]: "数据已落盘" }));
+  writeFileSync(path.join(locales, "catalog/zh.json"), packText("zh", { [boardKey]: "数据已落盘" }));
+  execFileSync("git", ["init", "--quiet"], { cwd: root });
+  execFileSync("git", ["add", "apps"], { cwd: root });
+  assert.deepEqual(auditModule.auditRepositoryCopy(root).filter(finding => finding.rule === "zh.arch-jargon")
+    .map(finding => finding.key).sort(), [sharedKey, boardKey]);
 
   // Tightened Chinese rules.
   assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.a", "数据已写入并落盘").includes("zh.arch-jargon"));

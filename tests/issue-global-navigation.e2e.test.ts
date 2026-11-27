@@ -8,6 +8,24 @@ import { ISSUE_FRAME, issueView, type IssueBrowser } from "./fixtures/issue-brow
 const entry = '[data-side-tab="plugin:issues/capture"]';
 const open = "document.body.dataset.sideOpen === 'true'", closed = "document.body.dataset.sideOpen === 'false'";
 
+// Count the actual document requests at the fixture Host, including those from a hidden iframe.
+function captureRequests(b: IssueBrowser) {
+  const paths: string[] = [];
+  b.server.on("request", req => {
+    const url = new URL(req.url!, b.origin);
+    if (url.pathname.endsWith("/side/issues/capture") || url.pathname === "/plugins/issues" && url.searchParams.get("side") === "capture") paths.push(url.pathname + url.search);
+  });
+  return paths;
+}
+
+async function expectClosedCapture(b: IssueBrowser, requests: readonly string[]) {
+  await b.waitFor(closed);
+  // Give any startup idle callback its turn, as on the measured first screen.
+  await b.evaluate("new Promise(resolve => requestIdleCallback(resolve, {timeout: 4000}))");
+  assert.deepEqual(requests, [], "a closed panel requests no capture document");
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).getAttribute('src')`), null);
+}
+
 /** T405-FULL-03: one observation on refusal, without changing focus or the wait's bound. */
 async function composerFocused(t: Parameters<typeof openGoalBrowser>[0], b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>) {
   try { await v.composerFocused(); }
@@ -55,12 +73,14 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
   }); if (!b) return;
   const v = await issueView(t, b, "issue-global-navigation");
+  const requests = captureRequests(b);
   await v.viewport(1440); await v.go(`/projects/${b.projectId}/?desktop=1`);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(entry)}).getAttribute('aria-keyshortcuts')`), "Meta+Shift+I");
   assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(entry)}).parentElement.title`), /Issue (⌘⇧I|Ctrl\+Shift\+I)/);
-  await b.waitFor(`'loaded' in (document.querySelector(${JSON.stringify(ISSUE_FRAME)})?.dataset ?? {})`, 10_000);
+  await expectClosedCapture(b, requests);
   const url = await b.evaluate<string>("location.href");
   await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
+  assert.deepEqual(requests, [`/projects/${b.projectId}/side/issues/capture`]);
   assert.equal(await b.evaluate("location.href"), url, "the work stays where it was");
   await beside(b, v, 1440, "project");
   // From inside the tool the chord puts it away and the keyboard goes back to the page.
@@ -70,6 +90,7 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   // side's glyphs open, and the side closes from its chord, ⌘\ or the layout menu — 07-1 S4b.)
   await b.click(entry); await b.waitFor(open);
   await composerFocused(t, b, v);
+  assert.equal(requests.length, 1, "reopening reuses the loaded view");
   await v.type("项目页里写了一半");
   await v.chord(); await b.waitFor(closed);
   // Pressed while the keyboard is inside another side view's frame, the chord still reaches the shell.
@@ -92,13 +113,35 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   await b.waitFor("document.querySelector('[data-side-tab=\"plugin:issues/capture\"]').getAttribute('aria-selected') === 'true'");
   await composerFocused(t, b, v);
   for (const width of [1024, 390, 320]) await beside(b, v, width, "project");
+
+  // D-2: a target sent on the first open reaches the actual Issue detail inside the plugin frame.
+  await v.viewport(1440);
+  await b.click("[data-layout-open]"); await b.click("[data-layout-action=side]"); await b.waitFor(closed);
+  const title = "Cold-open destination", description = "Issue selected before the panel document loads";
+  const record = await v.api<{ id: string }>("/api/plugins/io.molis.work.issues/create", { title, description, type: "bug" });
+  await v.go(`/projects/${b.projectId}/?desktop=1`);
+  await b.waitFor(closed);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).getAttribute('src')`), null);
+  await b.evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: {
+    tab: 'plugin', view: 'issues/capture', target: {item: ${JSON.stringify(record.id)}} }, cancelable: true }))`);
+  await v.until(`!$('[data-issue-detail]').hidden && $('[data-issue-title]').textContent === ${JSON.stringify(title)}`, 15_000);
+  assert.equal(await v.ask("$('[data-issue-text]').textContent"), description);
 });
 
 test("ISSUE-31 ISSUE-35 on Home the draft survives closing and a full navigation, and Escape closes from the composer", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-global-navigation");
-  await v.viewport(1440); await v.go("/");
+  const requests = captureRequests(b);
+  await v.viewport(1440);
+  await v.go("/onboarding");
+  await expectClosedCapture(b, requests);
+  await b.click(entry); await composerFocused(t, b, v);
+  assert.deepEqual(requests, ["/plugins/issues?side=capture"]);
+  requests.length = 0;
+  await v.go("/");
+  await expectClosedCapture(b, requests);
   await b.click(entry); await b.waitFor(open); await composerFocused(t, b, v);
+  assert.deepEqual(requests, ["/plugins/issues?side=capture"]);
   await beside(b, v, 1440, "home");
   await v.type("首页写到一半，");
   await v.escape(); await b.waitFor(closed);

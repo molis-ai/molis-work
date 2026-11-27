@@ -401,7 +401,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 1. 把 S 清单和处理器里的检查分成四类（§5.4 的表）：① schema 已经管了的；② schema 能表达（必填、类型、`minItems`、`pattern`、长度、enum）但还没写的；③ schema 管不了的（跨字段、要读库）；④ 类型上只能是 `unknown` 的。不是输入的（值只来自本包的字面量或代码，比如 Jelly 的 `command.type`）直接删，PR 写明值从哪来，不用拒绝用例。说是被别处保证、但值确实来自输入的，按四类判断。
 2. ② 类**且已被处理器执行**的，补进 schema。只搬已有的检查，不新增拒绝。**不要把约束加到共享片段上：** 输出也过校验（`checkedActionResult`），加在用到它的动作或分支上。新的收紧单独一个 PR，写明。
 3. 确认这个处理器只经 kernel 调用（§5.3）。
-4. 删掉 ① 类和搬完的 ② 类的检查和读值小函数；T 片留下的 `as` 也删掉。表驱动的处理器例外：值在类型上只能是 `unknown`，读值函数在收窄，留着（④ 类，现在只有 Jelly，见 `BL-jelly-command-readers`）。
+4. 删掉 ① 类和搬完的 ② 类的检查和读值小函数；T 片留下的 `as` 也删掉。表驱动的处理器例外：值在类型上只能是 `unknown`，读值函数在收窄，留着（④ 类，原来只有 Jelly；第 112-2 批删了 `JellyCommand`，`BL-jelly-command-readers` 已结清）。
 5. `pnpm build`、`pnpm actions:update`，每个搬进去的约束配一个断言拒绝的用例（AIC-12）。
 
 **一条检查能不能删，读 schema，不读类型**（[#1909 合审](https://github.com/molis-ai/molis-work/pull/1909#issuecomment-6705563344) 3.1）。这些情况类型会让检查看起来多余，其实不多余：

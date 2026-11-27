@@ -479,6 +479,16 @@ export function forgetPluginBindings(db: DatabaseSync, scopeId: string, pluginId
   return forgetBindings(db, { where: "scope_id = ? AND plugin_id = ?", parameters: [scopeId, pluginId] }, onBindingChange);
 }
 
+/** Keep only slot references for an installation rollback. A connection removed in the meantime stays removed. */
+export function snapshotPluginBindings(db: DatabaseSync, scopeId: string, pluginId: string) {
+  const rows = db.prepare("SELECT slot_id, connection_id, updated_at FROM connector_bindings WHERE scope_id = ? AND plugin_id = ?").all(scopeId, pluginId);
+  return (current: DatabaseSync) => {
+    const put = current.prepare(`INSERT INTO connector_bindings (scope_id, plugin_id, slot_id, connection_id, updated_at)
+      SELECT ?, ?, ?, connection_id, ? FROM connector_connections WHERE connection_id = ? ON CONFLICT DO NOTHING`);
+    for (const row of rows) put.run(scopeId, pluginId, row.slot_id, row.updated_at, row.connection_id);
+  };
+}
+
 /** Deletes the bindings `match` selects and tells `onBindingChange` about each one that went. */
 function forgetBindings(db: DatabaseSync, match: { readonly where: string; readonly parameters: readonly (string | number)[] } | null,
   onBindingChange?: (binding: ConnectorBindingKey) => void): number {

@@ -8,14 +8,14 @@ import { escapeHtml as escape, renderStateRing } from "@molis-ai/molis-work-plug
  * every line is one line, and only a package asking for more than a screen holds makes the middle scroll.
  */
 
-export type PackageInstallStage = "loading" | "review" | "keys" | "working" | "done" | "failed" | "untrusted" | "line";
+export type PackageInstallStage = "loading" | "review" | "discard" | "keys" | "working" | "done" | "failed" | "untrusted" | "line";
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 /** One permission the package asks for, as the Host's sheet route answers it. */
 export interface PackageInstallPermission { permission: string; required: boolean; reason: string; meaning: string | null; on: boolean; fresh: boolean }
 /** The Host's answer for one package (`PageInstallView`, apps/local-host/src/plugin-page-install-http.ts). */
 export interface PackageInstallSheet {
-  preview_id: string; plugin_id: string; name: string; version: string; from_version: string | null;
+  preview_id: string; kept_data_incompatible: boolean; plugin_id: string; name: string; version: string; from_version: string | null;
   runtime_scope: "home" | "project"; dual: boolean;
   publisher: { label: string | null; local: boolean; trusted: boolean };
   permissions: PackageInstallPermission[]; jobs: Array<{ reason: string }>; secrets: Array<{ name: string; saved: boolean }>; network: string[];
@@ -32,6 +32,7 @@ export interface PackageInstallView {
   failure?: string;
   /** After an upgrade: how many switches could not be moved. */
   unmoved?: number;
+  cleanupIncomplete?: boolean;
   /** The installed plugin has a place to open. */
   openable?: boolean;
 }
@@ -79,7 +80,7 @@ export function packageInstallHeight(view: PackageInstallView, width: number): n
   if (view.stage === "line") return PACKAGE_INSTALL_HEIGHTS.line;
   if (view.stage === "loading" || !sheet) return view.stage === "failed" ? (wide ? 344 : 388) : PACKAGE_INSTALL_HEIGHTS.loading;
   if (view.stage === "done") return wide ? 322 : 364;
-  if (view.stage === "untrusted") return wide ? 322 : 372;
+  if (view.stage === "untrusted" || view.stage === "discard") return wide ? 322 : 372;
   if (view.stage === "failed") return wide ? 344 : 388;
   const gap = wide ? 8 : 6, title = 18 + gap, head = wide ? 76 : sheet.from_version ? 98 : 70, foot = wide ? 60 : 96, pad = wide ? 20 : 12;
   let body: number;
@@ -135,6 +136,8 @@ export function packageInstallHtml(say: Say, owner: string, view: PackageInstall
     return result("bad", t("workbench.package-install-card.not-installed"), view.failure || t("workbench.package-install-card.nothing-installed-no-data-changed"), packageInstallSteps(t, null, 0, "failed"), button("dismiss", t("workbench.package-install-card.got-it")));
   }
   const picks = packageInstallChoices(sheet), need = required(sheet), name = { name: sheet.name };
+  if (view.stage === "discard") return result("warn", t("workbench.package-install-card.cannot-read-kept-data"), t("workbench.package-install-card.discard-consequence", { name: sheet.name, version: sheet.version }), "",
+    button("later", t("workbench.package-install-card.not-installing-now")) + button("discard", t("workbench.package-install-card.discard-and-install"), "danger"));
   if (view.stage === "untrusted") return result("warn", t("workbench.package-install-card.publisher-not-trusted-yet"), t("workbench.package-install-card.import-in-settings-to-trust"), "",
     button("dismiss", t("workbench.package-install-card.got-it")) + button("settings", t("workbench.package-install-card.open-plugin-settings"), "primary"));
   if (view.stage === "failed") return result("bad", upgrade ? t("workbench.package-install-card.not-upgraded") : t("workbench.package-install-card.not-installed"),
@@ -146,7 +149,7 @@ export function packageInstallHtml(say: Say, owner: string, view: PackageInstall
       + (view.unmoved ? chip("alert", t("workbench.package-install-card.switches-not-changed", { count: view.unmoved }), "amber")
         : picks.length ? chip("tune", off ? t("workbench.package-install-card.optional-still-off", { count: off }) : t("workbench.package-install-card.all-optional-on"), off ? "" : "green") : "");
     return result("ok", upgrade ? t("workbench.package-install-card.upgraded-to-version", { version: sheet.version }) : t("workbench.package-install-card.installed"),
-      upgrade ? t("workbench.package-install-card.your-data-is-kept-carry-on") : sheet.runtime_scope === "home" ? t("workbench.package-install-card.open-it-from-any-project") : t("workbench.package-install-card.open-it-in-this-project"),
+      view.cleanupIncomplete ? t("workbench.package-install-card.cleanup-incomplete") : upgrade ? t("workbench.package-install-card.your-data-is-kept-carry-on") : sheet.runtime_scope === "home" ? t("workbench.package-install-card.open-it-from-any-project") : t("workbench.package-install-card.open-it-in-this-project"),
       `<div class="${PART}chips" data-center>${chips}</div>`,
       button("manage", t("workbench.package-install-card.manage-permissions")) + (view.openable ? button("open", t("workbench.package-install-card.open-name", name), "primary") : ""));
   }

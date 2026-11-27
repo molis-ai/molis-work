@@ -23,7 +23,8 @@ export function readRuntimeSyncValue(scope: RuntimeSyncScope, value: unknown): u
 }
 
 /** Host-only namespacing. The owner receives its original key/value and never a request-selected project identity. */
-export function scopeRuntimeReplica(source: SyncReplicaAdapter, scope: RuntimeSyncScope): SyncReplicaAdapter {
+export function scopeRuntimeReplica(source: SyncReplicaAdapter, scope: RuntimeSyncScope, committed?: () => void): SyncReplicaAdapter {
+  const change = <T>(run: () => T): T => { const result = run(); committed?.(); return result; };
   const wrapKey = (key: string) => { const wire = JSON.stringify([scope.projectId, key]); runtimeSyncKey(wire); return wire; };
   const localKey = (key: string) => { const parsed = runtimeSyncKey(key); if (parsed.projectId !== scope.projectId) throw invalid(); return parsed.key; };
   const mutation = (value: SyncMutation) => ({ ...value, key: wrapKey(value.key), value: runtimeSyncValue(scope, value.value) });
@@ -41,13 +42,13 @@ export function scopeRuntimeReplica(source: SyncReplicaAdapter, scope: RuntimeSy
     ...(source.maintain?{maintain:()=>source.maintain!()}:{}),
     ...(source.locate?{locate:(key:string)=>source.locate!(localKey(key))}:{}),
     acknowledge: (key, id, revision) => source.acknowledge(localKey(key), id, revision),
-    receive: (event, options) => source.receive({ ...event, key: localKey(event.key), value: readRuntimeSyncValue(scope, event.value) }, options),
+    receive: (event, options) => change(() => source.receive({ ...event, key: localKey(event.key), value: readRuntimeSyncValue(scope, event.value) }, options)),
     cursor: () => source.cursor(), counts: () => source.counts(), conflicts: () => source.conflicts().map(row => ({ ...row, key: wrapKey(row.key) })),
-    resolve: (key, choice, revision, state) => source.resolve(localKey(key), choice, revision, state),
-    ...(source.retryWaiting ? { retryWaiting: () => source.retryWaiting!() } : {}),
+    resolve: (key, choice, revision, state) => change(() => source.resolve(localKey(key), choice, revision, state)),
+    ...(source.retryWaiting ? { retryWaiting: () => change(() => source.retryWaiting!()) } : {}),
     ...(source.inspectConflict ? { inspectConflict(key: string) { const value = source.inspectConflict!(localKey(key)); return value ? { ...value, key, local:runtimeSyncValue(scope,value.local),remote:runtimeSyncValue(scope,value.remote) } : null; } } : {}),
     ...(source.recoveries ? { recoveries: () => source.recoveries!().map(row => ({ ...row, key: wrapKey(row.key) })) } : {}),
     ...(source.inspectRecovery ? { inspectRecovery(id: string) { const value = source.inspectRecovery!(id); return value ? { ...value, key: wrapKey(value.key),local:runtimeSyncValue(scope,value.local),remote:runtimeSyncValue(scope,value.remote) } : null; } } : {}),
-    ...(source.restoreRecovery ? { restoreRecovery: (id: string, choice: 'local' | 'remote', revision: number) => source.restoreRecovery!(id, choice, revision) } : {}),
+    ...(source.restoreRecovery ? { restoreRecovery: (id: string, choice: 'local' | 'remote', revision: number) => change(() => source.restoreRecovery!(id, choice, revision)) } : {}),
   };
 }

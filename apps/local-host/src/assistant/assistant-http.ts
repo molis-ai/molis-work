@@ -192,6 +192,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     characters: project => asPersonWithRoles(ports, project, where => assistantRoleCatalog(personClient(where))),
     resolveRole: project => asPersonWithRoles(ports, project, where => assistantResolveRole(personClient(where))),
     projectTitle: ports.projectTitle,
+    overviewReadable: (actor_id, workId, candidates) => ports.localHost.overviewReadable({
+      actor_id, audit_actor_id: "assistant:" + workId, actor_kind: "runtime", audience: "agent", project_id: null, permissions: [],
+    }, candidates),
     // Role material from the Home's registry of Agent definitions; Skills from the shared catalog, read as the person.
     methods: { roles: () => definitions().signedRoles(),
       readSigned: (install, ref) => definitions().signedMaterial(install, ref, modelRoundLocale(ports.homeDirectory)),

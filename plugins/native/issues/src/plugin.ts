@@ -11,7 +11,7 @@ import { issuesSkills } from "./skills.js";
 import { ISSUES_INSTRUCTIONS } from "./prompts.js";
 
 export function createIssuesPlugin(): PluginDefinition {
-  return { manifest: issuesManifest, instructions: ISSUES_INSTRUCTIONS, methods: issuesSkills, async start(context) {
+  return { manifest: issuesManifest, partitionSync: syncBindings, instructions: ISSUES_INSTRUCTIONS, methods: issuesSkills, async start(context) {
     if (!context.actor_id || !context.services?.database) throw new Error("Issue 需要所在分区的插件数据库服务");
     const store = new IssueStore(context.services.database, context.actor_id);
     return { kind: "app", sync: syncBindings(context), actions: issueActionHandlers(store, context.services.model), views: [issuesUiContribution], routes: [

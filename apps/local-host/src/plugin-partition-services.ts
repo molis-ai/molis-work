@@ -39,6 +39,14 @@ export function pluginPersonSettingsFor(home: string | undefined, manifest: Plug
   return Object.freeze<PluginPersonSettingsClient>({
     get: key => use((store, caller) => store.get(caller, owner.install_id, declarations, key)),
     list: () => use((store, caller) => store.list(caller, owner.install_id)),
+    snapshot: () => use((store, caller) => {
+      const read = (source: typeof store) => source.list(caller, owner.install_id);
+      const records = read(store);
+      const version = (rows: typeof records) => JSON.stringify(rows.map(row => [row.key, row.revision, row.updated_at, row.value]));
+      const stamp = version(records);
+      return { records, current: () => use(source => version(read(source)) === stamp) };
+    }),
+    setMany: changes => use((store, caller) => store.setMany(caller, owner, declarations, changes)),
     set: (key, value, options = {}) => use((store, caller) => store.set(caller, owner, declarations, key, value, options)),
     remove: key => use((store, caller) => store.remove(caller, owner.install_id, declarations, key)),
   });

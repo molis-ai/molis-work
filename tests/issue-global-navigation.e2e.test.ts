@@ -216,3 +216,28 @@ test("RAC-2801 RAC-2802: native search from the nested Issue composer keeps its 
   await b.click(entry); await b.waitFor(open);
   await probe("window.removedSearchSource=window.issueSearchFrame.contentWindow;window.issueSearchFrame.remove()", 'Mod+K', 'location.origin', 'window.removedSearchSource');
 });
+
+test("UPP-30 B2R-09 capture a task in personal space after confirmation, then find its owner from the overview", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null, undefined, undefined, { projectPlugins: ["todo"] });
+  if (!b) return;
+  const visit = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
+  await visit("/projects/" + b.projectId + "/");
+  const panel = "[data-personal-tasks=capture]";
+  const member = async () => (await b.web.get<{ projects: {project_id: string; plugins: string[]}[] }>("/api/settings/project-plugins"))
+    .projects.find(row => row.project_id === "personal")!.plugins.includes("todo");
+  assert.equal(await member(), false);
+  await b.click(panel + " summary"); await b.waitFor("document.querySelectorAll('[data-personal-tasks-body] button').length === 2");
+  await b.click(panel + " button:last-child"); assert.equal(await member(), false);
+  await b.click(panel + " summary"); await b.click(panel + " button:first-of-type");
+  await b.waitFor("!!document.querySelector('[data-personal-tasks-body] form input')");
+  await b.evaluate("document.querySelector('[data-personal-tasks-body] form input').value='B2 personal capture'");
+  await b.click(panel + " form button");
+  await b.waitFor("!document.querySelector('[data-personal-tasks-body] form')");
+  assert.equal(await member(), true);
+  await b.web.post("/projects/" + b.projectId + "/api/plugins/io.molis.work.todo/items", { title: "B2 project task" });
+  await visit("/projects/personal/"); await b.click("[data-personal-tasks=overview] summary");
+  await b.waitFor("document.querySelector('[data-personal-tasks-body]')?.textContent.includes('B2 project task')");
+  const links = await b.evaluate<{ title: string; url: string }[]>("Array.from(document.querySelectorAll('[data-personal-tasks-body] a'), a => ({ title: a.textContent, url: a.href }))");
+  assert.equal(new URL(links.find(row => row.title.includes("B2 personal capture"))!.url).pathname, "/projects/personal/");
+  assert.equal(new URL(links.find(row => row.title.includes("B2 project task"))!.url).pathname, "/projects/" + b.projectId + "/");
+});

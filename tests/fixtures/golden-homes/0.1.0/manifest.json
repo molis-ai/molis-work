@@ -634,10 +634,10 @@
       "schema_version": 1,
       "tables": {
         "due_done": 0,
-        "due_entries": 0,
+        "due_entries": 1,
         "molis_storage_space": 1
       },
-      "sha256": "7b355b78dba71329e32bd368fdfa112a0ed0d3bf52ed7a1db77293b0bd4dfb40"
+      "sha256": "ff4867660bca9fb171d2ff1d955d5fa24637660b4938f81b17b3cd6c2ebc69fe"
     },
     {
       "path": "external-sessions/external-sessions.db",
@@ -768,7 +768,7 @@
       "tables": {
         "molis_storage_space": 1,
         "person_settings": 1,
-        "person_settings_replica_changes": 0,
+        "person_settings_replica_changes": 1,
         "person_settings_replica_conflicts": 0,
         "person_settings_replica_heads": 0,
         "person_settings_replica_outbox": 0,
@@ -776,7 +776,7 @@
         "person_settings_replica_state": 1,
         "sqlite_sequence": 1
       },
-      "sha256": "375591a4c8ff6046e249d46387b49980534d22de101ab15f95531f336b5030ab"
+      "sha256": "988df2b526a19f3bafcab1e7db94403e600b0c9ba6a309bf4d88c1ee250aba25"
     },
     {
       "path": "personal-space/libraries/cognia.db",
@@ -912,20 +912,20 @@
         "sqlite_sequence": 1,
         "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
         "sync_7850314bc5fb74741120b35ad6fa_context": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 2,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
         "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
         "todo_batches": 0,
-        "todo_changes": 3,
+        "todo_changes": 4,
         "todo_editor_versions": 2,
         "todo_items": 2,
         "todo_requests": 0,
         "todo_source_memory": 0
       },
-      "sha256": "490369d3354738d8c762d5c9e09fede9ad189d3bf94ff24983c8933f9efa12c0"
+      "sha256": "15b6278f09beece38adbf14102de3d64ba61e040c3c2e260856622ed1bf32a16"
     },
     {
       "path": "personal-space/molis-work.db",
@@ -2200,10 +2200,10 @@
       "schema_version": 1,
       "tables": {
         "due_done": 0,
-        "due_entries": 0,
+        "due_entries": 1,
         "molis_storage_space": 1
       },
-      "sha256": "cff4793383ac3a108b130e1d2ddebde4b32f16c5843b0a1f4ac43dba137c2b6a"
+      "sha256": "b69b07e2442a657b768440b1b399b41f50395fb7137aa80b5d15f59815c30f4e"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/external-sessions/external-sessions.db",
@@ -2334,7 +2334,7 @@
       "tables": {
         "molis_storage_space": 1,
         "person_settings": 1,
-        "person_settings_replica_changes": 0,
+        "person_settings_replica_changes": 1,
         "person_settings_replica_conflicts": 0,
         "person_settings_replica_heads": 0,
         "person_settings_replica_outbox": 0,
@@ -2342,7 +2342,7 @@
         "person_settings_replica_state": 1,
         "sqlite_sequence": 1
       },
-      "sha256": "7e99ea3dd2f4882079ad4954f72cb0f7e84221f6e5c3d744d692323562e72e9a"
+      "sha256": "66fd45ad80d177cfe82b018f5e2fd668c72f87ea75cd3d2d21fcb0f954ebe80e"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/cognia.db",
@@ -2478,20 +2478,20 @@
         "sqlite_sequence": 1,
         "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
         "sync_7850314bc5fb74741120b35ad6fa_context": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 2,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
         "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
         "todo_batches": 0,
-        "todo_changes": 3,
+        "todo_changes": 4,
         "todo_editor_versions": 2,
         "todo_items": 2,
         "todo_requests": 0,
         "todo_source_memory": 0
       },
-      "sha256": "5fd1e0853a3064212561a8cc4753ad0b75751dac5900160d75413c78e08cab35"
+      "sha256": "1928828318a6df28e37e16ffdbe8739575bd8b361866aa6f35cc64954b5271aa"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/molis-work.db",

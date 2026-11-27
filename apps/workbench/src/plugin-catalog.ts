@@ -8,7 +8,7 @@ import { HOST_FRAMED_SURFACES, SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.j
 export type {PluginRegistration as BuiltinPluginEntry} from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLATFORM_NAVIGATION, platformNavigationLabel } from "./platform-surfaces.js";
 import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
-import { isPersonalPlugin, sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
+import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 import { drawCatalogText } from "./plugin-text.js";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
@@ -18,7 +18,6 @@ export interface PluginMarketCard {
   readonly label: string;
   readonly glyph: string;
   readonly copy: string;
-  readonly personal: boolean;
   /** Websites the Plugin says it uses in the side panel browser (its `surface:browser` declaration), shown before adding. */
   readonly sites: readonly string[];
 }
@@ -199,9 +198,7 @@ export function pluginDirectoryFor(running?: PluginDirectory): PluginDirectory {
 
 function railEntry({ id, entry, view }: PlacedDirectoryView): RailEntry {
   return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package",
-    // The 个人 group is the person's own plugins, by the one rule ＋ and the bar's right tray use too (isPersonalPlugin; 07-1 S4b):
-    // a view does not put itself there, nor keep another group once it is the person's.
-    group: isPersonalPlugin(entry) ? "personal" : view.group === "personal" ? null : view.group ?? null,
+    group: view.group ?? null,
     // Only a plugin the project chooses can be the backbone or an extend entry, whoever built the directory.
     rail: entry.chosen ? view.rail ?? null : null, chosen: entry.chosen };
 }
@@ -361,7 +358,6 @@ export function pluginMarketCards(directory: PluginDirectory = builtinPluginDire
       label: nav.title,
       glyph: nav.icon ?? "package",
       copy: listed.summary,
-      personal: listed.personal === true,
       sites: browserSiteDeclarations(entry.manifest),
     }];
   });

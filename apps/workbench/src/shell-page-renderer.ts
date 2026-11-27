@@ -81,8 +81,6 @@ export interface WorkbenchShellPageView {
   enabled_plugins?: readonly string[];
   /** The Catalog observation used to draw the project's plugin picker. */
   project_plugin_revision?: string;
-  /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
-  hidden_plugins?: readonly string[];
   /**
    * Directory panels rendered by Plugins the Host is actually running, keyed by
    * project plugin id.
@@ -247,7 +245,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="tab-workspace-panes" data-tab-panes></div>
           <div class="tab-workspace-exclusive" data-tab-exclusive hidden></div>
           <div class="tab-workspace-pool" data-surface-pool hidden>
-            ${renderProjectHome(view.project?.display_name || title, primitives)}
+            ${renderProjectHome(view.project?.display_name || title, primitives, view.project?.project_id)}
             ${page?.html ?? ""}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="${uiText("workbench.artifacts.navigation-name")}" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list mw-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div>${renderHelpDeclarationScript(workbenchSurfaceHelpDeclaration("artifacts"))}</section>
             ${view.project ? renderMaterialsStage() : ""}${renderSessionsStage(view.project?.project_id)}

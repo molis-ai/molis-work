@@ -1,3 +1,5 @@
+import { localOwnerContext } from "./home-plugin-http.js";
+import { overviewReadAction, OVERVIEW_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -56,6 +58,12 @@ const toldKey = (homeDirectory: string, through: string) => `${homeDirectory}\u0
  */
 export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined): Promise<boolean> {
   if (!homeDirectory) return false;
+  if (request.method === "POST" && url.pathname === "/api/runtime/overview/read") {
+    const caller = await localOwnerContext(host, undefined);
+    const rows = await host.homeActionClient().invoke(caller, { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID }, await readLocalWebBody(request));
+    sendLocalWebJson(response, 200, rows);
+    return true;
+  }
   if (request.method === "GET" && url.pathname === "/api/runtime/overview") {
     const { expired: { owners, ...expired }, ...overview } = await runtimeOverview(runtimeOverviewPorts(host, homeDirectory));
     if (expired.count > 0 && owners.length > 0) {

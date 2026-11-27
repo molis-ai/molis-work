@@ -1,21 +1,22 @@
-import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewEventRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createHash } from "node:crypto";
+import { jellyAddDays, jellyOccurrences } from "./calendar.js";
+import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewEventRow, type PluginDueOutcome } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { instantIn, overviewRows, type OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import type { JellyItem } from "./contract.js";
+import { JELLY_PROJECT_PLUGIN_ID, type JellyItem, type JellySeries } from "./contract.js";
 
-/**
- * Jelly's rows in the platform's overview table (specs/unified-partition-plugins §6.1, batch 108): one `event` row per one-off calendar
- * entry still open, written in the same transaction as the entry. Jelly moved as it is (user 2026-11-26): its calendar has no reminder time,
- * so no row carries one and nothing falls due; repeating series are not laid out here. A done or deleted entry has no row.
- *
- * A kind holds at most {@link OVERVIEW_ROW_LIMIT} rows. When a new entry would pass it, the row that starts last makes room if the new entry
- * starts sooner; otherwise the new entry is left out of the overview (its page still has it).
- */
-export function jellyOverviewRow(item: JellyItem): OverviewEventRow | null {
+/** Shorten only keys whose native id and delivery prefix together exceed the platform limit. User ids cannot contain @. */
+function overviewId(id: string): string {
+  return id.length <= 175 ? id : "@" + createHash("sha256").update(id).digest("hex");
+}
+const seriesPrefix = (id: string) => overviewId(id) + "@";
+
+export function jellyOverviewRow(item: JellyItem, rowId = overviewId(item.id)): OverviewEventRow | null {
   if (item.completed_at !== null) return null;
-  return { row_id: item.id, title: cutCharacters(item.title.trim() || item.id, 500), updated_at: item.updated_at,
-    starts_at: instant(item.start_date, item.start_time ?? 0, item.time_zone), ends_at: instant(item.end_date, item.end_time ?? 1439, item.time_zone),
-    all_day: item.start_time === null, time_zone: item.time_zone || null, remind_at: null };
+  const starts_at = instant(item.start_date, item.start_time ?? 0, item.time_zone);
+  return { row_id: rowId, title: cutCharacters(item.title.trim() || item.id, 500), updated_at: item.updated_at,
+    starts_at, ends_at: instant(item.end_date, item.end_time ?? 1439, item.time_zone),
+    all_day: item.start_time === null, time_zone: item.time_zone || null, remind_at: item.reminder_minutes == null ? null : new Date(Date.parse(starts_at) - item.reminder_minutes * 60_000).toISOString() };
 }
 
 /** A day and a minute of it in the entry's zone, as an instant; a time the zone's clock skips is read as the process's local time. */
@@ -25,13 +26,13 @@ function instant(date: string, minute: number, zone: string): string {
 }
 
 /** Writes (or removes) the overview row of `item` in the transaction `db` belongs to. */
-export function writeJellyOverview(db: OverviewRowsWriter, item: JellyItem): void {
-  const rows = overviewRows(db), row = jellyOverviewRow(item);
+export function writeJellyOverview(db: OverviewRowsWriter, item: JellyItem, id = overviewId(item.id)): void {
+  const rows = overviewRows(db), row = jellyOverviewRow(item, id);
   if (row === null) {
-    rows.remove("event", item.id);
+    rows.remove("event", id);
     return;
   }
-  if (!db.get(`SELECT 1 AS found FROM ${OVERVIEW_TABLE} WHERE kind = 'event' AND row_id = ?`, [item.id])
+  if (!db.get(`SELECT 1 AS found FROM ${OVERVIEW_TABLE} WHERE kind = 'event' AND row_id = ?`, [id])
     && Number((db.get(`SELECT count(*) AS total FROM ${OVERVIEW_TABLE} WHERE kind = 'event'`) as { total: number }).total) >= OVERVIEW_ROW_LIMIT) {
     const last = db.get(`SELECT row_id, starts_at FROM ${OVERVIEW_TABLE} WHERE kind = 'event' ORDER BY starts_at DESC, row_id DESC LIMIT 1`) as { row_id: string; starts_at: string } | undefined;
     if (!last || last.starts_at <= row.starts_at) return;
@@ -41,5 +42,28 @@ export function writeJellyOverview(db: OverviewRowsWriter, item: JellyItem): voi
 }
 
 export function removeJellyOverview(db: OverviewRowsWriter, id: string): void {
-  overviewRows(db).remove("event", id);
+  overviewRows(db).remove("event", overviewId(id));
+}
+
+export const JELLY_WINDOW_ENTRY = "calendar-window";
+export function removeJellySeriesOverview(db: OverviewRowsWriter, id: string): void {
+  overviewRows(db).removePrefix("event", seriesPrefix(id));
+}
+
+/** Expand in civil dates; the calendar owner already handles deleted, moved, completed and multi-day occurrences. */
+export function writeJellySeriesOverview(db: OverviewRowsWriter, series: JellySeries, now = new Date()): void {
+  const localDay = new Intl.DateTimeFormat(undefined, { calendar: "iso8601", numberingSystem: "latn", timeZone: series.time_zone, year: "numeric", month: "2-digit", day: "2-digit" });
+  const parts = Object.fromEntries(localDay.formatToParts(now).map(part => [part.type, part.value]));
+  const start = [parts.year, parts.month, parts.day].join("-");
+  removeJellySeriesOverview(db, series.id);
+  for (const item of jellyOccurrences([], [series], start, jellyAddDays(start, OVERVIEW_EVENT_WINDOW_DAYS - 1)))
+    writeJellyOverview(db, item, seriesPrefix(series.id) + item.original_date);
+}
+
+export function jellyDue(db: OverviewRowsWriter, key: string, dueAt: string): PluginDueOutcome {
+  if (!key.startsWith("event:")) return { reminder: null };
+  const id = key.slice(6);
+  const row = db.get(`SELECT title, remind_at FROM ${OVERVIEW_TABLE} WHERE kind = 'event' AND row_id = ?`, [id]) as { title: string; remind_at: string | null } | undefined;
+  if (typeof row?.title !== "string" || Date.parse(String(row.remind_at)) !== Date.parse(dueAt)) return { reminder: null };
+  return { reminder: { title: cutCharacters(row.title, 300), ...(id.startsWith("@") ? {} : { open: { surface: JELLY_PROJECT_PLUGIN_ID, id } }) } };
 }

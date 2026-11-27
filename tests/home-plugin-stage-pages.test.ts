@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import vm from "node:vm";
 import { MolisWorkLocalHost, builtinMarketDirectory, homePluginDirectory, installedStageSection } from "@molis-ai/molis-work-app-local-host";
-import { CLIENT_SCRIPT, clientPluginDirectory, isPersonalPlugin, pluginDirectoryFor, railEntries, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
+import { CLIENT_SCRIPT, clientPluginDirectory, pluginDirectoryFor, railEntries, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { openDualHome } from "./fixtures/dual-home.js";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
@@ -42,7 +42,7 @@ test("RAC-2682 a dual plugin is never offered as the person's own, whichever hal
     assert.equal(platform.supervisor.state(dual.id)?.status, "running", JSON.stringify(platform.supervisor.state(dual.id)));
     // Before 07-1 S4b the titlebar offered a dual plugin's Home stage as a Home tool when that half supplied it. There is no Home tool
     // any more: a dual plugin is reached as a project plugin, and the Home directory never marks it the person's.
-    const own = async () => { const entry = await homeEntry(h.home.host, dual.id); return entry ? isPersonalPlugin(entry) : false; };
+    const own = async () => { const entry = await homeEntry(h.home.host, dual.id); return entry ? "personal" in entry : false; };
     assert.equal(await own(), false, `${mode}: running, not the person's own`);
     await platform.runtime.stop(h.provider());
     assert.equal(await own(), false, `${mode}: stopped, not the person's own`);
@@ -66,18 +66,15 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
   const pkg = (id: string, name: string, marks: Partial<PluginDirectoryEntry>, glyph?: string): PluginDirectoryEntry => ({ id, plugin_id: id, name, chosen: false, ...marks,
     ui: { views: [{ view_id: "app", slot: "stage", title: name, ...glyph ? { icon: glyph } : {} }] } } as PluginDirectoryEntry);
   const notes = "com.example.notes", books = "com.example.books", local = "com.example.local";
-  const directory = pluginDirectoryFor([pkg(notes, "Notes <1>", { personal: true, home: true }), pkg(books, "Books", { personal: true, home: true }, "book"), pkg(local, "Local", {})]);
+  const directory = pluginDirectoryFor([pkg(notes, "Notes <1>", { home: true }), pkg(books, "Books", { home: true }, "book"), pkg(local, "Local", {})]);
   const rail = railEntries([], directory), entry = (id: string) => rail.find(item => item.id === id);
   assert.deepEqual({ group: entry(notes)?.group, glyph: entry(notes)?.glyph, label: entry(notes)?.label, surface: entry(notes)?.surface },
-    { group: "personal", glyph: "package", label: "Notes <1>", surface: notes }, "the default icon; the name is escaped where the switcher writes it");
-  assert.deepEqual({ group: entry(books)?.group, glyph: entry(books)?.glyph }, { group: "personal", glyph: "book" }, "the icon the package picked");
+    { group: null, glyph: "package", label: "Notes <1>", surface: notes }, "the default icon; the name is escaped where the switcher writes it");
+  assert.deepEqual({ group: entry(books)?.group, glyph: entry(books)?.glyph }, { group: null, glyph: "book" }, "the icon the package picked");
   assert.equal(entry(local)?.group, null, "a package a project runs is not the person's own");
   const plus = clientPluginDirectory(directory);
-  assert.deepEqual([notes, books, local].map(id => plus.find(item => item.id === id)?.personal === true), [true, true, false], "＋ lists the two Home packages with the person's own");
-  // The built-ins by the same rule: none is the person's own since batch 108. Jelly, Cognia, Images, Issues and Todo run in each partition
-  // they are added to, as 灵光, Pages, PPT, Dataset, Forms and Workflows have since batch 107; Goals and Feed (dual) and the studio are not either.
-  const own = builtinMarketDirectory().filter(isPersonalPlugin).map(item => item.id).sort();
-  assert.deepEqual(own, []);
+  assert.ok([notes, books, local].every(id => plus.some(entry => entry.id === id && !("personal" in entry))));
+  assert.ok(builtinMarketDirectory().every(entry => !("personal" in entry)));
 });
 
 test("BL-912 an installed stage tells the tab strip the icon its package picked, and says nothing when it picked none", () => {

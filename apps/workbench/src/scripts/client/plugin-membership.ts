@@ -242,8 +242,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
       const toggle = tile.querySelector('[data-plugin-toggle]');
       if (!toggle) continue;
       const id = tile.dataset.pluginTile;
-      const personal = document.querySelector('[data-market-plugin="'+CSS.escape(id)+'"][data-market-personal]');
-      const added = snapshot.plugins.includes(id) || Boolean(personal && !snapshot.hidden.includes(id));
+      const added = snapshot.plugins.includes(id);
       tile.classList.toggle('is-available', !added);
       const state = added ? 'added' : 'available';
       if (toggle.dataset.state === state) continue;

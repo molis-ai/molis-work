@@ -43,12 +43,10 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
       partitions: () => { authorize(); return [...byScope].filter(([, row]) => row.binding.available()).map(([id]) => id); },
       partition: key => JSON.stringify(runtimeSyncKey(key).projectId), projectPartition:id=>JSON.stringify(id),
       withPartition(id, operation) {
-        const current = owner(id), result = operation(scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId }));
-        // What sync wrote into a partition's library is read into the overview on its next open; nothing is started for it (§6.1).
-        const changed = () => { if (current.projectId !== null) partitionChanged(home, current.projectId); };
-        if (result instanceof Promise) return result.then(value => { changed(); return value; }) as typeof result;
-        changed();
-        return result;
+        const current = owner(id);
+        return operation(scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId }, () => {
+          if (current.projectId !== null) partitionChanged(home, current.projectId, undefined, current.binding.plugin_id);
+        }));
       },
     }),authorizeKey(key,value){const current=scope(key);if(!current.binding.replica.authorizeKey)throw new ActionError('actions.forbidden','同步主人尚未声明标识授权');current.binding.replica.authorizeKey(current.key,value===undefined?undefined:readRuntimeSyncValue(current,value));},hasProjectChanges(projectId){
       authorize();const target=JSON.stringify(projectId),home=byScope.get('null');

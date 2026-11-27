@@ -60,7 +60,7 @@ export function assistantSettingsProvider(store: () => AssistantStore): ActionPr
  * The person's grants to the assistant for the cross-project overview, as saved now (`assistant.overview_grants`). A value that cannot be
  * read grants nothing: the assistant then reads no other project's overview until the person saves the grants again.
  */
-export function assistantOverviewGrants(store: AssistantStore): readonly OverviewGrant[] {
+export function assistantOverviewGrants(store: Pick<AssistantStore, "preferences">): readonly OverviewGrant[] {
   try {
     const [snapshot] = store.preferences.read(LOCAL_PERSON_ACTOR_ID, [OVERVIEW_GRANTS_KEY]);
     if (!snapshot || snapshot.state !== "ok") return [];

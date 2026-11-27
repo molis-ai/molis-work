@@ -246,10 +246,10 @@
       "schema_version": 1,
       "tables": {
         "due_done": 0,
-        "due_entries": 0,
+        "due_entries": 1,
         "molis_storage_space": 1
       },
-      "sha256": "7b355b78dba71329e32bd368fdfa112a0ed0d3bf52ed7a1db77293b0bd4dfb40"
+      "sha256": "f32a33d0b48d11683c5aa0098f7cd985df0518835124e8b930ef846d4967d481"
     },
     {
       "path": "external-sessions/external-sessions.db",
@@ -380,7 +380,7 @@
       "tables": {
         "molis_storage_space": 1,
         "person_settings": 1,
-        "person_settings_replica_changes": 0,
+        "person_settings_replica_changes": 1,
         "person_settings_replica_conflicts": 0,
         "person_settings_replica_heads": 0,
         "person_settings_replica_outbox": 0,
@@ -388,7 +388,7 @@
         "person_settings_replica_state": 1,
         "sqlite_sequence": 1
       },
-      "sha256": "375591a4c8ff6046e249d46387b49980534d22de101ab15f95531f336b5030ab"
+      "sha256": "7123749bca0c088328b6f51fbcd7eb85c6c2a24d0af79696e2d35f800c1d3621"
     },
     {
       "path": "personal-space/libraries/cognia.db",
@@ -524,20 +524,20 @@
         "sqlite_sequence": 1,
         "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
         "sync_7850314bc5fb74741120b35ad6fa_context": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 2,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
         "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
         "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
         "todo_batches": 0,
-        "todo_changes": 3,
+        "todo_changes": 4,
         "todo_editor_versions": 2,
         "todo_items": 2,
         "todo_requests": 0,
         "todo_source_memory": 0
       },
-      "sha256": "490369d3354738d8c762d5c9e09fede9ad189d3bf94ff24983c8933f9efa12c0"
+      "sha256": "014b5cd7df173d8b0b3c6daab4c830fb7aacf9faac7c8b5a1ebf5556315aa1ce"
     },
     {
       "path": "personal-space/molis-work.db",

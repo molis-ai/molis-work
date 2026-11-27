@@ -109,6 +109,10 @@ test("S-31 a project that does not exist, or does not have the plugin, refuses t
 
   // RAC-569 (#679, ①): a Home plugin the build does not ship is personal, shown in every project until that project hides it, by its plugin id.
   const probeIn = (projectId: string) => request(`/projects/${encodeURIComponent(projectId)}/api/plugins/${probe.id}/state`);
+  for (const partition of [hidden.project_id, shown.project_id]) {
+    const enabled = await request(`/api/settings/projects/${partition}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(origin, partition) } });
+    assert.equal(enabled.status, 200);
+  }
   const probeShown = await probeIn(hidden.project_id);
   assert.equal(probeShown.status, 200, await probeShown.clone().text());
   assert.equal((await probeShown.json()).project_id, hidden.project_id);
@@ -116,7 +120,7 @@ test("S-31 a project that does not exist, or does not have the plugin, refuses t
   assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id], "the successful route reached the action handler");
   const hideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
   assert.equal(hideProbe.status, 200, await hideProbe.clone().text());
-  assert.ok((await hideProbe.json()).hidden.includes(probe.id));
+  assert.ok(!(await hideProbe.json()).plugins.includes(probe.id));
   const probeHidden = await probeIn(hidden.project_id);
   assert.equal(probeHidden.status, 403);
   assert.equal((await probeHidden.json()).code, "actions.plugin_disabled");

@@ -27,7 +27,7 @@ export function sentOriginal(input: AssistantSendInput, offered: Omit<HostOffere
  */
 export function roundStartInput(work: StoredWork, round: {
   actor_id: string; session: AgentSessionRef; role_id: string; task: string; text_materials: AgentTextMaterial[];
-  materials: readonly AssistantMaterial[]; tokens_left?: number;
+  materials: readonly AssistantMaterial[]; tokens_left?: number; history?: "session" | "digest";
   original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef;
   resume_answer?: AgentStartRequest["resume_answer"];
   /** A round that only reports: it never drives the side panel's browser. */
@@ -45,7 +45,7 @@ export function roundStartInput(work: StoredWork, round: {
     // Pictures the person added: the Agent Host reads them from the platform's attachments and the runtime shows them to the model in this round (refused if the model cannot see).
     ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
       .map(item => ({ material_id: item.material_id, title: item.title, attachment: structuredClone(item.image!.attachment), media_type: item.image!.media_type })) } : {}),
-    history: "session", queued: "carry", budget: { max_turns: ROUND_TURNS, ...(round.tokens_left === undefined ? {} : { max_total_tokens: round.tokens_left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
+    history: round.history ?? "session", queued: "carry", budget: { max_turns: ROUND_TURNS, ...(round.tokens_left === undefined ? {} : { max_total_tokens: round.tokens_left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
     // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
     ...(work.delegated_by || work.reply_target || round.report_only ? { browser: false as const } : {}),
     // The chosen role really carries the round: the Host pins its version (the session's earlier one for the same choice) or refuses.

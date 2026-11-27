@@ -1,3 +1,5 @@
+import { pluginInstallRecords } from "./plugin-install-records.js";
+import { partitionOverviewLibraries } from "./partition-platform-services.js";
 import { realpathSync } from "node:fs";
 import path from "node:path";
 import { PERSONAL_SPACE_DIRECTORY, partitionRootsOnDisk } from "@molis-ai/molis-work-module-projects";
@@ -85,9 +87,14 @@ export async function releasePartitionPlugins(store: LocalProjectDatabase, parti
  * A synchronized write or a restore reached a partition: its overview is read again on the next open and nothing is started (§6.1). Through the
  * running services when the Host has them, else straight to the overview index (a restore runs without a Host).
  */
-export function partitionChanged(home: string, partitionId: string, installId?: string): void {
+export function partitionChanged(home: string, partitionId: string, installId?: string, pluginId?: string): void {
   const host = existingPartitionPluginHost(home);
-  if (host?.services) host.services.partitionChanged(partitionId, installId);
+  if (host?.services) {
+    const manifest = pluginId ? host.manifestOf(pluginId) : undefined;
+    const id = manifest ? installIdentity(manifest) : installId;
+    const libraries = manifest && id ? partitionOverviewLibraries(home, [{ partition_id: partitionId, plugins: [{ install_id: id, manifest }] }]) : undefined;
+    host.services.partitionChanged(partitionId, id, libraries);
+  }
   else markPartitionChanged(home, partitionId, installId);
 }
 
@@ -155,6 +162,14 @@ export class PartitionPluginHost {
     for (const entry of entries) this.entries.set(entry.definition.manifest.plugin_id, entry);
   }
 
+  syncOwner(pluginId: string) {
+    const definition = this.entries.get(pluginId)?.definition;
+    if (!definition?.partitionSync || definition.execution === "sandbox") return null;
+    const installId = installIdentity(definition.manifest);
+    return { definition, bindings: definition.partitionSync, installId,
+      record: () => this.closed ? null : pluginInstallRecords(this.installDatabase()).get(installId) };
+  }
+
   plugins(): readonly string[] { return [...this.entries.keys()]; }
 
   /** The Manifest of a plugin this Host runs per partition, when it was declared here. */
@@ -207,7 +222,7 @@ export class PartitionPluginHost {
     // An overview reminder the plugin does not speak for shows its overview row; `null` says it no longer stands.
     const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry) : null;
     if (!reminder) return false;
-    tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
+    await tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
       due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null });
     return true;
   }

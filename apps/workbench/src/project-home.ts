@@ -1,4 +1,5 @@
 import { renderButton, renderHelpButton, renderHelpDeclarationScript, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
 import { workbenchSurfaceHelpDeclaration } from "./settings-help-topics.js";
 
@@ -10,12 +11,16 @@ import { workbenchSurfaceHelpDeclaration } from "./settings-help-topics.js";
  * The frame is the first page's grid (`mw-first-page`): the column holds the page's kind, the project's name and the groups; the
  * margin beside it (`data-home-margin`) is filled with where the page's facts were read from.
  */
-export function renderProjectHome(name: string, { escapeHtml: e }: ImmersiveShellPrimitives): string {
+export function renderProjectHome(name: string, { escapeHtml: e }: ImmersiveShellPrimitives, projectId?: string): string {
+  const capture = SHIPPED_WORKBENCH_PARTS.find(entry => entry.workbench.personalTaskCaptureRoute);
+  const create = capture?.manifest.routes?.find(route => route.method === "POST" && route.route_id === capture.workbench.personalTaskCaptureRoute);
   return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${uiText("workbench.project-home.project-home")}" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
     <div class="home-scroll mw-first-page" data-home-scroll><div class="mw-first-page__grid">
       <div class="mw-first-page__column">
         <div class="mw-first-page__meta"><span>${uiText("workbench.project-home.project-home")}</span><span class="mw-first-page__grow"></span><span data-home-page-version></span><span data-home-version></span>${renderButton({ label: uiText.text("workbench.home.refresh"), variant: "ghost", size: "sm", icon: "refresh", iconOnly: true, attrs: { "data-home-control": "refresh" } })}${renderHelpButton({ topic: "workbench-home", label: uiText.text("common.help.title"), size: "sm" })}</div>
         <h1>${e(name)}</h1>
+        ${projectId && capture && create ? `<details data-task-member="${e(capture.project_plugin_id)}" data-task-owner="${e(capture.manifest.plugin_id)}" data-task-route="${e(create.path)}" data-personal-tasks="${projectId === "personal" ? "overview" : "capture"}"><summary>${uiText(projectId === "personal" ? "workbench.personal-tasks.all" : "workbench.personal-tasks.capture")}</summary>
+          <div data-personal-tasks-body aria-live="polite"></div></details>` : ""}
         <div class="home-read-state" data-home-status aria-live="polite"></div>
         <div class="home-generated-notice" data-home-generated-notice aria-live="polite"></div>
         <div class="home-groups" data-home-groups></div>

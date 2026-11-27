@@ -6,7 +6,7 @@ import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 
-type ReachEntry = PluginRegistration | { readonly personal: true; readonly project_plugin_id: string; readonly runtime?: never };
+type ReachEntry = PluginRegistration | { readonly project_plugin_id: string; readonly runtime?: never };
 type ReachCatalog = Pick<MolisWorkProjectCatalog, "projectPluginMembership"> & {
   readonly catalogDataStamp?: () => string | null;
   readonly homeDirectory?: string;
@@ -61,14 +61,14 @@ export function projectMembershipReach({ plugins }: ProjectPluginMembership): Re
  * The plugins a project's actions and routes may reach right now (PG-013): the ones the project has and what those embed. `null`
  * where there is no project record (a deleted project). The one list actions and routes share; it reads the catalog on every call, so
  * adding and taking out count at once. `outsideBuild` is the Home plugins its build does not ship (`homePluginsOutsideBuild`, #679):
- * reached unless the project hid them (until batch 109-3). A caller that passes none reaches none of them.
+ * reached only if the project enabled them (until batch 109-3). A caller that passes none reaches none of them.
  */
 export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
   outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
   try {
     const membership = catalog.projectPluginMembership(projectId);
     const reachable = new Set(projectMembershipReach(membership));
-    for (const key of outsideBuild) if (!membership.hidden.includes(key)) reachable.add(key);
+    for (const key of outsideBuild) if (membership.plugins.includes(key)) reachable.add(key);
     return reachable;
   }
   catch (error) {
@@ -78,12 +78,9 @@ export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "
   }
 }
 
-/**
- * Whether a catalog plugin can be reached from a project: where there is no project list, only a Home plugin outside the build (it is on
- * in every project and has nothing to hide; removed with the Home runtime in batch 109-3).
- */
-export function pluginReachable(entry: { readonly personal?: true; readonly project_plugin_id: string }, reachable: ReadonlySet<string> | null): boolean {
-  return reachable === null ? entry.personal === true : reachable.has(entry.project_plugin_id);
+/** A registered catalog plugin needs membership in the caller's partition. */
+export function pluginReachable(entry: { readonly project_plugin_id: string }, reachable: ReadonlySet<string> | null): boolean {
+  return reachable?.has(entry.project_plugin_id) === true;
 }
 
 /**
@@ -92,7 +89,7 @@ export function pluginReachable(entry: { readonly personal?: true; readonly proj
  */
 export function reachEntry(homeDirectory: string | undefined, pluginId: string): ReachEntry | undefined {
   return builtinPluginByManifestId(pluginId)
-    ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { personal: true, project_plugin_id: pluginId } : undefined);
+    ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { project_plugin_id: pluginId } : undefined);
 }
 
 /**

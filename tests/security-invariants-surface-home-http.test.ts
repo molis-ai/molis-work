@@ -30,7 +30,7 @@ async function members(f: Fixture): Promise<VersionedProjectPluginMembership> {
   const { projects } = await json<{ projects: Array<VersionedProjectPluginMembership & { project_id: string }> }>(await f.request("/api/settings/project-plugins"));
   const row = projects.find(item => item.project_id === f.project.project_id);
   assert.ok(row);
-  return { plugins: row.plugins, hidden: row.hidden, revision: row.revision };
+  return { plugins: row.plugins, revision: row.revision };
 }
 
 async function setMember(f: Fixture, plugin_id: string, enabled: boolean) {

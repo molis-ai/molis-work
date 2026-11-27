@@ -210,7 +210,7 @@ export class ImagesService {
     const admitted = new Promise<boolean>(resolve => { admit = resolve; });
     const current = () => {
       controller.signal.throwIfAborted(); this.assertOpen();
-      const latest = this.options.connections.remembered().find(item => item.id === connection.id);
+      const latest = this.options.connections.tryList().find(item => item.id === connection.id);
       if (!latest || latest.change || latest.base_url !== connection.base_url || latest.api_format !== connection.api_format || latest.model !== connection.model) {
         throw imagesErrors.connection_changed("图像连接已改变，本次结果未保存。");
       }
@@ -234,7 +234,7 @@ export class ImagesService {
       admit(!duplicate);
       if (duplicate) { execution.cancel(); return this.executionState(duplicate); }
       this.options.due?.register({ entry_key: dueKey(job.id), due_at: new Date(Date.parse(job.created_at) + IMAGES_JOB_DEADLINE_MS).toISOString() });
-      void execution.result.finally(() => { if (!this.closed) try { this.options.due?.cancel(dueKey(job.id)); } catch { /* The deadline settles it instead. */ } }).catch(() => {});
+      void execution.result.finally(() => { if (recorded && !this.closed) try { this.options.due?.cancel(dueKey(job.id)); } catch { /* The deadline settles it instead. */ } }).catch(() => {});
       return job;
     } catch (error) {
       admit(false); controller.abort(); this.active.delete(job.id); throw error;
@@ -265,12 +265,12 @@ export class ImagesService {
   async due(entryKey: string, control: ImagesControl): Promise<PluginDueOutcome> {
     if (!entryKey.startsWith("job:")) return {};
     const id = entryKey.slice("job:".length), row = this.store.findJob(id);
-    if (!row || row.status !== "running") return {};
+    if (!row || (row.status !== "running" && row.status !== "interrupted")) return {};
     if (this.active.has(id)) {
       this.options.due?.register({ entry_key: entryKey, due_at: new Date(Date.now() + IMAGES_JOB_DEADLINE_MS).toISOString() });
       return {};
     }
-    await this.write(control, store => store.finish(id, "interrupted", [], INTERRUPTED));
+    if (row.status === "running") await this.write(control, store => store.finish(id, "interrupted", [], INTERRUPTED));
     return { reminder: { title: uiText.text("images.background.interrupted", { prompt: [...row.prompt].slice(0, 120).join("") }), open: { surface: "images", id } } };
   }
 

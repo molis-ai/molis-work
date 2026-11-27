@@ -7,12 +7,13 @@ export const boolean = { type: "boolean" } as const;
 export const revision = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } as const;
 export const date = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" } as const;
 const minute = nullable({ type: "integer", minimum: 0, maximum: 1439 });
+const reminder = nullable({ type: "integer", minimum: 0, maximum: 10_080 });
 const title = { type: "string", minLength: 1, maxLength: 500, pattern: "\\S" } as const;
 const kind = { enum: ["task", "event"] } as const;
 const weekdays = { type: "array", items: { type: "integer", minimum: 1, maximum: 7 }, uniqueItems: true, minItems: 1 } as const;
 export const scope = { enum: ["onlyThis", "thisAndFuture", "all"], description: "重复日程改哪些：只这一次、这次和以后、整个系列" } as const;
 
-const occurrenceFields = { title: text, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute } as const;
+const occurrenceFields = { title: text, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, reminder_minutes: reminder } as const;
 const entryFields = { id, ...occurrenceFields, time_zone: text, revision, created_at: text, updated_at: text } as const;
 export const category = object({ id, name: text, color: text, sort_index: revision, revision });
 export const item = object({ ...entryFields, completed_at: nullable(text) });
@@ -26,7 +27,7 @@ export const noteSummary = object({ id, title: text, day: nullable(date), revisi
 export const rows = object({ categories: array(category), items: array(item), series: array(series), notes: array(note) }, []);
 
 /** A new entry. Times are both given or both left out (all day); the time zone defaults to the Home's. */
-export const itemInput = object({ id, title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, time_zone: text, completed: boolean }, ["title", "start_date"]);
-export const itemPatch = object({ title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, time_zone: text, completed: boolean }, []);
-export const seriesInput = object({ id, title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, time_zone: text, weekdays, until: nullable(date) }, ["title", "start_date", "weekdays"]);
-export const seriesPatch = object({ title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, weekdays, until: nullable(date), completed: boolean }, []);
+export const itemInput = object({ id, title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, reminder_minutes: reminder, time_zone: text, completed: boolean }, ["title", "start_date"]);
+export const itemPatch = object({ title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, reminder_minutes: reminder, time_zone: text, completed: boolean }, []);
+export const seriesInput = object({ id, title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, reminder_minutes: reminder, time_zone: text, weekdays, until: nullable(date) }, ["title", "start_date", "weekdays"]);
+export const seriesPatch = object({ title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, reminder_minutes: reminder, weekdays, until: nullable(date), completed: boolean }, []);

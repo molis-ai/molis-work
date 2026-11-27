@@ -1,5 +1,4 @@
 import { LocalCatalogMetadata, type SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 /**
  * One-time fix kept under docs/system/CONTRACT-CHANGES.md「当前保留机制」(user confirmed 2026-11-25, batch 107; widened to batch 108's five,
@@ -9,7 +8,8 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
  * is marked at creation and never runs it. Removed with batch 111 or the first release.
  */
 export function formerPersonalPlugins(): string[] {
-  return PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.partition).map(entry => entry.project_plugin_id);
+  // The already agreed historical cohort. Adding a partition declaration in a future release cannot enroll an old Home in it.
+  return ["pages", "ppt", "form", "dataset", "lingguang", "workflows", "todo", "jelly", "cognia", "images", "issues"];
 }
 export const FORMER_PERSONAL_PLUGINS_MARK = "mark.former-personal-plugins";
 /** Rows this writes are the platform's upgrade, never the person's own choice. */

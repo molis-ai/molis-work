@@ -22,6 +22,7 @@ CREATE TABLE due_entries (
   PRIMARY KEY (install_id, partition_id, source, entry_key)
 );
 CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
+INSERT INTO "due_entries"("install_id","plugin_id","partition_id","entry_key","due_at","source","registered_at") VALUES('plugin-install-6ed43d717d2e579c2d6345b4e217c614','io.molis.work.todo','personal','task:b73fa65d-783c-403a-b214-09d73b7abef4','2030-01-15T01:00:00.000Z','overview','2026-11-27T11:46:21.194Z');
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
 CREATE INDEX due_done_at ON due_done (done_at);
 CREATE INDEX due_entries_due ON due_entries (due_at);

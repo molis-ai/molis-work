@@ -74,7 +74,6 @@ export interface ProjectPluginRegistry {
    * A Home plugin installed outside the build: on in every project unless the person hid it there (until batch 109-3 removes the Home
    * runtime). Absent means there is none.
    */
-  isPersonal?(pluginId: ProjectPluginId): boolean;
 }
 
 export interface AddProjectPluginInput {
@@ -91,7 +90,6 @@ export interface RemoveProjectPluginInput {
 
 export interface ProjectPluginMembership {
   plugins: ProjectPluginId[];
-  hidden: ProjectPluginId[];
 }
 
 export interface VersionedProjectPluginMembership extends ProjectPluginMembership {
@@ -327,14 +325,13 @@ export interface ProjectsQueryApi {
   wasProjectPluginRemoved(projectId:string,pluginId:ProjectPluginId):boolean;
   /** Stored display facts only, without derived membership or any assertion of plugin availability. Never use for authorization. */
   storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
-  /** Current derived membership and hidden marks, sharing one synchronous registry read. Later execution must read current state again. */
+  /** Current partition membership. Later execution must read current state again. */
   projectPluginMembership(projectId: string): ProjectPluginMembership;
   /** The membership observation used to prepare a `projects.plugins.set@1` write. */
   projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership;
   /** The membership observation `partitions.plugins.set@1` writes from; the partition may be the personal space. */
   partitionPluginMembership(partitionId: string): VersionedPartitionPluginMembership;
   listProjectPlugins(projectId: string): ProjectPluginId[];
-  listHiddenPlugins(projectId: string): ProjectPluginId[];
   /** The person's projects, without the personal space (C2): what a project list, a count or a project picker shows. */
   listProjects(): ProjectRecord[];
   /** Every live partition, the personal space first: what a platform loop walks. A loop over partitions never uses `listProjects()` (G3). */
@@ -477,8 +474,8 @@ export const projectDirectoryActions = {
 const membershipPluginIds = { type: "array", items: { type: "string" }, uniqueItems: true };
 const projectPluginMembershipSchema: ActionSchema = {
   type: "object",
-  properties: { plugins: membershipPluginIds, hidden: membershipPluginIds, revision: expectedRevision },
-  required: ["plugins", "hidden", "revision"],
+  properties: { plugins: membershipPluginIds, revision: expectedRevision },
+  required: ["plugins", "revision"],
   additionalProperties: false,
 };
 
@@ -517,8 +514,8 @@ export const projectPluginActions = {
 
 const partitionPluginMembershipSchema: ActionSchema = {
   type: "object",
-  properties: { partition_id: { type: "string", minLength: 1 }, plugins: membershipPluginIds, hidden: membershipPluginIds, revision: expectedRevision },
-  required: ["partition_id", "plugins", "hidden", "revision"],
+  properties: { partition_id: { type: "string", minLength: 1 }, plugins: membershipPluginIds, revision: expectedRevision },
+  required: ["partition_id", "plugins", "revision"],
   additionalProperties: false,
 };
 

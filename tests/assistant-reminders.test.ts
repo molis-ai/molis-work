@@ -46,16 +46,26 @@ test("a reminder that fell due in a partition is told once, where to open it, un
   assert.deepEqual(notices.map(notice => [noticeText(notice), notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", "personal"]]);
 });
 
-test("a reminder reaches the Assistant of its own Home only, and is refused while nobody takes reminders so its due entry is tried again", () => {
+test("a reminder reaches the Assistant of its own Home only, and is refused while nobody takes reminders so its due entry is tried again", async () => {
   const told: string[] = [];
-  assert.throws(() => tellPartitionReminder("/nowhere/home-a", reminder({})), { code: "actions.plugin_unavailable" });
+  await assert.rejects(() => tellPartitionReminder("/nowhere/home-a", reminder({})), { code: "actions.plugin_unavailable" });
   const stop = onPartitionReminder("/nowhere/home-a", item => { told.push(item.entry_key); });
   try {
-    tellPartitionReminder("/nowhere/home-a", reminder({}));
-    assert.throws(() => tellPartitionReminder("/nowhere/home-b", reminder({ entry_key: "task:other" })), { code: "actions.plugin_unavailable" });
+    await tellPartitionReminder("/nowhere/home-a", reminder({}));
+    await assert.rejects(() => tellPartitionReminder("/nowhere/home-b", reminder({ entry_key: "task:other" })), { code: "actions.plugin_unavailable" });
     assert.deepEqual(told, ["task:t1"]);
   } finally { stop(); }
-  assert.throws(() => tellPartitionReminder("/nowhere/home-a", reminder({})), { code: "actions.plugin_unavailable" }, "after stopping, nobody takes it");
+  await assert.rejects(() => tellPartitionReminder("/nowhere/home-a", reminder({})), { code: "actions.plugin_unavailable" }, "after stopping, nobody takes it");
+  let attempts = 0;
+  const retry = onPartitionReminder("/nowhere/home-a", async () => {
+    await Promise.resolve();
+    if (++attempts === 1) throw new Error("notice write interrupted");
+  });
+  try {
+    await assert.rejects(tellPartitionReminder("/nowhere/home-a", reminder({})), /notice write interrupted/);
+    await tellPartitionReminder("/nowhere/home-a", reminder({}));
+    assert.equal(attempts, 2);
+  } finally { retry(); }
 });
 
 // W2-18-S8-TODO-01: real Todo in the personal space → its overview row's reminder time → the due registry wakes that Todo → one Assistant notice.

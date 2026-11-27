@@ -7,6 +7,7 @@ export interface GoldenWriteContext {
   /** A settings entry of the Host's real web surface, for the owners whose only write entry is there. */
   http(route: string, options?: { method?: string; body?: unknown }): Promise<unknown>;
   readonly projectId: string;
+  readonly home: string;
   /** Differs between generating and replaying, so the same case makes a new record each time rather than a duplicate. */
   readonly tag: string;
 }

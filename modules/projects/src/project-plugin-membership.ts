@@ -66,10 +66,10 @@ export class ProjectPluginMembershipService {
   }
 
   private readSnapshot(projectId: string): VersionedProjectPluginMembership {
-    // Members, hidden marks and the latest member event come from one read; the event is why the revision detects an
+    // Members and the latest member event come from one read; the event is why the revision detects an
     // add-then-remove that left the set as it was.
     const { membership, latest_event_id: lastEvent } = this.records.pluginMembershipWithLatestEvent(projectId);
-    const facts = [projectId, [...membership.plugins].sort(), [...membership.hidden].sort(), lastEvent];
+    const facts = [projectId, [...membership.plugins].sort(), lastEvent];
     const revision = createHash("sha256").update(JSON.stringify(facts)).digest("hex");
     return { ...membership, revision };
   }

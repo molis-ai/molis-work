@@ -26,6 +26,6 @@ export function attachWebAssistant(server: Server, home: string, assistant: () =
   periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
     run: () => look(() => assistant().notices.scanNewMaterial()), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
   // A plugin's reminder falls due in one partition and is handed here (batch 108); the Assistant tells it under the person's rules.
-  const stopReminders = onPartitionReminder(home, reminder => { void look(async () => assistant().followUps.tellReminder(reminder)).catch(error => hostLog.warn("assistant", "reminder_tell_failed", error)); });
+  const stopReminders = onPartitionReminder(home, reminder => look(async () => { assistant().followUps.tellReminder(reminder); }));
   server.once("close", stopReminders);
 }

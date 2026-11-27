@@ -3,6 +3,13 @@
   "owner": "workbench",
   "locale": "zh",
   "messages": {
+    "workbench.personal-tasks.all": "所有项目的待办",
+    "workbench.personal-tasks.capture": "记到个人空间",
+    "workbench.personal-tasks.prompt": "记什么待办？",
+    "workbench.personal-tasks.save": "保存待办",
+    "workbench.personal-tasks.saved": "已记到个人空间",
+    "workbench.personal-tasks.empty": "还没有待办",
+    "workbench.personal-tasks.name": "待办",
     "workbench.import.importing-count-name-recognizing-text-takes-moment": "正在导入 {at} / {count}：{name}（识别文字要一会儿）",
     "workbench.import.warning-media-original-only": "音视频只保存原件，不转写正文。AI 助理只能看到它的文件名。",
     "workbench.settings-assistant.report-schedule": "个人报告安排",

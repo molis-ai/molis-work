@@ -260,6 +260,7 @@ export function mountJelly(host: JellyHost): void {
         end_date: day,
         start_time: "09:00",
         end_time: "10:00",
+        reminder_minutes: "",
         repeat: false,
         weekdays: [((new Date(`${day}T12:00:00`).getDay() + 6) % 7) + 1],
         until: "",
@@ -279,6 +280,7 @@ export function mountJelly(host: JellyHost): void {
       end_date: entry.end_date,
       start_time: clockLabel(entry.start_time) || "09:00",
       end_time: clockLabel(entry.end_time) || "10:00",
+      reminder_minutes: entry.reminder_minutes == null ? "" : String(entry.reminder_minutes),
       repeat: Boolean(entry.series_id),
       weekdays: [],
       until: "",
@@ -314,6 +316,7 @@ export function mountJelly(host: JellyHost): void {
     draft.title = value("title");
     draft.start_date = value("start_date") || draft.start_date;
     draft.end_date = value("end_date") || draft.end_date;
+    draft.reminder_minutes = value("reminder_minutes");
     if (!draft.allDay) {
       draft.start_time = value("start_time") || draft.start_time;
       draft.end_time = value("end_time") || draft.end_time;
@@ -333,9 +336,15 @@ export function mountJelly(host: JellyHost): void {
     const schedule = {
       start_date: draft.start_date,
       end_date: end,
+      reminder_minutes: draft.reminder_minutes === "" ? null : Number(draft.reminder_minutes),
       start_time: draft.allDay ? null : parseClock(draft.start_time),
       end_time: draft.allDay ? null : parseClock(draft.end_time),
     };
+    if (schedule.reminder_minutes !== null && (!Number.isInteger(schedule.reminder_minutes) || schedule.reminder_minutes < 0 || schedule.reminder_minutes > 10_080)) {
+      draft.error = uiText.text("jelly.error.reminder-range");
+      paint();
+      return;
+    }
     if (
       !draft.allDay &&
       (schedule.start_time === null ||

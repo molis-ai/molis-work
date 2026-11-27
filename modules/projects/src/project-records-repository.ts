@@ -7,7 +7,6 @@ import { text, type ProjectsSqliteDatabase, type Row } from "./sqlite.js";
 
 export interface StoredPluginMembershipFacts {
   plugins: ProjectPluginId[];
-  hidden: ProjectPluginId[];
   latest_event_id: string | null;
 }
 
@@ -72,19 +71,11 @@ export class ProjectRecordsRepository {
     return portableChanged || activeChanged;
   }
 
-  listHiddenPlugins(projectId: string): ProjectPluginId[] {
+  /** Only the once-per-Home backfill consults a legacy exclusion. New catalogs have no such table. */
+  formerHiddenPlugins(projectId: string): ProjectPluginId[] {
+    if (!this.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_plugin_exclusions'").get()) return [];
     return (this.db.prepare("SELECT plugin_id FROM project_plugin_exclusions WHERE project_id = ? ORDER BY plugin_id")
       .all(projectId) as { plugin_id: ProjectPluginId }[]).map(row => row.plugin_id);
-  }
-
-  hideProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string): boolean {
-    return Number(this.db.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
-      .run(projectId, pluginId, at).changes) > 0;
-  }
-
-  showProjectPlugin(projectId: string, pluginId: ProjectPluginId): boolean {
-    return Number(this.db.prepare("DELETE FROM project_plugin_exclusions WHERE project_id = ? AND plugin_id = ?")
-      .run(projectId, pluginId).changes) > 0;
   }
 
   /**
@@ -101,13 +92,11 @@ export class ProjectRecordsRepository {
       ) AS value
       FROM projects WHERE project_id = ?1 AND project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
       UNION ALL SELECT 'plugin', plugin_id FROM partition_plugins WHERE partition_id = ?1
-      UNION ALL SELECT 'hidden', plugin_id FROM project_plugin_exclusions WHERE project_id = ?1
       ORDER BY kind, value
-    `).all(projectId) as { kind: "project" | "plugin" | "hidden"; value: string | null }[];
+    `).all(projectId) as { kind: "project" | "plugin"; value: string | null }[];
     const project = rows.find(row => row.kind === "project");
     if (!project) return null;
-    const values = (kind: "plugin" | "hidden") => rows.filter(row => row.kind === kind).map(row => text(row.value));
-    return { plugins: values("plugin"), hidden: values("hidden"), latest_event_id: project.value == null ? null : text(project.value) };
+    return { plugins: rows.filter(row => row.kind === "plugin").map(row => text(row.value)), latest_event_id: project.value == null ? null : text(project.value) };
   }
 
   renameProject(projectId: string, displayName: string, updatedAt: string): void {

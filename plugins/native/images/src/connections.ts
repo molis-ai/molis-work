@@ -14,7 +14,11 @@ export type StoredConnection = Pick<ImageConnection, "id" | "name" | "model" | "
  * Images is enabled in sees the same services; the jobs and pictures stay in each partition's own library.
  */
 export const IMAGES_CONNECTIONS_SETTING = "connections";
-export const IMAGES_PERSON_SETTINGS: readonly PersonSettingDeclaration[] = [{ key: IMAGES_CONNECTIONS_SETTING, kind: "connection_ref" }];
+const LOCAL_CHANGES = "binding_changes";
+export const IMAGES_PERSON_SETTINGS: readonly PersonSettingDeclaration[] = [
+  { key: IMAGES_CONNECTIONS_SETTING, kind: "preference", portable: true },
+  { key: LOCAL_CHANGES, kind: "connection_ref" },
+];
 const LIMIT = 20;
 
 /**
@@ -24,18 +28,20 @@ const LIMIT = 20;
  */
 export class ImagesConnections {
   private known: StoredConnection[] = [];
+  private current: () => boolean = () => false;
 
   constructor(private readonly settings: PluginPersonSettingsClient) {}
 
   /** The services, read again for the person or this instance; refused for anyone else. */
   list(): StoredConnection[] {
-    const record = this.settings.get(IMAGES_CONNECTIONS_SETTING);
-    this.known = record === null ? [] : parse(record.value);
+    const snapshot = this.settings.snapshot();
+    this.current = snapshot.current;
+    this.known = joined(snapshot.records);
     return this.known.map(connection => ({ ...connection }));
   }
 
   /** The services this instance last read, for a caller that may not read them (an Agent's generation). */
-  remembered(): StoredConnection[] { return this.known.map(connection => ({ ...connection })); }
+  remembered(): StoredConnection[] { return this.current() ? this.known.map(connection => ({ ...connection })) : []; }
 
   /** The service by id: read again when the caller may, otherwise as last read. */
   get(id: string, fresh: boolean): StoredConnection | null {
@@ -55,8 +61,10 @@ export class ImagesConnections {
    * account change planned with it are kept together or not at all, as one transaction kept them when they were rows.
    */
   batch<T>(apply: (changes: ImagesConnectionChanges) => T): T {
-    const record = this.settings.get(IMAGES_CONNECTIONS_SETTING);
-    let next = record === null ? [] : parse(record.value), changed = false;
+    const records = this.settings.list();
+    const record = records.find(row => row.key === IMAGES_CONNECTIONS_SETTING);
+    const privateRecord = records.find(row => row.key === LOCAL_CHANGES);
+    let next = joined(records), changed = false;
     const edit = (change: (list: StoredConnection[]) => StoredConnection[]) => {
       next = change(next);
       changed = true;
@@ -75,10 +83,28 @@ export class ImagesConnections {
     });
     if (!changed) return result;
     if (next.length > LIMIT) throw imagesErrors.invalid(`最多保存 ${LIMIT} 个生图服务。`);
-    this.settings.set(IMAGES_CONNECTIONS_SETTING, { services: next }, { expected_revision: record?.revision ?? null });
-    this.known = next.map(connection => ({ ...connection }));
+    const services = next.map(withoutChange);
+    const changes = Object.fromEntries(next.flatMap(item => item.change ? [[item.id, item.change.authId]] : []));
+    const updates = [];
+    if (JSON.stringify(record?.value) !== JSON.stringify({ services }) || !record?.portable)
+      updates.push({ key: IMAGES_CONNECTIONS_SETTING, value: { services }, expected_revision: record?.revision ?? null });
+    if (Object.keys(changes).length || privateRecord)
+      updates.push({ key: LOCAL_CHANGES, value: changes, expected_revision: privateRecord?.revision ?? null });
+    this.settings.setMany(updates);
+    this.list();
     return result;
   }
+}
+
+function joined(records: readonly ReturnType<PluginPersonSettingsClient["list"]>[number][]): StoredConnection[] {
+  const record = records.find(row => row.key === IMAGES_CONNECTIONS_SETTING);
+  const services = parse(record?.value).map(item => record?.portable ? withoutChange(item) : item);
+  const changes = records.find(row => row.key === LOCAL_CHANGES)?.value;
+  if (!changes || typeof changes !== "object" || Array.isArray(changes)) return services;
+  return services.map(item => {
+    const authId = Object.hasOwn(changes, item.id) ? (changes as Record<string, unknown>)[item.id] : undefined;
+    return authId === null || typeof authId === "string" ? { ...item, change: { authId } } : item;
+  });
 }
 
 /** The changes one `batch` makes to the person's services before its one write. */

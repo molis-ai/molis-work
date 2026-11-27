@@ -3,14 +3,14 @@ export const JELLY_PLUGIN_ID = "io.molis.work.jelly";
 export const JELLY_PROJECT_PLUGIN_ID = "jelly";
 export interface JellyCategory { id: string; name: string; color: string; sort_index: number; revision: number }
 /** An all-day entry has no times. `time_zone` is where its times were meant (an IANA name). */
-export interface JellySchedule { start_date: string; end_date: string; start_time: number | null; end_time: number | null; time_zone: string }
+export interface JellySchedule { start_date: string; end_date: string; start_time: number | null; end_time: number | null; time_zone: string; reminder_minutes?: number | null }
 /** One calendar entry. Every write bumps `revision`; a change names the revision it was made on, so two edits of one entry never overwrite each other silently. */
 export interface JellyItem extends JellySchedule {
   id: string; title: string; kind: "task" | "event"; category_id: string; notes: string;
   completed_at: string | null; revision: number; created_at: string; updated_at: string;
 }
 /** What one occurrence of a series may change: everything but its identity and its repeat rule. */
-export type JellyOccurrencePatch = Partial<Pick<JellyItem, "title" | "kind" | "category_id" | "notes" | "start_date" | "end_date" | "start_time" | "end_time">>;
+export type JellyOccurrencePatch = Partial<Pick<JellyItem, "title" | "kind" | "category_id" | "notes" | "start_date" | "end_date" | "start_time" | "end_time" | "reminder_minutes">>;
 /** A weekly repeating entry. Weekdays are 1 (Monday) to 7; `exceptions` and `completions` are keyed by an occurrence's original date. */
 export interface JellySeries extends Omit<JellyItem, "completed_at"> {
   weekdays: number[]; until: string | null;

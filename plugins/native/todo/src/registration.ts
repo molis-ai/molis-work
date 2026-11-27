@@ -10,7 +10,7 @@ export const registration: PluginRegistration = {
   manifest: todoManifest,
   project_runtime: { create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
   workbench: {
-    order: 14,
+    order: 14, personalTaskCaptureRoute: "todo.create",
     contributions: [todoUiContribution],
     stylesheet: TODO_STYLES,
     clientFactory: TODO_CLIENT_FACTORY_SCRIPT,

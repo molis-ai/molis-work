@@ -12,7 +12,7 @@ import { cogniaUiContribution } from "./ui.js";
 
 /** Cognia in one partition (specs/unified-partition-plugins §4.2, batch 108): the knowledge library of the personal space or of a project it is enabled in. */
 export function createCogniaPlugin(): PluginDefinition {
-  return { manifest: cogniaManifest, instructions: COGNIA_INSTRUCTIONS, async start(context) {
+  return { manifest: cogniaManifest, partitionSync: syncBindings, instructions: COGNIA_INSTRUCTIONS, async start(context) {
     for (const permission of cogniaManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, actions = context.services?.actions;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供知识库");

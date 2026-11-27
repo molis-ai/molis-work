@@ -220,12 +220,12 @@ async function projectShownJudge(composition: LocalWebComposition, homeDirectory
 
 /** A project's plugins as the settings show them; what they show is the Host's to say (W5-02 B1): without a project, none. */
 async function pluginMembership(composition: LocalWebComposition, homeDirectory: string | undefined, projectId: string | null): Promise<{
-  plugins: readonly string[] | undefined; hidden: readonly string[] | undefined; shown: readonly string[];
+  plugins: readonly string[] | undefined; shown: readonly string[];
 }> {
-  if (!projectId || !homeDirectory) return { plugins: undefined, hidden: undefined, shown: [] };
+  if (!projectId || !homeDirectory) return { plugins: undefined, shown: [] };
   return composition.withCatalog({ homeDirectory }, (catalog) => {
-    const { plugins, hidden } = catalog.projectPluginMembership(projectId);
-    return { plugins, hidden, shown: plugins };
+    const { plugins } = catalog.projectPluginMembership(projectId);
+    return { plugins, shown: plugins };
   });
 }
 
@@ -271,7 +271,6 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     ...(dynamicPlugins.length ? { dynamic_plugin_settings: dynamicPlugins.map(({ section_id, plugin_id, label }) => ({ section_id, plugin_id, label })) } : {}),
     context_project: contextProject,
     enabled_plugins: membership.plugins,
-    hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,
     runtimes: [],
     projects,
@@ -366,7 +365,6 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     ...(dynamicPlugins.length ? { dynamic_plugin_settings: dynamicPlugins.map(({ section_id, plugin_id, label }) => ({ section_id, plugin_id, label })) } : {}),
     context_project: contextProject,
     enabled_plugins: membership.plugins,
-    hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,
     runtimes: [],
     projects,

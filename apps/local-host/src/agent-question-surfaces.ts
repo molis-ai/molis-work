@@ -56,11 +56,11 @@ const builtinOf = (view: ActionView) => {
  * not available here, a built-in plugin the project does not show, and a plugin the project hid are left out, as the side
  * panel's files leave them out (side-files-http.ts). `shown` is undefined when the project has no catalog entry.
  */
-export function projectReferenceKinds(views: readonly ActionView[], shown: ReadonlySet<string> | undefined, hidden: ReadonlySet<string>): ReferenceKindCandidate[] {
+export function projectReferenceKinds(views: readonly ActionView[], shown: ReadonlySet<string> | undefined): ReferenceKindCandidate[] {
   const plugins = new Map<string, { pluginId: string; installation: string; views: ActionView[] }>();
   for (const view of views) {
     const pluginId = view.provider.plugin_id ?? view.provider.provider_id, builtin = builtinOf(view);
-    if (!view.availability.available || hidden.has(builtin?.project_plugin_id ?? pluginId) || (builtin && shown && !shown.has(builtin.project_plugin_id))) continue;
+    if (!view.availability.available || (shown && !shown.has(builtin?.project_plugin_id ?? pluginId) && (builtin || view.action.scope === "home"))) continue;
     // One installation is one plugin: another installation that names a built-in plugin's id is not that plugin.
     const key = builtin ? `builtin:${pluginId}` : `installed:${view.provider.plugin_install_id ?? pluginId}`;
     if (!plugins.has(key)) plugins.set(key, { pluginId, installation: key, views: [] });

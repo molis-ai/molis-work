@@ -4,7 +4,7 @@ import type { JellyCategory, JellyItem, JellyNote, JellySeries } from "./contrac
 import { JELLY_UNCATEGORIZED_ID, jellyDate, validateJellyEntry, validateJellySeries, type JellyCategoryIds } from "./calendar.js";
 import { jellyAssert, jellyErrors } from "./error.js";
 import { JELLY_DATABASE } from "./database.js";
-import { removeJellyOverview, writeJellyOverview } from "./overview.js";
+import { removeJellyOverview, removeJellySeriesOverview, writeJellyOverview, writeJellySeriesOverview } from "./overview.js";
 export { JELLY_DATABASE };
 
 /** The one category every calendar has. It is a row only once someone changes its colour; until then it is this. */
@@ -14,8 +14,8 @@ export type JellyRowKind = keyof typeof JELLY_TABLES;
 export interface JellyRows { category: JellyCategory; item: JellyItem; series: JellySeries; note: JellyNote }
 const COLUMNS = {
   category: ["id", "name", "color", "sort_index", "revision"],
-  item: ["id", "title", "kind", "category_id", "start_date", "end_date", "start_time", "end_time", "time_zone", "notes", "completed_at", "revision", "created_at", "updated_at"],
-  series: ["id", "title", "kind", "category_id", "start_date", "end_date", "start_time", "end_time", "time_zone", "notes", "weekdays", "until", "exceptions", "completions", "revision", "created_at", "updated_at"],
+  item: ["id", "title", "kind", "category_id", "start_date", "end_date", "start_time", "end_time", "time_zone", "reminder_minutes", "notes", "completed_at", "revision", "created_at", "updated_at"],
+  series: ["id", "title", "kind", "category_id", "start_date", "end_date", "start_time", "end_time", "time_zone", "reminder_minutes", "notes", "weekdays", "until", "exceptions", "completions", "revision", "created_at", "updated_at"],
   note: ["id", "title", "body", "day", "revision", "created_at", "updated_at"],
 } as const satisfies Record<JellyRowKind, readonly string[]>;
 const JSON_COLUMNS = new Set(["weekdays", "exceptions", "completions"]);
@@ -28,7 +28,7 @@ function hasColumns<K extends JellyRowKind>(kind: K, record: Record<string, unkn
 export function jellyRowColumns(kind: JellyRowKind): readonly string[] { return COLUMNS[kind]; }
 export function encodeJellyRow<K extends JellyRowKind>(kind: K, row: JellyRows[K]): (string | number | null)[] {
   const record: Record<string, unknown> = Object.fromEntries(Object.entries(row));
-  return COLUMNS[kind].map(column => { const value = record[column]; return JSON_COLUMNS.has(column) ? JSON.stringify(value) : value as string | number | null; });
+  return COLUMNS[kind].map(column => { const value = record[column] ?? null; return JSON_COLUMNS.has(column) ? JSON.stringify(value) : value as string | number | null; });
 }
 export function decodeJellyRow<K extends JellyRowKind>(kind: K, row: PluginSqlRow): JellyRows[K] {
   let record: Record<string, unknown>;
@@ -124,6 +124,7 @@ export class JellyStore {
   /** Every write of an entry also writes its overview row, in the same transaction (`overview.ts`). */
   private overview<K extends JellyRowKind>(kind: K, row: JellyRows[K]): void {
     if (kind === "item") writeJellyOverview(this.db, row as JellyItem);
+    if (kind === "series") writeJellySeriesOverview(this.db, row as JellySeries);
   }
   /** Writes `row` over the stored one only if that is still at `expected`; `row.revision` is the new revision. */
   replace<K extends JellyRowKind>(kind: K, row: JellyRows[K], expected: number): JellyRows[K] {
@@ -151,6 +152,7 @@ export class JellyStore {
     const changed = this.db.run(`DELETE FROM ${JELLY_TABLES[kind]} WHERE id = ? AND revision = ?`, [id, expected]);
     if (changed.changes !== 1) this.conflict(kind, id);
     if (kind === "item") removeJellyOverview(this.db, id);
+    if (kind === "series") removeJellySeriesOverview(this.db, id);
   }
   /** The row is gone or moved on: say which, and its revision now, so the page can reload that one row. */
   conflict(kind: JellyRowKind, id: string): never {

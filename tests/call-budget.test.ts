@@ -238,11 +238,21 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
     for (let sample = 0; sample < samples; sample++) { t.mock.timers.setTime(now += 60_000); runs.push(await measure(readOverview)); }
     return median(runs);
   };
-  const withFew = await overviewCounts();
-  for (let index = 0; index < 18; index++) {
+  const { todoActions, TODO_ACTION_PERMISSIONS, todoManifest } = await import("@molis-ai/molis-work-plugin-todo");
+  const { installIdentity } = await import("@molis-ai/molis-work-plugin-runtime");
+  const { execFileSync } = await import("node:child_process");
+  const dormantIds: string[] = [];
+  async function populate(index: number) {
     const dormant = await home.createProject(`Dormant ${index}`, ["todo"]);
+    await home.host.actionClient(dormant.reference).invoke({ ...overviewPerson, project_id: dormant.project_id, permissions: TODO_ACTION_PERMISSIONS },
+      todoActions.create, { title: "G4 " + index });
     await home.host.closeProject(dormant.reference);
+    dormantIds.push(dormant.project_id);
   }
+  const withFew = await overviewCounts();
+  for (let index = 0; index < 19; index++) await populate(index);
+  const service = existingPartitionPluginHost(home.home)!;
+  await service.assembly.stopPlugin(todoManifest.plugin_id);
   assert.equal((await home.host.partitions()).length >= 20, true, "twenty projects, the personal space besides");
   const open = home.host.projects().length, instances = existingPartitionPluginHost(home.home)?.assembly.instances().length ?? 0;
   measured.personalOverview = await overviewCounts();
@@ -257,6 +267,22 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   assert.equal(measured.personalOverview.sqliteOpens, 0, "the measured reads open no database: the index is read on the Host's own connection");
   assert.equal(home.host.projects().length, open, "reading the overview opens no sleeping project");
   assert.equal(existingPartitionPluginHost(home.home)?.assembly.instances().length ?? 0, instances, "and starts no plugin instance in one");
+  const children = () => execFileSync("ps", ["-axo", "pid=,ppid=,comm="], { encoding: "utf8" }).split("\n")
+    .map(line => line.trim().split(/\s+/u)).filter(([, parent, command]) => parent === String(process.pid) && !/(?:^|\/)ps$/u.test(command)).map(([pid]) => pid).sort();
+  const initialChildren = children(), install = installIdentity(todoManifest);
+  for (const dirty of [1, dormantIds.length]) {
+    for (const id of dormantIds.slice(0, dirty)) service.services!.overview.markDirty(id, install);
+    const populated = async () => {
+      const { rows } = await home.host.homeActionClient().invoke(overviewPerson, overviewRead, { kinds: ["task"], limit: 100 });
+      assert.equal(rows.filter(row => String(row.fields.title).startsWith("G4 ")).length, dormantIds.length);
+    };
+    const refresh = await measure(populated), cached = await measure(populated);
+    assert.ok(refresh.sqliteOpens <= dirty, "at most one read-only open per dirty source");
+    assert.equal(cached.sqliteOpens, 0);
+    assert.equal(home.host.projects().length, open);
+    assert.equal(service.assembly.instances().length, instances);
+    assert.deepEqual(children(), initialChildren);
+  }
   assert.ok(measured.projectBrief!.actionDirectoryRows > 0 && measured.projectBrief!.sceneDirectoryRows > 0, "the measured brief uses both directories");
   // The brief resolves each provider's owner; since 44B it reads no catalog row of its own (no always-on stamp), so the row probe is
   // checked on the requests that enumerate the catalog.

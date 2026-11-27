@@ -159,6 +159,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     const record = submit && readRecord();
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, instance: context, project_id: options.project_id, actor_id: options.actor_id,
       release: record ? installedPageRelease(record) : undefined, componentForm: submit?.form,
+      image_generation: hosted.services?.imageGeneration ? manifest.image_generation : undefined,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     if (options.home) {

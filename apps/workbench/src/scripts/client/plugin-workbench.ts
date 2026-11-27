@@ -102,7 +102,6 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const query = market.querySelector("[data-market-search]").value.trim().toLocaleLowerCase();
     const onlyAdded = market.querySelector('[data-market-scope][aria-pressed="true"]')?.dataset.marketScope === "added";
     const addedIds = current?.plugins ?? [];
-    const hiddenIds = current?.hidden ?? [];
     paintUpdateCount();
     const installed = market.querySelector("[data-market-installed-row]");
     installed.replaceChildren(...addedIds.flatMap(id => {
@@ -121,7 +120,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin) || (card.hasAttribute("data-market-personal") && !hiddenIds.includes(card.dataset.marketPlugin));
+      const added = addedIds.includes(card.dataset.marketPlugin);
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
@@ -272,7 +271,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const { result, error, readbackRequired } = targetProject === projectId
         ? await host.membership.change(pluginId, removing ? "remove" : "add", { quiet: true, expectedRevision })
         : await host.membership.save(targetProject, pluginId, !removing, expectedRevision);
-      if (result) Object.assign(project, { plugins: result.plugins, hidden: result.hidden, revision: result.revision });
+      if (result) Object.assign(project, { plugins: result.plugins, revision: result.revision });
       if (error) {
         if (readbackRequired) { project.revision = undefined; marketDirty = true; retry.hidden = false; }
         if (error.code === "actions.conflict") conflictIntent = (removing ? readText("workbench.plugin-workbench.remove") : readText("workbench.plugin-workbench.add")) + " " + marketName(pluginId) + " · " + project.display_name;

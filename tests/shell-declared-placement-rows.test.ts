@@ -36,11 +36,11 @@ function withView<T>(run: (view: MolisWorkWebView, goalId: string) => T): T {
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 }
 
-const showing = (view: MolisWorkWebView, enabled: readonly string[]) => ({ ...view, enabled_plugins: [...enabled], hidden_plugins: [] }) as MolisWorkWebView;
+const showing = (view: MolisWorkWebView, enabled: readonly string[]) => ({ ...view, enabled_plugins: [...enabled] }) as MolisWorkWebView;
 /** A project that has every plugin but the `hidden` ones (they are listed as hidden as well). */
-const hiding = (view: MolisWorkWebView, hidden: readonly string[]) => ({ ...view, enabled_plugins: EVERYTHING.filter(id => !hidden.includes(id)), hidden_plugins: [...hidden] }) as MolisWorkWebView;
+const hiding = (view: MolisWorkWebView, hidden: readonly string[]) => ({ ...view, enabled_plugins: EVERYTHING.filter(id => !hidden.includes(id)) }) as MolisWorkWebView;
 const only = (view: MolisWorkWebView, keep: readonly string[]) => ({ ...view,
-  enabled_plugins: ["goals", ...keep.filter(id => BUILTIN_PLUGIN_IDS.includes(id) && id !== "goals")], hidden_plugins: [] }) as MolisWorkWebView;
+  enabled_plugins: ["goals", ...keep.filter(id => BUILTIN_PLUGIN_IDS.includes(id) && id !== "goals")] }) as MolisWorkWebView;
 const creates = (html: string) => [...html.matchAll(/data-placement-create="([^"]*)" data-placement-create-title="([^"]*)"[^>]*>([^<]*)</gu)]
   .map(([, station, title, label]) => ({ station, title, label }));
 
@@ -89,7 +89,6 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, plugins listed
   withView((view, goalId) => {
     const defaults = { ...view };
     delete defaults.enabled_plugins;
-    delete defaults.hidden_plugins;
     // PEQ-02: a default project does not enable Goals, so without enabled_plugins no Goal surface is drawn.
     const defaultHtml = draw(defaults, goalId);
     assert.deepEqual(creates(defaultHtml), []);
@@ -106,7 +105,7 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, plugins listed
       ["pages", "文档", "文档"], ["form", "问卷", "问卷"], ["dataset", "数据表", "数据表"], ["ppt", "演示稿", "演示稿"],
     ], "a shown Goal keeps every shown plugin's declared create");
 
-    const hiddenHtml = draw({ ...defaults, enabled_plugins: ["goals"], hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
+    const hiddenHtml = draw({ ...defaults, enabled_plugins: ["goals"] }, goalId);
     assert.deepEqual(creates(hiddenHtml), []);
 
     const explicitHtml = draw(only(view, ["ppt"]), goalId);
@@ -130,7 +129,6 @@ test("RAC-600 RAC-602 a shown project plugin's declared create reaches the real 
   withView((view, goalId) => {
     const defaults = { ...view };
     delete defaults.enabled_plugins;
-    delete defaults.hidden_plugins;
     assert.deepEqual(creates(draw(defaults, goalId)), [], "PEQ-02: Goals is off by default");
 
     assert.deepEqual(creates(draw({ ...defaults, enabled_plugins: ["goals"] }, goalId)).map(kind => kind.station), ["default-goal"]);

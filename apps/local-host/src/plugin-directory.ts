@@ -60,25 +60,18 @@ export function builtinMarketDirectory(): PluginDirectoryEntry[] {
     chosen: true, ...builtinMarks(entry), ...drawRegisteredText(entry.manifest, resolve => projectDirectoryWords(entry.manifest, resolve)) }));
 }
 
-/**
- * The Home Runtime's plugins; a Home that did not start has none. What runs in the Home holds the person's data across projects, so a
- * package installed there is the person's as the built-in Home plugins are: the Host marks it `personal` and `home` (07-1 S4b, 口径 9),
- * and the switcher, the bar's right tray and ＋ list it with them (`isPersonalPlugin`). A built-in keeps the marks its registration
- * gives (Goals and Feed are not registered personal, so they are not marked; Shelf, also one instance each side, is). An installed
- * package that runs one instance each side is no one's own tool: it is not marked. A package that did not come back keeps its place, as it kept it on the
- * titlebar before: its stage says why, and wherever it is named it carries the amber point.
- */
+/** Home installations keep their stage address and health. Membership decides where each is offered. */
 export async function homePluginDirectory(host?: HomePluginHost): Promise<PluginDirectoryEntry[]> {
   if (!host) return [];
   try {
     const running = runningPluginDirectory((await host.ready()).supervisor)
-      .map(entry => entry.chosen || host.dualInstance(entry.plugin_id) ? entry : { ...entry, personal: true as const, home: true as const });
+      .map(entry => entry.chosen || host.dualInstance(entry.plugin_id) ? entry : { ...entry, home: true as const });
     const present = new Set(running.map(entry => entry.plugin_id));
     let installed: ReturnType<HomePluginHost["registered"]> = [];
     try { installed = host.registered(); } catch { /* A library that cannot be read now has no stalled package to add; the running ones stay. */ }
     const stalled = installed.filter(({ manifest }) => !present.has(manifest.plugin_id) && host.packageError(manifest.plugin_id) !== undefined)
       .map(({ key, manifest }): PluginDirectoryEntry => ({ id: key, plugin_id: manifest.plugin_id,
-        chosen: false, personal: true, home: true, ...projectDirectoryWords(manifest) }));
+        chosen: false, home: true, ...projectDirectoryWords(manifest) }));
     const repairs = host.damagedPackages().flatMap(damaged => {
       const repair = installedRepairStage(damaged, "home", "");
       return repair ? [repair.directory] : [];

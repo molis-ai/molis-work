@@ -79,7 +79,7 @@ async function withGoal<T>(directory: readonly PluginDirectoryEntry[], run: (ren
     assert.ok(words);
     const db = store;
     const base = runWithRegisteredText(words, () => buildMolisWorkWebView(db, new GoalProjectApplication(db), { databasePath, projectId: DEMO_PROJECT_ID, demo: true }));
-    const shown = { ...base, enabled_plugins: [...EVERYTHING], hidden_plugins: [], plugin_directory: directory } as MolisWorkWebView;
+    const shown = { ...base, enabled_plugins: [...EVERYTHING], plugin_directory: directory } as MolisWorkWebView;
     return await run(() => renderMolisWorkWeb(shown, base.goals[0]!.goal.goal_id));
   } finally { store?.close(); rmSync(folder, { recursive: true, force: true }); }
 }
@@ -243,20 +243,15 @@ test("RAC-619 the Host's marks (personal, home, always_on, companions) are kept 
     marked("many", true, { companions: Array.from({ length: 50 }, (_, index) => `p${index}`) }),
     marked("loose-home", false, { personal: "yes", home: 1 }),
   ]) as PluginDirectoryEntry[];
-  assert.deepEqual([kept!.personal, kept!.companions], [true, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
-  // 07-1 S4b (口径 9): an entry the project does not choose is a Home one, and a package installed in the Home is the person's own as a
-  // built-in Home plugin is, so it keeps the Host's two Home marks (`personal`, `home`; `isPersonalPlugin` reads both). It still carries
-  // none of the project's marks. Before S4b such an entry carried no mark at all; that expectation changed with the rule, not loosened.
-  assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "home", "id", "name", "personal", "plugin_id", "ui"], "an entry the project does not choose carries the two Home marks and no other");
+  assert.deepEqual(["personal" in kept!, kept!.companions], [false, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
+  // Only the installation scope survives directory sanitization.
+  assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "home", "id", "name", "plugin_id", "ui"], "an entry the project does not choose carries the two Home marks and no other");
   assert.deepEqual(Object.keys(looseHome!).sort(), ["chosen", "id", "name", "plugin_id", "ui"], "on it too only true counts as a Home mark");
   assert.deepEqual(Object.keys(loose!).filter(name => ["personal", "home", "always_on", "companions"].includes(name)), [], "only true counts as a flag, only an array as companions");
   assert.equal(many!.companions!.length, 32);
   assert.doesNotMatch(renderPluginDirectoryData([kept!]), /always_on|companions/u, "the page's scripts get neither of the other marks");
-  // RAC-619-CLIENT-03: the marked server entry exposes only the routing fields and `personal`, the one mark ＋ reads to list it
-  // under 个人 (07-S2, 口径 8); no display field and no other Host field. Since 07-1 S4b that `personal` is `isPersonalPlugin` (the
-  // Host's personal and home marks both), so `kept` carries `home` here, and a chosen entry marked personal alone (data of the person's
-  // across projects, but run per project, as Pages) is not listed under 个人.
-  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "sessions", accepts_objects: false, hue: "indigo" }, { id: "kept", accepts_objects: false, hue: null, personal: true }]);
+  // RAC-619-CLIENT-03: scripts get routing fields only.
+  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "sessions", accepts_objects: false, hue: "indigo" }, { id: "kept", accepts_objects: false, hue: null }]);
   const perProject = sanitizePluginDirectory([marked("per-project", true, { personal: true })]);
   assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData(perProject))).find((entry: { id: string }) => entry.id === "per-project"), { id: "per-project", accepts_objects: false, hue: null });
 });
@@ -382,14 +377,14 @@ test("RAC-607 the rail lists an installed plugin under the group its view names,
   // and home marks). This directory marks none (the built-ins it does not list come from the shell's own catalog, which carries no Host
   // mark), so there is no 个人 heading here; before S4b the built-ins whose view named 个人 drew it. The marks bring it back below.
   const headings = ["推进", "写与做", "个人", "编码"].slice(0, UI_VIEW_GROUPS.length);
-  assert.deepEqual(sections.map(section => section.heading), [...headings.filter(heading => heading !== "个人"), "更多"]);
+  assert.deepEqual(sections.map(section => section.heading), [...headings, "更多"]);
   assert.equal(headingOf(html, "makes"), "写与做");
   assert.equal(headingOf(html, "plain"), "更多");
   const own = { ...installed("own", { group: "make" }, "Own"), personal: true, home: true } as PluginDirectoryEntry;
   const marked = renderMolisWorkWeb(view([own, installed("named", { group: "personal" }, "Named")]));
   assert.deepEqual(railSections(marked).map(section => section.heading), [...headings, "更多"]);
-  assert.equal(headingOf(marked, "own"), "个人", "the person's own plugin is under 个人 whatever group its view names");
-  assert.equal(headingOf(marked, "named"), "更多", "a view that names 个人 without the Host's marks does not put itself there");
+  assert.equal(headingOf(marked, "own"), "写与做", "the person's own plugin is under 个人 whatever group its view names");
+  assert.equal(headingOf(marked, "named"), "个人", "a view that names 个人 without the Host's marks does not put itself there");
   assert.match(html, /data-plugin-tile="makes"[^>]*>[^]*?data-plugin-id="makes"/u, "it opens its own surface");
   assert.doesNotMatch(html, /data-plugin-toggle="makes"/u, "taking it out is not this list's");
   assert.deepEqual(railSections(renderMolisWorkWeb(view([installed("order-a", { order: 5 }), installed("order-b", { order: 1 })]))).find(s => s.heading === "更多")!.tiles.filter(id => id.startsWith("order-")),

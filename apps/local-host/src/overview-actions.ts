@@ -5,6 +5,7 @@ import { overviewRowsFor, type HomeOverviewPartition, type HomeOverviewSource } 
 
 /** Where the overview read looks: the Home and its partitions now, and the person's grants to the assistant, read again on every call. */
 export interface OverviewReadPorts {
+  delivered?(caller: ActionCallContext, rows: OverviewReadResult["rows"]): void;
   source(): HomeOverviewSource | undefined;
   partitions(): Promise<readonly HomeOverviewPartition[]>;
   /** The person's grants to the assistant (`assistant.overview_grants`), as saved now; none when the assistant's store is not there. */
@@ -40,7 +41,9 @@ export function overviewReadProvider(ports: OverviewReadPorts): ActionProviderRe
       caller.signal?.throwIfAborted();
       const read = await overviewRowsFor(source, caller, await ports.partitions(), () => reader === "assistant" ? ports.grants() : [], { kinds, limit });
       caller.signal?.throwIfAborted();
-      return { rows: read?.rows ?? [] };
+      const rows = read?.rows ?? [];
+      if (reader === "assistant") ports.delivered?.(caller, rows);
+      return { rows };
     }), availability }],
   };
 }

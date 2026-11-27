@@ -1,6 +1,8 @@
 import { rollbackPreservingError, type openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { SettingSnapshot, SettingsOwnerScope, SettingsRequestIdentity, SettingsTransaction, SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { OverviewIndexRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { OverviewGrant } from "@molis-ai/molis-work-service-search";
 import { assistantErrors } from "./assistant-errors.js";
 import { DAILY_CAP_KEY, LOOKBACK_DEFAULT, LOOKBACK_KEY, OVERVIEW_GRANTS_DEFAULT, OVERVIEW_GRANTS_KEY, dailyTokenLimit, lookbackHours, overviewGrants } from "./assistant-setting-values.js";
 import { defaultReportSchedule, REPORT_SCHEDULE_KEY, validateReportSchedule } from "./assistant-report-preference.js";
@@ -25,6 +27,31 @@ export class AssistantSettingRecords {
   set(actorId: string, key: string, value: string) {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+  }
+
+  /** Only the names of fields already disclosed to this work. The source rows and their values stay with their owner. */
+  noteOverview(actor: string, workId: string, rows: readonly OverviewIndexRow[]): void {
+    if (!rows.length) return;
+    this.atomic(true, () => {
+      const key = "overview/disclosed/" + workId;
+      const prior = JSON.parse(this.get(actor, key) ?? "[]") as OverviewGrant[];
+      const fields = new Map(prior.map(row => [row.partition_id, new Set<string>(row.fields)]));
+      for (const row of rows) {
+        const known = fields.get(row.partition_id) ?? new Set<string>();
+        for (const name of Object.keys(row.fields)) known.add(name);
+        fields.set(row.partition_id, known);
+      }
+      const next = JSON.stringify([...fields].map(([partition_id, names]) => ({ partition_id, fields: [...names] })));
+      if (next !== JSON.stringify(prior)) this.set(actor, key, next);
+    });
+  }
+
+  /** Once a field in the session stops being readable the SDK must never replay that raw prefix. */
+  permitsOverviewHistory(actor: string, workId: string, grants: readonly OverviewGrant[]): boolean {
+    const raw = this.get(actor, "overview/disclosed/" + workId);
+    if (raw === null) return true;
+    const current = new Map(grants.map(row => [row.partition_id, new Set<string>(row.fields)]));
+    return (JSON.parse(raw) as OverviewGrant[]).every(row => row.fields.every(field => current.get(row.partition_id)?.has(field)));
   }
 
   private atomic<T>(write: boolean, run: () => T): T {

@@ -359,6 +359,7 @@ export function renderPanel(state: JellyState, draft: Draft): string {
       </div>
       ${existing ? "" : `<div class="jelly-line">${icon("refresh")}<span class="jelly-grow">${uiText("jelly.field.repeat")}</span>${renderSwitch({ name: "repeat", checked: draft.repeat, label: tx("jelly.field.repeat"), attrs: { "data-jelly-repeat": true } })}</div>`}
       ${ruleShown ? `<div class="jelly-weekdays" role="group" aria-label="${uiText("jelly.field.weekdays")}">${weekdays}</div><label class="jelly-until">${uiText("jelly.field.repeat-until")}<input class="mw-input" type="date" name="until" value="${esc(draft.until)}"></label>` : ""}
+      <label class="jelly-field">${uiText("jelly.field.reminder")}<input class="mw-input" type="number" name="reminder_minutes" min="0" max="10080" step="1" value="${esc(draft.reminder_minutes)}" placeholder="${uiText("jelly.field.no-reminder")}"></label>
       <div class="jelly-field"><span>${uiText("jelly.field.category")}</span><div class="jelly-chips">${chips}</div></div>
       <label class="jelly-field"><span>${uiText("jelly.field.notes")}</span><textarea class="mw-textarea" name="notes" rows="3" maxlength="20000" placeholder="${uiText("jelly.field.notes-placeholder")}">${esc(draft.notes)}</textarea></label>
       ${scope}

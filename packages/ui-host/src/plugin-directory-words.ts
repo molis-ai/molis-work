@@ -25,7 +25,6 @@ export interface PluginDirectoryEntry {
    * sets on a package installed in the Home (07-1 S4b, 口径 9); the page uses them to draw and to pre-tick, and the Host's own
    * registry decides what a submitted list means.
    */
-  readonly personal?: true;
   readonly home?: true;
   readonly companions?: readonly string[];
   /** What its Manifest says it does with the platform's services, for a page that points at "the plugin that does this" without naming one. */

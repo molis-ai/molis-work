@@ -1,4 +1,4 @@
-import { ActionError, BACKGROUND_TASK_DONE_STATES, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, RUN_MISSED_KEPT_MS, runExpiredUntold, type ActionCallContext,
+import { ActionError, requireSynchronous, BACKGROUND_TASK_DONE_STATES, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, RUN_MISSED_KEPT_MS, runExpiredUntold, type ActionCallContext,
   type RunsExpiryBounds } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { OverviewIndexRow, OverviewKind, OverviewOpen, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -30,13 +30,14 @@ export interface HomeOverviewPartition { readonly project_id: string; readonly d
  */
 export interface HomeOverviewSource {
   readonly home: string;
+  readable?(caller: ActionCallContext, candidates: readonly string[]): readonly string[];
   reach(partitionId: string): Promise<(pluginId: string) => boolean | undefined>;
 }
 
 /** The Home's source as this Host serves it, or undefined before its catalog is bound. */
-export function hostOverviewSource(host: Pick<MolisWorkLocalHost, "overviewHome" | "projectPluginReach">): HomeOverviewSource | undefined {
+export function hostOverviewSource(host: Pick<MolisWorkLocalHost, "overviewHome" | "projectPluginReach"> & Partial<Pick<MolisWorkLocalHost, "overviewReadable">>): HomeOverviewSource | undefined {
   const home = host.overviewHome();
-  return home ? { home, reach: partitionId => host.projectPluginReach(partitionId) } : undefined;
+  return home ? { home, readable: host.overviewReadable?.bind(host), reach: partitionId => host.projectPluginReach(partitionId) } : undefined;
 }
 
 const PERSON: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] };
@@ -73,17 +74,24 @@ export async function overviewRowsFor(source: HomeOverviewSource, caller: Action
   Promise<{ readonly rows: readonly OverviewIndexRow[]; readonly manifests: ReadonlyMap<string, PluginManifest> } | null> {
   const { home } = source, services = runningPartitionPlatformServices(home);
   if (!services) return null;
+  const ids = partitions.map(partition => partition.project_id);
+  const readableNow = () => {
+    requireSynchronous(caller.assert_authority_current?.());
+    const scope = caller.readable_project_ids;
+    const candidates = scope === undefined ? ids : ids.filter(id => scope.includes(id));
+    return source.readable?.(caller, candidates) ?? candidates;
+  };
+  const initial = new Set(readableNow());
   const manifests = overviewManifests(home, query.kinds);
   const attention = query.kinds.includes("notification");
-  const libraries: OverviewLibrary[] = (await Promise.all(partitions.map(async partition => {
+  const libraries: OverviewLibrary[] = (await Promise.all(partitions.filter(partition => initial.has(partition.project_id)).map(async partition => {
     const reaches = await source.reach(partition.project_id).catch(() => () => false);
     return [...partitionOverviewLibraries(home, [{ partition_id: partition.project_id,
       plugins: [...manifests.values()].flatMap(manifest => reaches(manifest.plugin_id) === true ? [{ install_id: installIdentity(manifest), manifest }] : []) }]),
       ...(attention ? [attentionOverviewLibrary(home, partition.project_id)] : [])];
   }))).flat();
-  const readable = partitions.map(partition => partition.project_id);
   const enabled = new Set(libraries.map(library => `${library.partition_id}\u0000${library.install_id}`));
-  const rows = services.readOverview(caller, libraries, () => ({ readable, grants: grants() }), query)
+  const rows = services.readOverview(caller, libraries, () => ({ readable: readableNow(), grants: grants() }), query)
     .filter(row => enabled.has(`${row.partition_id}\u0000${row.install_id}`));
   return { rows, manifests };
 }

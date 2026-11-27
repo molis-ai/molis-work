@@ -83,6 +83,18 @@ export class PersonSettingsStore {
    * pages do not overwrite each other. A portable value is checked the way sync checks it before it is kept.
    */
   set(caller: PersonSettingsCaller, owner: PersonSettingsOwner, declarations: PluginPersonSettingsDeclaration | undefined, key: string, value: unknown, options: { expected_revision?: number | null } = {}): PersonSettingRecord {
+    return this.setMany(caller, owner, declarations, [{ key, value, ...options }])[0]!;
+  }
+
+  setMany(caller: PersonSettingsCaller, owner: PersonSettingsOwner, declarations: PluginPersonSettingsDeclaration | undefined,
+    changes: readonly { key: string; value: unknown; expected_revision?: number | null }[]): PersonSettingRecord[] {
+    assertPersonSettingsCaller(caller, owner.install_id);
+    if (new Set(changes.map(item => item.key)).size !== changes.length) throw new ActionError("actions.input_invalid", "设置键重复");
+    return this.write(() => changes.map(({ key, value, expected_revision }) => this.setOne(caller, owner, declarations, key, value, expected_revision)));
+  }
+
+  private setOne(caller: PersonSettingsCaller, owner: PersonSettingsOwner, declarations: PluginPersonSettingsDeclaration | undefined, key: string,
+    value: unknown, expectedRevision?: number | null): PersonSettingRecord {
     const installId = owner.install_id;
     assertPersonSettingsCaller(caller, installId);
     const declaration = declared(declarations, key);
@@ -92,15 +104,13 @@ export class PersonSettingsStore {
     const json = JSON.stringify(value);
     if (json === undefined || Buffer.byteLength(json) > PERSON_SETTING_LIMITS.value_bytes) throw new ActionError("actions.input_invalid", `设置的值要能写成 JSON，且不超过 ${PERSON_SETTING_LIMITS.value_bytes} 字节`);
     if (declaration.portable) assertPortableConfig(value, PERSON_SETTING_LIMITS.value_bytes);
-    return this.write(() => {
-      const current = this.db.prepare("SELECT revision FROM person_settings WHERE install_id = ? AND key = ?").get(installId, key) as { revision: number } | undefined;
-      if (options.expected_revision !== undefined && (current?.revision ?? null) !== options.expected_revision) throw new ActionError("actions.conflict", "这项设置刚被改过，重新打开再改");
-      const revision = (current?.revision ?? 0) + 1;
-      this.db.prepare(`INSERT INTO person_settings (install_id, plugin_id, key, kind, portable, value_json, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (install_id, key) DO UPDATE SET kind = excluded.kind, portable = excluded.portable, value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
-        .run(installId, owner.plugin_id, key, declaration.kind, declaration.portable ? 1 : 0, json, revision, this.now().toISOString());
-      return this.get(caller, installId, declarations, key)!;
-    });
+    const current = this.db.prepare("SELECT revision FROM person_settings WHERE install_id = ? AND key = ?").get(installId, key) as { revision: number } | undefined;
+    if (expectedRevision !== undefined && (current?.revision ?? null) !== expectedRevision) throw new ActionError("actions.conflict", "这项设置刚被改过，重新打开再改");
+    const revision = (current?.revision ?? 0) + 1;
+    this.db.prepare(`INSERT INTO person_settings (install_id, plugin_id, key, kind, portable, value_json, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (install_id, key) DO UPDATE SET kind = excluded.kind, portable = excluded.portable, value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
+      .run(installId, owner.plugin_id, key, declaration.kind, declaration.portable ? 1 : 0, json, revision, this.now().toISOString());
+    return this.get(caller, installId, declarations, key)!;
   }
 
   remove(caller: PersonSettingsCaller, installId: string, declarations: PluginPersonSettingsDeclaration | undefined, key: string): boolean {

@@ -253,12 +253,12 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   // a view naming it. Drawn without the Host's directory, nothing carries those marks: there is no 个人, and a view that names it
   // is under 更多 with the plugins that name no group. Every other group is the one its view names, in the Host's order.
   const bare = railSections(renderMolisWorkWeb(projectView([...BUILTIN_PLUGIN_IDS])));
-  assert.deepEqual(bare.map(section => section.heading), [...UI_VIEW_GROUPS.filter(group => group !== "personal").map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
+  assert.deepEqual(bare.map(section => section.heading), [...UI_VIEW_GROUPS.map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
   for (const { heading, tiles } of bare) {
     for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
       if (tile === "artifacts") { assert.equal(heading, "写与做", "RAC-2342 the platform Artifact entry retains its existing group"); continue; }
       const group = declaredGroups.get(tile);
-      assert.equal(heading, group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
+      assert.equal(heading, group ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
     }
   }
   // The declarations keep the groups the shell used to list by name. Within a group the views go by their `order`, then by plugin
@@ -269,7 +269,7 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   assert.deepEqual(members(bare, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
   assert.equal(bare.some(section => section.heading === "研究"), false, "the 研究 group left with the old Alchemist (44B): no view names it");
   assert.deepEqual(members(bare, "编码"), ["coding"]);
-  for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, "更多").includes(id), `${id} names 个人 and is not marked the person's own: under 更多`);
+  for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, "个人").includes(id), `${id} names 个人 and is not marked the person's own: under 更多`);
   // Files, the former example, is retired (batch 06); Diff's view names no group either.
   assert.equal(declaredGroups.get("diff"), null, "Diff's rail view names no group");
   assert.ok(members(bare, "更多").includes("diff"), "a plugin whose view names no group is under 更多");
@@ -285,10 +285,10 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
     for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
       if (tile === "artifacts") { assert.equal(heading, "写与做", "RAC-2342 the platform Artifact entry retains its existing group"); continue; }
       const group = declaredGroups.get(tile);
-      assert.equal(heading, own.has(tile) ? "个人" : group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under 个人 when it is the person's own, else the group its view names`);
+      assert.equal(heading, group ? HEADINGS[group] : "更多", `${tile} sits under 个人 when it is the person's own, else the group its view names`);
     }
   }
-  assert.deepEqual(members(hosted, "个人"), ["jelly"]);
+  assert.deepEqual(members(hosted, "个人"), members(bare, "个人"));
   assert.deepEqual(members(hosted, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
   for (const id of ["lingguang", "todo", "cognia"]) assert.ok(members(hosted, "更多").includes(id), `${id} names 个人 without the Host's marks: under 更多`);
 });

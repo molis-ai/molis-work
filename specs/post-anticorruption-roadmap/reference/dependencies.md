@@ -593,6 +593,7 @@ flowchart LR
   B44B --> B44C["44C 平民化收尾 · 已合入 #2333<br/>(提供方身份/集成驱动清零/签名样例)"]
   B106 --> B107["107 UPP-B1 独立库 6 插件"]
   B107 --> B108["108 UPP-B2 原 Home 5 插件+总览"]
+  B112["112 Jelly 瘦身"] --> B108
   B108 --> B109["109 UPP-B3 主库去列+双实例归零+Git 迁入"]
   B109 --> B110["110 UPP-B4 放置/同步/搜索/MCP"]
   B110 --> B111["111 UPP-C 推送+界面+G1~G5+Clean v1"]
@@ -609,7 +610,7 @@ flowchart LR
 | `44C` | 已合入（`#2333` `56a094ec0e`，2026-11-26；收尾五问随收尾 PR）：统一 `resolveActionProviderId`、`RuntimePluginDirectory`、`PLATFORM_SETTINGS_REGISTRY`，M15，集成注册表并入统一运行时与厂商分支、集成包导入清零，PSD-03 签名样例，G1 终点；范围以 44B 记录末尾两节为准（用户 2026-11-24 定）；与 `106` 并行 | [44C](batches/44c.md) |
 | `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/平台定格式总览表 `overview_projection`（到期提醒从中取）、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
 | `107`（UPP-B1） | 等 `106`：6 个独立库插件迁 `databases.partition`，删 `databases.home.partition` 复用器（`project_rows`、`artifact_join` 归 `109`） | [107](batches/107.md) |
-| `108`（UPP-B2） | 等 `107`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，删 `personal:true`/`hidden`/`project_reach`（`scope:"home"` 与 `outsideBuild` 链归 `109`） | [108](batches/108.md) |
+| `108`（UPP-B2） | 等 `107`、`112`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，退役五插件的个人分类、隐藏及跨项目动作。Work Brief 的 `project_reach`、Home 装配与 `outsideBuild` 链归 `109` | [108](batches/108.md) |
 | `109`（UPP-B3） | 等 `108`：主库插件删 `project_id`，Workspace Git+Writers 迁 `plugins/native/git`（D6=B，`S-git-plugin-command-scope`，保留 `#2244` 隔离），沙箱开放 `databases.partition`，彻底删 `dual_instance`、`scope:"home"`、`outsideBuild` 链、`project_rows`、`artifact_join` 与旧平行装配（G2/G3） | [109](batches/109.md) |
 | `110`（UPP-B4） | 等 `109`：放置/同步/搜索/MCP/记忆去双轨、V4 分区启用清单独立同步、零唤醒发现、G5 | [110](batches/110.md) |
 | `111`（UPP-C） | 等 `110`：星型推送（V2/V3/U6/U7/U8、>256 KiB 分片、CAS GC 保护）、先定样界面、焊死 G1～G5、清退复位白名单；作为 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`～`5`/`SRV` 共同前置 | [111](batches/111.md) |

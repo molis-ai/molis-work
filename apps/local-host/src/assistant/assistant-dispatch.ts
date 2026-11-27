@@ -1,3 +1,4 @@
+import { assistantOverviewGrants } from "./assistant-settings-actions.js";
 import { assertSubtaskRun } from "./assistant-subtask-binding.js";
 import { numberArg, t as uiText, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
@@ -85,7 +86,7 @@ export async function reportTurn(adapter: ReportTurnAdapter, ref: AgentSessionRe
  * collaborators come through `link`.
  */
 export class AssistantDispatch {
-  constructor(private readonly store: Pick<AssistantStore, "addRound" | "get" | "permissionTransitions" | "markTold" | "relations" | "rounds" | "saveUnsettled" | "update">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly titles: Map<string, CapabilityTitles>, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantDispatchLinks) {}
+  constructor(private readonly store: Pick<AssistantStore, "addRound" | "preferences" | "get" | "permissionTransitions" | "markTold" | "relations" | "rounds" | "saveUnsettled" | "update">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly titles: Map<string, CapabilityTitles>, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantDispatchLinks) {}
 
   /** Where the person's words to a round under way go: its open question, or a supplement. */
   private readonly inputs = new AssistantInputs(MAX_TEXT);
@@ -363,7 +364,22 @@ export class AssistantDispatch {
         work = placed; assertSendCurrent(stillCurrent);
         dispatchHanded = true; intent?.handed?.();
         const delegation = !intent?.report_only && host.workDelegations?.(RUNTIME) ? assistantWorkPermission(work) : undefined;
-        const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, resume_answer: intent?.resume_answer, ...(intent?.report_only ? { report_only: true as const } : {}) }), delegation ? { ...authority, delegation } : authority);
+        const allowHistory = () => {
+          if (!work.overview_tracked) return false;
+          const grants = assistantOverviewGrants(this.store);
+          const allowed = this.ports.overviewReadable?.(this.actorId, work.work_id, grants.map(row => row.partition_id));
+          return this.store.preferences.permitsOverviewHistory(this.actorId, work.work_id, allowed ? grants.filter(row => allowed.includes(row.partition_id)) : grants);
+        };
+        const history = allowHistory() ? "session" : "digest";
+        const personalInputs = history === "digest" ? this.store.rounds(work.work_id, 16)
+          .filter(round => round.written_by === undefined).map(round => cutHead(round.text, 600)).join("\n") : "";
+        const textMaterials = personalInputs ? [...ready.materials, { material_id: "prior-person-input", title: "本人先前的要求", text: personalInputs }] : ready.materials;
+        const scopeCheck = authority.assertBeforeDispatch;
+        authority = { ...authority, assertBeforeDispatch: () => {
+          requireSynchronous(scopeCheck?.());
+          if (history === "session" && !allowHistory()) throw assistantErrors.scope("这项工作的总览读取许可已改变");
+        } };
+        const started = await host.start(RUNTIME, roundStartInput(work, { history, actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: textMaterials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, resume_answer: intent?.resume_answer, ...(intent?.report_only ? { report_only: true as const } : {}) }), delegation ? { ...authority, delegation } : authority);
         handoff.accepted(); return started;
       });
     } catch (error) {

@@ -1,7 +1,7 @@
 import { syncError } from "./sync-errors.js";
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { removeJellyOverview, writeJellyOverview } from "./overview.js";
+import { removeJellyOverview, removeJellySeriesOverview, writeJellyOverview, writeJellySeriesOverview } from "./overview.js";
 import { decodeJellyRow, encodeJellyRow, JELLY_TABLES, jellyRowColumns, validateJellyRow, type JellyRowKind, type JellyRows } from "./store.js";
 
 const KINDS = Object.keys(JELLY_TABLES) as JellyRowKind[];
@@ -39,6 +39,7 @@ export const jellyCollection: PluginSyncCollectionDefinition = {
         if (value === null) {
           db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
           if (kind === "item") removeJellyOverview(overview, id);
+          if (kind === "series") removeJellySeriesOverview(overview, id);
           return;
         }
         if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 的一条记录超过同步上限，原记录仍保留在本机", "limit");
@@ -55,6 +56,7 @@ export const jellyCollection: PluginSyncCollectionDefinition = {
         db.prepare(`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")}) ON CONFLICT(id) DO UPDATE SET ${columns.filter(column => column !== "id").map(column => `${column} = excluded.${column}`).join(", ")}`).run(...values);
         const stored = local(kind, id);
         if (kind === "item" && stored) writeJellyOverview(overview, decodeJellyRow("item", stored));
+        if (kind === "series" && stored) writeJellySeriesOverview(overview, decodeJellyRow("series", stored));
       },
     };
   },

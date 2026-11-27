@@ -1,3 +1,5 @@
+import { existingPartitionPluginHost } from "./partition-plugin-host.js";
+import { passivePartitionSync } from "./passive-partition-sync.js";
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { bindRuntimeSyncCollection, pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
 import { syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
@@ -62,6 +64,7 @@ export async function discoverRuntimeSyncCollections(home: string, spaceId: stri
   authorize();
   const projects = await withCatalog({ homeDirectory: home }, catalog => catalog.listPartitions());
   authorize();
+  const partitions = existingPartitionPluginHost(home);
   for (const project of [...projects].sort((a,b)=>a.project_id.localeCompare(b.project_id))) {
     await isolate(async () => {
       authorize();
@@ -71,6 +74,20 @@ export async function discoverRuntimeSyncCollections(home: string, spaceId: stri
         // A plugin with a library in each partition syncs from its own instance there (batch 107).
         for (const platform of await runningProjectPluginPlatforms(runtime.store, runtime.project_id)) await collect(platform, runtime.project_id);
       });
+      for (const pluginId of partitions?.plugins() ?? []) {
+        const owner = partitions?.syncOwner(pluginId);
+        if (!owner || !host.partitionSyncMember(current.project_id, pluginId)) continue;
+        for (const collection of owner.definition.manifest.sync?.collections ?? []) {
+          const binding = passivePartitionSync(home, spaceId, current.project_id, owner, collection, authorize,
+            () => host.partitionSyncMember(current.project_id, pluginId));
+          if (!binding) continue;
+          const key = syncNamespace({ ...binding, collection_id: collection.id, schema_version: collection.schema_version });
+          const rows = grouped.get(key) ?? [];
+          if (rows.some(row => row.projectId === current.project_id)) continue;
+          rows.push({ projectId: current.project_id, binding });
+          grouped.set(key, rows);
+        }
+      }
       authorize();
     });
   }

@@ -102,12 +102,6 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       plugin_id TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
-    CREATE TABLE IF NOT EXISTS project_plugin_exclusions (
-      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL,
-      removed_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, plugin_id)
-    );
     CREATE TABLE IF NOT EXISTS project_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,

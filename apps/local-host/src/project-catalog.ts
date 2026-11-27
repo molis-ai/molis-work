@@ -168,7 +168,7 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
  */
 function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
   return { ...BUILTIN_PLUGIN_REGISTRY,
-    isPersonal: pluginId => homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
+    has: pluginId => BUILTIN_PLUGIN_REGISTRY.has(pluginId) || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
 }
 
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */

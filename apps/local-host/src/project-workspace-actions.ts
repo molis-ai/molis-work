@@ -127,13 +127,8 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
       }, caller.beforeEffect));
       const home = catalogOwner()?.home;
       if (home) {
-        const beforeHidden = new Set(before.hidden);
         const savedPlugins = new Set(saved.plugins);
-        const disabledKeys = new Set<string>([
-          ...saved.hidden.filter(id => !beforeHidden.has(id)),
-          ...before.plugins.filter(id => !savedPlugins.has(id)),
-        ]);
-        for (const key of disabledKeys) {
+        for (const key of before.plugins.filter(id => !savedPlugins.has(id))) {
           const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key || item.manifest.plugin_id === key);
           disposeWorkTerminalsForHomePluginInProject(home, entry?.manifest.plugin_id ?? key, projectId);
           // A plugin with a library in each partition: its due entries and overview rows there go, though the partition may not be open.

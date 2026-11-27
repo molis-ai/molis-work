@@ -231,6 +231,12 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
   return project.ready;
 }
 
+/** Partition declarations used before the first project opens, so a due entry can resolve its own plugin on cold start. */
+export function declarePartitionPlugins(home: string): void {
+  const scoped = projectScopeEntries([...projectPluginEntries(), ...projectFixtureEntries(home)], home);
+  partitionPluginHostFor(home, startPartitionPluginInstance).declare(scoped.filter(entry => assembledPerPartition(entry.definition.manifest)));
+}
+
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
   const record: ProjectPluginState = { platform: null };
   try {

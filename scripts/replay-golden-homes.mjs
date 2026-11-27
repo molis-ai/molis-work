@@ -110,6 +110,20 @@ function assertRowsKept(manifest, home) {
   }
 }
 
+/** The seeded Todo and the scheduler must still identify the same future reminder after both starts. */
+function assertSeededReminders(manifest, root) {
+  for (const entry of manifest.stores.filter(row => row.path.endsWith("due-registry/due-registry.db") && row.tables.due_entries > 0)) {
+    const home = path.resolve(root, path.dirname(entry.path), "..");
+    const library = new DatabaseSync(path.join(home, "personal-space/libraries/todo.db"), { readOnly: true });
+    const due = new DatabaseSync(path.join(root, entry.path), { readOnly: true });
+    try {
+      const task = library.prepare("SELECT id, remind_at FROM todo_items WHERE title = ?").get("金样待办 seed 已改");
+      const row = task && due.prepare("SELECT due_at FROM due_entries WHERE partition_id='personal' AND plugin_id='io.molis.work.todo' AND source='overview' AND entry_key=?").get("task:" + task.id);
+      if (!row || Date.parse(row.due_at) !== Date.parse(task.remind_at)) throw goldenFailure("golden.seeded_reminder_missing", entry.path);
+    } finally { due.close(); library.close(); }
+  }
+}
+
 /** Start a Host on each Home and close it, opening no project: the Home's own upgrade runs as it starts (U1 design §4). */
 async function startEveryHost(homes) {
   for (const item of homes) await (await openGoldenHost(item.at, { web: !item.account })).close();
@@ -261,7 +275,7 @@ async function replayGolden(name) {
     const homes = homesOf(manifest, restored.home);
     step = "upgrade"; await startEveryHost(homes);
     step = "upgrade"; await openEveryProject(homes);
-    step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home);
+    step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home); assertSeededReminders(manifest, restored.home);
     step = "structure"; await assertStructure(homes);
     step = "versioned-files";
     const { count, computerSettings } = await readVersionedFiles(manifest, source, homes);
@@ -274,6 +288,7 @@ async function replayGolden(name) {
     step = "home-library"; steps.home_library = await replayHomeLibrary(manifest, homes);
     step = "restart-structure"; await assertStructure(homes); steps.restarts.push(step);
     step = "restart-read"; steps.restart_reads = await readEverything(manifest, homes); steps.restarts.push(step);
+    assertSeededReminders(manifest, restored.home);
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
     const not_run = [
       ["third-party", steps.third_party],

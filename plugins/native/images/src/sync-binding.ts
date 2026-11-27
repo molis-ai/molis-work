@@ -1,9 +1,9 @@
 import { createImagesSyncContent } from "./sync-files.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginStartContext, PluginSyncBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionSyncContext, PluginSyncBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { syncTupleLocation } from "@molis-ai/molis-work-plugin-sdk";
 import { imagesCollection } from "./replication.js";
-export function syncBindings(context: PluginStartContext): PluginSyncBinding[] {
+export function syncBindings(context: PartitionSyncContext): PluginSyncBinding[] {
   const scope=context.sync ?? context.copy;
   if(!scope)return [];
   const service=context.services?.sync;

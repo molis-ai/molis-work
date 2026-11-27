@@ -26,6 +26,8 @@ function validateSchedule(schedule: JellySchedule): void {
   jellyAssert((schedule.start_time === null) === (schedule.end_time === null), "开始和结束时间必须同时填写");
   for (const minute of [schedule.start_time, schedule.end_time]) jellyAssert(minute === null || (Number.isInteger(minute) && minute >= 0 && minute < 1440), "时间必须是 0–1439 的分钟数");
   if (schedule.start_date === schedule.end_date && schedule.start_time !== null && schedule.end_time !== null) jellyAssert(schedule.end_time > schedule.start_time, "结束时间必须晚于开始时间");
+  const before = schedule.reminder_minutes;
+  jellyAssert(before == null || (Number.isInteger(before) && before >= 0 && before <= 10_080), "提醒应在开始前一周以内");
   jellyAssert(typeof schedule.time_zone === "string" && isTimeZone(schedule.time_zone), "时区无效");
 }
 const stamp = (value: unknown): boolean => typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -97,7 +99,7 @@ export type JellySeriesScope = "onlyThis" | "thisAndFuture" | "all";
 export interface JellySeriesPatch extends JellyOccurrencePatch { weekdays?: number[]; until?: string | null; completed?: boolean }
 /** What a change to a series leaves: the series as it is now (`null` when nothing of it is left) and, for "this and following", the new series split off. */
 export interface JellySeriesChange { series: JellySeries | null; created: JellySeries | null }
-const OCCURRENCE_FIELDS = ["title", "kind", "category_id", "notes", "start_date", "end_date", "start_time", "end_time"] as const;
+const OCCURRENCE_FIELDS = ["title", "kind", "category_id", "notes", "start_date", "end_date", "start_time", "end_time", "reminder_minutes"] as const;
 function pick(patch: JellySeriesPatch): JellyOccurrencePatch {
   return Object.fromEntries(OCCURRENCE_FIELDS.filter(key => patch[key] !== undefined).map(key => [key, key === "title" ? patch.title!.trim() : patch[key]]));
 }

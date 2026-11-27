@@ -3,7 +3,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { builtinPluginByManifestId, BUILTIN_PLUGIN_IDS } from "./plugin-registry.js";
+import { BUILTIN_PLUGIN_IDS } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
 import { bindLocalWebActions, bindWebEntryActions, localWebActionContext, type LocalWebActionClient, type LocalWebEntry } from "./local-web-actions.js";
@@ -65,24 +65,18 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const selection = async (projectId: string, versioned: boolean, fresh = false): Promise<{ shown: string[]; revision?: string }> => {
     const home = localHost.homePlugins;
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
-    const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
-      const external = (home?.registered() ?? []).filter(entry => !builtinPluginByManifestId(entry.manifest.plugin_id)
-        && !hidden.includes(entry.key)).map(entry => entry.key);
-      const recoverable = home?.damagedPackages().map(({ record }) => record.plugin_id).filter(id => !hidden.includes(id)) ?? [];
-      return [...new Set([...plugins, ...external, ...recoverable])];
-    };
-    // An explicitly served single-database fixture has no Catalog record; expose all registered project-scoped plugins.
-    if (!options.project) return { shown: withExternal(BUILTIN_PLUGIN_IDS, []) };
+    // A standalone database fixture has no catalog record.
+    if (!options.project) return { shown: [...BUILTIN_PLUGIN_IDS, ...homePluginsOutsideBuild(homeDirectory)] };
     // A versioned read needs the revision of exactly the membership it shows, so it reads on its own; the others share one reading (N44).
     if (versioned) return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
-      const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId);
-      return { shown: withExternal(plugins, hidden), revision };
+      const { plugins, revision } = catalog.projectPluginMembershipWithRevision(projectId);
+      return { shown: plugins, revision };
     });
     // The protected page projection asks for the live membership even when a display read was cached inside the short window.
-    const { plugins, hidden } = fresh
+    const { plugins } = fresh
       ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.projectPluginMembership(projectId))
       : await observeProjectPluginMembership(composition, homeDirectory, projectId);
-    return { shown: withExternal(plugins, hidden) };
+    return { shown: plugins };
   };
   return { ...context, options, hostReference, userActions,
     shownPlugins: async projectId => (await selection(projectId, false)).shown,

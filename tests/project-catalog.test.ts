@@ -1109,6 +1109,7 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
     try {
       older.prepare("DELETE FROM catalog_meta WHERE key = 'mark.former-personal-plugins'").run();
       older.prepare(`DELETE FROM partition_plugins WHERE plugin_id IN (${six.map(() => "?").join(",")})`).run(...six);
+      older.exec("CREATE TABLE IF NOT EXISTS project_plugin_exclusions (project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, removed_at TEXT NOT NULL, PRIMARY KEY(project_id, plugin_id))");
       older.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'pages', ?)").run(hiding.project_id, new Date().toISOString());
     } finally { older.close(); }
 

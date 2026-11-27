@@ -14,7 +14,7 @@ export type Scope = "onlyThis" | "thisAndFuture" | "all";
 export interface Draft {
   occurrence: JellyOccurrence | null;
   title: string; kind: "task" | "event"; allDay: boolean;
-  start_date: string; end_date: string; start_time: string; end_time: string;
+  start_date: string; end_date: string; start_time: string; end_time: string; reminder_minutes: string;
   repeat: boolean; weekdays: number[]; until: string;
   category_id: string; notes: string; scope: Scope;
   /** Set when the save met a newer version of this entry: the page says so and offers the latest. */

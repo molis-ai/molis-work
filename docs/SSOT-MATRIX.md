@@ -168,14 +168,14 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；另有显式「AI 拟列」（经 Prologue 文字模型）；对外只经动作目录与逐客户端授权 | `production` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲（可按文字、AI 整理或 Pages 文档生成）、主题色、预览、JSON 与 .pptx 导出（不含图片与图表）；对外只经动作目录与逐客户端授权 | `production` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/lingguang` | 灵光一级入口：收想法的唯一处 | 快记、导入文件与读取链接成灵感、转成 Jelly 笔记、流式列表、丢掉确认、「复制内容」；头脑风暴对话经 Prologue 文字模型，未配置模型时如实显示不可用；不写 Goal/Artifact；动作经逐客户端授权对外 | `production` | `specs/archive/lingguang-plugin/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/todo` | 待办一级入口：用户需要推进的事项的正式管理位置 | 个人与项目待办（先记录后归属）、五种状态与归档、截止/计划/提醒三种日期、来源与形成原因、关联、修改记录与撤销、视图/搜索/批量；私人库 `{home}/todo/todo.db`；动作 Home 级登记，项目内只见本项目与个人待办，“所有项目”只给本人界面；Todo 负责整理提示、提取校验、候选批次及采用写入，宿主提供模型调用，Assistant 可发起整理并跟进 | `production` | `specs/archive/todo-plugin/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/todo` | 待办一级入口：用户需要推进的事项的正式管理位置 | 个人与项目待办（先记录后归属）、五种状态与归档、截止/计划/提醒三种日期、来源与形成原因、关联、修改记录与撤销、视图/搜索/批量；各分区独立库 `<分区>/libraries/todo.db`；动作只处理所在分区的待办，“所有项目”只给本人界面；Todo 负责整理提示、提取校验、候选批次及采用写入，宿主提供模型调用，Assistant 可发起整理并跟进 | `production` | `specs/archive/todo-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；Feed 管理 Source、Signal 与 Feed，命中出站规则时提交捕捉，Attention 服务写注意事项，成果库通过固定版本写入接口保存捕捉成果；缺片：Inbox/Feed 拆插件切片 3；后续：切片 3 计划 | `slice` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/coding` | Coding App（`app`）：会话、轮次、计划、报告、变更集、协同与委派 | Plugin Runtime 托管；执行经 Agent Host/Prologue；执行报告进成果库（`coding.report.v1`），计划、变更集、图与目标上下文是 Coding 自己的过程项；19 项 `coding.*` 动作（16 项业务动作，另有对象读取、搜索与成果预览） | `production` | `specs/coding-plugin/spec.md` 第 0 节；后续 `next-requirements.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/git` | Git 工作区变更与提交草稿（`app`，Coding 家族） | Runtime 托管；`git` 由平台的工作区 Git 服务运行（宿主的 `workspace-git*.ts`，只给插件调的动作 `projects.workspace.git.*`、`projects.workspace.writers.*`），插件经 SDK 解析 porcelain v1、把每处改动发布为可对比的变更集。不指定文件夹时 Git 看输出目录，写（暂存、提交）只在输出目录里，只作输入的目录写不进（`projects.directory_input_only`）。接受一次 Coding Run 的改动不经 Git：主工作区里的每次写入先由人审查，并行子任务的成果经 Coding 的整合审查（`review:git-integration`）回到主工作区 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/diff` | 对比界面：同一处理三种输入（`app`，Coding 家族） | Runtime 托管；输入是平台资料服务（`system.materials`，宿主 `system-materials-actions.ts`）固定的两个快照、Coding Run 准备的变更集、Git 工作区里的改动；变更集过程项类型 `diff.changeset.v1` 按这个消费者定义 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
-| `plugins/native/issues` | 个人问题的原始描述、类型、上下文与版本 | Home Runtime 托管；业务表 `{home}/issues/issues.db`；页面、助理、MCP 共用 `issues.*`，项目切换不分库；连接和授权由 Host 提供 | `production` | `specs/archive/issue-home-v0/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/images` | 个人生图与项目生成记录 | Home Runtime 独占原库/文件；生图经有限服务和 Prologue | `production` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | Home Runtime 独占自己的库；不调用模型 | `production` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
+| `plugins/native/issues` | 个人问题的原始描述、类型、上下文与版本 | 分区实例拥有 `<分区>/libraries/issues.db`；页面、助理与 MCP 经同一组分区动作 `issues.*`；连接和授权由 Host 提供 | `production` | `specs/archive/issue-home-v0/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/images` | 个人生图与项目生成记录 | 分区实例独占图片任务库与图片文件；生图经宿主授权的连接 | `production` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | 各分区独立持有 `libraries/jelly.db`，包含日程、循环与笔记 | `production` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `production` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果；由宿主的按分区装配在每个启用它的分区各起一份，经 `actions:delegate` 以调用者本人的身份调站点与步骤，不放宽调用者的授权 | `production` | `specs/action-architecture/spec.md` 工作流程节；`specs/archive/repository-anti-corruption/spec.md` W5-01-WORKFLOWS | 内置插件：@yijunw0212 |
 | `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `production` | `specs/archive/connector-method-directory/spec.md` | 官方集成：@yijunw0212 |
@@ -260,7 +260,7 @@ Agent Host 经 Prologue 的存储读写。工作区授权由 Home 的项目目�
 
 | 责任 | Owner | 唯一事实源 |
 | --- | --- | --- |
-| 本机生图连接、项目任务、生成图片 | `plugins/native/images` | `{home}/images/images.db` 与 `assets/`；合同 `plugins/native/images/src/contract.ts` |
+| 本机生图连接、项目任务、生成图片 | `plugins/native/images` | `<分区>/libraries/images.db` 与 `<分区>/plugin-files/<安装>/images/assets/`，服务偏好归本人设置；合同 `plugins/native/images/src/contract.ts` |
 | 连接凭据、授权与实际模型请求 | Connector owner / Home Host / agent-host | Connector 连接与绑定；可信声明选择命名空间，imageGeneration 服务只交回字节与当次 revision |
 
 协议、范围与验证边界：`specs/archive/images-plugin/spec.md`；不改变文字模型设置，不自动重试或声明 Artifact 发布。

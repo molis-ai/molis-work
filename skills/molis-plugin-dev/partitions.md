@@ -2,7 +2,7 @@
 
 个人空间（`personal`）和每个项目是同构的「分区」（[统一工作分区](../../specs/unified-partition-plugins/spec.md)）。一个插件装一次（Home 一张安装表），在哪个分区启用就在那个分区有自己的一份数据。本页四节写插件怎样声明；字段都在 Manifest，类型在 `@molis-ai/molis-work-contracts/platform/plugin`，由 SDK 的 `partitionDeclarationProblems` 检查（`parsePluginManifest`／`assertManifest` 与安装都会跑它，写错了装不上）。
 
-> 现状（第 108 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows（第 107 批）与 Todo、Issues、Cognia、Images（第 108 批）已经用 `databases.partition`，由宿主的按分区装配在每个启用它们的分区各跑一个实例（安装记录在 Home 一张安装表，运行状态按「安装 × 分区」分开记）；到期定时器随宿主起停，同步写入与恢复后标记总览待重读。个人空间总览（`overview.read@1`，本人与经本人授权的个人助理）、到期投递与随人设置已经接上（第 108 批）；推送与随启用在第 109–111 批接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。注意：从产品入口装的签名包眼下仍由项目平台按项目装、按项目跑（第 109 批接到按分区装配）；这之前带 `databases.partition` 的签名包在项目里起不来（项目平台拒绝替它开分区库），内置插件以外先别用。
+> 现状（第 108 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows（第 107 批）与 Todo、Jelly、Issues、Cognia、Images（第 108 批）已经用 `databases.partition`，由宿主的按分区装配在每个启用它们的分区各跑一个实例（安装记录在 Home 一张安装表，运行状态按「安装 × 分区」分开记）；到期定时器随宿主起停，同步写入与恢复后标记总览待重读。个人空间总览（`overview.read@1`，本人与经本人授权的个人助理）、到期投递与随人设置已经接上（第 108 批）；推送与随启用在第 109–111 批接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。注意：从产品入口装的签名包眼下仍由项目平台按项目装、按项目跑（第 109 批接到按分区装配）；这之前带 `databases.partition` 的签名包在项目里起不来（项目平台拒绝替它开分区库），内置插件以外先别用。
 
 ## 分区存储
 
@@ -81,3 +81,16 @@ await services.database.transaction(caller.beforeEffect, tx => {
 - [ ] 提醒写在总览表的 `remind_at`，没有自己再造定时器
 - [ ] `person_settings` 里只有 `preference` 标了 `portable`
 - [ ] `push` 引用的都是自己的动作；`dependencies` 每条都有给人看的 `reason`
+
+### 用自己的提醒和本人的总览
+
+Todo 的 [投影写入](../../plugins/native/todo/src/overview.ts) 与 Jelly 的[发生项](../../plugins/native/jelly/src/overview.ts)在更新业务记录的事务里给 `overviewRows` 写入 `remind_at`。平台从提交后的本地或同步写入维护登记。对于插件自己的超时任务，可沿用 Images 的[队列回调](../../plugins/native/images/src/plugin.ts)。
+
+```ts
+// context 是这个分区的启动上下文。entry_key 在该分区、该安装内稳定。
+context.services.due?.register({ entry_key: job.id, due_at: job.deadline });
+```
+
+到期回调先用 `delivery.beforeEffect()` 复查权限，再把结果写进本分区业务库。通过 `{ reminder: { title, open } }` 返回需要告诉本人的内容。宿主等待通知接收成功才确认这次交付。重复交付同一键与时间时读取已完成的业务结果。
+
+总览的消费者是受保护的本人入口或个人助理。其调用写法可见[受保护工作台路由](../../apps/local-host/src/runtime-overview-http.ts)与[平台读取动作](../../apps/local-host/src/overview-actions.ts)。本人可在个人空间查看各项目的任务；助理只获得本人已同意的项目及字段。插件可提供本分区投影，插件通过 SDK 自行查询跨项目总览会被拒绝。当前休眠分区的同步装配通过内置分区插件的所有者实现，外部签名包以实际运行时授予的端口为准。

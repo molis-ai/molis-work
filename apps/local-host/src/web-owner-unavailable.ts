@@ -69,7 +69,7 @@ export async function withOwnerUnavailablePage(context: WebRequestContext, proje
     // The project's name and saved plugins come from the catalog; when the catalog is the store refused, there is nothing to read them from.
     const projection = selectedId && owner?.block.kind !== "projects" ? await composition.withCatalog({ homeDirectory: home }, catalog => ({
       project: catalog.getProject(selectedId), membership: ledger ? catalog.storedProjectPluginMembership(selectedId) : undefined,
-    })) : { project: null, membership: ledger ? { plugins: [], hidden: [] } : undefined };
+    })) : { project: null, membership: ledger ? { plugins: [] } : undefined };
     const card: OwnerUnavailableCard = owner && !ledger ? ownerUnavailableCard(owner, projection.project, reloadHref, rollbackHrefFor(home, owner.reason))
       : { title: uiText.text("workbench.owner-unavailable.block.home-plugin-ledger"), reason: owner?.reason ?? "unreadable",
         diagnostic_id: owner?.diagnostic_id ?? diagnosticId("none", "home-plugin-runtime"), rollback_href: null, reload_href: reloadHref };

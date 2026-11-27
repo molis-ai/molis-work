@@ -44,13 +44,15 @@ export async function invokePluginQuery<Output>(context: PluginStartContext, man
     requireSynchronous(original.assert_authority_current?.());
   };
   const check = async () => { source(); await original.beforeEffect(); source(); };
-  const caller: ActionCallContext = { ...original, query_only: true, locale: activeLocale() ?? undefined,
+  const caller: ActionCallContext = { ...original, delegated_by: manifest.plugin_id, delegated_audience: original.audience, query_only: true, locale: activeLocale() ?? undefined,
     permissions: original.permissions.filter(permission => declared.has(permission) && context.grants.includes(permission)),
     validate_authority: async target => { await check(); await original.validate_authority?.(target); source(); },
     validate_permissions: async permissions => { source(permissions); await original.validate_permissions?.(permissions); source(); },
     assert_authority_current: (target, permissions) => { source(permissions); requireSynchronous(original.assert_authority_current?.(target, permissions)); },
   };
   Reflect.deleteProperty(caller, "stage_scene_metadata");
+  Reflect.deleteProperty(caller, "direct_person_entry");
+  Reflect.deleteProperty(caller, "acting_for");
   await check();
   const pinned = { ...ref, provider_id: await pluginActionProvider(options.client, caller, ref) };
   await check();

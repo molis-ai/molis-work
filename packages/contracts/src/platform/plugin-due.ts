@@ -62,6 +62,10 @@ export interface PluginDueOutcome {
 export interface PluginPersonSettingsClient {
   get(key: string): PersonSettingRecord | null;
   list(): PersonSettingRecord[];
+  /** Captures this installation's settings under the current reader's authority. The later check discloses only whether that snapshot still holds. */
+  snapshot(): { readonly records: readonly PersonSettingRecord[]; current(): boolean };
+  /** Compare revisions and commit all declared keys in a single transaction, including portable and device-only parts of one edit. */
+  setMany(changes: readonly { readonly key: string; readonly value: unknown; readonly expected_revision?: number | null }[]): PersonSettingRecord[];
   /** With `expected_revision`, refused (`actions.conflict`) when the stored one differs; `null` expects none. */
   set(key: string, value: unknown, options?: { readonly expected_revision?: number | null }): PersonSettingRecord;
   remove(key: string): boolean;

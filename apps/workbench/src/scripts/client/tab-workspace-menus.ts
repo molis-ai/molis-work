@@ -192,7 +192,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const input = find.lastChild;
     input.placeholder = globalThis.t.text("workbench.tab-workspace-menus.find-plugin-tab-just-closed"); input.setAttribute("aria-label", input.placeholder);
     list.setAttribute("role", "menu"); list.setAttribute("aria-label", globalThis.t.text("common.control.open"));
-    list.append(menuGroup(globalThis.t.text("workbench.tab-workspace-menus.project"), offered.filter((entry) => !entry.personal).map(row)), menuGroup(globalThis.t.text("workbench.tab-workspace-menus.personal-every-project"), offered.filter((entry) => entry.personal).map(row)), menuGroup(globalThis.t.text("workbench.tab-workspace-menus.recently-closed"), recent));
+    list.append(menuGroup("", offered.map(row)), menuGroup(globalThis.t.text("workbench.tab-workspace-menus.recently-closed"), recent));
     foot.className = "tab-menu-foot"; foot.setAttribute("aria-hidden", "true"); foot.textContent = globalThis.t.text("workbench.tab-workspace-menus.opens-here-opens-beside").replace("⌥", keyName("⌥", "Alt+"));
     const filter = () => {
       const words = input.value.trim().toLowerCase();

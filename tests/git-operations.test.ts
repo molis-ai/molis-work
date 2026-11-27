@@ -418,6 +418,7 @@ test("F-hc2-21: post-dispatch failures in commit and pr-create surface EFFECT_RE
   await f.git("config", "--unset", "core.hooksPath");
   await f.git("commit", "-qm", "clean commit");
   await f.git("switch", "-q", "-c", "pr-branch");
+  await f.git("push", "-q", "-u", "origin", "pr-branch");
   await f.git("remote", "set-url", "origin", "https://github.com/acme/demo.git");
   const bin = path.join(f.directory, "gh-bin");
   await mkdir(bin);

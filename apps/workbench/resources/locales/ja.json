@@ -2241,6 +2241,7 @@
     "workbench.capabilities.capability-identity": "機能識別子",
     "workbench.capabilities.capability-library": "機能カタログ",
     "workbench.capabilities.capability-scope": "機能スコープ",
+    "workbench.capabilities.capability-selection-unavailable": "参照された機能またはバージョンにアクセスできません。プラグインの状態や権限を確認するか、別の機能を選んでください。",
     "workbench.capabilities.capability-service": "機能サービス",
     "workbench.capabilities.capability-unavailable": "この機能は利用できなくなりました",
     "workbench.capabilities.compatible-contract": "契約に適合",

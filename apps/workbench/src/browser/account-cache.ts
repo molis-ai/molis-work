@@ -4,7 +4,7 @@ const prefixes = [
   'molis.assistant.', 'molis.characters.drafts:', 'molis-plugin-page:', 'molis-review-feedback:', 'molis-connectors-', 'molis.home-action:',
   'molis.work-line.', 'molis.mainline.', 'molis.home.decision:', 'molis.surface-unsettled:',
   'molis-work:functions-keep:', 'molis-work-home-seen:', 'molis-work-artifact-selection:',
-  'molis-work:plugin-retained:', 'molis-work:plugin-toast:', 'molis-shell-refresh:',
+  'molis-work:plugin-retained:', 'molis-work:plugin-toast:',
   'molis-work-plugin-records:', 'molis-work-tab-history:', 'molis-work-tab-workspace:',
   'molis-work-frame-container:', 'molis-work-goal-work-modes:', 'molis-work-ui:',
   'molis-work-goal-move-receipt:', 'molis-work-guidance-receipt:', 'molis-work-studio-build:',

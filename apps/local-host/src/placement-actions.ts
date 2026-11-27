@@ -54,7 +54,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   let closed = false;
   let closing: Promise<void> | undefined;
   const assertOpen = () => {
-    if (closed || !db.open) throw new ActionError("actions.expired", "原放置服务已关闭");
+    if (closed || !db.isOpen) throw new ActionError("actions.expired", "原放置服务已关闭");
   };
   const record = async (projectId: string): Promise<PlacementProjectRecord> => {
     assertOpen();

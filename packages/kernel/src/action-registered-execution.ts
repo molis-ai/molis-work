@@ -74,8 +74,8 @@ export function registerActionExecution({ registeredDefinition, handler, validat
         } : (caller, target) => effects.beforeEffect?.(caller, target), registry, ref => resolve(context, ref), effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
       checkDecision?.attach(execution);
       const checked = prepareSubjectStateResult(execution, definition, provider, input, registry, () => executing, value => checkedActionResult(definition, validateOutput, value), () => inDirectoryPass(() => {
-        assertCurrentAuthority(context, reference, definition.action.permissions);
         assertCurrent();
+        assertCurrentAuthority(context, reference, definition.action.permissions);
       }));
       // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
       const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, checkDecision ? checkDecision.input : input));
@@ -86,9 +86,11 @@ export function registerActionExecution({ registeredDefinition, handler, validat
       const pending = Promise.resolve(result);
       const deliver = async (value: unknown) => {
         if (definition.operation === "query") {
-          if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
-          await context.validate_authority?.(reference);
-          await context.validate_permissions?.(definition.action.permissions);
+          assertCurrent();
+          if (definition.action.scheduling === "concurrent" && !context.assert_authority_current) {
+            await context.validate_authority?.(reference);
+            await context.validate_permissions?.(definition.action.permissions);
+          }
         }
         return checked(value);
       };

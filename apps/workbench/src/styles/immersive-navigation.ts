@@ -395,7 +395,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--weight-control, 500);
   }
   body.immersive-workbench .global-search-hit-plugin { flex: none; font-size: 11px; color: var(--faint); }
-  body.immersive-workbench .global-search-hit kbd { flex: none; font: inherit; font-size: 10px; line-height: 1.4; color: var(--faint); border: 0; background: transparent; padding: 0; }
+  body.immersive-workbench .global-search-hit kbd { flex: none; font: inherit; font-size: 11px; line-height: 1.4; color: var(--faint); border: 0; background: transparent; padding: 0; }
   body.immersive-workbench .global-search-empty { margin: 16px 12px; font-size: 13px; color: var(--muted); }
   html[data-resolved-theme="dark"] body.immersive-workbench .global-search-dialog { box-shadow: var(--lift-3); }
   html[data-resolved-theme="dark"] body.immersive-workbench .global-search-dialog::backdrop { background: var(--scrim); }

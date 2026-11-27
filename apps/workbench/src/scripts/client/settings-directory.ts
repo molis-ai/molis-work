@@ -226,11 +226,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     };
     const loadSection = async (section, fetchPath) => {
       if (!body) return;
-      if (options.kind === "settings" && section === "update" && location.pathname !== "/settings/update") {
-        const target = fetchPath || options.sectionPath(section);
-        location.assign(globalThis.molisWorkNavigationUrl ? globalThis.molisWorkNavigationUrl(target) : target);
-        return;
-      }
       const dir = directionTo(section);
       const local = options.local?.(section);
       if (local) {

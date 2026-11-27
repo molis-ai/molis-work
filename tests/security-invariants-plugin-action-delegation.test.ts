@@ -683,7 +683,7 @@ test("F-hc2-10 delegated directory invokes and plugin query calls strip hop-scop
   assert.equal(Reflect.get(delegatedSeen, "original_file"), undefined, "original_file stripped from delegated invoke");
   assert.equal(Reflect.get(delegatedSeen, "named_skills"), undefined, "named_skills stripped from delegated invoke");
 
-  probe.behavior.handle = async (context, caller) => context.services!.actions!.invoke(queryTarget, {}, caller);
+  probe.behavior.handle = async context => context.services!.actions!.invokeQuery(queryTarget, {});
   assert.equal(await s.run({ op: "query" }, tainted), "done");
   const querySeen = s.targetsSeen.at(-1)!;
   assert.deepEqual(querySeen.user_action, tainted.user_action, "user_action is preserved on plugin query");

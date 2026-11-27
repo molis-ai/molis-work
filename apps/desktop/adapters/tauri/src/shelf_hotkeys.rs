@@ -1221,7 +1221,10 @@ mod tests {
         assert!(markdown.contains("# Article"), "{markdown}");
         assert!(markdown.contains("Body text"), "{markdown}");
         assert!(markdown.contains("- Real item"), "{markdown}");
-        assert!(!markdown.contains("- \n"), "link must not become a list item: {markdown}");
+        assert!(
+            !markdown.contains("- \n"),
+            "link must not become a list item: {markdown}"
+        );
 
         for head_open in [
             "<head><meta></head>",
@@ -1230,9 +1233,8 @@ mod tests {
             "<head\n><meta></head>",
             "<head/>",
         ] {
-            let doc = format!(
-                "<html>{head_open}<body><header>Banner</header><p>Kept</p></body></html>"
-            );
+            let doc =
+                format!("<html>{head_open}<body><header>Banner</header><p>Kept</p></body></html>");
             let out = html_to_markdown(&doc);
             assert!(out.contains("Banner"), "{head_open} => {out}");
             assert!(out.contains("Kept"), "{head_open} => {out}");

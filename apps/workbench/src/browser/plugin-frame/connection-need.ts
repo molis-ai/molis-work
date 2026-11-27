@@ -219,15 +219,13 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     enable: entry => { if (entry.stage === "disabled") void c.act(entry, async () => { const answer = await ask<Read>(entry.target, { operation: "enable" }); if (live(entry)) c.settle(entry, answer); }); },
     switch: entry => { const other = entry.other; if (other) void c.act(entry, () => c.put(entry, other.connection_id)); },
     reopen: entry => {
-      const url = entry.auth?.url;
-      if (!url) return;
-      let protocol = "";
-      try { protocol = new URL(url).protocol; } catch { return; }
-      const external = globalThis.molisWorkOpenExternalUrl;
-      if ((protocol === "https:" || protocol === "http:") && typeof external === "function") {
-        void Promise.resolve(external(url)).catch(() => undefined);
-      } else if (protocol === "https:" || protocol === "http:" || protocol === "mailto:") {
-        window.open(url, "_blank", "noopener,noreferrer");
+      const target = entry.auth?.url;
+      if (!target || !isConnectionLoginUrl(target)) return;
+      const openExternal = globalThis.molisWorkOpenExternalUrl;
+      if (typeof openExternal === "function") {
+        void Promise.resolve(openExternal(target)).catch(() => undefined);
+      } else {
+        window.open(target, "_blank", "noopener,noreferrer");
       }
     },
     retry: entry => void c.act(entry, () => begin(entry)),

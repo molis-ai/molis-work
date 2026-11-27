@@ -128,7 +128,7 @@ export async function capabilitiesView(options: {
     const projectReaders = await projectActionLocaleReaders(host, reference);
     const words = resolveActionLibraryWords(actions, { host, projectReaders });
     return { ...model, actions, selected, library_titles: words.titles, library_descriptions: words.descriptions, library_providers: words.providers,
-      ...(selectedId && !selected ? { selection_error: readWorkbenchText("workbench.capabilities.capability-unavailable") } : {}),
+      ...(selectedId && !selected ? { selection_error: readWorkbenchText("workbench.capabilities.capability-selection-unavailable") } : {}),
       ...(selected ? { offered_in: offeredIn(actions, selected), reported_usages: reported!.usages, usage_issues: reported!.issues } : {}),
       ...(selected?.action.kind === "judgment" ? {
         scenes: await scenes.discoverScenes(caller, selected), usages: await scenes.usages(caller, selected),

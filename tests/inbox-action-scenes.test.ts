@@ -464,8 +464,8 @@ test("F-plugins-rest-w2-02: disabling Feed degrades Inbox list/search/events cle
     await actions.discover(caller);
     const dismissed = await actions.invoke(caller, inboxActions.setStatus, { entry_id: entry.entry_id, status: "dismissed", expected_revision: entry.revision }) as { entry: { revision: number } };
     feedDisabled = true;
-    const contentList = await actions.invoke(caller, inboxContentActions.list, {}) as { items: unknown[] };
-    assert.ok(Array.isArray(contentList.items));
+    const contentList = await actions.invoke(caller, inboxContentActions.list, {}) as unknown[];
+    assert.ok(Array.isArray(contentList));
     const searchEntries = inboxManifest.actions!.find(a => a.capability_id === "inbox.search.entries")!;
     const eventsAction = inboxManifest.actions!.find(a => a.capability_id === "inbox.events")!;
     const searched = await actions.invoke(caller, searchEntries, { cursor: null, limit: 20 }) as { entries: unknown[] };

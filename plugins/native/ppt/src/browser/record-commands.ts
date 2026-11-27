@@ -94,19 +94,18 @@ export async function exportDeck(page: PptPage, button: HTMLElement): Promise<vo
 }
 
 export async function deleteDeck(page: PptPage): Promise<void> {
-  const { s } = page;
-  const seq = s.editorSeq;
-  const id = s.selected?.id;
+  const { s } = page, seq = s.editorSeq, id = s.selected?.id;
   if (!id) return;
+  const same = () => seq === s.editorSeq && s.selected?.id === id;
   const deleted = await page.ask(uiText.text("ppt.dialog.delete-confirm"), uiText.text("ppt.action.delete"), async () => {
-    if (seq !== s.editorSeq || s.selected?.id !== id) return;
+    if (!same()) return;
     await page.save();
-    if (seq !== s.editorSeq || s.selected?.id !== id) return;
+    if (!same()) return;
     const open = page.open();
     try { await page.request("POST", urlOf(page, open.id, "/delete"), { expected_version: open.version }); }
-    catch (error) { if (seq === s.editorSeq && s.selected?.id === open.id && (error as Failure).code === "ppt.conflict") s.saveError = error; throw error; }
+    catch (error) { if (same() && (error as Failure).code === "ppt.conflict") s.saveError = error; throw error; }
   });
   if (!deleted) return;
-  if (seq === s.editorSeq && s.selected?.id === id) page.closeEditor();
+  if (same()) page.closeEditor();
   await page.loadList();
 }

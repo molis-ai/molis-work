@@ -230,8 +230,8 @@ fn read_http_response(
                         if pos > MAX_HEAD_BYTES {
                             return Err(incomplete_message());
                         }
-                        let head_text = std::str::from_utf8(&raw[..pos])
-                            .map_err(|_| incomplete_message())?;
+                        let head_text =
+                            std::str::from_utf8(&raw[..pos]).map_err(|_| incomplete_message())?;
                         is_chunked = head_text.split("\r\n").skip(1).any(|line| {
                             line.split_once(':').is_some_and(|(name, value)| {
                                 name.trim().eq_ignore_ascii_case("transfer-encoding")

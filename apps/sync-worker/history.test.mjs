@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {cloudFixture} from './testing.mjs';
 
 const url=(f,path,extra={})=>path+'?'+new URLSearchParams({namespace:f.namespace,key:'asset',...extra});
-const archive=(f,base,value,operation='archive',attachments=[])=>f.call('/v1/history/archive','alice',{namespace:f.namespace,policyRevision:1,mutation:{operationId:operation,key:'asset',base,value},attachments});
+const archive=(f,base,value,operation='archive',attachments=[],key='asset')=>f.call('/v1/history/archive','alice',{namespace:f.namespace,policyRevision:1,mutation:{operationId:operation,key,base,value},attachments});
 const pin=(f,revision)=>f.call('/v1/history/pin','alice',{namespace:f.namespace,key:'asset',revision,policyRevision:1});
 const restore=(f,sourceRevision,revision,operationId='restore-history')=>f.call('/v1/history/restore','alice',{namespace:f.namespace,key:'asset',sourceRevision,revision,operationId,policyRevision:1});
 const purge=(f,sourceRevision,revision,confirm=true)=>f.call('/v1/history/purge','alice',{namespace:f.namespace,key:'asset',sourceRevision,revision,confirm});
@@ -162,12 +162,12 @@ test('F-modules-server-29/31 24h folded retention keeps accurate retainedAt and 
  assert.ok(row.retainedAt>=v2Created,`expected retainedAt >= v2Created (${v2Created}), got ${row.retainedAt}`);
 
  // F-modules-server-31: archive replay succeeds with the original revision even after policyRevision bumps.
- const archived=await archive(f,v1,{text:'branch'},'archive-replay-op');
+ const archived=await archive(f,v1,{text:'branch'},'archive-replay-op',[],'folded-doc');
  assert.equal(archived.status,200);
  const firstReceipt=await archived.json();
  assert.equal((await f.call('/v1/policy','alice',{spaceId:f.space('alice'),revision:1,selections:[f.selection]},'PUT')).status,200);
- const replayed=await archive(f,v1,{text:'branch'},'archive-replay-op');
+ const replayed=await archive(f,v1,{text:'branch'},'archive-replay-op',[],'folded-doc');
  assert.equal(replayed.status,200);
  assert.deepEqual(await replayed.json(),firstReceipt);
- assert.equal((await archive(f,v1,{text:'tampered'},'archive-replay-op')).status,409);
+ assert.equal((await archive(f,v1,{text:'tampered'},'archive-replay-op',[],'folded-doc')).status,409);
 });

@@ -420,7 +420,7 @@ export class ConnectorConnectionStore {
 
   binding(scopeId: string, pluginId: string, slotId: string): ConnectorConnectionRecord | null {
     const row = this.db.prepare(`SELECT c.* FROM connector_bindings b JOIN connector_connections c USING(connection_id)
-      WHERE b.scope_id = ? AND b.plugin_id = ? AND b.slot_id = ? AND c.removed_at IS NULL`).get(scopeId, pluginId, slotId) as Row | undefined;
+      WHERE b.scope_id = ? AND b.plugin_id = ? AND b.slot_id = ?`).get(scopeId, pluginId, slotId) as Row | undefined;
     return row ? connectionFromRow(row) : null;
   }
 

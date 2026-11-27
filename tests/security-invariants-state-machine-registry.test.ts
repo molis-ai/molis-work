@@ -327,13 +327,19 @@ test("F-hc2-24: dormant project state_machines.list reads a 0o444 project databa
   const dormant = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   dormant.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   try {
+    const homeListed = await dormant.homeActionClient().invoke(
+      { actor_id: "local-person", project_id: null, audience: "user", permissions: [] },
+      stateMachineActions.list,
+      {},
+    ) as StateMachineListResult;
+    assert.ok(homeListed.entries.some(entry => entry.owner === "platform" && entry.owner_id === "platform.plugin-runtime"));
+    assert.equal(dormant.projects().length, 0, "Home state_machines.list never wakes a dormant project runtime");
     const listed = await dormant.actionClient(reference).invoke(
       { actor_id: "local-person", project_id: created.project_id, audience: "user", permissions: [] },
       stateMachineActions.list,
       {},
     ) as StateMachineListResult;
     assert.ok(listed.entries.some(entry => entry.owner === "platform" && entry.owner_id === "platform.plugin-runtime"));
-    assert.equal(dormant.projects().length, 0, "state_machines.list never wakes a dormant project runtime");
     assert.equal((await stat(created.database_path)).mtimeMs, beforeMtime, "read-only query must not mutate project database mtime");
     for (const suffix of ["-wal", "-shm", "-journal"]) {
       assert.equal(existsSync(created.database_path + suffix), false, `read-only query must not create ${suffix} sidecar`);

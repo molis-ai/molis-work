@@ -81,11 +81,12 @@ function nativeTerminal() {
 function switchLocale(request: http.IncomingMessage, response: http.ServerResponse, url: URL, remember: (locale: unknown) => void): void {
   const fetchDest = requestHeader(request, "sec-fetch-dest")?.toLowerCase();
   const fetchMode = requestHeader(request, "sec-fetch-mode")?.toLowerCase();
+  const fetchSite = requestHeader(request, "sec-fetch-site")?.toLowerCase();
   if (
     request.headers["x-molis-plugin-page"] !== undefined
     || request.headers["x-molis-context-page"] !== undefined
     || (fetchDest !== undefined && fetchDest !== "document")
-    || (fetchMode !== undefined && fetchMode !== "navigate")
+    || (fetchMode !== undefined && fetchMode !== "navigate" && (fetchDest !== undefined || fetchSite !== undefined || fetchMode !== "cors"))
   ) {
     refuseLocalWebRequest(response);
     return;

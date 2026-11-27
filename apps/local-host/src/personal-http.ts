@@ -258,8 +258,6 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
         pendingNavigation = null;
         pendingBrowser = null;
         loginNonce = null;
-        if(desktop&&desktopNavigation===navigation)desktopNavigation=null;
-        else if(session&&session.navigation===navigation)session.navigation=null;
         if(service.identity()&&(desktop||session?.authenticated)){const lease=service.accountLease(),preparation=refreshPages.snapshot(lease);if(preparation)refreshPages.cancel(preparation.ownerPageId,lease,preparation.id);}
         sendLocalWebJson(response,200,{cancelled:true});return true;
       }

@@ -899,6 +899,25 @@ jobs:
           MOLIS_WORK_SKIP_NATIVE_WHISPER_BUILD: "1"
         run: pnpm build
 
+      - name: Chrome for macOS browser security tests
+        run: |
+          chrome=""
+          for candidate in \
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+            "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+            "$(command -v google-chrome || command -v chromium || true)"; do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+              chrome="$candidate"
+              break
+            fi
+          done
+          test -n "$chrome" || { echo "no Chrome on this macOS runner"; exit 1; }
+          "$chrome" --version
+          printf '#!/bin/sh\nexec "%s" "$@"\n' "$chrome" > "$RUNNER_TEMP/chrome-ci"
+          chmod +x "$RUNNER_TEMP/chrome-ci"
+          echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+          echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+
       - name: Security invariants (macOS)
         env:
           NODE_COMPILE_CACHE: ${{ runner.temp }}/security-macos-node-cache

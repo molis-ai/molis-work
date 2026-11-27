@@ -670,7 +670,7 @@ test("F-hc2-17: closing MolisWorkLocalHost while placement carry settling is in 
       source: { module: "plugins", object_type: "note", id: "pending-carry", version: null, scope: PLACEMENT_LEDGER_ACCESS.scope, project_id: null },
       target: { module: "projects", id: "dest-project", version: null, scope: PLACEMENT_LEDGER_ACCESS.scope, project_id: null },
       type: "placement.carrying",
-      cause: JSON.stringify({ from: "src-project", to: "dest-project", revision: "1" }),
+      cause: "placement.carry:" + JSON.stringify(["src-project", "1"]),
     });
   } finally {
     db.close();

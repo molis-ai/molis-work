@@ -20,6 +20,10 @@ export class ProjectsRepository {
   transaction<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
   }
+
+  readTransaction<T>(operation: () => T): T {
+    return this.db.transaction(operation)();
+  }
 }
 
 /**

@@ -711,22 +711,28 @@ test("agent.task_grants.list localizes read_groups title_text and description_te
 test("F-hc2-25: closing a project before task_grants.set commits fails with actions.host_closed and writes zero grants", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Closing project");
   let checks = 0;
+  let closing: Promise<unknown> | undefined;
   const caller: ActionCallContext = {
     ...w.person(a.project),
     validate_authority: async () => {
       checks += 1;
-      if (checks === 2) await w.localHost.closeProject(a.project.reference);
+      // Trigger project close without awaiting it inside this action's own authority hook (which would deadlock waiting for itself to drain).
+      if (checks === 2) closing = w.localHost.closeProject(a.project.reference);
     },
   };
-  await assert.rejects(
-    w.call(a.project, caller, agentTaskGrantActions.set, {
-      plugin_install_id: a.install,
-      key: "daily",
-      categories: [a.group],
-      expected_revision: "",
-    }),
-    { code: "actions.host_closed" },
-  );
+  try {
+    await assert.rejects(
+      w.call(a.project, caller, agentTaskGrantActions.set, {
+        plugin_install_id: a.install,
+        key: "daily",
+        categories: [a.group],
+        expected_revision: "",
+      }),
+      { code: "actions.host_closed" },
+    );
+  } finally {
+    await closing;
+  }
   assert.deepEqual(await w.records("agent:task:"), [], "no grants were persisted after the project closed");
 });
 

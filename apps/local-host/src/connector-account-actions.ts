@@ -110,29 +110,37 @@ export function connectorAccountActionProvider(home: string, remember: Connector
     handlers: [connectorUsagesHandler(home, clientFor), projectMcpUsagesHandler(home, projectMcp, pluginSlots?.projectNames.bind(pluginSlots)), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home, pluginSlots), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: connectorAccountActions.read.version,
       handle: async (caller, input) => {
         const id = (input as { connection_id: string }).connection_id;
-        return withConnectorRequest(home, id, caller.signal, async signal => {
-          const row = withConnectorConnections(home, store => store.get(id), true), revision = row?.updated_at;
-          // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.
-          if (row?.auth_method === "oauth" && refreshRefused(home, row)) throw accountErrors.needs_auth("这个账号的登录已失效，请重新登录");
-          const current = () => {
-            signal.throwIfAborted();
-            requireSynchronous(caller.assert_authority_current?.());
-          };
-          await caller.beforeEffect();
-          current();
-          const result = await readConnectorAccount(home, id, {
-            signal,
-            beforeEffect: async () => {
-              await caller.beforeEffect();
-              current();
-            },
-            current,
+        try {
+          return await withConnectorRequest(home, id, caller.signal, async signal => {
+            const row = withConnectorConnections(home, store => store.get(id), true), revision = row?.updated_at;
+            // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.
+            if (row?.auth_method === "oauth" && refreshRefused(home, row)) throw accountErrors.needs_auth("这个账号的登录已失效，请重新登录");
+            const current = () => {
+              if (signal.aborted && !caller.signal?.aborted) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
+              signal.throwIfAborted();
+              requireSynchronous(caller.assert_authority_current?.());
+            };
+            await caller.beforeEffect();
+            current();
+            const result = await readConnectorAccount(home, id, {
+              signal,
+              beforeEffect: async () => {
+                await caller.beforeEffect();
+                current();
+              },
+              current,
+            });
+            await caller.beforeEffect();
+            current();
+            if (revision && !rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "connected", authorization: "verified", account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, ...(result.scopes?.length ? { scopes: result.scopes } : {}) })) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
+            return result;
           });
-          await caller.beforeEffect();
-          current();
-          if (revision && !rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "connected", authorization: "verified", account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, ...(result.scopes?.length ? { scopes: result.scopes } : {}) })) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
-          return result;
-        });
+        } catch (error) {
+          if (!caller.signal?.aborted && error instanceof Error && error.message === "连接已改变，请重新执行") {
+            throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
+          }
+          throw error;
+        }
       } }, ...connectorManagementHandlers(home, remember, projectMcp, inspect), ...connectorRecordHandlers(home), ...webSearchHandlers(home), connectorSetupHandler(home), connectorSetupExecuteHandler(home, remember), connectorSetupIntentHandler(home, remember), ...connectorLocalHandlers(home, remember), ...connectorCliHandlers(home), ...connectorPluginSlotHandlers(home, pluginSlots)],
   };
 }

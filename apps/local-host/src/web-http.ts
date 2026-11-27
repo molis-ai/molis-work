@@ -71,7 +71,12 @@ export function requestAbortSignal(
 }
 
 function writeLocalJson(response: ServerResponse, status: number, value: unknown): void {
-  if (response.headersSent || response.destroyed) return;
+  if (response.headersSent) return;
+  if (response.destroyed) {
+    response.statusCode = status;
+    response.end();
+    return;
+  }
   const answer = withRecordedCallId(status, value);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",

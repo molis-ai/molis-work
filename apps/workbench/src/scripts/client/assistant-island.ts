@@ -46,21 +46,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, globalThis.say.text, savedAssistantText);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
-  const panel = island.querySelector("[data-assistant-panel]");
-  // The composer's root and its text area (the first screen is the Dock's; the mount keeps that text area for good).
-  const compose = island.querySelector("[data-assistant-composer]");
-  const input = compose?.querySelector(".mw-composer__input");
-  const thread = island.querySelector("[data-assistant-thread]");
+  const panel = island.querySelector("[data-assistant-panel]"), compose = island.querySelector("[data-assistant-composer]");
+  const input = compose?.querySelector(".mw-composer__input"), thread = island.querySelector("[data-assistant-thread]");
   const empty = island.querySelector("[data-assistant-empty]"), eventHint = island.querySelector("[data-assistant-event-hint]");
-  const workNav = island.querySelector("[data-assistant-works]");
-  const worksToggle = island.querySelector("[data-assistant-works-toggle]");
-  const titleEl = island.querySelector("[data-assistant-work-title]");
-  const stateEl = island.querySelector("[data-assistant-work-state]");
-  const nowEl = island.querySelector("[data-assistant-now]");
-  const metaEl = island.querySelector("[data-assistant-meta]");
-  const side = island.querySelector("[data-assistant-side]");
-  const sideToggle = island.querySelector("[data-assistant-side-toggle]");
-  const sideDot = island.querySelector("[data-assistant-side-dot]");
+  const workNav = island.querySelector("[data-assistant-works]"), worksToggle = island.querySelector("[data-assistant-works-toggle]");
+  const titleEl = island.querySelector("[data-assistant-work-title]"), stateEl = island.querySelector("[data-assistant-work-state]");
+  const nowEl = island.querySelector("[data-assistant-now]"), metaEl = island.querySelector("[data-assistant-meta]");
+  const side = island.querySelector("[data-assistant-side]"), sideToggle = island.querySelector("[data-assistant-side-toggle]"), sideDot = island.querySelector("[data-assistant-side-dot]");
   const blocks = Object.fromEntries([...island.querySelectorAll("[data-assistant-block]")].map((node) => [node.dataset.assistantBlock, node]));
   const newButton = island.querySelector("[data-assistant-new]");
   if (!compose || !input || !thread) return null;
@@ -77,14 +69,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // What this viewer has in front of them is remembered per project (proactive-assistant §12.1) and per work item (MLN-16).
   const scoped = (name) => "molis.assistant." + name + (project ? ":" + project.id : "") + (activeWorkItem() ? ":item:" + activeWorkItem().id : "");
-  let works = [];
-  let curId = store.get(scoped("current"));
-  let view = null;
-  let problem = null;
-  let nextScope = project ? "project" : "personal";
-  let nextExec = "assistant";
-  // The first round's mode for a new plugin work (empty: its default); after that the session keeps it.
-  let nextMode = "";
+  let works = [], curId = store.get(scoped("current")), view = null, problem = null;
+  let nextScope = project ? "project" : "personal", nextExec = "assistant", nextMode = "";
 ${ASSISTANT_CHOOSERS_PART}
 ${ASSISTANT_BROWSER_HANDBACK_PART}
 

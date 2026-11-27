@@ -2251,6 +2251,7 @@
     "workbench.capabilities.capability-identity": "能力身份",
     "workbench.capabilities.capability-library": "能力库",
     "workbench.capabilities.capability-scope": "能力范围",
+    "workbench.capabilities.capability-selection-unavailable": "引用的能力或版本已不可访问，请检查插件状态、权限或重新选择。",
     "workbench.capabilities.capability-service": "能力服务",
     "workbench.capabilities.capability-unavailable": "能力已不可访问",
     "workbench.capabilities.compatible-contract": "合同兼容",

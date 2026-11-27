@@ -163,7 +163,7 @@ test("F-hc2-27: /api/project-guidance localizes project_guidance_error for non-z
         ? { available: false, code: "actions.plugin_disabled", reason: "说明停用" }
         : { available: true },
   });
-  const token = "guidance-i18n-token-0123456789";
+  const token = "guidance-i18n-control-token-0123456789";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

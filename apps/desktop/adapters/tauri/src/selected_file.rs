@@ -29,7 +29,11 @@ pub(crate) fn is_blocked_home_path(canonical: &Path, home: &Path) -> bool {
 
 /// Records canonical paths returned by `shelf_find_files` in a bounded short-lived allowlist.
 pub(crate) fn admit_search_results(paths: &[PathBuf]) {
-    admit_search_results_with_home(paths, &crate::web_service::molis_work_home(), Instant::now());
+    admit_search_results_with_home(
+        paths,
+        &crate::web_service::molis_work_home(),
+        Instant::now(),
+    );
 }
 
 fn admit_search_results_with_home(paths: &[PathBuf], home: &Path, now: Instant) {

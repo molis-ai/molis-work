@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "store": "mainline/mainline.db",
+    "place": "mainline/mainline.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "343de16700b800c2",
+    "to_structure": "343de16700b800c2",
+    "approved": "2026-11-26 一骏授权保留逐事项修订，从空库开始",
+    "reason": "将带修订列的现行主线结构定为 v1；由本人决定何时离线备份并移开旧库。"
+  }
+]

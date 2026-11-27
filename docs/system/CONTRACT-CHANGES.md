@@ -49,7 +49,7 @@
 
 ### 当前保留机制
 
-以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。第 106 批 V7 一次全复位（2026-11-24）及第 44B 批 Clean v1 清理已移除项目库、Agent 定义库（含 `MOVED_PROMPT_KEYS`）、蓝图库、Functions 库、Dataset、Risk、Work Brief 与 `feed/ → security/`（`HOME_LAYOUT_MOVES`）的历史迁移段；当前代码里仍在运行的持久化升级段仅余下表中的 `mainline/mainline.db` 1 → 2、`memory/memory.db` 1 → 2 与 `interface/state.json` 1 → 2。
+以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。第 106 批 V7 一次全复位（2026-11-24）及第 44B 批 Clean v1 清理已移除项目库、Agent 定义库（含 `MOVED_PROMPT_KEYS`）、蓝图库、Functions 库、Dataset、Risk、Work Brief 与 `feed/ → security/`（`HOME_LAYOUT_MOVES`）的历史迁移段；当前代码里仍在运行的持久化升级段仅余下表中的 `memory/memory.db` 1 → 2 与 `interface/state.json` 1 → 2。
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
@@ -57,7 +57,6 @@
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
 | 产品文案中的「回填」说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
-| 主线事项修订 `mainline/mainline.db` 1 → 2（2026-11-26 用户批准） | 主线服务负责 `mainline/mainline.db` 的 1→2 升级，仅在显式升级事务中为已有事项补齐起始修订 1；普通打开只认 v2，无读时兜底 | `horizontal/mainline`（`MAINLINE_BASELINE`）；仍支持带 v1 主线库的 Home 期间保留此段 |
 | 记忆账本 1 → 2（2026-11-24 用户确认补齐 `b3429bd1cc` 升级段） | `memory/memory.db` 经 Home 升级链 1 → 2 将 `memory_markers` 中 `b3429bd1cc` 之前仅含 `{ kind: "coding", id, project_id }` 的内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`；助理计划、已有提供方字段、未知场景或损坏计划均保持原样不猜测。普通打开只认 v2，无读时兜底 | `packages/storage`（`MEMORY_LEDGER_BASELINE`）；不再支持从 v1 金样升级时移除该段 |
 | 外观状态文件 `interface/state.json` 1 → 2（个人同步 M1-B2，用户已批准） | 保留选择和回执并加入同步状态；普通读取只认 v2，转换由既有独立升级入口执行（M1-B2 其余四个 SQLite 库的 1 → 2 升级段已随第 106 批 V7 一次全复位拍平并删除） | `horizontal/appearance`（`APPEARANCE_STATE_VERSION`）；不再支持从 v1 金样升级时移除该段 |
 | 第 107 批六插件成员一次性补写（用户 2026-11-25 确认「写一次性修复」「不升级版本，只改代码」，P1-1） | Pages、PPT、Form、Dataset、灵光、Workflows 摘掉「个人」标签后（代码按声明取：带 `databases.partition` 的插件，与个人空间建立时带上的同一批，不写插件名），第 107 批之前建的 Home 在目录库打开时（个人空间就位之后）补写一次成员：看 `catalog_meta` 的一次性标记 `mark.former-personal-plugins`，没有就在一个写事务里给每个分区补这六个插件的 `partition_plugins` 行，并落标记；在该分区隐藏过（`project_plugin_exclusions`）的不补、已有行不动，执行者记 `upgrade:former-personal-plugins`。新建目录库建库时就落标记。不升目录库版本、不读时兜底；用户之后移除的不会补回。已知边界：标记落下以后，从还没升级的设备同步进来的旧分区不再补，这六个插件在那里是关着的，要用时在该分区重新打开（同步仍在演进、没有正式用户，暂不处理）。按声明取有一条约束：第 108～111 批把别的插件迁到 `databases.partition` 时，这一步会把它们也算进去，`tests/project-catalog.test.ts` 的 UPP-18 用例断言补写的恰好是这六个，迁移那一批必须先决定这一步怎么处理它们（例如提前删掉这一步） | Local Host（`apps/local-host/src/former-personal-plugins.ts`，标记读写在 storage 的 `LocalCatalogMetadata`，成员写入在 Projects 的 `ProjectService.addPluginsWhereShown`）；第 111 批或第一个正式发布时连同标记一并删 |
@@ -96,7 +95,8 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `mainline/mainline.db` | 1 → 2 | BL-b36-review-followups：新增逐事项修订，旧事项从 1 起步 | `horizontal/mainline/src/store.ts#MAINLINE_BASELINE#1→2` |
+| `mainline/mainline.db` | 2 → 1 | 2026-11-26 一骏决定，带事项修订的表结构作为 v1 从空库开始 | 旧结构 v1 报结构不符，v2 报版本过高，原文件保留。重建由本人决定，停宿主、备份并移开该空间整个主线库目录后再启动。 |
+| `mainline/mainline.db` | 1 → 2 | #2347 增加逐事项修订，旧事项经升级从 1 起步 | 历史升级段见提交 `977a7cbde7`，已随上列 v1 复位撤下。 |
 | `memory/memory.db` | 1 → 2 | 2026-11-24 架构审查修复（用户确认补齐 `b3429bd1cc` 显式升级段）：将 `memory_markers` 中 `b3429bd1cc` 之前内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`，避免旧已完成记录永久误报 `needs-reconcile`，普通打开只认 v2 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
 | `projects/<project_id>/molis-work.db` | 2 → 3 | 第 44B 批 PR3：「等你」同步改用平台身份 `system.attention`、脱离 Inbox（44b.md 用户 2026-11-23 定的 2→3）；升级段只建平台自己的同步流水并把已有注意事项登记为待同步，不改业务表 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |

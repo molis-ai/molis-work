@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { describeSqliteSchema, openBaselineHomeSqlite, runSqliteUpgrade, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, openBaselineHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { AssistantStore, ASSISTANT_STORE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
-import { MAINLINE_BASELINE, MainlineStore, openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
+import { MainlineStore, openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
 
 const cases = [
   // V7 (batch 106, user 2026-11-24): functions.db was reset to its v1 baseline.
@@ -21,7 +21,7 @@ const cases = [
   { name: "characters", version: 1, file: "characters/characters.sqlite", table: "character_drafts",
     seed: "INSERT INTO character_drafts VALUES ('draft', 'owner', 1, 'time', '{}')",
     open: (home: string) => { const store = openCharacters(home, "owner"); return () => store.close(); } },
-  { name: "mainline", version: 2, file: "mainline/mainline.db", table: "mainline_items",
+  { name: "mainline", version: 1, file: "mainline/mainline.db", table: "mainline_items",
     seed: "INSERT INTO mainline_items VALUES ('owner', 'project', 'item', 'name', NULL, NULL, 'time', 1)",
     open: (home: string) => { const db = openMainlineDatabase(home); return () => db.close(); } },
 ];
@@ -41,7 +41,6 @@ for (const item of cases) {
       } finally { db.close(); }
     } finally { rmSync(home, { recursive: true, force: true }); }
   });
-  // B10-R3: v2 still refuses the old format on open; only the explicit upgrade runner may advance it.
   for (const version of [0, ...(item.version > 1 ? [item.version - 1] : []), item.version + 1]) test(`RAC-2365 ${item.name} refuses current nonempty schema at version ${version} without changing facts or bytes`, () => {
     const home = mkdtempSync(join(tmpdir(), `clean-home-${item.name}-refusal-`)), file = join(home, item.file);
     try {
@@ -61,27 +60,38 @@ for (const item of cases) {
   });
 }
 
-test("BL-b36-review-followups the v1 golden item keeps its data through upgrade, rename and reopen", t => {
-  const home = mkdtempSync(join(tmpdir(), "mainline-v1-"));
+test("MLC-15 mainline refuses pre-revision v1 and starts fresh after its owner sets the old store aside", t => {
+  const home = mkdtempSync(join(tmpdir(), "mainline-clean-v1-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const file = join(home, "mainline.db");
-  const db = new DatabaseSync(file);
+  const file = join(home, "mainline", "mainline.db");
+  const old = openMainlineDatabase(home);
   try {
-    db.exec(readFileSync(new URL("./fixtures/golden-homes/0.1.0/stores/mainline/mainline.db.sql", import.meta.url), "utf8"));
-    const { owner_actor_id, project_id, item_id, name } = db.prepare("SELECT owner_actor_id, project_id, item_id, name FROM mainline_items").get() as { owner_actor_id: string; project_id: string; item_id: string; name: string };
-    assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 1);
-    runSqliteUpgrade(db, file, MAINLINE_BASELINE);
-    const store = new MainlineStore(db, owner_actor_id, project_id);
-    const before = store.itemWithRevision(item_id)!;
-    assert.equal(before.item.name, name);
-    assert.equal(before.revision, "1");
-    store.rename(store.read().revision, item_id, "改名后的金样事项");
-    assert.equal(store.itemWithRevision(item_id)?.revision, "2");
-    runSqliteUpgrade(db, file, MAINLINE_BASELINE);
-  } finally { db.close(); }
-  const reopened = new DatabaseSync(file, { readOnly: true });
+    const store = new MainlineStore(old, "owner", "project");
+    store.createLight("保留在旧库里的事项");
+    old.exec("ALTER TABLE mainline_items DROP COLUMN revision");
+  } finally { old.close(); }
+
+  const before = readFileSync(file);
+  assert.throws(() => openMainlineDatabase(home), { code: "storage.schema_structure_mismatch" });
+  assert.deepEqual(readFileSync(file), before);
+
+  const backup = join(home, "mainline-backup");
+  renameSync(dirname(file), backup);
+  const fresh = openMainlineDatabase(home);
+  let itemId: string;
   try {
-    assert.equal(reopened.prepare("PRAGMA user_version").get()?.user_version, 2);
-    assert.deepEqual({ ...reopened.prepare("SELECT name, revision FROM mainline_items").get() }, { name: "改名后的金样事项", revision: 2 });
+    const store = new MainlineStore(fresh, "owner", "project");
+    assert.equal(fresh.prepare("SELECT count(*) AS n FROM mainline_items").get()?.n, 0);
+    itemId = store.createLight("新事项").item_id;
+    assert.equal(store.itemWithRevision(itemId)?.revision, "1");
+    store.rename(store.read().revision, itemId, "改名后的事项");
+  } finally { fresh.close(); }
+  const reopened = openMainlineDatabase(home);
+  try {
+    const item = new MainlineStore(reopened, "owner", "project").itemWithRevision(itemId);
+    assert.equal(reopened.prepare("PRAGMA user_version").get()?.user_version, 1);
+    assert.equal(item?.item.name, "改名后的事项");
+    assert.equal(item?.revision, "2");
   } finally { reopened.close(); }
+  assert.deepEqual(readFileSync(join(backup, "mainline.db")), before);
 });

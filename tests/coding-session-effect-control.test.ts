@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -224,16 +224,37 @@ for (const stop of ["cancel", "revoke"] as const) {
 }
 
 
+async function createOwnedCodingSession(fixture: Awaited<ReturnType<typeof codingSdkRuntime>>, id: string) {
+  await fixture.create(id);
+  const pluginId = "io.molis.work.coding";
+  const installId = fixture.platform.supervisor.state(pluginId)?.install_id;
+  assert.ok(installId);
+  const session = await fixture.adapter.createSession({
+    title: id, project_id: P, plugin_id: pluginId, install_id: installId, actor_id: "web-user",
+    directory: { canonical_path: await realpath(fixture.home), realpath_verified: true },
+  });
+  await fixture.sessions.setRuntimeSession(noEffect, P, id, session.session_id, new Date().toISOString());
+  return session;
+}
+
 test("RAC-189 Coding message cancel and background stop keep the request fence through real Host actions", async t => {
-  const fixture = await codingSdkRuntime(t); await fixture.create("app");
+  const fixture = await codingSdkRuntime(t);
+  const app = await createOwnedCodingSession(fixture, "app");
+  const peer = await createOwnedCodingSession(fixture, "peer");
+  const message = await fixture.adapter.messages!.sendForPeople!(P, {
+    from_session: app.session_id, to_session: peer.session_id, kind: "request", body: "Check the request fence",
+  }, "web-user");
   const seen: string[] = [];
   fixture.adapter.messages!.cancel = async () => { seen.push("cancel"); };
+  fixture.adapter.background!.read = async () => [{
+    task_id: "t1", session_id: app.session_id, summary: "Fixture command", state: "running", started_at_ms: Date.parse(AT),
+  }];
   fixture.adapter.background!.stop = async () => { seen.push("stop"); return true; };
   const dispatch = (path: string, beforeEffect: () => Promise<void>, signal?: AbortSignal) => fixture.platform.router().dispatch({
     method: "POST", pathname: `/api/plugins/io.molis.work.coding/sessions/app/${path}`, actor_id: "web-user", body: {},
     execution: { beforeEffect, assert_authority_current: () => {}, ...(signal ? { signal } : {}) },
   });
-  for (const [path, method] of [["messages/m1/cancel", "cancel"], ["background/t1/stop", "stop"]]) {
+  for (const [path, method] of [[`messages/${message.message_id}/cancel`, "cancel"], ["background/t1/stop", "stop"]]) {
     seen.length = 0;
     let checks = 0;
     const refused = await dispatch(path!, async () => { if (++checks > 1) throw new ActionError("actions.forbidden", "request withdrawn after entry"); });
@@ -254,8 +275,8 @@ test("RAC-189 Coding message cancel and background stop keep the request fence t
 });
 
 test("RAC-189 Coding message reads also carry their request control into the actual Host action", async t => {
-  const fixture = await codingSdkRuntime(t); await fixture.create("app");
-  await fixture.sessions.setRuntimeSession(noEffect, P, "app", "sdk-app", new Date().toISOString());
+  const fixture = await codingSdkRuntime(t);
+  await createOwnedCodingSession(fixture, "app");
   const seen: string[] = [];
   fixture.adapter.messages!.read = async () => { seen.push("read"); return []; };
   const response = await fixture.platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.coding/sessions/app/messages", actor_id: "web-user",

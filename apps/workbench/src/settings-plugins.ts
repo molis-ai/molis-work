@@ -45,7 +45,8 @@ export function renderPluginTrustSettings({ projectId, chevron, kinds }: { readT
  */
 export const PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT = String.raw`
 (() => {
-const renderKeptWord = node => { node.textContent = globalThis.t.text(node.dataset.keptWord, node.dataset.keptName ? { name: node.dataset.keptName, version: node.dataset.keptVersion } : {}); };
+const renderPluginWord = node => { node.textContent = globalThis.t.text(node.dataset.pluginWord, node.dataset.keptName ? { name: node.dataset.keptName, version: node.dataset.keptVersion } : {}); };
+const pluginWord = (node, key) => { node.dataset.pluginWord = key; renderPluginWord(node); return node; };
 const bind = (root) => {
 if (!root || root.dataset.pluginTrustBound === "1") return;
 root.dataset.pluginTrustBound = "1";
@@ -232,7 +233,14 @@ return box;
 };
 const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act, managed) => {
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
-copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", readText(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + readText(STATE[plugin.state] || plugin.state)));
+const status = el("span");
+status.append(pluginWord(el("span"), TRUST[plugin.trust] || plugin.trust), " · ");
+if (plugin.publisher_label) {
+const label = el("span", "", plugin.publisher_label); label.translate = false;
+status.append(label, " · ");
+}
+status.append(pluginWord(el("span"), STATE[plugin.state] || plugin.state));
+copy.append(el("strong", "", plugin.name + " · " + plugin.version), status);
 copy.id = "plugin-trust-description-" + (act === homeApi ? "home-" : "project-") + plugin.install_id;
 summary.setAttribute("aria-label", readText("workbench.settings-plugins.plugin-details", { plugin: plugin.name }));
 summary.setAttribute("aria-describedby", copy.id);
@@ -360,7 +368,7 @@ discard = true;
 const heading = el("h3"), description = el("p");
 description.dataset.keptName = shown.name; description.dataset.keptVersion = view.version;
 for (const [node, word] of [[heading, "cannot-read-kept-data"], [description, "discard-consequence"], [cancel, "not-installing-now"], [install, "discard-and-install"]]) {
-node.dataset.keptWord = "workbench.package-install-card." + word; renderKeptWord(node);
+pluginWord(node, "workbench.package-install-card." + word);
 }
 install.classList.replace("mw-btn--primary", "mw-btn--danger");
 panel.replaceChildren(heading, description, footer); heading.tabIndex = -1; heading.dataset.installFocus = ""; heading.focus();
@@ -402,7 +410,8 @@ if (container.matches?.("[data-plugin-trust-settings]")) bind(container);
 else container.querySelectorAll?.("[data-plugin-trust-settings]").forEach(bind);
 };
 document.addEventListener("molis-work:language-changed", () => {
-document.querySelectorAll("[data-kept-word]").forEach(renderKeptWord);
+const cached = globalThis.molisWorkSettingsLanguageRoots?.() || [];
+for (const root of [document, ...cached.filter(panel => !panel.isConnected)]) root.querySelectorAll("[data-plugin-word]").forEach(renderPluginWord);
 });
 document.addEventListener("molis-work:settings-embed", (event) => globalThis.molisWorkBindPluginTrustSettings(event.detail && event.detail.root));
 const start = () => globalThis.molisWorkBindPluginTrustSettings(document);

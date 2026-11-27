@@ -13,7 +13,7 @@ import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { chooseWithKeyboard, checkDiscardChoice, retainedSheetNotes } from "./fixtures/install-sheet.js";
+import { chooseWithKeyboard, checkDiscardChoice, retainedSheetNotes, switchSettingsLanguage } from "./fixtures/install-sheet.js";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { fixture, homePackage, mac, operate, operationsOf } from "./fixtures/home-sandbox.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -93,6 +93,26 @@ test("BL-915 B27-UN-02 B27-UN-04 B27-UN-05 the 插件 page shows what an uninsta
   const open = (name: string) => page.evaluate(`[...document.querySelectorAll('[data-plugin-trust-home] details')].find(d => d.querySelector('summary').textContent.includes(${JSON.stringify(name)})).open = true`);
 
   await open("Kept notes");
+  // B47-K3: switch the same open Settings page across all three languages without replacing either installation row.
+  const { plugins } = await served.web.get<{ plugins: { install_id: string; trust: string; state: string }[] }>(`/projects/${project.project_id}/api/plugin-trust/overview`);
+  const shipped = plugins.find(row => row.trust === "host" && (row.state === "running" || row.state === "installed"));
+  assert.ok(shipped);
+  await page.evaluate(`window.projectStatus = document.getElementById(${JSON.stringify("plugin-trust-description-project-" + shipped.install_id)}).querySelector("span");
+    window.keptSummary = document.querySelector('[data-plugin-trust-home] details[open] summary'); window.keptSummary.focus();`);
+  for (const [lang, trust, pinned, running, installed] of [
+    ["en", "Shipped with Molis Work", "A publisher you pinned", "Running", "Installed"],
+    ["ja", "Molis Work同梱", "固定済みの公開者", "実行中", "インストール済み"],
+    ["zh", "随 Molis Work 提供", "你固定的发布者", "运行中", "已安装"],
+  ] as const) {
+    await switchSettingsLanguage(page, lang);
+    const projectText = trust + " · " + (shipped.state === "running" ? running : installed);
+    const homeText = pinned + " · Test publisher · " + running;
+    await page.wait(`document.documentElement.lang.startsWith(${JSON.stringify(lang)}) && window.projectStatus.isConnected &&
+      window.projectStatus.textContent === ${JSON.stringify(projectText)} &&
+      window.keptSummary.querySelector(".setting-copy > span").textContent === ${JSON.stringify(homeText)}`,
+      { describe: '[window.projectStatus?.textContent, window.keptSummary?.textContent, document.documentElement.lang]' });
+    assert.ok(await page.evaluate("document.activeElement === window.keptSummary && window.keptSummary.closest('details').open"));
+  }
   await press("[data-plugin-trust-home]", "卸载并删除数据");
   await press("dialog[open]", "卸载并删除数据");
   await page.wait("document.querySelector('[data-plugin-trust-home] .plugin-trust-result') !== null", { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });

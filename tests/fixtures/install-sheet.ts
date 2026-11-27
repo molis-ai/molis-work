@@ -62,11 +62,15 @@ type InstallBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 export const discardWords = { zh: "放弃旧数据并安装", en: "Discard old data and install", ja: "以前のデータを削除してインストール" } as const;
 
 /** The settings language choice of another window arrives while the confirmation is open. */
-export async function checkDiscardChoice(browser: InstallBrowser, lang: keyof typeof discardWords, width: number, button: string, door: string, bundle: PluginPackageBundle) {
+export async function switchSettingsLanguage(browser: Pick<InstallBrowser, "evaluate">, lang: keyof typeof discardWords) {
   await browser.evaluate(`(async () => {
     await molisWorkRequest("/api/ui/locale", { control: true, body: { preference: ${JSON.stringify(lang)} } });
     const channel = new BroadcastChannel("molis-work-ui-language"); channel.postMessage(null); channel.close();
   })()`);
+}
+
+export async function checkDiscardChoice(browser: InstallBrowser, lang: keyof typeof discardWords, width: number, button: string, door: string, bundle: PluginPackageBundle) {
+  await switchSettingsLanguage(browser, lang);
   await browser.waitFor(`document.documentElement.lang.startsWith(${JSON.stringify(lang)}) && document.querySelector(${JSON.stringify(button)})?.textContent === ${JSON.stringify(discardWords[lang])}`, 30_000);
   const buttonNode = `document.querySelector(${JSON.stringify(button)})`;
   await browser.waitFor(`!${buttonNode}.closest('[data-unready]') && ${buttonNode}.getAttribute('aria-disabled') !== 'true'`);

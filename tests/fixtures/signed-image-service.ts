@@ -35,7 +35,10 @@ export function signedImageService(key: string, version: string, incomplete: boo
       });
       ${incomplete ? "delete operations['picture.image.read'];" : ''}`;
     files[SANDBOX_PACKAGE_FILES.entrypoint] += '\n' + body;
-    return sandboxPluginManifest({ pluginId, version, name: key, publisher: manifest.publisher, presentation: false, effects: effectsFromContract(contract), contract });
+    return sandboxPluginManifest({
+      pluginId, version, name: key, publisher: manifest.publisher, presentation: false,
+      upgradesFrom: version === "1.0.0" ? [] : ["1.0.0"], effects: effectsFromContract(contract), contract,
+    });
   }, { pluginId, version });
   return { key, publisher: publisher.identity, pluginId, connection, png, bundle };
 }

@@ -804,8 +804,10 @@ test('44C-06 Studio polls the original installed signed service across restart, 
   const remaining = selected === first ? second : first;
   const browser = await openStudioChrome(f.home); assert.ok(browser);
   try {
-    const outer = await browser.page(), page = await framedStudioPage(t, browser, outer);
-    await outer.command('Page.navigate', { url: studio.origin + '/studio-preview?build=' + created.build.id });
+    const outer = await browser.page(), page = await framedStudioPage(t, browser, outer, 'plugin-builder');
+    await outer.command('Page.navigate', { url: studio.origin + '/studio-preview' });
+    await page.wait('Array.from(document.querySelector("[data-as-builds]")?.options ?? []).some(option => option.value === ' + JSON.stringify(created.build.id) + ')');
+    await page.evaluate('(()=>{ const builds = document.querySelector("[data-as-builds]"); builds.value = ' + JSON.stringify(created.build.id) + '; builds.dispatchEvent(new Event("change", {bubbles: true})); })()');
     await page.wait('!!document.querySelector("[data-as-candidate]")');
     await page.click('[data-as-candidate="' + ready.id + '"]');
     const choose = '[data-as-image-services="' + ready.id + '"]';

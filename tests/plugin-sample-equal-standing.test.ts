@@ -785,10 +785,14 @@ test("44C-01/02 PSD-04 same-id publishers expose separate settings and task cate
   const beforeRestart = f.home;
   await f.host.close();
   f = await serveHomeRuntime(t, { homeDirectory: beforeRestart });
-  assert.match(await page("home"), /home-updated/);
-  assert.match(await page("project"), /project-active/);
-  const renewed = settingsInstallation(await page("home"));
-  assert.equal((await f.request("/api/settings/plugin-publishers/revoke", { method: "POST", body: { key_id: fixturePublisher("home").identity } })).status, 200);
-  assert.notEqual((await write(renewed, "revoked-home", "2")).status, 200);
-  assert.match(await page("project"), /project-active/);
+  try {
+    assert.match(await page("home"), /home-updated/);
+    assert.match(await page("project"), /project-active/);
+    const renewed = settingsInstallation(await page("home"));
+    assert.equal((await f.request("/api/settings/plugin-publishers/revoke", { method: "POST", body: { key_id: fixturePublisher("home").identity } })).status, 200);
+    assert.notEqual((await write(renewed, "revoked-home", "2")).status, 200);
+    assert.match(await page("project"), /project-active/);
+  } finally {
+    await f.host.close();
+  }
 });

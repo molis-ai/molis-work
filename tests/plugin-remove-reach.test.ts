@@ -181,7 +181,8 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
       await assert.rejects(client.invoke(person, ref, input), { code: refused });
       if (!ownerBound.has(agentId + "/" + id)) await assert.rejects(callAsAgent(ref, input), { code: refused });
       const denied = await callTool(ref, input);
-      assert.ok(denied.failed && [refused, "actions.mcp_unavailable", "mcp.action_revoked"].includes(denied.value.code), `${id}: ${JSON.stringify(denied.value)}`);
+      const wireRefusals = installedView ? [refused, "actions.mcp_unavailable", "mcp.action_revoked"] : ["mcp.tool_unknown", refused];
+      assert.ok(denied.failed && wireRefusals.includes(denied.value.code), `${id}: ${JSON.stringify(denied.value)}`);
     }
     const survivor = probes.find(other => other.id !== id && shown.includes(other.id) && !ownerBound.has(runtimeId + "/" + other.id) && !ownerBound.has(agentId + "/" + other.id));
     assert.ok(survivor, "at least one other installed plugin remains callable");

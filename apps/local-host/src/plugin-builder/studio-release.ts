@@ -63,7 +63,9 @@ function reclaim(directory: string, build: AgentBuild, version: number, signer: 
   const kept = readKeptSandboxPackage(bundle.payload);
   if (bundle.payload.manifest.plugin_id !== build.design!.contract.pluginId || bundle.payload.manifest.version !== releaseVersion(version)
     || bundle.payload.manifest.publisher.signature !== signer) throw new Error('未登记发行物不属于这个草稿版本，保留待检查');
-  const words = { ...studioLocaleFiles(build.design!.localePacks), ...studioRoleMaterial(build.design!).files };
+  const roles = studioRoleMaterial(build.design!);
+  if (!isDeepStrictEqual(bundle.payload.manifest.agent ?? [], roles.entries)) throw new Error('角色模板与当前草稿不符，保留待检查');
+  const words = { ...studioLocaleFiles(build.design!.localePacks), ...roles.files };
   for (const file of bundle.payload.files) {
     if (file.path === SANDBOX_PACKAGE_FILES.manifest) continue;
     const original = Object.hasOwn(words, file.path) ? Buffer.from(words[file.path]!) : RELEASE_FILES.has(file.path) ? readFileSync(join(directory, file.path)) : null;

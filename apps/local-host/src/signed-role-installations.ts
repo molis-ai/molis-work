@@ -8,21 +8,20 @@ import { HomeConsentLedger } from "./home-plugin-store.js";
 export function bindSignedRoleInstallations(home: string, projectId: string | null, projectRows: PluginRuntimeRepository | undefined,
   homeRows: () => readonly PluginInstanceRecord[], installs: readonly { install_id: string; source: SignedAgentReference["source"] }[], invalid: () => Error) {
   const ledger = new HomeConsentLedger(home), atBind = homeRows();
-  const bound = new Map<string, { installation: SignedAgentInstallation; assertCurrent(): void }>();
+  const bound = new Map<string, { installation: SignedAgentInstallation; isCurrent(): boolean; assertCurrent(): void }>();
   for (const { install_id: installId, source } of installs) {
     const inProject = projectRows?.get(installId);
     const current = inProject ? () => projectRows!.get(installId) : () => homeRows().find(row => row.install_id === installId);
     const original = inProject ?? atBind.find(row => row.install_id === installId);
     if (!original || bound.has(installId)) continue;
-    const assertCurrent = () => {
+    const isCurrent = () => {
       const record = current();
-      if (!record || record.state !== "running" || record.installation_generation !== original.installation_generation || record.plugin_id !== source.plugin_id
-        || record.version !== source.plugin_version || record.publisher_signature !== source.publisher_signature
-        || record.publisher_trust !== "pinned" || !ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at)) {
-        throw invalid();
-      }
+      return record?.state === "running" && record.installation_generation === original.installation_generation && record.plugin_id === source.plugin_id
+        && record.version === source.plugin_version && record.publisher_signature === source.publisher_signature
+        && record.publisher_trust === "pinned" && ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at);
     };
-    bound.set(installId, { installation: { install_id: installId, installation_generation: original.installation_generation, project_id: inProject ? projectId : null }, assertCurrent });
+    const assertCurrent = () => { if (!isCurrent()) throw invalid(); };
+    bound.set(installId, { installation: { install_id: installId, installation_generation: original.installation_generation, project_id: inProject ? projectId : null }, isCurrent, assertCurrent });
   }
   return bound;
 }
@@ -35,8 +34,7 @@ export function characterSignedTemplates(home: string, project: string, rows: Pl
     const bindings = bindSignedRoleInstallations(home, project, rows, homeRows, roles.map(role => ({ install_id: role.install_id, source: role.default_ref.source })), invalid);
     return roles.flatMap(role => {
       const binding = bindings.get(role.install_id);
-      if (!binding) return [];
-      try { binding.assertCurrent(); } catch { return []; }
+      if (!binding?.isCurrent()) return [];
       return [{ role, binding, definitions }];
     });
   };

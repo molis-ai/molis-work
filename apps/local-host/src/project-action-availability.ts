@@ -123,7 +123,8 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
     // Only Runtime stamps an installation id. A Home provider belongs to its trusted Home registration,
     // not to a project's shown-plugin list; a missing/deleted project is still a project caller.
     const homeRuntime = caller.project_id == null && action.provider.kind === "plugin"
-      && !!action.provider.plugin_install_id && action.provider.project_id === undefined && !!entry?.runtime;
+      && !!action.provider.plugin_install_id && action.provider.project_id === undefined
+      && entry !== undefined && (!("manifest" in entry) || !!entry.runtime);
     return !entry || homeRuntime || pluginReachable(entry, reachable) ? { available: true }
       : { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" };
   };

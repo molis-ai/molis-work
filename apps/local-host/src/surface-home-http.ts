@@ -155,7 +155,7 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   const view = [...sample.views].find(item => item.capability_id + "@" + item.version === action.ref && item.provider.provider_id === action.provider_id);
   if (!view) throw changed();
   if (target.kind === "project_installation") return enablePackage(click, entry, target, view, () => {
-    sample.actionsCurrent?.(); sample.catalog.assertCurrent();
+    sample.actionsCurrent?.(); sample.catalog.assertProjectCurrent();
   });
   if (target.kind === "project_membership") return enableMembership(click, entry, target, {
     assertCurrent() { sample.actionsCurrent?.(); sample.catalog.assertCurrent(); }, isShownMember: member => sample.catalog.isShownMember(member),

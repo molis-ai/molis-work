@@ -88,7 +88,7 @@ async function fixture(t: TestContext) {
     artifacts: { produces: [], consumes: [] } }, start() { throw new Error("Fixture plugin crashed on its actual startup"); } };
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: homeHalf, dual_instance: true }, crashed], project: [projectHalf] },
     completeText: async () => { modelCalls++; throw new Error("Homepage must not invoke the model"); } });
-  const project = await f.project("Homepage"), prefix = "/projects/" + project.project_id;
+  const project = await f.project("Homepage", [crashing.id]), prefix = "/projects/" + project.project_id;
   const post = (path: string, body: unknown = {}, headers?: Record<string, string>) => f.request(prefix + path, { method: "POST", body, headers });
   const read = (body: unknown = {}) => post(route, body).then(response => json<SurfaceDescription>(response));
   const click = (owner_plugin_id: string, target: unknown) => post(route + "/click", { owner_plugin_id, target });

@@ -1,4 +1,5 @@
-import { renderButton, renderHelpButton, renderHelpDeclarationScript, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { renderButton, renderCollapsible, renderHelpButton, renderHelpDeclarationScript, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
 import { workbenchSurfaceHelpDeclaration } from "./settings-help-topics.js";
@@ -14,13 +15,18 @@ import { workbenchSurfaceHelpDeclaration } from "./settings-help-topics.js";
 export function renderProjectHome(name: string, { escapeHtml: e }: ImmersiveShellPrimitives, projectId?: string): string {
   const capture = SHIPPED_WORKBENCH_PARTS.find(entry => entry.workbench.personalTaskCaptureRoute);
   const create = capture?.manifest.routes?.find(route => route.method === "POST" && route.route_id === capture.workbench.personalTaskCaptureRoute);
+  const personal = projectId === PERSONAL_SPACE_PROJECT_ID;
   return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${uiText("workbench.project-home.project-home")}" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
     <div class="home-scroll mw-first-page" data-home-scroll><div class="mw-first-page__grid">
       <div class="mw-first-page__column">
         <div class="mw-first-page__meta"><span>${uiText("workbench.project-home.project-home")}</span><span class="mw-first-page__grow"></span><span data-home-page-version></span><span data-home-version></span>${renderButton({ label: uiText.text("workbench.home.refresh"), variant: "ghost", size: "sm", icon: "refresh", iconOnly: true, attrs: { "data-home-control": "refresh" } })}${renderHelpButton({ topic: "workbench-home", label: uiText.text("common.help.title"), size: "sm" })}</div>
         <h1>${e(name)}</h1>
-        ${projectId && capture && create ? `<details data-task-member="${e(capture.project_plugin_id)}" data-task-owner="${e(capture.manifest.plugin_id)}" data-task-route="${e(create.path)}" data-personal-tasks="${projectId === "personal" ? "overview" : "capture"}"><summary>${uiText(projectId === "personal" ? "workbench.personal-tasks.all" : "workbench.personal-tasks.capture")}</summary>
-          <div data-personal-tasks-body aria-live="polite"></div><template data-personal-task-entry><form><label><span></span><input class="mw-input" required></label><button type="submit" class="mw-btn mw-btn--secondary"></button></form></template></details>` : ""}
+        ${projectId && capture && create ? renderCollapsible({
+          summary: uiText.text(personal ? "workbench.personal-tasks.all" : "workbench.personal-tasks.capture"),
+          attrs: { "data-personal-tasks": personal ? "overview" : "capture", "data-task-member": capture.project_plugin_id,
+            "data-task-owner": capture.manifest.plugin_id, "data-task-route": create.path },
+          body: '<div data-personal-tasks-body aria-live="polite"></div><template data-personal-task-entry><form><label><span></span><input class="mw-input" required></label><button type="submit" class="mw-btn mw-btn--secondary"></button></form></template>',
+        }) : ""}
         <div class="home-read-state" data-home-status aria-live="polite"></div>
         <div class="home-generated-notice" data-home-generated-notice aria-live="polite"></div>
         <div class="home-groups" data-home-groups></div>

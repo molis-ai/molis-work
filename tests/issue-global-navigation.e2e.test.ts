@@ -108,9 +108,10 @@ test("ISSUE-35 UPP-30 the project chord requests personal membership before open
   assert.equal(await b.evaluate("document.querySelector('[data-side-panel]').contains(document.activeElement)"), false);
   // The glyph opens it and brings the keyboard along; the chord from inside puts it away. (Its titlebar button was a switch; the
   // side's glyphs open, and the side closes from its chord, ⌘\ or the layout menu — 07-1 S4b.)
+  const requestsBeforeReopen = requests.length;
   await b.click(entry); await b.waitFor(open);
   await composerFocused(t, b, v);
-  assert.equal(requests.length, 1, "reopening reuses the loaded view");
+  assert.equal(requests.length, requestsBeforeReopen, "reopening reuses the loaded view");
   await v.type("项目页里写了一半");
   await v.chord(); await b.waitFor(closed);
   // Pressed while the keyboard is inside another side view's frame, the chord still reaches the shell.

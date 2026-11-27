@@ -141,7 +141,7 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
     const key = stage?.project_plugin_id ?? id;
     const sandbox = record.execution === "sandbox" && record.publisher_trust !== "host";
     if (!stage && !sandbox) return [];
-    const wanted = membership.shown.has(key);
+    const wanted = membership.shown.has(key) || (!builtin && home?.providesDualInstance(id) === true);
     const removed = !!builtin?.project_runtime && scope === "project" && !wanted && membership.removed.has(key) && record.state === "disabled";
     if ((builtin || scope === "home") && !wanted && !removed || !builtin && !fromHome && !sandbox) return [];
     const exact = installedManifestMatches(record, manifest) ? manifest : undefined;
@@ -189,7 +189,10 @@ export function surfaceHomeDirectory(ports: DirectoryPorts) {
   // A Home read asks this at every step; the catalog only changes from another request, in a turn of its own (`currentTurn`), so within
   // a turn it is sampled once.
   let sampledIn: object | undefined, sampledGeneration = -1;
-  return { entries, plugins: entries.map(entry => entry.plugin), isShownMember(member: string) {
+  return { entries, plugins: entries.map(entry => entry.plugin), assertProjectCurrent() {
+    // Revalidates this project's path and recycling state even after a command changes its own installation.
+    homeMembership(ports);
+  }, isShownMember(member: string) {
     return homeMembership(ports).shown.has(member);
   }, assertCurrent() {
     const turn = currentTurn(), generation = currentReadCheckGeneration();

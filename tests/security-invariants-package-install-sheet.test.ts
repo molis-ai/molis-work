@@ -19,7 +19,7 @@ async function sheetHome(t: TestContext) {
   const owner = connectionsProbe("sheetowner"), second = connectionsProbe("sheetsecond");
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [owner.definition, second.definition] } });
   await f.host.homePlugins!.ready();
-  const project = await f.project("Install sheet"), other = await f.project("Install sheet elsewhere");
+  const project = await f.project("Install sheet", [owner.id, second.id]), other = await f.project("Install sheet elsewhere", [owner.id, second.id]);
   const prefix = `/projects/${project.project_id}`;
   const open = async (plugin_id = owner.id, at = prefix) => {
     const opened = await f.request(at + "/api/host/plugin-pages", { method: "POST", body: { plugin_id } });

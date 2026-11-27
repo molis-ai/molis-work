@@ -202,6 +202,7 @@ for (const scope of ["home", "project"] as const) test(`B47-F3 S-94 ${scope} pac
     const operation = async (name: string, input: Record<string, unknown>) => operate(client(), caller, await operationsOf(client(), caller), name, input);
     const preview = await client().invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
     await client().invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Publisher" });
+    if (scope === "home") await addProjectPlugin(served.web, project.project_id, PACKAGE_PLUGIN_ID);
     await operation("notes.add", { text: "kept in place" });
     const approved = (await getRow())!.permissions;
     const before = new SandboxPackageStore(root.home).load(PACKAGE_PLUGIN_ID, publisher.identity, "1.0.0");

@@ -33,7 +33,7 @@ const directory: PluginDirectory = [
     { view_id: "stage", slot: "stage", title: "岛屿舞台", order: 1 },
   ] } },
 ];
-const enabled = ["selected", "island"];
+const enabled = ["selected", "island", "stalled-package"];
 
 test("BRC-03 · one registry preserves the source of tied view ids and the old read shape", () => {
   const registry = new UiViewRegistry(directory.map(manifest => ({ manifest, enabled: !manifest.chosen || enabled.includes(manifest.id) })));

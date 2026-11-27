@@ -1,3 +1,4 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 // @requires-platform darwin
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -63,6 +64,7 @@ async function fixture(t: TestContext, scope: "project" | "home", delegated: rea
     await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Homepage fixture" });
   };
   await install();
+  if (scope === "home") await addProjectPlugin(f.web, project.project_id, owner);
   const post = (path: string, value: unknown, headers?: Record<string, string>) => f.request(prefix + path, { method: "POST", body: value, headers });
   const description = () => post(endpoint, {}).then(answer => body<SurfaceDescription>(answer));
   const card = async (): Promise<SurfacePluginCard> => {

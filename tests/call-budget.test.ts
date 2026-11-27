@@ -241,19 +241,25 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
     for (let sample = 0; sample < samples; sample++) { t.mock.timers.setTime(now += 60_000); runs.push(await measure(readOverview)); }
     return median(runs);
   };
-  const { todoActions, TODO_ACTION_PERMISSIONS, todoManifest } = await import("@molis-ai/molis-work-plugin-todo");
+  const { todoManifest } = await import("@molis-ai/molis-work-plugin-todo");
+  const { openTodoStore } = await import("./fixtures/plugin-home-stores.js");
+  const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   const { installIdentity } = await import("@molis-ai/molis-work-plugin-runtime");
   const { execFileSync } = await import("node:child_process");
   const dormantIds: string[] = [];
-  async function populate(index: number) {
-    const dormant = await home.createProject(`Dormant ${index}`, ["todo"]);
-    await home.host.actionClient(dormant.reference).invoke({ ...overviewPerson, project_id: dormant.project_id, permissions: TODO_ACTION_PERMISSIONS },
-      todoActions.create, { title: "G4 " + index });
-    await home.host.closeProject(dormant.reference);
-    dormantIds.push(dormant.project_id);
-  }
   const withFew = await overviewCounts();
-  for (let index = 0; index < 19; index++) await populate(index);
+  // Seed the real owner databases while the projects sleep. Bringing up 19 workbenches just to
+  // arrange the sample dominated this read-budget test on Linux runners.
+  await home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home.home }, async catalog => {
+    for (let index = 0; index < 19; index++) {
+      const { project_id } = await catalog.createProject({ display_name: `Dormant ${index}`, actor_id: overviewPerson.actor_id });
+      catalog.addProjectPlugin({ project_id, plugin_id: "todo", actor_id: overviewPerson.actor_id });
+      const todo = openTodoStore(home.home, undefined, project_id);
+      try { todo.create({ title: "G4 " + index }, { actor: "user", actorId: overviewPerson.actor_id }); }
+      finally { todo.close(); }
+      dormantIds.push(project_id);
+    }
+  });
   const service = existingPartitionPluginHost(home.home)!;
   await service.assembly.stopPlugin(todoManifest.plugin_id);
   assert.equal((await home.host.partitions()).length >= 20, true, "twenty projects, the personal space besides");

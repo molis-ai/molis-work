@@ -4,6 +4,7 @@ import { pluginManifestDigest, type RuntimeSyncCollection } from "@molis-ai/moli
 import { partitionPluginScope } from "./partition-plugin-assembly.js";
 import type { PartitionPluginHost } from "./partition-plugin-host.js";
 import { openPartitionPluginDatabase } from "./plugin-home-database-client.js";
+import { pluginDueFor } from "./plugin-partition-services.js";
 import { partitionOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 
 /** The same collection handler as a live partition, opened only around one authorized operation. Discovery opens no business library. */
@@ -33,7 +34,8 @@ export function passivePartitionSync(home: string, spaceId: string, projectId: s
     let pending = false;
     try {
       const ownerFiles = partitionOwnerFilesFor({ partitionScope: scope, home: { directory: home }, project_id: projectId }, definition, instance, check);
-      const binding = owner.bindings({ project_id: projectId, sync: { spaceId, assertActive: check }, services: { sync: library.sync, ownerFiles: ownerFiles?.client } })
+      const binding = owner.bindings({ project_id: projectId, sync: { spaceId, assertActive: check }, services: { sync: library.sync, ownerFiles: ownerFiles?.client,
+        database: { get: library.client.get.bind(library.client) }, due: pluginDueFor(home, scope, manifest, instance, check) } })
         .find(row => row.collection_id === collection.id);
       if (!binding) throw new ActionError("actions.plugin_unavailable", "分区插件没有提供这个同步集合");
       const result = run(binding);

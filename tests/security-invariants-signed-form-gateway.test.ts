@@ -72,6 +72,11 @@ operations["notes.add"] = async (input, sdk) => {
   const record = installation();
   assert.ok(record?.grants.includes("capabilities:call"));
   assert.equal(record.state, "running");
+  if (scope === "home") {
+    const expected_revision = await projectPluginRevisionAt(f.origin, project.project_id);
+    const enabled = await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id: PACKAGE_PLUGIN_ID, expected_revision } });
+    assert.equal(enabled.status, 200, await enabled.clone().text());
+  }
   const open = async (at = prefix) => {
     const response = await f.request(at + "/plugins/" + PACKAGE_PLUGIN_ID + "?frame=workbench");
     const html = await response.text();

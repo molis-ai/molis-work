@@ -77,6 +77,7 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
     } catch (error) { if (!signal.aborted) request.show(body, error); }
   };
   panel.addEventListener("toggle", draw);
+  if (panel.open) void draw();
   document.addEventListener("molis-work:language-changed", draw);
   return () => { read?.abort(); panel.removeEventListener("toggle", draw); document.removeEventListener("molis-work:language-changed", draw); };
 }

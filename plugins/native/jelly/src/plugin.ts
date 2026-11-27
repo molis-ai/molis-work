@@ -2,7 +2,7 @@ import { syncBindings } from "./sync-binding.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createJellyActionHandlers } from "./actions.js";
-import { JELLY_WINDOW_ENTRY, jellyDue, writeJellySeriesOverview } from "./overview.js";
+import { JELLY_WINDOW_ENTRY, armJellyWindow, jellyDue, writeJellySeriesOverview } from "./overview.js";
 import { jellyManifest } from "./manifest.js";
 import { JellyStore, type JellyStores } from "./store.js";
 import { jellyUiContribution } from "./ui.js";
@@ -15,28 +15,19 @@ export function createJellyPlugin(): PluginDefinition {
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供 Jelly 库");
     const readOnly = () => { throw new ActionError("actions.execution_failed", "Jelly 的读取不写入"); };
     const due = context.services?.due;
-    const armWindow = () => {
-      if (!due) return;
-      const today = new Date().toISOString().slice(0, 10);
-      if (!database.get("SELECT 1 AS active FROM jelly_series WHERE until IS NULL OR until >= ? LIMIT 1", [today])) {
-        due.cancel(JELLY_WINDOW_ENTRY);
-        return;
-      }
-      const next = new Date(); next.setUTCDate(next.getUTCDate() + 1); next.setUTCHours(0, 0, 0, 0);
-      due.register({ entry_key: JELLY_WINDOW_ENTRY, due_at: next.toISOString() });
-    };
     const roll = async (check: () => void) => {
       await database.transaction(async () => check(), tx => {
         for (const series of new JellyStore(tx).series()) writeJellySeriesOverview(tx, series);
       });
-      armWindow();
+      armJellyWindow(database, due, true);
     };
-    if (database.get("SELECT 1 AS active FROM jelly_series LIMIT 1")) await roll(() => context.requireGrant("storage:private"));
+    if (database.get("SELECT 1 AS active FROM jelly_series LIMIT 1") && !due?.list().some(entry => entry.entry_key === JELLY_WINDOW_ENTRY))
+      await roll(() => context.requireGrant("storage:private"));
     const stores: JellyStores = {
       read: run => run(new JellyStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters), run: readOnly, savepoint: readOnly })),
       write: async (caller, run) => {
         const result = await database.transaction(() => caller.beforeEffect(), transaction => run(new JellyStore(transaction)));
-        armWindow();
+        armJellyWindow(database, due);
         return result;
       },
     };

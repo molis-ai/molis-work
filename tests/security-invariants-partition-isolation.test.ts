@@ -9,7 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   createPluginPlatform, ensureProjectPlugins, existingPartitionPluginHost, HomeConsentLedger, homeStores, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore,
-  openPartitionPluginLibrary, openProjectVersionStores, PartitionPlatformServices, PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope,
+  onPartitionReminder, openPartitionPluginLibrary, openProjectVersionStores, PartitionPlatformServices, PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope,
   pluginInstallRecords, projectPluginPlatform, refreshRunningProjectPlugins, releaseProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
@@ -21,6 +21,7 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 import { person as runtimePerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
+import { jellyActions, jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
 import { TODO_ACTION_PERMISSIONS, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -412,7 +413,7 @@ async function until(what: string, ready: () => boolean, ms = 20_000): Promise<v
 
 // Batch 108 item 2 ④: the same rule on the real Host with the real plugins. Todo's reminder (read from its overview table into the due
 // registry) and Images' generation deadline (its own due entry) fall due while every partition sleeps; each wakes only its own (plugin,
-// partition), opening that partition and no other. Jelly's events join this case when Jelly moves to partitions.
+// partition), opening that partition and no other.
 test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("提醒 A", ["todo", "images"]), b = await f.project("提醒 B", ["todo", "images"]), c = await f.project("提醒 C", ["todo", "images"]);
@@ -445,6 +446,39 @@ test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
   assert.deepEqual(services.due.entries(c.project_id).map(entry => entry.due_at), [later, later], "C's entries still wait");
   assert.deepEqual(services.due.entries(b.project_id).filter(entry => entry.plugin_id === todoManifest.plugin_id).map(entry => entry.due_at), [later], "B's reminder still waits");
   assert.deepEqual(services.due.entries(a.project_id).filter(entry => entry.plugin_id === imagesManifest.plugin_id).map(entry => entry.entry_key), ["job:later"]);
+});
+
+// B2R-03/04. Use a wall-clock minute so the public calendar form, registry, timer and final notification agree.
+test("UPP-32 a single Jelly event and a weekly occurrence due in a sleeping partition wake only Jelly and notify once each", { timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("Calendar", ["jelly"]), b = await f.project("Unrelated", ["jelly"]);
+  const assembly = existingPartitionPluginHost(f.home);
+  assert.ok(assembly?.services);
+  const when = new Date(Math.ceil((Date.now() + 10_000) / 60_000) * 60_000), day = when.toISOString().slice(0, 10);
+  const minute = when.getUTCHours() * 60 + when.getUTCMinutes();
+  const end = new Date(when.getTime() + 60_000);
+  const schedule = { start_date: day, end_date: end.toISOString().slice(0, 10), start_time: minute, end_time: end.getUTCHours() * 60 + end.getUTCMinutes(), time_zone: "UTC", reminder_minutes: 0 };
+  const call = f.host.actionClient(a.reference);
+  const item = (await call.invoke(runtimePerson(jellyActions.createItem.action.permissions, a.project_id), jellyActions.createItem,
+    { item: { ...schedule, title: "Single calendar reminder" } })).item;
+  const series = (await call.invoke(runtimePerson(jellyActions.createSeries.action.permissions, a.project_id), jellyActions.createSeries,
+    { series: { ...schedule, title: "Recurring calendar reminder", weekdays: [when.getUTCDay() || 7] } })).series;
+  const keys = ["event:" + item.id, "event:" + series.id + "@" + day].sort();
+  const clock = assembly.services;
+  const due = () => clock.due.entries(a.project_id).filter(row => keys.includes(row.entry_key));
+  assert.deepEqual(due().map(row => row.due_at), [when.toISOString(), when.toISOString()]);
+  const notices: string[] = [];
+  t.after(onPartitionReminder(f.home, entry => { if (entry.partition_id === a.project_id) notices.push(entry.entry_key); }));
+  for (const project of [a, b]) await f.host.closeProject(project.reference);
+  await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
+  assert.deepEqual(f.host.projects(), []);
+  await until("both calendar reminders were acknowledged", () => !due().length, 90_000);
+  assert.deepEqual(notices.sort(), keys);
+  assert.deepEqual(assembly.assembly.instances().map(row => [row.partition_id, row.plugin_id]), [[a.project_id, jellyManifest.plugin_id]]);
+  assert.deepEqual(f.host.projects().map(row => row.project_id), [a.project_id]);
+  await clock.timer.fire();
+  assert.deepEqual(notices.sort(), keys);
+  assert.ok(clock.due.entries(a.project_id).some(row => row.entry_key === "calendar-window"));
 });
 
 // Batch 107-1: the Host's per-partition assembly (`partition-plugin-host.ts`). A plugin with a library in each partition no longer runs on the
@@ -978,7 +1012,8 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   const { openTestHome } = await import("./fixtures/test-home.js");
   const { ATTENTION_OVERVIEW_SOURCE, assistantSettingActions, assistantSettingOwner } = await import("@molis-ai/molis-work-app-local-host");
   const { OVERVIEW_PROVIDER_ID, overviewReadAction } = await import("@molis-ai/molis-work-contracts/platform/plugin");
-  const home = await openTestHome(t);
+  let inaccessible: string | undefined;
+  const home = await openTestHome(t, { host: { overviewProjectAccess: (_caller, id) => id !== inaccessible } });
   const a = await home.createProject("总览 A"), b = await home.createProject("总览 B");
   // Two "waiting on you" entries written where the platform keeps them, one per project, and one already done that is not shown.
   for (const [project, entry, status] of [[a, "wait-a", "open"], [b, "wait-b", "in_progress"], [a, "done-a", "done"]] as const) {
@@ -1006,6 +1041,13 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   assert.deepEqual(await rows(assistant), [[a.project_id, "wait-a", { title: "needs_decision" }]], "granted A's titles: A's entry, only its title, nothing of B");
   await write("1", []);
   assert.deepEqual(await rows(assistant), [], "a withdrawn grant takes effect on the next read");
+
+  await write("2", [a, b].map(project => ({ partition_id: project.project_id, fields: ["title"] })));
+  assert.equal((await rows(assistant)).length, 2);
+  inaccessible = a.project_id;
+  assert.deepEqual((await rows(assistant)).map(([id]) => id), [b.project_id], "live project access narrows an unchanged two-project grant on a warm cache");
+  assert.deepEqual((await rows(person)).map(([id]) => id), [b.project_id]);
+  assert.deepEqual(await rows({ ...person, readable_project_ids: [a.project_id] }), [], "the trusted caller scope intersects live access");
 
   for (const [label, caller] of [
     ["an Agent of its own (not the person)", { ...assistant, actor_id: "agent:runtime-1" }],

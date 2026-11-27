@@ -45,7 +45,9 @@ export function scopeRuntimeReplica(source: SyncReplicaAdapter, scope: RuntimeSy
     receive: (event, options) => change(() => source.receive({ ...event, key: localKey(event.key), value: readRuntimeSyncValue(scope, event.value) }, options)),
     cursor: () => source.cursor(), counts: () => source.counts(), conflicts: () => source.conflicts().map(row => ({ ...row, key: wrapKey(row.key) })),
     resolve: (key, choice, revision, state) => change(() => source.resolve(localKey(key), choice, revision, state)),
-    ...(source.retryWaiting ? { retryWaiting: () => change(() => source.retryWaiting!()) } : {}),
+    ...(source.retryWaiting ? { retryWaiting() {
+      if (source.conflicts().some(row => row.waiting)) change(() => source.retryWaiting!());
+    } } : {}),
     ...(source.inspectConflict ? { inspectConflict(key: string) { const value = source.inspectConflict!(localKey(key)); return value ? { ...value, key, local:runtimeSyncValue(scope,value.local),remote:runtimeSyncValue(scope,value.remote) } : null; } } : {}),
     ...(source.recoveries ? { recoveries: () => source.recoveries!().map(row => ({ ...row, key: wrapKey(row.key) })) } : {}),
     ...(source.inspectRecovery ? { inspectRecovery(id: string) { const value = source.inspectRecovery!(id); return value ? { ...value, key: wrapKey(value.key),local:runtimeSyncValue(scope,value.local),remote:runtimeSyncValue(scope,value.remote) } : null; } } : {}),

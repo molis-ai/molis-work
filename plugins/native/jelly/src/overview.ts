@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { jellyAddDays, jellyOccurrences } from "./calendar.js";
-import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewEventRow, type PluginDueOutcome } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewEventRow, type PluginDueClient, type PluginDueOutcome } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { instantIn, overviewRows, type OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { JELLY_PROJECT_PLUGIN_ID, type JellyItem, type JellySeries } from "./contract.js";
@@ -46,6 +46,22 @@ export function removeJellyOverview(db: OverviewRowsWriter, id: string): void {
 }
 
 export const JELLY_WINDOW_ENTRY = "calendar-window";
+/** Re-arm on committed calendar writes, including a first series received while the partition sleeps. Keep overdue work until its delivery. */
+export function armJellyWindow(database: Pick<OverviewRowsWriter, "get">, due: PluginDueClient | undefined, advancing = false): void {
+  if (!due) return;
+  const now = new Date(), today = now.toISOString().slice(0, 10);
+  const pending = due.list().find(entry => entry.entry_key === JELLY_WINDOW_ENTRY);
+  if (!database.get("SELECT 1 AS active FROM jelly_series WHERE until IS NULL OR until >= ? LIMIT 1", [today])) {
+    if (pending) due.cancel(JELLY_WINDOW_ENTRY);
+    return;
+  }
+  if (pending && !advancing) return;
+  const next = new Date(now);
+  next.setUTCDate(next.getUTCDate() + 1);
+  next.setUTCHours(0, 0, 0, 0);
+  due.register({ entry_key: JELLY_WINDOW_ENTRY, due_at: next.toISOString() });
+}
+
 export function removeJellySeriesOverview(db: OverviewRowsWriter, id: string): void {
   overviewRows(db).removePrefix("event", seriesPrefix(id));
 }
@@ -55,9 +71,12 @@ export function writeJellySeriesOverview(db: OverviewRowsWriter, series: JellySe
   const localDay = new Intl.DateTimeFormat(undefined, { calendar: "iso8601", numberingSystem: "latn", timeZone: series.time_zone, year: "numeric", month: "2-digit", day: "2-digit" });
   const parts = Object.fromEntries(localDay.formatToParts(now).map(part => [part.type, part.value]));
   const start = [parts.year, parts.month, parts.day].join("-");
+  const prefix = seriesPrefix(series.id);
+  // Keep already-projected occurrences within the platform's missed-reminder period during rollover and a retry after midnight.
+  const occurrences = jellyOccurrences([], [series], jellyAddDays(start, -7), jellyAddDays(start, OVERVIEW_EVENT_WINDOW_DAYS - 1))
+    .filter(item => item.end_date >= start || db.get(`SELECT 1 AS found FROM ${OVERVIEW_TABLE} WHERE kind = 'event' AND row_id = ?`, [prefix + item.original_date]));
   removeJellySeriesOverview(db, series.id);
-  for (const item of jellyOccurrences([], [series], start, jellyAddDays(start, OVERVIEW_EVENT_WINDOW_DAYS - 1)))
-    writeJellyOverview(db, item, seriesPrefix(series.id) + item.original_date);
+  for (const item of occurrences) writeJellyOverview(db, item, prefix + item.original_date);
 }
 
 export function jellyDue(db: OverviewRowsWriter, key: string, dueAt: string): PluginDueOutcome {

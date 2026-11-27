@@ -187,7 +187,9 @@ export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
 
 /** Data ports for a declared partition collection. Sync never receives activation, actions, model or background execution. */
 export type PartitionSyncContext = Pick<PluginStartContext, "project_id" | "sync" | "copy"> & {
-  readonly services?: Pick<PluginHostServices, "sync" | "ownerFiles">;
+  readonly services?: Pick<PluginHostServices, "sync" | "ownerFiles" | "due"> & {
+    readonly database?: Pick<NonNullable<PluginHostServices["database"]>, "get">;
+  };
 };
 
 export interface PluginDefinition {

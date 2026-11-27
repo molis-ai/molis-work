@@ -108,7 +108,7 @@ async function listenDispatcher(
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.ok(homeStores().get("config/native-session-token")?.snapshot.omit, "本机账号桥接凭据必须排除在离线快照之外");
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "config/mcp-client-credentials", "sync", "projects", "personal-space", "outputs", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
-    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "blueprints", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "memory-forgetting-v2.json", "observation", "evaluation", "external-sessions", "conversation-attachments", "mainline", "home-pages", "materials", "web-search", "search", "knowledge", "security", "feed-content", "server",
+    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "blueprints", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "memory-forgetting.json", "observation", "evaluation", "external-sessions", "conversation-attachments", "mainline", "home-pages", "materials", "web-search", "search", "knowledge", "security", "feed-content", "server",
     "issues", "cognia", "images", "jelly", "todo", "work-brief", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/automation-recommendations.json", "config/automation-offers.json", "config/onboarding.json", "config/plugin-publisher.json",
     "config/project-arrival.json", "config/ui-locale.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "due-registry", "evidence", "person-settings", "interface", "upgrade", "run", "config/desktop.json"].sort());
@@ -471,23 +471,25 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
 test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
   await withHome(async (home) => {
     const host = new MolisWorkLocalHost({ homeDirectory: home });
-    // The Home is served so that the project and the client's grants are made the way a person makes them, through the settings routes.
-    const served = await serveTestHost(t, { home, host });
-    const project = await served.createProject("MCP Promote");
-    const databasePath = project.database_path;
-    const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.get), promoteName = molisWorkActionToolName(pagesActions.promote);
-    await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.get, pagesActions.promote]);
-    const server = new MolisWorkServer("runtime", {
-      databasePath,
-      projectId: project.project_id,
-      webBaseUrl: "http://127.0.0.1:4173",
-    }, {
-      homeDirectory: home,
-      runtimeContext: { runtime_id: "codex", stable_work_context_id: "pages-promote", host_declares_stable: true },
-      webBaseUrl: "http://127.0.0.1:4173",
-    }, host);
+    let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
+    let server: MolisWorkServer | undefined;
     try {
+      // The Home is served so that the project and the client's grants are made the way a person makes them, through the settings routes.
+      served = await serveTestHost(t, { home, host });
+      const project = await served.createProject("MCP Promote", ["pages"]);
+      const databasePath = project.database_path;
+      const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
+      const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.get), promoteName = molisWorkActionToolName(pagesActions.promote);
+      await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.get, pagesActions.promote]);
+      server = new MolisWorkServer("runtime", {
+        databasePath,
+        projectId: project.project_id,
+        webBaseUrl: "http://127.0.0.1:4173",
+      }, {
+        homeDirectory: home,
+        runtimeContext: { runtime_id: "codex", stable_work_context_id: "pages-promote", host_declares_stable: true },
+        webBaseUrl: "http://127.0.0.1:4173",
+      }, host);
       await server.handleMessage({
         jsonrpc: "2.0",
         id: 0,
@@ -527,8 +529,8 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
         verify.close();
       }
     } finally {
-      await server.close();
-      await served.close();
+      await server?.close();
+      await served?.close();
       await host.close();
     }
   });

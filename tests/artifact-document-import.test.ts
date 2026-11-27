@@ -139,7 +139,7 @@ test("QEA-79: HTML import extracts readable content, preserves its source and ne
   const imported = await response.json() as ArtifactImportResult;
   assert.deepEqual(imported.warnings, [{ owner: "workbench", key: "workbench.import.warning-html-snapshot" }]);
   const artifact = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported)!;
-  assert.equal(artifact.schema_version, 2);
+  assert.equal(artifact.schema_version, 1);
   const payload = artifact.payload as Record<string, unknown>;
   assert.deepEqual(payload.warnings, [{ key: "workbench.import.warning-html-snapshot" }]);
   assert.equal(payload.original_html, original);
@@ -155,7 +155,7 @@ test("QEA-79: HTML import extracts readable content, preserves its source and ne
   assert.equal(exported.payload.original_html, original);
 });
 
-test("QEA-80: a schema 1 import stays exact through restart, download and reimport as schema 2", async t => {
+test("QEA-80: schema 1 imports stay exact through restart, download and continue, while unsupported schemas are refused", async t => {
   const { store, library, post, get, headers, origin, restart, projectId } = await fixture(t, { pages: true });
   const artifacts = library.artifacts, project_id = projectId, filename = "snapshot.html", source_id = "fixed-html-source";
   const original = "<!doctype html><title>Fixed snapshot</title><p>Fixed body</p>";
@@ -166,36 +166,37 @@ test("QEA-80: a schema 1 import stays exact through restart, download and reimpo
     artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version, producer: ARTIFACT_PRODUCER,
     scope: "personal", title: "Fixed snapshot", media_type: "text/markdown", origin: { kind: "imported", file_name: filename },
     content: { kind: "inline", payload: { source: "file", source_id: source, source_url: null, title: "Fixed snapshot", content: "Fixed body",
-      format: "markdown", warnings: ["冻结版本原有导入说明。"], original_html: original, original_file: sourceFile } },
+      format: "markdown", warnings: [{ key: "workbench.import.warning-html-snapshot" }], original_html: original, original_file: sourceFile } },
   });
-  // Versions saved by a different release. The current Host still owns every new import and refuses writes of those schemas.
+  // Versions saved by an unsupported schema: the current Host owns schema 1 and refuses writes/reads of other schemas.
   const history = new ArtifactsModule({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: store.appendEvent.bind(store), eventCursor: store.eventCursor.bind(store) });
-  const historical = snapshot(source_id, 1);
-  assert.throws(() => artifacts.commands.registerVersion(historical), { code: "artifacts.artifact.type_undeclared" });
-  const earlier = history.commands.registerVersion(historical).artifact, future = history.commands.registerVersion(snapshot("future-fixed-source", 3)).artifact;
-  const earlierPath = artifactVersionPath(earlier), futurePath = artifactVersionPath(future);
-  assert.match(await (await get(earlierPath)).text(), /冻结版本原有导入说明。/u);
+  const unsupported = snapshot("future-fixed-source", 2);
+  assert.throws(() => artifacts.commands.registerVersion(unsupported), { code: "artifacts.artifact.type_undeclared" });
+  const future = history.commands.registerVersion(unsupported).artifact;
+  const futurePath = artifactVersionPath(future);
+
   const input = { source: "file", source_id, filename, content: original, original_file: sourceFile };
   const response = await post(input);
   assert.equal(response.status, 201, await response.clone().text());
   const current = await response.json() as ArtifactImportResult;
-  assert.deepEqual([current.artifact_id, current.version, current.reused], [earlier.artifact_id, 2, false]);
-  assert.equal(artifacts.query.getArtifactVersion(project_id, current)?.schema_version, 2);
+  assert.deepEqual([current.artifact_id, current.version, current.reused], [importedId(source_id), 1, false]);
+  const saved = artifacts.query.getArtifactVersion(project_id, current)!;
+  assert.equal(saved.schema_version, 1);
   const repeated = await post(input);
   assert.equal(repeated.status, 200);
   assert.deepEqual(await repeated.json(), { ...current, reused: true });
-  for (const reference of [earlier, current]) {
-    const path = artifactVersionPath(reference);
-    const page = await (await get(path)).text();
-    assert.equal([...page.matchAll(/data-artifact-continue="io\.molis\.work\.pages"/gu)].length, 1);
-    assert.equal(await (await get(`/api${path}/file`)).text(), original);
-    const continued = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(),
-      body: JSON.stringify({ reference: { artifact_id: reference.artifact_id, version: reference.version }, plugin_id: "io.molis.work.pages" }) });
-    assert.equal(continued.status, 201, await continued.clone().text());
-    assert.equal((await continued.json()).open.surface, "pages");
-  }
-  for (const path of [futurePath, `/api${futurePath}/file`]) {
-    const refused = await get(path);
+
+  const path = artifactVersionPath(saved);
+  const page = await (await get(path)).text();
+  assert.equal([...page.matchAll(/data-artifact-continue="io\.molis\.work\.pages"/gu)].length, 1);
+  assert.equal(await (await get(`/api${path}/file`)).text(), original);
+  const continued = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(),
+    body: JSON.stringify({ reference: { artifact_id: saved.artifact_id, version: saved.version }, plugin_id: "io.molis.work.pages" }) });
+  assert.equal(continued.status, 201, await continued.clone().text());
+  assert.equal((await continued.json()).open.surface, "pages");
+
+  for (const blocked of [futurePath, `/api${futurePath}/file`]) {
+    const refused = await get(blocked);
     assert.equal(refused.status, 503);
     assert.match(await refused.text(), /artifacts\.document\.unsupported_version/u);
   }
@@ -203,9 +204,9 @@ test("QEA-80: a schema 1 import stays exact through restart, download and reimpo
   assert.equal(unknown.status, 503);
   assert.match(await unknown.text(), /artifacts\.document\.unsupported_version/u);
   assert.deepEqual(artifacts.query.latestArtifactVersion(project_id, future.artifact_id), future);
+
   await restart();
-  assert.deepEqual(await (await get(`/api${earlierPath}/export`)).json(), earlier, "the original payload, digest, timestamp and reference survive restart");
-  assert.match(await (await get(earlierPath)).text(), /冻结版本原有导入说明。/u);
+  assert.deepEqual(await (await get(`/api${path}/export`)).json(), saved, "the original payload, digest, timestamp and reference survive restart");
   assert.match(await (await get(current.url)).text(), /已提取 HTML 文本/u);
 });
 

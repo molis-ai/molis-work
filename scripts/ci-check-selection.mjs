@@ -4,7 +4,7 @@ const ROOT_DOCUMENTS = new Set(["README.md", "PRODUCT.md", "DESIGN.md", "CHANGEL
 const PROTECTED_DOCUMENTS = ["docs/system/", "docs/releases/", "docs/platform/", "docs/prompts/", "docs/SSOT-MATRIX.md"];
 const GATE_RULE_TEST_INPUTS = [
   "tests/health-gates-", "tests/ci-", "tests/run-tests-", "tests/first-screen-",
-  "tests/fixtures/home-store-schemas/", "tests/fixtures/studio-replay/", "tests/fixtures/builder-designer/",
+  "tests/fixtures/studio-replay/", "tests/fixtures/builder-designer/",
   "tests/doc-reference-gates.test.ts", "tests/doc-reference-gates-", "tests/fixtures/doc-reference-gates.ts",
   "tests/translation-check.test.ts", "tests/package-inventory-gate.test.ts",
   "tests/vendor-provenance.test.ts", "tests/verify-release-versions.test.ts", "tests/version-source.test.ts",
@@ -14,7 +14,6 @@ const GATE_RULE_TEST_INPUTS = [
   "tests/installer-symlink-dependencies.test.ts", "tests/shell-page-gate.test.ts", "tests/artifact-type-gate.test.ts",
   "tests/artifact-declaration-gate.test.ts", "tests/artifact-host-writers.test.ts", "tests/studio-replay.test.ts",
   "tests/affected-tests.test.ts", "tests/fixtures/ci-workflow.ts", "tests/fixtures/plugin-styles-build.ts",
-  "tests/fixtures/feed-content-home-v1.sql",
 ];
 const STUDIO_INPUTS = [
   ".github/", "skills/molis-plugin-dev/", "horizontal/plugin-studio/",
@@ -85,10 +84,9 @@ const accountTestScript = /^scripts\/(?:account-[\w-]+|central-account)\.test\.m
 // These are inputs to running checks. The PR still checks the real data. Register self-tests
 // that also open it (including directory walks that the literal-path index cannot resolve).
 const GATE_DATA = [
-  { inputs: ["docs/system/CONTRACT-CHANGES.md", "docs/system/HOME-DATA.md"], tests: ["tests/health-gates-store-versions.test.ts", "tests/version-source.test.ts"] },
+  { inputs: ["docs/system/CONTRACT-CHANGES.md", "docs/system/HOME-DATA.md"], tests: ["tests/version-source.test.ts"] },
   { inputs: ["tooling/gates/actions/actions.tsv", "tooling/gates/actions/host-actions.tsv"], tests: ["tests/version-source.test.ts"] },
-  { inputs: ["tooling/gates/schemas/stores.tsv", "tests/home-store-baselines.test.ts"], pattern: /^tests\/fixtures\/home-store-schemas\/[^/]+\.sql$/,
-    tests: ["tests/health-gates-store-schemas.test.ts", "tests/health-gates-store-versions.test.ts"] },
+  { inputs: ["tests/home-store-baselines.test.ts"], tests: [] },
   { inputs: ["tests/ci-shard-weights.json"], tests: ["tests/ci-shard-weights.test.ts", "tests/run-tests-shard.test.ts", "tests/ci-product-subset-plan.test.ts", "tests/ci-test-selection.test.ts"] },
   { inputs: ["docs/system/DEVELOPMENT-REQUIREMENTS.md"], tests: ["tests/affected-tests.test.ts", "tests/package-inventory-gate.test.ts"] },
   { inputs: ["tooling/gates/README.md"], tests: [...DOC_REFERENCE_TESTS, "tests/health-gates-action-input-counts.test.ts"] },

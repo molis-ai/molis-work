@@ -35,7 +35,7 @@
 
 - **App 与组合根**（`apps/*`）：只装配与做 IO，不写业务规则；不直接写业务数据库。一个 Home 只有一个执行进程，其他入口转发给它。App 之间只有登记的启动器边（`APP_IMPORT_ALLOWLIST`，见 [包边界规则](PACKAGE-BOUNDARIES.md)第 2 节）。
 - **平台包**（`packages/*`）：只依赖合同与更低层平台包；不拥有 Goal、Artifact、Feed、Session 等业务事实。
-- **Module**（`modules/*`，加上 `server`：它有群聊领域，按业务包检查）：自己的事实只由自己写；跨 Module 只走公开合同，不导入另一个 Module 的实现或 Store，也不导入 Horizontal Service、App 或 Plugin；入口不再新增 Repository/Store 导出；结果合同只认现行取值，存量数据由维护改成现行形状。
+- **Module**（`modules/*`，加上 `server`：它有群聊领域，按业务包检查）：自己的事实只由自己写；跨 Module 只走公开合同，不导入另一个 Module 的实现或 Store，也不导入 Horizontal Service、App 或 Plugin；入口不再新增 Repository/Store 导出；开发前阶段合同与持久化结构一律固定 v1、原地修改并同步全部消费者，零迁移、零读时兼容。
 - **横向运行服务**（`horizontal/` 下的 `connector-host`、`scheduler`、`runtime-host`、`agent-host`）：提供机制（运行时、连接、叫醒），不决定业务状态。模型调用只经 `horizontal/agent-host`。
 - **平台产品服务**（记忆、放置、搜索、项目资料、情境排序、工作记录；现在在 `horizontal/memory`、`horizontal/placement`、`horizontal/search`、`horizontal/knowledge`、`horizontal/observation` 与 `packages/kernel` 的 `contextual.ts`）：可以持有跨插件的策略和本服务自己的机制记录，不拥有业务事实——对象事实总向所有者读取，不改写插件或 Module 的事实。见 [系统架构 §3](ARCHITECTURE.md)。
 - **工作记录**（`horizontal/observation`）：新增或修改入口、动作、后台任务、触发条件、Skill 生效方式或模型上下文时，同时判断要记的事实、入口与覆盖状态，在 `OBSERVATION_COVERAGE_PLAN` 登记；只经三条写入路（动作出口、服务 `ObservationSink`、`observation.report@1`）记，不复制业务事实；记录失败只记缺口，不改变业务结果，也不拖慢它。见 [`docs/horizontal/observation.md`](../horizontal/observation.md) 与该包 README。

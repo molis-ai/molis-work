@@ -2,10 +2,10 @@ import { goalPluginActions } from "./contract/goal-actions.js";
 
 export { goalProgressResultSchema } from "./contract/goal-actions.js";
 import type { ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEventClosureKinds, goalEventConcernActions, goalEventNewDecisionPurposes, type GoalAcceptanceReading, type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult, type RecordGoalProgressSummaryInput, type ApplyGoalConcernInput, type GoalEventConcernResult, type RequestGoalDecisionInput, type GoalEventDecisionRequestResult, type CiteGoalDecisionInput, type GoalEventDecisionResult, type SetGoalEventAgreementInput, type GoalEventAgreementResult, type SubmitGoalEventClosureInput, type GoalEventClosureResult, type ResumeGoalEventWorkInput, type GoalEventResumeResult } from "./contract/goals.js";
+import { goalEventClosureKinds, goalEventConcernActions, goalEventDecisionPurposes, type GoalAcceptanceReading, type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult, type RecordGoalProgressSummaryInput, type ApplyGoalConcernInput, type GoalEventConcernResult, type RequestGoalDecisionInput, type GoalEventDecisionRequestResult, type CiteGoalDecisionInput, type GoalEventDecisionResult, type SetGoalEventAgreementInput, type GoalEventAgreementResult, type SubmitGoalEventClosureInput, type GoalEventClosureResult, type ResumeGoalEventWorkInput, type GoalEventResumeResult } from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import { goalAction as action, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, changeInput, decisionRequest, decision, reason, closure, agreement, citedSubjects } from "./contract/goal-actions.js";
+import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, change, decisionRequest, decision, reason, closure, agreement, citedSubjects } from "./contract/goal-actions.js";
 
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const version = { type: "integer", minimum: 1 };
@@ -13,7 +13,7 @@ const base = { goal_id: identifier, idempotency_key: identifier };
 const required = Object.keys(base);
 const partialScope = { ...scope, required: [] };
 const mutation = { event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } };
-const changeProperties = changeInput.properties as Record<string, ActionSchema>;
+const changeProperties = change.properties as Record<string, ActionSchema>;
 const stateProperties = goalStateSchema.properties as Record<string, ActionSchema>;
 
 /** Work operations retain the original domain's transaction and user-decision checks. */
@@ -35,7 +35,7 @@ export const goalsEventActions = {
       blocks_closure: boolean, reason: text, supporting_event_ids: array(text), cited_decision_id: text, cited_subjects: citedSubjects }, [...required, "action"]),
     object({ ...mutation, concern })),
   requestDecision: action<BusinessInput<RequestGoalDecisionInput>, GoalEventDecisionRequestResult>("goals.decisions.request", /* @version action.goals.decisions.request */ 1, "请求目标决定", "提出问题、至少两个选项及各自影响，等待用户作出决定；请求本身不表示批准", "command",
-    object({ ...base, question: identifier, options: { ...array(option), minItems: 2 }, purpose: enumeration(goalEventNewDecisionPurposes), proposed_change: changeInput, scope: partialScope },
+    object({ ...base, question: identifier, options: { ...array(option), minItems: 2 }, purpose: enumeration(goalEventDecisionPurposes), proposed_change: change, scope: partialScope },
       [...required, "question", "options", "purpose"]), object({ ...mutation, decision_request: decisionRequest })),
   citeDecision: action<BusinessInput<CiteGoalDecisionInput>, GoalEventDecisionResult>("goals.decisions.cite", /* @version action.goals.decisions.cite */ 1, "引用已有决定", "引用当前目标中已保存的可信决定；业务层核对适用范围和当前有效性，不能借引用生成新批准", "command",
     object({ ...base, decision_id: identifier, scope: partialScope }, [...required, "decision_id"]), object({ ...mutation, decision })),

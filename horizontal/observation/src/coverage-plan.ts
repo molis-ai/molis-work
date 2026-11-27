@@ -28,6 +28,7 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Both signed-package install screens record the same plugins.install.confirm action exit, including an explicit discard of kept data.
   // Generated connection cards use the same connector binding and component-submit action exits; Studio icon selection belongs to the designer round.
   // Connector record binding, MCP configuration usage reports and connection list reads use this same action exit.
+  // Jelly reads note dates for the month through jelly.note.days; the query and each undo use the same action exit.
   // The action exit also covers the work line's `mainline.line.contains` and `background.tasks.decide` and Coding's `agent.reviews.pending-ids` and `agent.write-checks.read`.
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", SCHEDULE_ENTRY, "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },

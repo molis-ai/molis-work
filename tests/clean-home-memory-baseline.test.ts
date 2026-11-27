@@ -5,22 +5,21 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { MEMORY_LEDGER_BASELINE, acquireStorageOwner, describeSqliteSchema, initializeMemoryForgetting, openMemoryLedger, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
-import { runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
 import { isMemorySessionTarget } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
 
-// The ledger advances through the registered upgrade chain (v1 -> v2 adds provider attribution on pre-b3429bd1cc Coding session-clear markers).
 const current = MEMORY_LEDGER_BASELINE.version, newer = current + 1;
 
-const sql = readFileSync(new URL("./fixtures/home-store-schemas/memory.sql", import.meta.url), "utf8");
+const sql = MEMORY_LEDGER_BASELINE.schema;
 const shape = (bound = false) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); if (bound) db.exec("CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)"); return describeSqliteSchema(db); } finally { db.close(); } };
-test("RAC-2372 memory ledger creates and reopens unchanged current complete schema at its current version (2)", () => {
+test("RAC-2372 memory ledger creates and reopens unchanged current complete schema at v1 with zero upgrades", () => {
   const home = mkdtempSync(join(tmpdir(), "clean-memory-baseline-"));
   try {
     openMemoryLedger({ homeDirectory: home }).close(); openMemoryLedger({ homeDirectory: home }).close();
     const db = new DatabaseSync(join(home, "memory", "memory.db"), { readOnly: true });
     try {
-      assert.equal(current, 2);
+      assert.equal(current, 1);
+      assert.deepEqual(MEMORY_LEDGER_BASELINE.upgrades ?? [], []);
       assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, current);
       assert.deepEqual(describeSqliteSchema(db), shape(true));
       assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
@@ -44,8 +43,8 @@ test("RAC-2373 a nonempty current memory schema at another version refuses befor
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test("memory ledger v1 -> v2 upgrade disambiguates pre-b3429bd1cc Coding session-clear plans without runtime v1 fallback", () => {
-  const home = mkdtempSync(join(tmpdir(), "memory-ledger-v1-to-v2-")), file = join(home, "memory", "memory.db");
+test("memory ledger v1 validates exact provider-attributed session-clear plans without legacy fallback", () => {
+  const home = mkdtempSync(join(tmpdir(), "memory-ledger-v1-clean-")), file = join(home, "memory", "memory.db");
   try {
     ensureStorageSpace(home);
     const setupOwner = acquireStorageOwner(join(home, "agent-runtime"));
@@ -63,35 +62,20 @@ test("memory ledger v1 -> v2 upgrade disambiguates pre-b3429bd1cc Coding session
     const db = new DatabaseSync(file);
     try {
       const insert = db.prepare("INSERT INTO memory_markers (actor_id, key, at, body) VALUES (?, ?, ?, ?)");
-      insert.run("local-person", "memory-session-clear:coding-old", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("coding-old", "coding", { kind: "coding", id: "cs-1", project_id: "proj-1" })));
-      insert.run("local-person", "memory-session-clear:assistant-old", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("assistant-old", "assistant", { kind: "assistant", id: "w-1", project_id: "proj-1" })));
-      insert.run("local-person", "memory-session-clear:unknown-scene", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("unknown-scene", "custom-scene", { kind: "custom-scene", id: "x-1", project_id: "proj-1" })));
-      insert.run("local-person", "memory-session-clear:proto-kind", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("proto-kind", "toString", { kind: "toString", id: "p-1", project_id: "proj-1" })));
-      insert.run("local-person", "memory-session-clear:scene-mismatch", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("scene-mismatch", "other-scene", { kind: "coding", id: "cs-2", project_id: "proj-1" })));
-      db.exec("PRAGMA user_version = 1");
+      insert.run("local-person", "memory-session-clear:coding-current", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("coding-current", "coding", { kind: "coding", id: "cs-1", project_id: "proj-1", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" })));
+      insert.run("local-person", "memory-session-clear:assistant-current", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("assistant-current", "assistant", { kind: "assistant", id: "w-1", project_id: "proj-1" })));
+      insert.run("local-person", "memory-session-clear:unattributed-scene", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("unattributed-scene", "coding", { kind: "coding", id: "cs-2", project_id: "proj-1" })));
     } finally { db.close(); }
-    // Runtime open strictly refuses v1 without upgrading in place.
-    assert.throws(() => openMemoryLedger({ homeDirectory: home }), { code: "storage.upgrade_pending" });
-    const report = runHomeUpgrade(home);
-    assert.equal(report.units.find(unit => unit.relative_path === "memory/memory.db")?.state, "committed");
     const owner = acquireStorageOwner(join(home, "agent-runtime"));
     const ledger = openMemoryLedger({ homeDirectory: home, storageOwner: owner });
     try {
-      const coding = ledger.marker("local-person", "memory-session-clear:coding-old")?.body as { binding?: { target?: Record<string, unknown> } };
-      assert.equal(isMemorySessionTarget(coding.binding?.target), true, "migrated Coding session-clear target passes strict contract validation");
-      assert.deepEqual(coding.binding?.target, { kind: "coding", id: "cs-1", project_id: "proj-1", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" });
-      const assistant = ledger.marker("local-person", "memory-session-clear:assistant-old")?.body as { binding?: { target?: Record<string, unknown> } };
-      assert.equal(isMemorySessionTarget(assistant.binding?.target), true, "assistant target remains intact");
-      assert.deepEqual(assistant.binding?.target, { kind: "assistant", id: "w-1", project_id: "proj-1" });
-      const unknown = ledger.marker("local-person", "memory-session-clear:unknown-scene")?.body as { binding?: { target?: Record<string, unknown> } };
-      assert.equal(isMemorySessionTarget(unknown.binding?.target), false, "unknown plugin scene owner is never guessed");
-      assert.deepEqual(unknown.binding?.target, { kind: "custom-scene", id: "x-1", project_id: "proj-1" });
-      const proto = ledger.marker("local-person", "memory-session-clear:proto-kind")?.body as { binding?: { target?: Record<string, unknown> } };
-      assert.deepEqual(proto.binding?.target, { kind: "toString", id: "p-1", project_id: "proj-1" }, "prototype property names are ignored");
-      const mismatch = ledger.marker("local-person", "memory-session-clear:scene-mismatch")?.body as { binding?: { target?: Record<string, unknown> } };
-      assert.deepEqual(mismatch.binding?.target, { kind: "coding", id: "cs-2", project_id: "proj-1" }, "mismatched current_scene vs target.kind is left untouched");
-      // Verify real MemoryService.listOperations coverage: migrated completed plans cover their accepted forgetting decisions with zero phantom needs-reconcile, while an unguessed unknown-scene plan still reports needs-reconcile.
-      for (const opId of ["coding-old", "assistant-old", "unknown-scene"]) {
+      const coding = ledger.marker("local-person", "memory-session-clear:coding-current")?.body as { binding?: { target?: Record<string, unknown> } };
+      assert.equal(isMemorySessionTarget(coding.binding?.target), true);
+      const assistant = ledger.marker("local-person", "memory-session-clear:assistant-current")?.body as { binding?: { target?: Record<string, unknown> } };
+      assert.equal(isMemorySessionTarget(assistant.binding?.target), true);
+      const unattributed = ledger.marker("local-person", "memory-session-clear:unattributed-scene")?.body as { binding?: { target?: Record<string, unknown> } };
+      assert.equal(isMemorySessionTarget(unattributed.binding?.target), false, "non-assistant target without plugin_id/provider_id is never guessed");
+      for (const opId of ["coding-current", "assistant-current", "unattributed-scene"]) {
         ledger.forgetting.accept({
           selection_mode: "exact-identities", actor_id: "local-person", operation_id: `grp-${opId}`,
           scope: "project", owner: "proj-1", memories: [{ memory_id: `mem-${opId}`, version: 1 }], candidates: [], source_event_ids: [],
@@ -99,7 +83,7 @@ test("memory ledger v1 -> v2 upgrade disambiguates pre-b3429bd1cc Coding session
       }
       const service = new MemoryService({ ledger, backend: { withCaller: () => { throw new Error("unused"); } } as never });
       const page = service.listOperations({ actor_id: "local-person", project_id: "proj-1", consumer: "ui", person: true, current_scene: "common", purpose: "management" }, { scope: "project" });
-      assert.deepEqual(page.items.map(item => [item.operation_id, item.cleanup]), [["grp-unknown-scene", "needs-reconcile"]]);
+      assert.deepEqual(page.items.map(item => [item.operation_id, item.cleanup]), [["grp-unattributed-scene", "needs-reconcile"]]);
     } finally { ledger.close(); owner.release(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

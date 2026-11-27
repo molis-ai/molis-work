@@ -1,5 +1,9 @@
 import ts from "typescript";
-import { unwrapExpression } from "./upgrade-steps.mjs";
+
+const unwrapExpression = (node) => {
+  while (node && (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node))) node = node.expression;
+  return node;
+};
 
 const FILE = "apps/local-host/src/management-action-client.ts";
 const parse = source => ts.createSourceFile(FILE, source, ts.ScriptTarget.Latest, false);

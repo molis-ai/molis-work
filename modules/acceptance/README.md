@@ -56,6 +56,6 @@ node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-
   - 除对象表外的记录只追加、不改写、不删除（项目删除时随项目库一起删）；历史结论和证据引用都读得到。
   - 执行完成、核验通过、本人认可分开计数，谁也不替代谁；交付或返工一轮本身不让任何一项通过（PWA-145、PWA-146）。
   - 记录按项目隔离：同一个对象在别的项目里读不到这里的任何内容。
-- 改动后必跑：`node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-invariants-acceptance.test.ts`；改了合同再跑 `pnpm api:update`、`pnpm actions:update`，改了库结构跑 `pnpm schemas:update`。
+- 改动后必跑：`node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-invariants-acceptance.test.ts`；改了合同再跑 `pnpm api:update`、`pnpm actions:update`（开发前阶段库结构固定 v1 原地修改）。
 - 相关手册：[specs/proactive-assistant/spec.md](../../specs/proactive-assistant/spec.md) §7.3.1；[specs/agent-approval/spec.md](../../specs/agent-approval/spec.md) §3.5；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 - 现在的边界（记在 [待办](../../specs/backlog/BL-acceptance-first-slice-limits.md)）：只有项目范围（「另一个会话复查」`peer_reviewed` 已进入共用合同与状态计算）。Goals 从第 44 批起用这里的要求与认可，只记每项要求的来处。

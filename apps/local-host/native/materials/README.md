@@ -7,7 +7,7 @@
 从 Local Host 目录运行 `pnpm materials:build`。原生程序为 `native/materials/bin/molis-material`（源码 `MolisMaterial.swift`），依赖 macOS 自带的 Vision、PDFKit、AppKit，最低目标 macOS 14。图片先检查像素上限，PDF 最多 100 页，正文最多 200 万字符。图片/扫描页使用 OCR；PDF 有文字的页面直接读文字。缺页、空页、截断或仅第一帧都返回覆盖信息。
 
 - `molis-material capabilities`：探测 PDF 和 OCR。
-- `molis-material extract <临时材料> [--languages zh-Hans,en-US,ja-JP]`：输出 JSON 的 text/pages/coverage；图片页面额外提供每行 text/confidence。识别语言可选 `zh-Hans`、`zh-Hant`、`en-US`、`ja-JP`（最多 4 个，Host 的 `material-extraction.ts` 与插件沙箱守同一份名单）；未选语言时按本机支持的这四种识别，显式语言不支持时说明失败，不能静默替换。低置信度的产品提示由消费者决定。
+- `molis-material extract <临时材料> [--languages zh-Hans,en-US,ja-JP]`：输出 JSON 的 text/pages/coverage；图片页面额外提供每行 text/confidence。识别语言可选 `zh-Hans`、`zh-Hant`、`en-US`、`ja-JP`（最多 4 个，Host 的 `material-extraction.ts` 与插件沙箱守同一份名单）；成果库与未指定语言的调用共用本机默认顺序 `ja-JP,zh-Hans,zh-Hant,en-US`，按支持情况自动识别，保留日英混排里的假名，显式语言不支持时说明失败，不能静默替换。低置信度的产品提示由消费者决定。
 
 Host 可传 AbortSignal 终止组件；等待子进程关闭后，在 finally 清除独立 `molis-material-*` 临时目录。上传的内容只在内存里，不落盘。
 

@@ -35,14 +35,12 @@ export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.fi
  * (bytes for any file, or only the text when a text or external document import keeps no original). The 成果库 shows it; a plugin that continues from it reads it.
  */
 export const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
-export const IMPORTED_DOCUMENT_SCHEMA_VERSION = /* @version artifact.io.molis.work.document */ 2;
-/** Old fixed imports carry literal warnings. New imports store a TextRef. */
-export const IMPORTED_DOCUMENT_WARNING_SCHEMAS = { literal: 1, textRef: IMPORTED_DOCUMENT_SCHEMA_VERSION } as const;
-export const IMPORTED_DOCUMENT_READ_TYPES = Object.values(IMPORTED_DOCUMENT_WARNING_SCHEMAS).map(schema_version => ({ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version }));
+export const IMPORTED_DOCUMENT_SCHEMA_VERSION = /* @version artifact.io.molis.work.document */ 1;
+export const IMPORTED_DOCUMENT_READ_TYPES = [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: IMPORTED_DOCUMENT_SCHEMA_VERSION }];
 export type ImportedDocumentWarning = Extract<TextRef, { readonly key: string }>;
 
 export function isImportedDocumentVersion(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "schema_version">): boolean {
-  return artifact.artifact_type_id === IMPORTED_DOCUMENT_TYPE && IMPORTED_DOCUMENT_READ_TYPES.some(type => type.schema_version === artifact.schema_version);
+  return artifact.artifact_type_id === IMPORTED_DOCUMENT_TYPE && artifact.schema_version === IMPORTED_DOCUMENT_SCHEMA_VERSION;
 }
 
 /**

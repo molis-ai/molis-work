@@ -5,7 +5,6 @@ import type {
   ApplyGoalConcernInput,
   CiteGoalDecisionInput,
   GoalEventAgreementResult,
-  GoalEventRequirementCurrentStatus,
   GoalEventClosureResult,
   GoalEventConcernResult,
   GoalEventDecisionRequestResult,
@@ -91,23 +90,6 @@ export type GoalEventRequirementSource =
       policy_binding_ids: string[];
     };
 
-/**
- * A requirement as a configuration event recorded what Goals hung on the Goal: the event's payload, kept as written. Since batch 44 the
- * requirement itself is the platform's (`GoalRequirementLink` is what Goals keeps), and a new one is recorded active, at revision 1.
- */
-export interface GoalEventExtraRequirement {
-  requirement_id: string;
-  statement: string;
-  bound_type_id?: string;
-  created_in_config_version: number;
-  actor_id: string;
-  source?: GoalEventRequirementSource;
-  human_decision_required: boolean;
-  current_status: GoalEventRequirementCurrentStatus;
-  revision: number;
-  support_valid_after_seq: number;
-}
-
 export interface GoalEventTypeDefinitionInput {
   type_id: string;
   version: number;
@@ -128,14 +110,6 @@ export interface GoalRequirementLink {
   bound_type_ids: string[];
   created_in_config_version: number;
   created_at: string;
-}
-
-export interface GoalEventExtraRequirementInput {
-  requirement_id: string;
-  statement: string;
-  bound_type_id?: string;
-  human_decision_required?: boolean;
-  source?: GoalEventRequirementSource;
 }
 
 export interface ConfigureGoalEventsInput {
@@ -194,7 +168,6 @@ export interface ReportGoalEventsInput {
 export interface GoalEventConfigurationPayload {
   config_version: number;
   types: GoalEventTypeDefinition[];
-  extra_requirements: GoalEventExtraRequirement[];
   requirement_bindings: GoalEventRequirementBinding[];
 }
 

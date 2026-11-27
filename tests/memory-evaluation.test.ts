@@ -168,11 +168,11 @@ test("MEM-36: the evaluation Home keeps real forgetting decisions across close a
     assert.equal(env.memory.isForgotten("personal", caller.actor_id, "memory", survivor.memory.memory_id), false);
     const decisions = inspectMemoryForgetting(env.home);
     assert.ok(decisions.decisions.some(item => item.memories.some(one => one.memory_id === forgotten.memory!.memory_id)));
-    const facts = fs.readFileSync(join(env.home, "memory-forgetting-v2.json"), "utf8"), homeDirectory = env.home;
+    const facts = fs.readFileSync(join(env.home, "memory-forgetting.json"), "utf8"), homeDirectory = env.home;
     await env.close(false);
     const released = acquireStorageOwner(join(homeDirectory, "agent-runtime")); released.release();
     env = await memoryEvaluationEnvironment(undefined, { seeds: [], homeDirectory });
-    assert.equal(fs.readFileSync(join(homeDirectory, "memory-forgetting-v2.json"), "utf8"), facts, "reopening never reinitializes accepted decisions");
+    assert.equal(fs.readFileSync(join(homeDirectory, "memory-forgetting.json"), "utf8"), facts, "reopening never reinitializes accepted decisions");
     assert.deepEqual(inspectMemoryForgetting(homeDirectory), decisions);
     const recalled = await env.memory.recall(caller, { query: "摘要" });
     assert.equal(recalled.items.some(item => item.memory_id === forgotten.memory!.memory_id), false);
@@ -185,7 +185,7 @@ test("MEM-36: a failed forgetting initialization releases the real Home owner an
   const before = Date.now(), rename = fs.renameSync;
   let refused = 0;
   const fault = t.mock.method(fs, "renameSync", (source: fs.PathLike, target: fs.PathLike) => {
-    if (String(target) === join(homeDirectory, "memory-forgetting-v2.json")) {
+    if (String(target) === join(homeDirectory, "memory-forgetting.json")) {
       refused++; throw Object.assign(new Error("fixture forgetting initialization failure"), { code: "EIO" });
     }
     return rename(source, target);
@@ -194,7 +194,7 @@ test("MEM-36: a failed forgetting initialization releases the real Home owner an
     await assert.rejects(memoryEvaluationEnvironment(undefined, { seeds: [], homeDirectory }), /fixture forgetting initialization failure/);
     assert.equal(refused, 1, "the failure comes from the actual public initializer's durable publication");
     assert.ok(Date.now() >= before);
-    assert.equal(fs.existsSync(join(homeDirectory, "memory-forgetting-v2.json")), false);
+    assert.equal(fs.existsSync(join(homeDirectory, "memory-forgetting.json")), false);
     assert.equal(fs.existsSync(join(homeDirectory, "memory")), false, "no business ledger was opened before initialization");
     const owner = acquireStorageOwner(join(homeDirectory, "agent-runtime")); owner.release();
   } finally { fault.mock.restore(); await rm(homeDirectory, { recursive: true, force: true }); }

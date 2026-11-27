@@ -27,7 +27,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 分层、部署与端到端调用 | [`docs/system/ARCHITECTURE.md`](system/ARCHITECTURE.md) |
 | 允许和禁止的代码依赖 | [`docs/system/PACKAGE-BOUNDARIES.md`](system/PACKAGE-BOUNDARIES.md) |
 | 概念与命名：一个概念一个名字、一个定义，旧称、界面用词与代码改名清单 | [`docs/system/GLOSSARY.md`](system/GLOSSARY.md) |
-| 兼容逻辑清单与删除进度 | [`docs/system/CONTRACT-CHANGES.md`](system/CONTRACT-CHANGES.md) 的「3. 阶段一：现在，不留兼容期」「4. 阶段二：起点之后，读取兼容」与「6. 登记表」；迁移期历史见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md) |
+| 兼容与迁移规则（开发前阶段零迁移、零兼容、全量 v1） | [`docs/system/CONTRACT-CHANGES.md`](system/CONTRACT-CHANGES.md) 的「3. 阶段一：现在，不留兼容期」「4. 阶段二：起点之后，读取兼容（1.0 启用）」与「6. 登记表」；迁移期历史见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md) |
 | 每个包的规模、运行状态（在用 / Runtime / 构建期 / 非产品，不是下面第 2 节的状态词）和计划审查深度 | [`docs/system/PACKAGE-BOUNDARIES.md`](system/PACKAGE-BOUNDARIES.md#7-现行包清单) §7 的「现行包清单」；登记唯一来源是 `scripts/workspace-packages.mjs`，`scripts/gates/package-inventory.mjs` 按登记表和代码检查，随 `pnpm health:check` 跑。每个包的成熟度（第 2 节四词）唯一写在 `scripts/workspace-packages.mjs`，各表的「包成熟度」列由 `scripts/package-owners.mjs` 逐行校验，随 `pnpm boundary:check` 跑 |
 | 巨大单元只许变小 | `pnpm health:check`（CI 实测对照 merge-base，必须长的登记在 `tooling/gates/giant-exceptions/`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
 | 评审截图、根目录杂项、vendored 补丁的去留 | [`docs/system/REPOSITORY-HYGIENE.md`](system/REPOSITORY-HYGIENE.md)；`pnpm health:check` 按评审组限制入库的 `.impeccable/` 文件，只许减少 |
@@ -43,7 +43,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 查找执行中需求、现行规范与归档；接续剩余工作 | [`specs/README.md`](../specs/README.md)管分类与索引，[`specs/BACKLOG.md`](../specs/BACKLOG.md)管统一待办；排期见[路线书](../specs/post-anticorruption-roadmap/spec.md)，步骤见[需求开发流程](../specs/post-anticorruption-roadmap/reference/development-workflow.md) |
 | 可执行类型、Schema 和兼容测试 | `packages/contracts` 的 public subpath；F3 自动门禁与 `packages/test-kit` 边界测试 |
 | 多会话并行开发的规矩 | [`docs/system/PARALLEL-DEVELOPMENT.md`](system/PARALLEL-DEVELOPMENT.md) |
-| 合同怎样变更（现在不留兼容期；读取兼容的流程与起点） | [`docs/system/CONTRACT-CHANGES.md`](system/CONTRACT-CHANGES.md) |
+| 合同与库结构怎样变更（开发前阶段原地改 v1、零迁移零兼容；1.0 起启用阶段二） | [`docs/system/CONTRACT-CHANGES.md`](system/CONTRACT-CHANGES.md) |
 | 每个包归谁、请谁评审 | 第 3 至 7 节各表的「归属」列与 `.github/CODEOWNERS`；两处都由 [`scripts/package-owners.mjs`](../scripts/package-owners.mjs) 的规则生成 |
 
 文档冲突时，先以 `PRODUCT.md` 判断产品承诺，再以本索引找到该问题的 owner 文档；实现任务不得在自己的 Spec 中重定义模块所有权。
@@ -151,7 +151,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 **观测采集层与评测服务已登记在上表**（`horizontal/observation` 与 `horizontal/evaluation`，成熟度均为 `slice`）：`observation` 只拥有观察记录本身、证据快照、覆盖登记与缺口、用途与保留设置及样本留存，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实，清理只删记录与无引用快照、不连带删业务内容。第 28 批已随 #2059 合入写入面，第 29 批接入历史查询与证据读取、用途与跨项目边界（S-74）、暂停／恢复、自动与手动清理、空间占用与容量提醒以及全局设置「个人 → 工作记录」界面；第 30 批接入评测样本留存（`observation.holds.*@1`）与独立评测服务（`horizontal/evaluation`）。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
-成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `system.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；真实 Home 已于 2026-11-07 干净重建，本人验收与重建后的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
+成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `system.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；本人验收仍待完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
 
 ## 7. Plugins
 

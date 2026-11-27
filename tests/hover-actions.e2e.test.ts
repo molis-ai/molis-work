@@ -64,9 +64,6 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const children = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
     id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
-  const frameOwner = (id: string) => id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null";
-  const focusFrame = (id: string) => `(()=>{const owner=${frameOwner(id)};owner?.focus();
-    (owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]')?.focus();})()`;
   const childShown = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
     return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
   const surfaces: [string, string][] = [["组件板", "/__ui/catalog"], ["项目页", `/projects/${projectId}/`],
@@ -94,6 +91,7 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
     await prepare(name, isolated ? children[name]! : browser);
     for (const page of isolated ? [browser,children[name]!] : [browser]) {
     const {evaluate} = page;
+    const focusFrame: Awaited<ReturnType<typeof pluginFrameBrowser>> | undefined = page === browser ? undefined : children[name];
     await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
     const hidden = await evaluate<HoverHidden[]>(HOVER_HIDDEN);
     const seen = new Set<string>();
@@ -104,10 +102,8 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       checked++;
       // A key press first, so the focus that follows is keyboard focus (:focus-visible).
       for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Shift", code: "ShiftLeft", windowsVirtualKeyCode: 16 }, sessionId);
-      // In a plugin's frame the keyboard first moves into the frame, as Tab does: since Chrome 158 a sandboxed frame that does not have
-      // focus cannot give one of its controls focus by script.
-      if (page !== browser) await browser.evaluate(focusFrame(name));
-      const how = await evaluate<string>(hoverFocus(item.index));
+      const focus = hoverFocus(item.index);
+      const how = focusFrame ? await focusFrame.evaluate<string>(focus, undefined, "person") : await evaluate<string>(focus);
       await pause(350);
       const alpha = await evaluate<number>(hoverShown(item.index));
       if (!how) found.push(`${name}: ${kind} "${item.name}" can't be reached by keyboard`);

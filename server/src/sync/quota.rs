@@ -61,7 +61,7 @@ pub(crate) async fn validate_schema(db: &D1Database) -> ApiResult<()> {
         .await
         .map_err(|_| Failure(503, "SYNC_SCHEMA_MISMATCH"))?;
     require(
-        version.as_ref().is_some_and(|row| row["version"] == 6),
+        version.as_ref().is_some_and(|row| row["version"] == 1),
         503,
         "SYNC_SCHEMA_MISMATCH",
     )?;

@@ -185,7 +185,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **怎么加**：先写包 README 的「开发要求」，再写代码（`docs/system/DEVELOPMENT-REQUIREMENTS.md`；`docs/system/PACKAGE-BOUNDARIES.md` §4）；归属见 `docs/modules/README.md`。
 
-**现在：6（项目库里有表时 7）。** 以 `modules/characters` 为样本：`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`（3）；`packages/contracts/src/modules/<id>.ts` 和 `packages/contracts/package.json` 的 `exports`（2）；宿主装配一处，如 `apps/local-host/src/characters-host.ts`（1）；表建在项目库时再加 `apps/local-host/src/project-database-schema.ts`（它在 `PROJECT_DATABASE_BASELINE` 里逐个引入各 owner 的建库 SQL，并有总版本号，改任何一个 owner 的表都要升版本）。
+**现在：6（项目库里有表时 7）。** 以 `modules/characters` 为样本：`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`（3）；`packages/contracts/src/modules/<id>.ts` 和 `packages/contracts/package.json` 的 `exports`（2）；宿主装配一处，如 `apps/local-host/src/characters-host.ts`（1）；表建在项目库时再加 `apps/local-host/src/project-database-schema.ts`（它在 `PROJECT_DATABASE_BASELINE` 里逐个引入各 owner 的建库 SQL；开发前阶段版本号固定 v1、改表直接原地更新基线且不写 `upgrades`，1.0 对外发布后再按升级链升版本）。
 
 **目标：4。** 包登记 1（依赖清单生成），合同 2，宿主装配 1。表在项目库的 Module，登记也由 owner 声明（X-5）。
 

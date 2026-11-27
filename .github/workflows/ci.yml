@@ -71,7 +71,7 @@ jobs:
   # on that very commit, and `Verify` passed there.
   # Blocking jobs carry a job-level timeout (T-128, tests/ci-timeouts.test.ts): at least 30 minutes and at least 1.8x
   # the longest successful run, capped at 60 minutes. Build once on Linux and share all dist/ directories across gates,
-  # account-login, security-invariants, golden-replay and product-subset.
+  # account-login, security-invariants and product-subset.
   build:
     name: Build workspace
     needs: [test-selection, queue-check]
@@ -663,10 +663,10 @@ jobs:
   verify:
     name: Verify
     # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
-    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
+    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, product-subset, queue-check, test-selection]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
-    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the source and build-dependent gates, secret scan, Rust/Swift/shell checks, account login, security invariants, product subset and golden replay run here.
+    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the source and build-dependent gates, secret scan, Rust/Swift/shell checks, account login, security invariants and product subset run here.
     runs-on: ubuntu-latest
     steps:
       # The base this run's health gates and secret scan compared with, in the step's name so the GitHub API returns it (T-129): in
@@ -689,13 +689,10 @@ jobs:
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
           SECURITY_INVARIANTS_RESULT: ${{ needs.security-invariants.result }}
           PRODUCT_SUBSET_RESULT: ${{ needs.product-subset.result }}
-          GOLDEN_REPLAY_RESULT: ${{ needs.golden-replay.result }}
-          GOLDEN_REPLAY_THIRD_PARTY_RESULT: ${{ needs.golden-replay-third-party.result }}
           TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}
           SECURITY_MODE: ${{ needs.test-selection.outputs.security_mode }}
           PRODUCT_MODE: ${{ needs.test-selection.outputs.product_mode }}
           NATIVE_MODE: ${{ needs.test-selection.outputs.native_mode }}
-          GOLDEN_THIRD_PARTY_MODE: ${{ needs.test-selection.outputs.golden_third_party_mode }}
           DOCUMENTATION_MODE: ${{ needs.test-selection.outputs.documentation_mode }}
           SHELL_MODE: ${{ needs.test-selection.outputs.shell_mode }}
           ACCOUNT_LOGIN_MODE: ${{ needs.test-selection.outputs.account_login_mode }}
@@ -725,8 +722,6 @@ jobs:
           test "$SECRET_SCAN_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success" || selected_skip "$SHELL_MODE" none "$SHELL_CHECKS_RESULT"
           test "$NATIVE_CHECKS_RESULT" = "success" || selected_skip "$NATIVE_MODE" none "$NATIVE_CHECKS_RESULT"
-          test "$GOLDEN_REPLAY_RESULT" = "success" || selected_skip "$DOCUMENTATION_MODE" only "$GOLDEN_REPLAY_RESULT"
-          test "$GOLDEN_REPLAY_THIRD_PARTY_RESULT" = "success" || selected_skip "$GOLDEN_THIRD_PARTY_MODE" none "$GOLDEN_REPLAY_THIRD_PARTY_RESULT"
           if [ "$SECURITY_INVARIANTS_RESULT" != "success" ]; then
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
             selected_skip "$SECURITY_MODE" none "$SECURITY_INVARIANTS_RESULT"
@@ -753,8 +748,6 @@ jobs:
       product_shards: ${{ steps.select.outputs.product_shards }}
       product_only: ${{ steps.select.outputs.product_only }}
       native_mode: ${{ steps.select.outputs.native_mode }}
-      golden_third_party_mode: ${{ steps.select.outputs.golden_third_party_mode }}
-      golden_history_mode: ${{ steps.select.outputs.golden_history_mode }}
       documentation_mode: ${{ steps.select.outputs.documentation_mode }}
       gate_rules_mode: ${{ steps.select.outputs.gate_rules_mode }}
       gate_rule_files: ${{ steps.select.outputs.gate_rule_files }}
@@ -871,87 +864,6 @@ jobs:
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.
-  # Golden Homes (specs/upgrade-continuity/golden-replay-design.md §4, §5, 用户 2026-11-07): each golden restored, opened by this build, read, written to and restarted, so
-  # a change that would leave an older Home unopenable does not merge. Linux runs everything but the signed samples, whose sandbox exists only on macOS; the job's summary
-  # and a notice on the run say those did not run and that this is not a pass for them (scripts/ci-golden-replay.mjs). Skipped on ordinary-document changes only.
-  golden-replay:
-    name: Golden Home replay
-    needs: [test-selection, queue-check, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-
-      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
-      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
-      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
-      - name: Queue entry still exists
-        if: ${{ github.event_name == 'merge_group' }}
-        run: |
-          status=0
-          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
-          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
-
-      - name: Setup Node, pnpm and dependencies
-        uses: ./.github/actions/setup-work
-        timeout-minutes: 8
-
-      - name: Download build outputs
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.build.outputs.dist-artifact }}
-          path: ${{ runner.temp }}/dist
-
-      - name: Unpack build outputs
-        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
-
-      # The latest three, or every golden when the Prologue package changed or the selection gave no clean answer (UPG-11).
-      - name: Replay the golden Homes
-        env:
-          HISTORY: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.golden_history_mode || 'all' }}
-        run: |
-          set --
-          if [ "$HISTORY" != "latest" ]; then set -- --all; fi
-          node scripts/ci-golden-replay.mjs "$@"
-
-  # The same replay on macOS, signed samples included, when a change touches what they run on (scripts/ci-test-selection.mjs, GOLDEN_THIRD_PARTY_RUN_WHEN); what the list
-  # leaves out is caught by .github/workflows/golden-replay-nightly.yml. Skipped only on a successful `none` of a pull request or a merge queue entry, like native-checks.
-  golden-replay-third-party:
-    name: Golden Home replay with the signed samples (macOS)
-    needs: [test-selection, queue-check]
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && ((github.event_name != 'pull_request' && github.event_name != 'merge_group') || needs.test-selection.result != 'success' || needs.test-selection.outputs.golden_third_party_mode != 'none') }}
-    runs-on: macos-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-
-      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
-      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
-      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
-      - name: Queue entry still exists
-        if: ${{ github.event_name == 'merge_group' }}
-        run: |
-          status=0
-          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
-          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
-
-      - name: Setup Node, pnpm and dependencies
-        uses: ./.github/actions/setup-work
-        timeout-minutes: 8
-
-      - name: Build
-        run: pnpm build
-
-      # The latest three, or every golden when the Prologue package changed or the selection gave no clean answer (UPG-11).
-      - name: Replay the golden Homes
-        env:
-          HISTORY: ${{ needs.test-selection.result == 'success' && needs.test-selection.outputs.golden_history_mode || 'all' }}
-        run: |
-          set --
-          if [ "$HISTORY" != "latest" ]; then set -- --all; fi
-          node scripts/ci-golden-replay.mjs "$@"
-
   # Six disjoint shards cover the same full list once, dealt out by duration and serial browser capacity (tests/ci-shard-weights.json; with every
   # second file the legs took 2527 s and 1336 s of test time in run 42023765782); each keeps the phase/attempt limits above.
   # fail-fast is off so one failed shard does not hide the other shard's results.

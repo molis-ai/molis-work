@@ -6,7 +6,10 @@ import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platfor
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
-import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { pluginInstallActions, sandboxImageNamespace, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, refused } from "./fixtures/home-sandbox.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -44,7 +47,7 @@ const dualCode = (network: boolean) => `export const operations = {
 
 function dualPackage(
   publisher = newPublisher(),
-  options: { pluginId?: string; version?: string; extraOptionalNetwork?: boolean; freshDatabase?: boolean; projectConflict?: boolean } = {},
+  options: { pluginId?: string; version?: string; extraOptionalNetwork?: boolean; upgradesFrom?: string[]; freshDatabase?: boolean; projectConflict?: boolean } = {},
 ): PluginPackageBundle {
   return signedPackage(publisher, (files: PackageFiles, manifest: PluginManifest) => {
     const contract: SandboxPluginContract = {
@@ -101,7 +104,7 @@ function dualPackage(
       publisher: manifest.publisher,
       presentation: false,
       runtime: { scope: "home", dual_instance: true },
-      upgradesFrom: options.freshDatabase ? [] : ["1.0.0"],
+      upgradesFrom: options.upgradesFrom ?? (options.freshDatabase ? [] : ["1.0.0"]),
       effects: effectsFromContract(contract),
       homeDatabase: { version: 1, schema: HOME_SCHEMA + (options.freshDatabase ? "CREATE TABLE new_home_rows(id INTEGER PRIMARY KEY);" : "") },
       projectDatabase: { version: 1, schema: PROJECT_SCHEMA + (options.projectConflict ? "CREATE TABLE project_root(id INTEGER PRIMARY KEY);" : options.freshDatabase ? "CREATE TABLE new_project_rows(id INTEGER PRIMARY KEY);" : "") },
@@ -295,6 +298,21 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   await task(project, "project.add", { title: "Project notes" });
   await confirm((await preview(original, other.project_id)).preview_id, undefined, other.project_id);
   await task(other.reference, "project.add", { title: "Other project" });
+  const listHome = async () => (await served.web.post<{plugins: PluginInstalledView[]}>("/api/settings/plugin-permissions/list", {})).plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!;
+  const installId = (await listHome()).install_id;
+  const roots = [h.home, partitionRoot(h.home, project.project_id)].map(root => join(root, "plugin-files", installId));
+  for (const root of roots) {
+    mkdirSync(root, {recursive: true});
+    writeFileSync(join(root, "note"), "Old file");
+  }
+  const image = sandboxImageNamespace(installId);
+  const connection = withConnectorConnections(h.home, store => {
+    const account = store.createToken({serviceId: "image-api", displayName: "Notes", token: "sample-token"});
+    store.bind({scopeId: "home", pluginId: image, slotId: "cover", serviceId: "image-api", connectionId: account.connection_id});
+    return account.connection_id;
+  });
+  const bound = () => withConnectorConnections(h.home, store => store.binding("home", image, "cover")?.connection_id);
+
   await keep();
 
   const next = dualPackage(publisher, {version: "3.0.0", freshDatabase: true});
@@ -303,6 +321,9 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   await assert.rejects(confirm(refusedPreview.preview_id), { code: "plugin.kept_data_incompatible" });
   const conflict = dualPackage(publisher, {version: "2.0.0", freshDatabase: true, projectConflict: true});
   await assert.rejects(confirm((await preview(conflict)).preview_id, true), { code: "actions.execution_failed" });
+  for (const root of roots) assert.equal(readFileSync(join(root, "note"), "utf8"), "Old file");
+  assert.equal(bound(), connection);
+
   // A protected click still cannot discard data the preview never asked the person to give up.
   const sameEdition = await preview(original);
   assert.equal(sameEdition.kept_data_incompatible, false);
@@ -315,6 +336,9 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   await keep();
 
   await confirm((await preview(next)).preview_id, true);
+  for (const root of roots) assert.equal(existsSync(join(root, "note")), false);
+  assert.equal(bound(), undefined);
+
   await h.switchOn(DUAL_PLUGIN_ID, "home-database:read", "home-database:write");
   assert.deepEqual(await note("home.list"), []);
   assert.deepEqual(await task(project, "project.list"), []);
@@ -322,4 +346,23 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   assert.equal(await task(project, "project.add", {title: "New task"}), true);
   assert.deepEqual(await h.host.withProject(other.reference, runtime =>
     runtime.store.db.prepare<[], {title: string}>("SELECT title FROM dual_tasks").all().map(row => row.title)), ["Other project"]);
+
+  // B47-K4: another project kept v1, while the shared Home now runs v3. A bad project replacement must leave v3 serving its notes.
+  const otherBase = base(other.project_id);
+  const old = (await served.web.get<{plugins: PluginInstalledView[]}>(otherBase + "/overview")).plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!;
+  await served.web.post(otherBase + "/installed/uninstall", {plugin_id: DUAL_PLUGIN_ID, keep_data: true, target: old.uninstall_target});
+  const mixed = (version: string, projectConflict: boolean) => dualPackage(publisher, {version, freshDatabase: true, upgradesFrom: ["3.0.0"], projectConflict});
+  const otherPreview = await preview(mixed("4.0.0", true), other.project_id);
+  assert.equal(otherPreview.kept_data_incompatible, true);
+  await assert.rejects(confirm(otherPreview.preview_id, true, other.project_id), { code: "actions.execution_failed" });
+  assert.equal((await listHome()).version, "3.0.0");
+  assert.deepEqual(await note("home.list"), [{id: "1", text: "New note"}]);
+  assert.deepEqual(await h.host.withProject(other.reference, runtime =>
+    runtime.store.db.prepare<[], {title: string}>("SELECT title FROM dual_tasks").all().map(row => row.title)), ["Other project"]);
+  const valid = await preview(mixed("5.0.0", false), other.project_id);
+  await confirm(valid.preview_id, true, other.project_id);
+  assert.equal((await listHome()).version, "5.0.0");
+  assert.deepEqual(await note("home.list"), [{id: "1", text: "New note"}]);
+  assert.deepEqual(await task(other.reference, "project.list"), []);
+
 });

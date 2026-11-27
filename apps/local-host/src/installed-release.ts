@@ -12,8 +12,8 @@ import type { ContentPackage } from '@molis-ai/molis-work-plugin-sdk';
 export interface InstalledPackageControl {
   /** The retained installation whose data the person explicitly agreed to discard in this preview. */
   expectedKeptGeneration?: string;
-  /** A dual install finishes its Home half inside the project half's successful commit. */
-  installProjectHalf?(commitHome: () => void): Promise<void>;
+  /** Both halves of a dual installation finish within the same confirmation. */
+  installOtherHalf?(commitFirst: () => void): Promise<void>;
   assertCurrent?(): void;
   scopeOpen?(): boolean;
   refresh?(): Promise<void>;
@@ -29,7 +29,7 @@ export interface InstalledPackageControl {
 export interface PackageInstallSecret { readonly name: string; readonly header: string; readonly value: string }
 
 /** What the person chose in the confirmation besides agreeing (`PluginInstallService.confirm`). */
-export type PackageInstallChoices = Pick<InstalledPackageControl, 'optional' | 'secrets' | 'expectedKeptGeneration' | 'installProjectHalf'>;
+export type PackageInstallChoices = Pick<InstalledPackageControl, 'optional' | 'secrets' | 'expectedKeptGeneration' | 'installOtherHalf'>;
 
 export const HOME_INSTALL_SCOPE = '~home';
 

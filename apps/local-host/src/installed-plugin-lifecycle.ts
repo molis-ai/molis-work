@@ -9,6 +9,9 @@ import { ActionError, requireSynchronous } from '@molis-ai/molis-work-contracts/
 import { pluginErrors, type PluginManifest, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import { stageSandboxOwnerFiles } from './plugin-sandbox-owner-files.js';
+import { stageSandboxImageBindings } from './sandbox-image-generation.js';
+import { forgetRetainedInstallationRecords } from './plugin-installation-cleanup.js';
 import { collectRetained } from './uninstall-retained.js';
 import { sameInstalledRelease, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
@@ -75,7 +78,7 @@ export async function finishInstalledPackage(control: InstalledPackageControl | 
     publish();
     requireSynchronous(control?.complete?.());
   };
-  if (control?.installProjectHalf) await control.installProjectHalf(commit);
+  if (control?.installOtherHalf) await control.installOtherHalf(commit);
   else commit();
 }
 
@@ -182,13 +185,20 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
       grants.assertCurrent?.();
     };
     assertCurrent();
-    const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(discard ? { discard_kept_data: true } : {}) });
-    let database: ReturnType<typeof c.discardDatabase>;
+    const staged: { restore(): void; close?(): void }[] = [];
+    let candidate: PluginInstanceRecord | undefined;
+    const stageDiscard = (previous: PluginInstanceRecord) => {
+      const database = c.discardDatabase(previous, packaged.manifest);
+      if (database) staged.push(database);
+      staged.push(stageSandboxOwnerFiles(c.home, c.project_id, previous.install_id));
+      if (c.project_id === null) staged.push(stageSandboxImageBindings(c.home, previous.install_id));
+      c.privateStorage.deleteInstallationData(previous.install_id);
+    };
     let startedGeneration: number | undefined;
     const activationChanged = () => platform.supervisor.generation(pluginId) !== startedGeneration;
     try {
-      if (kept && earlier && discard) database = c.discardDatabase(earlier, packaged.manifest);
-      if (before && discard) c.privateStorage.deleteInstallationData(install.install_id);
+      const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(discard ? { discard_kept_data: true } : {}) }, stageDiscard);
+      candidate = install;
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
       await platform.start([entry], { assertCurrent });
@@ -214,26 +224,32 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
         c.registerPrompts(release, 'enabled');
         c.recoveryErrors.delete(pluginId);
       });
+      if (kept && earlier && discard) forgetRetainedInstallationRecords(c.home, c.project_id, earlier);
     } catch (error) {
       // A separate stop or enable can run during exposure. Leave that later activation choice standing.
       if (startedGeneration !== undefined && activationChanged()) throw error;
       const unfinished: unknown[] = [];
       let ours = true;
-      try { ours = await uninstall(release, install, kept, { earlier }); } catch (failure) { unfinished.push(failure); }
-      // The take-back may have yielded while another install became current.
-      ours = ours && (!earlier || sameInstalledRelease(earlier, platform.runtime.get(install.install_id)));
-      try {
-        if (ours) database?.restore();
-      } catch (failure) {
-        // Keep the old library available for recovery if its owner could not put it back.
-        database = undefined;
-        unfinished.push(failure);
+      if (candidate) {
+        try { ours = await uninstall(release, candidate, kept, { earlier }); } catch (failure) { unfinished.push(failure); }
+        // The take-back may have yielded while another install became current.
+        ours = ours && (!earlier || sameInstalledRelease(earlier, platform.runtime.get(candidate.install_id)));
       }
-      try { if (before && ours) c.privateStorage.restoreInstallationData(install.install_id, before); } catch (failure) { unfinished.push(failure); }
+      if (ours) {
+        for (const part of staged.splice(0).reverse()) {
+          try {
+            part.restore();
+            part.close?.();
+          } catch (failure) { unfinished.push(failure); }
+        }
+        if (before && earlier && (candidate || discard)) {
+          try { c.privateStorage.restoreInstallationData(earlier.install_id, before); } catch (failure) { unfinished.push(failure); }
+        }
+      }
       if (!unfinished.length) throw error;
       const said = (value: unknown) => value instanceof Error ? value.message : String(value);
       throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });
-    } finally { database?.close(); }
+    } finally { for (const part of staged) part.close?.(); }
   };
   /**
    * A signed package is replaced by a newer package of the same plugin and publisher, and by nothing else (BL-623). The person's confirmation approves exactly

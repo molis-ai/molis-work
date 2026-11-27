@@ -129,15 +129,15 @@ export class PluginRuntime implements PluginRuntimeApi {
     this.definitions.set(key, definition);
   }
 
-  install(given: PluginInstallInput): PluginLifecycleReceipt {
+  install(given: PluginInstallInput, stageDiscard?: (previous: PluginInstanceRecord) => void): PluginLifecycleReceipt {
     const input = { ...given, definition: platformDefinition(given.definition) }, trust =assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess, this.options.releaseIds);
     assertRuleKeysUnreserved(input.definition.manifest, trust, this.options.reservedRuleKeys?.());
-    const receipt = this.installRecord(input, trust);
+    const receipt = this.installRecord(input, trust, stageDiscard);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
     return receipt;
   }
 
-  private installRecord(input: PluginInstallInput, trust: PluginTrust): PluginLifecycleReceipt {
+  private installRecord(input: PluginInstallInput, trust: PluginTrust, stageDiscard?: (previous: PluginInstanceRecord) => void): PluginLifecycleReceipt {
     const host = isHostTrust(trust);
     const manifest = input.definition.manifest;
     validateManifest(manifest);
@@ -234,7 +234,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: null,
       retain_private_data: input.retain_private_data ?? current?.retain_private_data ?? true,
     };
-    saveInstalled(this.repository, this.executor, record, current, input.discard_kept_data === true);
+    saveInstalled(this.repository, this.executor, record, current, input.discard_kept_data === true, stageDiscard);
     return this.receipt("install", record, false);
   }
 

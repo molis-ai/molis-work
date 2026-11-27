@@ -543,8 +543,14 @@ export class PluginInstallService {
       const choices: PackageInstallChoices = { expectedKeptGeneration: inHome ? held.kept.home : held.kept.project, ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
       if (dual) {
         const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, { expectedKeptGeneration: held.kept.project });
-        if (!homePresent) await this.ports.installInHome(release, assertCurrent, complete, { expectedKeptGeneration: held.kept.home, installProjectHalf });
-        else {
+        if (!homePresent) await this.ports.installInHome(release, assertCurrent, complete, { expectedKeptGeneration: held.kept.home, installOtherHalf: installProjectHalf });
+        else if (held.kept.project && homePresent.record.version !== held.pkg.manifest.version) {
+          // Prove the replacement project works before moving an existing, possibly shared Home database.
+          await this.ports.installInProject(held.project_id, release, assertCurrent, complete, {
+            expectedKeptGeneration: held.kept.project,
+            installOtherHalf: commitProject => this.ports.installInHome(release, assertCurrent, commitProject),
+          });
+        } else {
           if (homePresent.record.version !== held.pkg.manifest.version) await this.ports.installInHome(release, assertCurrent);
           await installProjectHalf(complete);
         }

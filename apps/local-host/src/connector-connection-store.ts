@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withConnectorsStore, type ConnectorsDatabase } from "./connectors-store.js";
 import { ConnectorProtocolStore, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
-import { ConnectorConnectionStore, ConnectorObservationStore, forgetPluginBindings, type ConnectorCheckObservation, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
+import { ConnectorConnectionStore, ConnectorObservationStore, forgetPluginBindings, snapshotPluginBindings, type ConnectorCheckObservation, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
 import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
 import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 
@@ -51,4 +51,14 @@ export function lastConnectorCheck(store: ConnectorConnectionStore, connectionId
 export function forgetConnectorPluginBindings(homeDirectory: string, scopeId: string, pluginId: string): number {
   if (!existsSync(homeSqlitePath(homeDirectory, "connectors"))) return 0;
   return withConnectorsStore(homeDirectory, db => forgetPluginBindings(db, scopeId, pluginId, binding => invalidateConnectorBindingRequests(homeDirectory, binding)));
+}
+
+/** Temporarily unbind an installation's image slots before starting a clean replacement. */
+export function stageConnectorPluginBindings(home: string, scopeId: string, pluginId: string) {
+  const restore = withConnectorsStore(home, db => snapshotPluginBindings(db, scopeId, pluginId), true);
+  forgetConnectorPluginBindings(home, scopeId, pluginId);
+  return { restore() {
+    forgetConnectorPluginBindings(home, scopeId, pluginId);
+    if (restore) withConnectorsStore(home, restore, true);
+  } };
 }

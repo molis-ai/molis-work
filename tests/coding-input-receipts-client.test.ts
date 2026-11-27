@@ -25,9 +25,12 @@ type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" 
 function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { find?: (selector: string) => Node | null; landed?: (sent: { text: string }, said: string) => void } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
-  const factory = vm.runInNewContext(`${pageTextScript("zh", "coding")}\n(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
+  const context = vm.createContext({
     document: { createElement: () => new Node(), documentElement: {} }, crypto: { randomUUID: () => `u${++uuid}` },
-  }) as (ports: object) => {
+  });
+  const setLocale = (locale: Parameters<typeof pageTextScript>[0]) => vm.runInContext(pageTextScript(locale, "coding"), context);
+  setLocale("zh");
+  const factory = vm.runInContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, context) as (ports: object) => {
     steer(id: string, run: string, text: string, mode: string, materials?: readonly unknown[], acknowledge?: () => void): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
     observe(id: string, keys: readonly (string | undefined)[]): void;
     act(id: string, run: string): { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };
@@ -35,7 +38,7 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
   const paths: string[] = [];
   let refreshed = 0;
   const api = (path: string, _method: string, body: Record<string, unknown>) => { paths.push(path); sent.push(body); return reply(body); };
-  return { ui: factory({ api, translate: pageText("zh"), refresh: () => { refreshed++; }, q: () => null, find: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed };
+  return { ui: factory({ api, translate: pageText("zh"), refresh: () => { refreshed++; }, q: () => null, find: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed, setLocale };
 }
 /** A lost answer, as the page's request client reports it: the request may or may not have arrived. */
 const lostAnswer = () => Object.assign(new Error("ui_host"), { code: "ui_host.outcome_unknown" });
@@ -112,7 +115,7 @@ test("RC-10: a supplement goes with its send mode and a key, and the page says w
 
 test("RC-11: while a supplement is on its way it shows as sending; after a lost answer, the same words in the same mode go again under the same key", async () => {
   let attempt = 0, release!: () => void;
-  const { ui, sent } = receipts(() => {
+  const { ui, sent, setLocale } = receipts(() => {
     attempt++;
     if (attempt === 1) return Promise.reject(lostAnswer());
     return new Promise<Reply>(resolve => { release = () => resolve({ receipt: { input_id: "steer-1", replayed: true, delivered: "run" } }); });
@@ -123,6 +126,12 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.match(lost.text, /补上测试.*没确认送到 · 再按发送，同一条不会重复/su);
   assert.equal(ui.bubble("s", nothing), lost, "a redraw keeps the same bubble");
   assert.equal(ui.bubble("other-session", nothing), null, "the bubble belongs to its session");
+  for (const locale of ["en", "ja", "zh"] as const) {
+    setLocale(locale);
+    const translated = ui.bubble("s", nothing)!;
+    assert.equal(translated.dataset.lost, "1", "changing language retains the delivery state");
+    assert.equal(translated.text, "补上测试" + pageText(locale, "coding")("coding.sent.lost"));
+  }
   const again = ui.steer("s", "r", "补上测试", "next-boundary");
   const sending = ui.bubble("s", nothing)!;
   assert.notEqual(sending, lost);

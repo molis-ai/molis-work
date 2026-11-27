@@ -96,6 +96,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     : mode === "after-run" ? uiText.text("coding.sent.after-run") : "";
   const againText = () => uiText.text("coding.sent.again");
   let item: Sent | null = null;
+  let drawnLocale: string | null = null;
   let initial: { signature: string; id: string } | undefined;
   const start = async <Result>(id: string, command: Record<string, unknown>): Promise<Result> => {
     const direct = typeof command.task === "string" && command.task.trim() && ["continued_from", "reask", "plan_revision", "continue_step_board_of", "origin_task", "wait_for"].every(key => command[key] === undefined);
@@ -168,9 +169,11 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     bubble(id, run) {
       observe(id, run.turns.map(turn => turn.steer?.key));
       if (item?.id !== id) return null;
-      const mark = (item.lost ? "1" : "0") + ":" + (activeUiLocale() ?? "");
-      if (item.node?.dataset.lost !== mark) {
+      const mark = item.lost ? "1" : "0";
+      const locale = activeUiLocale();
+      if (item.node?.dataset.lost !== mark || drawnLocale !== locale) {
         const node = item.node = document.createElement("article");
+        drawnLocale = locale;
         node.className = "coding-turn is-sending";
         node.dataset.kind = "user";
         node.dataset.lost = mark;

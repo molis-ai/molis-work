@@ -1,3 +1,4 @@
+import { observationPluginDataCleared } from "./observation-host.js";
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { forgetDeclaredRulesIn, forgetInstallJudgmentsIn } from "@molis-ai/molis-work-module-judgment-rules";
@@ -26,17 +27,19 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
   forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? null);
   forgetInstallationConnections(scope.home.directory, record.install_id, scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" });
   forgetInstallationPlatformRecords(scope.home.directory, record.install_id, scope.project_id, { dataGoes: false, installedElsewhere: true });
-  if (dataGoes) forgetRetainedInstallationRecords(scope.home.directory, scope.project_id, record);
+  if (dataGoes) void forgetRetainedInstallationRecords(scope.home.directory, scope.project_id, record)
+    .catch(error => hostLog.warn("plugins", "attachments_not_removed", error));
 }
 
 /** Retained data in platform services follows the old installation only after its replacement succeeds. */
-export function forgetRetainedInstallationRecords(home: string, projectId: string | null, record: PluginInstanceRecord): void {
+export function forgetRetainedInstallationRecords(home: string, projectId: string | null, record: PluginInstanceRecord): Promise<void> {
+  observationPluginDataCleared(home, record, projectId ?? undefined);
   forgetInstallationRules(home, record, projectId);
-  void forgetInstallationAttachments(home, record.plugin_id, record.install_id, projectId).catch(error => hostLog.warn("plugins", "attachments_not_removed", error));
   if (projectId) forgetInstallJudgmentsIn(home, record.install_id, projectId);
   const scope: InstallScope = projectId ? { kind: "project", project_id: projectId } : { kind: "home" };
   const installed = installedIdentities(home, { scope, install_id: record.install_id });
   forgetRetainedPlatformRecords(home, record.install_id, projectId ?? undefined, !installed || installed.has(record.install_id));
+  return forgetInstallationAttachments(home, record.plugin_id, record.install_id, projectId);
 }
 
 /**

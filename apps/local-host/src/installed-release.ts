@@ -14,6 +14,8 @@ export interface InstalledPackageControl {
   expectedKeptGeneration?: string;
   /** Both halves of a dual installation finish within the same confirmation. */
   installOtherHalf?(commitFirst: () => void): Promise<void>;
+  /** The confirmation runs irreversible cleanup once both installations have committed. */
+  afterInstall?(cleanup: () => Promise<void>): void;
   assertCurrent?(): void;
   scopeOpen?(): boolean;
   refresh?(): Promise<void>;
@@ -29,7 +31,7 @@ export interface InstalledPackageControl {
 export interface PackageInstallSecret { readonly name: string; readonly header: string; readonly value: string }
 
 /** What the person chose in the confirmation besides agreeing (`PluginInstallService.confirm`). */
-export type PackageInstallChoices = Pick<InstalledPackageControl, 'optional' | 'secrets' | 'expectedKeptGeneration' | 'installOtherHalf'>;
+export type PackageInstallChoices = Pick<InstalledPackageControl, 'optional' | 'secrets' | 'expectedKeptGeneration' | 'installOtherHalf' | 'afterInstall'>;
 
 export const HOME_INSTALL_SCOPE = '~home';
 

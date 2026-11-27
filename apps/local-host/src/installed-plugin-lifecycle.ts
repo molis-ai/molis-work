@@ -224,10 +224,13 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
         c.registerPrompts(release, 'enabled');
         c.recoveryErrors.delete(pluginId);
       });
-      if (kept && earlier && discard) forgetRetainedInstallationRecords(c.home, c.project_id, earlier);
+
     } catch (error) {
       // A separate stop or enable can run during exposure. Leave that later activation choice standing.
-      if (startedGeneration !== undefined && activationChanged()) throw error;
+      if (startedGeneration !== undefined && activationChanged()) {
+        for (const part of staged) part.close?.();
+        throw error;
+      }
       const unfinished: unknown[] = [];
       let ours = true;
       if (candidate) {
@@ -246,10 +249,19 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
           try { c.privateStorage.restoreInstallationData(earlier.install_id, before); } catch (failure) { unfinished.push(failure); }
         }
       }
+      if (!ours) for (const part of staged) part.close?.();
       if (!unfinished.length) throw error;
       const said = (value: unknown) => value instanceof Error ? value.message : String(value);
       throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });
-    } finally { for (const part of staged) part.close?.(); }
+    }
+    if (kept && earlier && discard) {
+      const clear = async () => {
+        try { await forgetRetainedInstallationRecords(c.home, c.project_id, earlier); }
+        finally { for (const part of staged) part.close?.(); }
+      };
+      if (grants.afterInstall) grants.afterInstall(clear);
+      else await clear();
+    }
   };
   /**
    * A signed package is replaced by a newer package of the same plugin and publisher, and by nothing else (BL-623). The person's confirmation approves exactly

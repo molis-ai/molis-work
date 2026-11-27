@@ -25,7 +25,7 @@ import type { FrameScope, PackageInstallDown, PackageInstallUp, Translate } from
 /** The one thing the page hears when a sheet cannot be drawn, whatever the reason. */
 export const PACKAGE_INSTALL_UNAVAILABLE = "Unavailable";
 
-type Confirmed = { plugin_id: string; version: string; open_surface?: string; permission_changes_failed?: string[] };
+type Confirmed = { plugin_id: string; version: string; open_surface?: string; permission_changes_failed?: string[]; retained_cleanup_incomplete?: boolean };
 type TypedKey = { name: string; header: string; value: string };
 interface Entry extends PackageInstallView {
   id: number;
@@ -199,6 +199,7 @@ export function pagePackageInstall(
       entry.surface = done.open_surface;
       entry.openable = typeof done.open_surface === "string";
       entry.unmoved = done.permission_changes_failed?.length ?? 0;
+      entry.cleanupIncomplete = done.retained_cleanup_incomplete;
       answer(entry, { status: "installed", plugin_id: String(done.plugin_id), version: String(done.version) });
     } catch (error) {
       if (!live(entry) || (error as { name?: string }).name === "AbortError") return;

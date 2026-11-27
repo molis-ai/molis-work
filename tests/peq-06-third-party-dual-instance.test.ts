@@ -8,8 +8,11 @@ import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
-import { pluginInstallActions, sandboxImageNamespace, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { attachConversationFile, holdsConversationAttachment, pluginInstallActions, readSandboxPackage, sandboxImageNamespace, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, refused } from "./fixtures/home-sandbox.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -276,7 +279,7 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   const preview = (bundle: PluginPackageBundle, id = project.project_id) =>
     served.web.post<{preview_id: string; kept_data_incompatible: boolean}>(base(id) + "/install/preview", { bundle });
   const confirm = (preview_id: string, discard?: boolean, id = project.project_id) =>
-    served.web.post(base(id) + "/install/confirm", { preview_id, consent: true, pin_label: "Dual publisher", discard_kept_data: discard });
+    served.web.post<{retained_cleanup_incomplete?: boolean}>(base(id) + "/install/confirm", { preview_id, consent: true, pin_label: "Dual publisher", discard_kept_data: discard });
   const homeCaller = {...h.homeCaller(), permissions: HOME_DB_PERMS};
   const note = async (operation: string, input = {}) =>
     operate(h.homeClient(), homeCaller, await operationsOf(h.homeClient(), homeCaller, DUAL_PLUGIN_ID), operation, input);
@@ -305,6 +308,17 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
     mkdirSync(root, {recursive: true});
     writeFileSync(join(root, "note"), "Old file");
   }
+  const layer = h.host.observation!.layer;
+  const fact = DUAL_PLUGIN_ID + ".saved";
+  const ctx = {...person(project.project_id), actor_kind: "runtime" as const, audience: "plugin" as const,
+    host_plugin: {plugin_id: DUAL_PLUGIN_ID, install_id: installId, actor_id: "notes", project_id: project.project_id,
+      declaration: {manifest: readSandboxPackage(original.payload).manifest}, assertActive() {}}};
+  await layer.reportAction(() => {}).handler.handle({...ctx, beforeEffect: async () => {}}, {facts: [{fact, outcome: "succeeded"}]});
+  const oldReports = () => {
+    layer.flush();
+    return readRecords(layer.writer.database()!.db, {fact, project_id: project.project_id}).length;
+  };
+  assert.equal(oldReports(), 1);
   const image = sandboxImageNamespace(installId);
   const connection = withConnectorConnections(h.home, store => {
     const account = store.createToken({serviceId: "image-api", displayName: "Notes", token: "sample-token"});
@@ -323,6 +337,7 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   await assert.rejects(confirm((await preview(conflict)).preview_id, true), { code: "actions.execution_failed" });
   for (const root of roots) assert.equal(readFileSync(join(root, "note"), "utf8"), "Old file");
   assert.equal(bound(), connection);
+  assert.equal(oldReports(), 1);
 
   // A protected click still cannot discard data the preview never asked the person to give up.
   const sameEdition = await preview(original);
@@ -338,6 +353,7 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   await confirm((await preview(next)).preview_id, true);
   for (const root of roots) assert.equal(existsSync(join(root, "note")), false);
   assert.equal(bound(), undefined);
+  assert.equal(oldReports(), 0);
 
   await h.switchOn(DUAL_PLUGIN_ID, "home-database:read", "home-database:write");
   assert.deepEqual(await note("home.list"), []);
@@ -360,9 +376,23 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   assert.deepEqual(await h.host.withProject(other.reference, runtime =>
     runtime.store.db.prepare<[], {title: string}>("SELECT title FROM dual_tasks").all().map(row => row.title)), ["Other project"]);
   const valid = await preview(mixed("5.0.0", false), other.project_id);
-  await confirm(valid.preview_id, true, other.project_id);
+  // A late failure in an auxiliary owner leaves both new versions installed and reports the incomplete deletion.
+  const owner = {plugin_id: DUAL_PLUGIN_ID, install_id: installId, project_id: other.project_id};
+  const attachment = await attachConversationFile(h.home, owner, {file_name: "old.txt", data_base64: Buffer.from("old attachment").toString("base64")});
+  const attachments = new DatabaseSync(homeSqlitePath(h.home, "conversation-attachments"));
+  try {
+    attachments.exec("CREATE TRIGGER hold_old_attachment BEFORE DELETE ON attachments BEGIN SELECT RAISE(ABORT, 'storage unavailable'); END");
+    assert.equal((await confirm(valid.preview_id, true, other.project_id)).retained_cleanup_incomplete, true);
+    assert.equal(holdsConversationAttachment(h.home, owner, attachment.ref), true);
+    attachments.exec("DROP TRIGGER hold_old_attachment");
+  } finally { attachments.close(); }
   assert.equal((await listHome()).version, "5.0.0");
   assert.deepEqual(await note("home.list"), [{id: "1", text: "New note"}]);
   assert.deepEqual(await task(other.reference, "project.list"), []);
+  const replaced = (await served.web.get<{plugins: PluginInstalledView[]}>(otherBase + "/overview")).plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!;
+  assert.equal(replaced.version, "5.0.0");
+  await served.web.post(otherBase + "/installed/uninstall", {plugin_id: DUAL_PLUGIN_ID, keep_data: false, target: replaced.uninstall_target});
+  assert.equal(holdsConversationAttachment(h.home, owner, attachment.ref), false);
+
 
 });

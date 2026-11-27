@@ -375,7 +375,7 @@ panel.replaceChildren(heading, description, footer); heading.tabIndex = -1; head
 return;
 }
 install.disabled = true; error.hidden = true;
-try { await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(discard ? { discard_kept_data: true } : {}), ...(label ? { pin_label: name } : {}) }); toast(readText("workbench.settings-plugins.installed")); await load(); await globalThis.molisSkillUI.enable(preview, root.dataset.project, view.plugin_id, close); }
+try { const done = await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(discard ? { discard_kept_data: true } : {}), ...(label ? { pin_label: name } : {}) }); toast(readText(done.retained_cleanup_incomplete ? "workbench.package-install-card.cleanup-incomplete" : "workbench.settings-plugins.installed")); await load(); await globalThis.molisSkillUI.enable(preview, root.dataset.project, view.plugin_id, close); }
 catch (failure) { close(); fail(failure, badPackage(failure)); }
 });
 footer.append(cancel, install); panel.append(footer);

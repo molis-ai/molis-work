@@ -1,4 +1,3 @@
-import { observationPluginDataCleared } from "./observation-host.js";
 import { pluginInteraction } from "./plugin-interaction.js";
 import { installedPageRelease, pluginPagesFor } from "./plugin-page-authority.js";
 import { installedComponentSubmit } from "./installed-action-registration.js";
@@ -254,7 +253,6 @@ export class HomePluginExecutor implements PluginExecutor {
       if (kept) noteRetained(null, record.install_id, { kind: "home_library", reason: kept.reason });
     }
     // Its work records in every project, and the content of the calls it answered or made, go with its data (observation-collection §6).
-    if (!record.retain_private_data) observationPluginDataCleared(this.options.home, record);
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }
   prepareReinstall(record: PluginInstanceRecord): void {
@@ -266,7 +264,6 @@ export class HomePluginExecutor implements PluginExecutor {
   }
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: { directory: this.options.home }, project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
-    observationPluginDataCleared(this.options.home, record);
   }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);

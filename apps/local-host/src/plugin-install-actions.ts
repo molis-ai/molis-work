@@ -106,7 +106,7 @@ export const pluginInstallActions = {
       optional_permissions: { type: "array", maxItems: 64, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } } },
       required: ["preview_id", "consent"], additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "publisher_key_id"], properties: { plugin_id: text, version: text, publisher_key_id: text,
-      permission_changes_failed: { type: "array", minItems: 1, items: text } } } } } as ActionDefinition<PluginInstallConfirmInput, PluginInstallConfirmResult>,
+      retained_cleanup_incomplete: { type: "boolean" }, permission_changes_failed: { type: "array", minItems: 1, items: text } } } } } as ActionDefinition<PluginInstallConfirmInput, PluginInstallConfirmResult>,
   publishers: { capability_id: "plugins.publishers.list", version: /* @version action.plugins.publishers.list */ 1, operation: "query", action: { ...metadata, scope: "home",
     title: "查看已固定的发布者", description: "列出本人固定过的插件发布者（含已撤销的）：公钥指纹、名称、固定与撤销的时间。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],

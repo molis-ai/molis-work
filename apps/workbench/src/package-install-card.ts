@@ -32,6 +32,7 @@ export interface PackageInstallView {
   failure?: string;
   /** After an upgrade: how many switches could not be moved. */
   unmoved?: number;
+  cleanupIncomplete?: boolean;
   /** The installed plugin has a place to open. */
   openable?: boolean;
 }
@@ -148,7 +149,7 @@ export function packageInstallHtml(say: Say, owner: string, view: PackageInstall
       + (view.unmoved ? chip("alert", t("workbench.package-install-card.switches-not-changed", { count: view.unmoved }), "amber")
         : picks.length ? chip("tune", off ? t("workbench.package-install-card.optional-still-off", { count: off }) : t("workbench.package-install-card.all-optional-on"), off ? "" : "green") : "");
     return result("ok", upgrade ? t("workbench.package-install-card.upgraded-to-version", { version: sheet.version }) : t("workbench.package-install-card.installed"),
-      upgrade ? t("workbench.package-install-card.your-data-is-kept-carry-on") : sheet.runtime_scope === "home" ? t("workbench.package-install-card.open-it-from-any-project") : t("workbench.package-install-card.open-it-in-this-project"),
+      view.cleanupIncomplete ? t("workbench.package-install-card.cleanup-incomplete") : upgrade ? t("workbench.package-install-card.your-data-is-kept-carry-on") : sheet.runtime_scope === "home" ? t("workbench.package-install-card.open-it-from-any-project") : t("workbench.package-install-card.open-it-in-this-project"),
       `<div class="${PART}chips" data-center>${chips}</div>`,
       button("manage", t("workbench.package-install-card.manage-permissions")) + (view.openable ? button("open", t("workbench.package-install-card.open-name", name), "primary") : ""));
   }

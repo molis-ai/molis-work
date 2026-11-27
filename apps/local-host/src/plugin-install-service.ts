@@ -16,6 +16,7 @@ import { activeLocale } from './web-locale.js';
 import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { HOST_PLUGIN_ID_PREFIX, PLATFORM_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { hostLog } from "./host-log.js";
 import { assertPackageDiscardEntry } from "./plugin-consent-settings-entry.js";
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SkillInstallPreview, SkillSceneChoice } from '@molis-ai/molis-work-contracts/services/skills';
@@ -177,7 +178,7 @@ interface Held extends PreviewOwner {
 }
 
 /** What confirming answers: the installed plugin, and the optional switches of an upgrade that could not be moved (the upgrade itself stands). */
-export interface PluginInstallConfirmResult { plugin_id: string; version: string; publisher_key_id: string; permission_changes_failed?: string[] }
+export interface PluginInstallConfirmResult { plugin_id: string; version: string; publisher_key_id: string; permission_changes_failed?: string[]; retained_cleanup_incomplete?: boolean }
 export interface PluginInstallConfirmInput {
   discard_kept_data?: boolean;
   preview_id: string;
@@ -540,14 +541,16 @@ export class PluginInstallService {
       // The installation owner checks authority and commits the dependent owner's state inside its compensation window.
       const present = inHome ? homePresent : projectPresent;
       // A first installation starts with the switches the person chose; an upgrade keeps its own and moves the ones that differ afterwards.
-      const choices: PackageInstallChoices = { expectedKeptGeneration: inHome ? held.kept.home : held.kept.project, ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
+      const cleanup: Array<() => Promise<void>> = [];
+      const afterInstall = (clear: () => Promise<void>) => { cleanup.push(clear); };
+      const choices: PackageInstallChoices = { afterInstall, expectedKeptGeneration: inHome ? held.kept.home : held.kept.project, ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
       if (dual) {
-        const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, { expectedKeptGeneration: held.kept.project });
-        if (!homePresent) await this.ports.installInHome(release, assertCurrent, complete, { expectedKeptGeneration: held.kept.home, installOtherHalf: installProjectHalf });
+        const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, { afterInstall, expectedKeptGeneration: held.kept.project });
+        if (!homePresent) await this.ports.installInHome(release, assertCurrent, complete, { afterInstall, expectedKeptGeneration: held.kept.home, installOtherHalf: installProjectHalf });
         else if (held.kept.project && homePresent.record.version !== held.pkg.manifest.version) {
           // Prove the replacement project works before moving an existing, possibly shared Home database.
           await this.ports.installInProject(held.project_id, release, assertCurrent, complete, {
-            expectedKeptGeneration: held.kept.project,
+            afterInstall, expectedKeptGeneration: held.kept.project,
             installOtherHalf: commitProject => this.ports.installInHome(release, assertCurrent, commitProject),
           });
         } else {
@@ -556,7 +559,14 @@ export class PluginInstallService {
         }
       } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete, choices);
       else await this.ports.installInProject(held.project_id, release, assertCurrent, complete, choices);
-      const installed = { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
+      const installed: PluginInstallConfirmResult = { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
+      for (const clear of cleanup) {
+        try { await clear(); }
+        catch (error) {
+          hostLog.warn("plugins", "retained_cleanup_incomplete", error);
+          installed.retained_cleanup_incomplete = true;
+        }
+      }
       if (!present || !chosen.optional) return installed;
       // The upgrade stands whatever happens to a switch: each one that differs is moved as the settings move it, and one that fails is named.
       const failed: string[] = [], held_now = new Set(present.record.grants), wanted = new Set(chosen.optional);

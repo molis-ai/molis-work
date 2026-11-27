@@ -1,4 +1,5 @@
 import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { studioRoleTemplates } from "./role-templates.js";
 import { validateFrozenStudioWords } from "./agent-ui-text.js";
 import { isRecord as object, parseConnectionSlots, parseSandboxUi } from "@molis-ai/molis-work-plugin-sdk";
 import { PLUGIN_COMPONENT_WORD_KEYS, pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
@@ -25,7 +26,8 @@ function explainContract(error: unknown, contract: unknown): string {
   return '功能合同不成立：' + message;
 }
 export function validateAgentDesign(input: unknown, capabilities: readonly string[], resources: readonly string[], validateContract: (contract: unknown) => void): AgentDesign {
-  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience', 'localePacks', 'ui', 'icon', 'connections'].includes(key))) throw new Error('方案包含未知属性');
+  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience', 'localePacks', 'ui', 'icon', 'connections', 'roleTemplates'].includes(key))) throw new Error('方案包含未知属性');
+  studioRoleTemplates(input.roleTemplates);
   if (input.icon !== undefined && !PLUGIN_ICON_NAMES.some(name => name === input.icon)) throw new Error("方案图标不在 SDK 目录中");
   if (input.experience !== undefined) input.experience = validateExperience(input.experience);
   for (const field of ['id', 'title', 'description', 'rationale']) if (typeof input[field] !== 'string' || !input[field] || (input[field] as string).length > 4000) throw new Error('方案缺少有效的' + field);

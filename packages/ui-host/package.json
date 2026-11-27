@@ -14,6 +14,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./platform-client-paths": {
+      "types": "./dist/platform-client-paths.d.ts",
+      "import": "./dist/platform-client-paths.js"
+    },
     "./platform-surfaces": {
       "types": "./dist/platform-surfaces.d.ts",
       "import": "./dist/platform-surfaces.js"

@@ -31,7 +31,7 @@
 
 ## 3. 各库版本表
 
-44C 创作台私有值格式 `format.builder.saved-state` 为 2。发布前用旧版草稿验证仅原安装身份不可核实的图片进入待重新生成状态，保留草稿、发行历史及编辑版本。
+44C 创作台私有值格式 `format.builder.saved-state` 为 2。发布前用旧版草稿验证仅原安装身份不可核实的图片进入待重新生成状态，保留草稿、发行历史及编辑版本。验证没有角色模板的旧方案能照常打开，新方案的角色正文经签名发布、安装与明确采用后可完整读回。
 
 每个库只认一个当前版本，不符时的处理在最后一列。升级过程见 [U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.3、§2.6。表里有两类东西：Home 里的 SQLite 库，和需要在重建时核对的 JSON 文件（`security/secrets.json`、`config/mcp-tools.json`、`shelf/catalog.json` 与安装/发行清单均由各 owner 拒绝错误格式）。进链的文件要升版本，同一个 PR 带上连续的段（`pnpm health:check` 查）。其他带版本字段的小 JSON 文件（`config/` 下未列入本表的文件）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 

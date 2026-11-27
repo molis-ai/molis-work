@@ -208,7 +208,7 @@
   - 同步集合 `jelly_workspace`。
 ### 存储版本变更登记
 
-44C：`format.builder.saved-state` 1→2，SQLite 私有值的键和数据表不变。配图保存项目、安装范围、安装标识、代次、版本、Manifest 摘要、提供方、连接以及已收到的任务号。
+44C：`format.builder.saved-state` 1→2，SQLite 私有值的键和数据表不变。配图保存项目、安装范围、安装标识、代次、版本、Manifest 摘要、提供方、连接以及已收到的任务号。按一骏 11 月 26 日的决定，同一版草稿也可在设计中保存作者单独编写的角色名称、用途、正文。旧草稿没有随包角色模板。
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
 

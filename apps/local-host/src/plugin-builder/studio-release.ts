@@ -36,6 +36,16 @@ function releaseParent(root: string, buildId: string, control?: AgentPublication
   return path;
 }
 
+function studioRoleMaterial(design: NonNullable<AgentBuild['design']>) {
+  const files: Record<string, string> = {};
+  const entries = (design.roleTemplates ?? []).map(({ name, purpose, body }, index) => {
+    const path = 'agent/role-' + (index + 1) + '.md';
+    files[path] = body;
+    return { name, purpose, body: path };
+  });
+  return { files, entries };
+}
+
 /** Only an explicit, currently authorized retry may reclaim an unreferenced interrupted publication. */
 function reclaim(directory: string, build: AgentBuild, version: number, signer: string, control: AgentPublicationControl): void {
   const stat = lstatSync(directory, { throwIfNoEntry: false });
@@ -53,7 +63,7 @@ function reclaim(directory: string, build: AgentBuild, version: number, signer: 
   const kept = readKeptSandboxPackage(bundle.payload);
   if (bundle.payload.manifest.plugin_id !== build.design!.contract.pluginId || bundle.payload.manifest.version !== releaseVersion(version)
     || bundle.payload.manifest.publisher.signature !== signer) throw new Error('未登记发行物不属于这个草稿版本，保留待检查');
-  const words = studioLocaleFiles(build.design!.localePacks);
+  const words = { ...studioLocaleFiles(build.design!.localePacks), ...studioRoleMaterial(build.design!).files };
   for (const file of bundle.payload.files) {
     if (file.path === SANDBOX_PACKAGE_FILES.manifest) continue;
     const original = Object.hasOwn(words, file.path) ? Buffer.from(words[file.path]!) : RELEASE_FILES.has(file.path) ? readFileSync(join(directory, file.path)) : null;
@@ -88,13 +98,15 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
         'interface.json': JSON.stringify(builderReleaseInterface(design, build.nodes)),
         'prompts.json': JSON.stringify(prompts),
       };
+      const roles = studioRoleMaterial(design);
       const candidate = (identity: string, compatible: string[] = []) => {
         const distributed = sandboxPluginManifest({ pluginId: design.contract.pluginId, name: design.title, icon: design.icon, connections: design.connections, version: releaseVersion(version),
           textDeclarations: studioManifestWords(design),
           publisher: { publisher_id: 'molis-studio', signature: identity }, presentation: design.presentation !== undefined,
           effects: manifest.effects, contract: design.contract, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });
-        const files = Object.entries({ ...originalFiles, ...studioLocaleFiles(design.localePacks), 'manifest.json': JSON.stringify(distributed) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));
-        return parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest: distributed, files }, signature: null, publisher_key: null });
+        const wire = roles.entries.length ? { ...distributed, agent: roles.entries } : distributed;
+        const files = Object.entries({ ...originalFiles, ...studioLocaleFiles(design.localePacks), ...roles.files, 'manifest.json': JSON.stringify(wire) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));
+        return parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest: wire, files }, signature: null, publisher_key: null });
       };
       const admitted = readKeptSandboxPackage(candidate('agent-built:' + build.id).payload);
       if (scope === 'home') assertHomePackageAllowed(admitted.manifest);

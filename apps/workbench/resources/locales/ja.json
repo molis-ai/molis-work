@@ -5119,6 +5119,8 @@
     "workbench.roles.about-personal": "自作ロールとプロジェクト外の既定担当を管理します。各プロジェクトの設定は「プロジェクト設定 › ロール」で行います。",
     "workbench.roles.about-project": "このプロジェクトの既定ロールと選択可能ロールを設定します。他プロジェクトや個人の既定には影響しません。",
     "workbench.roles.add": "追加",
+    "workbench.roles.adopt-template": "採用",
+    "workbench.roles.plugin-templates": "インストール済みプラグインのロール",
     "workbench.roles.add-about": "自分のロールから追加します。原本に追従し、ここで編集した節のみ本プロジェクト独自になります。",
     "workbench.roles.add-named": "追加：{name}",
     "workbench.roles.add-role": "ロールを追加",

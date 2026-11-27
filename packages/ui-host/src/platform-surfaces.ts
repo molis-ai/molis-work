@@ -1,3 +1,5 @@
+import { PLATFORM_SURFACE_CLIENT_PATHS } from "./platform-client-paths.js";
+export { PLATFORM_SURFACE_CLIENT_PATHS } from "./platform-client-paths.js";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { SESSIONS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/sessions";
 
@@ -20,10 +22,6 @@ export interface PlatformSurface {
   readonly search_row?: { readonly selector: string; readonly attribute: string };
 }
 
-export const PLATFORM_SURFACE_CLIENT_PATHS = {
-  characters: "/assets/platform/characters.js",
-  sessions: "/assets/platform/sessions.js",
-} as const;
 
 export const PLATFORM_SURFACES = [
   { id: "artifacts", provider_id: "system.artifacts", accepts_objects: true },

@@ -214,6 +214,8 @@ characters.publish	1	system.characters	command	operation	project	write	-	agent,m
 characters.roles.list	1	system.characters	query	query	project	read	-	agent,mcp,plugin,user,workflow	-	character	-	-	d746974fa9af	ac04ec96a077	-
 characters.roles.read	1	system.characters	query	query	project	read	-	user	-	character	-	-	7f8cee1a132a	5383e14f49bd	5e0374458cf9
 characters.roles.resolve	1	system.characters	query	query	project	read	-	agent,mcp,plugin,user,workflow	-	character	-	-	c738578b850d	e7cee241c678	-
+characters.roles.templates.adopt	1	system.characters	command	operation	project	write	-	user	-	character	-	-	ae3b789127ee	65a0212dbf78	5e0374458cf9
+characters.roles.templates.list	1	system.characters	query	query	project	read	-	user	-	character	-	-	d746974fa9af	4d4078d547b2	5e0374458cf9
 characters.runs	1	system.characters	query	query	project	read	-	user	-	character	-	-	de2f7e460673	d536ab86c0cc	-
 characters.search.entries	1	system.characters	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	-	character	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	4db95170da14	a3a409432585
 characters.state	1	system.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	a1b10c56536a	478e0598d946	-

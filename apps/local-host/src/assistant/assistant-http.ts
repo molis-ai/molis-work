@@ -5,7 +5,7 @@ import { pluginPageRequest } from "../plugin-page-authority.js";
 import { computerHolderFor } from "../computer/computer-surfaces.js";
 import { assertHumanReview } from "../computer/computer-policy.js";
 import { pluginInstallRecords } from "../plugin-install-records.js";
-import { HomeConsentLedger } from "../home-plugin-store.js";
+import { bindSignedRoleInstallations } from "../signed-role-installations.js";
 import { assistantLineAcceptance } from "../acceptance-review.js";
 import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
 import { AssistantTaskReports, type AssistantReportRounds } from "./assistant-task-reports.js";
@@ -40,7 +40,7 @@ import { registerWorkAuthority } from "../agent-work-authority.js";
 import { assistantSettingActions, assistantSettingOwner } from "./assistant-settings-actions.js";
 import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
-import { RUNTIME, type SignedBinding } from "./assistant-service-shared.js";
+import { RUNTIME } from "./assistant-service-shared.js";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assistantSurroundings } from "./assistant-surroundings.js";
@@ -201,24 +201,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         // One read of each record source for every installation a list names (09 §3.4), never one per role.
         const projectRows = project ? await ports.localHost.withProject(project, runtime => pluginInstallRecords(runtime.store.db)) : undefined;
         const homeRows = () => ports.localHost.homePlugins?.installations() ?? [];
-        const ledger = new HomeConsentLedger(ports.homeDirectory), atBind = homeRows();
-        const bound = new Map<string, SignedBinding>();
-        for (const { install_id: installId, source } of installs) {
-          const inProject = projectRows?.get(installId);
-          const current = inProject ? () => projectRows!.get(installId) : () => homeRows().find(row => row.install_id === installId);
-          const original = inProject ?? atBind.find(row => row.install_id === installId);
-          if (!original || bound.has(installId)) continue;
-          const assertCurrent = () => {
-            const record = current();
-            if (!record || record.state !== "running" || record.installation_generation !== original.installation_generation || record.plugin_id !== source.plugin_id
-              || record.version !== source.plugin_version || record.publisher_signature !== source.publisher_signature
-              || record.publisher_trust !== "pinned" || !ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at)) {
-              throw assistantErrors.invalid("角色资料的安装来源已失效，请重新选择");
-            }
-          };
-          bound.set(installId, { installation: { install_id: installId, installation_generation: original.installation_generation, project_id: inProject ? project!.project_id : null }, assertCurrent });
-        }
-        return bound;
+        return bindSignedRoleInstallations(ports.homeDirectory, project?.project_id ?? null, projectRows, homeRows, installs,
+          () => assistantErrors.invalid("角色资料的安装来源已失效，请重新选择"));
       },
       skills: async project => (await skillReader(project, [])).invoke(skillCatalogActions.list, { applies_to: "assistant", states: ["auto", "manual"] }).then(found => found.skills),
       readSkills: (work, refs, categories) => readWorkSkills(store, work, categories, async () =>

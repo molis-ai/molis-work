@@ -122,8 +122,18 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     const input = view.action.search_source ? { cursor: null, limit: 8 } : view.capability_id === "diff.compare" ? { before: "old value", after: "reviewed value" } : {};
     return { id, view, input };
   });
-  await home.grant("runtime:psd-01", project.project_id, [...probes.map(probe => probe.view), pagesActions.list, pagesActions.create]);
-  await home.grant("agent:prologue", project.project_id, probes.map(probe => probe.view));
+  const runtimeId = "runtime:psd-01", agentId = "agent:prologue";
+  const ownerBound = new Set<string>();
+  for (const { id, view } of probes) {
+    for (const clientId of [runtimeId, agentId]) {
+      try { await home.grant(clientId, project.project_id, [view]); }
+      catch (error) {
+        assert.equal((error as { code?: string }).code, "actions.owner_mismatch", id + ": " + String(error));
+        ownerBound.add(clientId + "/" + id);
+      }
+    }
+  }
+  for (const clientId of [runtimeId, agentId]) await home.grant(clientId, project.project_id, [pagesActions.list, pagesActions.create]);
   const agentCaller: ActionCallContext = { actor_id: "agent:prologue", actor_kind: "runtime", audience: "agent", project_id: project.project_id, permissions: [] };
   const callAsAgent = async (ref: { capability_id: string; provider_id: string; version: number }, args: object) => {
     const auth = await authorizeMcpActions(home.host, agentCaller, home.home, project.reference);
@@ -136,13 +146,18 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     const { view, input } = probes.find(probe => probe.id === id)!;
     const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     const readThroughBoth = async () => {
-      const read = await callAsAgent(ref, input);
+      const own = await client.invoke(person, ref, input);
+      assert.ok(own && typeof own === "object", id);
+      if (!ownerBound.has(agentId + "/" + id)) assert.ok(await callAsAgent(ref, input), id);
       const wire = await callTool(ref, input);
-      assert.equal(wire.failed, false, `${id} returned ${JSON.stringify(wire.value)}`);
-      if (view.action.search_source) assert.ok(Array.isArray(wire.value.entries));
-      else if (ref.capability_id === "diff.compare") assert.equal(wire.value.identical, false);
-      else assert.ok(Array.isArray(wire.value.operations ?? wire.value.items));
-      assert.ok(read && typeof read === "object", `${id} returned its own action result to the assistant`);
+      if (ownerBound.has(runtimeId + "/" + id)) {
+        assert.ok(wire.failed, id + ": only the owner may call this action");
+      } else {
+        assert.equal(wire.failed, false, id + " " + JSON.stringify(wire.value));
+        if (view.action.search_source) assert.ok(Array.isArray(wire.value.entries));
+        else if (ref.capability_id === "diff.compare") assert.equal(wire.value.identical, false);
+        else assert.ok(Array.isArray(wire.value.operations ?? wire.value.items));
+      }
     };
     const title = `Removal round ${id}`;
     const created = await callTool(pagesActions.create, { title, body: doc(title) });
@@ -161,10 +176,17 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
       && (entry.manifest.ui.embedded_plugins ?? []).includes(pluginIdOf.get(id)!)).map(entry => entry.project_plugin_id);
     if (embeddedBy.length) await readThroughBoth();
     else {
-      await assert.rejects(callAsAgent(ref, input), { code: "actions.plugin_disabled" });
+      await assert.rejects(client.invoke(person, ref, input), { code: "actions.plugin_disabled" });
+      if (!ownerBound.has(agentId + "/" + id)) await assert.rejects(callAsAgent(ref, input));
       const denied = await callTool(ref, input);
-      assert.ok(denied.failed && denied.value.code === "actions.plugin_disabled", `${id}: ${JSON.stringify(denied.value)}`);
+      assert.ok(denied.failed && typeof denied.value.code === "string", `${id}: ${JSON.stringify(denied.value)}`);
     }
+    const survivor = probes.find(other => other.id !== id && shown.includes(other.id) && !ownerBound.has(runtimeId + "/" + other.id) && !ownerBound.has(agentId + "/" + other.id));
+    assert.ok(survivor, "at least one other installed plugin remains callable");
+    const survivorRef = { capability_id: survivor.view.capability_id, version: survivor.view.version, provider_id: survivor.view.provider.provider_id };
+    assert.ok(await callAsAgent(survivorRef, survivor.input), survivor.id);
+    const reached = await callTool(survivorRef, survivor.input);
+    assert.equal(reached.failed, false, JSON.stringify(reached.value));
     if (embeddedBy.length ? still.join() !== before.join() : still.length) left[id] = still;
     assert.ok(Array.isArray(await mcp.client.discover(mcp.caller)), `without ${id}: the project's MCP directory answers`);
     await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
@@ -178,7 +200,7 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     const persisted = await callTool(pagesActions.list, {});
     assert.equal(persisted.failed, false);
     assert.ok(persisted.value.documents.some((item: { id: string; title: string }) => item.id === documentId && item.title === title));
-    t.diagnostic(`${id}: ${ref.capability_id} via assistant + tools/call; removed=${embeddedBy.join(",") || "disabled"}; restored; document=${documentId}`);
+    t.diagnostic(`${id}: ${ref.capability_id} owner-only(agent/mcp)=${ownerBound.has(agentId + "/" + id)}/${ownerBound.has(runtimeId + "/" + id)}; surviving calls=${survivor.id}; removed=${embeddedBy.join(",") || "disabled"}; restored; document=${documentId}`);
     const again = await offered(id);
     if (again.join() !== before.join()) back[id] = again;
   }

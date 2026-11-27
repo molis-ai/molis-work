@@ -271,7 +271,7 @@ export class MolisWorkLocalHost {
             add(openProjectWorkspaceProvider(runtime, catalogOwner, this.actionClient(reference), clock, options.directoriesFor));
             add(artifactActionProvider(runtime, options, this.actionClient(reference))); add(projectMaterialsProvider(runtime, this.actionClient(reference), options));
             add(projectGuidanceActionProvider(reference.project_id, store.db, clock));
-            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
+            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime), () => this.homePlugins?.installations() ?? []));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,
                 homePages: homePagesPorts(options.homeDirectory, caller => this.inspectActions(caller, reference), clock),

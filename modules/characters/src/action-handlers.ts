@@ -4,7 +4,7 @@ import type { KitReport, KitReportedEntry } from "@molis-ai/molis-work-contracts
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { characterErrors, parseCharacterContent, type CharacterDefaultSelection, type CharacterDraft, type CharacterDraftPatch, type CharacterMemberAddInput,
   type CharacterMemberSaveInput, type CharacterMemberSectionInput, type CharacterMemberStateInput, type CharacterRestoreInput, type CharacterRoleReadInput,
-  type CharacterRoleResolveInput, type CharacterState, type CharacterTemplateAdoptionInput, type CharacterVersionsReadInput } from "@molis-ai/molis-work-contracts/modules/characters";
+  type CharacterRoleResolveInput, type CharacterState, type CharacterTemplateAdoptionInput, type SignedCharacterTemplate, type SignedCharacterTemplateRef, type CharacterVersionsReadInput } from "@molis-ai/molis-work-contracts/modules/characters";
 import { inspectCharacterTemplateAdoption } from "@molis-ai/molis-work-plugin-sdk";
 import { agentActionCatalog, validateDraftActions, type CharactersAgentCatalog } from "./agent-actions.js";
 import { characterArtifactMarkdown } from "./artifact-preview.js";
@@ -23,6 +23,10 @@ export interface CharactersActionPorts {
   /** Includes every publication version in the current project, including archived versions. */
   references(): ArtifactReference[];
   imports?: CharactersImportPorts;
+  signedTemplates?: {
+    list(): SignedCharacterTemplate[];
+    read(ref: SignedCharacterTemplateRef): { origin: CharacterTemplateAdoptionInput["origin"]; name: string; body: string; assertCurrent(): void };
+  };
 }
 
 /**
@@ -169,7 +173,7 @@ function memberKitEntry(entry: CatalogOf["members"][number]): KitReportedEntry {
  * The person's roles (role-service-design §3): the catalog, the role a new task gets, versions, members of this project, defaults and
  * template adoption. Every write is made after the binding's checks (`beforeWrite`) in one transaction on the store.
  */
-function roleHandlers(drafts: CharactersService, projectId: string, validate: Validate, beforeWrite: () => Promise<void>) {
+function roleHandlers(drafts: CharactersService, projectId: string, validate: Validate, beforeWrite: () => Promise<void>, signed?: CharactersActionPorts["signedTemplates"]) {
   const roles = drafts.roles;
   const write = async <T>(operation: () => T): Promise<T> => { await beforeWrite(); return drafts.transaction(operation); };
   return {
@@ -197,6 +201,16 @@ function roleHandlers(drafts: CharactersService, projectId: string, validate: Va
       return write(() => ({ role: drafts.restoreMember(requireProject(projectId), version, expected_revision, expected_original_version, expected_original_draft_revision) }));
     },
     defaults: (input: CharacterDefaultSelection) => write(() => { roles.setDefault(projectId, input); return roles.defaultsWithEffective(projectId); }),
+    signedTemplates: () => ({ templates: signed?.list() ?? [] }),
+    adoptSigned: async (input: SignedCharacterTemplateRef & { request_id: string }) => {
+      if (!signed) throw characterErrors.invalid("当前项目没有可用的随包角色");
+      const selected = signed.read(input);
+      const adopted: CharacterTemplateAdoptionInput = { origin: selected.origin, layer: "project", selection: { kind: "create" },
+        request_id: input.request_id, template: { title: { literal: selected.name }, instructions: selected.body } };
+      const problems = inspectCharacterTemplateAdoption(adopted);
+      if (problems.length) throw characterErrors.invalid(problems.map(problem => problem.reason).join("；"));
+      return write(() => { selected.assertCurrent(); return roles.adopt(requireProject(projectId), adopted, content => drafts.insertSaved(content)); });
+    },
     fromTemplate: async (input: CharacterTemplateAdoptionInput) => {
       const problems = inspectCharacterTemplateAdoption(input);
       if (problems.length) throw characterErrors.invalid(problems.map(problem => problem.reason).join("；"));
@@ -225,7 +239,7 @@ export function createCharactersActionHandlers(ports: CharactersActionPorts, run
   const imports = (): CharactersImportPorts => { if (!ports.imports) throw new Error("外部 AI 工具导入服务尚未就绪"); return ports.imports; };
   const validate: Validate = refs => validateDraftActions(runtime.agent, refs);
   return { artifactPreview: characterArtifactMarkdown, dispose: () => store.close(),
-    ...recordHandlers(drafts), ...draftHandlers(drafts, validate, beforeWrite), ...roleHandlers(drafts, runtime.projectId, validate, beforeWrite),
+    ...recordHandlers(drafts), ...draftHandlers(drafts, validate, beforeWrite), ...roleHandlers(drafts, runtime.projectId, validate, beforeWrite, ports.signedTemplates),
     ...publicationHandlers(drafts, scope, runtime, validate, imports), ...importHandlers(drafts, runtime.projectId, imports) };
 }
 

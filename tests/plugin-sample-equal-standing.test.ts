@@ -7,14 +7,14 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { AuthorizationDetail, AuthorizationList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentTaskGrantActions, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { homeAgentDefinitions, homeIntegrationRegistry, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { homeIntegrationRegistry, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { effectsFromContract, parsePluginManifest, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import {
   defineArtifactPreviewAction, defineWorkflowContentActions, defineSubjectContextAction, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
   intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, isWorkTerminalPromptAction,
-  LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView,
+  LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -27,6 +27,9 @@ import { SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_OUTPUT_SCHEMA, SETTINGS_WRITE
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mac, person as sandboxPerson, ref } from "./fixtures/home-sandbox.js";
 import { PACKAGE_PLUGIN_ID, fixturePublisher, newPublisher, packageMethod, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { readyPublication } from "./fixtures/studio-publishing.js";
+import { readStudioDistribution } from "../apps/local-host/dist/plugin-builder/studio-release.js";
+import type { CharacterRoleCatalog, CharacterRoleVersionEntry, SignedCharacterTemplate } from "@molis-ai/molis-work-contracts/modules/characters";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -478,24 +481,23 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.equal(pulled.events[0]?.provider_dedupe_id, "sample-one");
   assert.equal(pulled.events[0]?.payload.title, "My journal");
 
-  const declared = (await home.host.sceneClient(project.reference).discoverScenes(person)).find(scene => scene.provider.plugin_install_id === projectInstall.install_id && scene.definition.title === "Notebook proofreading");
+  const declared = (await home.host.sceneClient(project.reference).discoverScenes(person) as ActionSceneView[]).find(scene => scene.provider.plugin_install_id === projectInstall.install_id && scene.definition.title === "Notebook proofreading");
   assert.ok(declared?.definition.default_rule);
   assert.deepEqual(declared.definition.default_rule.options.map(option => option.key), ["revise", "keep"]);
   const rule = withFunctionsService(home.home, service => service.list().find(item => item.function_key === declared.definition.default_rule!.function_key));
   assert.ok(rule);
-  const targets = await projectClient.invoke(person, functionContextActions.targets, { id: rule.id }) as { targets: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneTarget[] };
-  const target = targets.targets.find(item => item.scene_id === declared.definition.scene_id)!;
+  const sceneTargets = await projectClient.invoke(person, functionContextActions.targets, { id: rule.id }) as { targets: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneTarget[] };
+  const target = sceneTargets.targets.find(item => item.scene_id === declared.definition.scene_id)!;
   assert.ok(target && target.binding === null);
   await projectClient.invoke(person, functionContextActions.configure, { id: rule.id, scene_id: target.scene_id, scene_version: target.scene_version,
     provider_id: target.provider_id, binding_id: target.binding_id, expected_revision: target.revision, enabled: true });
   const choose = byLocal("scene.choose");
   const judged = await projectClient.invoke(person, { capability_id: choose.capability_id, version: choose.version, provider_id: choose.provider.provider_id }, { content: "Please proofread" });
   assert.deepEqual((judged as { suggested_behavior_ids: string[] }).suggested_behavior_ids, ["revise"]);
-  const roles = homeAgentDefinitions(home.home), template = roles.signedRoles().find(role => role.owner_id === SIGNED_SANDBOX_ID)!;
-  const material = roles.signedMaterial(template.install_id, template.default_ref)!;
-  assert.equal(material.body, "Inspect the original notebook card before recommending an edit.");
-  await projectClient.invoke(person, characterRoleActions.fromTemplate, { origin: { source: { kind: "package", plugin_id: SIGNED_SANDBOX_ID, version: "1.0.0" }, part_id: "reviewer" },
-    request_id: "standing-reviewer", layer: "project", selection: { kind: "create" }, template: { title: { literal: "Notebook reviewer" }, instructions: material.body, skills: [{ pack: SIGNED_SANDBOX_ID, skill_id: "review-role" }] } });
+  const listed = await projectClient.invoke(person, characterRoleActions.signedTemplates, {}) as { templates: SignedCharacterTemplate[] };
+  const template = listed.templates.find(role => role.name === "Notebook reviewer" && role.install_id === projectInstall.install_id);
+  assert.ok(template);
+  await projectClient.invoke(person, characterRoleActions.adoptSigned, { install_id: template.install_id, generation: template.generation, role_id: template.role_id, request_id: "standing-reviewer" });
   const rolePage = await fetch(home.origin + `/projects/${project.project_id}/api/platform/characters/roles`);
   assert.equal(rolePage.status, 200); assert.ok((await rolePage.text()).includes("Notebook reviewer"));
 
@@ -519,7 +521,7 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
       outside.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++);
       document.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++); })()`);
     await child.evaluate("(() => { const field = document.querySelector('[data-field=word]'); field.value = 'mineralogyonereview'; field.dispatchEvent(new Event('input', {bubbles:true})); field.form.querySelector('[type=submit]').click(); })()");
-    await page.waitFor("window.observed.local === 1");
+    await page.wait("window.observed.local === 1");
     assert.deepEqual(await page.evaluate("window.observed"), { local: 1, outside: 0 });
   } finally { await browser.close(); }
   const kinds = await home.web.get<{ kinds: Record<string, string>; glyphs: Record<string, string> }>(`/projects/${project.project_id}/api/assistant/surface-kinds`);
@@ -621,9 +623,24 @@ test("44C-3 PSD-03 PSD-04a a signed com.example package and a studio.<id> packag
   const f = await serveHomeRuntime(t), project = await f.project("Third-party standing");
   const prefix = "/projects/" + project.project_id, client = f.host.actionClient(project.reference), caller = { ...sandboxPerson(), project_id: project.project_id };
   const publisher = fixturePublisher("PSD-04a");
-  for (const pluginId of [PACKAGE_PLUGIN_ID, "studio.4f0c7d1e-2b3a-4c5d-8e9f-0a1b2c3d4e5f"]) {
+  const studioRole = { name: "谨慎校对员", purpose: "校对文稿时保留作者的表达", body: "逐句对照原文。引用原句，说明修改依据。保留作者的语气。" };
+  const author = readyPublication(f.home, "role-publication", "project", design => ({ ...design, roleTemplates: [studioRole] }));
+  t.after(() => author.workflow.close());
+  const distributed = await readStudioDistribution(author.root, await author.publish());
+  const sampleRole = { name: "Archive editor", purpose: "Keep citations intact", body: "Compare the original wording before annotating any quotation." };
+  const ordinary = signedPackage(publisher, (files, manifest) => {
+    Object.assign(manifest, { agent: [{ name: sampleRole.name, purpose: sampleRole.purpose, body: "agent/editor.md" }] });
+    files["agent/editor.md"] = sampleRole.body;
+  });
+  const chrome = locateTestChrome(); assert.ok(chrome);
+  const browser = await ChromeHarness.start(f.home, { executable: chrome }); assert.ok(browser);
+  t.after(() => browser.close());
+  const tab = await browser.page(), api = prefix + "/api/platform/characters/roles";
+  const readRoles = async () => await (await f.request(api)).json() as CharacterRoleCatalog;
+  for (const [bundle, role] of [[ordinary, sampleRole], [distributed, studioRole]] as const) {
+    const pluginId = bundle.payload.manifest.plugin_id;
     assert.ok(!pluginId.startsWith("io.molis.work."), `${pluginId} is not under the Host's reserved prefix`);
-    const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: signedPackage(publisher, undefined, { pluginId }) }) as { preview_id: string };
+    const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
     await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Example publisher" });
     const page = await f.request(prefix + "/plugins/" + pluginId + "?frame=workbench");
     const html = await page.text();
@@ -636,6 +653,22 @@ test("44C-3 PSD-03 PSD-04a a signed com.example package and a studio.<id> packag
     assert.ok("value" in (await call.json() as object), `${pluginId}: the call's answer is the operation's value`);
     const views = (await client.discover(caller)).filter(view => view.provider.plugin_id === pluginId);
     assert.ok(views.length > 0, `${pluginId}: its operations are in the project's directory like a built-in plugin's`);
+    assert.ok(!(await readRoles()).members.some(item => item.title === role.name));
+    await tab.command("Page.navigate", { url: f.origin + prefix + "/settings/characters" });
+    await tab.wait("document.querySelector('[data-roles-act=add]:enabled')");
+    await tab.evaluate("document.querySelector('[data-roles-act=add]').click()");
+    const button = `[...document.querySelectorAll('[data-roles-act=adopt-template]:enabled')].find(b => b.closest('.mw-setting-row')?.textContent.includes(${JSON.stringify(role.name)}))`;
+    await tab.wait(button); await tab.evaluate(`(${button}).click()`);
+    await tab.wait(`[...document.querySelectorAll('.roles-row')].some(e => e.textContent.includes(${JSON.stringify(role.name)}))`);
+    const matches = (await readRoles()).members.filter(item => item.title === role.name);
+    assert.equal(matches.length, 1);
+    const member_id = matches[0]!.role.current.member_id;
+    const versions = await f.request(api + "/versions", { method: "POST", body: { role: { kind: "project", member_id } } });
+    assert.equal(versions.status, 200);
+    const read = await versions.json() as { versions: CharacterRoleVersionEntry[] };
+    assert.equal(read.versions.find(item => item.current)?.content.instructions, role.body);
+    t.diagnostic(pluginId + ": signed role " + role.name + " adopted as " + member_id);
+
   }
 });
 

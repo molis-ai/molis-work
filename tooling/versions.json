@@ -242,6 +242,8 @@
     "action.characters.publications.file": 1,
     "action.characters.publish": 1,
     "action.characters.roles.list": 1,
+    "action.characters.roles.templates.adopt": 1,
+    "action.characters.roles.templates.list": 1,
     "action.characters.roles.read": 1,
     "action.characters.roles.resolve": 1,
     "action.characters.runs": 1,

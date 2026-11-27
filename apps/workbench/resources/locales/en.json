@@ -5635,6 +5635,8 @@
     "workbench.roles.about-personal": "The characters you write, and who does work outside projects by default. How each project uses them is set in Project settings › Characters.",
     "workbench.roles.about-project": "Who does this project’s tasks by default, and which characters can be chosen here. Changes here don’t touch other projects or your own default.",
     "workbench.roles.add": "Add",
+    "workbench.roles.adopt-template": "Adopt",
+    "workbench.roles.plugin-templates": "Characters from installed plugins",
     "workbench.roles.add-about": "Add one of your characters. It follows the original; a section becomes this project’s only when you change it here.",
     "workbench.roles.add-named": "Add: {name}",
     "workbench.roles.add-role": "Add a character",

@@ -5249,6 +5249,8 @@
     "workbench.roles.about-personal": "你写的角色，和不在项目里的工作默认由谁来做。各个项目怎样用，在 项目设置 › 角色 里定。",
     "workbench.roles.about-project": "这个项目的任务默认由谁来做，以及项目里能选哪些角色。改这里不影响别的项目，也不改你的默认。",
     "workbench.roles.add": "加入",
+    "workbench.roles.adopt-template": "采用",
+    "workbench.roles.plugin-templates": "已安装插件提供的角色",
     "workbench.roles.add-about": "从你的角色里加一个。加入后跟随原件，在这里改了哪一节才变成本项目的。",
     "workbench.roles.add-named": "加入：{name}",
     "workbench.roles.add-role": "添加角色",

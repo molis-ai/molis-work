@@ -1,6 +1,6 @@
 import { IMAGE_GENERATION_ROLES, IMAGE_GENERATION_SCHEMAS } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { SandboxPluginContract, SandboxOperationExample } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { fixturePublisher, signedPackage } from "./sandbox-package.js";
 
@@ -17,7 +17,7 @@ export function signedImageService(key: string, version: string, incomplete: boo
     const image = { id: key.padEnd(245, 'i') };
     for (const role of IMAGE_GENERATION_ROLES.filter(role => !incomplete || role !== 'image.read')) {
       const schema = IMAGE_GENERATION_SCHEMAS[role];
-      const example = role === 'services.list' ? { input: {}, output: { connections: [{ id: connection, available: true }] } }
+      const example: SandboxOperationExample = role === 'services.list' ? { input: {}, output: { connections: [{ id: connection, available: true }] } }
         : role === 'image.read' ? { input: { id: job.id, image_id: image.id }, output: { mime_type: 'image/png', base64: png } }
         : { input: role === 'generate' ? { connection_id: connection, request_id: 'one', prompt: 'test' } : { id: job.id }, output: { job } };
       contract.operations.push({ id: 'picture.' + role, kind: role === 'generate' ? 'command' : 'query',
@@ -32,7 +32,8 @@ export function signedImageService(key: string, version: string, incomplete: boo
           await sdk.storage.set('issued-' + input.request_id, input.prompt); await sdk.storage.set('job', job.id); return { job }; },
         'picture.generations.get': async (input, sdk) => { if (input.id !== await sdk.storage.get('job')) throw Error('unknown job'); return { job: { ...job, status: 'succeeded', images: [image] } }; },
         'picture.image.read': async (input, sdk) => { if (input.id !== await sdk.storage.get('job') || input.image_id !== image.id) throw Error('unknown image'); return { mime_type: 'image/png', base64: ${JSON.stringify(png)} }; }
-      });`;
+      });
+      ${incomplete ? "delete operations['picture.image.read'];" : ''}`;
     files[SANDBOX_PACKAGE_FILES.entrypoint] += '\n' + body;
     return sandboxPluginManifest({ pluginId, version, name: key, publisher: manifest.publisher, presentation: false, effects: effectsFromContract(contract), contract });
   }, { pluginId, version });

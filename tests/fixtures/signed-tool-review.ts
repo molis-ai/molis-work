@@ -37,7 +37,7 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
   agent.register(adapter);
   try {
     await writeMcpActionGrant(home, grant, { host_reason: "signed sample acceptance" });
-    const session = await adapter.createSession({ ...owner, workspace: "business", title: "Notebook editing" });
+    const session = await adapter.createSession({ ...owner, workspace: "business", role_id: "writer", title: "Notebook editing" });
     const authority: AgentStartAuthority = { authorizedDirectories: [home],
       manifest: { roles: [{ role_id: "writer", version: 1, name: "Writer", workspace: "business", execution: "operate", prompts: ["base"], host_tools: [] }], prompts: [{ prompt_id: "base", version: 1 }] },
       prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "Use the selected tool to save the draft." }],
@@ -46,7 +46,7 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
         prepareReview: (action, proposal) => prepareMcpActionReview(local, caller, home, action, proposal, project, () => {}, () => {}),
         invoke: async (ref, value, signal, control) => {
           const auth = await authorizeMcpActions(local, { ...caller, signal }, home, project);
-          return auth.service.invoke({ ...auth.context, assert_authority_current: (...args) => { auth.context.assert_authority_current?.(...args); control?.assertCurrent(); } }, ref, value);
+          return auth.service.invoke({ ...auth.context, assert_authority_current: (...args) => { auth.context.assert_authority_current?.(...args); control?.assert_current(); } }, ref, value);
         },
       }),
     };

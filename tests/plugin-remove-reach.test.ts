@@ -146,7 +146,7 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     const { view, input } = probes.find(probe => probe.id === id)!;
     const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     const readThroughBoth = async () => {
-      const own = await client.invoke(person, ref, input);
+      const own = await client.invoke(await home.host.localPersonContext(project.reference), ref, input);
       assert.ok(own && typeof own === "object", id);
       if (!ownerBound.has(agentId + "/" + id)) assert.ok(await callAsAgent(ref, input), id);
       const wire = await callTool(ref, input);

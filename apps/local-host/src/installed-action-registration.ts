@@ -151,6 +151,17 @@ export function registerInstalledActions(definition: PluginDefinition, contribut
     const refresh = exposed.refresh;
     exposed.refresh = policies => { const changed = refresh(policies); publish(); return changed; };
   }
+  // Component operations have individual policies. The Runtime's scene handlers already carry the installation's grant checks.
+  if (registration.scenes?.length) {
+    const disposeOperations = exposed.dispose;
+    try {
+      const disposeScenes = actions.registry.registerProvider({ ...registration, definitions: [], handlers: [] });
+      exposed.dispose = () => { try { disposeScenes(); } finally { disposeOperations(); } };
+    } catch (error) {
+      disposeOperations();
+      throw error;
+    }
+  }
   rememberInstalledExposure(actions, record, exposed);
   return exposed.dispose;
 }

@@ -486,7 +486,7 @@ const reach=(id,adj)=>{const s=new Set(),st=[...adj[id]];while(st.length){const 
 // 阶段内：最长路径定列，父节点平均位置定列内顺序，让相连的卡尽量靠近
 function layout(stage){
   const own=D.batches.filter(b=>b.stage===stage),set=new Set(own.map(b=>b.id)),mem={};
-  const lv=id=>mem[id]??(mem[id]=1+Math.max(-1,...byId[id].pre.filter(p=>set.has(p)).map(lv)));
+  const seen=new Set();const lv=id=>{if(mem[id]!=null)return mem[id];if(seen.has(id))return 0;seen.add(id);const v=1+Math.max(-1,...byId[id].pre.filter(p=>set.has(p)).map(lv));seen.delete(id);return mem[id]=v};
   own.forEach(b=>lv(b.id));
   const max=Math.max(0,...Object.values(mem));
   if(set.has(D.final))mem[D.final]=max+(max>0&&own.some(b=>b.id!==D.final&&mem[b.id]===max)?1:0);

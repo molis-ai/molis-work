@@ -293,3 +293,25 @@ test('decision 66 chain 44B → 106～111 is a hard serial chain and every downs
   // 56.2、64.1 等批内没点名的项不被误挡
   for (const id of ['56.1', '64.1', '67.2', '73.1', '104.1']) assert.ok(!nodes[id].hard.includes('111.3'), `${id} should not wait for 111 directly`);
 });
+
+
+test('batch-level hard prerequisites (b.pre) are acyclic and layout() succeeds for every stage', () => {
+  const byId = Object.fromEntries(snapshot.batches.map(b => [b.id, b]));
+  const finished = new Set();
+  function visit(id, active = new Set()) {
+    assert.ok(byId[id], `unknown batch pre ${id}`);
+    assert.ok(!active.has(id), `batch-level hard cycle at ${id}`);
+    if (finished.has(id)) return;
+    const next = new Set(active).add(id);
+    for (const parent of byId[id].pre) visit(parent, next);
+    finished.add(id);
+  }
+  snapshot.batches.forEach(b => visit(b.id));
+  const layoutCode = template.slice(template.indexOf('function layout(stage){'), template.indexOf('const cards={};'));
+  const colsByStage = runInNewContext(
+    `${algorithm}\nconst up={},down={};D.batches.forEach(b=>{up[b.id]=new Set(b.pre);down[b.id]=down[b.id]||new Set()});D.batches.forEach(b=>b.pre.forEach(p=>down[p].add(b.id)));\n${layoutCode}\nSTAGES.map(([s])=>[s,layout(s).flat().length]);`,
+    { D: structuredClone(snapshot) }
+  );
+  const totalLaidOut = colsByStage.reduce((sum, [, count]) => sum + count, 0);
+  assert.equal(totalLaidOut, snapshot.batches.length);
+});

@@ -182,6 +182,8 @@ test("S-83 PG049-STATUS-01 settings observes current identity and keeps prior re
   const fresh = await (await f.request("/api/host/directory-grants")).json();
   assert.equal(fresh.grants[0].directory_status, "current");
   assert.equal(fresh.grants[0].read_count, 0);
+  // A Home-level plugin's grant holds no project but is not one for every space: only a per-partition plugin's is (batch 108).
+  assert.equal(fresh.grants[0].every_space, false);
   assert.deepEqual(notices(f.home), []);
   assert.equal((await f.read()).outcome, "directory");
   const before = directoryRows(f.home), told = notices(f.home), [recorded] = await f.listed();

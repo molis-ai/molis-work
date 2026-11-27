@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 4053,
+  "total": 4051,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -712,7 +712,7 @@
     "tests/security-invariants-directory.test.ts": 3,
     "tests/security-invariants-doc.test.ts": 7,
     "tests/security-invariants-dual-instance-optional-permissions.test.ts": 19,
-    "tests/security-invariants-evaluation.test.ts": 59,
+    "tests/security-invariants-evaluation.test.ts": 57,
     "tests/security-invariants-external-sessions.test.ts": 3,
     "tests/security-invariants-goals-person.test.ts": 3,
     "tests/security-invariants-hidden-personal-plugin.test.ts": 5,

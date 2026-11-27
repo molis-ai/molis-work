@@ -518,38 +518,51 @@ test("S-evaluation-isolation 6: late cancellation after the nested hold write le
   });
   fx.observation.layer.flush();
 
-  // Action start, service beforeEffect, then the nested hold is written; the third check throws.
+  // 1. Pre-hold check, nested holds.put entry authority check, then post-await beforeEffect inside handleHoldsPut:
+  // cancelling on the third check stops before the nested hold is written.
   fx.setCancelBeforeEffect("evaluation.samples.put", 3);
+  await assert.rejects(
+    fx.service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "mid-hold-cancel-sample", hold_records: true })),
+    refused("actions.cancelled"),
+  );
+  assert.equal(fx.beforeEffectHoldCounts()[2], 0, "the hold was refused before writing on nested handleHoldsPut beforeEffect");
+  fx.setCancelBeforeEffect(null);
+  assert.deepEqual((await fx.service.invoke(person(), evaluationActions.samplesList, {}) as { samples: readonly unknown[] }).samples, []);
+  assert.deepEqual((await fx.service.invoke(person(), observationActions.holdsList, {}) as { holds: readonly unknown[] }).holds, []);
+
+  // 2. Late cancellation on the fourth check fires after the nested hold commits; compensation must remove the hold.
+  fx.setCancelBeforeEffect("evaluation.samples.put", 4);
   await assert.rejects(
     fx.service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "late-cancel-sample", hold_records: true })),
     refused("actions.cancelled"),
   );
-  assert.equal(fx.beforeEffectHoldCounts()[2], 1, "the hold was committed before the late cancellation");
+  assert.equal(fx.beforeEffectHoldCounts()[3], 1, "the hold was committed before the late cancellation");
   fx.setCancelBeforeEffect(null);
-  assert.deepEqual((await fx.service.invoke(person(), evaluationActions.samplesList, {})).samples, []);
-  assert.deepEqual((await fx.service.invoke(person(), observationActions.holdsList, {})).holds, []);
+  assert.deepEqual((await fx.service.invoke(person(), evaluationActions.samplesList, {}) as { samples: readonly unknown[] }).samples, []);
+  assert.deepEqual((await fx.service.invoke(person(), observationActions.holdsList, {}) as { holds: readonly unknown[] }).holds, []);
 
   await fx.service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "late-cancel-run", hold_records: false }));
-  fx.setCancelBeforeEffect("evaluation.runs.execute", 3);
+  fx.setCancelBeforeEffect("evaluation.runs.execute", 4);
   await assert.rejects(
     fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "late-cancel-run", hold_records: true }),
     refused("actions.cancelled"),
   );
-  assert.equal(fx.beforeEffectHoldCounts()[2], 1, "the run's hold was committed before the late cancellation");
+  assert.equal(fx.beforeEffectHoldCounts()[3], 1, "the run's hold was committed before the late cancellation");
   fx.setCancelBeforeEffect(null);
   assert.deepEqual((await fx.service.invoke(person(), evaluationActions.runsList, { sample_id: "late-cancel-run" })).runs, []);
   assert.deepEqual((await fx.service.invoke(person(), observationActions.holdsList, {})).holds, []);
 
-  // Re-putting an already held sample and failing must not delete the earlier retention.
+  // Re-putting an already held sample and failing after the hold write must restore, not delete, the earlier retention.
   const existingHeld = sampleFixture({ sample_id: "existing-held", hold_records: true });
   await fx.service.invoke(person(), evaluationActions.samplesPut, existingHeld);
   const before = await fx.service.invoke(person(), observationActions.holdsList, { sample_id: "existing-held@1" });
   assert.equal(before.holds.length, 1);
-  fx.setCancelBeforeEffect("evaluation.samples.put", 3);
+  fx.setCancelBeforeEffect("evaluation.samples.put", 4);
   await assert.rejects(
     fx.service.invoke(person(), evaluationActions.samplesPut, existingHeld),
     refused("actions.cancelled"),
   );
+  assert.equal(fx.beforeEffectHoldCounts()[3], 1, "the existing hold remained committed before the late cancellation");
   fx.setCancelBeforeEffect(null);
   const after = await fx.service.invoke(person(), observationActions.holdsList, { sample_id: "existing-held@1" });
   assert.equal(after.holds.length, 1, "an idempotent failed put keeps the existing hold");

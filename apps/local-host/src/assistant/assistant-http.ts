@@ -26,6 +26,7 @@ import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativeP
 import { readText, pageLocale, type WebLocale } from "../web-locale.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { lastUsedLocale, rememberUiLocale, runBackgroundWorkIn } from "../ui-locale-memory.js";
+import { existingPartitionPluginHost } from "../partition-plugin-host.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -153,6 +154,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
+    reminderSourceName: (pluginId, installId) => existingPartitionPluginHost(ports.homeDirectory)?.installationName(pluginId, installId),
     lastLocale: () => lastUsedLocale(ports.homeDirectory), attachments: assistantAttachments(ports.homeDirectory),
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
     retainSetups: (sessionId, control) => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args), control),

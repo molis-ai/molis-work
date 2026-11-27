@@ -84,7 +84,12 @@ export class AssistantNotices {
       }
       const { state: _state, ...stored } = notice;
       // A main conversation's notice names it in the reader's language: its stored title is empty.
-      const view = filledNotice(stored, notice.work_id ? whenThere(() => this.store.get(this.actorId, notice.work_id)) : null);
+      const source = notice.reminder_source;
+      const name = source && this.ports.reminderSourceName?.(source.plugin_id, source.install_id);
+      const view = name && name !== stored.work_title && "key" in stored.text
+        ? { ...stored, work_title: name, text: { ...stored.text, args: stored.text.args?.map(arg =>
+          arg.name === "source" && arg.kind === "text" ? { ...arg, text: name } : arg) } }
+        : filledNotice(stored, notice.work_id ? whenThere(() => this.store.get(this.actorId, notice.work_id)) : null);
       const count = notice.kind === "material" ? open.filter(item => item.kind === "material" && item.work_id === notice.work_id && Date.parse(item.created_at) >= stale).length : 1;
       const shown = count > 1 ? { ...view, additional_count: count - 1 } : view;
       const rule = holdingRule(rules, notice.kind, surface);

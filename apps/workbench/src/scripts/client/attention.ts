@@ -137,18 +137,24 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     const previous = reading; reading = null; previous?.controller.abort();
     clearTimeout(scheduled?.timer); scheduled = null; again = false;
   };
+  let hasReminderSources = false;
+  document.addEventListener("molis-work:language-changed", () => {
+    if (hasReminderSources) { discardRead(); void read(true); }
+  });
   const read = async (immediate = false) => {
     if (document.hidden || gone.has(route("/api/attention"))) return;
     const address = readAddress();
     if ((reading && reading.address !== address) || (scheduled && scheduled.address !== address)) discardRead();
     if (immediate && scheduled) { clearTimeout(scheduled.timer); scheduled = null; }
     if (reading || scheduled) { again = true; return; }
-    const current = { address, controller: new AbortController() };
+    const current = { address, controller: new AbortController(), language: document.documentElement.dataset.uiLanguageTag };
     reading = current; again = false;
     const started = performance.now(), sequence = ++readSequence;
     try {
       const data = await molisWorkRequest(address, { signal: current.controller.signal });
       if (reading !== current || address !== readAddress()) return;
+      hasReminderSources = data.notices?.some(notice => notice.reminder_source) === true;
+      if (hasReminderSources && current.language !== document.documentElement.dataset.uiLanguageTag) { again = true; return; }
       showTasks(data.background_tasks, sequence);
       again ||= data.background_tasks?.updating === true;
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started, sequence }) }));

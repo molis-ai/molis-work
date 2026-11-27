@@ -5,7 +5,9 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import { PERSONAL_SPACE_DIRECTORY, partitionRootsOnDisk } from "@molis-ai/molis-work-module-projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { installIdentity, isHostTrust, registerPluginOffHere } from "@molis-ai/molis-work-plugin-runtime";
+import { installIdentity, isHostTrust, registerPluginOffHere, resolveManifestText } from "@molis-ai/molis-work-plugin-runtime";
+import { installedLocalePacks } from "./installed-action-registration.js";
+import { manifestWordResolver } from "./ui-text-provider.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import { hostLog } from "./host-log.js";
 import { assembledPerPartition, PartitionPluginAssembly, type PartitionPluginLease, type PartitionWakeReason } from "./partition-plugin-assembly.js";
@@ -176,6 +178,15 @@ export class PartitionPluginHost {
 
   /** The Manifest of a plugin this Host runs per partition, when it was declared here. */
   manifestOf(pluginId: string): PluginPlatformEntry["definition"]["manifest"] | undefined { return this.entries.get(pluginId)?.definition.manifest; }
+
+  /** Reads the original publisher's declared name without opening a partition or starting a plugin. */
+  installationName(pluginId: string, installId: string): string | undefined {
+    const entry = this.entries.get(pluginId);
+    if (!entry || installIdentity(entry.definition.manifest) !== installId) return undefined;
+    const { manifest } = entry.definition;
+    const reader = entry.localePacks?.(entry.definition) ?? installedLocalePacks(entry.definition);
+    return resolveManifestText(pluginId, manifest.name, manifest.name_text, manifestWordResolver(reader));
+  }
 
   /**
    * Every plugin whose installation is this Home's and whose lifecycle is each partition's: the built-in ones that keep a library in each

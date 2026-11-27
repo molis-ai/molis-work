@@ -681,6 +681,8 @@ export interface AssistantNotice {
   /** The work it is about; empty for a reminder. */ work_id: string;
   /** The work's title, or for a reminder the Plugin that holds it. */
   work_title: string;
+  /** A partition reminder names its original installation in the reader's language. */
+  reminder_source?: { plugin_id: string; install_id: string };
   text: AssistantSavedText;
   directory_origin?: DirectoryReadOrigin;
   /** Other new items of the same work, projected with the newest material notice. */

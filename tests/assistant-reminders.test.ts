@@ -11,6 +11,8 @@ import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addProjectPlugin, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 
 const reminder = (over: Partial<PartitionReminder>): PartitionReminder => ({ partition_id: "project-a", plugin_id: "io.molis.work.todo", install_id: "todo-install",
   entry_key: "task:t1", due_at: "2026-09-29T09:03:00Z", late: false, source_title: "待办", title: "给王总回电话", open: { surface: "todo", id: "t1" }, ...over });
@@ -47,12 +49,13 @@ test("a reminder that fell due in a partition is told once, where to open it, un
 
   // B2R-05 / UPP-32. The same saved interruption still has the original subject when the reader changes language.
   for (const late of [false, true]) {
-    const entry = reminder({ plugin_id: "io.molis.work.images", install_id: "images", entry_key: `job:${late}`, late,
-      interrupted: true, source_title: "Images", title: "🌃 海报", open: { surface: "images", id: "poster" } });
+    const entry = reminder({ plugin_id: imagesManifest.plugin_id, install_id: installIdentity(imagesManifest), entry_key: `job:${late}`, late,
+      interrupted: true, source_title: imagesManifest.name, title: "🌃 海报", open: { surface: "images", id: "poster" } });
     assert.equal(service.followUps.tellReminder(entry), true);
     assert.equal(service.followUps.tellReminder(entry), false);
     const saved = service.notices.notices("goals").find(n => n.open?.id === "poster");
     assert.ok(saved);
+    assert.deepEqual(saved.reminder_source, { plugin_id: entry.plugin_id, install_id: entry.install_id });
     assert.equal(saved.open?.title, "🌃 海报");
     assert.match(noticeText(saved, "zh"), late ? /错过.*任务已中断.*🌃 海报/u : /任务已中断.*🌃 海报/u);
     assert.match(noticeText(saved, "en"), late ? /Missed reminder.*task interrupted.*🌃 海报/u : /Task interrupted.*🌃 海报/u);

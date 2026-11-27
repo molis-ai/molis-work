@@ -366,6 +366,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       ? (reminder.late ? "workbench.assistant-notice.reminder-interrupted-missed" : "workbench.assistant-notice.reminder-interrupted")
       : (reminder.late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder");
     return this.ports.notify({ kind: "reminder", work_id: "", work_title: reminder.source_title,
+      reminder_source: { plugin_id: reminder.plugin_id, install_id: reminder.install_id },
       text: assistantWords(key, { source: reminder.source_title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
       ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title, project_id: reminder.partition_id } } : {}) },
       `reminder:${reminder.install_id}:${reminder.partition_id}:${reminder.entry_key}@${reminder.due_at}`);

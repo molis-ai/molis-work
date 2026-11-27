@@ -367,6 +367,10 @@ export interface AssistantNotice {
     kind: AssistantNoticeKind;
     work_id: string;
     work_title: string;
+    reminder_source?: {
+        plugin_id: string;
+        install_id: string;
+    };
     text: AssistantSavedText;
     directory_origin?: DirectoryReadOrigin;
     additional_count?: number;

@@ -22,6 +22,8 @@ import type { AgentReviewRecoveryView, AgentReviewRequest } from "@molis-ai/moli
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { NOTICES_WAIT, PRESS_NOTICES } from "./fixtures/attention-ways.js";
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 
 test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and late preparations leave the current document intact", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
@@ -183,6 +185,14 @@ test("FSS-36 an open missed follow-up notice keeps its original label and time t
   t.after(() => db.close());
   const notice = notices.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "failed", work_id: "", work_title: "原始提醒 <raw>", text }, "fixture:followup-missed-language");
   assert.ok(notice);
+  // B2R-05 / UPP-32. The shell reads the producing installation's name even while its Images page is closed.
+  const subject = "夜景 🌃";
+  const source = { plugin_id: imagesManifest.plugin_id, install_id: installIdentity(imagesManifest) };
+  const image = notices.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "reminder", work_id: "", work_title: imagesManifest.name, reminder_source: source,
+    text: { owner: "workbench", key: "workbench.assistant-notice.reminder-interrupted", args: [
+      { name: "source", kind: "text", text: imagesManifest.name }, text.args[1], { name: "title", kind: "text", text: subject },
+    ] }, open: { surface: "images", id: "night", title: subject, project_id: b.projectId } }, "fixture:images-interrupted-language");
+  assert.ok(image);
   const path = `/projects/${b.projectId}/`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=en&next=" + encodeURIComponent(path) }, b.sessionId));
   await b.waitFor(NOTICES_WAIT);
@@ -200,11 +210,17 @@ test("FSS-36 an open missed follow-up notice keeps its original label and time t
   })()`);
   const english = /“原始提醒 <raw>” missed its scheduled time at .*3:00:37\sAM/u;
   assert.match(await b.evaluate<string>("missedText.data"), english);
-  const select = (tag: "zh" | "en") => b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+  const select = (tag: "zh" | "en" | "ja") => b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
     link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
-  for (const [tag, words] of [["zh", /错过了「原始提醒 <raw>」.*03:00:37/u], ["en", english]] as const) {
+  const imageButton = `[data-notice-id=${JSON.stringify(image.notice_id)}][data-notice-action=open]`;
+  const readSource = `(() => { const go = document.querySelector(${JSON.stringify(imageButton)}), row = go?.closest('.assistant-notice');
+    return [row?.querySelector('.assistant-notice-text')?.textContent, go?.getAttribute('aria-label'),
+      row?.querySelector('[data-notice-action=dismiss]')?.getAttribute('aria-label')]; })()`;
+  for (const [tag, words, name] of [["ja", /原始提醒 <raw>/u, "画像"], ["zh", /错过了「原始提醒 <raw>」.*03:00:37/u, "图片"], ["en", english, "Images"]] as const) {
     await select(tag);
     await b.waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+    await b.waitFor(`${readSource}.every(value => value?.includes(${JSON.stringify(name)}))`);
+    assert.ok((await b.evaluate<string[]>(readSource))[0]?.includes(subject));
     assert.match(await b.evaluate<string>("missedText.data"), words);
     assert.deepEqual(await b.evaluate(`[document.querySelector(${JSON.stringify(dismiss)})===missedDismiss, document.activeElement===missedDismiss,
       missedRow.querySelector('.assistant-notice-text').firstChild===missedText, !!missedDismiss.getClientRects().length, missedWrites]`), [true, true, true, true, []]);

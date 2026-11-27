@@ -15,11 +15,9 @@
 | `limits.json` | 巨大单元（`giantPolicy: "anti-god-object"`，`2500/1200/60/600`）与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK，以及别的工作区包的 `./contract` 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
-| `schemas/stores.tsv` | 这个构建会建的每个库的结构快照（位置、主人、版本、结构哈希、升级段的 `from`） | `pnpm schemas:update`（见「库的结构快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
 | `table-owners.json` | `shared`：几个包有意共用的表（今天没有；`events`、`idempotency_records` 原先在里面，PG-094 S9-1 后已删）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；`areas`：包里自己当 owner 的目录（今天是 Feed 的 `src/store`，BL-802）与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
-| `golden-coverage.json` | 金样覆盖面：`uncovered`（必须备份、今天金样里没有的路径和理由）、`writes`（每个必备份的库由 `tests/golden-writes/` 哪几个用例写，或为什么没有）、`other_writes`（不对应某个库的用例和它写什么）。见下「金样」 | 人，过评审；每条都双向核对，过期就失败 |
 
 ## 宿主源码行数报告（A2）
 
@@ -78,17 +76,6 @@
 
 验证：`node scripts/run-tests.mjs tests/health-gates-test-imports-tool.test.ts`——在临时仓库里：每种拆成两份的写法（源码加包名、帮手、别的包的构建、动态 import、`dist` 换成 `src`、新测试、没人导入的夹具一开始就拆开或多拆一个包）在 `--base main` 下必须失败，`--update` 藏不住；类型导入、`dist` 孪生、只用源码、没人导入而只有一份的夹具必须不变红；删掉拆分（含夹具里的）会降低、改名保留记录。同一个文件也验证重写工具（公开名字走入口、别名、非公开走 `dist`、动态导入的解构、`apps/*` 的名字规则、没有构建孪生时不动、自检失败时不写）。
 
-## 金样（`scripts/gates/golden-homes.mjs`，UPG2-04、UPG2-07、UPG2-08）
-
-不比数字，出现一个就失败。设计见 [golden-replay-design.md](../../specs/upgrade-continuity/golden-replay-design.md) §5、§6。
-
-- **覆盖面：** `docs/system/HOME-DATA.md` §3、§5、§6 里备份一栏以「必备份」开头的路径（§3.3 整节都是），加上设计额外要的（`storage-space.json`、`plugin-packages/`、`spaces/`、`security/secrets.json`、`config/installation.json`、`agent-runtime/storage.key`），都要在最新一份金样的清单里，根 Home 或账号 Home 都算。路径里的 `<x>` 是一段，`**` 是任意，`{a,b}` 是其一，以 `/` 结尾是下面的任何东西。今天放不进金样的写进 `golden-coverage.json` 的 `uncovered`，带理由；已经进了金样、或不再是必备份的条目会失败，所以这张表过不了期。
-- **最小写入：** §3 里每个必备份的库，`writes` 要说由哪几个 `tests/golden-writes/` 用例写，或者为什么没有；`tests/golden-writes/` 下每个文件要么被某个库用，要么在 `other_writes` 里。文件名和 `HOME-DATA.md` 的 owner 对不上（owner 常常是「宿主」），所以要这张对应表。
-- **怎样生成的：** 最新一份的清单要有 `third_party`、`home_library`、`node`：没有样本、或不说用哪个 Node 生成的，不入库。Node 是否等于 `.nvmrc` 由 `scripts/golden-home.mjs create` 在写默认目录时拒绝，门禁不比，否则升 Node 就要重生成旧金样。
-- **50 MB：** `tests/fixtures/golden-homes/` 下被跟踪文件的工作树字节不超过 50 MB。超了失败并点名最老的一份，不看年龄（用户 2026-11-08 定）。
-
-读不到的：库里有没有行、文件里的内容读不读得回来。那是回放的事（`scripts/replay-golden-homes.mjs`）。
-
 ## 包清单（`scripts/gates/package-inventory.mjs`，W1-18）
 
 唯一现行表在 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，包登记仍来自 `scripts/workspace-packages.mjs`。门禁按首个完全匹配的 11 列表头读取，守包的行集合、层、代码判定的状态、人工列词汇及数字写法；缺文档或缺表就失败。不比较数字列的当前实测值，也不根据默认生成值覆盖人工审查。`--table` 供核对机器列；原包的计划深度、审查及证据须保留。`--check` 和健康门禁只读新表，不回读历史 spec。完整负例在 `tests/package-inventory-gate.test.ts`。
@@ -116,45 +103,16 @@
 
 验证：`node scripts/run-tests.mjs tests/version-source.test.ts tests/verify-release-versions.test.ts`。
 
-## 库的版本与维护清单（`scripts/gates/store-versions.mjs`，BL-157）
+## 开发前阶段 v1 锁定检查（`scripts/gates/initial-versions.mjs`，N41 / 决定 69）
 
-每个权威 Home 库只认当前版本，错版拒绝；派生库按既有重建合同处理（`docs/releases/CHECKLIST.md` 第 3 节）。一个 PR 改了某个库的版本，必须记录变更及处置。2026-10-30 旧迁移已取消，当前干净重建和真实 Home 的边界归 `docs/system/HOME-DATA.md`；登记不代表已做维护或授权旧转换。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。
+2026-11-26 决定 69（开发前阶段零迁移、零开发金样）：原先的开发期迁移门禁（`store-versions.mjs`、`store-schemas.mjs`、`store-schema-snapshot.mjs`、`golden-homes.mjs`、`upgrade-steps.mjs` 与 `schemas/stores.tsv`、`golden-coverage.json` 等）均已移除，由 `scripts/gates/initial-versions.mjs` 严格把守「所有持久化结构固定 v1 且零 `upgrades` 升级段」。
 
-| 项 | 说明 |
-| --- | --- |
-| 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」内的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑）。JSON 文件的字段它按语法读：带不带引号的键、对象和类型里写的数字、字符串里的 `名字: 数字` 都读，值写成常量名或表达式就失败；注释、写成 `number` 的类型、在别处拼出来的版本不读（检查清单第 3 节表前那段） |
-| 条目的写法 | 只认「存储版本变更登记」里（从固定标题「### 存储版本变更登记」到下一个一至三级标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，该节之外的同样一张表也不算 |
-| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数（`无` 也不行，`verify-release-versions.mjs` 读同一列，同样不接受）、同一个位置写了两行、清单里的行不合写法，以及 head 上没有「统一起点登记：」那一行、有两行、写法不对，都以退出码 2 结束，不会当作通过（merge-base 上没有这一行算未登记，它是这道规则之前的提交）。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
-| 统一起点之后 | 检查清单第 4 节有一行固定以「统一起点登记：」开头，值是「未登记」或形如「2026-11-08，main 提交 `abc1234`」。2026-11-07 已登记（#1914）。还没登记时只有上面几条，版本可以复位，「维护」一格是自由文字（两种状态都有用例）。head 或 merge-base 任一边登记了就生效：版本不许降（清单写了也不行）；升版本的那一行，「维护」一格要写成 `` `定义处#旧→新` ``，定义处和检查清单同一行的「定义处」完全相同，两个数字和「版本」一格相同（清单留历史，同样数字的旧行写着文字不碍事；写成指针的每一行都要站得住）；该文件的升级段字面量里要有从旧到新减一的每个 `from: n`。定义处是基线常量时只看那个对象的 `upgrades`；是普通版本常量（JSON 文件、目录库）或 JSON 文件的字段（`路径#schema_version`、`路径#version`，这些文件没有常量可指）时看文件里每个 `upgrades` 数组。`upgrades` 可以写在原处，也可以写成同一文件里一个 `const` 数组的名字（只跟这一层；两份门禁共用 `scripts/gates/upgrade-steps.mjs` 的读法）；写成展开、别处导入或用 `let` 声明的名字、名字再指向名字、同名声明了两次，`from` 不是数字字面量，都算读不懂，失败。已登记的不能改回「未登记」 |
-| 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过；统一起点之后也一样，所以改名顺带升版本过得去，靠评审。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。段有没有它查，段写得对不对它不查（用例和金样管），不查从 1 起的整条链连续（`tests/upgrade-chain-registry.test.ts` 在真实登记上查，那个文件由 U1-d 带来） |
-| 可重建的库 | `search/search.db` 不进链（设计 §2.3），但这道规则同样管它：升到 2 不写指针、写文字、写指针没有段都失败，统一起点的版本检查也过不了。**第一次要升时不要写假的 `upgrades` 来过门禁，先问用户。** 重建型的库怎么升，第一次要升时再定，现在不加例外 |
+分两半，每一项都必须是 1，差一个就失败；不比 merge-base，干净的树上 0 个问题。扫描范围与上面「自有版本的声明」同一份（`scripts/version-source.mjs`）。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量（带 `product.release` 标记，由生成器对表）。
 
-验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字或写 `无`、同一个位置两行、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。真实数据的用例：这个仓库现在的表和清单直接通过；表里每一个版本是 1 的库，升到 2 带段、带指针就过，缺指针、缺段、版本降都失败；这条用的是合成的段，只证明规则读得懂每一行，不是说这些库都该这样升（上面「可重建的库」）。统一起点的用例：未登记时版本照旧能升能降；登记后版本降、「维护」一格还是文字、指向别的定义处、箭头数字对不上、基线字面量里没有 `from: 旧`、别的基线有但这个没有、跨两版缺中间一段、`upgrades` 写成读不懂的名字（没声明、`let`、名字指向名字、声明两次）或展开、登记后改回未登记都失败；写对就通过，写成本文件 `const` 数组的名字也通过；普通版本常量和 JSON 文件的字段看文件里的 `upgrades`，别的名字还是要有那一个常量。
+- **静态检查（进 `pnpm health:check`）：** 扫产品源码里的 `*VERSION` 常量、所有 `/* @version <entry> */` 标记紧邻的整数字面量，以及 `tooling/versions.json` 里全部持久化库（`database.*`）、持久化格式（`format.*`）、同步协议、动作、Manifest 与成果版本条目——开发前阶段一律必须为 `1`（提示词、角色和方法随文字改动可升版本，由 `tests/prompt-registration.test.ts` 与 `content-versions.mjs` 单独守）。同时扫描生产基线声明，**任何持久化库或带版本文件都不许定义非空 `upgrades` 升级步骤**（通用引擎源码与引擎单测除外）。
+- **运行态检查（`node scripts/gates/initial-versions.mjs`，CI `test:contracts` 跑）：** 启动构建后的声明与登记，核对动作、Manifest、成果与持久化库基线版本全部为 1 且零具体迁移步骤。
 
-## 库的结构快照（`scripts/gates/store-schemas.mjs`、`store-schema-snapshot.mjs`，UPG-01）
-
-统一起点之后，改了库的建库语句就要升版本、带升级段（[升级后持续可用](../../specs/upgrade-continuity/spec.md) UPG-01）：正在用的 Home 留着旧结构，打开时只比表，同版本的库也不会就地修补。`schemas/stores.tsv` 把这个构建会建的每个库写下来，一行一个：项目目录库、项目库、宿主库登记表（`homeStores()`）里的每个 Home 库（含内置插件的 `databases.home`）、每个内置插件的项目表（`projects/*/molis-work.db#<plugin_id>`）。装上的插件的库是发布者的，不在这里。
-
-**一行写什么。** `store`（位置，分项目的用 `*`）、`owner`、`version`、`structure`、`upgrades`（升级段的 `from`，没有写 `-`）。`structure` 是 sha256 前 16 位：建库语句在内存 SQLite 里跑完，`describeSqliteSchema` 报的表、列、检查、外键、索引（打开 Home 时比的那一份），加上每个触发器和视图的语句（空白归一）。只改排版和触发器外的注释不算，改触发器算：正在用的 Home 留着旧触发器。
-
-**两半。** 文件和构建出的产品一致，由 `pnpm test:contracts` 的 `tests/store-schema-snapshot.test.ts` 看住（要构建，CI「Action and plugin contracts」步骤），不一致就跑 `pnpm schemas:update` 再提交。和 merge-base 比的规则在 `pnpm health:check`，不用构建：
-
-- 同一个库版本没变、结构哈希变了：失败（UPG-01）。
-- 版本降了：失败。
-- 版本升了：每个 `from`（旧版本到新版本减 1）都要有升级段；还要有一份金样（`tests/fixtures/golden-homes/<版本>/manifest.json`）存着这个库的旧版本，账号 Home 里的也算。回放本身过没过由挡合并的 `golden-replay` 作业管。
-- 新库、删掉的库这里不管。merge-base 有文件、头上没了，失败；两边都没有（别的门禁测试的草稿仓库）不查。
-
-**金样记的版本。** 金样清单按主人存版本的地方记真实取值（`scripts/golden/formats.mjs`）：大多数库是 `PRAGMA user_version`，目录库读 `catalog_meta`，项目库另记每个插件项目表在 `plugin_project_databases` 账本里的版本（`plugin_tables`），`<库>#<插件>` 那一行读它。带版本的文件没有建库语句，不在这里，版本连续归下一节。某个库能不能升到 1 以上、维护清单那一行，分别归 `initial-versions.mjs` 与 `store-versions.mjs`，这里不重复。
-
-## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
-
-分两半，每一项都要是 1，差一个就失败。扫描范围与上面「自有版本的声明」是同一份（`scripts/version-source.mjs`）。测试文件只在两条边界都不扫时才跳过：那份共用的测试边界，和这个门禁原来的「任意深度的 `tests/`、`fixtures/` 目录」。所以包顶层 `tests/`、`fixtures/` 里的不扫；`*.test.*`、`test.*`、包顶层 `test/` 不在这两种目录里的照扫（如 `apps/sync-worker/*.test.mjs`），`src/tests/`、`src/fixtures/` 也扫。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量：要是这个文件这个名字，带 `product.release` 标记，字面量是字符串，值由生成器对表；别的常量带同样的标记也只能是 1。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。同一门禁也扫所有 `/* @version <entry> */` 标记紧邻的整数字面量（不只看 `*VERSION` 常量名；数值字符串也算，「恰好长成标记样子的注释在模板串里」不归它，`version-exceptions.json` 的内联例外也不适用）：持久化格式的条目 >1 要有连续升级段和旧版本金样，其余必须为 1；未登记的 `database.*` 条目这个门禁跳过（库版本由 store-schemas 与金样回放管，UPG-01）。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
-
-持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的六个文件的常量：`ONBOARDING_SCHEMA_VERSION`、`PROJECT_ARRIVAL_SCHEMA_VERSION`、`BROWSER_SITES_VERSION`、`COMPUTER_SETTINGS_VERSION`、`COMPUTER_RECORD_VERSION`、`MODEL_PREFERENCE_SCHEMA_VERSION`（插件的模型偏好文件），按 `文件#名字` 认，别处的同名常量不算；还有几项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.runtime.integration.receipt`（Runtime 接入收据）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记由 `registeredUpgradeChains` 从源码读（`X_VERSION` 配同一文件的 `const X_UPGRADES` 数组，基线对象读 `upgrades`，和上一节同一个读法 `upgrade-steps.mjs`，读不出来的算没有链），接在这两半；`replay_passed` 读金样（U2-d）：`tests/fixtures/golden-homes/<版本>/manifest.json` 的 `formats` 按 `tooling/versions.json` 的条目名记着每个持久化格式的版本（位置写在 `scripts/golden/formats.mjs`，生成时读主人存版本的地方），从 1 到链的版本减 1，每个都要有一份金样存着，才是真；缺哪几个，提示里写出来。库那条（UPG-01）只要升级前的那个版本，两边不一样是有意的：UPG-01 和 merge-base 比，知道这次从哪个版本升；这条只读一棵树，只有每个都要才漏不掉。清单里记的版本由回放核对：还原后用生成时的读法把记下的每一项重读一遍，不符、读不出来或没有读法就失败（`golden.recorded_version_mismatch`）；没记的不核，所以格式表以后加条目不会让老金样失败，条目换位置或改名则要给老位置留读法。回放本身是 `golden-replay` 作业，`Verify` 要它过，所以这里只证明有东西可回放，不证明回放过了。`config/installation.json`、可重建的 `search/` 与 `computer/records/*/record.json` 缺少金样，版本大于 1 时检查会失败。`computer/settings.json` 已收录，macOS 经设置入口读回。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
-
-不在名单上的常量给了链也只能是 1。Coding 计划、Feed 捕获、Dataset、Form、Pages、PPT 的 `schema_version` 是固定版本，写下之后不该再变：靠合同和 `content_digest`，库本身不拦，所以也不该让升级段改写。Gmail 的 `GMAIL_LIVE_CURSOR_VERSION` 是同步进度，版本不符时同步失败，跑一次全量就重建，用不着段。`workspace-artifacts.ts` 的六个 `*_SCHEMA_VERSION` 也不在名单上，它们的读取方没有查过。Jelly 原来的 `format.jelly.workspace`（整库一行 JSON）在第 112 批 112-2 退役，Jelly 改为按行存表，表结构归 `database.jelly_database`。这道检查只看 `*VERSION` 常量和上面这几个条目（手跑那半多看提示词、方法的条目），其余写成行内字面量的 `format.*` 它看不到；`format.web.service.receipt` 是机器收据，§2.6 说不做，也不在内。
-
-验证：`node scripts/run-tests.mjs tests/health-gates-initial-versions.test.ts tests/initial-versions-check.test.ts`。后一个文件跑脚本本身，要先构建（CI 在 `test:contracts` 里跑）：经符号链接跑这个仓库要报告通过，用 `--root` 跑一个有问题的仓库要逐条列出并以退出码 1 结束。前一个文件不用构建：产品版本标记只放过上面那一个常量；`src/fixtures`、`src/tests` 照样扫；`checkRepository` 把运行中 Host 那一半换成给定的声明，走完两半和两张表，读不了表就报错。没有链、缺段、重复段、段超出范围、链的版本不同、回放没过或没有结果都失败；别的文件里的同名常量和普通常量，给了链也失败。不用构建的那一半直接读这个仓库，还测了读不了版本表、丢了版本表都算问题。
+验证：`node scripts/run-tests.mjs tests/health-gates-initial-versions.test.ts tests/initial-versions-check.test.ts`。
 
 ## 就地补表（`scripts/gates/schema-patches.mjs`，本地快查的键 `schemaPatches`）
 
@@ -162,9 +120,9 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 不算的地方 | 只有一处：基线常量（`const X: SqliteBaseline`、`PluginDatabaseDeclaration`、`HomePluginDatabaseDeclaration`，或 `satisfies`、`as` 这三种）的 `upgrades` 数组字面量里，某一段 `sql` 的字符串或模板文字，和这一段 `run` 函数体里的字符串。它们只在持主人锁的升级过程里跑。同一个数组里别的位置（`verify`、模块加载时就求值的调用、`${}` 里的表达式、注释）照算；段写在基线外面再引用也算；`ensureSqliteColumn(` 没有例外 |
-| 比旧口径多数的 | 旧口径只有正则。现在拼出来的也算（`"ALTER " + "TABLE"`、模板、数组 `join`、字符串以大写 `ALTER` 结尾），源码目录里入库的 `.sql` 也算，`server/migrations/` 除外（D1 迁移不是 Home 的库，也没有 `upgrades` 字面量可写）。同一棵树上这两项今天都是 0，所以新旧口径的数字相同 |
-| 看不到的 | 只看文字在哪，不看谁执行它：读路径上写 `db.exec(X.upgrades[0].sql)` 看不出来（基线写在函数里时 `verify-release-versions.mjs` 会要求列进检查单，写在顶层不会）。另外这些写法也数不到：常量拼接跨了变量又不以大写 `ALTER` 结尾（`"ALTER " + noun + " t"`）；小写动词结尾（`"alter " + noun`）；两个词都被切开（`"ALT" + "ER TA" + "BLE"`）；SQL 注释夹在两词中间（`"ALTER/**/TABLE"`）；`replace`、`String.fromCharCode` 拼的；本地 `type SqliteBaseline = any`；不读的后缀（`.SQL`、`.ddl`、`.txt`、`.json`、`.js`、`.mjs`、`.cjs`、`.tsx`、`.cts`）和目录（`fixtures/`、`scripts/`、`examples/`、`vendor/`）。这些都得存心绕才写得出来，靠评审 |
+| 例外 | **无源码例外**（2026-11-26 决定 69 已取消原先基线 `upgrades` 数组里的 `ALTER TABLE` 豁免：开发前阶段所有持久化库直接修改 v1 建表基线，零升级段、`schemaPatches` 保持 0）；仅 `server/migrations/` 下的 SQL 文件除外（D1 同步库基线 SQL） |
+| 比旧口径多数的 | 旧口径只有正则。现在拼出来的也算（`"ALTER " + "TABLE"`、模板、数组 `join`、字符串以大写 `ALTER` 结尾），源码目录里入库的 `.sql` 也算，`server/migrations/` 除外 |
+| 看不到的 | 常量拼接跨了变量又不以大写 `ALTER` 结尾（`"ALTER " + noun + " t"`）；小写动词结尾（`"alter " + noun`）；两个词都被切开（`"ALT" + "ER TA" + "BLE"`）；SQL 注释夹在两词中间（`"ALTER/**/TABLE"`）；`replace`、`String.fromCharCode` 拼的；不读的后缀（`.SQL`、`.ddl`、`.txt`、`.json`、`.js`、`.mjs`、`.cjs`、`.tsx`、`.cts`）和目录（`fixtures/`、`scripts/`、`examples/`、`vendor/`）。这些靠评审 |
 
 **手跑的建表文字（本地快查的键 `schemaExecs`）。** 按文件计数，对照 merge-base 只许减少，新文件从 0 开始。数的是 `exec` 调用的参数里出现名字带 `SCHEMA` 这个词的常量（`db.exec(X_SCHEMA_SQL)`、`db.exec(BINDING_METADATA_SCHEMA)`，模板和拼接里也算）：它绕开基线建表，没有版本，也不用写 `ALTER TABLE`，上面那个数看不到。范围是 `SOURCE_ROOTS` 下所有代码文件，包目录里的测试也算；顶层 `tests/` 不算，那里是用 owner 导出的文字建内存夹具。当前数量见 `pnpm health:check`。看不到的：常量先赋给别的变量再传；小写名字（`db.exec(baseline.schema)`，`applySqliteBaseline` 自己就这样写）；`db.prepare(...)` 和别的执行方法。
 
@@ -252,7 +210,7 @@
 
 | 列出的 | 意思 | 该怎么办 |
 | --- | --- | --- |
-| 同一版本下形状变了 | `capability_id@version` 不变，而 `input`、`output`、`traits`、`subjects`、`input_type`、`output_type` 里有一格变了 | 升版本，或在 PR 里写明为什么没有固定它的引用会坏（合同变更流程第 3 节第 3 条）。评审拦这一类 |
+| 同一版本下形状变了 | `capability_id@version` 不变，而 `input`、`output`、`traits`、`subjects`、`input_type`、`output_type` 里有一格变了 | 开发前阶段（阶段一）保持 v1 原地修改，同 PR 改完仓库内固定引用并在 PR 里写明影响；1.0 阶段二起升版本并设过渡期（`docs/system/CONTRACT-CHANGES.md` 第 3 节第 3 条）。评审重点核查 |
 | 谁能调、怎么调变了 | 权限、受众、`kind`、`scope`、`effect`、`scheduling`、`operation`、`provider`（Manifest 的 `plugin_id`）变了，形状没变 | 写进 PR 的合同影响 |
 | 登记用的提供方变了 | `registered_provider` 变了，无论别的列变没变：改名（`plugin_id` 变）、内置插件不再被宿主名单标 `bundled`（或反过来），都会让这个插件每个动作的这一格变，逐个列出；从原生装配迁到 Runtime 装配（或反过来）、换发布签名不会，因为内置插件不论哪种装配都登记在 `plugin_id` 之下（用户 2026-10-10 的决定，W3-06 C；下面「两层要一致」） | 已固定的引用（工作流程步骤存的 `provider_id`、`allowed_actions`、Feed 与 Inbox 场景的引用）带着旧 id，内核比对不上就抛 `actions.provider_changed`，旧引用不会自动换成新提供方。同一个 PR 里列出这些引用并迁完，或写明为什么没有 |
 | 换了新版本 | 同一提供方的 id 少了 `@旧` 多了 `@新` | 旧版本的固定引用不再能解析：列出消费者 |

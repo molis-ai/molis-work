@@ -201,7 +201,7 @@
 检查 Prompt 统一登记、受保护策略与双缓存域 KV-Cache 稳定性（见 `docs/platform/PROLOGUE-AI.md` §13.6 与路线书决定 67）：
 
 - 新增或改动的指令、Agent 角色/基础/辅助提示词、判断服务题面与系统技能是否全部按四类治理（`editable`/`protected`/`platform-fixed`/`user-owned`）完成登记（`defineInstructionPrompt`、`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES`、`PluginDefinition`），改默认正文同步升 `tooling/versions.json`、补中英双语并在适用时追加 `WORDING_HISTORY`；是否消除了 `modules/`、`horizontal/`、Host 中的未登记硬编码提示词、裸字符串直调与私有包装语；
-- 直接决定或评估副作用放行权的安全门控提示词是否零 DDL 声明 `override_policy: "protected"`，且保存、重置、导入与个人同步副本四路全量拒绝覆盖（`agent_definitions.prompt_override_protected`，配拒绝测试，不破坏 `tests/golden-writes/agent-definitions.ts`）；
+- 直接决定或评估副作用放行权的安全门控提示词是否零 DDL 声明 `override_policy: "protected"`，且保存、重置、导入与个人同步副本四路全量拒绝覆盖（`agent_definitions.prompt_override_protected`，配拒绝测试）；
 - 动态拼装是否严守双缓存域五层冷热分层：Zone 0 静态工具面无轮中 Schema 突变、无全集哈希抖动、确定性排序，且模型侧工具名/副作用标签/描述保持稳定语言（不随 UI 语言切换改写，保护 `toolsFingerprint`）；Zone 1 静态 `system`（`runtime:clock` 留 `developer` 层、`reply_language` 置尾、常驻记忆会话冻结）零 UUID/毫秒时间戳/易变状态污染；须守 `S-13` 的按轮动态宿主指令留在 Two-Zone `system` Dynamic（Zone 2，保持 `trust: "instruction"` 且双语化，绝不降级为 `data`）；热态使用态与动态召回记忆严格落 Zone 4，附件锚定在原始 `user` 任务消息且微压缩同步清理过期 `imageRef`；Anthropic 断点 ≤4（默认 `ephemeral`）；改动上下文拼装、Skill 生效或缓存遥测时是否同步更新 `OBSERVATION_COVERAGE_PLAN`。
 
 能力被注册成 MCP 或工具，还需验证 AI 能否理解和正确选择：
@@ -272,9 +272,9 @@
 
 升级与发布：
 
-- 使用真实旧数据和旧配置验证迁移及失败恢复；
+- 开发前阶段（1.0 对外发布前）零既存用户、不保留旧 Home 存量、不做历史数据迁移：验证干净新建 v1 与正常重启一致；1.0 对外发布起再使用真实旧数据和旧配置验证升级及失败恢复；
 - 检查源码、构建产物和发布包是否一致；
-- 必需资源、Schema、迁移、脚本和运行时依赖是否齐全；
+- 必需资源、Schema、脚本和运行时依赖是否齐全；
 - 开发缓存、历史归档和重复依赖是否误入产物；
 - 新安装、升级和启动是否使用正确版本；
 - 是否依赖开发机特有的全局工具或路径。
@@ -316,7 +316,7 @@
 - 快照是否只是在保存历史输出；
 - 当前生产路径是否反而缺少保护。
 
-历史迁移 fixture 必须保留真实旧数据，不能为适配当前默认值改写历史样本。
+开发前阶段不维护开发期历史迁移样本与金样；1.0 对外发布启用升级链后，历史迁移 fixture 再保留真实旧数据，不为适配当前默认值改写历史样本。
 
 检查测试是否真正验证返回、错误、持久化、事件、副作用、权限、隔离和恢复。识别：
 
@@ -379,7 +379,7 @@ Skill 写清触发条件、必读材料、能力归属判断、实施步骤、�
 - AI 发起、工具选择、审批、执行和产物读取；
 - 中途取消、失败、重启和恢复；
 - 权限撤销、账号或项目切换；
-- 历史数据升级和插件生命周期变化。
+- 干净新建 v1、重启恢复和插件生命周期变化（1.0 对外发布起补历史数据升级）。
 
 选择现有代表性插件，或可移除的测试插件，通过正式扩展路径验证注册、加载、发现、调用、事件、升级、禁用和卸载。不能在测试中直接注入对象，绕过需要验证的机制。
 

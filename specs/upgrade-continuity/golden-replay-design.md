@@ -1,6 +1,6 @@
 # U2 金样 Home 与回放：设计
 
-状态：现行设计（2026-11-03 起草，2026-11-08 第一份金样入库时按实际改过一轮）。U2-a 至 U2-e 已做，随路线书第 05 批合入 main：U2-a/U2-b（#1912）与 U2-c 前半（#1942）先行，其余与第一份金样随 #1979 于 2026-11-08 合入 `500d868df3`：`tests/fixtures/golden-homes/0.1.0` 入库，`golden-replay`（Linux）、`golden-replay-third-party`（macOS，相关路径才跑）、每天的 `golden-replay-nightly`、覆盖面门禁和建库语句门禁（§5 UPG-01，`tooling/gates/schemas/stores.tsv`）都开了，发布检查单（`docs/releases/CHECKLIST.md` 第 2 节）有了「生成本版金样并入库」这一步。§5 的门禁与 CI 用户 2026-11-06 同意全开，第三方这段 2026-11-07 定，§6 的决定 2026-11-08 定。N41 的 `scripts/gates/initial-versions.mjs` 在 U1 首次接手持久化版本时由连续升级与回放接替，做法见 [U1 设计](upgrade-chain-design.md) §11.1。行为与验收以[升级后持续可用](spec.md) §6、§9 为准，本文只写怎么做。
+状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)：开发前阶段零开发金样、零金样回放——原 `0.1.0` 开发金样夹具、金样脚本、覆盖面／库结构快照门禁与 `golden-replay` CI 作业均已移除；本文保留作为 1.0.0 对外发布前重新建立生产金样回放的设计参考）。行为与验收见[升级后持续可用](spec.md)。
 
 验收编号沿用 `UPG-01`、`UPG-10`、`UPG-11`、`UPG-14`（§9）；本文新增的检查用 `UPG2-` 前缀，在 §7 列出。
 

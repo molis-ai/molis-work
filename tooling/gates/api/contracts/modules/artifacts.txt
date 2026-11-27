@@ -151,17 +151,12 @@ export interface FixedVersionResult<R extends FixedVersionRecord = FixedVersionR
 
 export declare const IMPORTED_DOCUMENT_READ_TYPES: {
     artifact_type_id: string;
-    schema_version: 1 | 2;
+    schema_version: number;
 }[];
 
-export declare const IMPORTED_DOCUMENT_SCHEMA_VERSION = 2;
+export declare const IMPORTED_DOCUMENT_SCHEMA_VERSION = 1;
 
 export declare const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
-
-export declare const IMPORTED_DOCUMENT_WARNING_SCHEMAS: {
-    readonly literal: 1;
-    readonly textRef: 2;
-};
 
 export interface ImportedDocumentFile {
     filename: string;

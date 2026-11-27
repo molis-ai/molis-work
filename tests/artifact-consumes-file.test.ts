@@ -39,8 +39,8 @@ test("RAC-418: a plugin that declares .pdf appears for a PDF import and not for 
   const listedFor = (filename: string) => continuers.filter(item => continuerReadsFile(item, { filename })).map(item => item.plugin_id).sort();
   assert.deepEqual(listedFor("report.pdf"), ["example.any", "example.pdf-reader"]);
   assert.deepEqual(listedFor("notes.md"), ["example.any", PAGES_PLUGIN_ID].sort());
-  // QEA-80: the same Pages action is offered once for each usable schema. A declared old-only consumer disappears in 2.
-  assert.deepEqual(artifactContinuers(importedType(2), sources).map(item => item.plugin_id), [PAGES_PLUGIN_ID]);
+  // QEA-80: Pages is offered once for the current schema (1) and not for unsupported schemas.
+  assert.deepEqual(artifactContinuers(importedType(2), sources), []);
   assert.deepEqual(artifactContinuers(importedType(3), sources), []);
 });
 

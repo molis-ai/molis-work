@@ -7,7 +7,6 @@ import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
-import { formerPersonalPluginsKept, keepFormerPersonalPlugins, markFormerPersonalPluginsDone } from "./former-personal-plugins.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { PersonalProjectProvisioner } from './personal-project-provisioner.js';
@@ -278,7 +277,6 @@ export class MolisWorkProjectCatalog {
     // The personal space is part of every Home from its first open (specs/unified-partition-plugins §4.1), not made on first use.
     try {
       await opened.ensurePersonalPartition();
-      await opened.keepFormerPersonalPlugins();
     } catch (error) {
       opened.close();
       throw error;
@@ -314,7 +312,6 @@ export class MolisWorkProjectCatalog {
         if (!initialized) {
           bindDatabaseSpace(db,ensureStorageSpace(homeDirectory));
           initializeCatalog(storage);
-          markFormerPersonalPluginsDone(db, new Date().toISOString());
         }
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger);
       }).immediate();
@@ -473,15 +470,6 @@ export class MolisWorkProjectCatalog {
 
   /** Home initialization: makes the personal partition once, idempotently; a Home that has it changes nothing. */
   private async ensurePersonalPartition(): Promise<void> { await this.ensurePersonalSpace(LOCAL_PERSON_ACTOR_ID); }
-  /** The one-time fix in `former-personal-plugins.ts`, after the personal space exists so it is covered too. */
-  private async keepFormerPersonalPlugins(): Promise<void> {
-    const db = this.storage.db;
-    if (formerPersonalPluginsKept(db)) return;
-    const added = await this.commit(() => keepFormerPersonalPlugins(db, (ids, actor) => this.projects.records.addPluginsWhereShown(ids as ProjectPluginId[], actor), new Date().toISOString()));
-    if (added === 0) return;
-    bumpProjectPluginEpoch(this);
-    advanceReadCheckGeneration();
-  }
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.ensureDemoProject(input)); }
   async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.resetDemoProject(input)); }
   async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.removeDemoProject(input)); }

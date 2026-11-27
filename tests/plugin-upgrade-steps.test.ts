@@ -12,10 +12,7 @@ import type { PluginDatabaseDeclaration, PluginManifest } from "@molis-ai/molis-
 import { pluginSyncDatabaseDeclaration, pluginSyncNamespace, runHomeUpgrade, upgradePluginLibrary, upgradePluginLibraryFile } from "@molis-ai/molis-work-app-local-host";
 import { PLUGIN_UPGRADE_NONDETERMINISTIC_FUNCTIONS } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { registration as riskRegistration } from "@molis-ai/molis-work-plugin-risk/registration";
-import { registration as briefRegistration } from "@molis-ai/molis-work-plugin-work-brief/registration";
-import { openSqliteConnection, readDatabaseSpace } from "@molis-ai/molis-work-storage";
-import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import {
   declaration, foreignKeys, ledgerObjects, ledgerRow, libraryState, libraryTemplate, openCode, othersOf, probeManifest, projectLibrary, tracking, upgradeCode,
 } from "./fixtures/plugin-upgrade-library.js";
@@ -214,56 +211,6 @@ const homeCode = (db: ReturnType<typeof openSqliteConnection>, manifest: PluginM
   try { upgradePluginLibrary(db, "library/library.db", manifest); return "ok"; }
   catch (error) { return String((error as { code?: unknown }).code); }
 };
-
-test("AC-M1-01 AC-M1-02 upgrading saved v1 data seeds each new personal journal once", t => {
-  const risk = riskRegistration.manifest, brief = briefRegistration.manifest;
-  const { home } = upgradeTestHome(t);
-  const golden = join(REPOSITORY, "tests/fixtures/golden-homes/0.1.0");
-  const { stores } = JSON.parse(readFileSync(join(golden, "manifest.json"), "utf8")) as { stores: Array<{ path: string; payload: string }> };
-  const restore = (suffix: string, fileName: string) => {
-    const entry = stores.find(row => row.path.startsWith("spaces/") && row.path.endsWith(suffix));
-    assert.ok(entry);
-    const file = join(home, fileName), db = openSqliteConnection(file);
-    t.after(() => db.close());
-    db.exec(readFileSync(join(golden, entry.payload), "utf8"));
-    return { file, db };
-  };
-  const riskLibrary = restore("/personal-space/molis-work.db", "personal-project.db");
-  const briefLibrary = restore("/work-brief/work-brief.db", "work-brief.db");
-  const space = readDatabaseSpace(briefLibrary.db);
-  assert.equal(space?.kind, "personal");
-  assert.deepEqual(readDatabaseSpace(riskLibrary.db), space);
-  const project = listProjectRoots(riskLibrary.db)[0]!.project_id;
-  riskLibrary.db.prepare(`INSERT INTO risk_items (risk_id, project_id, title, statement, impact, likelihood, treatment, status, revision, created_by, created_at, updated_at)
-    VALUES ('risk-v1', ?, 'Old risk', 'Earlier entry', 'high', 'low', '', 'open', 6, 'alice', '2026-01-01', '2026-01-01')`).run(project);
-  riskLibrary.db.exec(`INSERT INTO risk_events (event_id, risk_id, kind, detail_json, actor_id, at)
-    VALUES ('event-v1', 'risk-v1', 'note', '{"text":"Earlier note"}', 'alice', '2026-01-01');`);
-  briefLibrary.db.prepare(`INSERT INTO briefs (id, actor_id, scope, title, current_version, version, created_at, updated_at)
-    VALUES ('brief-v1', ?, 'personal', 'Old brief', 1, 8, '2026-01-01', '2026-01-01')`).run(space!.ownerUserId!);
-  const body = '{"sources":[],"claims":[{"claim_id":"claim-v1","text":"Earlier draft","cites":[],"supplied_by":"owner"}],"attention":[],"next":[]}';
-  briefLibrary.db.prepare(`INSERT INTO brief_versions (brief_id, version, as_of, created_at, produced_by_json, body_json)
-    VALUES ('brief-v1', 1, '2026-01-01', '2026-01-01', '{"kind":"person"}', ?)`).run(body);
-  assert.equal(upgradeCode(riskLibrary.db, risk), "ok");
-  assert.equal(homeCode(briefLibrary.db, brief), "ok");
-  assert.equal(openCode(riskLibrary.db, riskLibrary.file, risk), "ok");
-  const changeKey = (db: ReturnType<typeof openSqliteConnection>, manifest: PluginManifest) => {
-    const namespace = pluginSyncNamespace(manifest, manifest.sync!.collections[0]!.id);
-    return rows(db, `SELECT key FROM ${namespace}_replica_changes`);
-  };
-  assert.deepEqual(changeKey(riskLibrary.db, risk), [{ key: JSON.stringify([project, "risk", "risk-v1"]) }]);
-  const briefChanges = changeKey(briefLibrary.db, brief);
-  assert.deepEqual([...new Set(briefChanges.map(row => row.key))], [JSON.stringify(["", "brief", "brief-v1"])]);
-  assert.equal(upgradeCode(riskLibrary.db, risk), "ok");
-  assert.equal(homeCode(briefLibrary.db, brief), "ok");
-  assert.equal(changeKey(riskLibrary.db, risk).length, 1);
-  assert.deepEqual(changeKey(briefLibrary.db, brief), briefChanges);
-  assert.deepEqual(rows(riskLibrary.db, "SELECT title, revision FROM risk_items"), [{ title: "Old risk", revision: 6 }]);
-  assert.deepEqual(rows(riskLibrary.db, "SELECT revision FROM risk_editor_versions"), [{ revision: 6 }]);
-  assert.deepEqual(rows(riskLibrary.db, "SELECT detail_json FROM risk_events"), [{ detail_json: '{"text":"Earlier note"}' }]);
-  assert.deepEqual(rows(briefLibrary.db, "SELECT title, version FROM briefs"), [{ title: "Old brief", version: 8 }]);
-  assert.deepEqual(rows(briefLibrary.db, "SELECT version FROM brief_editor_versions"), [{ version: 8 }]);
-  assert.deepEqual(rows(briefLibrary.db, "SELECT body_json FROM brief_versions"), [{ body_json: body }]);
-});
 
 /** A Home library with a business trigger of its own: deleting a note records it in notes_gone. No shipped library declares one since Todo moved to partitions (batch 108). */
 const NOTES_SCHEMA = `CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL);

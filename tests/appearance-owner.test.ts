@@ -9,7 +9,6 @@ import { APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION, appearanceSele
   type UiAppearanceApplyInput, type UiAppearanceSelection } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, createAppearanceOwner, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
-import { upgradeVersionedFile } from '@molis-ai/molis-work-storage';
 
 const person: ActionCallContext = { actor_id: "appearance-person", audience: "user", project_id: null,
   permissions: [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION] };
@@ -65,7 +64,7 @@ test("FSS-01 FSS-14 FSS-19 FSS-24 FSS-32 persist precise choices and actor recei
   assert.deepEqual(saved, { request_id: "restore", selection_revision: 2, selection: baseline });
   assert.deepEqual(revisions, [1, 2]);
   assert.equal(fs.statSync(setup.path).mode & 0o777, 0o600);
-  assert.equal(JSON.parse(fs.readFileSync(setup.path, "utf8")).schema_version, 2);
+  assert.equal(JSON.parse(fs.readFileSync(setup.path, "utf8")).schema_version, 1);
   assert.deepEqual(JSON.parse(fs.readFileSync(setup.localeFile, "utf8")), { schema_version: 1, locale: "en" });
   setup.close();
 
@@ -171,8 +170,8 @@ test("FSS-24 FSS-27 refuse future or unreadable state and an interface directory
   setup.owner.subscribe(revision => revisions.push(revision));
   fs.mkdirSync(dirname(setup.path));
   for (const [content, status, code] of [
-    ['{"schema_version":3,"unknown":"preserve"}', "too_new", "storage.store_too_new"],
-    ['{"schema_version":2,"selection_revision":1}', "unreadable", "storage.schema_version_mismatch"],
+    ['{"schema_version":2,"unknown":"preserve"}', "too_new", "storage.store_too_new"],
+    ['{"schema_version":1,"selection_revision":1}', "unreadable", "storage.schema_version_mismatch"],
     ["{incomplete", "unreadable", "storage.schema_version_mismatch"],
   ]) {
     fs.writeFileSync(setup.path, content);
@@ -192,25 +191,31 @@ test("FSS-24 FSS-27 refuse future or unreadable state and an interface directory
   assert.deepEqual(revisions, []);
 });
 
-test('M1-B2 upgrades the checked-in v1 appearance golden and preserves the exact selection and undo receipt', async t => {
+test("clean v1 appearance state requires sync field, has zero upgrades, and preserves exact selection and undo receipt", async t => {
+  assert.equal(APPEARANCE_STATE_FILE.version, 1);
+  assert.deepEqual(APPEARANCE_STATE_FILE.upgrades ?? [], []);
   const setup = await isolatedHome(t);
-  // 0.1.0-dev.1 still holds the v1 appearance state; 0.1.0 was regenerated at the current versions by batch 106's V7 reset.
-  const golden = fs.readFileSync(new URL('./fixtures/golden-homes/0.1.0-dev.1/files/interface/state.json', import.meta.url), 'utf8');
-  const old = JSON.parse(golden);
-  assert.equal(old.schema_version, 1);
-  fs.mkdirSync(dirname(setup.path), { recursive: true });
-  fs.writeFileSync(setup.path, golden);
-  await assert.rejects(setup.client().invoke(actions.apply, restore('upgrade-required', 0)), { code: 'storage.upgrade_pending' });
-  assert.equal(fs.readFileSync(setup.path, 'utf8'), golden);
-  assert.deepEqual(upgradeVersionedFile(APPEARANCE_STATE_FILE, setup.path, setup.home), { from: 1, to: 2 });
-  assert.deepEqual(JSON.parse(fs.readFileSync(setup.path, 'utf8')), { ...old, schema_version: 2, sync: null });
+  const applied = await setup.client().invoke(actions.apply, select("clean-v1", 0));
+  const saved = JSON.parse(fs.readFileSync(setup.path, "utf8"));
+  assert.equal(saved.schema_version, 1);
+  assert.equal(saved.sync, null);
+  setup.close();
+
+  const { sync: _removed, ...missingSync } = saved;
+  const legacyText = JSON.stringify(missingSync);
+  fs.writeFileSync(setup.path, legacyText);
+  const rejected = open(setup.home);
+  try {
+    await assert.rejects(rejected.client().invoke(actions.apply, restore("no-sync", 1)), { code: "storage.schema_version_mismatch" });
+    assert.equal(fs.readFileSync(setup.path, "utf8"), legacyText);
+  } finally { rejected.close(); }
+
+  fs.writeFileSync(setup.path, JSON.stringify(saved));
   const reopened = open(setup.home);
   try {
-    const caller = { ...person, actor_id: old.applications[0].actor_id };
-    const receipt = old.applications[0].applied;
-    const view = await reopened.client(caller).invoke(actions.get, { request_id: receipt.request_id });
-    assert.deepEqual(view.selection, old.selection);
-    assert.deepEqual(view.recovery?.applied, receipt);
+    const view = await reopened.client().invoke(actions.get, { request_id: applied.request_id });
+    assert.deepEqual(view.selection, pinned);
+    assert.deepEqual(view.recovery?.applied, applied);
   } finally { reopened.close(); }
 });
 

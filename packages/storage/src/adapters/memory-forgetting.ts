@@ -9,7 +9,7 @@ import { assertStorageOwner, hasOnlyStorageOwnerFiles, type StorageOwner } from 
 import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
 import { readStorageSpace } from "../space.js";
 
-export const MEMORY_FORGETTING_HOME_STORE: HomeStoreDeclaration = { path: "memory-forgetting-v2.json" };
+export const MEMORY_FORGETTING_HOME_STORE: HomeStoreDeclaration = { path: "memory-forgetting.json" };
 const filePath = (home: string) => join(home, MEMORY_FORGETTING_HOME_STORE.path);
 
 const invalid = () => Object.assign(new Error("独立遗忘决定缺失、损坏或不是受支持的完整格式"), { code: "memory.forgetting_invalid" });

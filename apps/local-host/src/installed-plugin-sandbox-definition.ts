@@ -175,7 +175,9 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         const sceneId = sandboxSceneId(release.buildId, local);
         context.requireGrant('scenes:use');
         await control.beforeEffect?.();
-        return await sceneClient.runScene({ scene_id: sceneId, version: /* @version scene.sandbox.behavior-recommendation */ 1 }, sceneId, input) as SandboxJson;
+        const scene = manifest.action_scenes?.find(entry => entry.scene_id === sceneId);
+        if (!scene) throw pluginErrors.declaration_invalid('安装包没有声明这个判断场景');
+        return await sceneClient.runScene({ scene_id: scene.scene_id, version: scene.version }, sceneId, input) as SandboxJson;
       } };
       const services = sandboxServicesFor(context.services, { ...host, scenes: sceneRunner, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
       const open = (lane: Lane) => {

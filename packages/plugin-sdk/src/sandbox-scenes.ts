@@ -22,7 +22,7 @@ export function sandboxScenes(contract: SandboxPluginContract, buildId: string):
     if (new Set(keys).size !== keys.length) throw invalid();
     ids.add(scene.id);
     const sceneId = sandboxSceneId(buildId, scene.id);
-    return { scene_id: sceneId, version: /* @version scene.sandbox.behavior-recommendation */ 1, title: scene.title, description: scene.description, trigger: scene.trigger, scope: 'project',
+    return { scene_id: sceneId, version: /* @version format.sandbox.scene */ 1, title: scene.title, description: scene.description, trigger: scene.trigger, scope: 'project',
       subject_kinds: [scene.subject_kind], permissions: ['scenes:use'], configuration_permissions: ['storage:private'],
       input_schema: { type: 'object', properties: { content: { type: 'string', minLength: 1, maxLength: 8000 } }, required: ['content'], additionalProperties: false },
       result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1",

@@ -3,6 +3,7 @@ import { readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { jellyActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -74,7 +75,8 @@ test("B112-06 Clean v1 names a structure mismatch and can restart after the pers
   await browser.navigate(() => browser.click(recovery));
   const frame = await pluginFrameBrowser(t, browser, "jelly");
   await frame.waitFor("document.querySelector('[data-jelly-day][data-selected]')");
-  const result = await browser.localHost.homeActionClient().invoke({ actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS }, jellyActions.notes, {});
+  const client = bindActionClient(browser.localHost.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS }));
+  const result = await client.invoke(jellyActions.notes, {});
   assert.deepEqual(result.notes, []);
   assert.deepEqual(readFileSync(file + ".backup"), original);
 });

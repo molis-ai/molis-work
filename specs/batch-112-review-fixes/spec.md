@@ -1,6 +1,6 @@
 # 第 112 批复核修复
 
-状态：实现中。以 977a7cbde75dba8116d0cd0e47ffc0e7c79ae818 为修复基线。13ff02c8 附近的独立复核发现四个 P1、九个 P2 和一项交接问题。基线后续两次合入均未修改四个 P1 的实现。
+状态：产品代码受检提交为 `0a364f3af9bfe4043fa1907ff3d2e843892a0f68`，等待远端 Full 与一骏本人验收。修复基线为 `977a7cbde75dba8116d0cd0e47ffc0e7c79ae818`。自独立复核提交 `13ff02c8` 以来的 #2344、#2347 未消除所报问题。四个 P1、八个产品或合同 P2 以及一项交接 P3 已修复，余下一项 P2 缺最终头 Full 证据。
 
 沿用决定 68、方案 B、Clean v1。目标为隔离 Home 内可用。Jelly 对象仍由四张业务表拥有，插件、MCP 和助理共用动作。素材保留原件及历史引用，模型设置保留签名包获批的选择和既有版本文件。验证按实际 SHA 分开记录。
 
@@ -18,3 +18,12 @@
 | B112-10 | 对账两片五问、QEA/ONB/SPC、54/90/108/111、原生旧名例外及 Full 运行归属。 |
 
 构建用 pnpm build；定向用 node scripts/run-tests.mjs；核对 API、动作与存储快照、Swift/Shell、相关边界及预算。用独立测试浏览器和隔离 Home 复走原报告场景。对尚无最终 Full 或本人签认的提交保留缺口。
+
+## 隔离 Home 复验
+
+- 素材。用受检提交构建 npm 包，解出其中唯一的原生素材工具 `molis-material`。中文、英文、整句日文与两种画幅的日英混排，在发行包及成果库默认路径共十次逐字相符。三语界面打开 WAV、MP4 后读回原件；旧版七种 TextRef 仍有解释。大于内联限额的媒体不再整读，3 GB 为模拟大小。[原生提取回归](../../tests/jelly-native-material.test.ts) · [导入回归](../../tests/artifact-document-import.test.ts)
+- 来源。真实小宇宙页面取得 4,084 个正文字符。两条哔哩哔哩样本返回 412，两条小红书样本因笔记 ID 不匹配被拒绝。可用字幕、缺字幕引导、撤权和取消、视频笔记正文及三语提示由受控响应经过生产读取器复验，真实站点成功路径仍待可用样本。[来源回归](../../tests/jelly-source-providers.test.ts) · [Host 三语出口](../../tests/action-error-model.test.ts)
+- Jelly。1440 px、390 px 的实际输入与刷新读回通过。三种系列范围保留单次例外和完成记录。框内实点撤销恢复四项、跳过两项，另删的日程保持删除。换日冲突草稿留在原日，双编辑器交错保存后正文一致；第 501 篇笔记仍出现在对应日期。两个隔离 Home 按行同步后界面读回。完整旧库拒绝前后字节一致，用户备份、移走、实点重启后能打开空库，再启 Host 仍能读回。[界面](../../tests/jelly-actions.e2e.test.ts) · [动作](../../tests/jelly-actions.test.ts) · [旧库恢复](../../tests/owner-unavailable.e2e.test.ts)
+- 平台。已签名沙箱包按获批权限在已启用的模型中选择，重启 Host 后按同一安装读回。原有配置文件保持现行版本。[签名包实测](../../tests/security-invariants-sandbox-home-signed-model.test.ts) · [合同与存储登记](../../docs/system/CONTRACT-CHANGES.md)
+- 同一产品提交完成 24 个仓库定向测试文件（196 个用例）及 6 组隔离复验（14 个用例）。Swift、Shell、API、动作与存储快照、版本生成物均已核对。
+- #2338 同一头首次 Full 失败，后一次通过。#2342 最终头 `9ab931c00` 的 Full 工作流按 SHA 查询为零。后续 Full 的结果须绑定实际运行的提交。两片收尾、CI 地址、退役用例与交接对象见[第 112 批路线书](../post-anticorruption-roadmap/reference/batches/112.md#收尾检查)。

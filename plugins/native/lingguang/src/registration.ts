@@ -7,7 +7,6 @@ import { createLingguangPlugin, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, 
  */
 export const registration: PluginRegistration = {
   project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, catalog_order: 12,
-  formerly_personal: true,
   manifest: lingguangManifest,
   project_runtime: { create: createLingguangPlugin, package_name: "@molis-ai/molis-work-plugin-lingguang", factory_export: "createLingguangPlugin" },
   workbench: {

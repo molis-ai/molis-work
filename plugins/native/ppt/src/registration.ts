@@ -7,7 +7,6 @@ import { createPptPlugin, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY
  */
 export const registration: PluginRegistration = {
   project_plugin_id: PPT_PROJECT_PLUGIN_ID, catalog_order: 18,
-  formerly_personal: true,
   manifest: pptManifest,
   project_runtime: { create: createPptPlugin, package_name: "@molis-ai/molis-work-plugin-ppt", factory_export: "createPptPlugin" },
   workbench: {

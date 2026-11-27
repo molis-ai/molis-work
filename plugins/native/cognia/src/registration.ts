@@ -9,7 +9,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, catalog_order: 2,
   project_runtime: { create: createCogniaPlugin, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
   manifest: cogniaManifest,
-  formerly_personal: true,
   workbench: {
     order: 0,
     contributions: [cogniaUiContribution],

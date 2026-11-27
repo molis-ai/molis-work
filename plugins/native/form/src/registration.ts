@@ -8,7 +8,6 @@ import { createFormPlugin, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FAC
 export const registration: PluginRegistration = {
   project_plugin_id: FORM_PROJECT_PLUGIN_ID, catalog_order: 16,
   manifest: formManifest,
-  formerly_personal: true,
   project_runtime: { create: createFormPlugin, package_name: "@molis-ai/molis-work-plugin-form", factory_export: "createFormPlugin" },
   workbench: {
     order: 10,

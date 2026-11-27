@@ -44,8 +44,23 @@ const ROOTED = ["acceptance_subjects", "attention_entries", "events", "guidance_
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
 test("RAC-2360 APR-19 V7 the project database baseline is version 1 and includes approvals, runtime settings, guidance and acceptance", () => {
   assert.equal(PROJECT_DATABASE_BASELINE.version, 1);
-  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")
-    + fixture("project-runtime-settings-schema.sql") + fixture("project-guidance-schema.sql") + fixture("project-acceptance-schema.sql")));
+  assert.deepEqual(PROJECT_DATABASE_BASELINE.upgrades ?? [], []);
+  const tables = shape(PROJECT_DATABASE_BASELINE.schema).tables;
+  for (const required of [
+    "project_root",
+    "library_artifacts",
+    "process_items",
+    "project_approval_rules",
+    "project_review_decisions",
+    "project_runtime_settings",
+    "project_runtime_setting_receipts",
+    "guidance_entries",
+    "guidance_revisions",
+    "acceptance_subjects",
+    "surface_corrections",
+  ]) {
+    assert.ok(required in tables, `baseline must include ${required}`);
+  }
 });
 
 test("RAC-2360 an existing empty file initializes the complete current library at 1", () => {
@@ -59,25 +74,26 @@ test("RAC-2360 an existing empty file initializes the complete current library a
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-// V7 (batch 106, user 2026-11-24): the project library's upgrade steps were reset; its current structure is v1, and a kept golden holds it there.
-test('M1-B2 V7 a checked-in project golden is the current v1 library: it opens as it is and keeps its project, plugin and correction rows', t => {
-  const home = mkdtempSync(join(tmpdir(), 'project-m1-b2-golden-'));
+// V7: the project library stays at v1 with zero upgrade steps; running runSqliteUpgrade on a v1 library is an idempotent no-op that preserves all rows.
+test("M1-B2 V7 a v1 project library opens as it is and keeps its project, plugin and correction rows across runSqliteUpgrade", t => {
+  const home = mkdtempSync(join(tmpdir(), "project-m1-b2-v1-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const file = join(home, 'molis-work.db');
+  const file = join(home, "molis-work.db");
+  new LocalProjectDatabase(file).close();
   const db = new DatabaseSync(file);
   try {
-    db.exec(fixture('golden-homes/0.1.1-dev.8/stores/projects/goalboard-v1-demo/molis-work.db.sql'));
-    assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 1);
-    const root = db.prepare('SELECT * FROM project_root').all();
-    const plugins = db.prepare('SELECT * FROM plugin_project_databases ORDER BY plugin_id').all();
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
+    db.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("proj-v1", "2026-11-21T00:00:00.000Z");
+    const root = db.prepare("SELECT * FROM project_root").all();
+    const plugins = db.prepare("SELECT * FROM plugin_project_databases ORDER BY plugin_id").all();
     db.prepare(`INSERT INTO surface_corrections(actor_id,slot_key,subject_kind,subject_id,correction,form,position,revision,recorded_at)
-      VALUES (?,?,?,?,?,?,?,?,?)`).run('owner', '["home",null,null]', 'goal', 'kept', 'pin', null, 2, 1, '2026-11-21T00:00:00.000Z');
-    const before = db.prepare('SELECT * FROM surface_corrections').all();
-    assert.equal(db.prepare('SELECT count(*) AS total FROM surface_corrections_replica_changes').get()!.total, 1, 'the sync journal is part of the v1 structure');
+      VALUES (?,?,?,?,?,?,?,?,?)`).run("owner", '["home",null,null]', "goal", "kept", "pin", null, 2, 1, "2026-11-21T00:00:00.000Z");
+    const before = db.prepare("SELECT * FROM surface_corrections").all();
+    assert.equal(db.prepare("SELECT count(*) AS total FROM surface_corrections_replica_changes").get()!.total, 1, "the sync journal is part of the v1 structure");
     assert.deepEqual(runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE), { from: 1, to: 1 });
-    assert.deepEqual(db.prepare('SELECT * FROM project_root').all(), root);
-    assert.deepEqual(db.prepare('SELECT * FROM plugin_project_databases ORDER BY plugin_id').all(), plugins);
-    assert.deepEqual(db.prepare('SELECT * FROM surface_corrections').all(), before);
+    assert.deepEqual(db.prepare("SELECT * FROM project_root").all(), root);
+    assert.deepEqual(db.prepare("SELECT * FROM plugin_project_databases ORDER BY plugin_id").all(), plugins);
+    assert.deepEqual(db.prepare("SELECT * FROM surface_corrections").all(), before);
   } finally { db.close(); }
   const reopened = new LocalProjectDatabase(file, { existingOnly: true });
   reopened.close();

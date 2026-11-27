@@ -38,7 +38,7 @@ test("QEA-79: import and exact-version preview translate the saved warning in th
   const saved = query.listArtifacts(projectId).map(item => query.latestArtifactVersion(projectId, item.artifact_id))
     .find(item => item?.origin.kind === "imported" && item.origin.file_name === "english-import.html");
   assert.ok(saved);
-  assert.equal(saved.schema_version, 2);
+  assert.equal(saved.schema_version, 1);
   assert.deepEqual((saved.payload as { warnings: unknown }).warnings, [{ key: "workbench.import.warning-html-snapshot" }]);
   const versionPath = prefix + artifactVersionPath(saved);
   const before = query.listArtifactVersions(projectId, saved.artifact_id);

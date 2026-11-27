@@ -39,10 +39,12 @@ export function pluginOverviewFor(manifest: PluginManifest, context: Pick<Plugin
       live();
       const install = installation();
       let touched = false;
+      // The rows are written synchronously inside the join, which checks the transaction before and after `write`: asking again for every
+      // row would only make a write that sums up many rows ask the caller as many times (Feed lists every source with each write).
       const touch = () => {
+        if (touched) return;
         live();
         installation();
-        if (touched) return;
         touched = true;
         afterCommit(() => changed(install));
       };

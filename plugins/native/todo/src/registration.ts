@@ -7,7 +7,6 @@ import { TODO_PROJECT_PLUGIN_ID, todoManifest, TODO_CLIENT_FACTORY_SCRIPT, TODO_
  */
 export const registration: PluginRegistration = {
   project_plugin_id: TODO_PROJECT_PLUGIN_ID, catalog_order: 13,
-  formerly_personal: true,
   manifest: todoManifest,
   project_runtime: { create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
   workbench: {

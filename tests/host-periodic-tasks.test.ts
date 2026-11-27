@@ -35,7 +35,9 @@ test("W4-09-01: 设置 › 诊断 lists the server's periodic tasks from their o
     return found[0];
   };
   const first = await section();
-  for (const title of ["项目里的定时任务", "完成上次没删完的项目", "为进行中的工作找新资料", "到期提醒", "清理过期的桌面截图"]) assert.ok(first.includes(title), title);
+  for (const title of ["项目里的定时任务", "完成上次没删完的项目", "为进行中的工作找新资料", "清理过期的桌面截图"]) assert.ok(first.includes(title), title);
+  // Batch 108: reminders fall due in the due registry and wake only their plugin, so no task asks every plugin each minute.
+  assert.ok(!first.includes("到期提醒"), "no minute-by-minute reminder poll");
   assert.match(first, /每 30 秒/);
   assert.match(first, /每小时/);
   // The leftover-deletion sweep runs every 50 ms here: its row turns from waiting to a finished run.

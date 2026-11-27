@@ -16,8 +16,6 @@ const writerErrors = defineErrorCodes("workspace_git.writer", {
   workspace_unavailable: "invalid",
   /** The repository or its authorization changed after the preview a person is reviewing. */
   changed: "conflict",
-  /** The round was started before writers were named by their worktree: its children cannot be found again; the person starts a new round. */
-  round_outdated: "conflict",
   /** The session belongs to another project, plugin or installation. */
   session_foreign: "forbidden",
   /** The run or child named is not in that session, or the session has no directory to integrate into. */
@@ -150,8 +148,6 @@ export function registerWorkspaceGitWriters(ports: WriterHostActionPorts): () =>
     if (!output?.realpath_verified || output.canonical_path !== originalDirectory.canonical_path) throw writerErrors.workspace_unavailable("原主工作区已不是这个项目的输出目录，不能整合");
     const { grants, parent, port } = await writerParent(project.project_id, output.workspace_id, true);
     const frozen = run.frozen.subagent_workspaces?.find(w => w.directory.canonical_path === child.workspace_path);
-    // A round recorded before writers were named by their worktree has no `worktree_id` here: it is not read another way.
-    if (frozen && typeof frozen.worktree_id !== "string") throw writerErrors.round_outdated("这一轮是旧版本开的，写手的目录接不上，请重开一轮");
     const tree = frozen && (await port.inspect()).owned.find(item => item.worktree_id === frozen.worktree_id && path.resolve(parent.canonical_path, item.directory) === child.workspace_path);
     if (!frozen || !tree) throw writerErrors.workspace_unavailable("原子任务目录已不是宿主为本轮建的独立工作树");
     await runtime.assertDirectoriesIdle([parent.canonical_path, path.resolve(parent.canonical_path, tree.directory)]);

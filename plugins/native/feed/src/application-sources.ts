@@ -20,8 +20,11 @@ export class FeedSources {
     return this.ports.sources.query.list(projectId).map(source => this.record(source));
   }
 
-  /** What each source is, in one read: without its listener's cursor or its item count, which `list` reads source by source. */
-  definitions(projectId: string): readonly SourceRecord[] {
+  /**
+   * The sources as stored, in one read, without the counts and cursors `list` adds per source: what the overview's scheduled runs need
+   * with every write (V17), so a write asks its caller as often whatever the number of sources.
+   */
+  stored(projectId: string): SourceRecord[] {
     return this.ports.sources.query.list(projectId);
   }
 

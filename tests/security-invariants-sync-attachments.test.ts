@@ -24,14 +24,14 @@ test('S-126 PCSYNC-11/13 owner projects raw file bytes and large bodies without 
   await assert.rejects(()=>codec.decode(key,encoded.value,async()=>Buffer.from('corrupt')),/校验失败/);
 });
 
-test("QEA-80: sync carries exact historical and current import warnings with their fixed versions", async () => {
+test("QEA-80: sync carries exact v1 TextRef import warnings with their fixed versions", async () => {
   const codec = createArtifactSyncContent("space-alice");
-  const original = value({ content: "Earlier import", warnings: ["旧版本保存的原话。"] });
-  const prior = { ...original.artifact.versions[0]!, schema_version: 1 };
-  const current = { ...prior, version: 2, schema_version: 2, payload: {
+  const original = value({ content: "First import", warnings: [{ key: "workbench.import.warning-html-snapshot" }] });
+  const first = { ...original.artifact.versions[0]!, schema_version: 1 };
+  const second = { ...first, version: 2, schema_version: 1, payload: {
     content: "Later import", warnings: [{ key: "workbench.import.warning-transcription-model-size", args: [{ name: "megabytes", kind: "number", number: 626 }] }],
   } };
-  const snapshot = { ...original, artifact: { ...original.artifact, versions: [prior, current] } };
+  const snapshot = { ...original, artifact: { ...original.artifact, versions: [first, second] } };
   const encoded = codec.encode(key, snapshot);
   const restored = await codec.decode(key, encoded.value, async ref => encoded.blobs.find(blob => blob.digest === ref.digest)!.bytes);
   assert.deepEqual(restored, snapshot);
@@ -40,7 +40,7 @@ test("QEA-80: sync carries exact historical and current import warnings with the
 for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refuses and preserves a mismatched v${version} file`,t=>{
   const home=mkdtempSync(join(tmpdir(),'molis-sync-v1-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
-  const current=readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8');
+  const current=SYNC_STORE_BASELINE.schema;
   const schema=version<=SYNC_STORE_BASELINE.version?`${current}; DROP TABLE sync_blob_parts;`:current,old=openBaselineHomeSqlite(home,'sync',{version,schema});
   old.prepare('INSERT INTO sync_policy VALUES(1,?)').run('{"preserved":true}');old.close();
   const path=join(home,'sync','sync.db'),before=readFileSync(path);

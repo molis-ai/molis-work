@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   project_runtime: { create: createImagesPlugin,
     package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" },
   manifest: imagesManifest,
-  formerly_personal: true,
   workbench: {
     order: 2,
     contributions: [imagesUiContribution],

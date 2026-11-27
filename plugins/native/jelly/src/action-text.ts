@@ -10,6 +10,7 @@ const PERMISSION_REASONS: Readonly<Record<string, { readonly reason: string; rea
 const ACTION_TEXT: Readonly<Record<string, readonly [string, string]>> = {
   "jelly.calendar.list": ["jelly.cap.calendar-list.title", "jelly.cap.calendar-list.description"],
   "jelly.item.get": ["jelly.cap.item-get.title", "jelly.cap.item-get.description"],
+  "jelly.note.days": ["jelly.cap.note-days.title", "jelly.cap.note-days.description"],
   "jelly.note.list": ["jelly.cap.note-list.title", "jelly.cap.note-list.description"],
   "jelly.note.get": ["jelly.cap.note-get.title", "jelly.cap.note-get.description"],
   "jelly.item.create": ["jelly.cap.item-create.title", "jelly.cap.item-create.description"],

@@ -89,8 +89,7 @@ export function writeFeedRunRows(rows: PluginOverviewRows, feed: FeedApplication
   rows.removePrefix("scheduled_run", "pull:");
   const at = new Date(now).toISOString(), title = (name: string, fallback: string) => [...(name.trim() || fallback)].slice(0, OVERVIEW_TEXT_LIMITS.title).join("");
   const open = (sourceId: string) => OPEN_PART.test(sourceId) ? { open: { surface: FEED_SURFACE, id: sourceId } } : {};
-  // Every Feed write ends here, so the sources are read in one statement, not a listener checkpoint and an item count each.
-  const upcoming = feed.sources.definitions(projectId).flatMap(source => source.enabled && source.status !== "paused" && source.status !== "disconnected" && source.schedule.mode === "interval"
+  const upcoming = feed.sources.stored(projectId).flatMap(source => source.enabled && source.status !== "paused" && source.status !== "disconnected" && source.schedule.mode === "interval"
     && source.schedule.enabled && source.schedule.next_pull_at && Date.parse(source.schedule.next_pull_at) > now ? [{ source, due: source.schedule.next_pull_at }] : [])
     .sort((a, b) => Date.parse(a.due) - Date.parse(b.due)).slice(0, OVERVIEW_UPCOMING_ROWS);
   for (const { source, due } of upcoming) {

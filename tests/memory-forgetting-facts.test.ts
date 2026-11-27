@@ -82,7 +82,7 @@ const selection = () => { const { accepted_at: _time, ...fixed } = accepted; ret
 test("Only explicit fresh initialization creates facts; accepted selections survive owner reopen", t => {
   const f = storage(t);
   assert.throws(() => openMemoryForgetting(f.input()), { code: "memory.forgetting_invalid" });
-  assert.equal(fs.existsSync(join(f.home, "memory-forgetting-v2.json")), false);
+  assert.equal(fs.existsSync(join(f.home, "memory-forgetting.json")), false);
   initializeMemoryForgetting(f.input());
   const port = openMemoryForgetting(f.input()), result = port.accept(selection());
   f.reopen();
@@ -90,14 +90,14 @@ test("Only explicit fresh initialization creates facts; accepted selections surv
   assert.deepEqual(reopened.read(), file({ ...result, source_event_ids: ["original-a", "original-b"] }));
   assert.deepEqual(reopened.accept({ ...selection(), source_event_ids: ["original-a", "original-b"] }), result);
   assert.equal(reopened.read().decisions.length, 1);
-  const before = fs.readFileSync(join(f.home, "memory-forgetting-v2.json"));
+  const before = fs.readFileSync(join(f.home, "memory-forgetting.json"));
   assert.throws(() => reopened.accept({ ...selection(), memories: [{ memory_id: "another", version: 4 }] }), { code: "memory.conflict" });
-  assert.deepEqual(fs.readFileSync(join(f.home, "memory-forgetting-v2.json")), before);
+  assert.deepEqual(fs.readFileSync(join(f.home, "memory-forgetting.json")), before);
   assert.throws(() => port.read(), { code: "storage.owner.closed" });
 });
 
 test("Nonempty, missing and damaged independent facts never become an empty decision set", t => {
-  const f = storage(t), target = join(f.home, "memory-forgetting-v2.json");
+  const f = storage(t), target = join(f.home, "memory-forgetting.json");
   fs.writeFileSync(join(f.home, "business.bin"), "existing business");
   assert.throws(() => initializeMemoryForgetting(f.input()), { code: "memory.forgetting_invalid" });
   assert.equal(fs.existsSync(target), false);
@@ -111,7 +111,7 @@ for (const failure of ["damaged-facts", "closed-owner"] as const)
 test(`Failed ledger construction closes its real SQLite connections after ${failure}`, t => {
   const f = storage(t); initializeMemoryForgetting(f.input());
   const input = f.input();
-  if (failure === "damaged-facts") fs.writeFileSync(join(f.home, "memory-forgetting-v2.json"), "broken independent facts");
+  if (failure === "damaged-facts") fs.writeFileSync(join(f.home, "memory-forgetting.json"), "broken independent facts");
   else f.close();
   const connections = new Set<DatabaseSync>(), exec = DatabaseSync.prototype.exec;
   const observed = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
@@ -257,7 +257,7 @@ test(`receipt batch rolls back every staged row when ${fault} changes during syn
         const result = run.apply(this, args);
         if (!injected) {
           injected = true;
-          const target = join(f.home, "memory-forgetting-v2.json");
+          const target = join(f.home, "memory-forgetting.json");
           if (fault === "accepted") ledger.forgetting.accept(selection());
           if (fault === "released") f.close();
           if (fault === "replaced") {

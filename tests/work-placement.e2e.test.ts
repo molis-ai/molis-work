@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { enablePersonalPlugin, openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 // specs/archive/work-placement AC1/AC3/AC6 through the real workbench: capture with no project, use it in a project without
@@ -12,6 +12,7 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
   assert.ok(projectId);
+  await enablePersonalPlugin(browser.web, "pages");
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);

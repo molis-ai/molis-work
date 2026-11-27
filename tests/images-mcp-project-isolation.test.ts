@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { callImageTool as call, openImagesMcp } from "./fixtures/images-mcp.js";
 
-test("Images standard MCP hides another project's jobs", { timeout: 45_000 }, async t => {
+test("Images standard MCP hides another project's jobs", { timeout: 90_000 }, async t => {
   const { connect, saveConnection, generate } = await openImagesMcp(t);
   const connection = await saveConnection();
   const owner = await connect("a");

@@ -93,8 +93,8 @@ export async function startProjectPlugins(host: { inspectActions(caller: ActionC
  * Host's project client) its `services.actions.availability` asks the Host, as the running Host's does.
  */
 export async function startPlugin(host: { actionRegistry(reference: LocalHostProjectReference): ActionRegistryPort; actionClient(reference: LocalHostProjectReference): ActionClient;
-  syncActionClient(reference: LocalHostProjectReference): SyncActionClient; restingCacheHomeDirectory?(): string | undefined }, reference: LocalHostProjectReference, store: Pick<LocalProjectDatabase, "db" | "appendEvent" | "eventCursor">,
-  plugin: CallerPlugin, options: { actorId?: string; grants?: readonly string[]; dependencies?: Pick<LocalHostProjectClient, "availability"> } = {}) {
+  syncActionClient(reference: LocalHostProjectReference): SyncActionClient; overviewHome?(): string | undefined }, reference: LocalHostProjectReference, store: Pick<LocalProjectDatabase, "db" | "appendEvent" | "eventCursor">,
+  plugin: CallerPlugin, options: { actorId?: string; grants?: readonly string[]; dependencies?: Pick<LocalHostProjectClient, "availability">; home?: string } = {}) {
   const executor = new PluginHostExecutor({ project_id: reference.project_id, actor_id: options.actorId ?? LOCAL_PERSON_ACTOR_ID, ui: new UiHost(),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
@@ -108,7 +108,9 @@ export async function startPlugin(host: { actionRegistry(reference: LocalHostPro
   new SqlitePluginRuntimeReleaseArtifactRepository(store.db).save(createPluginRuntimeReleaseArtifact(plugin.definition.manifest, "export default {};"));
   await runtime.start(install.install_id);
   // Mirror product PluginHostExecutor: when the Host has a Home, register the started plugin's Agent declarations with that Home's registry.
-  const home = host.restingCacheHomeDirectory?.();
+  // `overviewHome` names the Home once its catalog is bound; a Host given a Home without a catalog passes it (batch 108 took out the
+  // resting-cache Home that answered this before).
+  const home = options.home ?? host.overviewHome?.();
   const registration = home ? pluginAgentRegistration(plugin.definition) : null;
   if (home && registration) homeAgentDefinitions(home).register(registration, install.install_id);
   return { runtime, install_id: install.install_id };

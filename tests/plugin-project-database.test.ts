@@ -338,6 +338,7 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
   // Cognia, Images, Issues, Jelly and Todo keep a library in each partition since batch 108, Work Brief since 109 (databases.partition), not
   // one at Home; Feed's holds are the platform's evidence ledger's since 109. No shipped plugin keeps a Home library any more.
   assert.deepEqual(shipped.map(store => store.path).sort(), []);
+  assert.equal(homeStores().get("jelly"), undefined, "the old top-level Jelly store is retired");
   assert.equal(homeStores().get("artifacts")?.owner, "modules/artifacts", "the platform's original files retain their Module owner");
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);

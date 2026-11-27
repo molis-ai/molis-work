@@ -46,7 +46,7 @@ export interface GoalChoice {
       readonly agreement: { readonly version: number; readonly outcome?: string };
       readonly goal_event_cursor: number | string;
     };
-    /** The Goal's requirements in the platform's words; a context pinned before batch 44 has none here. */
+    /** The Goal's requirements in the platform's words. */
     readonly requirements?: readonly GoalRequirementWords[];
   };
   readonly reference: { readonly artifact_id: string; readonly version?: number };

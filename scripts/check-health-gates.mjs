@@ -35,7 +35,7 @@ import { measureGiantUnits, isSource } from "./gates/giant-units.mjs";
 // what is measured is admitted, new or grown; an unregistered giant unit may not appear or grow.
 // Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (there is no silent fallback).
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { acquireSlot } from "./machine-slot.mjs";
@@ -55,15 +55,11 @@ import { productSubsetProblems } from "./gates/product-subset.mjs";
 import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
-import { goldenHomeProblems } from "./gates/golden-homes.mjs";
 import { hostLineDetails, hostLineSummary, hostLinesWantText, reportHostLines } from "./gates/host-lines.mjs";
 import { hostEntryWidthSummary, measureHostEntryWidth } from "./gates/host-entry-exports.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { pluginNameExceptionProblems } from "./gates/plugin-name-exceptions.mjs";
-import { storeVersionProblems } from "./gates/store-versions.mjs";
-import { SCHEMAS_FILE, storeSchemaProblems } from "./gates/store-schemas.mjs";
-import { isGoldenManifestPath } from "./golden/formats.mjs";
-import { registeredUpgradeChains, versionOriginProblems } from "./gates/initial-versions.mjs";
+import { versionOriginProblems } from "./gates/initial-versions.mjs";
 import { measureSchemaExecs, measureSchemaPatches, schemaExecsWantText, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isLintFile, isOwnRepository, lintWantsText, scopedLintFiles } from "./gates/lint.mjs";
@@ -164,7 +160,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file === SCHEMAS_FILE || isGoldenManifestPath(file) || file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || oldNamesWantsText(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
+const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || oldNamesWantsText(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -361,7 +357,7 @@ const vendoredSdk = {
   summary: (count) => `${count} vendored SDK`,
 };
 
-// 4. Compatibility code coming back: in-place table patching outside a baseline schema and the steps of its `upgrades` (scripts/gates/schema-patches.mjs).
+// 4. Compatibility code coming back: in-place table patching in source (scripts/gates/schema-patches.mjs).
 const schemaPatches = {
   id: "schemaPatches",
   measure(snapshot) {
@@ -369,7 +365,7 @@ const schemaPatches = {
   },
   toBaseline: (count) => ({ schemaPatches: count }),
   fromBaseline(json) { requireShape(Number.isInteger(json.schemaPatches), "schemaPatches"); return json.schemaPatches; },
-  grew: (head, ref) => (head > ref ? [`in-place schema patches ${ref} → ${head}; change the baseline schema, and put the structure change in a step of its \`upgrades\` literal`] : []),
+  grew: (head, ref) => (head > ref ? [`in-place schema patches ${ref} → ${head}; edit the v1 baseline schema directly in place`] : []),
   lowered: (head, ref) => head < ref,
   lines: (head, ref) => [`In-place schema patches: ${head}${ref !== undefined && ref !== head ? `, base ${ref}` : ""}`],
   summary: (count) => `${count} schema patches`,
@@ -381,7 +377,7 @@ const schemaExecs = {
   measure: (snapshot) => measureSchemaExecs(snapshot),
   toBaseline: (counts) => ({ schemaExecTotal: sumOf(counts), schemaExecs: counts }),
   fromBaseline: (json) => perFile.fromBaseline(json, "schemaExecs"),
-  grew: perFile.grew("schema text run by hand", "put the tables in a baseline's schema, and a structure change in a step of its `upgrades` literal"),
+  grew: perFile.grew("schema text run by hand", "put the tables in a v1 baseline's schema directly"),
   lowered: perFile.lowered,
   lines: (head, ref, env) => perFile.lines("Schema text run by hand", head, ref, env),
   summary: (counts) => `${sumOf(counts)} schema execs`,
@@ -591,25 +587,12 @@ const retiredRecordErrors = () => [
   ...headSnapshot.files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`),
   ...headSnapshot.files.filter(file => file.startsWith("tooling/gates/page-asset-allowances/") && file.endsWith(".json")).map(file => `${file}: retired per-byte page-asset allowance; use route budgets in tooling/gates/page-asset-budgets.json`),
 ];
-const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...goldenHomeProblems({ ...headSnapshot, size: file => statSync(path.join(root, file)).size }), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...pluginNameExceptionProblems(headSnapshot, head.platformPluginNames ?? {}, { required: isOwnRepository(root, import.meta.url) }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root)];
+const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...pluginNameExceptionProblems(headSnapshot, head.platformPluginNames ?? {}, { required: isOwnRepository(root, import.meta.url) }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
-// A library whose version changed against the merge-base needs a row under CONTRACT-CHANGES.md「存储版本变更登记」(scripts/gates/store-versions.mjs).
-// It fails closed: a table it cannot read ends the run with exit 2.
-const storeVersions = () => {
-  const show = (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null;
-  try {
-    return storeVersionProblems({ read: headSnapshot.read, readBase: mergeBase ? show : undefined });
-  } catch (error) {
-    if (error?.storeVersionsUnreadable) fail(`Health gates could not read the library versions: ${error.message}`);
-    throw error;
-  }
-};
-// UPG-01 compares the store schemas and retained replay samples with the merge-base. `pnpm test:contracts` checks the schemas against the build.
-const storeSchemas = () => storeSchemaProblems(headSnapshot, baseSnapshot);
-// The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
-const versionOrigin = () => versionOriginProblems(headSnapshot, { chains: registeredUpgradeChains(headSnapshot), readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
+// Pre-development v1 guard (scripts/gates/initial-versions.mjs): every first-party store, format, action, manifest and artifact stays at v1 with zero upgrade steps.
+const versionOrigin = () => versionOriginProblems(headSnapshot, { readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -661,7 +644,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const api = apiSnapshots();
-const errors = [...growth(), ...limitErrors(), ...callBudgetErrors(), ...absolute(), ...storeVersions(), ...storeSchemas(), ...versionOrigin(), ...api.errors];
+const errors = [...growth(), ...limitErrors(), ...callBudgetErrors(), ...absolute(), ...versionOrigin(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   // Gate self-tests capture both streams through pipes. Let Node drain them before exiting.

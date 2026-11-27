@@ -19,7 +19,6 @@ import { ensureStorageSpace, openBaselineHomeSqlite, personalStorageSpace } from
 import { workbenchClientSource } from "@molis-ai/molis-work-app-workbench";
 import { kitHost } from "./fixtures/kit-host.js";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
-import goldenWriteAgentDefinitions from "./golden-writes/agent-definitions.ts";
 
 const OWNER_ID = "system:safety-gate-test";
 const INSTRUCTION_ID = "safety.command-allow";
@@ -344,7 +343,7 @@ test("S-protected-prompt-override: override import preview/confirm and personal 
   assert.equal(definitions.prompt(editableKey).effective, "default", "row 1 must not be partially committed when row 2 is protected");
 });
 
-test("S-protected-prompt-override: unregistered prompts and raw strings are refused by effective() and resolveModelPrompt(), while golden-writes skips protected prompts", async t => {
+test("S-protected-prompt-override: unregistered prompts and raw strings are refused by effective() and resolveModelPrompt()", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-unregistered-prompt-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const definitions = homeAgentDefinitions(home);
@@ -384,38 +383,6 @@ test("S-protected-prompt-override: unregistered prompts and raw strings are refu
     () => resolveModelPrompt(home, instructed(unregisteredInstruction, "payload"), "test"),
     errorCode("agent_definitions.not_found"),
   );
-
-  // golden-writes/agent-definitions.ts skips leading protected prompts and picks an editable prompt instead.
-  let savedKey = "";
-  let savedBody = "";
-  await goldenWriteAgentDefinitions({
-    tag: "v1-protected-test",
-    projectId: "proj-1",
-    call: async () => { throw new Error("call unused"); },
-    personal: { projectId: "personal-unused", call: async () => { throw new Error("call unused"); } },
-    http: async (route, options) => {
-      if (route === "/api/agent-definitions/prompts" && options?.method === "GET") {
-        return {
-          prompts: [
-            { key: INSTRUCTION_KEY, override_policy: "protected" },
-            { key: "system:editable/demo", override_policy: "editable" },
-          ],
-        };
-      }
-      if (route.startsWith("/api/agent-definitions/prompt?key=") && options?.method === "GET") {
-        return { prompt: { key: "system:editable/demo", body: savedBody || "default", user: savedBody ? { revision: 1 } : undefined } };
-      }
-      if (route === "/api/agent-definitions/prompt") {
-        const body = options?.body as { key: string; body: string };
-        savedKey = body.key;
-        savedBody = body.body;
-        return { prompt: { key: savedKey, body: savedBody } };
-      }
-      throw new Error(`unexpected route: ${route}`);
-    },
-  });
-  assert.equal(savedKey, "system:editable/demo");
-  assert.equal(savedBody, "金样提示词 v1-protected-test");
 });
 
 test("S-protected-prompt-override (P1 #2): Settings UI and Kit prompt editor render protected prompts read-only with no Save/Reset/Advanced controls", async () => {

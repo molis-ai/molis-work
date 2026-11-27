@@ -10,7 +10,7 @@ import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime"
 import type { PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
-import { MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { homeStores, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -30,7 +30,7 @@ async function rejectedStore(version: 1 | 2) {
   await mkdir(join(home, "plugin-runtime"));
   const db = new DatabaseSync(runtimePath(home));
   try {
-    db.exec(await readFile(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8"));
+    db.exec(homeStores().stores.find(store => store.path === "plugin-runtime")!.library!.baseline.schema);
     db.prepare("INSERT INTO plugin_runtime_installs (install_id, record_json, publisher_trust) VALUES (?,?,?)").run("original-install", JSON.stringify({ plugin_id: "example.retained", install_id: "original-install",
       installation_generation: "original-generation", grants: ["storage:private", "retained:read"], state: "installed", version: "1.0.0", publisher_trust: "unsigned" }), "unsigned");
     db.prepare("INSERT INTO plugin_runtime_release_artifacts VALUES (?,?,?,?,?)").run("example.retained", "original-publisher", "1.0.0", "original-digest", "{\"module_source\":\"original release\"}");

@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {PersonalSync,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
+import {PersonalSync,SYNC_STORE_BASELINE,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
 import {createSqliteReplica,initializeReplica,replicaSchemaSql,queueReplicaChange,ensureStorageSpace,personalStorageSpace,openBaselineHomeSqlite} from '@molis-ai/molis-work-storage';
 import {ActionError} from '@molis-ai/molis-work-plugin-sdk';
 import type {SyncEvent,SyncMutation} from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -56,7 +56,7 @@ test('PCSYNC-14 a newer head retires a deferred download rather than reviving st
 });
 test('PCSYNC-12 deferred-replay schema refuses a newer v3 sync library intact',t=>{
  const home=mkdtempSync(join(tmpdir(),'molis-sync-v3-'));t.after(()=>rmSync(home,{recursive:true,force:true}));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
- const db=openBaselineHomeSqlite(home,'sync',{version:3,schema:readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8')});db.close();const file=join(home,'sync','sync.db'),before=readFileSync(file);
+ const db=openBaselineHomeSqlite(home,'sync',{version:3,schema:SYNC_STORE_BASELINE.schema});db.close();const file=join(home,'sync','sync.db'),before=readFileSync(file);
  assert.throws(()=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',registrations:[],authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){throw new Error('Must not authenticate');}},fetch:async()=>{throw new Error('Must not connect');}}),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);
 });
 

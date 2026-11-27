@@ -168,12 +168,6 @@ export interface PluginRegistration {
   /** Product setup choice for new projects; stored as ordinary membership and freely removable afterwards. */
   readonly default_enabled?: true;
   /**
-   * This plugin was a personal plugin (on in every partition that did not hide it) until batches 107～108 moved it into each partition.
-   * An older Home's partitions keep it once on first open (`apps/local-host/src/former-personal-plugins.ts`, a retained one-time fix
-   * removed with batch 111 or the first release, together with this field). Trusted: read from this registration only.
-   */
-  readonly formerly_personal?: true;
-  /**
    * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
    * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;
    * personal visibility alone never migrates an existing plugin. Trusted: the Host reads it from this registration only, never from a

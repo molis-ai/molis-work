@@ -177,7 +177,7 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
     assert.deepEqual(report.blocked, []); assert.deepEqual(report.running, []);
     const running = runningPluginDirectory(platform.supervisor);
     assert.deepEqual(running.map(entry => [entry.id, entry.plugin_id, entry.chosen]), [[pluginId, pluginId, false]], "the real Host directory does not grant the built-in key or trust to a different publisher");
-    assert.equal(running[0]!.personal, undefined);
+    assert.equal(Object.hasOwn(running[0]!, "personal"), false);
     const directory = pluginDirectoryFor(running), market = builtinPluginDirectory().find(entry => entry.id === "pages")!;
     assert.deepEqual(directory.find(entry => entry.id === "pages"), market, "a different Runtime key does not remove the not-running built-in market entry");
     const rail = railEntries(["pages"], directory);
@@ -234,7 +234,7 @@ test("RAC-605-KEY-03 only a sanitized Runtime entry overrides its matching marke
   assert.equal(railEntries([], directory).some(entry => entry.id === "pages"), false);
 });
 
-test("RAC-619 the Host's marks (personal, home, always_on, companions) are kept only as exact values on a chosen entry; an entry the project does not choose keeps only the two Home marks", () => {
+test("RAC-619 the directory keeps declared companions and Home scope, and strips retired personal and always-on marks", () => {
   const marked = (id: string, chosen: boolean, marks: Record<string, unknown>): PluginDirectoryEntry => ({ ...installed(id), chosen, ...marks } as PluginDirectoryEntry);
   const [kept, notChosen, loose, many, looseHome] = sanitizePluginDirectory([
     marked("kept", true, { personal: true, home: true, always_on: true, companions: ["inbox", "feed", "inbox", 'bad"key', 7] }),

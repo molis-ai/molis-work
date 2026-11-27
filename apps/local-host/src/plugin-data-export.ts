@@ -8,7 +8,7 @@ import {
   type PluginDataSectionSnapshot, type PluginDatabaseDeclaration, type PluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  pluginManifestDigest, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, type PluginRuntimeDatabase,
+  installIdentity, pluginManifestDigest, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, type PluginRuntimeDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, homeSqlitePath, openHomeSqliteFile, openReadOnlyHomeSqlite, readDatabaseSpace, readStorageSpace, snapshotFileStat, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
@@ -17,7 +17,7 @@ import { installedHomeLibraryName, installedLibrarySnapshots } from "./installed
 import { installedPluginManifest } from "./plugin-installation-directory.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { shippedParts } from "./plugin-registry.js";
-import { sandboxOwnerFilesBase } from "./plugin-sandbox-owner-files.js";
+import { checkedOwnerFilesBase } from "./plugin-sandbox-owner-files.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { partitionLibraryPath } from "./partition-plugin-assembly.js";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
@@ -241,22 +241,14 @@ function readOwnerFileSnapshots(
   if (!discovered.builtin && !scopeRecord?.sandboxInstallId) {
     throw new ActionError("actions.forbidden", `非内置非沙箱插件 ${manifest.plugin_id} 不能直接读取主人文件`);
   }
-  // Home-scoped owner_files (including built-in Home plugins such as Shelf/Images and third-party Home sandbox
-  // plugins) are shared across projects and must never be exported under a project scope.
-  const isHomeScoped = section.scope === "home"
-    || discovered.builtin
-    || (manifest.runtime?.scope === "home" && !discovered.project?.sandboxInstallId);
+  const builtinPartition = discovered.builtin && section.scope === "project" && manifest.databases?.partition;
+  const isHomeScoped = section.scope === "home" || (discovered.builtin ? !builtinPartition : manifest.runtime?.scope === "home" && !discovered.project?.sandboxInstallId);
   if (projectId !== null && isHomeScoped) {
     throw new ActionError("actions.scope_mismatch", `插件 ${manifest.plugin_id} 的 Home 级文件不按项目隔离，不能在项目范围内导出`);
   }
-  let base: string | null = null;
-  if (section.scope === "project" && discovered.project?.sandboxInstallId && projectId) {
-    base = sandboxOwnerFilesBase(homeDirectory, projectId, discovered.project.sandboxInstallId);
-  } else if (section.scope === "home" && discovered.home?.sandboxInstallId) {
-    base = sandboxOwnerFilesBase(homeDirectory, null, discovered.home.sandboxInstallId);
-  } else if (discovered.builtin) {
-    base = homeDirectory;
-  }
+  const installation = builtinPartition ? installIdentity(manifest) : scopeRecord?.sandboxInstallId;
+  const base = installation ? checkedOwnerFilesBase(homeDirectory, section.scope === "project" ? projectId : null, installation)
+    : discovered.builtin ? homeDirectory : null;
   if (!base || !existsSync(base)) return { files: [], truncated: false };
   const reader = openPluginOwnerFiles(base, declaration);
   const files: PluginDataFileSnapshot[] = [];

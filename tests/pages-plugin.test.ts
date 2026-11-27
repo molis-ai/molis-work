@@ -16,7 +16,7 @@ import {
   deferredSurfaceClients, pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
-  PAGES_CLIENT_FACTORY_SCRIPT,
+  PAGES_CLIENT_FACTORY_SCRIPT, pagesManifest,
   PAGES_STYLES,
   PAGES_TEMPLATES,
   convertedBlocks,
@@ -558,7 +558,7 @@ test("Pages 是分区插件（第 107 批起），按分区启用，不再是个
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
   const market = runWithLocale("zh", () => pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "pages"));
-  assert.equal(market?.personal, false);
+  assert.equal(market?.runtime_id, pagesManifest.plugin_id);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 

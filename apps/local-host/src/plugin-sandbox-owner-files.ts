@@ -74,6 +74,13 @@ export function sandboxOwnerFilesBase(homeDirectory: string, projectId: string |
   return join(sandboxOwnerFilesRoot(homeDirectory, projectId), "plugin-files", installation);
 }
 
+/** A read may follow only the verified installation directory in its own partition. */
+export function checkedOwnerFilesBase(home: string, projectId: string | null, installId: string): string {
+  const base = sandboxOwnerFilesBase(home, projectId, installId);
+  assertOwnSandboxFilesPath(sandboxOwnerFilesRoot(home, projectId), base);
+  return base;
+}
+
 /**
  * A per-partition instance's declared files (batch 108, §5 插件文件): the same root a sandboxed installation has in that partition,
  * `<partition root>/plugin-files/<installation>/<store_name>/`, whatever runs the code; deleting the partition deletes them with it.
@@ -130,9 +137,8 @@ function ownFiles(scope: SandboxOwnerFilesScope, definition: PluginDefinition,
   const declaration = definition.manifest.owner_files!;
   if (!scope.home) throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了主人文件，但这个插件平台没有 Home`);
   const root = sandboxOwnerFilesRoot(scope.home.directory, scope.project_id);
-  const base = sandboxOwnerFilesBase(scope.home.directory, scope.project_id, context.install_id);
-  // Checked before mkdirSync (so a swapped link cannot create directories in another partition) and again after.
-  assertOwnSandboxFilesPath(root, base);
+  const base = checkedOwnerFilesBase(scope.home.directory, scope.project_id, context.install_id);
+  // Check again after creating the installation directory.
   mkdirSync(base, { recursive: true, mode: 0o700 });
   assertOwnSandboxFilesPath(root, base);
   // A sandboxed package is given no location: `rootPath()` answers "unavailable", and the sandbox's broker has no method for it either way.

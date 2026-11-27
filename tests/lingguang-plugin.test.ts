@@ -102,7 +102,7 @@ test("灵光由项目按分区启用（第 107 批做法 A），岛上叫灵光�
   assert.equal(entry?.label, "灵光");
   assert.equal(entry?.glyph, "idea");
   const market = pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "lingguang");
-  assert.notEqual(market?.personal, true);
+  assert.equal(market?.runtime_id, lingguangManifest.plugin_id);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.ok(lingguangManifest.ui.views?.some(view => view.slot === "stage" && view.view_id === "workbench"));

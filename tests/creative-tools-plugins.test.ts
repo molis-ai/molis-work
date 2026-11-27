@@ -113,7 +113,7 @@ test("Forms / Dataset / PPT 由项目按分区启用，不再是常开的个人�
     ["form", "dataset", "ppt"],
   );
   const market = pluginMarketCards(builtinMarketDirectory());
-  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id), [], "no built-in is a personal plugin since batch 108");
+  for (const id of ["form", "dataset", "ppt"]) assert.ok(market.some(card => card.id === id), `${id} 可从市场添加到本分区`);
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 

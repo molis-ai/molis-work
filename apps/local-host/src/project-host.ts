@@ -596,7 +596,6 @@ export class MolisWorkLocalHost {
     return this.host.closeProject(referenceOrStorageKey);
   }
 
-  /** The Home this Host serves the partitions of, once its catalog is bound; the Home's lists read its overview index. */
   /** A retained passive binding must pass the catalog's current membership even after discovery. */
   partitionSyncMember(partitionId: string, pluginId: string): boolean {
     return this.webCatalog?.access.read(catalog => projectPluginJudge(catalog, partitionId, this.overviewHome())(pluginId) === true) === true;
@@ -611,6 +610,7 @@ export class MolisWorkLocalHost {
     return candidates.filter(id => (!live || live.has(id)) && (!scope || scope.includes(id)) && (this.options.overviewProjectAccess?.(caller, id) ?? true));
   }
 
+  /** The Home this Host serves the partitions of, once its catalog is bound; the Home's lists read its overview index. */
   overviewHome(): string | undefined { return this.catalogRunner ? this.personalPlanningHome : undefined; }
 
   /** Every partition of this Home, the personal space first, as the Home names them; none without a Home catalog. */

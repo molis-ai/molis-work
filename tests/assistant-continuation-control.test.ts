@@ -376,7 +376,7 @@ for (const removal of ["project", "title"] as const) test(`B2R-02 the next model
       provider_id: OVERVIEW_PROVIDER_ID, input: { kinds: ["task"] } } }) : respond();
   }));
   const queue = new AgentReviewQueue(), agents = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.overview-test", appVersion: "1.0" },
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.overview-test", appVersion: "1.0.0" },
     storageRoot: join(home.home, "test-model"), reviewQueue: queue, modelConfiguration: async () => ({
       protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture" });
   agents.register(adapter);

@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   PLUGIN_DATA_EXPORT_FORMAT, PLUGIN_DATA_EXPORT_PERMISSION, SANDBOX_PACKAGE_FILES, pluginDataActions,
@@ -11,6 +16,7 @@ import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/moli
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-pages";
 import { CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { mac, operate, operationsOf, person, ref, refused } from "./fixtures/home-sandbox.js";
@@ -195,4 +201,21 @@ test("Audit #7 plugins.data.sections and plugins.data.export serve built-in and 
     homeClient.invoke(homeCaller, ref(pluginDataActions.export), { plugin_id: "io.molis.work.missing" }),
     refused("host.plugin_data_not_found"),
   );
+});
+
+test("UPP-06 B2R-06 Images data export reads owner files only from the requested partition's installation", async t => {
+  const home = await openTestHome(t), project = await home.createProject("Pictures", ["images"]);
+  await addProjectPlugin(home.web, "personal", "images");
+  const client = home.host.homeActionClient();
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [PLUGIN_DATA_EXPORT_PERMISSION] };
+  for (const partition of ["personal", project.project_id]) {
+    const dir = join(partitionRoot(home.home, partition), "plugin-files", installIdentity(imagesManifest), "images", "assets");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "same-name.png"), partition);
+  }
+  for (const partition of ["personal", project.project_id]) {
+    const snapshot = await client.invoke(caller, ref(pluginDataActions.export), { plugin_id: imagesManifest.plugin_id, project_id: partition }) as PluginDataExportResult;
+    assert.deepEqual(snapshot.sections.flatMap(section => section.files ?? []).map(file => [file.path, Buffer.from(file.content_base64!, "base64").toString()]),
+      [["assets/same-name.png", partition]]);
+  }
 });

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { ISSUE_FRAME, issueView, type IssueBrowser } from "./fixtures/issue-browser.js";
@@ -220,6 +221,7 @@ test("RAC-2801 RAC-2802: native search from the nested Issue composer keeps its 
 test("UPP-30 B2R-09 capture a task in personal space after confirmation, then find its owner from the overview", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null, undefined, undefined, { projectPlugins: ["todo"] });
   if (!b) return;
+  const todo = await pluginFrameBrowser(t, b, "todo");
   const visit = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
   await visit("/projects/" + b.projectId + "/");
   const panel = "[data-personal-tasks=capture]";
@@ -244,5 +246,5 @@ test("UPP-30 B2R-09 capture a task in personal space after confirmation, then fi
   const owner = new URL(links.find(row => row.title.includes("B2 project task"))!.url);
   assert.equal(owner.pathname, "/projects/" + b.projectId + "/");
   await b.navigate(() => b.click("[data-personal-tasks-body] a[href^='/projects/" + b.projectId + "/']"));
-  await b.waitFor("document.querySelector('[data-todo-field=title]')?.value === 'B2 project task'");
+  await todo.waitFor("document.querySelector('[data-todo-field=title]')?.value === 'B2 project task'");
 });

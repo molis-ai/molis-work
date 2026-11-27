@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-26 主线事件卡新增 `system.mainline` 的 `mainline.line.contains@1`，本人在项目内持 `mainline:read` 可给出 `{ subject, window }`，取得 `{ on_line }`。事件卡每次操作沿用事项线的时间窗口和本人可见的事件登记；已有整线读取及插件事件登记合同保持原形。
+
 2026-11-26 第 112-2 批后续（用户 2026-11-26 选择退役，不另造测试用主人）。Manifest 自报模型选择的路径随最后一个主人 Jelly 退役。`packages/contracts/src/platform/settings.ts` 的 `SettingsDeclaration` 删去 `model_configuration`，`plugin-model-configuration.ts` 删去 `PluginModelConfigurationDeclaration` 与 `PluginModelConfigurationClient.preferences`。SDK 的 `parsePluginManifest` 遇到 `settings_entries.model_configuration` 按未知字段拒绝。Plugin Runtime 删去 `createPluginModelConfigurationClient` 与 `PluginModelConfigurationPort`，错误码 `plugin.model_configuration_action_required` 不再出现。`blueprints.adoption.preview@1`、`blueprints.library.read@1` 的预览项原位删去可选输出 `model_selection`，采用页不再有模型选择器，`/api/settings/models?choices=1` 一并删除。这一字段从未随任何发布写出，金样 Home 里也没有，所以不加升级步骤。Home 包的模型设置（`effects.modelSettings`、`services.model.configuration`、偏好文件 v1）不变。动作与公开 API 快照已刷新。
 
 2026-11-26 第 112-1 批（删除本机语音转写，用户 2026-11-25 决定 68）。合同阶段一收窄，同 PR 改完全部仓库内消费者，仓库外无消费者：`contracts/services/materials` 的 `MaterialExtractionOptions` 去掉 `allowModelDownload`、`onProgress`，`MaterialExtraction` 去掉 `frames`、`duration_seconds`，`MaterialSourceContent` 去掉 `frames`、`model_required`，识别语言加 `ja-JP`；`platform/plugin` 的 `PluginMaterialSourceRequest` 只留 `signal` 与 `allowedDomains`；`platform/plugin-sandbox` 同步去掉这三个字段并加 `ja-JP`；SDK `MATERIAL_EXTENSIONS` 去掉 `media`（音视频上传以 `material.unsupported` 拒绝）。动作同版本收窄：`artifacts.import.file@1` 输入去 `allow_model_download`、输出去 `model_required`，`artifacts.import.external@1` 输出去 `model_required`，`lingguang.material.read@1`、`lingguang.source.read@1` 输入去 `allow_model_download`。Home 的 `materials/` 只留一条只排除的登记（见「当前保留机制」）。
@@ -163,6 +165,8 @@
 
 ### 当前保留机制
 
+- **主线事项修订（2026-11-26 用户批准）**。主线服务负责 `mainline/mainline.db` 的 1→2 升级，仅在显式升级事务中为已有事项补齐起始修订 1。普通打开只认 v2。仍支持带 v1 主线库的 Home 期间保留此段。
+
 - **个人同步 M1-B2（用户已批准）**。项目库、Agent 定义库、蓝图库、Functions 库和外观文件各自保留一段 v1→v2 升级。四个库新增 owner 同步日志并登记已有可同步记录，外观保留选择和回执并加入同步状态。读取只认 v2，转换由既有独立升级入口执行。Attention 保留现有集合的 v1 标识和日志。
 
 以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。
@@ -214,6 +218,7 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `mainline/mainline.db` | 1 → 2 | BL-b36-review-followups：新增逐事项修订，旧事项从 1 起步 | `horizontal/mainline/src/store.ts#MAINLINE_BASELINE#1→2` |
 | `memory/memory.db` | 1 → 2 | 2026-11-24 架构审查修复（用户确认补齐 `b3429bd1cc` 显式升级段）：将 `memory_markers` 中 `b3429bd1cc` 之前内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`，避免旧已完成记录永久误报 `needs-reconcile`，普通打开只认 v2 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
 | `projects/<project_id>/molis-work.db` | 2 → 3 | 第 44B 批 PR3：「等你」同步改用平台身份 `system.attention`、脱离 Inbox（44b.md 用户 2026-11-23 定的 2→3）；升级段只建平台自己的同步流水并把已有注意事项登记为待同步，不改业务表 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |

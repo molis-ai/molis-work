@@ -134,7 +134,7 @@ export async function readBundledPackages(directory: string): Promise<{ packages
         const { manifest, localePacks } = readKeptPackage(completeContentPackagePayload(draft, UNSIGNED));
         if (manifest.kind !== 'content') throw pluginErrors.declaration_invalid('随安装包带上的只能是只有声明的插件（kind: "content"）');
         if (file !== `${manifest.plugin_id}${DRAFT_SUFFIX}`) throw pluginErrors.package_invalid(`随包插件的待签文件要叫 ${manifest.plugin_id}${DRAFT_SUFFIX}`);
-        if (packages.some(item => item.manifest.plugin_id === manifest.plugin_id)) throw pluginErrors.package_invalid(`${manifest.plugin_id} 已经有签名的随包插件，不再认它的待签文件`);
+        if (files.includes(manifest.plugin_id + '.json')) throw pluginErrors.package_invalid(`${manifest.plugin_id} 已经有签名的随包插件，不再认它的待签文件`);
         drafts.push({ file, draft, manifest, localePacks });
         continue;
       }

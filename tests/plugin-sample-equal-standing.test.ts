@@ -12,11 +12,12 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { effectsFromContract, parsePluginManifest, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import {
-  defineWorkflowContentActions, defineSubjectContextAction, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
+  defineArtifactPreviewAction, defineWorkflowContentActions, defineSubjectContextAction, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
   intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, isWorkTerminalPromptAction,
   LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { connectorControl } from "./fixtures/connector-control.js";
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_OUTPUT_SCHEMA, SETTINGS_WRITE_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/settings";
@@ -203,6 +204,13 @@ function attachedTo(state, key) {
   return { targets: state.items.filter(item => item.bindings.includes(key)).map(item => ({ kind: 'sandbox_card', id: item.id })) };
 }
 export const operations = {
+  'artifact.save': async (input, sdk) => {
+    const receipt = await sdk.artifacts.put({ artifact_id:'standing-card-one', version:1, artifact_type_id:'com.example.standing.note', schema_version:1,
+      title:'Notebook record', media_type:'application/json', subject:{kind:'sandbox_card',id:'card-1'}, revision:'1', payload:{special_topic:input.word} });
+    return receipt.artifact_id;
+  },
+  'artifact.preview': async input => ({subject:{kind:'artifact',id:input.artifact.artifact_id},revision:String(input.artifact.version),title:input.artifact.title,
+    media_type:'text/plain',encoding:'utf8',data:input.artifact.payload.special_topic,truncated:false}),
   'integration.health': async () => ({ ok: true, status: 'connected', message: 'Ready' }),
   'integration.poll': async (input, sdk) => ({ ok: true, items: [{ externalId: 'sample-' + input.source_id, title: sdk.t.text('sandbox-standing.source'), summary: 'From signed source' }], cursor: '1' }),
   'settings.read': async (_input, sdk) => settingValues(await readState(sdk)),
@@ -284,6 +292,7 @@ export const operations = {
 
 function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle {
   const kind = { kind: "sandbox_card", title: "Sandbox card", glyph: "bookmark" };
+  const previewArtifact = defineArtifactPreviewAction("preview", 1, "Notebook card", ["artifact:read"]);
   const reader = defineSubjectContextAction("read", 1, kind.kind, kind.title, ["storage:private"]);
   const { receive } = defineWorkflowContentActions({ id: "sample", title: "Card collection", icon: "bookmark", subject_kind: kind.kind, read_permissions: [], write_permissions: ["storage:private"] });
   const search = defineSearchEntriesAction("s", 1, [{ ...kind, surface: SIGNED_SANDBOX_ID }], "Cards", ["storage:private"]);
@@ -298,6 +307,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
       version: 1,
       pluginId: manifest.plugin_id,
       revision: "standing-v1",
+      artifact_types: [{ artifact_type_id: "com.example.standing.note", schema_version: 1, title: "Notebook card", preview_operation: "artifact.preview", searchable_fields: ["special_topic"] }],
       home_source: {
         connection_services: [{ service_id: "sample-journal", title: { key: "sandbox-standing.source" }, group_id: "work", summary: "Personal updates", auth_kind: "none",
           auth: { methods: [] }, capabilities: [{ label: "Read updates", fulfillment: "live" }], origins: ["https://example.org"] }],
@@ -312,6 +322,10 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
         write_operation: "settings.write",
       },
       operations: [
+        { id: "artifact.save", kind: "command", input: { type: "object", required: ["word"], properties: { word: { type: "string" } }, additionalProperties: false },
+          output: { type: "string" }, effects: { artifacts: ["write"] }, errors: [], examples: [{ input: { word: "example" }, output: "standing-card-one" }] },
+        { id: "artifact.preview", kind: "query", read_protocol: { kind: "artifact_preview" }, input: previewArtifact.action.input_schema, output: previewArtifact.action.output_schema!,
+          effects: { artifacts: ["read"] }, errors: [], examples: [{ input: { artifact: {} }, outputIncludes: {} }] },
         ...(["health", "poll"] as const).map(name => ({ id: SANDBOX_INTEGRATION_OPERATIONS[name], ...structuredClone(SANDBOX_INTEGRATION_CONTRACT[name]), errors: [],
           examples: [{ input: { source_id: "one", config_json: "{}", has_connection: false, ...(name === "poll" ? { rebuild: false } : {}) }, outputIncludes: {} }] })),
         {
@@ -436,6 +450,12 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.equal(pulled.events[0]?.provider_dedupe_id, "sample-one");
   assert.equal(pulled.events[0]?.payload.title, "My journal");
 
+  const findRecord = () => projectClient.invoke(person, searchActions.query, { query: "mineralogyonereview" }) as Promise<SearchQueryResponse>;
+  assert.ok(!JSON.stringify(await findRecord()).includes("standing-card-one"));
+  const writer = byLocal("artifact.save");
+  const saveRecord = () => projectClient.invoke(person, { capability_id: writer.capability_id, version: writer.version, provider_id: writer.provider.provider_id }, { word: "mineralogyonereview" });
+  assert.equal(await saveRecord(), "standing-card-one");
+  assert.ok(JSON.stringify(await findRecord()).includes("standing-card-one"), "PSD-03 M12: system search found the immutable output by the producer's payload field");
   const kinds = await home.web.get<{ kinds: Record<string, string>; glyphs: Record<string, string> }>(`/projects/${project.project_id}/api/assistant/surface-kinds`);
   assert.equal(kinds.kinds[SIGNED_SANDBOX_ID], "sandbox_card");
   assert.equal(kinds.glyphs.sandbox_card, "bookmark");

@@ -37,7 +37,7 @@ const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, PLATFO
 
 const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
 const databasePath = join(directory, "project.sqlite"), projectId = "continuity-qa", goalId = "mobile-handoff";
-// The project's library starts with the platform's root row; Goals makes its board when the Host first opens the project, and the goal below is its own action's.
+// The library starts with the project root. The discovered work-item provider creates the item below.
 seedDemoBoard(databasePath, projectId);
 const ref = molisWorkHostProjectReference({ projectId, databasePath });
 const projectClient = host.actionClient(ref);
@@ -58,11 +58,11 @@ const guide = { artifact_id: "handoff-guide", version: 2 };
 await host.withProject(ref, async ({ artifacts }) => {
   // Reopening the QA Home keeps the version already shared with its devices.
   if (artifacts.query.getArtifactVersion(projectId, guide)) return;
-  const documentOwners = new Set(directoryActions.filter(view => documentGenerationRoleOf(view.action) === "document.get").map(view => view.provider.plugin_id));
-  const candidates = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => documentOwners.has(entry.manifest.plugin_id)).flatMap(({ manifest }) =>
+  // Document providers can live in a partition. Their signed-in-build declarations describe the artifact pinned into the demo project.
+  const candidates = PLATFORM_PLUGIN_REGISTRATIONS.filter(({ manifest }) => manifest.actions?.some(action => documentGenerationRoleOf(action.action) === "document.get")).flatMap(({ manifest }) =>
     manifest.artifacts.produces.flatMap(declaration => {
       const pin = declaration.pin;
-      const action = pin && directoryActions.find(view => view.provider.plugin_id === manifest.plugin_id && view.capability_id === pin.capability_id && view.version === pin.version);
+      const action = pin && manifest.actions?.find(view => view.capability_id === pin.capability_id && view.version === pin.version);
       const subjectKind = action?.action.subject_kinds[0];
       return subjectKind ? [{ producer: manifest, declaration, subjectKind }] : [];
     }));

@@ -148,6 +148,7 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
       if (input.scope === 'home' && !input.dualInstance) throw pluginErrors.declaration_invalid('workflow_receive needs a project installation or a project instance');
       return 'project';
     }
+    if (operation.effects.artifacts?.length || operation.read_protocol?.kind === 'artifact_preview') return 'project';
     if (operation.read_protocol?.kind === 'work_terminal_prompt' || operation.read_protocol?.kind === 'resume_summary'
       || operation.action_protocol?.kind === 'placement_relation') return 'project';
     if (input.dualInstance && input.contract.home_source && !operation.effects.homeDatabase?.length && !operation.effects.modelSettings?.length && !operation.effects.imageGeneration?.length) return 'project';

@@ -5,6 +5,7 @@ import {
 } from '@molis-ai/molis-work-contracts/platform/actions';
 import { isUiSubjectContextKind, pluginErrors } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxProtocolOperation, SandboxReadOperation } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { defineArtifactPreviewAction } from '@molis-ai/molis-work-contracts/platform/actions';
 import { definePresentationOverviewAction, definePresentationValuesAction, PRESENTATION_LIMITS } from '@molis-ai/molis-work-contracts/platform/presentation';
 import {
   SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_INPUT_TYPE, SETTINGS_READ_OUTPUT_SCHEMA,
@@ -31,6 +32,7 @@ function definitionOf(protocol: unknown, { pluginId, capabilityId, version, titl
     && protocol.subject_kinds.every(subjectKind) && new Set(protocol.subject_kinds).size === protocol.subject_kinds.length) {
     return definePresentationValuesAction(capabilityId, version, protocol.subject_kinds, title, permissions, scope);
   }
+  if (protocol.kind === 'artifact_preview' && keys.length === 1 && scope === 'project') return defineArtifactPreviewAction(capabilityId, version, title, permissions);
   if (protocol.kind === 'presentation_overview' && keys.length === 1) {
     return definePresentationOverviewAction(capabilityId, version, title, permissions, scope);
   }

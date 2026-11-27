@@ -46,6 +46,32 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
   };
 }
 
+function sandboxArtifacts(owner: NonNullable<PluginHostServices['artifacts']>): NonNullable<SandboxServices['artifacts']> {
+  return {
+    async get(context, reference) {
+      await context.beforeEffect?.(); context.signal.throwIfAborted();
+      const item = owner.readOwn(reference);
+      return item ? { artifact_id: item.artifact_id, version: item.version, title: item.title, payload: item.payload } : null;
+    },
+    async put(context, value) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)
+        || Object.keys(value).some(key => !['artifact_id','version','artifact_type_id','schema_version','title','media_type','subject','revision','payload'].includes(key))
+        || typeof value.artifact_id !== 'string' || typeof value.version !== 'number' || typeof value.artifact_type_id !== 'string'
+        || typeof value.schema_version !== 'number' || typeof value.title !== 'string' || typeof value.media_type !== 'string'
+        || typeof value.revision !== 'string' || !value.subject || typeof value.subject !== 'object' || Array.isArray(value.subject)
+        || typeof value.subject.kind !== 'string' || typeof value.subject.id !== 'string' || !Object.hasOwn(value, 'payload')) {
+        throw new SandboxError('sandbox.invalid_input', '保存成果需要声明的类型、原对象、版本和正文');
+      }
+      await context.beforeEffect?.(); context.signal.throwIfAborted();
+      const { artifact, replayed } = owner.publish({ artifact_id: value.artifact_id, version: value.version,
+        artifact_type_id: value.artifact_type_id, schema_version: value.schema_version, title: value.title, media_type: value.media_type,
+        origin: { kind: 'pinned', subject: { kind: value.subject.kind, id: value.subject.id }, revision: value.revision },
+        content: { kind: 'inline', payload: value.payload! } });
+      return { artifact_id: artifact.artifact_id, version: artifact.version, replayed };
+    },
+  };
+}
+
 /** Same data shape as the normal broker; validation gets no writer or other service. */
 export function readOnlySandboxStorage(storage: Pick<PluginPrivateStorage, "get">): NonNullable<SandboxServices["storage"]> {
   return { async transaction(context, query) {
@@ -57,7 +83,7 @@ export function readOnlySandboxStorage(storage: Pick<PluginPrivateStorage, "get"
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'projects' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'imageGeneration' | 'background'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'projects' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'imageGeneration' | 'artifacts' | 'background'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
 export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
   /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
@@ -76,6 +102,7 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
   if (!storage) throw new SandboxError('sandbox.storage_unavailable', '插件存储尚未装配');
   return {
     storage: storageTransactions(storage),
+    ...(host.artifacts ? { artifacts: sandboxArtifacts(host.artifacts) } : {}),
     ...(host.project_statements ? { projectDatabase: sandboxDatabase(host.project_statements) } : {}),
     ...(host.database_statements ? { homeDatabase: sandboxDatabase(host.database_statements) } : {}),
     ...(extras.capability ? { capability: extras.capability } : {}),
@@ -117,7 +144,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn', sync: 'refused', savedHistory: 'refused',
   database: 'entry', files: 'entry', imageGeneration: 'given',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'given', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -130,12 +157,12 @@ export interface NotGiven {
   declared(definition: SandboxDeclarations, held: readonly string[]): boolean;
 }
 
-/** The Manifest's declarations of project artifacts, process items, ports and events: the services built from them are not given. */
+/** Only declared, previewable producer types may use the sandbox artifact service. */
 function declaresCoordination(definition: SandboxDeclarations, held: readonly string[]): boolean {
   const { artifacts, process_items, ports, events } = definition.manifest;
-  return !!(artifacts.produces.length || artifacts.consumes.length || process_items?.produces.length || process_items?.consumes.length
+  return !!(artifacts.produces.some(type => !type.preview) || artifacts.consumes.length || process_items?.produces.length || process_items?.consumes.length
     || ports?.inputs.length || ports?.outputs.length || events?.publishes.length || events?.subscribes.length)
-    || asksFor(definition, held, ['artifact:read', 'artifact:write']);
+    || !artifacts.produces.length && asksFor(definition, held, ['artifact:read', 'artifact:write']);
 }
 
 /** A declared permission counts when the package cannot work without it, or when the person approved it. */
@@ -182,7 +209,7 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['scenes:use']) },
   { service: 'judgments', services: ['judgments'], reason: 'Reading and recording the judgment ledger of the plugin\'s own scenes (judgments:read, judgments:write) is not given to sandboxed plugins: the ledger is the Home\'s Functions library, outside a sandboxed package\'s project data (PG-032 P2).',
     declared: (definition, held) => asksFor(definition, held, ['judgments:read', 'judgments:write']) },
-  { service: 'artifacts', services: ['artifacts', 'processItems', 'events', 'inputs', 'outputs'], reason: 'Project artifacts, process items, ports and events (artifacts, process_items, ports, events in the Manifest) are not given to sandboxed plugins yet (PG-017 BL-494).',
+  { service: 'artifacts', services: ['processItems', 'events', 'inputs', 'outputs'], reason: 'Sandbox apps publish and read their own declared artifact types. Consuming other types, process items, ports and events are not available (PG-017 BL-494).',
     declared: declaresCoordination },
 ];
 

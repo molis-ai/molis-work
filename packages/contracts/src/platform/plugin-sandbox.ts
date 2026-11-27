@@ -147,6 +147,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
 export type SandboxReadProtocol = { kind: 'subject_context'; subject_kind: string }
   | { kind: 'presentation_values'; subject_kinds: readonly string[] }
   | { kind: 'presentation_overview' }
+  | { kind: 'artifact_preview' }
   | { kind: 'search_entries'; kinds: readonly { kind: string; title: string; glyph?: string }[] }
   | { kind: 'resume_summary'; subject_kinds: readonly string[] }
   | { kind: 'work_terminal_prompt'; subject_kind: string };
@@ -257,7 +258,12 @@ export interface SandboxPluginContract {
   presentation?: PresentationDeclaration;
   settings_entries?: SandboxSettingsDeclaration;
   /** A dual-instance application's personal source is redeemed only by its Home installation. */
-  home_source?: Pick<import('./plugin.js').PluginManifest, 'connection_services' | 'integrations' | 'source_presentations'>;
+  artifact_types?: readonly { artifact_type_id: string; schema_version: number; title: string; preview_operation: string; searchable_fields?: readonly string[] }[];
+  home_source?: {
+    readonly integrations: readonly import('./plugin-integrations.js').PluginIntegrationDeclaration[];
+    readonly connection_services: readonly import('./plugin-integrations.js').PluginConnectionServiceDeclaration[];
+    readonly source_presentations?: readonly string[];
+  };
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   /** Present, possibly empty, on every design made since SMP-11; absent on a contract frozen before it. */
   state_machines?: SandboxStateMachine[];
@@ -456,7 +462,8 @@ export interface SandboxSdk {
   };
   artifacts: {
     get(reference: { artifact_id: string; version: number }): Promise<SandboxJson>;
-    put(value: SandboxJson): Promise<SandboxJson>;
+    put(value: { artifact_id: string; version: number; artifact_type_id: string; schema_version: number; title: string; media_type: string;
+      subject: { kind: string; id: string }; revision: string; payload: SandboxJson }): Promise<SandboxJson>;
   };
   capability: { call(id: string, input: SandboxJson): Promise<SandboxJson> };
   events: { publish(id: string, payload: SandboxJson): Promise<void> };

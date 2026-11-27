@@ -15,7 +15,8 @@ import { openProjectVersionStores } from './project-version-stores.js';
 import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-studio';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-studio';
-import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./project-plugin-databases.js";
+import { stageProjectDatabaseDiscard, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import type { LocalProjectDatabase } from './project-database.js';
 import type { PluginPlatform, PluginPlatformOptions } from './plugin-platform.js';
@@ -182,6 +183,10 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     records,
   });
   const lifecycleContext: InstalledLifecycleContext = { platform, home: homeDirectory, library: store.path, project_id: projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+    discardDatabase(previous, next) {
+      const schema = (manifest?: PluginManifest) => manifest?.databases?.project && { declaration: manifest.databases.project, ...projectPluginPlatformExtension(manifest) };
+      return stageProjectDatabaseDiscard(store.db, previous, schema(packages.installedManifest(previous)), schema(next), projectPluginSchemaInspector, store.path);
+    },
     async forget(pluginId, installId) {
       declared.release(pluginId);
       forgetInstalledMemoryScene(projectId, pluginId);

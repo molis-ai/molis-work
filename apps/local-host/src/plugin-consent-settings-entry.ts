@@ -7,6 +7,7 @@ const entries = new WeakSet<ActionUserAction>();
 // The project settings page's own door for what a plugin installed in that project holds (PG-002, S-94): a second membership, so a credential
 // the Home's consent door issued is not good for it and the other way round.
 const permissionEntries = new WeakSet<ActionUserAction>();
+const discardPreviews = new WeakMap<ActionUserAction, string>();
 // The same switch for the plugins that run as the Home's own instance (BL-700, S-94): the Host settings door, no project; a third membership.
 const homePermissionEntries = new WeakSet<ActionUserAction>();
 const projectReachEntries = new WeakMap<ActionUserAction, string>();
@@ -25,6 +26,21 @@ export async function withProtectedHostAction<T>(action: ActionUserAction, invok
   if (webEntries.has(action)) return invoke();
   webEntries.add(action);
   try { return await invoke(); } finally { webEntries.delete(action); }
+}
+
+/** A press in the trusted installation sheet or settings import, for exactly the preview the person saw. */
+export async function withPackageDiscardEntry<T>(preview: string, invoke: (action: ActionUserAction) => Promise<T>): Promise<T> {
+  const action: ActionUserAction = Object.freeze({source: "web", conversation_ref: "web:package-install", message_ref: `web:request:${randomUUID()}`});
+  discardPreviews.set(action, preview);
+  try { return await withProtectedHostAction(action, () => invoke(action)); }
+  finally { discardPreviews.delete(action); }
+}
+
+export function assertPackageDiscardEntry(caller: ActionCallContext | undefined, preview: string): void {
+  if (!caller?.user_action || discardPreviews.get(caller.user_action) !== preview || caller.audience !== "user"
+    || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.host_plugin || caller.delegated_by) {
+    throw new ActionError("actions.forbidden", "只有本人可以放弃这次安装的旧数据");
+  }
 }
 
 export async function withProjectReachSettingsEntry<Result>(caller: ActionCallContext,

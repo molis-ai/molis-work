@@ -7,7 +7,7 @@ import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/revie
 // specs/plugin-builder-upgrade/spec.md §7.0, PBU-47-5: the install sheet the shell draws on a plugin page, every stage as the component
 // board shows it (原处的安装单 · 平台区域版, drawn with the sheet's own markup, styles and counted height). One screen: at the height the
 // shell gives it nothing in the sheet scrolls and nothing is cut by its edge, with the two lists side by side (720), stacked (560) and
-// at the narrow step (375), in Chinese and English, light and dark. MOLIS_WORK_SAVE_SCREENSHOTS=1 writes each specimen into the ignored
+// at the narrow step (375), in Chinese, English and Japanese, light and dark. MOLIS_WORK_SAVE_SCREENSHOTS=1 writes each specimen into the ignored
 // review folder.
 
 const CJK = /[㐀-鿿]/u;
@@ -31,7 +31,10 @@ const MEASURE = `(() => {
     for (const steps of card.querySelectorAll('.install-steps')) if (steps.scrollWidth > steps.clientWidth + 0.5 || steps.scrollHeight > steps.clientHeight + 0.5) problems.push('the steps are cut');
     for (const name of card.querySelectorAll('.install-steps li>span')) {
       const range = document.createRange(); range.selectNodeContents(name);
-      if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1) problems.push(name.textContent + ' wraps');
+      const rects = [...range.getClientRects()];
+      if (new Set(rects.map(rect => Math.round(rect.top))).size > 1)
+        problems.push(name.textContent + ' wraps: ' + JSON.stringify(rects.map(rect => [rect.x, rect.y, rect.width, rect.height])));
+      if (name.scrollWidth > name.clientWidth + 0.5) problems.push(name.textContent + ' is cut');
     }
     const tiles = [...card.querySelectorAll('.install-tile')].map(tile => Math.round(box(tile).height));
     if (new Set(tiles).size > 1) problems.push('tiles differ in height: ' + tiles.join());
@@ -42,21 +45,21 @@ const MEASURE = `(() => {
   });
 })()`;
 
-test("PBU-47-5 every stage of the install sheet stands in one screen at the height the shell counts, in both languages and themes", { timeout: 240_000 }, async (t) => {
+test("PBU-47-5 every stage of the install sheet stands in one screen at the height the shell counts, in three languages and both themes", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
   const shots = shouldSaveReviewScreenshots() ? reviewEvidenceUrl("install-sheet-board/") : null;
   if (shots) await mkdir(shots, { recursive: true });
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  for (const lang of ["zh", "en"] as const) for (const theme of ["light", "dark"] as const) {
+  for (const lang of ["zh", "en", "ja"] as const) for (const theme of ["light", "dark"] as const) {
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     // The address differs each round (the theme is the browser's; the parameter only makes the navigation a new document).
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=${lang}&theme=${theme}#install-sheet` }, sessionId));
     await waitFor("document.readyState === 'complete' && !!document.querySelector('#install-sheet [data-install-sheet-specimen]')", 20_000);
     const found = await evaluate<Array<{ stage: string; width: number; height: number; problems: string[]; scrolls: string; columns: number }>>(MEASURE);
     const at = `${lang} ${theme}`;
-    assert.deepEqual([...new Set(found.map(card => card.stage))].sort(), ["done", "failed", "keys", "line", "loading", "review", "untrusted", "working"], `${at}: every stage is on the board`);
+    assert.deepEqual([...new Set(found.map(card => card.stage))].sort(), ["discard", "done", "failed", "keys", "line", "loading", "review", "untrusted", "working"], `${at}: every stage is on the board`);
     for (const card of found) assert.deepEqual(card.problems, [], `${at} ${card.stage} ${card.width}×${card.height}`);
     // The two lists stand side by side from 640, and one under the other below it; a package with nothing optional has one list.
     const first = found.filter(card => card.stage === "review").slice(0, 3);

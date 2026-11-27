@@ -1,5 +1,5 @@
 import {
-  definePlacementRelationAction, defineResumeSummaryAction, defineSubjectContextAction, defineWorkTerminalPromptAction,
+  definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineSubjectContextAction, defineWorkTerminalPromptAction,
   PLACEMENT_RELATION_ROLES, type ActionDefinition, type ActionMetadata, type PlacementRelationRole, type PlacementRelationTarget,
 } from '@molis-ai/molis-work-contracts/platform/actions';
 import { isUiSubjectContextKind, pluginErrors } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -9,16 +9,17 @@ import {
   SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_INPUT_TYPE, SETTINGS_READ_OUTPUT_SCHEMA,
   SETTINGS_READ_OUTPUT_TYPE, SETTINGS_WRITE_INPUT_SCHEMA, SETTINGS_WRITE_INPUT_TYPE,
 } from '@molis-ai/molis-work-contracts/platform/settings';
+import { PLUGIN_ICON_NAMES } from './ui/icon-names.js';
 import { canonicalJsonText, isRecord } from './json-value.js';
 
-interface Identity { capabilityId: string; version: number; title: string; scope: ActionMetadata['scope']; permissions: readonly string[] }
+interface Identity { pluginId?: string; capabilityId: string; version: number; title: string; scope: ActionMetadata['scope']; permissions: readonly string[] }
 const schemaIdentity: Identity = { capabilityId: 'sandbox.protocol', version: 1, title: 'Sandbox read protocol', scope: 'project', permissions: [] };
 const localStores = new Set(['storage', 'artifacts', 'projectDatabase', 'homeDatabase', 'ownerFiles']);
 const invalid = (message: string) => pluginErrors.declaration_invalid(message);
 const subjectKind = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
 const validRelation = (value: unknown): value is string => typeof value === 'string' && /^[a-z][a-z0-9_.-]{0,63}$/.test(value);
 
-function definitionOf(protocol: unknown, { capabilityId, version, title, scope, permissions }: Identity): ActionDefinition {
+function definitionOf(protocol: unknown, { pluginId, capabilityId, version, title, scope, permissions }: Identity): ActionDefinition {
   if (!isRecord(protocol)) throw invalid('read_protocol must be a fixed protocol object');
   const keys = Object.keys(protocol);
   if (protocol.kind === 'subject_context' && keys.length === 2 && subjectKind(protocol.subject_kind)) {
@@ -31,6 +32,19 @@ function definitionOf(protocol: unknown, { capabilityId, version, title, scope, 
   }
   if (protocol.kind === 'presentation_overview' && keys.length === 1) {
     return definePresentationOverviewAction(capabilityId, version, title, permissions, scope);
+  }
+  if (protocol.kind === 'search_entries' && keys.length === 2 && Array.isArray(protocol.kinds) && protocol.kinds.length > 0 && protocol.kinds.length <= 20) {
+    const kinds = protocol.kinds.map(entry => {
+      if (!isRecord(entry) || !Object.keys(entry).every(key => ['kind', 'title', 'glyph'].includes(key))
+        || !validRelation(entry.kind) || !subjectKind(entry.title)
+        || entry.glyph !== undefined && (typeof entry.glyph !== 'string' || !(PLUGIN_ICON_NAMES as readonly string[]).includes(entry.glyph))) {
+        throw invalid('search_entries requires named object kinds and supported glyphs');
+      }
+      // Registration binds the verified manifest's surface; the standalone schema pass only checks the shape.
+      return { kind: entry.kind, title: entry.title, surface: pluginId ?? 'sandbox', ...(typeof entry.glyph === 'string' ? { glyph: entry.glyph } : {}) };
+    });
+    if (new Set(kinds.map(entry => entry.kind)).size !== kinds.length) throw invalid('search_entries object kinds must be unique');
+    return defineSearchEntriesAction(capabilityId, version, kinds, title, permissions, scope);
   }
   if (protocol.kind === 'resume_summary' && keys.length === 2 && Array.isArray(protocol.subject_kinds)
     && protocol.subject_kinds.length > 0 && protocol.subject_kinds.length <= 20

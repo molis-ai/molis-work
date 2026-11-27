@@ -154,7 +154,7 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
       ...(operation.description_text === undefined ? {} : { description_text: operation.description_text }),
     };
     if (operation.read_protocol !== undefined) {
-      const definition = sandboxReadProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
+      const definition = sandboxReadProtocolAction(operation, { pluginId: input.contract.pluginId, capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
       return { ...definition, action: { ...definition.action, ...localized, local_id: operation.id } };

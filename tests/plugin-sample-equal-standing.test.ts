@@ -11,7 +11,7 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { effectsFromContract, parsePluginManifest, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import {
-  definePlacementRelationAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
+  definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
   intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, isWorkTerminalPromptAction,
   LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -209,6 +209,13 @@ export const operations = {
     await writeState(sdk, state);
     return settingValues(state);
   },
+  'cards.search': async (_input, sdk) => {
+    const state = await readState(sdk);
+    return { collection_revision: String(state.revision), next_cursor: null, entries: state.items.map(item => ({
+      subject: { kind: 'sandbox_card', id: item.id }, revision: String(state.revision), title: item.title,
+      summary: item.title, updated_at: null, content: 'summary', open: { surface: '${SIGNED_SANDBOX_ID}', id: item.id },
+    })) };
+  },
   'resume.summary': async (_input, sdk) => {
     const state = await readState(sdk);
     const first = state.items[0];
@@ -256,6 +263,8 @@ export const operations = {
 `;
 
 function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle {
+  const kind = { kind: "sandbox_card", title: "Sandbox card", glyph: "bookmark" };
+  const search = defineSearchEntriesAction("s", 1, [{ ...kind, surface: SIGNED_SANDBOX_ID }], "Cards", ["storage:private"]);
   const resumeDef = defineResumeSummaryAction("r", 1, ["sandbox_card"], "r", ["storage:private"]);
   const wtDef = defineWorkTerminalPromptAction("w", 1, "sandbox_card", "w", ["storage:private"]);
   const rel = (role: (typeof PLACEMENT_RELATION_ROLES)[number]) => definePlacementRelationAction("card", role, "p", 1, {
@@ -287,6 +296,11 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
           input: SETTINGS_WRITE_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
           errors: [{ code: "actions.conflict", description: "revision changed" }], effects: { storage: ["read", "write"] },
           examples: [{ input: { key: "greeting", layer: "project", change: { set: "Hi" }, expected_revision: "1", request_id: "r1" }, output: { values: [{ key: "greeting", revision: "2", state: "ok", value: "Hi", source: "project" }] } }],
+        },
+        {
+          id: "cards.search", kind: "query", read_protocol: { kind: "search_entries", kinds: [kind] },
+          input: search.action.input_schema, output: search.action.output_schema!, errors: [], effects: { storage: ["read"] },
+          examples: [{ input: { cursor: null, limit: 10 }, output: { collection_revision: "1", next_cursor: null, entries: [] } }],
         },
         {
           id: "resume.summary", kind: "query", read_protocol: { kind: "resume_summary", subject_kinds: ["sandbox_card"] },
@@ -374,6 +388,9 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   const views = (await projectClient.discover(person)).filter(item => item.provider.plugin_id === SIGNED_SANDBOX_ID);
   const byLocal = (localId: string) => views.find(item => item.action.local_id === localId)!;
 
+  const kinds = await home.web.get<{ kinds: Record<string, string>; glyphs: Record<string, string> }>(`/projects/${project.project_id}/api/assistant/surface-kinds`);
+  assert.equal(kinds.kinds[SIGNED_SANDBOX_ID], "sandbox_card");
+  assert.equal(kinds.glyphs.sandbox_card, "bookmark");
   const brief = await home.web.get<{ html: string }>(`/api/projects/${project.project_id}/brief`);
   assert.match(brief.html, /Sandbox card/, "PSD-03 M2: the project brief renders the signed package's progress item");
 
@@ -492,7 +509,7 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
     files[SANDBOX_PACKAGE_FILES.entrypoint] = files[SANDBOX_PACKAGE_FILES.entrypoint]!.replace("export const operations", `
       const initial = ${JSON.stringify(example)};
       async function get(sdk) { return JSON.parse(await sdk.storage.get("setting") || JSON.stringify(initial)); }
-      export const operations`).replace(/};\s*$/u, `
+      export const operations`).replace(/\};\s*$/u, `
       'settings.read': async (_, sdk) => get(sdk),
       'settings.write': async (input, sdk) => {
         const state = await get(sdk), row = state.values[0];
@@ -534,13 +551,14 @@ test("44C-01/02 PSD-04 same-id publishers expose separate settings and task cate
   assert.equal((await write(local, "project-updated", "1")).status, 200);
   assert.match(await page("project"), /project-updated/);
   assert.match(await page("home"), /home-updated/);
-  const current = () => client.invoke(caller, ref(agentTaskGrantActions.list), {}) as Promise<TaskGrantListResult>;
+  const owner = await f.host.localPersonContext(project.reference);
+  const current = () => client.invoke(owner, ref(agentTaskGrantActions.list), {}) as Promise<TaskGrantListResult>;
   const categories = (await current()).categories.filter(category => category.plugin_id === pluginId);
   assert.deepEqual(categories.map(row => row.description).sort(), ["Owner home reads", "Owner project reads"]);
   assert.equal(new Set(categories.map(row => row.provider_id)).size, 1);
   const grant = categories.find(row => row.description === "Owner home reads")!;
   const category = { provider_id: grant.provider_id, group_id: grant.group_id, installation: grant.installation };
-  const set = (categories: typeof category[], expected_revision: string) => client.invoke(caller, ref(agentTaskGrantActions.set),
+  const set = (categories: typeof category[], expected_revision: string) => client.invoke(owner, ref(agentTaskGrantActions.set),
     { plugin_install_id: local.plugin_install_id, key: "sample", categories, expected_revision }) as Promise<TaskGrantSubject>;
   const held = await set([category], "");
   assert.deepEqual(held.categories.map(row => [row.description, row.status]), [["Owner home reads", "granted"]]);

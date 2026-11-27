@@ -147,6 +147,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
 export type SandboxReadProtocol = { kind: 'subject_context'; subject_kind: string }
   | { kind: 'presentation_values'; subject_kinds: readonly string[] }
   | { kind: 'presentation_overview' }
+  | { kind: 'search_entries'; kinds: readonly { kind: string; title: string; glyph?: string }[] }
   | { kind: 'resume_summary'; subject_kinds: readonly string[] }
   | { kind: 'work_terminal_prompt'; subject_kind: string };
 

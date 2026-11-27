@@ -37,8 +37,8 @@ async function fixture(t: TestContext, answer?: (turn: number) => Promise<Respon
   await writeFile(join(directory, "workspace-notes.txt"), "Workspace mention stays a Coding file reference.");
   await setProjectOutputFolder(b.web, b.projectId!, directory);
   const access = { actor: "user" as const, actorId: "web-user", projectId: b.projectId!, projectIds: [] };
-  const store = openTodoStore(b.homeDirectory);
-  const picked = (() => { try { return store.create({ title, notes: "只给本次模型的白鹭资料", placement: "project" }, access).item; } finally { store.close(); } })();
+  const store = openTodoStore(b.homeDirectory, undefined, b.projectId!);
+  const picked = (() => { try { return store.create({ title, notes: "只给本次模型的白鹭资料" }, access).item; } finally { store.close(); } })();
   const child = await pluginFrameBrowser(t, b, "coding");
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=coding` }, b.sessionId));
   await child.click("[data-coding-new]"); await b.waitFor(CODING_OPEN);
@@ -80,7 +80,7 @@ test("QEA-42 QEA-46: Coding sends a real Todo source once and preserves a reject
   assert.equal(await b.evaluate(`document.querySelectorAll(${JSON.stringify(CODING_COMPOSER + " .mw-upload")}).length`), 0, "Coding's @ remains a workspace text reference, not a system material selection");
   await choose();
   // Coding current references intentionally read the latest owner version when a new round starts.
-  const changed = openTodoStore(b.homeDirectory);
+  const changed = openTodoStore(b.homeDirectory, undefined, b.projectId!);
   try { changed.update(picked.id, { notes: "后来修改后的白鹭资料" }, undefined, access); } finally { changed.close(); }
   await send("@workspace-notes.txt 请阅读这份待办材料");
   await child.waitFor("window.materialCommands.length === 1 && document.querySelector('[data-coding-workbench]').textContent.includes('已阅读本次材料')", 30_000);
@@ -140,8 +140,8 @@ for (const both of [false, true]) test(`QEA-42 QEA-46 QEA-65: mixed choices reco
   // Closed without confirming, the choice stands.
   await b.evaluate("document.querySelector('.knowledge-picker').close()");
   await child.waitFor(`/ · 1$/.test(document.querySelector('${tag}')?.textContent.trim() ?? '')`, 10_000);
-  const store = openTodoStore(b.homeDirectory);
-  const bad = (() => { try { return store.create({ title: "另一个会撤回的来源", notes: "选择时的正文", placement: "project" }, access).item; } finally { store.close(); } })();
+  const store = openTodoStore(b.homeDirectory, undefined, b.projectId!);
+  const bad = (() => { try { return store.create({ title: "另一个会撤回的来源", notes: "选择时的正文" }, access).item; } finally { store.close(); } })();
   await choose(bad.title);
   await b.web.post(`/projects/${b.projectId}/api/plugins/io.molis.work.todo/items/${bad.id}/delete`, { expected_revision: bad.revision });
   await send("混合材料失败时保留正常的长期选择");
@@ -155,8 +155,8 @@ for (const both of [false, true]) test(`QEA-42 QEA-46 QEA-65: mixed choices reco
   assert.equal(await child.evaluate("materialCommands[1].body.materials.length"), 1, "the same exact reference selected through both entries is sent once");
   await b.waitFor(`!document.querySelector(${JSON.stringify(CODING_COMPOSER + " [data-composer-stop]")})?.checkVisibility()`, 30_000);
   if (both) {
-    const current = openTodoStore(b.homeDirectory);
-    const removed = (() => { try { return current.create({ title: "同时撤回的临时材料", placement: "project" }, access).item; } finally { current.close(); } })();
+    const current = openTodoStore(b.homeDirectory, undefined, b.projectId!);
+    const removed = (() => { try { return current.create({ title: "同时撤回的临时材料" }, access).item; } finally { current.close(); } })();
     await choose(removed.title);
     await b.web.post(`/projects/${b.projectId}/api/plugins/io.molis.work.todo/items/${removed.id}/delete`, { expected_revision: removed.revision });
   }
@@ -238,8 +238,8 @@ for (const mutation of ["unchanged", "updated", "revoked"] as const) test(`QEA-4
     }
     assert.equal(await child.evaluate("new Set(controlRequests.map(input => input.key)).size"), 1, "a refused retry never invents a new input identity");
   }
-  const store = openTodoStore(b.homeDirectory);
-  try { store.create({ title: "后来选择的另一份材料", notes: "未发送的新内容", placement: "project" }, access); } finally { store.close(); }
+  const store = openTodoStore(b.homeDirectory, undefined, b.projectId!);
+  try { store.create({ title: "后来选择的另一份材料", notes: "未发送的新内容" }, access); } finally { store.close(); }
   await b.evaluate(codingType("后来输入的内容请保留")); await choose("后来选择的另一份材料");
   await b.waitFor(`document.querySelectorAll(${JSON.stringify(CODING_COMPOSER + " .mw-upload")}).length === 2`);
   // RC-18/D31: the runtime intentionally exposes the session queue only after the active round ends.

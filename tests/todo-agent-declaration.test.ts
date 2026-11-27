@@ -1,25 +1,32 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openProjectVersionStores, partitionPluginScope, startPartitionPluginInstance } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ActionService } from "@molis-ai/molis-work-kernel";
-import { createTodoPlugin, TODO_DATABASE, TODO_PLUGIN_ID, todoPrompts } from "@molis-ai/molis-work-plugin-todo";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { HOST_BUILD_TRUST, installIdentity } from "@molis-ai/molis-work-plugin-runtime";
+import { createTodoPlugin, TODO_PLUGIN_ID, todoPrompts } from "@molis-ai/molis-work-plugin-todo";
+import { pluginActions } from "./fixtures/plugin-actions.js";
 
 test("RAC-191 Todo activation carries its organizer role and prompt body into the Host-issued caller declaration", async t => {
-  const home = await mkdtemp(join(tmpdir(), "todo-agent-declaration-"));
-  const registry = new ActionService();
+  const home = await realpath(await mkdtemp(join(tmpdir(), "todo-agent-declaration-")));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  // Every Home has the personal space from the catalog's first open (batch 106).
+  const personal = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => catalog.getProject(PERSONAL_SPACE_PROJECT_ID));
+  const store = new LocalProjectDatabase(personal.database_path);
+  const installs = openHomePluginStore(home);
+  const actions = pluginActions(store, PERSONAL_SPACE_PROJECT_ID);
   const probe: ActionDefinition<Record<string, never>, boolean> = {
     capability_id: "fixture.todo.declaration", version: 1, operation: "query",
-    action: { title: "Read Todo caller", description: "Captures the actual activation's caller declaration", kind: "query", scope: "home",
+    action: { title: "Read Todo caller", description: "Captures the actual activation's caller declaration", kind: "query", scope: "project",
       audiences: ["plugin"], permissions: ["todo:read"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } },
   };
   let captured: HostPluginCaller | undefined;
-  const unregister = registry.registerProvider({ provider: { provider_id: "platform", title: "Molis Work", kind: "system" },
+  actions.registry.registerProvider({ provider: { provider_id: "platform", title: "Molis Work", kind: "system" },
     definitions: [probe], handlers: [{ ...probe, handle(context) { captured = context.host_plugin; return true; } }] });
   const definition = createTodoPlugin(), start = definition.start;
   const contexts: PluginStartContext[] = [];
@@ -27,25 +34,24 @@ test("RAC-191 Todo activation carries its organizer role and prompt body into th
   definition.manifest = { ...definition.manifest, capabilities: { ...definition.manifest.capabilities,
     consumes: [...definition.manifest.capabilities.consumes, probe.capability_id] } };
   definition.start = context => { contexts.push(context); return start(context); };
-  const supervisor = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry, client: registry,
-    entries: [{ scope: "home", manifest: definition.manifest, create: () => definition, database: TODO_DATABASE,
-      package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" }] });
+  const ports = { store, ...openProjectVersionStores(store), projectId: PERSONAL_SPACE_PROJECT_ID, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: home, actions,
+    escapeHtml: String, translate: (value: string) => value };
+  const scope = partitionPluginScope(home, PERSONAL_SPACE_PROJECT_ID, TODO_PLUGIN_ID, installIdentity(definition.manifest));
+  // The Host's own build starts it, as the per-partition supervisor does for a registration of this build.
+  const instance = await startPartitionPluginInstance(ports, scope, { definition, trust: HOST_BUILD_TRUST }, installs.db);
   t.after(async () => {
-    try { await supervisor.close(); }
-    finally { unregister(); await rm(home, { recursive: true, force: true }); }
+    try { await instance.stop(); }
+    finally { installs.db.close(); store.close(); await rm(home, { recursive: true, force: true }); }
   });
-  await supervisor.ready();
-  const installation = supervisor.installation(TODO_PLUGIN_ID);
-  assert.equal(installation?.state, "running");
   assert.equal(contexts.length, 1);
-  const actions = contexts[0]!.services?.actions;
-  assert.ok(actions);
-  assert.equal(await actions.invoke(probe, {}), true);
+  const client = contexts[0]!.services?.actions;
+  assert.ok(client);
+  assert.equal(await client.invoke(probe, {}), true);
   assert.ok(captured, "the production action client forwards the Host-issued caller");
   assert.equal(captured.plugin_id, TODO_PLUGIN_ID);
-  assert.equal(captured.install_id, installation!.install_id);
+  assert.equal(captured.install_id, scope.install_id);
   assert.equal(captured.actor_id, LOCAL_PERSON_ACTOR_ID);
-  assert.equal(captured.project_id, null);
+  assert.equal(captured.project_id, PERSONAL_SPACE_PROJECT_ID, "Todo runs in the partition it was started for");
   const agent = captured.declaration.manifest.agent;
   assert.deepEqual(agent?.roles.find(role => role.role_id === "organizer")?.prompts, ["todo-organizer"]);
   assert.equal(agent?.prompts.find(prompt => prompt.prompt_id === "todo-organizer")?.version, 2);

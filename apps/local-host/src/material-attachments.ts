@@ -19,7 +19,7 @@ import { activationPartition } from "./activation-partition.js";
  * platform's material service so that the assistant, Coding and every other caller read it one way. One row per owner and content:
  * the caller's plugin installation, and its partition (a project, or `personal` for the personal space and a Home-level caller alike). The bytes are kept once by their sha256 in `blobs/`, never
  * changed, and dropped when no row names them any more. A document's text is read once, when it is attached, by the same readers
- * material import uses (PDF, Office, a picture's words, a recording's transcript, text).
+ * material import uses (PDF, Office, a picture's words, text). Audio and video are not read (batch 112).
  */
 const ATTACHMENTS_BASELINE: SqliteBaseline = { version: /* @version database.conversation_attachments_baseline */ 1, schema: `
   CREATE TABLE attachments (
@@ -77,7 +77,7 @@ function decoded(upload: MaterialUpload): { name: string; bytes: Buffer } {
 }
 
 /** A document's text, read by the platform's own readers, kept within the bound a round may carry. */
-async function documentText(home: string, name: string, bytes: Buffer, signal: AbortSignal | undefined): Promise<{ text: string; meta: NonNullable<ConversationAttachment["text"]> }> {
+async function documentText(name: string, bytes: Buffer, signal: AbortSignal | undefined): Promise<{ text: string; meta: NonNullable<ConversationAttachment["text"]> }> {
   const extension = path.extname(name).toLowerCase();
   const max = CONVERSATION_ATTACHMENT_LIMITS.text_chars;
   if (extension === ".docx") {
@@ -86,8 +86,8 @@ async function documentText(home: string, name: string, bytes: Buffer, signal: A
     const coverage = batch.documents[0]?.coverage ?? { status: "insufficient" as const, issues: batch.warnings };
     return { text: body.slice(0, max), meta: { chars: Math.min(body.length, max), truncated: body.length > max || coverage.truncated === true, pages: null, coverage: coverage.status, issues: [...coverage.issues, ...batch.warnings].slice(0, 20) } };
   }
-  if (!supportsMaterialExtension(extension)) throw attachmentErrors.unsupported("这种文件还读不了：可以带图片、PDF、Word、文字或常见音视频");
-  const read = await extractHomeMaterial(home, { file_name: name, bytes }, { ...(signal ? { signal } : {}), textFormat: "markdown", limits: { maxCharacters: max } });
+  if (!supportsMaterialExtension(extension)) throw attachmentErrors.unsupported("这种文件还读不了：可以带图片、PDF、Word 或文字；音视频不转写");
+  const read = await extractHomeMaterial({ file_name: name, bytes }, { ...(signal ? { signal } : {}), textFormat: "markdown", limits: { maxCharacters: max } });
   return { text: read.text, meta: { chars: read.text.length, truncated: read.coverage.truncated === true, pages: read.pages.length ? read.coverage.total_pages : null, coverage: read.coverage.status, issues: read.coverage.issues.slice(0, 20) } };
 }
 
@@ -145,7 +145,7 @@ async function publishAttachment(home: string, owner: AttachmentOwner,
     const current = ownedRow(home, owner, sha256);
     if (current && existsSync(target)) return attachmentOf(current);
   }
-  const read = saved || image ? null : await documentText(home, name, bytes, options.signal);
+  const read = saved || image ? null : await documentText(name, bytes, options.signal);
   const row: AttachmentRow = saved ?? { sha256, title: name, kind: image ? "image" : "document", media_type: image ?? mediaTypeOf(name), byte_length: bytes.length,
     text: read?.text ?? null, text_meta: read ? JSON.stringify(read.meta) : null };
   const temporary = path.join(directory, `.${sha256}.${randomUUID()}`);

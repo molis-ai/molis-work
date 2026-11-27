@@ -72,7 +72,7 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
-  })()`);
+  })()`, undefined, "person");
   await waitFor("window.lastLanding?.position === 'cursor'");
 
   // The person's own message is not in hand; the reply's words are, from the Assistant's place.

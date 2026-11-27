@@ -25,6 +25,8 @@ HTTP 200 的业务失败只映射封闭错误类型与固定恢复说明；远�
 | [src/catalog.ts](src/catalog.ts) | 各家官方 API 目录 |
 | [src/provider.ts](src/provider.ts) | health / poll |
 | [src/http.ts](src/http.ts) | 请求与失败分类 |
+| [src/drivers.ts](src/drivers.ts) | 交给宿主的驱动：集成、账号、文档、网页搜索、官方客户端、本机 MCP、图标 |
+| [src/marks.ts](src/marks.ts) | 各服务的品牌图标（来源见 [assets/marks](assets/marks/README.md)） |
 | [src/document-import.ts](src/document-import.ts) | 单文档 URL 校验、官方正文 API、大小与完整性检查 |
 
 ## 本地开发

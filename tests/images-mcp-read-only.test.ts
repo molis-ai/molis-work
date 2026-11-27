@@ -4,8 +4,8 @@ import { callImageTool as call, openImagesMcp } from "./fixtures/images-mcp.js";
 
 test("Images standard MCP lets a reader retrieve the bytes and refuses generation", { timeout: 45_000 }, async t => {
   const { connect, saveConnection, generate } = await openImagesMcp(t);
+  const connection = await saveConnection();
   const owner = await connect("a");
-  const connection = await saveConnection(owner);
   const { input, query, image } = await generate(owner, connection.id);
   await owner.close();
 

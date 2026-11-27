@@ -1,6 +1,6 @@
 import { runtimePersonalSync } from './fixtures/runtime-personal-sync.js';
 import { personalSyncFixture as fixture, pagesSyncSelection as selection } from './fixtures/personal-sync-coordinator.js';
-import {openDatasetStore,openFormStore,openLingguangStore,openPptStore,openTodoStore,openTodoSyncStore,openWorkflowsStore} from "./fixtures/plugin-sync-stores.js";
+import {openDatasetStore,openFormStore,openLingguangStore,openPptStore,openTodoSyncStore,openWorkflowsStore} from "./fixtures/plugin-sync-stores.js";
 
 import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
@@ -10,7 +10,7 @@ import {readdirSync,readFileSync} from 'node:fs';
 
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
-import { openBaselineHomeSqlite, namespacedReplicaDatabase } from '@molis-ai/molis-work-storage';
+import { namespacedReplicaDatabase } from '@molis-ai/molis-work-storage';
 
 import {PersonalSync,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 
@@ -419,33 +419,11 @@ test('PCSYNC-20 aggregate and workflow owners report only their own project chan
   store.create({title:'Unsent workflow',chain:{stations:[newStation('pages')],links:[]}});
   const replica=store.replica(context);assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),false);
  }finally{store.close();}
-});
-
-test('PCSYNC-20 Todo preserves deleted project scope across restart and protects both sides of an uncertain move until ACK',t=>{
- const f=fixture(t),home=f.homes[0],access=(projectId:string|null)=>({projectId,everything:true,actor:'user' as const,actorId:'alice'});
- let store=openTodoStore(home),sync=openTodoSyncStore(home);t.after(()=>{store.close();sync.close();});
- const context={spaceId:f.space.spaceId,authorize(){},project:(id:string)=>({title:id}),canUploadProject:()=>true,hasArtifact:()=>false};
- let replica=sync.replica(context);
- const initial=store.create({title:'Retain scope',placement:'project'},access('project-a')).item;
- const frozen=replica.next()!;assert.equal(replica.hasProjectChanges!('project-a'),true);
- const personal=store.update(initial.id,{placement:'personal'},initial.revision,access('project-a')).item;
- const moved=store.update(initial.id,{placement:'project'},personal.revision,access('project-b')).item;
- assert.equal(moved.project_id,'project-b');assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),true);
- store.delete(moved.id,moved.revision,access('project-b'));assert.throws(()=>store.get(moved.id,access('project-b')),/找不到/);
- store.close();sync.close();store=openTodoStore(home);sync=openTodoSyncStore(home);replica=sync.replica(context);
- assert.equal(replica.hasProjectChanges!('project-a'),true,'uncertain old upload retains old project scope');
- assert.equal(replica.hasProjectChanges!('project-b'),true,'deleted row retains its last project across restart');
- assert.equal(replica.hasProjectChanges!('unrelated'),false);
- replica.acknowledge(frozen.key,frozen.operationId,1);assert.equal(replica.hasProjectChanges!('project-a'),false,'settled old scope must not block forever');
- assert.equal(replica.hasProjectChanges!('project-b'),true);const deletion=replica.next()!;assert.equal(deletion.value,null);
- replica.acknowledge(deletion.key,deletion.operationId,2);assert.equal(replica.hasProjectChanges!('project-b'),false);
-});
-
-test('PCSYNC-20 newer Todo v2 is refused without changing original rows or bytes',t=>{
- const f=fixture(t),home=f.homes[0],old=openBaselineHomeSqlite(home,'todo',{version:2,schema:homeStores().stores.find(store=>store.path==='todo')!.library!.baseline.schema});
- old.prepare("INSERT INTO todo_source_memory VALUES('source','original','keep',NULL,'preserve original','2026-10-19T00:00:00Z')").run();old.close();
- const file=join(home,'todo','todo.db'),before=readFileSync(file);
- assert.throws(()=>openTodoSyncStore(home),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);
+ // Todo keeps a library in each partition (batch 108): a todo is in one partition's library, so its changes are that partition's alone.
+ const todo=openTodoSyncStore(f.homes[0],'project-a');try{
+  todo.create({title:'Unsent todo'},{actor:'user',actorId:'alice'});
+  const replica=todo.replica(context);assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),false);
+ }finally{todo.close();}
 });
 
 // PCSYNC-14/23: source-only derived exports do not block incoming records or another healthy project/key.

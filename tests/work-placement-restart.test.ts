@@ -22,7 +22,8 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const q4 = await catalog.createProject({ display_name: "Q4 新版发布", actor_id: "placement-test" });
   const interviews = await catalog.createProject({ display_name: "客户访谈计划", actor_id: "placement-test" });
-  for (const project of [q4, interviews]) for (const plugin_id of ["pages", "form"] as const) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "placement-test" });
+  // Every partition, the personal space too, starts with no plugin of these (decision 66): the person adds them where they are used.
+  for (const projectId of [q4.project_id, interviews.project_id, "personal"]) for (const plugin_id of ["pages", "form"] as const) catalog.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "placement-test" });
   catalog.close();
   const token = "placement-restart-control-token-0123456789";
   const start = async () => {

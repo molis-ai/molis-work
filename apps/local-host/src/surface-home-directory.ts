@@ -7,7 +7,7 @@ import { PLUGIN_ICON_NAMES, type PresentationFormValues } from "@molis-ai/molis-
 import { presentationOwnerHue } from "@molis-ai/molis-work-design-system";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceHomePlugin, SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
-import { currentReadCheckGeneration, currentTurn } from "@molis-ai/molis-work-plugin-runtime";
+import { currentReadCheckGeneration, currentTurn, resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { currentHomeStageHalves } from "./home-plugin-http.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
@@ -16,7 +16,7 @@ import { installedStageSurface } from "./installed-stage-section.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions } from "./plugin-install-actions.js";
-import { availableProjectPluginIds, PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "./plugin-registry.js";
+import { availableProjectPluginIds, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentProjectPluginState, projectPluginPlatform } from "./project-plugins.js";
@@ -70,7 +70,7 @@ function homeMembership(ports: DirectoryPorts) {
     if (resolve(catalog.getProject(project_id).database_path) !== storage_key || catalog.recycle.isRecycled(project_id))
       throw new ActionError("actions.scope_mismatch", "原项目已关闭或变化");
     const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(project_id);
-    const shown = shownProjectPlugins(plugins, hidden).filter(key => !hidden.includes(key));
+    const shown = plugins.filter(key => !hidden.includes(key));
     const reach = availableProjectPluginIds(shown);
     const removed = new Set(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !reach.has(entry.project_plugin_id)
       && !hidden.includes(entry.project_plugin_id) && catalog.wasProjectPluginRemoved(project_id, entry.project_plugin_id)).map(entry => entry.project_plugin_id));
@@ -102,7 +102,7 @@ function formsFor(ports: DirectoryPorts, record: PluginInstanceRecord, scope: Su
       && surface.target_slot_id === "workbench.overlay" && surface.format === "declarative-html")) {
       const target = manifest?.actions?.find(item => item.capability_id === declaration.capability_id && item.version === declaration.version && item.action.scope === scope);
       if (target) action = { capability_id: target.capability_id, version: target.version,
-        provider_id: record.publisher_trust === "host" ? record.plugin_id : record.install_id };
+        provider_id: resolveActionProviderId(record) };
     }
     return action ? [{ ...open, action }] : [];
   });
@@ -167,7 +167,7 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
     const contribution = active ? platform?.supervisor.contribution(id) : undefined;
     const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
     const directory = { id: route?.shell ?? key, plugin_id: id, name: exact?.name ?? stage?.manifest.name ?? id,
-      chosen: builtin !== undefined, ...(builtin?.personal || !builtin && scope === "home" && !home?.dualInstance(id) ? { personal: true as const } : {}), ui: { views: exact?.ui.views ?? [] } };
+      chosen: builtin !== undefined, ...(!builtin && scope === "home" && !home?.dualInstance(id) ? { personal: true as const } : {}), ui: { views: exact?.ui.views ?? [] } };
     return [{ record, installation, route, directory, presentation: exact?.presentation, slots, forms, signedForms, enable, unavailable }];
   });
   const ordered = projectHomeRailOrder(rows.map(row => row.directory));

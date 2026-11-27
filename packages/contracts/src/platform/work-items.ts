@@ -34,11 +34,12 @@ export const WORK_ITEM_RELATED_OUTPUT_SCHEMA = { type: "object", properties: { s
   required: ["subjects"], additionalProperties: false } as const;
 export const WORK_ITEM_NEXT_INPUT_SCHEMA = { type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: WORK_ITEM_LIMITS.next_subjects, items: ACTION_SUBJECT_SCHEMA } },
   required: ["subjects"], additionalProperties: false } as const;
-const NEXT_STEP_SCHEMA = { type: "object", properties: { text: text(WORK_ITEM_LIMITS.text), waiting_on: text(WORK_ITEM_LIMITS.waiting_on),
+export const WORK_ITEM_NEXT_STEP_SCHEMA = { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: WORK_ITEM_LIMITS.text },
+  waiting_on: { type: "string", minLength: 1, maxLength: WORK_ITEM_LIMITS.waiting_on },
   start: { type: "object", properties: { action: { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] }, input: { type: "object" } },
     required: ["action", "input"], additionalProperties: false } }, required: ["text"], additionalProperties: false } as const;
 export const WORK_ITEM_NEXT_OUTPUT_SCHEMA = { type: "object", properties: { items: { type: "array", maxItems: WORK_ITEM_LIMITS.next_subjects, items: { type: "object",
-  properties: { subject: ACTION_SUBJECT_SCHEMA, next: { anyOf: [{ type: "null" }, NEXT_STEP_SCHEMA] } }, required: ["subject", "next"], additionalProperties: false } } },
+  properties: { subject: ACTION_SUBJECT_SCHEMA, next: { anyOf: [{ type: "null" }, WORK_ITEM_NEXT_STEP_SCHEMA] } }, required: ["subject", "next"], additionalProperties: false } } },
   required: ["items"], additionalProperties: false } as const;
 
 /** The three parts a declaration may name, with the schemas each has to carry exactly. */

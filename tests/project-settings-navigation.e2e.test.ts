@@ -140,8 +140,8 @@ test("B27-UI-04 · F-14: project settings persist a rename, cancel deletion safe
   const englishScope = await evaluate<string>("document.querySelector('[data-project-delete-scope]').textContent");
   assert.match(englishScope, /Data that plugins keep for this project is deleted with it\./);
   assert.match(englishScope, /Forms and every answer they received/);
-  assert.match(englishScope, /Todos placed in this project/);
-  for (const chinese of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "各插件里属于这个项目的数据也会一起删除。"]) assert.doesNotMatch(englishScope, new RegExp(chinese));
+  assert.match(englishScope, /Todos here and their change history/);
+  for (const chinese of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "这里的待办与修改记录", "各插件里属于这个项目的数据也会一起删除。"]) assert.doesNotMatch(englishScope, new RegExp(chinese));
   await click('[data-project-delete-cancel]');
   await command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: origin }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/general?desktop=1" }, sessionId));

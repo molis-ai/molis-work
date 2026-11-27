@@ -552,7 +552,7 @@ test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it
   assert.equal(artifactAnalysisContext(broken.record).content, "");
 });
 
-test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an image is recognized, or the import says why not", async t => {
+test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an image is recognized, or the import says why not; audio and video keep only the original", async t => {
   const { library, post } = await fixture(t);
   const imported = async (filename: string, mime: string, bytes: Uint8Array) => {
     const response = await post({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
@@ -576,6 +576,12 @@ test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an 
   const warning = image.warnings[0];
   assert.ok(warning && "key" in warning && warning.owner === "workbench");
   assert.ok(["workbench.import.warning-empty-image", "workbench.import.warning-ocr-unavailable"].includes(warning.key), warning.key);
+  // Batch 112: audio and video are kept as originals only, on every platform; nothing transcribes them.
+  for (const [filename, mime] of [["会议.m4a", "audio/mp4"], ["演示.mov", "video/quicktime"]]) {
+    const media = await imported(filename, mime, Buffer.from("not really media"));
+    assert.equal(media.content, "");
+    assert.deepEqual(media.warnings, [{ owner: "workbench", key: "workbench.import.warning-media-original-only" }]);
+  }
 });
 
 // Onboarding limits (user 2026-10-22, ONB-LIM-01): an original over the inline 6 MB is sent as the raw body, offered to the 成果库 by

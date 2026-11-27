@@ -24,14 +24,13 @@
     }
   },
   "files": [
-    "prompts",
     "locales",
     "dist",
     "README.md"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../../node_modules/.bin/esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/jelly-client.js && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs prompts",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../../node_modules/.bin/esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/jelly-client.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
@@ -41,8 +40,7 @@
   "molis-work": {
     "maturity": "production",
     "capabilities": [
-      "jelly.ui-contribution.v1",
-      "jelly.workspace.v1"
+      "jelly.ui-contribution.v1"
     ],
     "registration": "./registration",
     "extraWorkspaceDependencies": [

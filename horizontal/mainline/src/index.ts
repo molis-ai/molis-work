@@ -5,10 +5,10 @@ import { ActionError, BACKGROUND_TASK_MAX_HELD_REVIEWS, BACKGROUND_TASKS_OUTPUT_
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type ReviewOwner, type ReviewReference, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import { MAINLINE_ARRANGE_PERMISSION, mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskHeldReview, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
-  type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+  type WaitingItem, type WaitingReadResult, type WorkLineContainsRequest, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { checkItemPlacement, itemLineScope, placeInItem, taskBelongsToItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
-import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
+import { createExecutionLifetime, isProjectReadQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { MISSED_RUN_KIND, isRunDecisionOf, isRunsSource, missedRunTasks, missedRunsWindow } from "./missed-runs.js";
 
 export { MAINLINE_BASELINE, MAINLINE_HOME_STORE, MainlineStore, openMainlineDatabase, purgeMainlineProject } from "./store.js";
@@ -129,7 +129,7 @@ export function backgroundTaskRows(output: unknown, source: Required<ActionRefer
   return tasks.flatMap(task => { const row = backgroundTaskRow(task, source, origin, kinds); return row ? [row] : []; });
 }
 
-const isTaskProvider = (view: ActionView) => view.action.output_type === BACKGROUND_TASKS_OUTPUT_TYPE && isHomeAggregateQuery(view);
+const isTaskProvider = (view: ActionView) => view.action.output_type === BACKGROUND_TASKS_OUTPUT_TYPE && isProjectReadQuery(view);
 /** What the table reads: the task providers, and the owners of what runs on its own, whose missed runs wait on the person (WLN-39). */
 const isTaskSource = (view: ActionView) => isTaskProvider(view) || isRunsSource(view);
 const referenceOf = (view: ActionView): Required<ActionReference> => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
@@ -281,6 +281,16 @@ const UNDER_WAY: ReadonlySet<string> = new Set(["running", "waiting", "syncing",
 const WING = { occurred: "done", active: "now", today: "next" } as const;
 const subjectKey = (subject: ActionSubject) => JSON.stringify([subject.kind, subject.id]);
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
+
+/** Event membership uses the caller's line window and only the registrants that can put this kind on it. */
+export async function workLineContains(caller: ActionCallContext, client: ActionClient, { subject, window }: WorkLineContainsRequest,
+  discovered?: readonly ActionView[]): Promise<{ on_line: boolean }> {
+  const reader: ActionCallContext = { ...caller, query_only: true };
+  const directory = discovered ?? await client.discover(reader);
+  const sources = directory.filter(view => isWorkEventSource(view) && view.action.subject_kinds.includes(subject.kind));
+  const answers = await gatherWorkEvents(reader, client, window, sources);
+  return { on_line: answers.some(answer => answer.events?.some(event => sameSubject(event.subject, subject))) };
+}
 
 /**
  * `mainline.line.read@1`: one discovery, then every registrant and the task table in parallel. Each event is placed by its owner,
@@ -454,8 +464,8 @@ async function placeServes(caller: ActionCallContext, client: ActionClient, requ
   const before = servesOf(await client.invoke(reader, list, { task }));
   if (to.kind === "event") {
     const event = to.subject!;
-    const answers = await gatherWorkEvents(reader, client, request.window!, directory.filter(isWorkEventSource));
-    if (!answers.some(answer => answer.events?.some(reported => sameSubject(reported.subject, event)))) throw mainlineErrors.event_unreadable("线上没有这个事件，或你读不到它");
+    const membership = await workLineContains(reader, client, { subject: event, window: request.window! }, directory);
+    if (!membership.on_line) throw mainlineErrors.event_unreadable("线上没有这个事件，或你读不到它");
     if (before.length === 1 && sameSubject(before[0]!, event)) return { task, serves: before };
   } else if (to.kind === "none" && !before.length) return { task, serves: [] };
   const writer = request.item ? withArrangePermission(caller) : caller;

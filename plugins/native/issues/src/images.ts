@@ -5,6 +5,11 @@ export interface IssueImage { name: string; data_url: string }
 export const ISSUE_IMAGE_LIMIT = 6;
 export const ISSUE_IMAGE_BYTES = 2 * 1024 * 1024;
 const ISSUE_IMAGES_BYTES = 8 * 1024 * 1024;
+/**
+ * A request that carries an issue's pictures: all of them as base64, plus the text beside them. Declared on the routes that take pictures,
+ * since a partition's plugin routes otherwise read at most the Host's small default (batch 108: Issues left the Home, whose routes read more).
+ */
+export const ISSUE_BODY_BYTES = Math.ceil(ISSUE_IMAGES_BYTES / 3) * 4 + 512 * 1024;
 
 /** Images are owned by the issue, never external URLs or executable SVG/HTML. */
 export function validateIssueImages(images: IssueImage[]): void {

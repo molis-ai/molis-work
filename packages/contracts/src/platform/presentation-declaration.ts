@@ -27,7 +27,8 @@ export type AttentionState = (typeof PRESENTATION_ATTENTION_STATES)[number];
 
 /**
  * The places a composed surface is drawn (`services/surface-composition`), named here because an action's `when.slots` names them.
- * `plugin-slot` is a slot a plugin's contribution opens with `accepts_forms` (`UiSlotDescriptor`, `platform/ui`).
+ * `plugin-slot` is a slot a plugin's contribution opens with `accepts_forms` (`UiSlotDescriptor`, `platform/ui`). Each is a place of
+ * the shell, never a plugin: `shelf` is the platform's own Shelf (docs/system/GLOSSARY.md 「平台部件名」).
  */
 export const SURFACE_SLOT_KINDS = ["plugin-slot", "conversation", "discussion", "attention", "home", "shelf", "search", "side", "text"] as const;
 export type SurfaceSlotKind = (typeof SURFACE_SLOT_KINDS)[number];

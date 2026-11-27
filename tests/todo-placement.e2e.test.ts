@@ -10,28 +10,29 @@ test("a todo moved away from the placement panel leaves this page: the open deta
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const store = openTodoStore(homeDirectory);
-  const scope = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
-  const away = store.create({ title: "整理 Beta 用户回访记录", placement: "project" }, scope).item;
-  const stay = store.create({ title: "准备周会材料", placement: "project" }, scope).item;
+  const store = openTodoStore(homeDirectory, undefined, projectId!);
+  const scope = { actor: "user" as const, actorId: "test" };
+  const away = store.create({ title: "整理 Beta 用户回访记录" }, scope).item;
+  const stay = store.create({ title: "准备周会材料" }, scope).item;
   store.close();
-  // What the placement panel does: the move itself, then its event (Home objects carry no project in the event).
-  const moved = async (id: string, to: string | null) => {
-    const s = openTodoStore(homeDirectory);
-    try { s.move(id, to, scope); } finally { s.close(); }
-    await browser.evaluate(`window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode: "move", from: { kind: "todo_item", id: ${JSON.stringify(id)}, project_id: null }, to: { kind: "todo_item", id: ${JSON.stringify(id)}, project_id: null } } }))`);
+  // What the placement panel does (batch 108: every partition has its own Todo library): the platform carries the todo to the other
+  // partition and lets it go here, then tells the page.
+  const changed = async (id: string, from: string, to: string) => {
+    await browser.evaluate(`window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode: "move", from: { kind: "todo_item", id: ${JSON.stringify(id)}, project_id: ${JSON.stringify(from)} }, to: { kind: "todo_item", id: ${JSON.stringify(id)}, project_id: ${JSON.stringify(to)} } } }))`);
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openItem=${away.id}` }, sessionId));
   await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '整理 Beta 用户回访记录'`);
-  await moved(away.id, "project-q4");
+  const here = openTodoStore(homeDirectory, undefined, projectId!);
+  try { here.removeCarried(away.id, here.exportRecord(away.id).revision); } finally { here.close(); }
+  await changed(away.id, projectId!, "project-q4");
   await waitFor("document.querySelector('[data-todo-stage-workspace]').hidden");
   await waitFor(`!document.querySelector('[data-todo-row="${away.id}"]')`);
 
-  // Moved to the personal space it is still shown here (personal todos show in every project), so the detail stays.
+  // One moved here from another partition is in this partition's library: the open detail stays.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openItem=${stay.id}` }, sessionId));
   await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '准备周会材料'`);
-  await moved(stay.id, null);
-  await waitFor("document.querySelector('[data-todo-placement-choices] [aria-checked=true] [data-slot=menu-item-label]')?.textContent === '个人空间' && document.querySelector('[data-todo-prop-value=place]').textContent === '个人空间'");
+  await changed(stay.id, "project-q4", projectId!);
+  await waitFor(`!!document.querySelector('[data-todo-row="${stay.id}"]')`);
   assert.equal(await evaluate("document.querySelector('[data-todo-stage-workspace]').hidden"), false);
 });

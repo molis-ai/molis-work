@@ -19,7 +19,8 @@ import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platf
 import { SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_OUTPUT_SCHEMA, SETTINGS_WRITE_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mac, person as sandboxPerson, ref } from "./fixtures/home-sandbox.js";
-import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // PEQ-05 (specs/plugin-equal-standing/contract-design.md §5): the repository's third-party sample uses only contracts and the plugin SDK, and
@@ -426,4 +427,29 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
     try { process.kill(pid, 0); await new Promise(resolve => setTimeout(resolve, 25)); } catch { alive = false; }
   }
   assert.equal(alive, false, "P0-5: revoking publisher immediately kills live work-terminal OS process");
+});
+
+// 44C-3 (PSD-03, PSD-04a; BL-b44-psd03-sample-plugin): a third-party package under a reverse-domain id and a plugin studio package under
+// `studio.<id>` are each installed from the real entry (the install preview, then the person's confirm), and each opens its own page in
+// the workbench frame and answers a call from it, through the same routes a built-in plugin's page uses. Neither id is the Host's.
+test("44C-3 PSD-03 PSD-04a a signed com.example package and a studio.<id> package install from the real entry, open their pages and answer their calls", { ...mac, timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Third-party standing");
+  const prefix = "/projects/" + project.project_id, client = f.host.actionClient(project.reference), caller = { ...sandboxPerson(), project_id: project.project_id };
+  const publisher = newPublisher();
+  for (const pluginId of [PACKAGE_PLUGIN_ID, "studio.4f0c7d1e-2b3a-4c5d-8e9f-0a1b2c3d4e5f"]) {
+    assert.ok(!pluginId.startsWith("io.molis.work."), `${pluginId} is not under the Host's reserved prefix`);
+    const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: signedPackage(publisher, undefined, { pluginId }) }) as { preview_id: string };
+    await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Example publisher" });
+    const page = await f.request(prefix + "/plugins/" + pluginId + "?frame=workbench");
+    const html = await page.text();
+    assert.equal(page.status, 200, `${pluginId}: its page is served, not 404: ${html.slice(0, 200)}`);
+    const pageId = /"page_id":"([^"]+)"/u.exec(html)?.[1];
+    assert.ok(pageId, `${pluginId}: the page is the package's own installed frame`);
+    assert.ok(html.includes(`/api/plugins/${pluginId}/call`), `${pluginId}: the page calls through its own call route`);
+    const call = await f.request(prefix + "/api/plugins/" + pluginId + "/call", { method: "POST", body: { componentId: "notes", binding: "read", payload: {} }, headers: { "x-molis-plugin-page": pageId } });
+    assert.equal(call.status, 200, `${pluginId}: its call route answers, not 404: ${await call.clone().text()}`);
+    assert.ok("value" in (await call.json() as object), `${pluginId}: the call's answer is the operation's value`);
+    const views = (await client.discover(caller)).filter(view => view.provider.plugin_id === pluginId);
+    assert.ok(views.length > 0, `${pluginId}: its operations are in the project's directory like a built-in plugin's`);
+  }
 });

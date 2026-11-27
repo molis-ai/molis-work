@@ -102,8 +102,8 @@ function declaredCode(prefix: string, reason: string, kind: unknown): string {
 }
 
 /**
- * An owner declares its codes once, `defineErrorCodes("todo", { not_found: "not_found" })`; each entry raises an `ActionError` with the code
- * `<prefix>.<reason>` and that kind. The prefix is the owner's name (a second word after it groups a family: `goals.event`); `actions`
+ * An owner declares its codes once, `defineErrorCodes("notes", { not_found: "not_found" })`; each entry raises an `ActionError` with the code
+ * `<prefix>.<reason>` and that kind. The prefix is the owner's name (a second word after it groups a family: `notes.event`); `actions`
  * is the platform's, and a platform code cannot be declared again. Which package may use which owner name is for tooling/gates/error-owners.json to say (scripts/gates/error-owners.mjs).
  */
 export function defineErrorCodes<const Reasons extends Readonly<Record<string, ActionErrorKind>>>(prefix: string, reasons: Reasons): ErrorCodeRaisers<Reasons> {

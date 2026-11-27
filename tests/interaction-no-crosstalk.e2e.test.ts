@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -410,7 +410,7 @@ test("AC-05: a reference question in one project finds and keeps only that proje
   const opened = await openCoding(t, [OURS, THEIRS]); if (!opened) return;
   const { click, evaluate, waitFor, command, sessionId, coding, heard, enter, ask, show, projectId, homeDirectory, waitObserved } = opened;
   const otherProject = await createProject(opened.web, "另一项目");
-  for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) await addProjectPlugin(opened.web, otherProject.project_id, plugin_id);
+  for (const plugin_id of BUILTIN_PLUGIN_IDS) await addProjectPlugin(opened.web, otherProject.project_id, plugin_id);
   const other = otherProject.project_id;
   /** A Goal created through the project's own Goals route, from the page, in the project the page is in. */
   const goal = (goalId: string, title: string) => opened.ownerEvaluate(`fetch(document.body.dataset.routePrefix + '/api/plugins/io.molis.work.goals/goals', { method: 'POST',
@@ -422,8 +422,10 @@ test("AC-05: a reference question in one project finds and keeps only that proje
   /** Types into the question's search until it offers something (a fresh Home may still be indexing); resolves to the labels offered. */
   const search = async (words: string) => {
     for (let attempt = 0; attempt < 20 && !(await evaluate<boolean>(`!document.querySelector('${list}').hidden`)); attempt++) {
-      await evaluate(`(() => { const input = document.querySelector('${query}'); input.focus(); input.value = ''; })()`);
+      await click(query);
+      await evaluate(`document.querySelector('${query}').select()`);
       await command("Input.insertText", { text: words }, sessionId);
+      assert.equal(await evaluate(`document.querySelector('${query}').value`), words, "the reference query received the typed text");
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     await waitFor(`!document.querySelector('${list}').hidden`, 10_000);
@@ -505,7 +507,8 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`;
-  const select = (index: number) => child.evaluate(selectScript(index));
+  // Focus inside the plugin page "as a person" (Chrome 158 ignores a script focus() in a frame the person never pressed; #2330).
+  const select = (index: number) => child.evaluate(selectScript(index), undefined, "person");
   const bar = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   // A write that still goes as a card (记成待办 is made at once since W4-1): a plan broken into Goal steps, a proposal.
   const writeButton = `[...document.querySelectorAll('${bar} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;

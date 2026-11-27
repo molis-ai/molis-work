@@ -10,8 +10,7 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {type TodoAccess, createTodoActionHandlers, ownTodoStores, todoActions, todoManifest, TODO_ACTION_PERMISSIONS, } from "@molis-ai/molis-work-plugin-todo";
 
-const access: TodoAccess = { projectId: null, projectIds:["project"], actor: "user", actorId: "alice" };
-const projectAccess: TodoAccess = { ...access, projectId: "project" };
+const access: TodoAccess = { actor: "user", actorId: "alice" };
 
 function fixture(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), "todo-sync-"));
@@ -23,7 +22,7 @@ function fixture(t: TestContext) {
   const syncStores = homes.map(home => openTodoSyncStore(home));
   const context: AggregateReplicaContext = {
     spaceId: space.spaceId, authorize() {}, canUploadProject: () => true,
-    project(id) { assert.equal(id, "project"); return { title: "测试项目" }; },
+    project(id) { assert.equal(id, "personal"); return { title: "个人空间" }; },
     hasArtifact: () => true,
   };
   const replicas = syncStores.map(store => store.replica(context));
@@ -44,7 +43,7 @@ function actionsFor(store: ReturnType<typeof openTodoStore>, permissions = TODO_
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)),
       today: () => "2026-10-22", now: () => new Date("2026-10-22T10:00:00Z") }) });
-  return bindActionClient(service, () => ({ actor_id: "alice", project_id: null, audience: "user", permissions }));
+  return bindActionClient(service, () => ({ actor_id: "alice", project_id: "personal", audience: "user", permissions }));
 }
 
 test("PCSYNC-TODO-UNDO-01: remote history is undoable through actions after reopening and syncs back", async t => {
@@ -125,13 +124,12 @@ test("PCSYNC-TODO-UNDO-02: a history gap stays non-undoable and exhausted revisi
   assert.deepEqual(b!.history(created.item.id, access), history);
 });
 
-test("PCSYNC-TODO-UNDO-02: synced history does not bypass action permissions or project scope", async t => {
+test("PCSYNC-TODO-UNDO-02: synced history does not bypass action permissions", async t => {
   const f = fixture(t), [a, b] = f.stores;
-  const created = a!.create({ title: "项目私有" , placement: "project" }, projectAccess);
+  const created = a!.create({ title: "同步来的" }, access);
   f.replicas[1]!.receive(f.take());
   await assert.rejects(actionsFor(b!, []).invoke(todoActions.revert, { change_id: created.change_id }), { code: "actions.forbidden" });
-  assert.throws(() => b!.revert({ change_id: created.change_id }, { ...access, projectIds:[], projectId: "other" }), { code: "todo.not_found" });
-  assert.equal(b!.get(created.item.id, projectAccess).title, "项目私有");
+  assert.equal(b!.get(created.item.id, access).title, "同步来的");
 });
 
 test("PCSYNC-TODO-UNDO-03: clock rollback keeps causal history order and batch undo remains atomic", t => {
@@ -162,19 +160,20 @@ test("PCSYNC-TODO-UNDO-03: clock rollback keeps causal history order and batch u
   assert.deepEqual([b!.get(first.id, access), b!.get(second.id, access)], before);
 });
 
-test("project Todo identity and deletion replicate without touching another item", t => {
+test("UPP-31 a Todo deletion replicates without touching another item, and the overview rows follow what arrives", t => {
   const f = fixture(t), [a, b] = f.stores;
-  const project = a!.create({ title: "项目待办", placement: "project" }, projectAccess).item;
-  const personal = a!.create({ title: "个人待办" }, access).item;
+  const overview = (store: typeof b) => (store!.database().all("SELECT row_id FROM molis_overview_rows WHERE kind = 'task' ORDER BY row_id") as { row_id: string }[]).map(row => row.row_id);
+  const first = a!.create({ title: "要删的待办" }, access).item;
+  const second = a!.create({ title: "留下的待办" }, access).item;
   f.replicas[1]!.receive(f.take());
   f.replicas[1]!.receive(f.take());
-  assert.equal(b!.get(project.id, projectAccess).project_id, "project");
-  assert.equal(b!.get(personal.id, access).project_id, null);
-  a!.delete(project.id, project.revision, projectAccess);
+  assert.deepEqual(overview(b), [first.id, second.id].sort());
+  a!.delete(first.id, first.revision, access);
   f.replicas[1]!.receive(f.take());
   assert.deepEqual(f.replicas[1]!.conflicts(), []);
-  assert.throws(() => b!.get(project.id, projectAccess), /找不到/);
-  assert.equal(b!.get(personal.id, access).title, "个人待办");
+  assert.throws(() => b!.get(first.id, access), /找不到/);
+  assert.equal(b!.get(second.id, access).title, "留下的待办");
+  assert.deepEqual(overview(b), [second.id]);
 });
 
 test("Todo concurrent edits conflict and malformed payload cannot replace valid data", t => {

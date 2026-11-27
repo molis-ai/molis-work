@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, inspectPluginProjectDatabaseSet, openPluginProjectDatabase, type PluginProjectSchemaInspector,
+  PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, inspectPluginProjectDatabaseSet, openPluginProjectDatabase, stageProjectDatabaseDiscard, type PluginProjectSchemaInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 
@@ -263,4 +263,25 @@ test("offline project inspection verifies the same compiled sync triggers as the
   db.exec("CREATE TRIGGER notes_changed AFTER INSERT ON notes_items BEGIN DELETE FROM feed_items; END");
   assert.throws(read, {code:"plugin.project_database.shape_mismatch"});
   assert.throws(() => openPluginProjectDatabase(db, OWNER, schema, {path:PATH,platformSchema}), {code:"plugin.project_database.shape_mismatch"});
+});
+
+test("B47-K4 a fresh project library discards only verified tables and puts back the rows if installation fails", t => {
+  const db = library(), inspect = inspector(), schema = {declaration: NOTES};
+  t.after(() => db.close());
+  openPluginProjectDatabase(db, OWNER, inspect, {path: PATH});
+  db.exec("INSERT INTO notes_items VALUES('p-1','n','original'); INSERT INTO notes_links VALUES('p-1','n','target'); INSERT INTO feed_items VALUES('p-1','other')");
+  const before = ledger(db);
+  refused("plugin.project_database.publisher_mismatch", () => stageProjectDatabaseDiscard(db, {...OWNER, publisher_signature: "publisher-b"}, schema, schema, inspect, PATH));
+  assert.deepEqual(ledger(db), before);
+  const staged = stageProjectDatabaseDiscard(db, OWNER, schema, schema, inspect, PATH)!;
+  assert.deepEqual(ledger(db), []);
+  openPluginProjectDatabase(db, OWNER, inspect, {path: PATH});
+  assert.equal(db.prepare("SELECT 1 FROM notes_items").get(), undefined);
+  db.exec("INSERT INTO feed_items VALUES('p-1','written-during-install')");
+  staged.restore();
+  staged.close();
+  assert.deepEqual(ledger(db), before);
+  assert.equal(db.prepare("SELECT body FROM notes_items").get()?.body, "original");
+  assert.equal(db.prepare("SELECT target FROM notes_links").get()?.target, "target");
+  assert.deepEqual(db.prepare("SELECT item_id FROM feed_items ORDER BY item_id").all().map(row => row.item_id), ["other", "written-during-install"]);
 });

@@ -4,10 +4,14 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
+import { withPendingPluginEnable } from './plugin-instructions.js';
 import { ActionError, requireSynchronous } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginManifest, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import { stageSandboxOwnerFiles } from './plugin-sandbox-owner-files.js';
+import { stageSandboxImageBindings } from './sandbox-image-generation.js';
+import { forgetRetainedInstallationRecords } from './plugin-installation-cleanup.js';
 import { collectRetained } from './uninstall-retained.js';
 import { sameInstalledRelease, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
@@ -44,6 +48,7 @@ export interface InstalledLifecycleContext {
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
+  discardDatabase(previous: PluginInstanceRecord, next: PluginManifest): { restore(): void; close(): void } | undefined;
   secrets: PluginSecrets;
   recoveryErrors: RecoveryErrors;
   closed(): boolean;
@@ -55,7 +60,7 @@ export interface InstalledLifecycleContext {
   definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
   expose(release: InstalledRelease, onFailure?: 'caller', control?: Pick<EnableControl, 'beforeEffect' | 'assertCurrent'>): Promise<void>;
   withdraw(pluginId: string): void;
-  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
   /** Reminders and scheduled operations of one installation stop with it. */
   /** What the Host remembers of an uninstalled installation: its prompts and its code. */
   forget(pluginId: string, installId: string): void | Promise<void>;
@@ -68,9 +73,13 @@ type Grants = InstalledPackageControl & { consent?: unknown; keepData?: unknown;
 /** Refresh before publishing the settled installation and completing the dependent owner's write. */
 export async function finishInstalledPackage(control: InstalledPackageControl | undefined, assertCurrent: () => void, publish: () => void): Promise<void> {
   if (control?.refresh) await control.refresh();
-  assertCurrent();
-  publish();
-  requireSynchronous(control?.complete?.());
+  const commit = () => {
+    assertCurrent();
+    publish();
+    requireSynchronous(control?.complete?.());
+  };
+  if (control?.installOtherHalf) await control.installOtherHalf(commit);
+  else commit();
 }
 
 /** The secrets the consent dialog collected, each for a reference the release declared. */
@@ -110,7 +119,8 @@ async function enableInstalled(c: InstalledLifecycleContext, release: InstalledR
     await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }], { assertCurrent: enable ? check : grants.assertCurrent });
   }
   grants.assertCurrent?.();
-  const state = await platform.supervisor.enable(pluginId, enable && { ...enable, assertCurrent: check });
+  const state = await withPendingPluginEnable(enable ? record.installation_generation : undefined,
+    () => platform.supervisor.enable(pluginId, enable && { ...enable, assertCurrent: check }));
   if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
   const generation = enable && platform.supervisor.generation(pluginId);
   const assertRunning = enable && (() => {
@@ -166,17 +176,29 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
     const entry = { definition, grants: [...new Set([...required, ...grants.optional ?? []])], trust: packaged.trust };
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
+    if (grants.expectedKeptGeneration !== undefined && (!kept || earlier?.installation_generation !== grants.expectedKeptGeneration))
+      throw pluginErrors.preview_unknown('卸载时保留的数据已经变化，请重新查看安装包');
+    const discard = grants.expectedKeptGeneration !== undefined || grants.discardKeptData === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
     const assertCurrent = () => {
       if (c.closed() || grants.scopeOpen?.() === false) throw new ActionError('actions.host_closed', '原插件安装范围已经关闭');
       grants.assertCurrent?.();
     };
     assertCurrent();
-    const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(grants.discardKeptData === true ? { discard_kept_data: true } : {}) });
+    const staged: { restore(): void; close?(): void }[] = [];
+    let candidate: PluginInstanceRecord | undefined;
+    const stageDiscard = (previous: PluginInstanceRecord) => {
+      const database = c.discardDatabase(previous, packaged.manifest);
+      if (database) staged.push(database);
+      staged.push(stageSandboxOwnerFiles(c.home, c.project_id, previous.install_id));
+      if (c.project_id === null) staged.push(stageSandboxImageBindings(c.home, previous.install_id));
+      c.privateStorage.deleteInstallationData(previous.install_id);
+    };
     let startedGeneration: number | undefined;
     const activationChanged = () => platform.supervisor.generation(pluginId) !== startedGeneration;
     try {
-      if (before && grants.discardKeptData === true) c.privateStorage.deleteInstallationData(install.install_id);
+      const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(discard ? { discard_kept_data: true } : {}) }, stageDiscard);
+      candidate = install;
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
       await platform.start([entry], { assertCurrent });
@@ -202,16 +224,47 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
         c.registerPrompts(release, 'enabled');
         c.recoveryErrors.delete(pluginId);
       });
+
     } catch (error) {
       // A separate stop or enable can run during exposure. Leave that later activation choice standing.
-      if (startedGeneration !== undefined && activationChanged()) throw error;
+      if (startedGeneration !== undefined && activationChanged()) {
+        for (const part of staged) part.close?.();
+        throw error;
+      }
       const unfinished: unknown[] = [];
       let ours = true;
-      try { ours = await uninstall(release, install, kept, { earlier }); } catch (failure) { unfinished.push(failure); }
-      try { if (before && ours) c.privateStorage.restoreInstallationData(install.install_id, before); } catch (failure) { unfinished.push(failure); }
+      if (candidate) {
+        try { ours = await uninstall(release, candidate, kept, { earlier }); } catch (failure) { unfinished.push(failure); }
+        // The take-back may have yielded while another install became current.
+        ours = ours && (!earlier || sameInstalledRelease(earlier, platform.runtime.get(candidate.install_id)));
+      }
+      if (ours) {
+        for (const part of staged.splice(0).reverse()) {
+          try {
+            part.restore();
+            part.close?.();
+          } catch (failure) { unfinished.push(failure); }
+        }
+        if (before && earlier && (candidate || discard)) {
+          try { c.privateStorage.restoreInstallationData(earlier.install_id, before); } catch (failure) { unfinished.push(failure); }
+        }
+      }
+      if (!ours) for (const part of staged) part.close?.();
       if (!unfinished.length) throw error;
       const said = (value: unknown) => value instanceof Error ? value.message : String(value);
       throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });
+    }
+    if (kept && earlier && discard) {
+      const clear = async () => {
+        const results = await Promise.allSettled([
+          async () => forgetRetainedInstallationRecords(c.home, c.project_id, earlier),
+          ...staged.map(part => () => part.close?.()),
+        ].map(async remove => remove()));
+        const failed = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+        if (failed.length) throw new AggregateError(failed, '部分旧数据未能删除');
+      };
+      if (grants.afterInstall) grants.afterInstall(clear);
+      else await clear();
     }
   };
   /**
@@ -234,6 +287,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
     const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId, action === 'uninstall');
+    if (grants.expectedKeptGeneration !== undefined && action !== 'install') throw pluginErrors.preview_unknown('安装已经变化，请重新查看安装包');
     if (action === 'install') {
       if (record) throw new Error('这个插件已经安装，可以直接打开或升级');
       if (!consent) throw new Error('安装前请确认插件要使用的权限');

@@ -14,6 +14,8 @@ import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
+import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
+import { stageInstalledHomeLibraryDiscard } from "./installed-plugin-libraries.js";
 import { installedLifecycle, type InstalledPluginPlatform, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { installedApprovals, installedCatalog, installedOffers, installedRecords, packagedReleases, installedPackageRecovery } from './installed-plugin-common.js';
 import { HOME_INSTALL_SCOPE, installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
@@ -161,12 +163,12 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live, release.packaged.localePacks)) forget(); }
     catch (error) { forget(); throw error; }
   };
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') => {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
     const value = definition(release, approvedFor(release.pluginId) ?? release.permissions); declared.set(value, record.install_id, state);
     rememberHomeInstalledMemoryScene(home, release.pluginId, state === 'enabled' ? value.manifest.memory_scene : undefined);
-    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
+    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({
     standing, platform, recoveryErrors,
@@ -179,6 +181,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   });
   const lifecycleContext: InstalledLifecycleContext = { platform, home, library: null, project_id: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
+    discardDatabase(previous, next) {
+      const schema = (manifest?: PluginManifest) => manifest?.databases?.home && pluginSyncDatabaseDeclaration(manifest, manifest.databases.home);
+      return stageInstalledHomeLibraryDiscard(home, previous, schema(packages.installedManifest(previous)), schema(next), pluginHomeFor(home).stores);
+    },
     async forget(pluginId, installId) {
       declared.release(pluginId);
       forgetHomeInstalledMemoryScene(home, pluginId);

@@ -5,7 +5,7 @@ export const STABLE_KEY = /^[a-z0-9][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
 /** The owner segment shared words use (`common.save`); no Plugin takes it. */
 export const SHARED_OWNER = "common";
 
-/** The name a Plugin's keys start with: the last segment of its plugin_id (`io.molis.work.diff` -> `diff`). */
+/** The name a Plugin's keys start with: the last segment of its plugin_id (`com.example.notes` -> `notes`). */
 export const messageOwnerOf = (pluginId: string): string => pluginId.slice(pluginId.lastIndexOf(".") + 1);
 
 /** The platform's own owner of words: `common.*` is bound to it, so a shared word has one owner and a reference to it says so. */

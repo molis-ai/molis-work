@@ -1,8 +1,8 @@
+import { PLUGIN_OFFERS } from "@molis-ai/molis-work-ui-host";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { DirectoryView, PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
-import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
-import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
+import { PLATFORM_NAVIGATION } from "./platform-surfaces.js";
 
 export type { PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 
@@ -60,7 +60,8 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
     seen.add(id);
     const chosen = entry.chosen === true;
     const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons, chosen); return clean ? [clean] : []; });
-    entries.push({ id, plugin_id: pluginId, name, ...(summary ? { summary } : {}), chosen,
+    const offers = PLUGIN_OFFERS.filter(offer => Array.isArray(entry.offers) && entry.offers.includes(offer));
+    entries.push({ id, plugin_id: pluginId, name, ...(summary ? { summary } : {}), ...(offers.length ? { offers } : {}), chosen,
       ...(chosen ? trustedMarks(entry) : homeMarks(entry)), ui: { views } });
   }
   return entries;
@@ -83,9 +84,9 @@ function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "
 /**
  * Whether a plugin is the person's own, as the switcher's 个人 group, the bar's right tray and ＋'s 「个人 · 所有项目共用」 all list it
  * (docs/design/workbench-navigation ②; 07-1 S4b): one the Host marks as holding the person's data across projects *and* running in
- * the Home's Runtime — the built-in Home plugins and every package installed in the Home. A personal plugin that runs per project
- * (Pages, 灵光) and a Home plugin not registered as the person's (Goals, Feed) are not. Running an instance on each side decides
- * nothing (Shelf does and is personal). The one rule; nothing else decides it.
+ * the Home's Runtime — since batch 108 only a package installed in the Home (no built-in plugin is personal: each is enabled per
+ * partition). A Home plugin not registered as the person's (Feed) is not. Running an instance on each side decides nothing. The one
+ * rule; nothing else decides it.
  */
 export function isPersonalPlugin(entry: Pick<PluginDirectoryEntry, "personal" | "home">): boolean {
   return entry.personal === true && entry.home === true;
@@ -131,8 +132,7 @@ export function clientPluginDirectory(directory: PluginDirectory, offered: reado
     return { ...(tab ? { side: tab } : {}), ...(item ? { side_item: item } : {}) };
   };
   return [
-    { id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue, ...place(ARTIFACT_NAVIGATION.id) },
-    { id: SESSIONS_NAVIGATION.id, accepts_objects: false, hue: SESSIONS_NAVIGATION.hue, ...place(SESSIONS_NAVIGATION.id) },
+    ...PLATFORM_NAVIGATION.map(({ id, accepts_objects, hue }) => ({ id, accepts_objects, hue, ...place(id) })),
     ...directory.map(entry => ({
     id: entry.id,
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),

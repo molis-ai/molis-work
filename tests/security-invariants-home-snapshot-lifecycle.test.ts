@@ -31,7 +31,7 @@ test("RAC-105-S-02: a second real process cannot start a Host while snapshot own
   // T405-FULL-07: initialize a valid product Home before testing the snapshot's exclusive ownership.
   const f = await smallSnapshotHome(t), initialized = createMolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   await initialized.close();
-  await f.file("images/assets/kept.bin");
+  await f.file("plugin-files/install/kept.bin");
   const original = fs.writeSync; let attempts = 0;
   const peer = `import{createMolisWorkLocalHost}from'@molis-ai/molis-work-app-local-host';let host;try{host=createMolisWorkLocalHost({homeDirectory:process.argv[1]});process.stdout.write(JSON.stringify({state:'entered'}));}catch(error){process.stdout.write(JSON.stringify({state:'refused',code:error.code}));}finally{await host?.close();}`;
   const mocked = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {
@@ -53,7 +53,7 @@ test("RAC-105-S-02: a second real process cannot start a Host while snapshot own
 
 test("RAC-109-S-05: a real payload I/O failure and cancellation clean staging, preserve source, and permit retry", { timeout: 30_000 }, async t => {
   for (const failure of ["write", "cancel"] as const) await t.test(failure, async t => {
-    const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+    const f = await smallSnapshotHome(t); await f.file("plugin-files/install/kept.bin");
     const before = await snapshotBusinessFingerprint(f.home), abort = new AbortController(), original = fs.writeSync;
     let injected = false;
     const mocked = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {
@@ -71,7 +71,7 @@ test("RAC-109-S-05: a real payload I/O failure and cancellation clean staging, p
 });
 
 test("RAC-109-S-05: a post-rename parent flush failure explicitly retains the published result", async t => {
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await f.file("plugin-files/install/kept.bin");
   const parent = await lstat(f.area), original = fs.fsyncSync;
   let injected = false;
   const mocked = t.mock.method(fs, "fsyncSync", (fd: number) => {
@@ -87,7 +87,7 @@ test("RAC-109-S-05: a post-rename parent flush failure explicitly retains the pu
 });
 
 test("RAC-109-S-05: a competing destination created during capture is preserved and the private stage is removed", async t => {
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await f.file("plugin-files/install/kept.bin");
   const original = fs.writeSync; let competed = false;
   const mocked = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {
     if (!competed) { competed = true; fs.mkdirSync(f.snapshot); fs.writeFileSync(join(f.snapshot, "keep"), "competing owner"); }
@@ -101,7 +101,7 @@ test("RAC-109-S-05: a competing destination created during capture is preserved 
 });
 
 test("RAC-109-S-05: a source file changed during capture never produces a successful mixed snapshot", async t => {
-  const f = await smallSnapshotHome(t), source = await f.file("images/assets/kept.bin", Buffer.alloc(2 * 1024 * 1024, 0x41));
+  const f = await smallSnapshotHome(t), source = await f.file("plugin-files/install/kept.bin", Buffer.alloc(2 * 1024 * 1024, 0x41));
   const original = fs.writeSync; let changed = false;
   const mocked = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {
     const written = Reflect.apply(original, fs, args);
@@ -119,7 +119,7 @@ test("RAC-109-S-05: a source file changed during capture never produces a succes
 test("RAC-105-S-02 RAC-109-S-05: SIGKILL releases ownership and leaves only an unpublished private stage", { timeout: 30_000 }, async t => {
   let cleanup: () => Promise<unknown> = async () => undefined;
   t.after(() => cleanup());
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await f.file("plugin-files/install/kept.bin");
   const before = await snapshotBusinessFingerprint(f.home);
   const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./fixtures/home-snapshot-paused-cli.ts", import.meta.url)), f.home, f.snapshot],
     { env: process.env, stdio: ["ignore", "ignore", "pipe", "ipc"] });
@@ -154,7 +154,7 @@ test("102-2 S-07: live resident Host serves online CLI home snapshot via control
   await new Promise<void>(resolveListen => server.listen(0, "127.0.0.1", resolveListen));
   t.after(() => new Promise<void>(resolveClose => { server.closeAllConnections(); server.close(() => resolveClose()); }));
   const token = (await readFile(join(f.home, "config", "web-control-token"), "utf8")).trim();
-  await f.file("images/assets/kept.bin");
+  await f.file("plugin-files/install/kept.bin");
   const endpoint = readHostEndpoint(f.home);
   assert.ok(endpoint, "resident Host writes run/endpoint.json once listening");
   const origin = `http://127.0.0.1:${endpoint.port}`;

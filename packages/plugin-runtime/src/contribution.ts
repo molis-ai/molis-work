@@ -117,6 +117,8 @@ function assertHandlers(manifest: PluginManifest, contribution: PluginAppContrib
   if (!contribution.onEvent && subscribes.length > 0 && projectInputsOwed) {
     problems.push("声明了事件订阅但没有提供 onEvent");
   }
+  // Due entries only reach a plugin the per-partition assembly runs (batch 108).
+  if (contribution.onDue && !manifest.databases?.partition) problems.push("提供了 onDue 但 Manifest 没有声明 databases.partition");
 
   const inputs = manifest.ports?.inputs ?? [];
   if ((contribution.onUpstreamReady || contribution.onUpstreamUnavailable) && inputs.length === 0) {

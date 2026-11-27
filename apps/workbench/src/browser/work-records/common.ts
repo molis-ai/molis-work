@@ -126,11 +126,11 @@ export const lockIconHtml = () => icon("lock");
 export const inlineIconHtml = (name: PluginIconName) => icon(name);
 
 export const kindsMeta = (): readonly KindMeta[] => [
-  { id: "user", hue: "blue", icon: "edit", name: readText("workbench.catalog-work-records.kind-user"), rec: readText("workbench.catalog-work-records.kind-user-summary"), not: readText("workbench.settings-work-records.kind-user-not") },
-  { id: "ai", hue: "plum", icon: "sparkles", name: readText("workbench.catalog-work-records.kind-ai"), rec: readText("workbench.catalog-work-records.kind-ai-summary"), not: readText("workbench.settings-work-records.kind-ai-not") },
-  { id: "content", hue: "slate", icon: "history", name: readText("workbench.catalog-work-records.kind-content"), rec: readText("workbench.catalog-work-records.kind-content-summary"), not: readText("workbench.settings-work-records.kind-content-not") },
-  { id: "flow", hue: "ochre", icon: "workflow", name: readText("workbench.catalog-work-records.kind-flow"), rec: readText("workbench.catalog-work-records.kind-flow-summary"), not: readText("workbench.settings-work-records.kind-flow-not") },
-  { id: "present", hue: "clay", icon: "eye", name: readText("workbench.catalog-work-records.kind-present"), rec: readText("workbench.catalog-work-records.kind-present-summary"), not: readText("workbench.settings-work-records.kind-present-not") },
+  { id: "user", hue: "blue", icon: "edit", name: readText("workbench.settings-work-records.kind-user"), rec: readText("workbench.settings-work-records.kind-user-summary"), not: readText("workbench.settings-work-records.kind-user-not") },
+  { id: "ai", hue: "plum", icon: "sparkles", name: readText("workbench.settings-work-records.kind-ai"), rec: readText("workbench.settings-work-records.kind-ai-summary"), not: readText("workbench.settings-work-records.kind-ai-not") },
+  { id: "content", hue: "slate", icon: "history", name: readText("workbench.settings-work-records.kind-content"), rec: readText("workbench.settings-work-records.kind-content-summary"), not: readText("workbench.settings-work-records.kind-content-not") },
+  { id: "flow", hue: "ochre", icon: "workflow", name: readText("workbench.settings-work-records.kind-flow"), rec: readText("workbench.settings-work-records.kind-flow-summary"), not: readText("workbench.settings-work-records.kind-flow-not") },
+  { id: "present", hue: "clay", icon: "eye", name: readText("workbench.settings-work-records.kind-present"), rec: readText("workbench.settings-work-records.kind-present-summary"), not: readText("workbench.settings-work-records.kind-present-not") },
 ];
 
 export const kindById = (id: string | undefined): KindMeta | undefined => kindsMeta().find((k) => k.id === id);

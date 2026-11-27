@@ -124,6 +124,23 @@ test("QEA-67 active integrations still require their installation manifest and i
     assert.ok(checkWith(INTEGRATION, file, JSON.stringify(metadata)).includes(`${file}: install package must include manifest.json`));
   }
 });
+test("44C-2 PSD-08 the Host names no integration package outside the generated driver registry, and keeps no file of its own for one", () => {
+  // A file the Host reads that names an integration package, in code or only in a comment, is refused; the generated registry is not.
+  const file = "apps/local-host/src/connector-directory.ts";
+  for (const line of ['import { drivers } from "@molis-ai/molis-work-integration-github/drivers";', "// see @molis-ai/molis-work-integration-gmail"]) {
+    assert.ok(checkWith(INTEGRATION, file, `${read(file)}\n${line}\n`).some(error => error.startsWith(`${file}: the Host names an integration package`)), line);
+  }
+  assert.ok(checkWith(INTEGRATION, file, `${read(file)}\nconst u = "https://gmail.googleapis.com/gmail/v1";\n`).some(error => error.includes("provider's endpoint")));
+  assert.match(read("apps/local-host/src/plugin-registry.generated.ts"), /@molis-ai\/molis-work-integration-github\/drivers/u);
+  // The retired per-provider files cannot come back.
+  for (const retired of ["apps/local-host/src/github-connector.ts", "apps/local-host/src/gmail-connector.ts"]) {
+    const original = fs.existsSync, target = path.join(repository, retired);
+    fs.existsSync = candidate => String(candidate) === target || original(candidate);
+    try { assert.ok(errorsOf(INTEGRATION(repository)).some(error => error.startsWith(retired)), retired); }
+    finally { fs.existsSync = original; }
+  }
+});
+
 const MORE_ROWS = [
   { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "createWorkbenchStageRenderers(", kind: "code" },
   { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "stageModel: stages.declaredStageModel", kind: "code" },
@@ -157,8 +174,6 @@ const MORE_ROWS = [
   { check: checkProposalUiOwnershipInTree, file: "plugins/native/goals/src/browser/page.ts", needle: "handleGoalProposalSubmit(submittedForm, event)", kind: "code" },
   { check: INTEGRATION, file: "plugins/official-integrations/github/src/index.ts", needle: '"io.molis.work.integration.github"', kind: "text" },
   { check: INTEGRATION, file: "plugins/official-integrations/github/src/index.ts", needle: '"adeptify-official-signature-v1"', kind: "text" },
-  { check: INTEGRATION, file: "apps/local-host/src/github-connector.ts", needle: 'from "@molis-ai/molis-work-integration-github"', kind: "import" },
-  { check: INTEGRATION, file: "apps/local-host/src/gmail-connector.ts", needle: 'from "@molis-ai/molis-work-integration-gmail"', kind: "import" },
 ];
 
 defineRowTests(MORE_ROWS, ["RAC-2061", "RAC-2062", "RAC-2063"]);

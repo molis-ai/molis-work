@@ -1,3 +1,4 @@
+import { resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { EventEmitter } from "node:events";
 import { ActionError, requireSynchronous, retainActionAuthority, type ActionCallContext, type ActionClient, type ActionExecutionContext,
   type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -66,8 +67,7 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
     };
     const discovered: DiscoveredSetting[] = [];
     const add = (owner: SettingBinding, declaration: SettingsDeclaration, text_owner: string, unavailable?: string, unavailable_reason?: DiscoveredSetting["unavailable_reason"]) => {
-      for (const entry of declaration.entries) discovered.push({ entry, binding: owner, text_owner,
-        ...(declaration.model_configuration?.key === entry.key && { model_selection: true }), ...(unavailable && { unavailable, unavailable_reason }) });
+      for (const entry of declaration.entries) discovered.push({ entry, binding: owner, text_owner, ...(unavailable && { unavailable, unavailable_reason }) });
     };
     const listed = new Set<string>();
     for (const view of directory) {
@@ -110,7 +110,7 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
           const { capability_id, version } = declaration.read;
           const read = manifest?.actions?.find(action => action.capability_id === capability_id && action.version === version);
           if (read?.action.scope !== (projectScoped ? "project" : "home")) continue;
-          const provider = install.publisher_trust === "host" ? install.plugin_id : install.execution === "sandbox" ? "plugin:" + install.plugin_id : install.install_id;
+          const provider = resolveActionProviderId(install);
           const reason = "owner_disabled";
           add(binding(provider, projectScoped, declaration, install), declaration, install.plugin_id, reason, reason);
         }

@@ -1,4 +1,4 @@
-import { lstatSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginDefinition, type PluginOwnerFilesClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -74,10 +74,60 @@ export function sandboxOwnerFilesBase(homeDirectory: string, projectId: string |
   return join(sandboxOwnerFilesRoot(homeDirectory, projectId), "plugin-files", installation);
 }
 
+/**
+ * A per-partition instance's declared files (batch 108, §5 插件文件): the same root a sandboxed installation has in that partition,
+ * `<partition root>/plugin-files/<installation>/<store_name>/`, whatever runs the code; deleting the partition deletes them with it.
+ */
+export function partitionOwnerFilesFor(scope: SandboxOwnerFilesScope & { readonly partitionScope?: { readonly install_id: string; readonly partition_id: string } },
+  definition: PluginDefinition, context: Pick<PluginStartContext, "install_id" | "installation_generation" | "requireGrant">, assertActive: () => void): { readonly client: PluginOwnerFilesClient } | undefined {
+  if (!scope.partitionScope || !definition.manifest.databases?.partition || definition.manifest.owner_files === undefined) return undefined;
+  if (scope.partitionScope.install_id !== context.install_id || scope.partitionScope.partition_id !== scope.project_id) {
+    throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 的文件只给它在这个分区里的实例`);
+  }
+  return ownFiles(scope, definition, context, assertActive, true);
+}
+
+/** Hold the previous installation's files out of reach until the signed replacement finishes. */
+export function stageSandboxOwnerFiles(home: string, projectId: string | null, installId: string) {
+  const root = sandboxOwnerFilesRoot(home, projectId);
+  const base = sandboxOwnerFilesBase(home, projectId, installId);
+  const check = () => assertOwnSandboxFilesPath(root, base);
+  check();
+  let backup: string | undefined;
+  if (lstatSync(base, { throwIfNoEntry: false })) {
+    backup = mkdtempSync(join(dirname(base), ".discard-"));
+    try { renameSync(base, join(backup, "files")); }
+    catch (error) {
+      rmSync(backup, { recursive: true, force: true });
+      throw error;
+    }
+  }
+  return {
+    restore() {
+      check();
+      removeSandboxOwnerFiles({ home: { directory: home }, project_id: projectId }, installId);
+      if (backup) {
+        assertOwnSandboxFilesPath(root, backup);
+        renameSync(join(backup, "files"), base);
+      }
+    },
+    close() {
+      if (!backup) return;
+      assertOwnSandboxFilesPath(root, backup);
+      rmSync(backup, { recursive: true, force: true });
+    },
+  };
+}
+
 export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: PluginDefinition,
   context: Pick<PluginStartContext, "install_id" | "installation_generation" | "requireGrant">, assertActive: () => void): { readonly client: PluginOwnerFilesClient } | undefined {
-  const declaration = definition.manifest.owner_files;
-  if (definition.execution !== "sandbox" || declaration === undefined) return undefined;
+  if (definition.execution !== "sandbox" || definition.manifest.owner_files === undefined) return undefined;
+  return ownFiles(scope, definition, context, assertActive, false);
+}
+
+function ownFiles(scope: SandboxOwnerFilesScope, definition: PluginDefinition,
+  context: Pick<PluginStartContext, "install_id" | "installation_generation" | "requireGrant">, assertActive: () => void, located: boolean): { readonly client: PluginOwnerFilesClient } {
+  const declaration = definition.manifest.owner_files!;
   if (!scope.home) throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了主人文件，但这个插件平台没有 Home`);
   const root = sandboxOwnerFilesRoot(scope.home.directory, scope.project_id);
   const base = sandboxOwnerFilesBase(scope.home.directory, scope.project_id, context.install_id);
@@ -85,9 +135,10 @@ export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: 
   assertOwnSandboxFilesPath(root, base);
   mkdirSync(base, { recursive: true, mode: 0o700 });
   assertOwnSandboxFilesPath(root, base);
-  // No location is passed: `rootPath()` answers "unavailable", and the sandbox's broker has no method for it either way.
+  // A sandboxed package is given no location: `rootPath()` answers "unavailable", and the sandbox's broker has no method for it either way.
   return createPluginOwnerFilesClient(definition.manifest, declaration, openPluginOwnerFiles(base, declaration),
-    { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission) });
+    { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission) },
+    located ? join(base, declaration.store_name) : undefined);
 }
 
 /**

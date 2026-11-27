@@ -1,6 +1,6 @@
 # U2 金样 Home 与回放：设计
 
-状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 68](../post-anticorruption-roadmap/reference/decisions.md#decision-68)：开发前阶段零开发金样、零金样回放——原 `0.1.0` 开发金样夹具、金样脚本、覆盖面／库结构快照门禁与 `golden-replay` CI 作业均已移除；本文保留作为 1.0.0 对外发布前重新建立生产金样回放的设计参考）。行为与验收见[升级后持续可用](spec.md)。
+状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)：开发前阶段零开发金样、零金样回放——原 `0.1.0` 开发金样夹具、金样脚本、覆盖面／库结构快照门禁与 `golden-replay` CI 作业均已移除；本文保留作为 1.0.0 对外发布前重新建立生产金样回放的设计参考）。行为与验收见[升级后持续可用](spec.md)。
 
 验收编号沿用 `UPG-01`、`UPG-10`、`UPG-11`、`UPG-14`（§9）；本文新增的检查用 `UPG2-` 前缀，在 §7 列出。
 
@@ -111,7 +111,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 2. **升级**：用当前代码启动常驻宿主。U1 合入以前，各库版本必须与当前代码相同，打开时的结构检查就是唯一的检查；U1 合入以后，启动时的升级过程把每个库升到当前版本（[U1 设计](upgrade-chain-design.md) §3、§4）。还原时不写升级戳记，所以这一步必定全量扫，账号 Home 同样（U1 设计 §4.2）。
 3. **结构**：每个库的结构与当前基线逐表一致，触发器逐字一致（`applySqliteBaseline` 已有的检查）；带版本的文件经各自的读取入口读成功。
 4. **读**：所有不需要参数的读取，在 Home 级和每个项目里各跑一遍，沿用 `probe` 的判断：除了金样里本就没配置的依赖（列在一张带确切错误码的表里），任何错误都算失败。
-5. **行数不减**：清单里记下的逐表行数，升级后不能变少；主人在升级段里明确声明会删除或合并的表除外，声明写在升级段旁边。 插件在项目库里的表同样：回放按清单里记下的 `plugin_tables` 版本，读那个插件 Manifest 的 `databases.project.upgrades` 中从该版本起各段的 `reduces_rows`（第 41 批，Goals 3→4 删方法表）。这个版本已经没有的库（宿主的 `REMOVED_HOME_STORES`，现在只有 `goals`）不算行数：回放改为核对升级后那个文件已经不在，还在就报 `golden.removed_store_kept`。
+5. **行数不减**：清单里记下的逐表行数，升级后不能变少；主人在升级段里明确声明会删除或合并的表除外，声明写在升级段旁边。 插件在项目库里的表同样：回放按清单里记下的 `plugin_tables` 版本，读那个插件 Manifest 的 `databases.project.upgrades` 中从该版本起各段的 `reduces_rows`（第 41 批，Goals 3→4 删方法表）。这个版本已经没有的库（宿主的 `removedHomeStores()`，现在只有 `goals`）不算行数：回放改为核对升级后那个文件已经不在，还在就报 `golden.removed_store_kept`。
 6. **写**：每个库的主人提供一个「最小写入」用例（新建一条、改一条），在升级后的 Home 上跑，再读回来。**靠约定的文件位置发现，不改合同**：内置的主人在 `tests/golden-writes/<主人>.ts` 放一个文件，默认导出一个函数，参数是回放脚本给的动作客户端与调用者，只经动作写读；`<主人>` 用 `HOME-DATA.md` 里的 owner 名。装上的第三方插件不进仓库，沿用插件回放语料已有的 `write` 字段（`tests/fixtures/replay-plugins/corpus.json`），第三方作者在自己的样本里声明，不需要平台新字段。实际约定多了几条：文件还能导出 `webSurface = true`（只走网页入口的主人，账号 Home 跳过）和 `afterKnowledgeRebuild = true`（生成时等知识库重建完才跑，§2）；`model-turn.ts` 走真实的对话入口，脚本化的模型只回答带标记「金样对话」的那一轮，后台调用一律拒绝，否则定时器会把模型文字写进不定的位置；文件名和 `HOME-DATA.md` 的 owner 对不上（owner 常常是「宿主」，一个主人的表又在项目库里），对应关系写在 `tooling/gates/golden-coverage.json` 的 `writes`。不在插件的 `registration`、Manifest 或 SDK 上加声明；以后要让第三方插件随包自带写入用例，那是合同改动，先单独开合同 PR（轨道规则 1）。覆盖面门禁按同一约定核对：`HOME-DATA.md` 里每个必备份库的主人，`tests/golden-writes/` 下都要有它的文件。
 7. **插件回放**：对升级后的 Home 跑 `replay-plugins.mjs` 的同一组检查，确认装上的第三方插件还能加载、调用、再升级，Home 库样本的行升级后还在。只有 macOS 能跑（§5）：只有相关改动才在合并前跑，其余靠定时作业。
 8. **重启**：关掉宿主再开一次，第 3、4 步再跑一遍，确认升级不是只在内存里生效。

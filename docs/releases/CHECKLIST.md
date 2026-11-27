@@ -47,7 +47,7 @@
 | 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | 对话附件 | `conversation-attachments/conversation-attachments.db` | 1 | `user_version` | `apps/local-host/src/material-attachments.ts#ATTACHMENTS_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
-| Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
+| Issue | `<partition>/libraries/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | 分区到期登记 | `due-registry/due-registry.db` | 1 | `user_version` | `horizontal/scheduler/src/due-registry.ts#DUE_REGISTRY_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | 证据正文持有账 | `evidence/evidence.db` | 1 | `user_version` | `horizontal/evidence/src/index.ts#EVIDENCE_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
@@ -65,14 +65,14 @@
 | 网页搜索设置 | `web-search/web-search.db` | 1 | `user_version` | `apps/local-host/src/web-search-store.ts#WEB_SEARCH_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | 网页搜索单次运行的证据表 | `:memory:` | 1 | `user_version` | `apps/local-host/src/connector-web-search.ts#SEARCH_RUN_BASELINE` | 不落盘：每次搜索新建、结束即丢，没有可不符的旧库 |
 | 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
-| Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
+| Cognia | `<partition>/libraries/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | Dataset | `<partition>/libraries/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/database.ts#DATASET_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
-| Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
-| Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/database.ts#JELLY_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
+| Images | `<partition>/libraries/images.db` | 1 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
+| Jelly | `<partition>/libraries/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/database.ts#JELLY_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | 灵光 | `<partition>/libraries/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/database.ts#LINGGUANG_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | Pages | `<partition>/libraries/pages.db` | 1 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | PPT | `<partition>/libraries/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
-| Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
+| Todo | `<partition>/libraries/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | Work Brief | `work-brief/work-brief.db` | 1 | `user_version` | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | Workflows | `<partition>/libraries/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建 |
@@ -91,7 +91,7 @@
 | 侧栏浏览器的网站决定（JSON 文件，不是库） | `browser/sites.json` | 1 | `version` | `apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION` | 开发前阶段固定 v1；高版本或读不了时 fail-closed（关闭助理使用侧栏浏览器并阻断全部网站）且拒绝保存，原文件不变 |
 | 电脑操作设置（JSON 文件，不是库） | `computer/settings.json` | 1 | `version` | `apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION` | 开发前阶段固定 v1；高版本或读不了时总开关关且拒绝保存，原文件不变 |
 | 电脑操作记录（JSON 文件，不是库） | `computer/records/<id>/record.json` | 1 | `version` | `apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION` | 开发前阶段固定 v1；高版本或读不了的记录不列出且拒绝改写，原文件不变 |
-| 插件的模型选择（JSON 文件，不是库） | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 | `schema_version` | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION` | 开发前阶段固定 v1；版本不是 1 或字段不对报 `host.model_configuration_invalid`，写入前拒绝并不改原文件 |
+| 插件的模型选择（JSON 文件，不是库） | `plugin-files/<install_id>/.model-settings/preference.json` | 1 | `schema_version` | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION` | 开发前阶段固定 v1；版本不是 1 或字段不对报 `host.model_configuration_invalid`，写入前拒绝并不改原文件 |
 | 常驻 Web 服务的收据（JSON 文件，不是库） | `config/web-service.json` | 1 | `schema_version` | `apps/local-host/src/installer/web-service-contract.ts#schema_version` | 读的时候核对 `owner`、`label`、`plist_path`、`plist_hash`；文件不在或不是 JSON 时当作没有收据，已有的同名 LaunchAgent 算不是自己的，不覆盖（报 `conflict`） |
 | 本机 Runtime 接入收据（JSON 文件，不是库） | `runtime-integrations/<runtime>.json` | 1 | `schema_version` | `apps/local-host/src/installer/runtime-integration-receipt.ts#CURRENT` | 开发前阶段固定 v1；版本或结构不符拒绝读取且不覆盖原文件 |
 

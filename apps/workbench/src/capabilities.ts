@@ -3,9 +3,10 @@ import type { ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/mo
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 import type { WebProjectNavigation } from "./settings-navigation.js";
+import { CAPABILITY_SETTINGS_SECTIONS, listedSettingsSections, type CapabilitySection } from "./platform-settings-registry.js";
 import { renderCallRow, type CallRowView } from "./call-row.js";
 
-export type CapabilitySection = "library" | "connections" | "access" | "history";
+export type { CapabilitySection } from "./platform-settings-registry.js";
 export interface CapabilitiesView {
   rules?: boolean;
   section: CapabilitySection;
@@ -32,10 +33,7 @@ export interface CapabilitiesView {
   preview?: boolean;
 }
 
-const sections = [
-  ["library", "workbench.capabilities.capability-library", "book"], ["connections", "workbench.capabilities.service-connections", "link"],
-  ["access", "workbench.capabilities.external-access", "shield"], ["history", "workbench.capabilities.call-history", "workflow"],
-] as const;
+const sections = listedSettingsSections().flatMap(({ id, row }) => CAPABILITY_SETTINGS_SECTIONS.includes(id) ? [[id as CapabilitySection, row.label, row.icon as "book" | "link" | "shield" | "workflow"] as const] : []);
 const kinds: Record<string, string> = { query: "workbench.capabilities.query", judgment: "workbench.capabilities.evaluation", operation: "workbench.capabilities.action", navigation: "workbench.capabilities.open-page" };
 
 export function createCapabilitiesRenderer(p: SettingsRenderPrimitives, model: CapabilitiesView, project: WebProjectNavigation | null, projects: readonly WebProjectNavigation[], desktop: boolean) {

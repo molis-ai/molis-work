@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes } from "@molis-ai/molis-work-app-local-host";
+import { QUESTION_CARD_TYPES, hostQuestionTypes } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_QUESTION_PROBLEM_REASONS, AGENT_QUESTION_TYPES } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { answerProblems, projectQuestion } from "@molis-ai/molis-work-service-agent-host";
 
@@ -62,14 +62,11 @@ test("AC-19 / AC-17: the contract's closed sets are the SDK's (19 reasons, six t
   assert.deepEqual([...AGENT_QUESTION_TYPES], ["choice", "text", "number", "date", "datetime", "reference"]);
 });
 
-test("AC-20 / AC-17: the Runtime is offered only the types every surface that draws questions can draw", () => {
+test("AC-20 / AC-17: the Runtime is offered only the types the one question card every surface draws with can draw", () => {
   // Offering even "choice" puts the model on the typed form. The Assistant (A1) and Coding (A2) both draw typed choice questions with the
   // Host's shared card (the model-facing contract is guarded by issue-clarification-page ISSUE-34), and words, numbers, dates and a date
   // and time (T1; what the provider receives is guarded by agent-question-types AC-27-1), and objects found by name (T2).
   const drawn = ["choice", "text", "number", "date", "datetime", "reference"];
-  assert.deepEqual(hostQuestionTypes(), drawn, "AC-22 AC-27-1: what both surfaces draw is offered, and nothing else");
-  assert.deepEqual(ASSISTANT_QUESTION_TYPES, drawn, "AC-21: the Assistant declares what it draws"); assert.deepEqual(CODING_QUESTION_TYPES, drawn, "AC-22: so does Coding");
-  assert.deepEqual(hostQuestionTypes([["choice", "text", "date"], ["choice", "date"]]), ["choice", "date"]);
-  assert.deepEqual(hostQuestionTypes([["choice", "text"], []]), [], "a surface that draws nothing leaves nothing to offer");
-  assert.deepEqual(hostQuestionTypes([["choice", "text"]]), ["choice", "text"]);
+  assert.deepEqual(hostQuestionTypes(), drawn, "AC-22 AC-27-1: what the card draws is offered, and nothing else");
+  assert.deepEqual(QUESTION_CARD_TYPES, drawn, "AC-21 AC-22: the Assistant and a plugin's stage (Coding) draw questions with the same card, so it declares what is drawn once");
 });

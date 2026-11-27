@@ -96,6 +96,24 @@ export type PluginAuthMethodDeclaration = {
     readonly kind: "cli" | "mcp";
 };
 
+export interface PluginConnectionCardDeclaration {
+    readonly purpose?: PluginConnectionWord;
+    readonly provider?: PluginConnectionWord;
+    readonly preferred_method?: "cli" | "mcp" | "token";
+    readonly credential?: PluginConnectionCredentialDeclaration;
+    readonly own_app?: true;
+    readonly client_note?: PluginConnectionWord;
+}
+
+export interface PluginConnectionCredentialDeclaration {
+    readonly separator: ":" | "|";
+    readonly fields: readonly {
+        readonly label: PluginConnectionWord;
+        readonly type: "text" | "email" | "url" | "password";
+        readonly placeholder?: string;
+    }[];
+}
+
 export type PluginConnectionLink = WithConnectionLabel<ConnectorSetupLink>;
 
 export interface PluginConnectionServiceDeclaration {
@@ -114,6 +132,7 @@ export interface PluginConnectionServiceDeclaration {
     readonly origins?: readonly string[];
     readonly categories?: readonly string[];
     readonly project_hints?: PluginServiceProjectHints;
+    readonly card?: PluginConnectionCardDeclaration;
 }
 
 export type PluginConnectionWord = string | TextRef;
@@ -123,6 +142,7 @@ export interface PluginIntegrationDeclaration {
     readonly kind: IntegrationKind;
     readonly service_id: string;
     readonly document_source?: string;
+    readonly title?: PluginConnectionWord;
     readonly connection_methods?: readonly ConnectorMethodKind[];
 }
 

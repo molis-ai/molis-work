@@ -7,6 +7,8 @@
     "salesforce.connection.inbound": "Feed retrieves CRM records",
     "salesforce.connection.summary": "CRM objects and records.",
     "salesforce.connection.token-label": "Salesforce instance and access token",
+    "salesforce.credential.instance-url": "Instance URL",
+    "salesforce.credential.access-token": "Access token",
     "salesforce.guide.cli-link": "View Salesforce CLI sign-in",
     "salesforce.guide.cli-note": "Use the Salesforce CLI to sign in to an org and query data. Molis Work doesn’t read local org authorization.",
     "salesforce.guide.mcp-connected-note": "Hosted MCP may require enterprise setup and consume Flex Credits.",

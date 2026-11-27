@@ -92,7 +92,7 @@ export interface SkillPick {
 }
 
 /**
- * Who a round's Skill line belongs to (batch 41): the Assistant, a plugin Agent by its declared scene (Coding's `coding`), or a
+ * Who a round's Skill line belongs to (batch 41): the Assistant, a plugin Agent by its declared scene (its Manifest's `memory_scene`), or a
  * plugin's own Agent round with no scene (`agent`). BL-b44-coding-scene-enum: the platform names no plugin.
  */
 export type SkillPickConsumer = string;

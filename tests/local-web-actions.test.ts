@@ -21,9 +21,13 @@ import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { bindLocalWebAction, bindLocalWebActions, invokeLocalWebCatalogAction, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
-import { deferred, serveHomeRuntime, homeProbe, grantHomeProbe } from "./fixtures/home-runtime.js";
+import { deferred, serveHomeRuntime, homeProbe, grantHomeProbe, partitionInstallation } from "./fixtures/home-runtime.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
+/**
+ * A plugin's instance in one partition (batch 108: Todo, Cognia and Images run in each partition they are added to), with a way to give its
+ * installation other grants the way the person's settings do: stopped, granted, started again.
+ */
 test("SPC-C08 S-15 the Web Catalog caller refuses foreign providers, missing route authority, and ordinary project actions before opening a project", async t => {
   const opened: string[] = [];
   const f = await serveHomeRuntime(t, { onRuntimeOpen: reference => { opened.push(reference.project_id); } });
@@ -272,7 +276,7 @@ test("a Runtime plugin registered under its plugin_id gets its local-user grants
     ui: { contributions: [] }, actions: [pluginRead] }, async start() { return { kind: "app", actions: [{ ...pluginRead, handle: () => "plugin" }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   // The Host's rule for a plugin that ships with it: the plugin id, where an installation id would otherwise be.
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([pluginId]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([pluginId]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
   // What the Host assembles by hand for the same plugin (Shelf has such providers), under the same id and with no installation behind it.
   const withdrawHost = host.actionRegistry(reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "宿主", kind: "plugin", project_id: reference.project_id },
     definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
@@ -310,7 +314,7 @@ test("a scene-only plugin registered under its plugin_id obtains local-user disc
     async start() { return { kind: "app", action_scenes: [{ ...scene,
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([plugin.manifest.plugin_id]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([plugin.manifest.plugin_id]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
   const installed = runtime.install({ trust: { level: "host" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
@@ -354,8 +358,9 @@ test("the Workbench's own call context, built from the permissions Feed declares
 // S-15: a plugin the Plugin Runtime assembles reaches the person only through its running installation's grants, built in or not.
 // Todo is `kind: "native"` and ships with the Host, so before this the person's own permissions carried its writes past a revoked grant.
 test("S-15 with todo:write revoked from its installation, Todo's web route refuses a new item and the person's call context no longer offers Todo's writes", { timeout: 90_000 }, async t => {
-  const { host, request, project } = await serveHomeRuntime(t);
-  const items = `/api/plugins/${TODO_PLUGIN_ID}/items`;
+  const { host, request, project, personal } = await serveHomeRuntime(t);
+  const space = await personal(["todo"]);
+  const items = `/projects/${space.project_id}/api/plugins/${TODO_PLUGIN_ID}/items`;
   const listed = async () => {
     const response = await request(items); assert.equal(response.status, 200, await response.clone().text());
     return (await response.json() as { items: unknown[] }).items.length;
@@ -366,27 +371,27 @@ test("S-15 with todo:write revoked from its installation, Todo's web route refus
   const read = todoManifest.actions!.find(definition => definition.capability_id === "todo.items.list")!;
   // What the person holds over the Host's own plugins, written out: the shortcut this checks must not apply to a Runtime installation.
   const owner = ["todo:read", "todo:write"];
-  const granted = await localWebActionContext(host, undefined, owner);
+  const granted = await localWebActionContext(host, space.reference, owner);
   const offered = (granted.allowed_actions ?? []).find(entry => entry.capability_id === create.capability_id);
   assert.ok(offered, "the installation holds todo:write, so its write is the person's");
   await granted.validate_authority!({ ...create, provider_id: offered.provider_id });
 
-  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(TODO_PLUGIN_ID)!;
-  await platform.runtime.stop(install.install_id);
-  platform.runtime.grant(install.install_id, install.grants.filter(permission => permission !== "todo:write"));
-  assert.equal((await platform.supervisor.restart(TODO_PLUGIN_ID)).status, "running");
+  const { install, regrant } = await partitionInstallation(host, space, TODO_PLUGIN_ID);
+  await regrant(install.grants.filter(permission => permission !== "todo:write"));
 
   const before = await listed();
   const refused = await request(items, { method: "POST", body: { title: "撤权之后不该记下的待办" } });
   const refusal = await refused.json() as { code: string };
-  assert.deepEqual([refused.status, refusal.code], [403, "actions.forbidden"]);
+  // Todo's route calls its action through its own instance's client, which holds the installation's grants (batch 108: one per partition)
+  // and refuses an action its installation no longer holds before anything reaches the action.
+  assert.deepEqual([refused.status, refusal.code], [400, "plugin.grant_denied"]);
   assert.equal(await listed(), before, "reading still works, and nothing was written");
   await assert.rejects(async () => granted.validate_authority!({ ...create, provider_id: offered.provider_id }), { code: "actions.forbidden" });
-  const revoked = await localWebActionContext(host, undefined, owner);
+  const revoked = await localWebActionContext(host, space.reference, owner);
   const allowed = (revoked.allowed_actions ?? []).map(entry => entry.capability_id);
   assert.ok(!allowed.includes(create.capability_id), "a revoked grant is not made up by the person's own permissions");
   assert.ok(allowed.includes(read.capability_id), "the read the installation still holds is offered");
-  await assert.rejects(host.homeActionClient().invoke(revoked, create, { title: "经动作网关也记不下" }), { code: "actions.forbidden" });
+  await assert.rejects(host.actionClient(space.reference).invoke(revoked, create, { title: "经动作网关也记不下" }), { code: "actions.forbidden" });
   assert.equal(await listed(), before);
 
   // PG-007 stage 4 (RAC-338): over a provider the Host registers itself, the person holds only what is declared for that provider. The
@@ -484,35 +489,33 @@ test("RAC-339-REVIEW-02 external MCP providers hold only mcp:external and remain
 // VUX-35: a bound client shares one authority snapshot across its calls. It is meant for one request: a grant revoked meanwhile is still
 // refused by the same client, and a grant given afterwards is only seen by a client bound after it.
 test("VUX-35 a bound client refuses a write revoked after it was bound, and a grant given later reaches only a client bound after it", { timeout: 90_000 }, async t => {
-  const { host } = await serveHomeRuntime(t);
+  const { host, personal } = await serveHomeRuntime(t);
+  const space = await personal(["todo"]);
   const create = todoManifest.actions!.find(definition => definition.capability_id === "todo.items.create")!;
   const owner = ["todo:read", "todo:write"];
-  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(TODO_PLUGIN_ID)!;
-  const regrant = async (grants: readonly string[]) => {
-    await platform.runtime.stop(install.install_id);
-    platform.runtime.grant(install.install_id, [...grants]);
-    assert.equal((await platform.supervisor.restart(TODO_PLUGIN_ID)).status, "running");
-  };
-  const granted = bindLocalWebActions(host, undefined, owner);
+  await bindLocalWebActions(host, space.reference, owner).discover(); // the partition's Todo starts
+  const { install, regrant } = await partitionInstallation(host, space, TODO_PLUGIN_ID);
+  const granted = bindLocalWebActions(host, space.reference, owner);
   await granted.invoke(create, { title: "绑定之后记下的待办" });
   const without = install.grants.filter(permission => permission !== "todo:write");
   await regrant(without);
   await assert.rejects(granted.invoke(create, { title: "撤权之后同一个客户端记不下" }), { code: "actions.forbidden" });
 
-  const boundWhileRevoked = bindLocalWebActions(host, undefined, owner);
+  const boundWhileRevoked = bindLocalWebActions(host, space.reference, owner);
   await boundWhileRevoked.discover();
   await regrant([...without, "todo:write"]);
   await assert.rejects(boundWhileRevoked.invoke(create, { title: "授权之前绑定的客户端看不到新授权" }), { code: "actions.forbidden" });
-  await bindLocalWebActions(host, undefined, owner).invoke(create, { title: "授权之后新绑定的客户端记得下" });
+  await bindLocalWebActions(host, space.reference, owner).invoke(create, { title: "授权之后新绑定的客户端记得下" });
 });
 
 // S-51 (C8-1): the control a dispatch hands its bound client (whether the follow-up still counts) joins that client's checks, at the
 // dispatcher's validation and at its last synchronous check, so a control that no longer counts stops the write before the handler.
 test("S-51 a bound client passes its call's control on: a control refusing at beforeEffect or at its last check stops the write", { timeout: 90_000 }, async t => {
-  const { host } = await serveHomeRuntime(t);
+  const { host, personal } = await serveHomeRuntime(t);
+  const space = await personal(["todo"]);
   const [create, list] = ["todo.items.create", "todo.items.list"].map(id => todoManifest.actions!.find(definition => definition.capability_id === id)!) as [ActionDefinition, ActionDefinition];
-  const client = bindLocalWebActions(host, undefined, ["todo:read", "todo:write"]), gone = () => new ActionError("actions.cancelled", "这次跟进已经不算数");
-  const total = async () => (await client.invoke(list, { all_projects: true }) as { counts: { all: number } }).counts.all, before = await total();
+  const client = bindLocalWebActions(host, space.reference, ["todo:read", "todo:write"]), gone = () => new ActionError("actions.cancelled", "这次跟进已经不算数");
+  const total = async () => (await client.invoke(list, {}) as { counts: { all: number } }).counts.all, before = await total();
   await assert.rejects(client.invoke(create, { title: "control 在 beforeEffect 拒绝" }, { beforeEffect: async () => { throw gone(); } }), { code: "actions.cancelled" });
   await assert.rejects(client.invoke(create, { title: "control 在最后一次检查拒绝" }, { beforeEffect: async () => {}, assert_authority_current: () => { throw gone(); } }), { code: "actions.cancelled" });
   assert.equal(await total(), before, "neither write reached Todo");
@@ -523,32 +526,29 @@ test("S-51 a bound client passes its call's control on: a control refusing at be
 // §4 o of privileges.md (PG-007): a Runtime route's own permission is the person's only as far as its installation holds it, whatever else
 // the caller brings. Cognia's routes declare `cognia:read` themselves, so the router's gate is the one asked here.
 test("S-15 with cognia:read revoked from its installation, Cognia's read route is refused while the plugin keeps running", { timeout: 90_000 }, async t => {
-  const { host, request } = await serveHomeRuntime(t);
-  const library = `/api/plugins/${COGNIA_PLUGIN_ID}/library`;
+  const { host, request, personal } = await serveHomeRuntime(t);
+  const space = await personal(["cognia"]);
+  const library = `/projects/${space.project_id}/api/plugins/${COGNIA_PLUGIN_ID}/library`;
   const opened = await request(library); assert.equal(opened.status, 200, await opened.clone().text());
-  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(COGNIA_PLUGIN_ID)!;
-  await platform.runtime.stop(install.install_id);
-  platform.runtime.grant(install.install_id, install.grants.filter(permission => permission !== "cognia:read"));
-  assert.equal((await platform.supervisor.restart(COGNIA_PLUGIN_ID)).status, "running");
+  const { install, regrant } = await partitionInstallation(host, space, COGNIA_PLUGIN_ID);
+  await regrant(install.grants.filter(permission => permission !== "cognia:read"));
   const refused = await request(library);
   assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [403, "actions.forbidden"]);
 });
 
-// §10.29's reproduction for #744: Images is a Home plugin whose Manifest says `kind: "native"`. With `images:read` revoked, its jobs
+// §10.29's reproduction for #744: Images (in each partition it is added to since batch 108) is a plugin whose Manifest says `kind: "native"`. With `images:read` revoked, its jobs
 // route is refused by the route's own gate (`actions.forbidden`), not first let through on the person's permissions and then refused
 // by the provider (`actions.plugin_permission`); the read it still holds keeps working.
 test("S-15 with images:read revoked from its installation, the Images jobs route is refused at the route layer", { timeout: 90_000 }, async t => {
   const { host, request, project } = await serveHomeRuntime(t);
-  const plugin = "io.molis.work.images", { project_id } = await project("撤掉图片读取授权");
+  const plugin = "io.molis.work.images", space = await project("撤掉图片读取授权", ["images"]), { project_id } = space;
   const jobs = `/projects/${project_id}/api/plugins/${plugin}/jobs`;
   assert.deepEqual(await (await request(jobs)).json(), { jobs: [] });
-  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(plugin)!;
-  await platform.runtime.stop(install.install_id);
-  platform.runtime.grant(install.install_id, install.grants.filter(permission => permission !== "images:read"));
-  assert.equal((await platform.supervisor.restart(plugin)).status, "running");
+  const { install, regrant } = await partitionInstallation(host, space, plugin);
+  await regrant(install.grants.filter(permission => permission !== "images:read"));
   const refused = await request(jobs);
   assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [403, "actions.forbidden"]);
-  assert.equal((await request(`/api/plugins/${plugin}/connections`)).status, 200, "the connections read it still holds keeps working");
+  assert.equal((await request(`/projects/${project_id}/api/plugins/${plugin}/connections`)).status, 200, "the connections read it still holds keeps working");
 });
 
 // PG-008 (RAC-651): the routes that bound a hand-written client (the 成果库's owner previews, project references, the Shelf settings,

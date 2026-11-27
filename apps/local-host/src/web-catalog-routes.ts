@@ -3,10 +3,10 @@ import { hostErrors } from "./host-errors.js";
 import { dismissUpgradeNotice, upgradeNoticeFor } from "./home-unavailable-owners.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { MOVED_SETTINGS_ADDRESSES, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
-import { handleSessionsHttp } from "./sessions-http.js";
+import { HOME_PLATFORM_SURFACE_ROUTES } from "./platform-surface-routes.js";
 import { handleRuntimeOverviewHttp } from "./runtime-overview-http.js";
 import { pagePluginDirectory } from "./plugin-directory.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
@@ -87,7 +87,7 @@ function projectPluginSetter({ localHost, composition, serverOptions }: CatalogR
 /** The catalog's addresses, in the order they are tried; an entry answers the request or says false and the next one tries. */
 export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "settings-address", handle: ({ request, response, url, serverOptions, composition }) => redirectSettingsAddress(request, response, url, serverOptions.homeDirectory,
-    () => composition.projectSettings.settingsProjects(serverOptions.homeDirectory), composition.isDesktopShellRequest(request, url)) },
+    () => composition.projectSettings.settingsProjects(serverOptions.homeDirectory), composition.isDesktopShellRequest(request, url), MOVED_SETTINGS_ADDRESSES) },
   { id: "capabilities-redirect", handle: ({ request, response, url }) => {
     if (!(request.method === "GET" && url.pathname === "/capabilities")) return false;
     response.writeHead(302, { location: `/capabilities/library${url.search}`, ...noStore });
@@ -104,7 +104,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url,
     signal => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
-  { id: "sessions", handle: ({ request, response, url, localHost }) => handleSessionsHttp(request, response, url, (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal }), false) },
+  ...HOME_PLATFORM_SURFACE_ROUTES,
   // Outside a project the unified input lists the Home sources only (S-composer-source-call).
   { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
     (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal }), runningHomePluginText(localHost)) },

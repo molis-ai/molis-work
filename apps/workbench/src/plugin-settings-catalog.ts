@@ -6,10 +6,8 @@ import { registeredIconNames } from "@molis-ai/molis-work-design-system";
 import { viewContributionId } from "./declared-stages.js";
 import { builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
 import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
+import { isHostGlobalSettingsSection } from "./platform-settings-registry.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
-
-/** 能力 is four settings categories served from /capabilities/<id> (specs/artifact-positioning S6b). */
-export const CAPABILITY_SETTINGS_SECTIONS = ["library", "connections", "access", "history"] as const;
 
 interface PluginSettingsNavItem {
   readonly section_id: string;
@@ -85,7 +83,7 @@ export function pluginSettingsNavItemsFrom(
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));
 }
 
-/** The settings pages of the plugins the context shows (`shown`, as the Host works it out: personal ones unless hidden, and the enabled ones). */
+/** The settings pages of the plugins the context shows (`shown`, as the Host works it out: the ones the partition has). */
 export function listPluginSettingsNavItems(shown: readonly string[] = []): PluginSettingsNavItem[] {
   const scope = [...new Set(shown)] as ProjectPluginId[];
   const placed = settingsEntries(scope);
@@ -105,19 +103,4 @@ export function findPluginSettingsNavItem(sectionId: string): PluginSettingsNavI
   // Route discovery precedes project selection. Navigation filtering must not
   // make a registered project's settings page unreachable by its own URL.
   return pluginSettingsNavItemsFrom(listWorkbenchUiContributions()).find((item) => item.section_id === sectionId) ?? null;
-}
-
-export function isHostGlobalSettingsSection(section: string): boolean {
-  return section === "appearance"
-    || section === "models"
-    || section === "assistant"
-    || section === "characters"
-    || section === "prompts"
-    || (CAPABILITY_SETTINGS_SECTIONS as readonly string[]).includes(section)
-    || section === "runtimes"
-    || section === "mcp"
-    || section === "connectors"
-    || section === "projects"
-    || section === "diagnostics"
-    || section === "memory";
 }

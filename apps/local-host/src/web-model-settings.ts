@@ -1,4 +1,3 @@
-import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord, ModelThinkingMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -19,10 +18,6 @@ export async function handleModelSettingsHttp(
   try {
     const providerId = match[1];
     if (request.method === "GET" && !providerId) {
-      if (url.searchParams.get("choices") === "1") {
-        sendLocalWebJson(response, 200, homeDirectory ? configuredModelChoices(homeDirectory) : []);
-        return true;
-      }
       const read = await withCatalog({ homeDirectory }, (catalog) => ({
         providers: catalog.models.list(), health: catalog.models.health(),
       }));

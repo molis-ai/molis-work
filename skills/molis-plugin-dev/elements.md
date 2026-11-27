@@ -64,15 +64,15 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 - 本人随时可以撤回，各等级一样（包括 `host` 等级的），撤回立即生效，之后宿主也不再为随它发布的插件代为同意。同意与撤回只有本人能做：agent、MCP、工作流、别的插件都调不到。
 - 预览显示的是声明本身（端口名、来源插件名），不是你另写的说明，所以端口名和插件 `name` 要让人看得懂。
 
-## 个人 vs 项目
+## 按分区启用
 
-插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。例如 Images、Jelly。完整成员见[生成的插件登记](../../apps/local-host/src/plugin-registry.generated.ts)，个人属性由条目对应的包声明。
+内置插件都按分区（个人空间与每个项目）启用，个人空间和项目同构；第 108 批起登记上没有 `personal: true`。完整成员见[生成的插件登记](../../apps/local-host/src/plugin-registry.generated.ts)。
 
-其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed `registration` 上的 `companions`）。
+必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed `registration` 上的 `companions`）。
 
 市场卡片要同时有 catalog 的 `summary` 和一个 `navigator` 或 `island` 视图；没有这两种视图、页面只放在设置里的插件不进内建市场（Characters 是宿主的一节设置，不是插件，不在市场里）。
 
-> 统一工作分区过渡（第 106 批起）：上述 `personal: true`、`companions` 与「个人插件／项目插件」两套写法属于待迁出旧模型；新插件的分区独立库（`databases.partition`）、本人设置（`person_settings`）、总览表（`overview_projection`）、推送声明（`push`）、市场分类（`market`）与通用随启用依赖（`dependencies`／`enable_with`）一律以 [partitions.md](partitions.md) 为准。
+> 统一工作分区过渡（第 106 批起）：上述 `companions` 属于待迁出旧模型；新插件的分区独立库（`databases.partition`）、本人设置（`person_settings`）、总览表（`overview_projection`）、推送声明（`push`）、市场分类（`market`）与通用随启用依赖（`dependencies`／`enable_with`）一律以 [partitions.md](partitions.md) 为准。
 
 ## UI
 
@@ -114,7 +114,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 方向：人/Agent → 本插件。插件对外的能力就是它声明的 `actions`：动作的 `audiences` 含 `mcp`，用户在「能力 → 对外接入」为某个客户端授权后，它就是 MCP 工具 `molis_work_v1_action_<动作>__v<版本>`。不另外登记 MCP 工具，没有按名称的开关。
 
 - 动作输入只放业务字段；`project_id`、数据库路径、Web 地址、操作者身份都由 Host 注入。
-- 个人、不绑项目也能用的动作用 `scope: "home"`；个人插件但按项目分区（Pages / Forms / Dataset / PPT）用 `scope: "project"`，`project_id` 由 Host 注入（统一工作分区下的分区独立库与随本人设置分工见 [partitions.md](partitions.md)）。
+- 个人、不绑项目也能用的动作用 `scope: "home"`；按分区启用的插件（Pages、Todo、Jelly 等）用 `scope: "project"`，`project_id` 由 Host 注入（统一工作分区下的分区独立库与随本人设置分工见 [partitions.md](partitions.md)）。
 
 `agent.mcp` 是反方向：插件里的 Agent 能不能调**外面**的 MCP。
 

@@ -22,7 +22,7 @@ export interface MolisWorkWebView {
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
-  /** The plugins the page shows (enabled ones, and personal ones the project did not hide), as the Host works it out (W5-02 B1). */
+  /** The plugins the page shows (the ones the partition has), as the Host works it out (W5-02 B1). */
   shown_plugins?: readonly string[];
   /** The Catalog observation used to draw the project's plugin picker. */
   project_plugin_revision?: string;

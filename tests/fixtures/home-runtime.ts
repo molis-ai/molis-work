@@ -6,9 +6,10 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer } from "./local-web-core.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, runningPluginPlatform, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { addProjectPlugin, createProject, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -66,7 +67,31 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
       for (const pluginId of plugins) await addProjectPlugin(web, project.project_id, pluginId);
       return { ...project, reference: molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }) };
     },
+    /** The personal space, with these plugins added the way its settings add them (only those declared on by default are there at first). */
+    async personal(plugins: readonly string[] = []) {
+      for (const pluginId of plugins) await addProjectPlugin(web, PERSONAL_SPACE_PROJECT_ID, pluginId);
+      // The Host's own catalog handle (it holds the Home's storage lock); typed here because `withCatalog` is inferred through the Host.
+      const project = await withCatalog({ homeDirectory: home }, (catalog: Parameters<Parameters<typeof withMolisWorkProjectCatalog>[1]>[0]) => catalog.getProject(PERSONAL_SPACE_PROJECT_ID));
+      return { project_id: project.project_id, database_path: project.database_path,
+        reference: molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }) };
+    },
   };
+}
+
+/**
+ * The running instance of a plugin in one partition (batch 107/108: one instance per plugin and partition), its installation, and a way to
+ * change that installation's grants and restart it. The partition must be open with the plugin started (a route or action reached it first).
+ */
+export async function partitionInstallation(host: MolisWorkLocalHost, space: { project_id: string; reference: LocalHostProjectReference }, pluginId: string) {
+  const platform = await host.withProject(space.reference, runtime => runningPluginPlatform(runtime.store, space.project_id, pluginId));
+  assert.ok(platform, `${pluginId} runs in ${space.project_id}`);
+  const install = platform.runtime.get(platform.supervisor.state(pluginId)!.install_id!);
+  const regrant = async (grants: readonly string[]) => {
+    await platform.runtime.stop(install.install_id);
+    platform.runtime.grant(install.install_id, [...grants]);
+    assert.equal((await platform.supervisor.restart(pluginId)).status, "running");
+  };
+  return { platform, install, regrant };
 }
 
 /** A Home definition with optional business grants: being a fixture does not grant read/write/model/configuration. */

@@ -2,10 +2,10 @@ import { rollbackPreservingError, type openHomeSqliteDatabase } from "@molis-ai/
 import type { SettingSnapshot, SettingsOwnerScope, SettingsRequestIdentity, SettingsTransaction, SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { assistantErrors } from "./assistant-errors.js";
-import { DAILY_CAP_KEY, LOOKBACK_DEFAULT, LOOKBACK_KEY, dailyTokenLimit, lookbackHours } from "./assistant-setting-values.js";
+import { DAILY_CAP_KEY, LOOKBACK_DEFAULT, LOOKBACK_KEY, OVERVIEW_GRANTS_DEFAULT, OVERVIEW_GRANTS_KEY, dailyTokenLimit, lookbackHours, overviewGrants } from "./assistant-setting-values.js";
 import { defaultReportSchedule, REPORT_SCHEDULE_KEY, validateReportSchedule } from "./assistant-report-preference.js";
 
-const names = new Map([[LOOKBACK_KEY, "lookback"], [DAILY_CAP_KEY, "daily_tokens"], [REPORT_SCHEDULE_KEY, "report_schedule"]]);
+const names = new Map([[LOOKBACK_KEY, "lookback"], [DAILY_CAP_KEY, "daily_tokens"], [REPORT_SCHEDULE_KEY, "report_schedule"], [OVERVIEW_GRANTS_KEY, "overview_grants"]]);
 
 export const assistantReceiptPrefix = (projectId: string | null) => "preferences/receipt/" + JSON.stringify(projectId) + "/";
 
@@ -42,12 +42,13 @@ export class AssistantSettingRecords {
     if (!name) throw assistantErrors.setting_invalid("助理没有声明这项偏好");
     const row = this.row(actor, name), revision = String(row?.revision ?? 0);
     const observed = { key, revision, layer_revisions: { personal: revision } };
-    const fallback = key === REPORT_SCHEDULE_KEY ? defaultReportSchedule() : key === LOOKBACK_KEY ? LOOKBACK_DEFAULT : 0;
+    const fallback = key === REPORT_SCHEDULE_KEY ? defaultReportSchedule() : key === LOOKBACK_KEY ? LOOKBACK_DEFAULT : key === OVERVIEW_GRANTS_KEY ? OVERVIEW_GRANTS_DEFAULT : 0;
     if (!row || this.get(actor, "inherited/" + name) === revision) return { ...observed, state: "ok", layers: { provider_default: fallback } };
     try {
       const value: SandboxJson = key === DAILY_CAP_KEY ? dailyTokenLimit(row.value) ?? 0 : JSON.parse(String(row.value));
       if (key === LOOKBACK_KEY) lookbackHours(value);
       if (key === REPORT_SCHEDULE_KEY) validateReportSchedule(value);
+      if (key === OVERVIEW_GRANTS_KEY) overviewGrants(value);
       return { ...observed, state: "ok", layers: { provider_default: fallback, personal: value } };
     } catch { return { key, revision, state: "unavailable", reason: "助理保存的偏好无法读取" }; }
   }
@@ -70,6 +71,9 @@ export class AssistantSettingRecords {
         if (key === REPORT_SCHEDULE_KEY) {
           if ("set" in change) validateReportSchedule(value);
           encoded = JSON.stringify(value ?? defaultReportSchedule());
+        } else if (key === OVERVIEW_GRANTS_KEY) {
+          if ("set" in change) overviewGrants(value);
+          encoded = JSON.stringify(value ?? OVERVIEW_GRANTS_DEFAULT);
         } else if (key === LOOKBACK_KEY) {
           if ("set" in change) lookbackHours(value);
           encoded = JSON.stringify(value ?? LOOKBACK_DEFAULT);

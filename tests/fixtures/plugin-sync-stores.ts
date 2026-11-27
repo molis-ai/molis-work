@@ -55,18 +55,21 @@ export function ownerSyncFixture(home:string,manifest:PluginManifest,bindings:(c
 function attached<S extends {close():void}>(owner:ReturnType<typeof ownerSyncFixture>,store:S):S&Pick<typeof owner,'replica'|'copy'|'binding'|'namespace'> {
  return Object.assign(store,{replica:owner.replica,copy:owner.copy,binding:owner.binding,namespace:owner.namespace});
 }
-export function openTodoStore(home:string,now?:()=>Date){const o=ownerSyncFixture(home,todoManifest,todoBindings);return attached(o,new TodoStore(o.sql,o.atomically,o.close,now));}
-export const openTodoSyncStore=(home:string)=>openTodoStore(home);
+export function openTodoStore(home:string,now?:()=>Date,partition="personal"){const o=ownerSyncFixture(home,todoManifest,todoBindings,partition);return attached(o,new TodoStore(o.sql,o.atomically,o.close,now));}
+export const openTodoSyncStore=(home:string,partition="personal")=>openTodoStore(home,undefined,partition);
 export function openFormStore(home:string,partition:string){const o=ownerSyncFixture(home,formManifest,formBindings,partition);return attached(o,new FormStore(o.sql,partition,o.atomically,o.close));}
 export function openDatasetStore(home:string,partition:string){const o=ownerSyncFixture(home,datasetManifest,datasetBindings,partition);return attached(o,new DatasetStore(o.sql,partition,o.atomically,o.close));}
 export function openPptStore(home:string,partition:string){const o=ownerSyncFixture(home,pptManifest,pptBindings,partition);return attached(o,new PptStore(o.sql,partition,o.atomically,o.close));}
 export function openLingguangStore(home:string,partition:string){const o=ownerSyncFixture(home,lingguangManifest,lingguangBindings,partition);return attached(o,new LingguangStore(o.sql,partition,o.atomically,o.close));}
-export function openJellyStore(home:string){const o=ownerSyncFixture(home,jellyManifest,jellyBindings);const store=new JellyStore(o.sql,o.atomically,o.close);return attached(o,store);}
-export function openCogniaStore(home:string){const o=ownerSyncFixture(home,cogniaManifest,cogniaBindings);return attached(o,new CogniaStore(o.sql,o.atomically,o.close));}
-export const openCogniaSyncStore=(home:string)=>openCogniaStore(home);
+/** Jelly's rows in one partition (batch 108): `read` and `write` hand a store over the owner's library, `write` in one transaction (the Runtime's shape, no caller). */
+export function openJellyStore(home:string,partition="personal"){const o=ownerSyncFixture(home,jellyManifest,jellyBindings,partition);
+ const tx={...o.sql,run:(query:string,parameters:readonly unknown[]=[])=>o.sql.run(query,parameters) as {changes:number|bigint},savepoint:()=>{throw new Error('Jelly 不用保存点');}};
+ return attached(o,{read:<T>(run:(store:JellyStore)=>T):T=>run(new JellyStore(tx as never)),write:<T>(run:(store:JellyStore)=>T):T=>o.atomically(()=>run(new JellyStore(tx as never))),close:o.close});}
+export function openCogniaStore(home:string,partition="personal"){const o=ownerSyncFixture(home,cogniaManifest,cogniaBindings,partition);return attached(o,new CogniaStore(o.sql,o.atomically,o.close));}
+export const openCogniaSyncStore=(home:string,partition="personal")=>openCogniaStore(home,partition);
 export function openPagesStore(home:string,partition:string){const o=ownerSyncFixture(home,pagesManifest,pagesBindings,partition);return attached(o,new PagesStore(o.sql,partition,new Map(),o.atomically,o.close));}
 export function openWorkflowsStore(home:string,partition:string){const o=ownerSyncFixture(home,workflowsManifest,workflowBindings,partition);return attached(o,new WorkflowsStore(o.sql,partition,o.close));}
-export function openIssuesSyncStore(home:string,owner:string){const o=ownerSyncFixture(home,issuesManifest,issueBindings);return {...o,store:new IssueStore(o.client,owner)};}
+export function openIssuesSyncStore(home:string,owner:string,partition="personal"){const o=ownerSyncFixture(home,issuesManifest,issueBindings,partition);return {...o,store:new IssueStore(o.client,owner)};}
 export const openFormCopyOwner=(home:string,partition:string,scope:AggregateCopyContext)=>{if(scope.direction==='source'&&!existsSync(partitionPluginScope(home,partition,'form','form-test').libraryPath('form')))return null;const store=openFormStore(home,partition);return {owner:store.copy(scope),close:()=>store.close()};};
 export const openDatasetCopyOwner=(home:string,partition:string,scope:AggregateCopyContext)=>{if(scope.direction==='source'&&!existsSync(partitionPluginScope(home,partition,'dataset','dataset-test').libraryPath('dataset')))return null;const store=openDatasetStore(home,partition);return {owner:store.copy(scope),close:()=>store.close()};};
 export const openPptCopyOwner=(home:string,partition:string,scope:AggregateCopyContext)=>{if(scope.direction==='source'&&!existsSync(partitionPluginScope(home,partition,'ppt','ppt-test').libraryPath('ppt')))return null;const store=openPptStore(home,partition);return {owner:store.copy(scope),close:()=>store.close()};};

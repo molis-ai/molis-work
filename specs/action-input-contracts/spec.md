@@ -6,7 +6,7 @@
 
 
 > [!IMPORTANT]
-> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：§8.2 N22 迁移矩阵按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)校准（排在 `111` 之后收口）：① Shelf 收归纯平台 `modules/shelf` 单套动作，解除原 `T06/S6` 双快照锁；② 删除已彻底移除的 Alchemist（原 `N22-Z`）、已退役的 Files 与已于 `#2243` 删除的 Text Stats；③ `T09/S5` 扩展覆盖 `109`（D6=B）迁入 `plugins/native/git` 的工作区 Git 与 `projects.workspace.writers.*` 动作；④ `T12/T13/S8/S9` 映射到终态 20 个平等 UPP 分区插件与纯平台 `system.*`。
+> **2026-11-22 / 2026-11-25 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66) + 第 [`112`](../post-anticorruption-roadmap/reference/batches/112.md) 批）**：§8.2 N22 迁移矩阵排在 [`111`](../post-anticorruption-roadmap/reference/batches/111.md) 与 [`112`](../post-anticorruption-roadmap/reference/batches/112.md) 之后收口：① Shelf 收归纯平台 `modules/shelf` 单套动作，解除原 `T06/S6` 双快照锁；② 删除已彻底移除的 Alchemist（原 `N22-Z`）、已退役的 Files 与已于 `#2243` 删除的 Text Stats；③ 第 `112-2` 批将 Jelly 瘦身重构为 4 张关系表（删除私有 AI 与 53 动作 `JellyCommand` 大泥球分发器），§5.1 原「④ Jelly `unknown` 特例」自然消除；④ `T09/S5` 扩展覆盖 `109`（D6=B）迁入 `plugins/native/git` 的工作区 Git 与 `projects.workspace.writers.*` 动作；⑤ `T01`～`T13` / `S1`～`S9` 映射到终态 20 个平等 UPP 分区插件与纯平台 `system.*`。
 
 ## 0. 给人讲清楚
 
@@ -401,7 +401,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 1. 把 S 清单和处理器里的检查分成四类（§5.4 的表）：① schema 已经管了的；② schema 能表达（必填、类型、`minItems`、`pattern`、长度、enum）但还没写的；③ schema 管不了的（跨字段、要读库）；④ 类型上只能是 `unknown` 的。不是输入的（值只来自本包的字面量或代码，比如 Jelly 的 `command.type`）直接删，PR 写明值从哪来，不用拒绝用例。说是被别处保证、但值确实来自输入的，按四类判断。
 2. ② 类**且已被处理器执行**的，补进 schema。只搬已有的检查，不新增拒绝。**不要把约束加到共享片段上：** 输出也过校验（`checkedActionResult`），加在用到它的动作或分支上。新的收紧单独一个 PR，写明。
 3. 确认这个处理器只经 kernel 调用（§5.3）。
-4. 删掉 ① 类和搬完的 ② 类的检查和读值小函数；T 片留下的 `as` 也删掉。表驱动的处理器例外：值在类型上只能是 `unknown`，读值函数在收窄，留着（④ 类，现在只有 Jelly，见 `BL-jelly-command-readers`）。
+4. 删掉 ① 类和搬完的 ② 类的检查和读值小函数；T 片留下的 `as` 也删掉。表驱动的处理器例外：值在类型上只能是 `unknown`，读值函数在收窄，留着（④ 类，原来只有 Jelly；第 112-2 批删了 `JellyCommand`，`BL-jelly-command-readers` 已结清）。
 5. `pnpm build`、`pnpm actions:update`，每个搬进去的约束配一个断言拒绝的用例（AIC-12）。
 
 **一条检查能不能删，读 schema，不读类型**（[#1909 合审](https://github.com/molis-ai/molis-work/pull/1909#issuecomment-6705563344) 3.1）。这些情况类型会让检查看起来多余，其实不多余：
@@ -517,7 +517,7 @@ node_modules/.bin/tsc -p <包>/tsconfig.json --noEmit --noErrorTruncation
 | **③ schema 管不了** | 跨字段、要读库、日历上不存在的日期；在动作之前的（`plugin-routes.ts` 里的 HTTP 体） | 留 | - | - |
 | **④ 类型上只能是 `unknown`** | 一个处理器服务很多定义，值在类型上本来就只能是 `unknown`，检查同时在收窄 | 留。删了就要写 `as`，方向反了 | - | - |
 
-**④ 是 Jelly 的特例。** 全仓现在只有 `JellyCommand` 是这种形状。`Object.entries` 式的表驱动处理器另外只有 `plugins/native/pages/src/landing-actions.ts:39` 和 `apps/local-host/src/installed-plugin-consent-actions.ts:109`，它们不是这种形状。值是 `unknown` 不等于 ④：别的包碰到，先按 ② 算，真觉得是 ④ 就回来问。
+**④ 原为 Jelly 旧实现特例（随 [`112-2`](../post-anticorruption-roadmap/reference/batches/112.md) 消除）。** 旧版全仓只有 `JellyCommand`（53 动作大泥球）是这种形状；`112-2` 将 Jelly 瘦身重构为 4 张关系表的独立类型化动作后，该特例随之消失。`Object.entries` 式的表驱动处理器另外只有 `plugins/native/pages/src/landing-actions.ts:39` 和 `apps/local-host/src/installed-plugin-consent-actions.ts:109`，它们不是这种形状。值是 `unknown` 不等于 ④：别的包碰到，先按 ② 算，真觉得是 ④ 就回来问。
 
 **搬之前的三问：**
 
@@ -635,10 +635,10 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | T03 | Todo、Schedule（9） | 44 | 12 | E | Sonnet 5.5 high | 56-3 完成第 111 批前置后，把 `plugins/native/todo/src/actions.ts` 的局部 `bind` 换为 `bindActionHandler`，经目录创建、列出并核对调用者身份和输入顺序，错误输入、错误版本均拒绝，公开动作快照不变。Schedule 的 `bind` 包了写入检查。排在 N22-02 之后：`todo.changes.revert`、`todo.items.link` 同时有 `properties` 和顶层 `anyOf`、`oneOf`，工具改之前推成 `unknown` |
 | T04 | Pages、PPT、Form（9） | 96 | 7 | E | Sonnet 5.5 high | |
 | T05 | Dataset、Lingguang、Cognia、Images（8） | 86 | 11 | E | Sonnet 5.5 high | 排在 N22-02 之后：`cognia.knowledge.synthesize` 同上 |
-| T06 | Shelf、Workflows（5） | 49＋27（宿主表） | 8 | E | Sonnet 5.5 high | Workflows 的 `bind` 包了权限 |
-| T07 | Inbox、Issues、Text Stats（3） | 29 | 13 | E | Sonnet 5.5 high | |
+| T06 | 纯平台 `modules/shelf`、Workflows（5） | 27（宿主纯平台表）＋Workflows | 8 | C3 / E | Sonnet 5.5 high | Shelf 已在 `44B` 收归纯平台单套动作（不再占插件 `actions.tsv`）；Workflows 的 `bind` 包了权限 |
+| T07 | Inbox、Issues（2；Text Stats 已于 `#2243` 删除） | 29 | 13 | E | Sonnet 5.5 high | |
 | T08 | Coding（5） | 28 | 1 | B | Sonnet 5.5 high | 和 #1851（文案）撞文件的话 rebase |
-| T09 | Git、Diff、Files（3） | 18 | 3 | B | Sonnet 5.5 high | 手写检查最多（28 处），S 片才动。Git、Files 的 schema 用 `workspace-action-schemas` 的帮手，排在 N22-03 之后才推得出字面量 |
+| T09 | Git（含 `109` 迁入的工作区 Git 与 writers 动作）、Diff（2；Files 已退役） | 18＋ | 3＋ | B | Sonnet 5.5 high | 手写检查最多，S 片才动。Git 的 schema 用 `workspace-action-schemas` 的帮手，排在 N22-03 与 `109` 之后才推得出字面量 |
 | T10 | 宿主 `assistant/`（3） | - | 9 | A | Sonnet 5.5 high | 和 #1870 共用 `assistant-rule-actions.ts`，等它合入。A 轨预警 |
 | T11 | 宿主其余（11） | 约 60 | 52 | 无归属 | Sonnet 5.5 xhigh | `home-actions.ts` 等，规则 4 的热文件不碰。排在 N22-02 之后：`action-usage-actions.ts:10`、`home-event-actions.ts:15`、`home-offer-actions.ts:21`、`home-actions.ts:26` 直接用合同常量，理由同 N22-05 |
 | T12 | 连接器与模型（17） | 29＋ | 31 | 无归属 | Sonnet 5.5 xhigh | 第 13 批正在这里写，**排在 T 片最后**，也就在 N22-02 之后（`connector-usage-actions.ts:8` 直接用合同常量）。动态 schema 的两个文件照 §4.4 |
@@ -659,8 +659,8 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | S2 | Feed、Inbox、Issues | E | `actions.tsv` | Opus 5.5 medium | T02、T07 |
 | S3 | Todo、Schedule、Workflows | E | `actions.tsv` | Opus 5.5 medium | T03、T06 |
 | S4 | Pages、PPT、Form、Dataset、Lingguang | E | `actions.tsv` | Opus 5.5 medium | T04、T05 |
-| S5 | Git、Diff、Files、Coding | B | `actions.tsv` | Opus 5.5 medium | T08、T09 |
-| S6 | Shelf、Cognia、Images、Text Stats | E | 两份都占（Shelf 两边都有） | Opus 5.5 medium | T05、T06、T07 |
+| S5 | Git（含 `109` 迁入工作区动作）、Diff、Coding（Files 已退役） | B | `actions.tsv` | Opus 5.5 medium | T08、T09 |
+| S6 | Cognia、Images（纯平台 `modules/shelf` 归 `host-actions.tsv` 并入 S9；Text Stats 已删除，解除原双快照锁） | E | `actions.tsv` | Opus 5.5 medium | T05 |
 | S7 | 宿主其余、`assistant/` | 无归属，A 预警 | `host-actions.tsv` | Opus 5.5 medium | T10、T11 |
 | S8 | 连接器与模型 | 无归属 | `host-actions.tsv` | Opus 5.5 medium | T12 |
 | S9 | `modules/*`、`memory/`、`computer/`、`plugin-builder/` | 无归属 | `host-actions.tsv` | Opus 5.5 medium，全量 | T13 |
@@ -669,7 +669,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 片 | 做什么 | 轨道 | 档位 | 前置 |
 | --- | --- | --- | --- | --- |
-| N22-Z 收口 | 全仓再找一遍（其他批新加的处理器）；把 `defineAction` 的手写写法收到只剩 `input: unknown`（§9.2；改 `api/plugin-sdk/index.txt`，排 api 队列，过公共合同合审）；`examples/probe-plugin`、`examples/personal-sync-plugin`（`plugin.ts:57-58`，#1877 新增，用 `bindOwnerPluginAction`，处理器里 2 处 `_input as {...}`）、`skills/molis-plugin-dev`（全量回归期间不能改 `skills/`）；`tooling/plugin-cli` 的模板是 JS，定义从 manifest 取，不用改；核 Alchemist（项目级与 Home 级两种，§4.4）；动态 schema 名单写进这份 spec | C1 | Opus 5.5 high，全量 | 全部 T、S |
+| N22-Z 收口 | 全仓再找一遍（其他批新加的处理器，以及 `112-2` 瘦身重构后的 Jelly 4 表动作核对）；把 `defineAction` 的手写写法收到只剩 `input: unknown`（§9.2；改 `api/plugin-sdk/index.txt`，排 api 队列，过公共合同合审）；`examples/probe-plugin`、`examples/personal-sync-plugin`（`plugin.ts:57-58`，#1877 新增，用 `bindOwnerPluginAction`，处理器里 2 处 `_input as {...}`）、`skills/molis-plugin-dev`（全量回归期间不能改 `skills/`）；`tooling/plugin-cli` 的模板是 JS，定义从 manifest 取，不用改；（Alchemist 已于 `44B` 彻底删除，不再核对）；动态 schema 名单写进这份 spec | C1 | Opus 5.5 high，全量 | 全部 T、S |
 | N22-G 防回潮门禁 | §9.2 的绝对门禁，带变异用例，一个小 PR。用户 2026-11-06 已同意改门禁；定义处多查的那一项用户 2026-11-07 同意 | 无归属 | Opus 5.5 high | N22-Z |
 
 **合并分片的理由。** 账上按包算 28 片。这里把 20 个插件的 T 片并成 9 片（Jelly 是试点，Alchemist 不迁），宿主和 `modules` 按主题拆成 4 片，S 片也一样并。规矩是：

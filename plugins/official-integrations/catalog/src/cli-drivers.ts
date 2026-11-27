@@ -11,6 +11,8 @@ export type { CliApiBridge, CliDistribution, CliDriver, CliEnvironmentField, Cli
 
 /** Where the drivers' release resolvers may download from. */
 export const CLI_RELEASE_HOSTS: readonly string[] = ["github.com", "api.github.com", "raw.githubusercontent.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com", "gitlab.com", "acli.atlassian.com"];
+/** Where the release files themselves are: a client is installed from nowhere else. */
+export const CLI_RELEASE_FILE_HOSTS: readonly string[] = ["github.com", "gitlab.com", "acli.atlassian.com"];
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -134,7 +136,7 @@ export const CATALOG_CLI_DRIVERS: Readonly<Record<string, CliDriver>> = Object.f
       const accounts = Array.isArray(obj.accounts) ? obj.accounts.map(record) : [];
       return { label: obj.email || accounts[0]?.name, stable: typeof obj.email === "string" ? obj.email.toLowerCase() : (obj.authType === "Account API Token" && accounts.length === 1 ? accounts[0]?.id : undefined) };
     } },
-  huggingface: { version: ["version"], distribution: { kind: "python", package: "huggingface_hub" }, binary: "hf", login: ["auth", "login"], identity: ["auth", "whoami"], install: "https://huggingface.co/docs/huggingface_hub/guides/cli" },
+  huggingface: { managed_environment: { HF_HUB_DISABLE_UPDATE_CHECK: "1" }, version: ["version"], distribution: { kind: "python", package: "huggingface_hub" }, binary: "hf", login: ["auth", "login"], identity: ["auth", "whoami"], install: "https://huggingface.co/docs/huggingface_hub/guides/cli" },
   sentry: { distribution: { kind: "npm", package: "sentry" }, binary: "sentry", login: ["auth", "login", "--read-only", "--url", SENTRY], identity: ["auth", "whoami", "--json", "--fresh"], install: "https://cli.sentry.dev/", note: "workbench.connector-cli.sentry",
     environment: { SENTRY_HOST: SENTRY, SENTRY_URL: SENTRY },
     async complete(obj, run, refuse) {
@@ -150,7 +152,7 @@ export const CATALOG_CLI_DRIVERS: Readonly<Record<string, CliDriver>> = Object.f
         : { label: obj.email || obj.username || obj.name, stable: obj.id ? [SENTRY, obj.id] : undefined };
     } },
   supabase: { distribution: { kind: "npm", package: "supabase" }, binary: "supabase", login: ["login"], identity: ["whoami", "--output-format", "json"], read: ["projects", "list", "--output", "json"], install: "https://supabase.com/docs/guides/local-development/cli/getting-started", note: "workbench.connector-cli.supabase" },
-  salesforce: { distribution: { kind: "npm", package: "@salesforce/cli" }, binary: "sf", login: ["org", "login", "web", "--set-default"], identity: ["api", "request", "rest", "/services/oauth2/userinfo", "--method", "GET", "--json"], read: ["data", "query", "--query", "SELECT Id,Subject,LastModifiedDate FROM Task ORDER BY LastModifiedDate DESC LIMIT 20", "--json"], install: "https://developer.salesforce.com/tools/salesforcecli",
+  salesforce: { managed_environment: { SF_AUTOUPDATE_DISABLE: "true" }, distribution: { kind: "npm", package: "@salesforce/cli" }, binary: "sf", login: ["org", "login", "web", "--set-default"], identity: ["api", "request", "rest", "/services/oauth2/userinfo", "--method", "GET", "--json"], read: ["data", "query", "--query", "SELECT Id,Subject,LastModifiedDate FROM Task ORDER BY LastModifiedDate DESC LIMIT 20", "--json"], install: "https://developer.salesforce.com/tools/salesforcecli",
     account(value) {
       const result = record(record(record(value).result).body);
       return { label: result.preferred_username || result.email || result.user_id, stable: result.user_id && result.organization_id ? [result.organization_id, result.user_id] : undefined };
@@ -162,7 +164,7 @@ export const CATALOG_CLI_DRIVERS: Readonly<Record<string, CliDriver>> = Object.f
       const site = /^\s*Site:\s*(\S+)\s*$/mu.exec(text)?.[1], email = /^\s*Email:\s*(\S+)\s*$/mu.exec(text)?.[1];
       return { label: email, stable: site && email ? [new URL(site.startsWith("https:") ? site : `https://${site}`).origin, email.toLowerCase()] : undefined };
     } },
-  hubspot: { binary: "hubspot", login: ["auth", "login"], identity: ["whoami"], read: ["objects", "list", "--type", "contacts", "--format", "json"], install: "https://developers.hubspot.com/docs/developer-tooling/local-development/agent-cli/guide", note: "workbench.connector-cli.hubspot",
+  hubspot: { managed_environment: { HUBSPOT_NO_AUTO_UPGRADE: "1" }, binary: "hubspot", login: ["auth", "login"], identity: ["whoami"], read: ["objects", "list", "--type", "contacts", "--format", "json"], install: "https://developers.hubspot.com/docs/developer-tooling/local-development/agent-cli/guide", note: "workbench.connector-cli.hubspot",
     account(value) {
       const text = typeof value === "string" ? value : "";
       const user = /^\s*User:\s*(.+)$/mu.exec(text)?.[1]?.trim(), portal = /^\s*Portal:\s*(\d+)\s*$/mu.exec(text)?.[1];

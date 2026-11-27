@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countFile, countNonTsOldNames, countPackedStatements, countPartitionPathScans, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
+import { countFile, countNonTsOldNames, countPackedStatements, countPartitionPathScans, countPartitionProjectIdSql, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
 
 // specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
@@ -103,6 +103,15 @@ test("UPP G3 path half definition: a platform source counts direct listings of p
   assert.equal(countPartitionPathScans("modules/projects/src/project-catalog.ts", 'readdirSync(projects, { withFileTypes: true });'), 1, "only that one file, not its package");
 });
 
+test("UPP G3 SQL half definition: a plugin source counts project_id filters on a bound value and project_id columns, nothing else", () => {
+  const file = "plugins/native/todo/src/store.ts";
+  assert.equal(countPartitionProjectIdSql(file, "db.prepare('SELECT * FROM todos WHERE project_id = ? AND id = ?'); `DELETE FROM t WHERE project_id IN (?, ?)`; 'WHERE project_id=:project'; 'project_id = @p';"), 4);
+  assert.equal(countPartitionProjectIdSql(file, "CREATE TABLE todos (id TEXT PRIMARY KEY, project_id TEXT NOT NULL); CREATE TABLE n (project_id integer);"), 2);
+  // A project id the call carries, a value in a row, and SQL on other columns are not counted.
+  assert.equal(countPartitionProjectIdSql(file, "const project_id = context.project_id; row.project_id === id; ({ project_id: text }); 'WHERE todo_id = ?'; 'SELECT project_id FROM x';"), 0);
+  assert.equal(countPartitionProjectIdSql("apps/local-host/src/a.ts", "'WHERE project_id = ?'"), 0, "the platform's own tables are not a plugin's business SQL");
+});
+
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-health-counts-"));
   gitAt(repo, "init", "-q", "-b", "main");
@@ -116,6 +125,7 @@ before(() => {
   put("packages/alpha/src/packed.ts", "export const p1 = 1; export const p2 = 2;\n");
   put("plugins/native/demo/package.json", "{\"name\":\"@molis-ai/molis-work-plugin-demo\"}\n");
   put("packages/alpha/src/plugin-named.ts", "export const id = 'io.molis.work.demo';\n");
+  put("plugins/native/demo/src/store.ts", "export const read = 'SELECT * FROM items WHERE project_id = ?';\n");
   // Not violations: look-alike names (and code the static checks, not these counts, look at).
   put("packages/alpha/src/clean.ts", [
     "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
@@ -166,6 +176,10 @@ const violations: Scenario[] = [
     expect: [/plugin names in a platform source in packages\/alpha\/src\/plugin-named\.ts 1 → 2/] },
   { name: "UPP G3 a platform loop that lists projects/ in a new file", mutate: () => put("packages/alpha/src/walk.ts", "export const walk = (home: string) => readdirSync(join(home, \"projects\"));\n"),
     expect: [/platform loops over partitions that list projects\/ or iterate listProjects\(\) in packages\/alpha\/src\/walk\.ts 0 → 1/] },
+  { name: "UPP G3 a project_id filter in a new plugin file", mutate: () => put("plugins/native/demo/src/notes.ts", "export const ddl = 'CREATE TABLE notes (id TEXT, project_id TEXT NOT NULL)';\n"),
+    expect: [/project_id filters or columns in a plugin's SQL in plugins\/native\/demo\/src\/notes\.ts 0 → 1/] },
+  { name: "UPP G3 one more project_id filter in a plugin file that has one", mutate: () => put("plugins/native/demo/src/store.ts", read("plugins/native/demo/src/store.ts") + "export const drop = 'DELETE FROM items WHERE project_id = ?';\n"),
+    expect: [/project_id filters or columns in a plugin's SQL in plugins\/native\/demo\/src\/store\.ts 1 → 2/] },
   { name: "Batch 100-2 packed sibling statements in a new file", mutate: () => put("packages/alpha/src/new-packed.ts", "export function f() { const a = 1; return a; }\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/new-packed\.ts 0 → 1/] },
   { name: "Batch 100-2 another packed sibling statement in an existing file", mutate: () => put("packages/alpha/src/packed.ts", read("packages/alpha/src/packed.ts") + "export const p3 = 3; export const p4 = 4;\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/packed\.ts 1 → 2/] },
   { name: "PG-097 retired name in Rust source", mutate: () => put("apps/desktop/adapters/tauri/src/probe.rs", 'const ENV: &str = "MOLIS_JELLY_WHISPER";\n'), expect: [/uses of an old name \(goalboard, board_id\) in apps\/desktop\/adapters\/tauri\/src\/probe\.rs 0 → 1/] },
@@ -313,4 +327,39 @@ test("the report lists each count per file, next to the merge-base's", () => {
   assert.deepEqual(json.head.scriptConstants, { "packages/alpha/src/kept.ts": 1 });
   assert.deepEqual(json.head.directEllipsisCuts, { "packages/alpha/src/ellipses.ts": 1 });
   assert.deepEqual(json.head, json.base);
+});
+
+// 44C (user 2026-11-25): G1's count is unchanged, and every platform source it finds has one row in the named-exception list; the
+// list and the disk agree both ways.
+test("44C PSD-02 G1 named exceptions: an unlisted file, a stale row, a wrong count and a bad row each fail; the real list matches the tree", async () => {
+  // @ts-expect-error the gate modules are plain .mjs
+  const { pluginNameExceptionProblems, PLUGIN_NAME_EXCEPTIONS_FILE } = await import("../scripts/gates/plugin-name-exceptions.mjs");
+  const row = { count: 2, kind: "same-word", reason: "`form` 是 HTML 表单元素，不是同名插件", decided: "2026-11-25" };
+  const snapshot = (files: Record<string, unknown> | null) => ({ read: (file: string) => file === PLUGIN_NAME_EXCEPTIONS_FILE && files ? JSON.stringify({ files }) : null });
+  assert.deepEqual(pluginNameExceptionProblems(snapshot({ "a.ts": row }), { "a.ts": 2 }, { required: true }), []);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), { "a.ts": 2, "b.ts": 1 }, { required: true }).join("\n"), /b\.ts names a plugin 1 time and has no row/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), {}, { required: true }).join("\n"), /a\.ts: the file names no plugin any more/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), { "a.ts": 1 }, { required: true }).join("\n"), /"count" is 2 but the file measures 1/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, kind: "because" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"kind" must be one of/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, reason: "ok" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"reason" needs/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, decided: "today" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"decided" is the date/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "b.ts": row, "a.ts": row }), { "a.ts": 2, "b.ts": 2 }, { required: true }).join("\n"), /sorted order/);
+  assert.match(pluginNameExceptionProblems(snapshot(null), { "a.ts": 2 }, { required: true }).join("\n"), /is missing/);
+  assert.deepEqual(pluginNameExceptionProblems(snapshot(null), { "a.ts": 2 }, { required: false }), []);
+  assert.deepEqual(pluginNameExceptionProblems(snapshot(null), {}, { required: true }), [], "a tree with no plugin name needs no list");
+
+  // The real list against the real tree, counted the way the gate counts.
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  // @ts-expect-error the gate modules are plain .mjs
+  const { isSource } = await import("../scripts/gates/giant-units.mjs");
+  const files = execFileSync("git", ["ls-files", "-co", "--exclude-standard"], { cwd: root, encoding: "utf8", maxBuffer: 1e8 }).trim().split("\n");
+  const present = files.filter(file => { try { readFileSync(path.join(root, file)); return true; } catch { return false; } });
+  const ids = pluginIdsOf(present), counts: Record<string, number> = {};
+  for (const file of present) {
+    if (!isSource(file)) continue;
+    const count = countPlatformPluginNames(file, readFileSync(path.join(root, file), "utf8"), ids);
+    if (count) counts[file] = count;
+  }
+  const real = { read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } };
+  assert.deepEqual(pluginNameExceptionProblems(real, counts, { required: true }), []);
 });

@@ -2,7 +2,7 @@ import type { OwnedTextRef, UiContribution } from "@molis-ai/molis-work-contract
 import { t as uiText, icon, renderHelpButton, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { artifactSubjectId, isImportedDocumentVersion } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactVersionPath, type ArtifactBrowserView, type ArtifactPluginInput } from "./browser-view.js";
-import { ARTIFACT_NAVIGATION } from "./navigation.js";
+import { platformNavigationLabel } from "../platform-surfaces.js";
 import { renderArtifactPortInputs } from "./port-input-ui.js";
 
 /** An undeclared type shows its last segment. */
@@ -258,7 +258,7 @@ export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiMode
     contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID,
     kind: "primary-page", navigation_id: "artifacts",
     get label(): string {
-      return ARTIFACT_NAVIGATION.label;
+      return platformNavigationLabel("artifacts");
     },
     slots: [],
     surfaces: [

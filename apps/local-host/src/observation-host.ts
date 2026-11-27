@@ -1,3 +1,4 @@
+import { resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { currentCallId, refusalExpected, type CallObserved } from "@molis-ai/molis-work-kernel";
 import type { ScheduleWakeupEnded } from "@molis-ai/molis-work-service-scheduler";
 import {
@@ -46,17 +47,20 @@ export interface HostObservation {
 
 /**
  * The person removed a plugin and chose to delete its data (or later discarded data they had kept): its records go, and the content of the
- * calls it answered or made (§6). `project_id`: a project-level installation, only that project's. A Host-shipped plugin answers under its
- * plugin id as well as its installation's (`actionProviderId`). Never throws: what could not be cleared stays for the next clean-up.
+ * calls it answered or made (§6). `project_id`: a project-level installation, only that project's. An installation is also named
+ * by the provider it answers as (`resolveActionProviderId`). Never throws: what could not be cleared stays for the next clean-up.
  */
-export function observationPluginDataCleared(home: string, record: Pick<PluginInstanceRecord, "plugin_id" | "install_id" | "publisher_trust">, projectId?: string): void {
+export function observationPluginDataCleared(home: string, record: Pick<PluginInstanceRecord, "plugin_id" | "install_id" | "publisher_trust" | "execution">, projectId?: string): void {
   const purge: PluginPurge = { plugin_id: record.plugin_id, install_ids: [record.install_id],
-    provider_ids: record.publisher_trust === "host" ? [record.install_id, record.plugin_id] : [record.install_id], ...(projectId ? { project_id: projectId } : {}) };
+    provider_ids: [...new Set([record.install_id, resolveActionProviderId(record)])], ...(projectId ? { project_id: projectId } : {}) };
   const live = liveObservation(home);
   if (live) { live.pluginPurged(purge); return; }
   try { purgeObservationPluginFile(home, purge, new Date().toISOString()); }
   catch (error) { hostLog.warn("observation", "plugin_purge_failed", error); }
 }
+
+/** The entry of work a clock started (a project clock's wakeup, a fallen-due reminder): the observation entry kind, not a plugin. */
+export const CLOCK_ENTRY = "schedule";
 
 /**
  * A project clock's wakeups as work records (design §4「定时与后台任务」): one per wakeup, in the operation it ran as, so the action call
@@ -67,7 +71,7 @@ export function scheduleWakeupRecords(home: string, projectId: string): (ended: 
     const live = liveObservation(home), call_id = currentCallId();
     if (!live) return;
     const outcome = interrupted ? "cancelled" : wakeup.status === "ok" ? "succeeded" : wakeup.status === "plugin_unavailable" ? "no_action" : "failed";
-    live.sink("scheduler").bind({ kind: "background", entry: "schedule", actor_id: `plugin:${job.plugin_id}`, project_id: projectId,
+    live.sink("scheduler").bind({ kind: "background", entry: CLOCK_ENTRY, actor_id: `plugin:${job.plugin_id}`, project_id: projectId,
       ...(install_id ? { install_id } : {}), ...(call_id ? { call_id } : {}) }).record({ fact: "scheduler.wakeup", outcome, stage: job.recurrence_kind,
       occurred_at: wakeup.started_at, subjects: [{ kind: "schedule_job", id: job.job_id }], work: { work_ref: wakeup.wakeup_id },
       detail: { capability_id: job.capability_id, object_ref: job.object_ref, due_at: wakeup.due_at, late_ms: Math.max(0, Date.parse(wakeup.started_at) - Date.parse(wakeup.due_at)),

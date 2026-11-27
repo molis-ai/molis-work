@@ -1,10 +1,11 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet, renderMolisWorkKnowledgeClientScript, renderMolisWorkMainlineClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, platformSurfaceClientScript, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet, renderMolisWorkKnowledgeClientScript, renderMolisWorkMainlineClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { constants, gzipSync } from "node:zlib";
 import { workbenchLanguageResource, type WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
+import type { PlatformSurfaceClientPath } from "@molis-ai/molis-work-ui-host";
 import { BASELINE_REGISTRY, baselinePackageFile, COMPOSER_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { appearanceSheet } from "./appearance-sheet.js";
 import { shippedParts } from "./plugin-registry.js";
@@ -15,6 +16,13 @@ import { currentLocale } from "./web-locale.js";
 const requireAsset = createRequire(import.meta.url);
 type LanguageAsset = NonNullable<ReturnType<typeof workbenchLanguageResource>>;
 const compressedLanguageAssets = new WeakMap<LanguageAsset, { body: Buffer; etag: string }>();
+
+/** The addresses of the platform pages' programs. Spelled out here because the page-asset budget measures the literals of this file; the type keeps them the registration's. */
+const SURFACE_CLIENT_PATHS: Readonly<Record<PlatformSurfaceClientPath, true>> = {
+  "/assets/molis-work-plugins/characters.js": true,
+  "/assets/molis-work-plugins/sessions.js": true,
+};
+const isSurfaceClientPath = (pathname: string): pathname is PlatformSurfaceClientPath => Object.hasOwn(SURFACE_CLIENT_PATHS, pathname);
 
 export const APPEARANCE_STYLESHEET_HREF = "/assets/ui-skin/folio-1.css";
 
@@ -167,12 +175,9 @@ export function createLocalWebAssets(ports: {
         // The project list's personal search (BL-041), fetched on the first press of its button.
         : pathname === "/assets/molis-work-chooser-search.js"
         ? { body: renderMolisWorkChooserSearchClientScript(), contentType: "text/javascript; charset=utf-8" }
-        // 角色 is the Host's page since CHR-1; its client keeps the address its plugin pack had (D5, BL-378; CHARACTERS_CLIENT_PATH).
-        : pathname === "/assets/molis-work-plugins/characters.js"
-        ? { body: renderMolisWorkCharactersClientScript(), contentType: "text/javascript; charset=utf-8" }
-        // 外部会话 (`sessions`) is a Host surface loaded on demand when opened or when its Read Scope overlay is called.
-        : pathname === "/assets/molis-work-plugins/sessions.js"
-        ? { body: renderMolisWorkSessionsClientScript(), contentType: "text/javascript; charset=utf-8" }
+        // The platform's own pages' programs (角色, 外部会话), from their one registration (44C M15).
+        : isSurfaceClientPath(pathname)
+        ? { body: platformSurfaceClientScript(pathname), contentType: "text/javascript; charset=utf-8" }
         // An installed signed package's page is the platform's: one program for every package, project or Home (47-1).
         : pathname === "/assets/molis-work-plugins/installed-plugin.js"
         ? { body: renderMolisWorkInstalledPluginClientScript(), contentType: "text/javascript; charset=utf-8" }

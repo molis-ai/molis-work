@@ -5,7 +5,7 @@ import { ActionError, type ActionDefinition, type ActionProviderRegistration } f
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PluginRuntime,
-  SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+  SqlitePluginRuntimeRepository, UNSIGNED_TRUST, resolveActionProviderId, type ReleasePackages } from "@molis-ai/molis-work-plugin-runtime";
 import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 const FINGERPRINT = `ed25519:sha256:${"a".repeat(64)}`;
@@ -24,7 +24,7 @@ const install = (runtime: PluginRuntime, pluginId: string, signature: string, tr
   runtime.install({ definition: definition(manifest(pluginId, signature)), deployment: "local", grants: [], trust });
 
 /** Observe all writes through the actual Runtime ports, including the kept-data hook that must never run on an identity refusal. */
-function observed(hostIds: ReadonlySet<string> = ISOLATED_HOST_IDS, releaseIds?: ReadonlySet<string>) {
+function observed(hostIds: ReadonlySet<string> = ISOLATED_HOST_IDS, releaseIds?: ReleasePackages) {
   const repository = new MemoryPluginRuntimeRepository(), consents = new MemoryPluginConsentLedger(), actions = new ActionService();
   const effects: string[] = [], privateData = new Map<string, string>();
   const rows = new Map<string, PluginInstanceRecord>();
@@ -112,12 +112,48 @@ test("PSD-04 S-reserved-host-prefix a package not of the Host's build is refused
   assert.equal(install(h.runtime, "system.shelf", "host-label", HOST_BUILD_TRUST).install.publisher_trust, "host", "the platform's own Shelf runs in the runtime");
 });
 
+/** A release folder that carries `ids`, each signed by `signer` (the folder's key, or this Home's for a package it ships unsigned). */
+const release = (ids: readonly string[], signer = FINGERPRINT): ReleasePackages => ({ has: id => ids.includes(id), signedBy: (id, signature) => ids.includes(id) && signature === signer });
+
 test("PSD-04a S-reserved-host-prefix only an id this release ships in its package folder passes the prefix check, and other names stay open", () => {
-  const h = observed(new Set<string>(), new Set(["io.molis.work.content.shipped-pack"]));
+  const h = observed(new Set<string>(), release(["io.molis.work.content.shipped-pack"]));
   assert.equal(install(h.runtime, "io.molis.work.content.shipped-pack", FINGERPRINT, PINNED).install.publisher_trust, "pinned");
   h.refused(() => install(h.runtime, "io.molis.work.content.other-pack", FINGERPRINT, PINNED));
   assert.equal(install(h.runtime, "com.example.notes", "someone").install.plugin_id, "com.example.notes");
   assert.equal(install(h.runtime, "studio.294ae82b-b3fe-4dd6-8e65-28613de2a18e", FINGERPRINT, PINNED).install.plugin_id, "studio.294ae82b-b3fe-4dd6-8e65-28613de2a18e");
+});
+
+test("P-13 S-reserved-host-prefix a release id is taken only under that package's signer, at install and again at every start, so a record that skipped the preview never runs", async () => {
+  const shipped = "io.molis.work.content.shipped-pack";
+  // At install: the same id signed by another pinned key, or under an unsigned label, is refused with nothing written.
+  const h = observed(new Set<string>(), release([shipped]));
+  h.refused(() => install(h.runtime, shipped, OTHER_KEY, { level: "pinned", publisher_key_id: OTHER_KEY }));
+  h.refused(() => install(h.runtime, shipped, "official-looking-label"));
+  // At start: a record for the id signed by another key arrives through the repository (as if installed past the preview, here by a
+  // Runtime that let any signer through); the Host's Runtime, which binds the signer, refuses it before activation, at start and recovery.
+  for (const restart of [false, true]) {
+    const db = openTestSqlite(":memory:"); db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL);
+    try {
+      const repository = new SqlitePluginRuntimeRepository(db), service = new ActionService(), calls: string[] = [];
+      const forged = actionable(shipped, OTHER_KEY, calls), genuine = actionable(shipped, FINGERPRINT, calls);
+      const lax = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: "p" } });
+      const record = lax.install({ definition: forged.plugin, deployment: "local", grants: [], trust: { level: "pinned", publisher_key_id: OTHER_KEY } }).install;
+      const strictOptions = { hostIds: ISOLATED_HOST_IDS, releaseIds: release([shipped]), actions: { registry: service, project_id: "p" } };
+      const runtime = restart ? new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, strictOptions) : new PluginRuntime(repository, undefined, strictOptions);
+      runtime.register(forged.plugin);
+      await assert.rejects(runtime.start(record.install_id), code("plugin.id_namespace_conflict"));
+      assert.equal(runtime.get(record.install_id).state, "crashed"); assert.equal(runtime.get(record.install_id).last_error_code, "plugin.id_namespace_conflict");
+      await assert.rejects(runtime.recover(record.install_id), code("plugin.id_namespace_conflict"));
+      assert.deepEqual(calls, [], "the forged package never started");
+      assert.deepEqual(service.discover(caller), [], "nothing registered under the release id");
+      await runtime.uninstall(record.install_id);
+      // The package as the release signs it installs and starts in the same Runtime.
+      const kept = runtime.install({ definition: genuine.plugin, deployment: "local", grants: [], trust: PINNED }).install;
+      await runtime.start(kept.install_id);
+      assert.deepEqual(calls, [`start:${shipped}`]);
+      await runtime.stop(kept.install_id);
+    } finally { db.close(); }
+  }
 });
 
 test("RAC-394 RAC-399 S-75 identity refusals precede consents and retained or discarded private-data cleanup", async () => {
@@ -143,22 +179,30 @@ function actionable(id: string, signature: string, calls: string[]) {
   return { plugin, action };
 }
 
-test("RAC-396 S-75 an installation's actions are registered under its install id, and under its plugin id only when it is of the Host's build", async () => {
+test("RAC-396 S-75 an installation's actions are registered under its install id, or as its package in the sandbox, and under its plugin id only when it is of the Host's build", async () => {
   const id = "com.example.provider";
-  for (const trust of [UNSIGNED_TRUST, PINNED, HOST_BUILD_TRUST]) {
+  for (const { trust, execution } of [{ trust: UNSIGNED_TRUST }, { trust: PINNED }, { trust: UNSIGNED_TRUST, execution: "sandbox" as const },
+    { trust: PINNED, execution: "sandbox" as const }, { trust: HOST_BUILD_TRUST }]) {
     const service = new ActionService(), calls: string[] = [], fixture = actionable(id, trust.level === "pinned" ? FINGERPRINT : "label", calls);
-    const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: "p", providerId: () => id } });
-    const installed = runtime.install({ definition: fixture.plugin, deployment: "local", trust, grants: [] }).install;
+    const registered: string[] = [];
+    const registry = { registerProvider: (r: ActionProviderRegistration) => { registered.push(r.provider.provider_id); return service.registerProvider(r); } };
+    // The embedder has no say in the name: what it would answer is not read.
+    const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS,
+      actions: { registry, project_id: "p", providerId: () => id } as NonNullable<ConstructorParameters<typeof PluginRuntime>[2]["actions"]> });
+    const installed = runtime.install({ definition: { ...fixture.plugin, ...(execution ? { execution } : {}) }, deployment: "local", trust, grants: [] }).install;
+    const own = trust.level === "host" ? id : execution === "sandbox" ? `plugin:${id}` : installed.install_id;
+    await runtime.start(installed.install_id);
+    assert.deepEqual(registered, [own]);
+    assert.equal(resolveActionProviderId(runtime.get(installed.install_id)), own);
     if (trust.level !== "host") {
-      await assert.rejects(runtime.start(installed.install_id), code("plugin.id_namespace_conflict"));
-      assert.equal(runtime.get(installed.install_id).state, "crashed"); assert.equal(runtime.get(installed.install_id).last_error_code, "plugin.id_namespace_conflict");
-      assert.deepEqual(calls, []); assert.deepEqual(service.discover(caller), [], "no handler or provider is registered");
-    } else {
-      await runtime.start(installed.install_id);
-      assert.equal(await service.invoke(caller, { ...fixture.action, provider_id: id }, {}), id);
-      await runtime.stop(installed.install_id);
+      await assert.rejects(Promise.resolve(service.invoke(caller, { ...fixture.action, provider_id: id }, {})), code("actions.provider_changed"));
+      assert.deepEqual(calls, [`start:${id}`], "nothing answers under the plugin id");
     }
+    assert.equal(await service.invoke(caller, { ...fixture.action, provider_id: own }, {}), id);
+    await runtime.stop(installed.install_id);
   }
+  const impostor = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
+  assert.throws(() => install(impostor, `plugin:${id}`, "label"), "no plugin id can be spelled as a package's provider");
 });
 
 test("RAC-395 RAC-399 S-75 normally loaded existing conflicts crash before activation in the same or a new Runtime", async () => {

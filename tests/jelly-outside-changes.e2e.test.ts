@@ -3,34 +3,33 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
+import type { JellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { connectorAssistantModel, toolField } from "./fixtures/connector-assistant-model.js";
+import { connectorAssistantModel } from "./fixtures/connector-assistant-model.js";
 import { CURRENT_WORK, OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 import { openWork, waitWork } from "./fixtures/assistant-send-journey.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // A change made outside the page (the Assistant through a Jelly capability) and an object opened by id (search, the side
 // panel, an Assistant result) both have to show the workspace as stored, not as the page first loaded it.
-test("Jelly shows what the Assistant changed and opens an item or a note by id", { timeout: 90_000 }, async t => {
+test("Jelly shows what the Assistant changed and opens an entry or a note by id", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "jelly");
   const { evaluate, waitFor, click } = child;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const write = (change: Parameters<ReturnType<typeof openJellyStore>["execute"]>[0]) => {
-    const store = openJellyStore(homeDirectory);
-    try { return store.execute(change, store.read().revision); } finally { store.close(); }
-  };
+  const write = <T>(change: (store: JellyStore) => T) => { const store = openJellyStore(homeDirectory, projectId!); try { return store.write(change); } finally { store.close(); } };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
   await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
   if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") await browser.click('[data-plugin-strip] [data-plugin-id=jelly]');
-  await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')");
+  await waitFor("!!document.querySelector('[data-jelly-page] [data-jelly-day]')");
 
-  const now = new Date();
+  const now = new Date(), stamp = now.toISOString();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  write({ type: "item.create", item: { id: "budget-sync", title: "和小李对预算", kind: "event", start_date: today, end_date: today, start_time: 900, end_time: 960 } });
-  const shown = "[...document.querySelectorAll('[data-jelly-occurrence]')].some(node => node.textContent.includes('和小李对预算'))";
-  assert.equal(await evaluate(shown), false, "the page still shows the workspace it loaded");
+  write(store => store.insert("item", { id: "budget-sync", title: "和小李对预算", kind: "event", category_id: "uncategorized", notes: "", start_date: today, end_date: today,
+    start_time: 900, end_time: 960, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone, completed_at: null, revision: 1, created_at: stamp, updated_at: stamp }));
+  const shown = "[...document.querySelectorAll('[data-jelly-open]')].some(node => node.textContent.includes('和小李对预算'))";
+  assert.equal(await evaluate(shown), false, "the page still shows what it loaded");
   // Another plugin's change is not Jelly's to reread.
   await browser.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { work_id: 'w-1', capability_id: 'todo.items.create' } }))");
   await new Promise(resolve => setTimeout(resolve, 300));
@@ -38,25 +37,32 @@ test("Jelly shows what the Assistant changed and opens an item or a note by id",
   await browser.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { work_id: 'w-1', capability_id: 'jelly.item.create' } }))");
   await waitFor(shown);
 
-  // Opened by id while the calendar shows: the note, written after the page loaded, opens in its own view.
-  write({ type: "note.create", id: "wall-note", title: "现场放一面用户留言墙", markdown: "发布会现场可以放一面用户留言墙" });
+  // Opened by id while the calendar shows: the note, written after the page loaded, opens on the notes tab.
+  write(store => store.insert("note", { id: "wall-note", title: "现场放一面用户留言墙", body: "发布会现场可以放一面用户留言墙", day: null, revision: 1, created_at: stamp, updated_at: stamp }));
   const select = (id: string) => browser.evaluate(`document.querySelector('[data-work-surface="jelly"]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(id)} } }))`);
   const declared = "JSON.parse(document.querySelector('[data-work-surface=\"jelly\"]').getAttribute('data-assistant-context') || '{}').object";
   await select("wall-note");
-  await waitFor("document.querySelector('[data-jelly-record-title]')?.value === '现场放一面用户留言墙'");
-  assert.equal(await evaluate("document.querySelector('[data-jelly-view=\"notes\"]').getAttribute('aria-current')"), "page");
+  // A note with words opens to read; its Markdown is drawn.
+  await waitFor("document.querySelector('[data-jelly-notes-editor] .jelly-md')?.textContent.trim() === '发布会现场可以放一面用户留言墙'");
+  assert.equal(await evaluate("document.querySelector('[data-jelly-tab=notes]').getAttribute('aria-selected')"), "true");
   assert.deepEqual(await evaluate(`(${declared}).id`), "wall-note");
 
-  // An item opens in its editor, and the page names it only while that editor is open.
+  // An entry opens in its panel on the calendar, and the page names it only while that panel is open.
   await select("budget-sync");
-  await waitFor("document.querySelector('[data-jelly-item-dialog]').open && document.querySelector('[data-jelly-field=title]').value === '和小李对预算'");
+  await waitFor("document.querySelector('[data-jelly-panel] input[name=title]')?.value === '和小李对预算'");
   assert.deepEqual(await evaluate(`({ kind: (${declared}).kind, id: (${declared}).id })`), { kind: "jelly_item", id: "budget-sync" });
-  await click("[data-jelly-item-dialog] [data-jelly-close-dialog]");
-  await waitFor(`!document.querySelector('[data-jelly-item-dialog]').open && (${declared}) === undefined`);
+  await click('[data-jelly-panel] [data-jelly-act="close"]');
+  await waitFor("!document.querySelector('[data-jelly-panel]')");
+  assert.equal(await evaluate(`(${declared}) === undefined`), true);
 
   // Something taken back before it was opened says so instead of opening nothing.
   await select("gone-already");
-  await waitFor("document.querySelector('[data-jelly-notice]').textContent === '这条内容已不存在'");
+  await waitFor("document.querySelector('[data-jelly-notice]')?.textContent === '这一条已经不在了'");
+  // A reopen nobody asked for (after a reload, on Back) forgets it without a word.
+  await click('[data-jelly-tab="calendar"]');
+  await browser.evaluate(`document.querySelector('[data-work-surface="jelly"]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: 'gone-already', quiet: true } }))`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  assert.equal(await evaluate("document.querySelector('[data-jelly-notice]')"), null);
 });
 
 test("B27-AC02 BL-092: an Assistant result without a preview keeps its Jelly event name and opens the same event", { timeout: 120_000 }, async t => {
@@ -65,12 +71,11 @@ test("B27-AC02 BL-092: an Assistant result without a preview keeps its Jelly eve
   const identity = { version: 1, provider_id: "io.molis.work.jelly" };
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
     prepareHome: async home => {
-      await connectorAssistantModel(t, home, (body, turn) => {
-        if (turn === 1) return { name: "read-capability", input: { ...identity, capability_id: "jelly.category.list", input: {} } };
-        const revision = toolField(body.messages, "revision");
-        if (turn === 2 && typeof revision === "number") return { name: "change-capability", input: {
+      await connectorAssistantModel(t, home, (_body, turn) => {
+        if (turn === 1) return { name: "read-capability", input: { ...identity, capability_id: "jelly.calendar.list", input: { start: date, end: date } } };
+        if (turn === 2) return { name: "change-capability", input: {
           ...identity, capability_id: "jelly.item.create",
-          input: { expected_revision: revision, item: { title, kind: "event", start_date: date, end_date: date, start_time: 900, end_time: 960 } },
+          input: { item: { title, kind: "event", start_date: date, end_date: date, start_time: 900, end_time: 960 } },
         } };
         return `已安排「${title}」。`;
       });
@@ -97,8 +102,8 @@ test("B27-AC02 BL-092: an Assistant result without a preview keeps its Jelly eve
   assert.ok(result);
   assert.deepEqual(result.open, { surface: "jelly", id: result.subject.id });
   assert.equal(result.subject.kind, "jelly_item");
-  const store = openJellyStore(browser.homeDirectory);
-  try { assert.equal(store.read().items.find(item => item.id === result.subject.id)?.title, title); }
+  const store = openJellyStore(browser.homeDirectory, browser.projectId!);
+  try { assert.equal(store.read(rows => rows.get("item", result.subject.id))?.title, title); }
   finally { store.close(); }
 
   const problem = "[data-side-files-body] .side-files-problem", open = "[data-side-files-action=open]";
@@ -144,7 +149,7 @@ test("B27-AC02 BL-092: an Assistant result without a preview keeps its Jelly eve
     }
     await browser.setViewport(1440, 950);
     await click(open);
-    await child.waitFor(`document.querySelector('[data-jelly-item-dialog]')?.open && document.querySelector('[data-jelly-field=title]').value === ${JSON.stringify(title)}`);
+    await child.waitFor(`document.querySelector('[data-jelly-panel] input[name=title]')?.value === ${JSON.stringify(title)}`);
     assert.equal(await evaluate("JSON.parse(document.querySelector('[data-work-surface=jelly]').getAttribute('data-assistant-context')).object.id"), result.subject.id);
     assert.equal(await evaluate(CURRENT_WORK), workId);
   }

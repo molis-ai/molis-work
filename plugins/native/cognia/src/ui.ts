@@ -20,7 +20,7 @@ export function renderCogniaWorkbench(_model: CogniaUiModel): string {
       <div data-cognia-rows aria-live="polite"><p class="cognia-empty mw-loading">${t("cognia.list.loading")}</p></div>
     </div>
     <section class="plugin-stage-workspace cognia-workspace" data-cognia-workspace hidden>
-      <header class="plugin-stage-detail-bar"><button type="button" class="plugin-stage-back" data-cognia-action="back" aria-label="${t("cognia.reading.back")}">${icon("chevron-right")}</button><h1 data-cognia-heading>${t("cognia.reading.heading")}</h1><span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>${button("cognia.action.edit", "edit-material")}${button("cognia.action.remove", "delete-material")}${button("cognia.action.synthesize", "synthesize-current")}<a class="mw-btn mw-btn--ghost" data-cognia-download>${t("cognia.reading.download")}</a></header>
+      <header class="plugin-stage-detail-bar"><button type="button" class="plugin-stage-back" data-cognia-action="back" aria-label="${t("cognia.reading.back")}">${icon("chevron-right")}</button><h1 data-cognia-heading>${t("cognia.reading.heading")}</h1><span data-placement-slot data-placement-saved="off"></span>${button("cognia.action.edit", "edit-material")}${button("cognia.action.remove", "delete-material")}${button("cognia.action.synthesize", "synthesize-current")}<a class="mw-btn mw-btn--ghost" data-cognia-download>${t("cognia.reading.download")}</a></header>
       <div class="cognia-reading" data-cognia-reading></div>
     </section>
     <div class="cognia-notice" role="status" data-cognia-notice hidden><span></span>${button("cognia.notice.retry", "reload")}</div>

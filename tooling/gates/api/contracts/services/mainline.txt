@@ -665,7 +665,6 @@ export interface BackgroundTasksReadResult {
 export interface HomeBackgroundTaskRow extends BackgroundTaskRow {
     project_id: string;
     project_name: string;
-    resting?: true;
 }
 
 export interface HomeBackgroundTasksReadResult {
@@ -1286,6 +1285,11 @@ export interface WorkItem {
     created_at: string;
 }
 
+export interface WorkLineContainsRequest {
+    subject: ActionSubject;
+    window: WorkEventWindow;
+}
+
 export interface WorkLineEvent extends WorkEvent {
     id: string;
     source: Required<ActionReference>;
@@ -1314,6 +1318,9 @@ export interface WorkLineReadResult {
 
 export declare const mainlineActions: {
     line: ActionDefinition<WorkLineReadRequest, WorkLineReadResult>;
+    contains: ActionDefinition<WorkLineContainsRequest, {
+        on_line: boolean;
+    }>;
     waiting: ActionDefinition<WorkEventWindow, WaitingReadResult>;
     place: ActionDefinition<TaskPlaceRequest, TaskPlaceResult>;
     tasks: ActionDefinition<Record<string, never>, BackgroundTasksReadResult>;

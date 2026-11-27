@@ -1,12 +1,14 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mainlineActions, mainlineItemActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
+import { shippedOwnerManifest } from "./host-surfaces.js";
 import { homePageRequestBound } from "./home-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -45,9 +47,13 @@ const ROUTES = new Map<string, ActionDefinition>([
 
 const DAY = 86_400_000;
 
+function workbenchLineWindow() {
+  const now = Date.now();
+  return { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() };
+}
+
 /**
- * The line, with the task table it was placed with, for the page's one attention read (`attention-http.ts`) and the event card's
- * check: one `mainline.line.read@1` as the person, in the window the bottom line shows (thirty days back, two ahead), optionally
+ * The line, with the task table it was placed with, for the page's one attention read: one `mainline.line.read@1` as the person, in the window the bottom line shows (thirty days back, two ahead), optionally
  * scoped to one work item (`?item=`), so the table is read once for both (N42). The attention response may present original
  * reviews. A plugin's or generated home's page gets neither, as on the routes below.
  */
@@ -58,22 +64,19 @@ export function mainlineAttention(
   presentReviews = false,
 ): {
   line(item?: string | null): Promise<WorkLineReadResult>;
+  contains(subject: ActionSubject, signal: AbortSignal): Promise<{ on_line: boolean }>;
   summary(): Promise<{ has_items: boolean; current: string | null; source_kinds: string[] }>;
 } | null {
   if (pluginPageRequest(request) || homePageRequestBound(request)) return null;
   return {
     line: (item?: string | null) => {
-      const now = Date.now();
-      const window = {
-        from: new Date(now - 30 * DAY).toISOString(),
-        to: new Date(now + 2 * DAY).toISOString(),
-        now: new Date(now).toISOString(),
-        ...(item ? { item } : {}),
-      };
+      const window = { ...workbenchLineWindow(), ...(item ? { item } : {}) };
       return presentReviews && webManagementAuthenticated(request)
         ? invokePersonPageAction(host, project, mainlineActions.line, window)
         : bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineActions.line, window);
     },
+    contains: (subject, signal) => bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal })
+      .invoke(mainlineActions.contains, { subject, window: workbenchLineWindow() }),
     summary: async () => {
       const state = await bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineItemActions.read, {});
       return {
@@ -85,8 +88,6 @@ export function mainlineAttention(
   };
 }
 
-/** The platform's own receiver of 「放到…」 (M4): the Shelf, first in every list; a plugin receives through a station it declares. */
-const PLATFORM_RECEIVER = "shelf";
 const SUBJECT_PART = /^[A-Za-z0-9._:-]{1,200}$/u;
 
 /**
@@ -111,15 +112,15 @@ async function handleReceiveRoutes(request: IncomingMessage, response: ServerRes
         const stations = new Map<string, { station: string; title: string; icon: string }>();
         for (const view of views) {
           const station = view.action.workflow_content;
-          if (station?.role === "receive" && view.availability.available && !stations.has(station.id)) stations.set(station.id, { station: station.id, title: station.title, icon: station.icon });
+          if (station?.role === "receive" && station.id !== PLATFORM_RECEIVE_STATION && view.availability.available && !stations.has(station.id)) stations.set(station.id, { station: station.id, title: station.title, icon: station.icon });
         }
-        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVER, title: "Shelf", icon: "bookmark" }, ...stations.values()] } };
+        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shippedOwnerManifest(PLATFORM_RECEIVE_STATION)!.name, icon: "bookmark" }, ...stations.values()] } };
       }
       const input = body as Record<string, unknown>;
       const title = typeof input.title === "string" ? input.title.slice(0, 200) : "", text = typeof input.text === "string" ? input.text : "";
       if (!title || !text || text.length > 200_000) throw new ActionError("actions.input_invalid", "请写好标题与正文");
-      const station = typeof input.station === "string" && input.station ? input.station : PLATFORM_RECEIVER;
-      if (station === PLATFORM_RECEIVER) return { status: 200, body: await invokePersonPageAction(host, project, SHELF_ADMIT_ACTION as ActionDefinition, { title, text }, controller.signal) as object };
+      const station = typeof input.station === "string" && input.station ? input.station : PLATFORM_RECEIVE_STATION;
+      if (station === PLATFORM_RECEIVE_STATION) return { status: 200, body: await invokePersonPageAction(host, project, SHELF_ADMIT_ACTION as ActionDefinition, { title, text }, controller.signal) as object };
       const source = input.source as { kind?: unknown; id?: unknown } | undefined;
       if (typeof source?.kind !== "string" || typeof source.id !== "string" || !SUBJECT_PART.test(source.kind) || !SUBJECT_PART.test(source.id)) throw new ActionError("actions.input_invalid", "要说明放的是哪一件");
       const converted = await invokePersonPageAction(host, project, placementActions.convert, { source: { kind: source.kind, id: source.id, project_id: project.project_id },

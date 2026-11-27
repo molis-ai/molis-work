@@ -58,6 +58,7 @@ import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { hostLineDetails, hostLineSummary, hostLinesWantText, reportHostLines } from "./gates/host-lines.mjs";
 import { hostEntryWidthSummary, measureHostEntryWidth } from "./gates/host-entry-exports.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
+import { pluginNameExceptionProblems } from "./gates/plugin-name-exceptions.mjs";
 import { versionOriginProblems } from "./gates/initial-versions.mjs";
 import { measureSchemaExecs, measureSchemaPatches, schemaExecsWantText, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
@@ -586,7 +587,7 @@ const retiredRecordErrors = () => [
   ...headSnapshot.files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`),
   ...headSnapshot.files.filter(file => file.startsWith("tooling/gates/page-asset-allowances/") && file.endsWith(".json")).map(file => `${file}: retired per-byte page-asset allowance; use route budgets in tooling/gates/page-asset-budgets.json`),
 ];
-const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root)];
+const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...pluginNameExceptionProblems(headSnapshot, head.platformPluginNames ?? {}, { required: isOwnRepository(root, import.meta.url) }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });

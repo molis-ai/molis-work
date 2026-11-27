@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { setTimeout as pause } from "node:timers/promises";
-import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { overviewReaderKind } from "@molis-ai/molis-work-service-search";
 import type { PluginConnectionDescription, PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { pluginBindingScope, type ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
@@ -233,9 +234,26 @@ function describeBinding(home: string, target: PluginConnectionTarget): PluginCo
   }, true) ?? { bound: false };
 }
 
+/**
+ * Who may use an installation slot's account (S-71, specs/unified-partition-plugins §4.2 第 5 条, batch 108): the slot is the person's own,
+ * the same in every partition, so only the person on this machine, the personal assistant acting for them, a workflow they run, and the
+ * plugin's own work (its start, its background jobs, its own calls) use it. A project Agent, an MCP client, another plugin's call or a
+ * delegated call is refused before the account is read; it binds an account in that partition's own record slot instead.
+ */
+export function mayUseInstallationSlot(install_id: string): boolean {
+  const invocation = currentPluginInvocation();
+  if (invocation === undefined || "job" in invocation) return true;
+  const caller = invocation.caller;
+  if (overviewReaderKind(caller) !== null) return true;
+  if (caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.delegated_by !== undefined || caller.host_plugin || caller.calling_plugin_id) return false;
+  return caller.audience === "workflow" || caller.audience === "plugin" && caller.plugin_install_id === install_id;
+}
+
 /** The connection bound to this installation's slot, `null` when none is; refuses one that cannot be used as it is. */
 function boundConnection(home: string, target: PluginConnectionTarget, service: ConnectorRequestService, origin: string)
   : UsableConnection | null {
+  if (target.project_id === undefined && target.record_key === undefined && !mayUseInstallationSlot(target.install_id))
+    throw pluginRequestErrors.connection_unavailable("本人的连接只给本人、个人助理和本人的工作流用；这个调用方要在所在分区单独绑定账号");
   // A Home that has never saved an account has bound nothing; reading must not create its registry.
   if (!existsSync(homeSqlitePath(home, "connectors"))) return null;
   return withConnectorConnections(home, store => {

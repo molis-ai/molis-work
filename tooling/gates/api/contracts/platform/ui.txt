@@ -37,6 +37,8 @@ export interface OwnedUiContribution<TModel = unknown> {
     render(request: UiRenderRequest<TModel>): string;
 }
 
+export declare const PLATFORM_RECEIVE_STATION = "system.shelf";
+
 export declare const PLUGIN_PRESENTATION_CAPABILITY: {
     readonly capability_id: "ui.plugin-presentation";
     readonly version: 1;
@@ -1315,6 +1317,7 @@ export interface UiShadowLayer {
 export interface UiShowToastOptions {
     readonly tone?: "default" | "success" | "warning" | "error";
     readonly duration?: "short" | "normal" | "long" | number;
+    readonly undo?: () => void;
 }
 
 export interface UiSideContext {

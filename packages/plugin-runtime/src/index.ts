@@ -9,7 +9,7 @@ import { definitionOrigin, platformDefinition } from "./platform-definitions.js"
 import { pluginManifestDigest } from "./identity.js";
 import { UNINSTALL_PENDING, uninstallRefusal, type UninstallOptions, abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
-import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
+import { resolveActionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure, type ReleasePackages } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
 import { pluginActionProvider, type PluginRuntimeActions } from "./action-provider.js";
@@ -28,7 +28,7 @@ import type { PluginContributionSource } from "./lifecycle.js";
 export * from "./public-api.js";
 /** A plugin's installation id in a Home, derived from its Manifest: the per-partition assembly gives each instance this id's files. */
 export { installIdentity } from "./runtime-rules.js";
-export { holdsInstalledEdition, UNINSTALL_PENDING, type DeclarationOwner, type DeclarationOwners, type UninstallOptions } from "./install-rules.js";
+export { keptDataRefusal, holdsInstalledEdition, UNINSTALL_PENDING, type DeclarationOwner, type DeclarationOwners, type UninstallOptions } from "./install-rules.js";
 
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type {
@@ -91,8 +91,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
       hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
-      /** The release's own bundled packages under the Host's prefix (`io.molis.work.`), which a non-host install may carry (S-reserved-host-prefix). */
-      releaseIds?: ReadonlySet<string>;
+      /** The release's own bundled packages under the Host's prefix (`io.molis.work.`), which a non-host install may carry only under that package's signer (S-reserved-host-prefix, P-13). */
+      releaseIds?: ReleasePackages;
       actions?: PluginRuntimeActions },
   ) {
     if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单");
@@ -129,15 +129,15 @@ export class PluginRuntime implements PluginRuntimeApi {
     this.definitions.set(key, definition);
   }
 
-  install(given: PluginInstallInput): PluginLifecycleReceipt {
+  install(given: PluginInstallInput, stageDiscard?: (previous: PluginInstanceRecord) => void): PluginLifecycleReceipt {
     const input = { ...given, definition: platformDefinition(given.definition) }, trust =assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess, this.options.releaseIds);
     assertRuleKeysUnreserved(input.definition.manifest, trust, this.options.reservedRuleKeys?.());
-    const receipt = this.installRecord(input, trust);
+    const receipt = this.installRecord(input, trust, stageDiscard);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
     return receipt;
   }
 
-  private installRecord(input: PluginInstallInput, trust: PluginTrust): PluginLifecycleReceipt {
+  private installRecord(input: PluginInstallInput, trust: PluginTrust, stageDiscard?: (previous: PluginInstanceRecord) => void): PluginLifecycleReceipt {
     const host = isHostTrust(trust);
     const manifest = input.definition.manifest;
     validateManifest(manifest);
@@ -234,7 +234,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: null,
       retain_private_data: input.retain_private_data ?? current?.retain_private_data ?? true,
     };
-    saveInstalled(this.repository, this.executor, record, current, input.discard_kept_data === true);
+    saveInstalled(this.repository, this.executor, record, current, input.discard_kept_data === true, stageDiscard);
     return this.receipt("install", record, false);
   }
 
@@ -714,7 +714,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions, activation = this.liveContext(record.install_id);
         if (!actions || !activation) throw pluginErrors.contribution_unredeemed("当前插件激活或宿主动作注册服务不可用");
         const registration = pluginActionProvider(manifest, contribution, activation,
-          actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
+          resolveActionProviderId(record), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
             bounded: Boolean(this.options.permissionBound?.(record, definition)),
             checkGrant: permission => { this.capturePermission(record.install_id, permission); }, capturePermissions: permissions => {
               if (!this.options.permissionBound?.(record, definition)) return;
@@ -756,7 +756,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition), permission => this.permissionBound(record, definition, permission), this.startedAt);
+    const activation = createActivationContext(record, definition, resolveActionProviderId(record), permission => this.permissionBound(record, definition, permission), this.startedAt);
     this.contexts.set(record.install_id, activation);
     return activation.context;
   }

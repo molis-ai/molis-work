@@ -16,9 +16,10 @@ test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘�
   const { requests, namings } = model;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
-  // A tool with a chord is loaded while the page is idle, so the first press shows a ready view.
+  await b.waitFor("document.body.dataset.sideOpen === 'false'");
+  await v.chord();
   await b.waitFor(`'loaded' in (document.querySelector('[data-side-body="plugin:issues/capture"] iframe')?.dataset ?? {})`, 10_000);
-  await v.chord(); await v.composerFocused();
+  await v.composerFocused();
   await v.type("  切换页面以后，输入没了。\n"); await v.paste();
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
   await v.until("!$('[data-issue-submit]').disabled"); await v.send();
@@ -69,7 +70,7 @@ test("ISSUE-38 undo takes a new record back and returns the words to an empty co
   await v.until("d.hasFocus() && d.activeElement === $('[data-issue-composer] [name=description]') && $('[data-issue-composer] [name=description]').value === '保存按钮点了没反应' && !$('[data-issue-submit]').disabled");
   await v.send(); await v.until("$('[data-issue-toast-action]').textContent === '撤销'", 20_000);
   const [record] = (await v.list()).items;
-  await v.api("/api/plugins/io.molis.work.issues/update", { id: record!.id, expected_version: 1, title: "后来改过" });
+  await v.api("/projects/personal/api/plugins/io.molis.work.issues/update", { id: record!.id, expected_version: 1, title: "后来改过" });
   await v.press("[data-issue-toast-action]");
   await v.until("/记录后已修改/.test($('[data-issue-toast] span').textContent)");
   assert.equal((await v.list()).items[0]!.title, "后来改过");

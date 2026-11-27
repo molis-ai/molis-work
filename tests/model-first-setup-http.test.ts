@@ -3,7 +3,6 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
-import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
@@ -63,45 +62,6 @@ async function withHost(run: (host: {
 
 const form = (baseUrl: string, models: { model_id: string; enabled: boolean }[], extra: Record<string, unknown> = {}) => ({
   display_name: "测试供应商", base_url: baseUrl, api_format: "openai-chat-completions", enabled: true, prompt_cache: "off", models, ...extra,
-});
-
-test("ONB-22 the model picker reads each catalog once for a provider with many models and observes disconnection on reopening", async t => {
-  await withHost(async ({ origin, root, save, connections }) => {
-    const models = Array.from({ length: 100 }, (_, i) => ({ model_id: "choice-" + i, enabled: i !== 0 }));
-    const saved = await save("many-models", form("https://provider.invalid/v1", models, { api_key: goodKey }));
-    assert.equal(saved.status, 200, saved.text);
-    const [connection] = await connections();
-    assert.ok(connection);
-    const read = async () => {
-      const response = await fetch(origin + "/api/settings/models?choices=1");
-      assert.equal(response.status, 200);
-      return await response.json() as { provider_id: string; model_id: string }[];
-    };
-    const prepare = DatabaseSync.prototype.prepare;
-    const registryHandles = new Set<DatabaseSync>(), registryReaders = new Set<DatabaseSync>();
-    let providersRead = 0, connectionsRead = 0, originsRead = 0;
-    const probe = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
-      if (/FROM model_providers ORDER BY/i.test(sql)) providersRead++;
-      if (/FROM connector_connections WHERE removed_at IS NULL AND service_id/i.test(sql)) {
-        connectionsRead++;
-        registryReaders.add(this);
-      }
-      if (/SELECT origin FROM connector_connection_targets/i.test(sql)) originsRead++;
-      if (this.location()?.endsWith("/connectors.db")) registryHandles.add(this);
-      return prepare.call(this, sql);
-    });
-    const result = await read();
-    probe.mock.restore();
-    assert.deepEqual(result.map(row => row.model_id), models.filter(row => row.enabled).map(row => row.model_id));
-    assert.ok(result.every(row => row.provider_id === "many-models"));
-    assert.deepEqual({ providersRead, connectionsRead, originsRead }, { providersRead: 1, connectionsRead: 1, originsRead: 1 });
-    // The Home keeps one connection to the registry (B103-02): checked when it opened, it serves these queries, and no handle is
-    // opened for them while nothing else has changed the store.
-    assert.equal(registryHandles.size, 1);
-    assert.equal(registryReaders.size, 1);
-    withConnectorConnections(path.join(root, "home"), store => store.setEnabled(connection.connection_id, false));
-    assert.deepEqual(await read(), []);
-  });
 });
 
 test("没有模型时设置页给出一键模板；模板只预填地址、格式和稳定的模型名，不带密钥", async () => {

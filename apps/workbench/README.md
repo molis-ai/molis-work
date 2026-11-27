@@ -73,15 +73,15 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 界面短句在 SDK 的 `t`／`say` 中引用稳定键。HTML 插值用 `t`／`say`，节点的 `textContent` 或会自行转义的控件用 `t.text`／`say.text`。日期、数字与文档语言统一经 SDK `format` / `dateArg` / `numberArg` / `dateTimeLocale()` / `htmlLang()`，禁止写死区域串、中文顿号 `.join("、")` 或二元 `zh`/`en` 分支。用户原文作为参数，不能作为键，也不把译好的句子写进业务记录、闭包缓存或逻辑判断。
 
-平台语言目录由 [`resources/languages.json`](resources/languages.json) 声明（并行支持 `zh` / `en` / `ja` 三语并可扩展至 N 语种），平台短句在 [`resources/locales/`](resources/locales/) 与按需加载的 [`resources/locales/scene/`](resources/locales/scene/)；每个插件自己声明 `ui.locales`，拥有自己的 `locales/<语言>.json`。键用 `<主人>.<位置>.<元素>`，不要以显示文字或对象 ID 拼键，也不做半句裸拼接（改用带占位符的整句键）；一组状态值可以用一张固定的键表。确需让各插件读取的词与 Host 出口错误用平台的 `common.*` / `common.error.*`。动态视图（侧栏、分屏克隆模板、场景/引导、原生插件、独立 `/im` 页）统一响应 `molis-work:language-changed` 原地重绘。详细写法与五条语感标尺见 [作者指南](../../skills/molis-plugin-dev/text-and-appearance.md) 和 [UI Platform](../../docs/platform/UI-PLATFORM.md#5-界面文字语言与外观)。
+平台语言目录由 [`resources/languages.json`](resources/languages.json) 声明（并行支持 `zh` / `en` / `ja` 三语并可扩展至 N 语种），平台短句在 [`resources/locales/`](resources/locales/)、场景词包 [`resources/locales/scene/`](resources/locales/scene/) 和仅在组件板页面加载的 [`resources/locales/catalog/`](resources/locales/catalog/)；每个插件自己声明 `ui.locales`，拥有自己的 `locales/<语言>.json`。键用 `<主人>.<位置>.<元素>`，不要以显示文字或对象 ID 拼键，也不做半句裸拼接（改用带占位符的整句键）；一组状态值可以用一张固定的键表。确需让各插件读取的词与 Host 出口错误用平台的 `common.*` / `common.error.*`。动态视图（侧栏、分屏克隆模板、场景/引导、原生插件、独立 `/im` 页）统一响应 `molis-work:language-changed` 原地重绘。详细写法与五条语感标尺见 [作者指南](../../skills/molis-plugin-dev/text-and-appearance.md) 和 [UI Platform](../../docs/platform/UI-PLATFORM.md#5-界面文字语言与外观)。
 
-`node scripts/gates/translations.mjs --missing` 找声明、全声明语种（含 `zh` / `en` / `ja` 及 `locales/scene/`）缺漏、重复键、参数名不一致及私有词越界；同一规则随 `pnpm health:check` 运行。检查按源码和同程序内转交文字的调用扫描（包括模板中的浏览器脚本）；计算出来的键和后端动态投影还需运行核对。`--dead` 只报告未找到字面量的键，删除前须排除动态拼接前缀。`--calls` 列可静态解析的调用。`node scripts/audit-ui-copy.mjs --strict` 按五条语感标尺只读巡检词包中的公文冷词、内部黑话、退役术语、标点引号与英文大小写。改语言入口同时跑 `tests/workbench-language.e2e.test.ts`，核对 `zh → en → ja → zh` 原地切换不丢焦点、选区、草稿，不残留旧语言，也不接受旧响应覆盖。
+`node scripts/gates/translations.mjs --missing` 找声明、全声明语种（含 `zh` / `en` / `ja` 及 `locales/scene/`、`locales/catalog/`）缺漏、重复键、参数名不一致及私有词越界；同一规则随 `pnpm health:check` 运行。检查按源码和同程序内转交文字的调用扫描（包括模板中的浏览器脚本）；计算出来的键和后端动态投影还需运行核对。`--dead` 只报告未找到字面量的键，删除前须排除动态拼接前缀。`--calls` 列可静态解析的调用。`node scripts/audit-ui-copy.mjs --strict` 按五条语感标尺只读巡检词包中的公文冷词、内部黑话、退役术语、标点引号与英文大小写。改语言入口同时跑 `tests/workbench-language.e2e.test.ts`，核对 `zh → en → ja → zh` 原地切换不丢焦点、选区、草稿，不残留旧语言，也不接受旧响应覆盖。
 
 ## 开发要求
 
 Skill 草稿的未存输入归当前编辑对象：保存失败保持编辑区，离开前检查同一对象的保存结果；回放/案例读取不把另一入口的修订号配上本地旧字段，迟到采用回执不关闭后开的草稿。回归 `tests/skill-draft-recovery.e2e.test.ts`（QEA-101/102）走隔离 Home 的真实保存、并发修订和实际采用回执。
 
-资料导入的选择队列归工作台：进行中“停止后续”等待当前文件真实回执，再停止启动其余文件；成功项不重发，未开始和失败项保留。标题栏/Escape 只收起，空闲页脚取消才清空选择；在线单项进行中写“收起”。转写等待单独保留待处理文件，不长期保存 DOM 行引用，继续时重画对应结果。两种执行入口用同一批次生命周期控制，资料版本及内容复用仍由 artifacts owner 维护（QEA-23～25）。
+资料导入的选择队列归工作台：进行中“停止后续”等待当前文件真实回执，再停止启动其余文件；成功项不重发，未开始和失败项保留。标题栏/Escape 只收起，空闲页脚取消才清空选择；在线单项进行中写“收起”。两种执行入口用同一批次生命周期控制，资料版本及内容复用仍由 artifacts owner 维护（QEA-23～25）。
 
 插件设置中，双实例的项目可选权限只读定位到个人空间，Home disabled/crashed 仍按安装、插件、发布者签名与信任配对；可信内部安装 ID 标识避免 Home 缺失时回落项目开关。required/requested/granted 仍表示各安装自己的声明与记录。回归：`tests/plugin-permission-switch.e2e.test.ts`（RAC-2910）。
 

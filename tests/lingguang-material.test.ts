@@ -45,7 +45,8 @@ test("a reading longer than a spark holds is cut at the limit and says so", asyn
 });
 
 test("Jelly receives a handed-over spark as one note, once; it reads back as a Jelly note", async t => {
-  const f = await fixture(t);
+  // Jelly is a partition plugin (batch 108): the project that hands the spark over has it too.
+  const f = await fixture(t, {}, ["lingguang", "jelly"]);
   // A station is used inside a project, the way placement hands a spark over from where it is.
   const jelly = bindActionClient(f.client, () => ({ actor_id: "owner", project_id: f.project.project_id, audience: "user", permissions: JELLY_ACTION_PERMISSIONS }));
   const input = { title: "发布会预热", body: "倒计时海报提前一周放出", source: "灵光 · 发布会预热", request_id: "placement:req-1" };

@@ -1,6 +1,6 @@
 import { renderButton, renderSettingRow, renderSettingsSection, renderSwitch, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-function savePreference(kind: "lookback" | "report"): string {
+function savePreference(kind: "lookback" | "report" | "overview"): string {
   const reset = renderButton({ label: t.text("workbench.settings-assistant.use-default"), variant: "ghost", size: "sm", attrs: { "data-inherit": true, hidden: true } });
   const save = renderButton({ label: t.text("common.control.save"), variant: "secondary", size: "sm", type: "submit", disabled: true });
   return `${renderSettingRow({ name: "", nameAttrs: { [`data-${kind}-source`]: true }, control: `${reset}${save}` })}
@@ -30,5 +30,13 @@ export function renderAssistantPreferenceForms(): string {
       ${renderSettingRow({ name: text("workbench.settings-assistant.report-timezone"), label: true, control: '<input class="mw-input" name="time_zone" list="assistant-report-zones" required><datalist id="assistant-report-zones"></datalist>' })}
       ${savePreference("report")}</form>`,
   });
-  return lookback + report;
+  // Which projects, and which of their summary fields, the assistant may read across projects (overview-readers, batch 108): none until granted.
+  const overview = renderSettingsSection({
+    title: text("workbench.settings-assistant.overview-grants"), id: "assistant-overview-title",
+    body: `<form data-assistant-overview>
+      <p class="mw-settings-section__note">${t("workbench.settings-assistant.overview-grants-hint")}</p>
+      <div data-overview-places aria-live="polite"><p class="mw-settings-section__note mw-loading">${t("workbench.settings-assistant.loading")}</p></div>
+      ${savePreference("overview")}</form>`,
+  });
+  return lookback + report + overview;
 }

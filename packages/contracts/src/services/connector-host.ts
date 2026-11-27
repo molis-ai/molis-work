@@ -168,25 +168,44 @@ export interface ConnectorDirectoryEntry {
   readonly uses?: readonly ConnectorUse[];
   /** The categories the service declares (`category` is in `uses` exactly when there are some). */
   readonly categories?: readonly string[];
+  /** What the card says or asks beyond the shared shape, in the page's language. */
+  readonly card?: ConnectorCardView;
+}
+
+/** The service's `card` declaration (`PluginConnectionCardDeclaration`) with its words read. */
+export interface ConnectorCardView {
+  readonly purpose?: string;
+  readonly provider?: string;
+  readonly preferred_method?: "cli" | "mcp" | "token";
+  readonly credential?: { readonly separator: ":" | "|"; readonly fields: readonly { readonly label: string; readonly type: "text" | "email" | "url" | "password"; readonly placeholder?: string }[] };
+  readonly own_app?: true;
+  readonly client_note?: string;
 }
 
 /**
  * How the Host writes the saved credential on a request: `bearer` (`Authorization: Bearer …`), `bot` (`Authorization: Bot …`), `bare`
- * (`Authorization: …`), `private-token` (`PRIVATE-TOKEN: …`), `x-figma-token` (`X-Figma-Token: …`), or `basic` (`Authorization: Basic …`
+ * (`Authorization: …`), `{ header }` (the token alone in a header of the service's own), or `basic` (`Authorization: Basic …`
  * of the email and the token saved together with the connection). Each is the one the service's own documentation asks for.
  */
-export type ConnectorRequestCredential = "bearer" | "bot" | "bare" | "private-token" | "x-figma-token" | "basic";
+export type ConnectorRequestCredential = "bearer" | "bot" | "bare" | "basic" | { readonly header: string };
 
 /**
  * A service on each tenant's own origin (BL-595): a request goes only to the origin the bound connection was pinned to when it was made
  * (the tenant its credential was checked on, `connector_connection_targets`), an `https://` origin under `domain`. An unbound slot, or a
- * connection with no pinned origin, sends nothing. `gateway: "atlassian"`: an OAuth token is not accepted on the site itself, so the Host
- * sends the same path to the Atlassian gateway of the site it was authorized for; the plugin still writes the site's URL.
+ * connection with no pinned origin, sends nothing. `site_keys` are the names its site is saved under, the first one there taken: in a
+ * token (`instance|token`, `site|email|token`) or in what the Host read back when it was authorized. `gateway`: an OAuth token is not
+ * accepted on the site itself, so the Host sends the same path to the service's gateway for the site it was authorized for, at `path`
+ * with the service's id and the site's `cloud_id`; the plugin still writes the site's URL.
  */
 export interface ConnectorRequestTenant {
-  readonly domain: "salesforce.com" | "atlassian.net";
-  readonly gateway?: "atlassian";
+  readonly domain: string;
+  readonly site_keys: readonly string[];
+  readonly gateway?: { readonly origin: string; readonly path: `${string}{service}${string}{cloud_id}${string}` };
 }
+
+/** The base of a site on its service's gateway. */
+export const connectorGatewayBase = (gateway: NonNullable<ConnectorRequestTenant["gateway"]>, service_id: string, cloud_id: string): string =>
+  `${gateway.origin}${gateway.path.replace("{service}", encodeURIComponent(service_id)).replace("{cloud_id}", encodeURIComponent(cloud_id))}`;
 
 /**
  * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57, S-69): the exact
@@ -205,6 +224,7 @@ export interface ConnectorRequestService {
 }
 
 const BEARER = { token: "bearer", oauth: "bearer" } as const;
+const ATLASSIAN_SITE: ConnectorRequestTenant = { domain: "atlassian.net", site_keys: ["site_url", "site"], gateway: { origin: "https://api.atlassian.com", path: "/ex/{service}/{cloud_id}" } };
 
 /**
  * The services a plugin's connection slot may name (spec repository-anti-corruption S0b-2, user decision 2026-10-20; extended by slice
@@ -240,13 +260,13 @@ export const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorReques
   x: { origins: ["https://api.x.com"], credential: BEARER, refresh: "host" },
   linkedin: { origins: ["https://api.linkedin.com"], credential: BEARER, refresh: "host" },
   // On the tenant's own origin, pinned when the connection is made (BL-595); a token connection saves `instance|token` or `site|email|token`.
-  salesforce: { origins: [], tenant: { domain: "salesforce.com" }, credential: BEARER, refresh: "host" },
-  jira: { origins: [], tenant: { domain: "atlassian.net", gateway: "atlassian" }, credential: { token: "basic", oauth: "bearer" }, refresh: "host" },
-  confluence: { origins: [], tenant: { domain: "atlassian.net", gateway: "atlassian" }, credential: { token: "basic", oauth: "bearer" }, refresh: "host" },
+  salesforce: { origins: [], tenant: { domain: "salesforce.com", site_keys: ["instance"] }, credential: BEARER, refresh: "host" },
+  jira: { origins: [], tenant: ATLASSIAN_SITE, credential: { token: "basic", oauth: "bearer" }, refresh: "host" },
+  confluence: { origins: [], tenant: ATLASSIAN_SITE, credential: { token: "basic", oauth: "bearer" }, refresh: "host" },
   // A token written another way than `Bearer` (s57-connections-extension §4.1); the same service's OAuth connection as its documentation asks.
   discord: { origins: ["https://discord.com"], credential: { token: "bot", oauth: "bearer" }, refresh: "host" },
-  gitlab: { origins: ["https://gitlab.com"], credential: { token: "private-token", oauth: "bearer" }, refresh: "host" },
-  figma: { origins: ["https://api.figma.com"], credential: { token: "x-figma-token", oauth: "bearer" }, refresh: "host" },
+  gitlab: { origins: ["https://gitlab.com"], credential: { token: { header: "private-token" }, oauth: "bearer" }, refresh: "host" },
+  figma: { origins: ["https://api.figma.com"], credential: { token: { header: "x-figma-token" }, oauth: "bearer" }, refresh: "host" },
   linear: { origins: ["https://api.linear.app"], credential: { token: "bare", oauth: "bearer" }, refresh: "host" },
   clickup: { origins: ["https://api.clickup.com"], credential: { token: "bare", oauth: "bearer" }, refresh: "host" },
   monday: { origins: ["https://api.monday.com"], credential: { token: "bare", oauth: "bare" }, refresh: "host" },

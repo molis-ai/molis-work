@@ -127,11 +127,11 @@
 | 3 | **能力注册**：能力在自己的声明里注册一次，页面、工作流、Agent、MCP 都用这一份；可信身份取自调用上下文；等模型或外部服务的动作声明 `scheduling: "concurrent"` | [动作架构](../../action-architecture/spec.md)第 3 节 |
 | 4 | **合同**：改不改合同、改哪几项；按现在所处的阶段做（开发前／1.0 发布前不留兼容期，合同与存储结构一律直接改 v1，一个 PR 改完所有消费者；1.0 起才启用读取兼容）；要不要先单独开一个只改合同的 PR | [合同变更流程](../../../docs/system/CONTRACT-CHANGES.md)、[轨道与冲突规则](tracks.md#section-5)规则 1 |
 | 5 | **放在哪个包**：依赖方向合不合分层；新的平台服务放 `horizontal/` 下的新包，不进宿主（用户 2026-11-01 定）；新的内置插件就是它自己的包加 `registration` | [包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)、[包的开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md) |
-| 6 | **表与存储**：新表归哪个包，别的包只调它导出的函数；项目库里的插件表在 Manifest 里声明；开发前阶段（[决定 68](decisions.md#decision-68)）所有库与带版本文件固定 v1，改结构直接改 v1 基线、不升版本、不写 `upgrades`（通用升级链代码休眠留待 1.0 启用） | [表的主人](../../../tooling/gates/table-owners.json)、[插件项目库](../../archive/plugin-project-database/spec.md) |
+| 6 | **表与存储**：新表归哪个包，别的包只调它导出的函数；项目库里的插件表在 Manifest 里声明；开发前阶段（[决定 69](decisions.md#decision-69)）所有库与带版本文件固定 v1，改结构直接改 v1 基线、不升版本、不写 `upgrades`（通用升级链代码休眠留待 1.0 启用） | [表的主人](../../../tooling/gates/table-owners.json)、[插件项目库](../../archive/plugin-project-database/spec.md) |
 | 7 | **兼容与迁移**：开发前阶段零现有用户、零旧 Home 保留，**严禁**新增任何旧数据／旧格式兼容读取、迁移逻辑或一次性修补脚本；需要清理旧开发 Home 时直接删掉重建，不要就「要不要迁旧 Home」向用户发问 | `AGENTS.md` 硬约束、[合同变更流程](../../../docs/system/CONTRACT-CHANGES.md) |
 | 8 | **安全边界**：碰不碰本机的安全边界（回环绑定、令牌、动作网关、MCP 授权、地址与路径校验、密钥引用、提示注入、桌面 IPC）；碰了就同步改不变量表和「拒绝」测试 | [安全不变量](../../../docs/system/SECURITY-INVARIANTS.md) |
 | 9 | **调用次数**：一次用户操作发出几个请求，每个请求做几遍目录发现和授权核对、开几次库；不重复读同一份数据，不按条目逐个请求，页面在后台不轮询；带缓存的按缓存过期之后的真实成本算 | [对抗式审查台账](../../../docs/reviews/adversarial-review-2026-11-01.md) N42～N56 |
-| 10 | **数据与重启一致**：开发前阶段不保留旧 Home 存量、不做版本迁移，只保证干净新建 v1 与正常重启一致（1.0 对外发布起再按[升级后持续可用](../../upgrade-continuity/spec.md)启用升级连续性与金样回放） | [合同变更流程](../../../docs/system/CONTRACT-CHANGES.md)、[决定 68](decisions.md#decision-68) |
+| 10 | **数据与重启一致**：开发前阶段不保留旧 Home 存量、不做版本迁移，只保证干净新建 v1 与正常重启一致（1.0 对外发布起再按[升级后持续可用](../../upgrade-continuity/spec.md)启用升级连续性与金样回放） | [合同变更流程](../../../docs/system/CONTRACT-CHANGES.md)、[决定 69](decisions.md#decision-69) |
 | 11 | **成果与过程项**：人要留存、引用的才进成果库（在 Manifest 里声明）；交给别的插件的是过程项 | `AGENTS.md` 硬约束 |
 | 12 | **页面、外壳与文字**：插件只提供内容，挂在工作台的位置上，不出自己的整页；跨模块的 DOM 事件要登记；页面资源有增长的写明理由。新文字归哪个主人、键怎么起；逻辑不拿译文做判断，不把译文存进业务数据；颜色、字体只用语义变量，缺的加进基线文件；给模型的内容跟用户选的语言，不写语言判断。平台、内置和外部插件都用稳定键和各主人声明的语言文件；文案面向零 AI 基础用户过四查（无架构词与 AI 工程黑话、术语符合 `GLOSSARY`、空态与报错用人话给出下一步、按钮动词开头且遵守 `「…」` / ` › ` / 英文 Sentence case），默认语言与实际中英文入口一并检查 | [单页例外](../../shell-page-exceptions/spec.md)、`AGENTS.md` 硬约束与「构建与测试」、[文字与外观](../../../skills/molis-plugin-dev/text-and-appearance.md) |
 | 13 | **错误**：新的错误码用 `defineErrorCodes` 声明，不写新的 Error 子类 | `AGENTS.md`「构建与测试」 |
@@ -165,7 +165,7 @@
 - 某个页面资源一次涨超过 10 KB，或新增一个资源；
 - 改变产品语义，或推翻用户已经定过的事。
 
-注：开发前阶段**绝对禁止**新增任何旧数据兼容读取或迁移逻辑（第 7 项），没有「弹窗申请加兼容」的例外通道（[决定 68](decisions.md#decision-68)）。
+注：开发前阶段**绝对禁止**新增任何旧数据兼容读取或迁移逻辑（第 7 项），没有「弹窗申请加兼容」的例外通道（[决定 69](decisions.md#decision-69)）。
 
 <a id="platform-capability-check"></a>
 

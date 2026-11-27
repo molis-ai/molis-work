@@ -1,12 +1,15 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { OverviewIndexRow, OverviewKind, PluginManifest, PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type DueEntryRecord, type DueExpiredRecord, type DueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_STORE, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { PERSON_SETTINGS_STORE, openPersonSettings, type PersonSettingsInstallation } from "@molis-ai/molis-work-service-person-settings";
 import { OverviewService, overviewReach, type OverviewGrant, type OverviewLibrary } from "@molis-ai/molis-work-service-search";
-import { homeSqlitePath, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openHomeSqliteFile, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
+import { attentionOverviewRows } from "@molis-ai/molis-work-module-attention-resumption";
 import { partitionPluginScope, type PartitionPluginLease } from "./partition-plugin-assembly.js";
+import { directoryForHome } from "./plugin-directory-service.js";
+import { partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
 
 /**
  * The platform services the unified partitions add in the Home (specs/unified-partition-plugins §4.1, §5, §6.1, batch 106), put together
@@ -32,7 +35,9 @@ export interface OverviewInstallation {
 export function partitionOverviewLibraries(home: string, partitions: readonly { readonly partition_id: string; readonly plugins: readonly OverviewInstallation[] }[]): OverviewLibrary[] {
   return partitions.flatMap(partition => partition.plugins.flatMap(({ install_id, manifest }) => {
     const declaration = manifest.databases?.partition, kinds = manifest.overview_projection?.kinds;
-    if (!declaration || !kinds?.length) return [];
+    if (!kinds?.length) return [];
+    // A plugin that keeps its data in the partition's main database has its rows in the platform's table there (V17).
+    if (!declaration) return manifest.databases?.project ? [mainOverviewLibrary(home, partition.partition_id, install_id, manifest)] : [];
     const scope = partitionPluginScope(home, partition.partition_id, manifest.plugin_id, install_id);
     let path: string;
     try {
@@ -44,6 +49,32 @@ export function partitionOverviewLibraries(home: string, partitions: readonly { 
     }
     return [{ partition_id: partition.partition_id, install_id, plugin_id: manifest.plugin_id, path, kinds }];
   }));
+}
+
+/** One main-database plugin's overview rows in one partition: the platform's table in that partition's `molis-work.db`, read by installation. */
+export function mainOverviewLibrary(home: string, partitionId: string, installId: string, manifest: Pick<PluginManifest, "plugin_id" | "overview_projection">): OverviewLibrary {
+  return { partition_id: partitionId, install_id: installId, plugin_id: manifest.plugin_id, path: partitionDatabasePath(realpathSync(home), partitionId),
+    kinds: manifest.overview_projection?.kinds ?? [], table: "main" };
+}
+
+/**
+ * The stamp of the platform's own "waiting on you" rows in the overview (R13, batch 108): not a plugin, so no installation; one library per
+ * partition, read from the partition's main database by the attention module's projection (`attentionOverviewRows`).
+ */
+export const ATTENTION_OVERVIEW_SOURCE = "system.attention";
+
+/** The partition's "waiting on you" entries as an overview library: `notification` rows, read-only, waking nothing. */
+export function attentionOverviewLibrary(home: string, partitionId: string): OverviewLibrary {
+  return { partition_id: partitionId, install_id: ATTENTION_OVERVIEW_SOURCE, plugin_id: ATTENTION_OVERVIEW_SOURCE,
+    path: partitionDatabasePath(realpathSync(home), partitionId), kinds: ["notification"], table: "attention" };
+}
+
+/** Reads one attention library on a read-only connection; a main database not written yet holds nothing, one that cannot be read now stays dirty. */
+function readAttentionLibrary(library: OverviewLibrary): ReturnType<typeof attentionOverviewRows> | null {
+  if (!existsSync(library.path)) return [];
+  let db: ReturnType<typeof openHomeSqliteFile>;
+  try { db = openHomeSqliteFile(library.path, { readOnly: true }); } catch { return null; }
+  try { return attentionOverviewRows(db); } catch { return null; } finally { db.close(); }
 }
 
 export interface PartitionPlatformServicesOptions {
@@ -59,13 +90,23 @@ export interface PartitionPlatformServicesOptions {
   readonly now?: () => Date;
 }
 
+const running = new Map<string, PartitionPlatformServices>();
+const canonical = (home: string) => { try { return realpathSync(home); } catch { return home; } };
+
+/** The services the Host runs for this Home now, if it runs them: a plugin's own due entry then arms the timer at once. */
+export function runningPartitionPlatformServices(home: string): PartitionPlatformServices | undefined {
+  return running.get(canonical(home));
+}
+
 export class PartitionPlatformServices {
   readonly due: DueRegistry;
   readonly timer: DueTimer;
   readonly overview: OverviewService;
   private readonly resolveLibraries?: PartitionPlatformServicesOptions["libraries"];
+  private readonly home: string;
 
   constructor(options: PartitionPlatformServicesOptions) {
+    this.home = canonical(options.home);
     const now = options.now ?? (() => new Date());
     this.resolveLibraries = options.libraries;
     this.due = openDueRegistry(options.home, { now });
@@ -88,8 +129,10 @@ export class PartitionPlatformServices {
         this.due.replaceOverview({ install_id: library.install_id, plugin_id: library.plugin_id, partition_id: library.partition_id }, entries);
         this.timer.arm();
       },
+      readAttention: readAttentionLibrary,
     });
     this.timer.arm();
+    running.set(this.home, this);
   }
 
   /** Registers one of the plugin's own due entries; the owner is the Host's stamp from the trusted context. */
@@ -139,6 +182,7 @@ export class PartitionPlatformServices {
   }
 
   close(): void {
+    if (running.get(this.home) === this) running.delete(this.home);
     this.timer.close();
     this.due.close();
     this.overview.close();
@@ -153,8 +197,8 @@ function ifStore(home: string, store: string, work: () => void): void {
 /**
  * An installation was removed from one partition (`partitionId`), or from the Home altogether (`null`/`undefined`, clearing every
  * partition): its due entries and overview rows go, always (they are the platform's, like an authorization). Its evidence holds go with
- * its data (`dataGoes`). Its person settings go when its data goes and no other place still has it installed (`installedElsewhere` false):
- * they follow the person, not one partition.
+ * its data (`dataGoes`). Its person settings and the local directories the person let it read go when its data goes and no other place
+ * still has it installed (`installedElsewhere` false): they follow the person, not one partition.
  */
 export function forgetInstallationPlatformRecords(home: string, installId: string, partitionId: string | null | undefined, options: { readonly dataGoes: boolean; readonly installedElsewhere: boolean }): void {
   const partition = partitionId ?? undefined;
@@ -166,16 +210,21 @@ export function forgetInstallationPlatformRecords(home: string, installId: strin
     const index = new OverviewService(openOverviewIndex({ homeDirectory: home }));
     try { index.removeInstall(installId, partition); } finally { index.close(); }
   });
-  if (!options.dataGoes) return;
+  if (options.dataGoes) forgetRetainedPlatformRecords(home, installId, partition, options.installedElsewhere);
+}
+
+export function forgetRetainedPlatformRecords(home: string, installId: string, partition: string | undefined, installedElsewhere: boolean): void {
   ifStore(home, EVIDENCE_STORE, () => {
     const ledger = openEvidenceLedger(home);
     try { ledger.releaseInstall(installId, partition); } finally { ledger.close(); }
   });
-  if (options.installedElsewhere) return;
+  if (installedElsewhere) return;
   ifStore(home, PERSON_SETTINGS_STORE, () => {
     const settings = openPersonSettings(home);
     try { settings.clearInstall(installId); } finally { settings.close(); }
   });
+  // The local directories the person let it read follow them like their settings (batch 108): they go with the last place it was in.
+  directoryForHome(home).forgetInstallation(installId, null);
 }
 
 /** A synchronized write or a restore reached a partition while no services run: mark its libraries dirty in the overview index, if there is one. */

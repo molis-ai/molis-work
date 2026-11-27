@@ -7,6 +7,7 @@
     "gmail.connection.outbound": "現在は受信の読み取り専用で、メールの送信は行いません。",
     "gmail.connection.send-mail": "メールを送信",
     "gmail.connection.summary": "この端末のアカウントを接続します。Feed でメールを読み取り専用で取得します。",
+    "gmail.connection.purpose": "メールをプロジェクトに取り込み、仕事のやり取りやTodoを整理します。現在は読み取りのみ対応しています。",
     "gmail.guide.mcp-connected-note": "Google Workspace 開発者プレビューへの参加資格が必要です。",
     "gmail.guide.mcp-link": "Gmail 公式 MCP を見る（開発者プレビュー）",
     "gmail.guide.mcp-note": "Google Workspace 開発者プレビューへの参加資格が必要です。Molis Work ではまだ接続していません。",

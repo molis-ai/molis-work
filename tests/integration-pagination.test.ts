@@ -1,7 +1,9 @@
 import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createGmailConnector, createGithubConnector, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { createGithubProvider } from "@molis-ai/molis-work-integration-github";
+import { createGmailProvider } from "@molis-ai/molis-work-integration-gmail";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { fromProjectConnection, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
@@ -22,7 +24,7 @@ test("W2-18-GMAIL-01 + W2-18-GMAIL-02: one large history record drains across du
   await withIntegrationHome(async home => {
     const ids = Array.from({ length: 52 }, (_, index) => `m-${index + 1}`), reads: string[] = [];
     let fail = false, bootstrapped = false;
-    const provider = () => createGmailConnector({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
+    const provider = () => createGmailProvider({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
       if (url.includes("/profile")) return json({ historyId: bootstrapped ? "200" : "100", emailAddress: "owner@example.com" });
       if (url.includes("/messages?")) return json({ messages: [] });
       if (url.includes("/history?")) {
@@ -66,7 +68,7 @@ test("W2-18-GMAIL-01: page-boundary progress does not skip the 26th message; fai
   await withIntegrationHome(async home => {
     const ids = Array.from({ length: 26 }, (_, index) => `p-${index + 1}`);
     let failPage = true, bootstrapped = false;
-    const port = createGmailConnector({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
+    const port = createGmailProvider({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
       if (url.includes("/profile")) return json({ historyId: bootstrapped ? "300" : "100", emailAddress: "owner@example.com" });
       if (url.includes("/messages?")) return json({ messages: [] });
       if (url.includes("/history?")) {
@@ -96,7 +98,7 @@ test("W2-18-GMAIL-01 + W2-18-GMAIL-02: a later HTTP page failure retains the boo
   await withIntegrationHome(async home => {
     const ids = Array.from({ length: 30 }, (_, index) => `cross-${index + 1}`);
     let bootstrapped = false, failPage = true;
-    const port = createGmailConnector({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
+    const port = createGmailProvider({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
       if (url.includes("/profile")) return json({ historyId: bootstrapped ? "200" : "100", emailAddress: "owner@example.com" });
       if (url.includes("/messages?")) return json({ messages: [] });
       if (url.includes("/history?")) {
@@ -124,7 +126,7 @@ test("W2-18-GMAIL-01 + W2-18-GMAIL-02: a later HTTP page failure retains the boo
 
 test("W2-18-GMAIL-02: initial snapshot still fetches at most 25 details", async () => {
   let details = 0;
-  const port = createGmailConnector({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
+  const port = createGmailProvider({ accessToken: "dummy-fixture-token", getNowMs: () => Date.parse(AT), fetchImpl: async url => {
     if (url.includes("/profile")) return json({ historyId: "100", emailAddress: "owner@example.com" });
     if (url.includes("/messages?")) return json({ messages: Array.from({ length: 52 }, (_, index) => ({ id: `m-${index + 1}` })), nextPageToken: "unused" });
     details++; return json(gmailMessage(new URL(url).pathname.split("/").at(-1)!));
@@ -139,7 +141,7 @@ const notifications = Array.from({ length: 51 }, (_, index) => ({ id: `n-${index
 
 test("W2-18-GITHUB-PAGES-01: the 20-page work bound rejects an unfinished response instead of issuing a complete cursor", async () => {
   let pages = 0;
-  const port = createGithubConnector({ token: "dummy-fixture-token", fetchImpl: async url => {
+  const port = createGithubProvider({ token: "dummy-fixture-token", fetchImpl: async url => {
     if (url.endsWith("/user")) return json({ login: "fixture" }, { headers: { "x-oauth-scopes": "notifications" } });
     const page = Number(new URL(url).searchParams.get("page") ?? 1); pages++;
     return json([], { headers: { link: `<https://api.github.com/notifications?page=${page + 1}&per_page=50>; rel="next"` } });
@@ -152,7 +154,7 @@ test("W2-18-GITHUB-PAGES-01: all pages reach Signals and Feed; a later page fail
   await withIntegrationHome(async home => {
     let fail = true, clock = Date.parse(AT);
     const calls: Array<{ url: string; conditional?: string }> = [];
-    const port = createGithubConnector({ token: "dummy-fixture-token", now: () => new Date(clock), fetchImpl: async (url, init) => {
+    const port = createGithubProvider({ token: "dummy-fixture-token", now: () => new Date(clock), fetchImpl: async (url, init) => {
       assert.equal(new URL(url).origin, "https://api.github.com"); assert.equal(init?.redirect, "error"); assert.equal(init?.method ?? "GET", "GET");
       if (url.endsWith("/user")) return json({ login: "fixture" }, { headers: { "x-oauth-scopes": "notifications" } });
       const headers = init!.headers as Record<string, string>; calls.push({ url, conditional: headers["If-Modified-Since"] });
@@ -183,7 +185,7 @@ test("W2-18-GITHUB-PAGES-01: hostile Link destinations and later-page rate limit
   for (const link of ['<https://evil.example/notifications?page=2>; rel="next"', '<http://api.github.com/notifications?page=2>; rel="next"',
     '<https://api.github.com/notifications?page=1>; rel="next"', '<https://api.github.com/user?page=2>; rel="next"', '<https://api.github.com/notifications?page=2>; rel="next"']) {
     const calls: string[] = [];
-    const port = createGithubConnector({ token: "dummy-fixture-token", now: () => new Date(AT), fetchImpl: async url => {
+    const port = createGithubProvider({ token: "dummy-fixture-token", now: () => new Date(AT), fetchImpl: async url => {
       calls.push(url);
       if (url.endsWith("/user")) return json({ login: "fixture" }, { headers: { "x-oauth-scopes": "notifications" } });
       if (new URL(url).searchParams.get("page") === "2") return json({}, { status: 429, headers: { "retry-after": "120" } });

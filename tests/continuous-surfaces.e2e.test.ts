@@ -131,7 +131,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     for(const theme of ['light','dark']){
       await evaluate(`localStorage.setItem('molis-work:theme','${theme}');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${theme}'}))`);
       await feed.waitFor(`document.documentElement.dataset.resolvedTheme==='${theme}'`);
-      await feed.evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
+      await feed.evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()", undefined, "person");
       for(const kind of ['input','select']){
         if(kind==='select'){
           await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
@@ -149,7 +149,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
         if(kind==='select') assert.equal(await feed.evaluate("document.activeElement.matches('[data-mw-select-trigger]')"),true);
         focusEvidence.push({theme,kind,...focus});
       }
-      await feed.evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
+      await feed.evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()", undefined, "person");
       if(theme==='dark')await capture('feed-editor-dark');
     }
     await writeFile(`${process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/continuous-v11`}/feed-focus-${width}.json`,JSON.stringify(focusEvidence,null,2));

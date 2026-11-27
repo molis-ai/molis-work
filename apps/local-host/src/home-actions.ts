@@ -76,7 +76,7 @@ export const homeActions = {
   }, resultSchema, [...homeDockScene.permissions], homeDockScene, { cost: "metered" }),
   recommendations: define<Record<string, never>, HomeRecommendations>("home.recommendations.read", /* @version action.home.recommendations.read */ 1, "当前首页建议", "读取首页事项现有的判断结果（建议与可用动作），只含调用者有权读取的事项；没有启用判断规则时返回空。只读，不调用模型、不重新判断。", "query", empty, resultSchema, ["home:read"]),
 };
-export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", "inbox:read", "model:invoke", "functions:invoke", DRAFT_REFERENCE_PERMISSION] as const;
+export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "model:invoke", "functions:invoke", DRAFT_REFERENCE_PERMISSION] as const;
 export const homeDockBindingId = (project: string) => `${HOME_DOCK_SCENE_ID}:${project}`;
 
 const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding) => !!left?.enabled && left.binding_id === right.binding_id

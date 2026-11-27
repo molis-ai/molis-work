@@ -5,22 +5,24 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { IMAGE_GENERATION_ROLES, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesActions as actions, IMAGES_ACTION_PERMISSIONS, type ImageJob } from "@molis-ai/molis-work-plugin-images";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { imageGeneratorOf, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 const PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 async function fixture(t:test.TestContext,directory?:string) {
   const home=directory??await mkdtemp(join(tmpdir(),'images-actions-'));
   const hosts:MolisWorkLocalHost[]=[];
   const open=()=>{const host=new MolisWorkLocalHost({homeDirectory:home});hosts.push(host);return host;};
   const host=open(), ref=molisWorkHostProjectReference({databasePath:join(home,'project.sqlite'),projectId:'a'});
-  const bind=(host:MolisWorkLocalHost,projectId:string|null='a',permissions:readonly string[]=IMAGES_ACTION_PERMISSIONS)=>bindActionClient(projectId?host.actionClient(projectId === 'a' ? ref : molisWorkHostProjectReference({databasePath:join(home,`${projectId}.sqlite`),projectId:projectId})):host.homeActionClient(),()=>({actor_id:'owner',project_id:projectId,audience:'user',permissions}));
+  const bind=(host:MolisWorkLocalHost,projectId:string|null='a',permissions:readonly string[]=IMAGES_ACTION_PERMISSIONS)=>bindActionClient(projectId?host.actionClient(projectId === 'a' ? ref : molisWorkHostProjectReference({databasePath:join(home,`${projectId}.sqlite`),projectId:projectId})):host.homeActionClient(),()=>({actor_id:LOCAL_PERSON_ACTOR_ID,project_id:projectId,audience:'user',permissions}));
   t.after(async()=>{await Promise.all(hosts.map(host=>host.close()));await rm(home,{recursive:true,force:true});});
-  return {home,host,open,bind,client:bind(host),global:bind(host,null)};
+  // The image services follow the person (batch 108): they are read and written from any partition Images is in, here project a.
+  return {home,host,open,bind,client:bind(host),global:bind(host),home_client:bind(host,null)};
 }
 async function terminal(client:BoundActionClient,id:string):Promise<ImageJob>{
   const deadline=Date.now()+5000;
@@ -46,7 +48,7 @@ test('Images actions use real provider bytes, original jobs, retry identity and 
   await assert.rejects(f.bind(f.host,'a',['images:read']).invoke(actions.start,{request_id:'denied',connection_id:connection.id,prompt:'denied'}),{code:'actions.forbidden'});
   await assert.rejects(f.global.invoke(actions.saveConnection,{name:'bad',api_format:'openai-images',base_url:'https://example.com',model:'test',api_key:'not-accepted'} as never),{code:'actions.input_invalid'});
   const input={request_id:'one-click',connection_id:connection.id,prompt:'验证原始图片'};
-  await assert.rejects(f.global.invoke(actions.start,input),{code:'actions.project_required'});
+  await assert.rejects(f.home_client.invoke(actions.start,input),{code:'actions.scope_mismatch'},'Images runs only in partitions; a call without a project is refused');
   const {job}=await f.client.invoke(actions.start,input);
   assert.equal((await f.client.invoke(actions.start,input)).job.id,job.id);
   await assert.rejects(f.client.invoke(actions.start,{...input,prompt:'changed'}),{code:'images.request_conflict'});
@@ -83,7 +85,7 @@ test('Images connection revocation rejects late results and cannot fall back to 
   await new Promise(resolve=>setTimeout(resolve,300));
   const {job:ended}=await f.client.invoke(actions.get,{id:job.id});
   assert.equal(ended.status, "interrupted"); assert.ok(ended.finished_at); assert.deepEqual(ended.images, []);
-  const db = new DatabaseSync(join(f.home, "images", "images.db"), { readOnly: true });
+  const db = new DatabaseSync(partitionLibraryFile(f.home, "a", "images"), { readOnly: true });
   try {
     assert.deepEqual({ ...db.prepare("SELECT status, images_json, error, finished_at FROM jobs WHERE id=?").get(job.id) },
       { status: "running", images_json: "[]", error: "", finished_at: null }, "the interrupted view performs no business write for the revoked caller");
@@ -183,4 +185,21 @@ test('RAC-105-A-18 Images refuses an occupied Home before business initializatio
   const finished=await terminal(f.client,job.id);
   assert.equal(finished.status,'succeeded');assert.equal(calls,1);
   assert.doesNotMatch(finished.error??'',/无法连接厂商|网络/);
+});
+
+// PSD-02 (44C, specs/plugin-specials-demotion section 2 P3): the plugin studio draws proposals through whichever plugin declares the four
+// image-generation roles (Role 6), not through Images by name. Images declares each role once; a stand-in third-party provider that
+// declares the same four is found the same way; a provider missing one role is not a generator. The call carries the four actions' own permissions.
+test('PSD-02 the studio finds the image generator by role: Images today, any provider declaring all four roles tomorrow', async t => {
+  const f = await fixture(t);
+  const catalog = await f.client.discover() as ActionView[];
+  const found = imageGeneratorOf(catalog);
+  assert.ok(found, 'Images is the project\'s image generator');
+  assert.deepEqual(Object.fromEntries(IMAGE_GENERATION_ROLES.map(role => [role, found.roles[role].capability_id])),
+    { 'services.list': actions.connections.capability_id, generate: actions.start.capability_id, 'generations.get': actions.get.capability_id, 'image.read': actions.image.capability_id });
+  assert.deepEqual(found.permissions.sort(), [...new Set([actions.connections, actions.start, actions.get, actions.image].flatMap(definition => definition.action.permissions))].sort());
+  const roleViews = IMAGE_GENERATION_ROLES.map(role => found.roles[role]);
+  const elsewhere = roleViews.map(view => ({ ...view, provider: { ...view.provider, provider_id: 'com.example.pictures' } }));
+  assert.equal(imageGeneratorOf(elsewhere)?.roles.generate.provider.provider_id, 'com.example.pictures', 'a third-party provider declaring the four roles is found the same way');
+  assert.equal(imageGeneratorOf(elsewhere.filter(view => view.capability_id !== actions.image.capability_id)), undefined, 'three roles are not a generator');
 });

@@ -72,7 +72,7 @@
 - Coding 按已选质量要求验证，并在有效授权或显式人审满足后生效，AI 代批不冒充真人批准
 - Sessions 三类场景按完整厂商清单核验，未接通项不能算完成
 - 新能力插件创作完整路径有正式安装、独立使用、修订及恢复证据，C2 业务数据可导出且同批旧记录升级后仍可处理，C5 每个已定主推角色有 2～3 个可安装、可改用的样例
-- 四份 Prologue 策略各有真实任务连续性、质量与用量的对照结果，不以单纯省 token 宣称改善。
+- 四份 Prologue 策略各有真实任务连续性、质量与用量的对照结果，不以单纯省 token 宣称改善，并经 `63-2`「`设置 › 评测`」后台与 `75-A` 本机用量面板双向对账一致（隔离 Clean v1 跨周演练随 [76](batches/76.md) 单 PR 收官合入，真人多天日常使用观察与阶段 4 并行累计、在 `83`／`90` 前签结）。
 
 阶段 3 的主动行为、周期报告、直接对话、外观制作和导入导出都接到既有场景，按需补配置，不重新做一次首跑。阶段 2 的场景闭环不代表 Onboarding 整项完成；覆盖清单与 ONB-01～49 仍以原需求书逐项验收。
 
@@ -83,7 +83,7 @@
 **退出条件**：
 
 - [83](batches/83.md) 的创作台整项、[84～86](batches/84.md)、[89](batches/89.md) 对应产品原验收满足（87、88 已移到服务端批）
-- [90](batches/90.md) 逐项对账，未完成、暂停、未批准和服务端未开工分别保留，不能以路线目录填满结项。
+- [90](batches/90.md) 逐项对账全部非服务端批次（含 `44B`/`44C`、`91`/`91B`、`92`～`112`）、全谱系门禁与评测后台五大基线，确认全仓数据库处于干净 Clean v1 `version: 1` 基线交接 M1；真实未通缺口先补修复 PR 严禁带病结项，条件触发、暂停、未批准和服务端／发行批分别如实保留，不能以路线目录填满结项。
 
 ### 横向专项与加固批次（`91/91B`、`92`～`99`、`100`～`105`）
 
@@ -92,4 +92,4 @@
 - **[91（91A）](batches/91.md) + [91B](batches/91b.md)**：对话与执行流式丝滑化、全平台体验深度打磨、开发指引同步及确定性底线门禁（[决定 54](decisions.md#decision-54)、[决定 55](decisions.md#decision-55)、[决定 57](decisions.md#decision-57) ④、[决定 58](decisions.md#decision-58)）。
 - **[92～99](batches/92.md)**：22 条独立 Backlog 归口（[决定 56](decisions.md#decision-56)）。
 - **[100～105](batches/100.md)**：双仓全量体检与两轮红队终校横向修复与硬化——路线书终校与反效果门禁/CI 改革（`100`）、现役 P0 与生命周期止血（`101`）、壳层/iframe/Tauri/沙箱硬化（`102`）、SQLite/Host/MCP/Sessions 热路径提速（`103`）、非 Agent AI 纳管与面向非技术用户报错翻译（`104`）、防链式 RCE 审批与子代理/Mainline 缓存（`105`，前置对齐 `111`）（[决定 58](decisions.md#decision-58)、[决定 66](decisions.md#decision-66)）。
-- **[44B](batches/44b.md) + [44C](batches/44c.md) + [106～111](batches/106.md)**：特殊逻辑平民化（含 `44C` 收尾）与统一工作分区架构终态——Shelf 收归纯平台 `modules/shelf`（`system.shelf`）、删旧 Alchemist 与 `better-sqlite3`、官方集成声明式驱动化、20 个平等分区插件、零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1 拍平及 G1～G5 门禁焊死（验收 `PSD-01～08`、`UPP-01～36`，[决定 66](decisions.md#decision-66)）；排在 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`～`5`/`SRV` 之前，退出条件为全部 `PSD-01～08`、`UPP-01～36` 与 G1～G5 零违规。
+- **[44B](batches/44b.md) + [44C](batches/44c.md) + [106～111](batches/106.md) + [112](batches/112.md)**：特殊逻辑平民化（含 `44C` 收尾）、统一工作分区架构终态与 Jelly／原生材料瘦身——Shelf 收归纯平台 `modules/shelf`（`system.shelf`）、删旧 Alchemist 与 `better-sqlite3`、退役 `jelly-whisper` 626 MB 音视频包袱并更名 `molis-material`（补 `ja-JP` OCR）、Jelly 瘦身为 4 张关系表（日历＋极简随手记）、官方集成声明式驱动化、20 个平等分区插件、空白分区默认仅开 `Schedule`、零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1 拍平及 G1～G5 门禁焊死（验收 `PSD-01～08`、`UPP-01～36`，[决定 66](decisions.md#decision-66)）；排在 `91-2`/`91B`/`105`/`45`～`90`/`REL-4`～`5`/`SRV` 之前，退出条件为全部 `PSD-01～08`、`UPP-01～36`、`112` 与 G1～G5 零违规。

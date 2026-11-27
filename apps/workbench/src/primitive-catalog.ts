@@ -36,33 +36,41 @@ import { SUBTASK_CONVERSATION_STYLES } from "@molis-ai/molis-work-design-system"
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, hostSurfaceDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
-import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
-import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
+import { builtinPluginDirectory, manifestFor, hostSurfaceDirectory, pluginTabGlyphs, railEntries } from "./plugin-catalog.js";
+import { PLATFORM_NAVIGATION } from "./platform-surfaces.js";
+import type { PlatformSurfaceId } from "@molis-ai/molis-work-ui-host";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
 /**
- * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the backbone and the person's plugins
- * of a fresh project. The bar specimen draws these bright and the rest of the build-time plugin directory (`pluginMarketCards()`,
- * which already leaves developer plugins out) grey "not added". The board runs no Runtime and no Host, so it is drawn from the
- * built-in catalog's directory; a project page is drawn from the one the Host supplies (`plugin_directory`, `shown_plugins`).
+ * The specimen project's plugins (a development tool, W5-02 B1): the backbone its Manifests declare (`rail: "core"`), the person's
+ * plugins, and those keeping their library in each project's work partition (`databases.partition`; batch 107: the personal space has
+ * them added, so the sample project does too). The board names no plugin (44C, D8=A): all three come from the declarations of the
+ * build-time directory, and the bar specimen draws the rest of it (`pluginMarketCards()`, which already leaves developer plugins out) grey "not added". The board runs
+ * no Runtime and no Host, so it is drawn from the built-in catalog's directory; a project page is drawn from the one the Host supplies.
  */
-const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "images", "jelly", "shelf", "lingguang", "todo",
-  "pages", "form", "dataset", "ppt", "workflows"];
+function sampleProjectPlugins(): string[] {
+  const directory = builtinPluginDirectory();
+  const backbone = railEntries(directory.map(entry => entry.id), directory).filter(entry => entry.rail === "core").map(entry => entry.id);
+  const partitioned = directory.filter(entry => manifestFor(entry.id)?.databases?.partition).map(entry => entry.id);
+  return [...new Set([...backbone, ...partitioned])];
+}
 
 function htmlLangFor(lang: WebLocale): string {
   return WORKBENCH_LANGUAGES.languages.find(row => row.tag === lang || row.html_lang === lang)?.html_lang
     ?? WORKBENCH_LANGUAGES.languages.find(row => row.tag === DEFAULT_WEB_LOCALE)!.html_lang;
 }
 
+const SURFACE_NAMES = {
+  artifacts: "workbench.catalog-board.core.surface-artifacts", characters: "workbench.catalog-board.core.surface-characters", sessions: "workbench.catalog-board.core.surface-sessions",
+} as const satisfies Readonly<Record<PlatformSurfaceId, string>>;
+
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
 function surfaceGlyphs(say: CatalogSay): readonly CatalogPluginIcon[] {
   return [
     { id: "home", name: say("workbench.catalog-board.core.surface-home"), icon: "home" },
-    { id: "characters", name: say("workbench.catalog-board.core.surface-characters"), icon: "user" },
+    { id: "characters", name: say(SURFACE_NAMES.characters), icon: "user" },
     { id: "market", name: say("workbench.catalog-board.core.surface-market"), icon: "grid" },
-    { id: ARTIFACT_NAVIGATION.id, name: say("workbench.catalog-board.core.surface-artifacts"), icon: ARTIFACT_NAVIGATION.glyph },
-    { id: SESSIONS_NAVIGATION.id, name: say("workbench.catalog-board.core.surface-sessions"), icon: SESSIONS_NAVIGATION.glyph },
+    ...PLATFORM_NAVIGATION.map(({ id, glyph }) => ({ id, name: say(SURFACE_NAMES[id]), icon: glyph })),
   ];
 }
 
@@ -97,8 +105,8 @@ function renderBarSpecimen(lang: WebLocale = DEFAULT_WEB_LOCALE): string {
   const corner = `<div class="top-corner" data-top-corner><button type="button" class="top-corner-cell" aria-current="page" aria-expanded="false" aria-label="${projectName} › ${homeLabel}">${icon("home")}<span class="top-corner-project-name">${projectName}</span>${icon("chevron-right")}<span class="top-corner-page-name">${homeLabel}</span>${icon("chevron-down")}</button></div>`;
   const strip = renderImmersiveHeader(primitives, false, [], {
     corner,
-    enabled: SAMPLE_PROJECT_PLUGINS,
-    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
+    enabled: sampleProjectPlugins(),
+    rail: renderPluginRail(primitives, sampleProjectPlugins(), builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu), hostSurfaces: true,
   });
   const bar = renderWorkbenchBar(primitives);
@@ -296,10 +304,8 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     delivery,
     ...(environment ? {
       presentationLocale: lang,
-      presentationPlugins: BUILTIN_PLUGIN_CATALOG.map(({ manifest }) => ({
-        id: manifest.plugin_id,
-        name: directory.find(entry => entry.plugin_id === manifest.plugin_id)?.name ?? manifest.name,
-        declared: (manifest.presentation?.objects.length ?? 0) > 0,
+      presentationPlugins: directory.map(entry => ({
+        id: entry.plugin_id, name: entry.name, declared: (manifestFor(entry.id)?.presentation?.objects.length ?? 0) > 0,
       })),
     } : {}),
     extraChapters: [{

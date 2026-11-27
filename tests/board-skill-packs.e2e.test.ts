@@ -169,6 +169,6 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
     assert.equal(await evaluate<string>("document.activeElement.tagName + ' ' + document.activeElement.textContent"), "H3 Schedule a meeting", `${width}px: the focus moves to the detail's title`);
     await evaluate(`${narrow}.querySelector('[data-list-panel]:not([hidden]) [data-list-back]').click()`);
     assert.deepEqual(await sides(), [true, false, false], `${width}px: 全部技能 goes back to the list`);
-    assert.equal(await evaluate<string>("document.activeElement.dataset.listPick ?? ''"), `${width === 390 ? "list-wide" : "list-narrow"}-schedule`, `${width}px: the focus is back on the entry`);
+    assert.equal(await evaluate<string>("document.activeElement.dataset.listPick ?? ''"), `${width === 390 ? "list-wide" : "list-narrow"}-meetings`, `${width}px: the focus is back on the entry`);
   }
 });

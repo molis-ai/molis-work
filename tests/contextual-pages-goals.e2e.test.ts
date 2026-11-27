@@ -55,7 +55,7 @@ async function openPagesSelection(t: TestContext, blocks: object[], goalId?: str
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const range = document.createRange(); range.selectNodeContents(editor.querySelectorAll('p')[${index}].firstChild);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
+  })()`, undefined, "person");
   const documents = () => { const reader = openPagesStore(homeDirectory, projectId!); try { return reader.list(); } finally { reader.close(); } };
   return { ...browser, child, source, select, documents };
 }

@@ -11,7 +11,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 连接列表 `images.connections.list@1` 的账号记录带 `enabled`，停用保留已选账号与凭据但拒绝生成；重新启用后沿用同一引用。调用方从共同目录取当前版本，旧版精确引用须重选。
 
-数据：`{home}/images/images.db` 与 `{home}/images/assets/`。任务按宿主项目隔离，配置属于本机。Web 和独立 MCP 进程共享原数据库、请求去重与并发上限；每个任务记录执行进程，关闭或崩溃只中断该进程负责的任务。跨进程取消会通知原执行者停止等待，打开或关闭管理页面不影响任务。当前基线含同步日志，不兼容旧库直接拒绝、不做迁移；禁止新旧执行器同时修改任务。
+数据：每个启用图片的分区（个人空间或项目）各有自己的库 `<分区>/libraries/images.db` 与文件 `<分区>/plugin-files/<安装>/images/assets/`（第 108 批，`databases.partition`）。生图服务属于本人，存在本人设置（`services.personSettings` 的 `connections`，不同步），在每个分区都一样。Web 和独立 MCP 进程共享原数据库、请求去重与并发上限；每个任务记录执行进程，关闭或崩溃只中断该进程负责的任务。跨进程取消会通知原执行者停止等待，打开或关闭管理页面不影响任务。当前基线含同步日志，不兼容旧库直接拒绝、不做迁移；禁止新旧执行器同时修改任务。
 
 个人空间的 `saved_images` 集合由本包声明和实现，只传已保存终态的提示词、生成资料、结果与实际图片。运行中记录暂不上传，接收不调用厂商，不继承连接、请求幂等键、input hash 或 runner。图片经过共同 R2 内容通道，长度、编码及 MIME 与实际格式一致后才加入 owner 事务；文件名由目标 owner 生成，不接受网络路径或覆盖唯一本机文件。同步连接不取得生成运行锁、不恢复执行进程，停用的项目仍由 Host 拒绝接收。
 生成动作 `images.jobs.start@1` 使用 Runtime 并发后台受理并要求 `model:invoke`，后台状态查询指向 `images.jobs.get@1`。`images.jobs.list/get/cancel@1` 的终态结果允许 `connection_id` 为空，表示同步或复制后的历史没有本机生图绑定；列出历史、预览和下载不要求配置服务。运行中记录仍要求非空连接；新生成输入仍要求有效本机服务和当前授权。HTTP/页面从共同描述符取版本，MCP 使用对应新版本名，旧固定引用须重新选择，不提供别名；数据库和同步格式不变。
@@ -19,7 +19,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。还在等厂商的生成由 `images.background.tasks@1`（`src/background.ts`，只读、要 `images:read`）报到平台的后台任务总表，行上的「停止」就是 `images.jobs.cancel@1`；结束的生成是页面上的记录，不是任务。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 
-数据：`{home}/images/images.db` 与 `{home}/images/assets/`。一个 Home Runtime 实例拥有配置与任务，Web、MCP 通过同一个动作服务调用；原表结构保持版本 1。数据库、文件和生图由宿主注入的有限服务提供，插件不持有 Home 路径或凭据解析器；文件声明在 Manifest 的 `owner_files`（`IMAGES_OWNER_FILES`：根 `images`，顶层目录 `assets`，读 `images:read`、写 `images:files:write`，根与自己的库同在），动作之内由动作和原调用者的权限决定。启动前由 Runtime 检查安装当前的必需授权（`storage:private` 与 `images:files:write`）。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态。
+每个分区一个实例，拥有该分区的任务与图片；Web、MCP 通过同一个动作服务调用。数据库、文件和生图由宿主注入的有限服务提供，插件不持有分区路径或凭据解析器；文件声明在 Manifest 的 `owner_files`（`IMAGES_OWNER_FILES`：根 `images`，顶层目录 `assets`，读 `images:read`、写 `images:files:write`，根与自己的库同在），动作之内由动作和原调用者的权限决定。启动前由 Runtime 检查安装当前的必需授权（`storage:private` 与 `images:files:write`）。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态。
 
 每次获准启动都先按 `storage:private` 授权，把数据库中遗留的 `running` 标为 `interrupted`，不依赖可选的 `images:read`，不重新调用厂商。随后单独回收所有项目均未引用的图片文件，还需当前安装的 `images:read` 授权，并保留文件写权限和启动生命周期的检查；缺少读取授权时仍可启动，未引用文件留到下次具备所需授权的启动再清理。
 
@@ -49,11 +49,12 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
   - API Key 由宿主 SecretStore 加密保存；列表、任务与下载不返回 Key。
   - 失败、超时或重启不自动再次调用；「停止等待」只停本机请求，不保证厂商停止计费。
   - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权或连接版本改变不保存过期结果；按当次返回的 revision 在交付与写入前复核。
-  - 同一 Home 只有一个执行进程，由共同 Host 监督器管理；插件不另外建立进程锁或打开数据库。
+  - 同一 Home 只有一个执行进程；每个分区的实例由该分区的监督器管理，插件不另外建立进程锁或打开数据库。
+  - 生图服务列表只回答本人和本插件自己的后台工作；Agent、MCP 或工作流发起的生成用实例上次替本人读到的列表，拿不到服务的设置本身。
   - `images.jobs.start` 对助理、MCP、工作流和插件随服务状态可用；用户页面仍能配置服务。发现只读取现有配置与连接状态，不 pin 地址或调用模型。
-  - 项目被删除时平台先经后台作业服务停掉这个项目等待受理和执行中的任务，再按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签、要删的表，和 `files` 指向的 `assets/` 里的图片）删掉生成记录与它们引用的图片；插件的代码不参与，插件停用时也一样删，库不存在时不创建，重复运行没有副作用（PG-024）。未引用的部分生成文件留到下次具备所需读写授权的启动中回收，缺少 `images:read` 时保留。
-  - HTTP 挂载在 `/api/plugins/io.molis.work.images/`，路由只调用共同动作；预览显式返回 inline，下载返回 attachment，Host 只保留 PNG/JPEG/WebP MIME；未知错误仍只回 images.internal 和原通用句，已知错误状态由 SDK 统一转换。
-  - 配置、任务与文件的每次写入均等待当前授权后同步复查；并发生成维持每个 Home 最多两项，相同请求 ID 不重复调用厂商。
+  - 项目被删除时平台先经后台作业服务停掉这个项目等待受理和执行中的任务，再连同该分区的库与图片文件一起删掉；插件的代码不参与。未引用的部分生成文件留到下次具备所需读写授权的启动中回收，缺少 `images:read` 时保留。
+  - HTTP 挂载在分区下的 `/projects/<分区>/api/plugins/io.molis.work.images/`，路由只调用共同动作；预览显式返回 inline，下载返回 attachment，Host 只保留 PNG/JPEG/WebP MIME；未知错误仍只回 images.internal 和原通用句，已知错误状态由 SDK 统一转换。
+  - 配置、任务与文件的每次写入均等待当前授权后同步复查；并发生成维持每个分区最多两项，相同请求 ID 不重复调用厂商。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-images run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/images-client-bundle.test.ts tests/images-actions.test.ts tests/images-service.test.ts tests/plugin-image-generation.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts tests/project-deletion-owners.test.ts tests/model-unavailable-declarations.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
 - 首次连接与可见对象定向回归（需要本机 Chrome）：`node scripts/run-tests.mjs tests/content-context-regressions.e2e.test.ts tests/images-actions.e2e.test.ts tests/images-plugin.e2e.test.ts tests/images-result-whole-characters.e2e.test.ts`（使用受控本机 provider，不调用真实厂商；最后一个用例检查提示词截断处是 emoji 等两单元字时，下载链接、Chrome 实际保存的文件名与 Shelf 留存回执都保留完整字符）。

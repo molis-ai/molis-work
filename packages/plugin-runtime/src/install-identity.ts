@@ -8,8 +8,20 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 // signature is a label the author writes unless a pinned key backs it, so the label alone never gives a plugin another's identity, and
 // the names plugins live under (`plugin_id`, the contribution ids made from it) belong to whoever came first.
 
+/**
+ * The packages the release carries under the Host's prefix (S-reserved-host-prefix, 44C P-13), as the Host reads its bundled folder:
+ * which ids, and whose signature each installs under. A record that names such an id but carries another signer is refused at install
+ * and at every start, so a package that skipped the preview cannot borrow a release id.
+ */
+export interface ReleasePackages {
+  /** Whether the release's bundled folder carries a package with this id. */
+  has(pluginId: string): boolean;
+  /** Whether `signature` is the one that package installs under: the key that signed it in the folder, or this Home's own publisher key for one the release ships unsigned. */
+  signedBy(pluginId: string, signature: string): boolean;
+}
+
 /** No package of the release under the Host's prefix (a Runtime that installs no bundled package). */
-const NO_RELEASE_IDS: ReadonlySet<string> = new Set();
+const NO_RELEASE_PACKAGES: ReleasePackages = { has: () => false, signedBy: () => false };
 
 /** The form of a pinned key's fingerprint (`contracts/platform/plugin-trust`): a label in this form would pass for one. */
 const FINGERPRINT_FORM = "ed25519:sha256:";
@@ -22,8 +34,8 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
  * (`plugin.signer_mismatch`). S-75.2 and S-75.4, for an install that is not of the Host's build: its `plugin_id` may not be one the
  * Host's build ships (`hostIds`) or nest with one, may not sit under the Host's prefix `io.molis.work.` at all (S-reserved-host-prefix:
  * the prefix is reserved as a whole, so an id the Host ships later or a platform provider without a plugin shell is never left open;
- * only an id among `releaseIds`, the packages the release itself carries in its bundled folder, is let through, and the Host lets a
- * package with such an id be previewed only from that folder),
+ * only an id among `releaseIds`, the packages the release itself carries in its bundled folder, is let through, signed as that package
+ * is (P-13), and the Host lets a package with such an id be previewed only from that folder),
  * and may not nest with the id of another publisher's installation that is not uninstalled (`plugin.id_namespace_conflict`); only the
  * same pinned key's ids may nest. Unsigned labels never establish identity.
  * The Host's build is not refused here: an id
@@ -32,7 +44,7 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
 export function assertInstallIdentity(
   input: { readonly trust: unknown; readonly definition: PluginDefinition; readonly consents?: readonly PluginConsentGrant[] },
   installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>, runtimeScope?: "home" | "project", inProcess?: InProcessAdmission,
-  releaseIds: ReadonlySet<string> = NO_RELEASE_IDS,
+  releaseIds: ReleasePackages = NO_RELEASE_PACKAGES,
 ): PluginTrust {
   const trust = assertPluginTrust(input.trust);
   const { plugin_id: id, publisher } = input.definition.manifest;
@@ -45,7 +57,10 @@ export function assertInstallIdentity(
   // Only the Host's own build runs a platform part under `system.` (the Shelf the runtime hosts, 44B); no package is installed there.
   if (trust.level === "host") return trust;
   if (id.startsWith(PLATFORM_ID_PREFIX)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 用了平台自己的前缀 ${PLATFORM_ID_PREFIX}，请换成你自己的名字`);
-  if (id.startsWith(HOST_PLUGIN_ID_PREFIX) && !releaseIds.has(id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
+  if (id.startsWith(HOST_PLUGIN_ID_PREFIX)) {
+    if (!releaseIds.has(id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
+    if (!releaseIds.signedBy(id, publisher.signature)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 是本次发布随包带的，只认随包那份的签名`);
+  }
   for (const reserved of hostIds) {
     if (reserved === id || nested(reserved, id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 与随宿主发布的 ${reserved} 冲突`);
   }
@@ -60,7 +75,7 @@ export function assertInstallIdentity(
 
 /** Recheck normally loaded records before any activation; persisted pinned signatures are the key bound at installation. */
 export function assertStartIdentity(record: PluginInstanceRecord, definition: PluginDefinition, installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>,
-  runtimeScope?: "home" | "project", inProcess?: InProcessAdmission, releaseIds?: ReadonlySet<string>): void {
+  runtimeScope?: "home" | "project", inProcess?: InProcessAdmission, releaseIds?: ReleasePackages): void {
   const trust: PluginTrust = record.publisher_trust === "pinned"
     ? { level: "pinned", publisher_key_id: record.publisher_signature } : { level: record.publisher_trust };
   assertInstallIdentity({ trust, definition }, installed, hostIds, runtimeScope, inProcess, releaseIds);
@@ -70,17 +85,16 @@ export function assertStartIdentity(record: PluginInstanceRecord, definition: Pl
 export const isIdentityFailure = (error: unknown): error is ActionError => error instanceof ActionError
   && (error.code === "plugin.signer_mismatch" || error.code === "plugin.id_namespace_conflict" || error.code === "plugin.in_process_denied");
 
+/** The provider a package running in the sandbox answers as: no `plugin_id` holds a colon, so it can never be another plugin's id. */
+export const sandboxProviderId = (pluginId: string): string => `plugin:${pluginId}`;
+
 /**
- * The id an installation's actions are registered under (S-75.3): its installation id, or its `plugin_id` only if it is of the Host's
- * build. The Host says which (`providerId`); what it says is held to this, so no other installation can be the provider a `plugin_id` names.
+ * The id an installation's actions are registered under, and the only place it is worked out (S-75.5): its `plugin_id` if it is of the
+ * Host's build, `plugin:<plugin_id>` if it runs in the sandbox (stable across its versions, projects and halves), its installation id
+ * otherwise. It is read from the record the install left, never from the definition or a caller, so no other installation can be the
+ * provider a `plugin_id` names.
  */
-export function actionProviderId(
-  actions: { providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } | undefined,
-  record: PluginInstanceRecord, definition: PluginDefinition,
-): string {
-  const id = actions?.providerId?.(record, definition) ?? record.install_id;
-  if (id !== record.install_id && !(id === record.plugin_id && record.publisher_trust === "host")) {
-    throw pluginErrors.id_namespace_conflict(`${record.plugin_id} 不是随宿主发布的插件，不能以插件 ID 作动作提供方`);
-  }
-  return id;
+export function resolveActionProviderId(record: Pick<PluginInstanceRecord, "plugin_id" | "install_id" | "publisher_trust" | "execution">): string {
+  if (record.publisher_trust === "host") return record.plugin_id;
+  return record.execution === "sandbox" ? sandboxProviderId(record.plugin_id) : record.install_id;
 }

@@ -12,7 +12,6 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 import { deferred, grantHomeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -161,21 +160,17 @@ test("S-18 RAC-50 a timer inherited from an expired action cannot accept a secon
 for (const hidden of [false, true]) {
   test(`S-18 S-31 RAC-51 RAC-52 a Home background route keeps its trusted project and ${hidden ? "refuses writes after hiding" : "continues after the response"}`, { timeout: 30_000 }, async t => {
     const probe = backgroundProbe(), entered = deferred(), release = deferred();
-    const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "issues")!;
-    // Give an actual catalog entry a background probe; the real Home supervisor, project-path admission and controls stay in place.
-    probe.definition.manifest = { ...probe.definition.manifest, plugin_id: entry.manifest.plugin_id,
-      permissions: [...probe.definition.manifest.permissions, ...entry.manifest.permissions.filter(item => !probe.permissions.includes(item.permission)).map(({ reason_text: _reasonText, ...permission }) => permission)] };
-    delete probe.definition.instructions;
-    assert.ok(entry.runtime);
-    t.mock.method(entry.runtime, "create", () => probe.definition);
+    // No built-in plugin runs only in the Home since batch 108: the probe is a Home plugin of its own, with the real Home supervisor,
+    // project-path admission and controls.
+    const pluginId = probe.definition.manifest.plugin_id;
     probe.behavior.work = async () => { entered.resolve(); await release.promise; return "in original project"; };
-    const f = await serveHomeRuntime(t), project = await f.project("Background in this project");
+    const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Background in this project");
     try {
-      const response = await f.request(`/projects/${project.project_id}/api/plugins/${entry.manifest.plugin_id}/background`, { method: "POST", body: { id: "project" } });
+      const response = await f.request(`/projects/${project.project_id}/api/plugins/${pluginId}/background`, { method: "POST", body: { id: "project" } });
       assert.equal(response.status, 200, await response.clone().text()); await entered.promise;
       assert.equal(probe.controls[0]!.project_id, project.project_id); await assert.rejects(probe.requests[0]!.execution!.beforeEffect());
       if (hidden) {
-        const hide = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
+        const hide = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: pluginId, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
         assert.equal(hide.status, 200); await assert.rejects(probe.controls[0]!.beforeEffect(), { code: "actions.plugin_disabled" });
         const rejected = assert.rejects(probe.handles[0]!.result, { code: "actions.plugin_disabled" }); release.resolve(); await rejected;
         assert.equal(probe.stored("result.project"), null); assert.equal(probe.stored("failure.project"), null);

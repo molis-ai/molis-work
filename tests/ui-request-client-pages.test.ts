@@ -78,6 +78,22 @@ test("a plugin's side panel document carries the request helper", () => {
   assertCarriesHelper("side view", html!);
 });
 
+// R14 (batch 108): ⌘⇧I in the personal space opens Issues' side tab; while the personal space has not enabled Issues (it starts with
+// Schedule only, decision 66), the tab asks the person first and enables it there in one step through the membership route. Anywhere
+// else a side view of a plugin that is not enabled is not served.
+test("R14 batch 108 a chord-summoned plugin the personal space has not enabled offers to enable it there in one step, and is served nowhere else", () => {
+  const offer = renderer.renderSideViewDocument({ projectPluginId: "issues", viewId: "capture", projectId: "personal", routePrefix: "/projects/personal", enabled: ["schedule"], controlToken: TOKEN });
+  assert.ok(offer, "the personal space serves the offer");
+  assert.match(offer!, /data-side-enable="issues"/);
+  assert.match(offer!, /data-side-enable-confirm/, "the person confirms before anything is enabled");
+  assert.match(offer!, /'\/api\/settings\/projects\/' \+ encodeURIComponent\("personal"\) \+ '\/plugins'/, "it adds the plugin to the personal space");
+  assertCarriesHelper("side enable", offer!);
+  assert.equal(renderer.renderSideViewDocument({ projectPluginId: "issues", viewId: "capture", projectId: "p1", routePrefix: "/projects/p1", enabled: ["schedule"], controlToken: TOKEN }), null,
+    "a project that has not enabled it is not offered it here");
+  assert.equal(renderer.renderSideViewDocument({ projectPluginId: "lingguang", viewId: "side", projectId: "personal", routePrefix: "/projects/personal", enabled: ["schedule"], controlToken: TOKEN }), null,
+    "a plugin without a chord is not offered");
+});
+
 test("Home and side plugin documents carry the shared field, roving, floating and tip programs", () => {
   const programs = [FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT];
   const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");

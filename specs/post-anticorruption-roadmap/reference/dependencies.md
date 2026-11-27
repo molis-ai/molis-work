@@ -207,7 +207,7 @@ flowchart LR
   B105 -.4 层防注入护栏.-> HB
   B44B0["44B-0 保留官方前缀与插件命名放开"] --> B44B["44B 特殊逻辑平民化"]
   B44B --> UPP["106～111 统一工作分区<br/>(底座→四波迁移→推送与界面)"]
-  B44B --> B44C["44C 平民化收尾"]
+  B44B --> B44C["44C 平民化收尾<br/>(已合入 #2333)"]
   UPP --> CUI
   UPP --> UXP
   UPP --> B104
@@ -590,7 +590,7 @@ flowchart LR
   B44B0["44B-0 P0 安全前缀"] --> B44B["44B 特殊逻辑平民化<br/>(Shelf 纯平台/删 Alchemist/连接器驱动)"]
   INF["在途 PR #2239/#2258/#2253~2260"] --> B44B
   B44B --> B106["106 UPP-A 分区底座"]
-  B44B --> B44C["44C 平民化收尾<br/>(提供方身份/集成驱动清零/签名样例)"]
+  B44B --> B44C["44C 平民化收尾 · 已合入 #2333<br/>(提供方身份/集成驱动清零/签名样例)"]
   B106 --> B107["107 UPP-B1 独立库 6 插件"]
   B107 --> B108["108 UPP-B2 原 Home 5 插件+总览"]
   B108 --> B109["109 UPP-B3 主库去列+双实例归零+Git 迁入"]
@@ -606,7 +606,7 @@ flowchart LR
 | --- | --- | --- |
 | `44B-0` | 已合入（`#2262` `de25e3090d`）：全局保留 `io.molis.work.` 前缀（`S-reserved-host-prefix`）与修两处第三方正则 | [44B](batches/44b.md#batch-44b-item-0) |
 | `44B` | 已合入（`#2279` 删除旧 Alchemist、`#2294` `b57fd115ff` 收口其余全部、`#2308` 两轮复核修复）：Shelf 收归纯平台 `modules/shelf`（`always_on=0`、免重写 3,150 行 Rust）、删旧 Alchemist 与 `better-sqlite3`、D5 Clean v1 拍平、官方集成驱动化（`youtube`→`rss`、`planning-methods`→`packages/system-skills/`）、修 `#2231` Inbox 劫持、上线 G1 | [44B](batches/44b.md) |
-| `44C` | 等 `44B`（#2308）：统一 `resolveActionProviderId`、`RuntimePluginDirectory`、`PLATFORM_SETTINGS_REGISTRY`，M15，集成注册表并入统一运行时与厂商分支、集成包导入清零，PSD-03 签名样例，G1 终点；范围以 44B 记录末尾两节为准（用户 2026-11-24 定）；与 `106` 并行 | [44C](batches/44c.md) |
+| `44C` | 已合入（`#2333` `56a094ec0e`，2026-11-26；收尾五问随收尾 PR）：统一 `resolveActionProviderId`、`RuntimePluginDirectory`、`PLATFORM_SETTINGS_REGISTRY`，M15，集成注册表并入统一运行时与厂商分支、集成包导入清零，PSD-03 签名样例，G1 终点；范围以 44B 记录末尾两节为准（用户 2026-11-24 定）；与 `106` 并行 | [44C](batches/44c.md) |
 | `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/平台定格式总览表 `overview_projection`（到期提醒从中取）、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
 | `107`（UPP-B1） | 等 `106`：6 个独立库插件迁 `databases.partition`，删 `databases.home.partition` 复用器（`project_rows`、`artifact_join` 归 `109`） | [107](batches/107.md) |
 | `108`（UPP-B2） | 等 `107`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，删 `personal:true`/`hidden`/`project_reach`（`scope:"home"` 与 `outsideBuild` 链归 `109`） | [108](batches/108.md) |
@@ -626,3 +626,20 @@ flowchart LR
 | 补齐观测 | 63 先登记输入、业务主人提供的预期和已有回执。Piece 0 按实际依赖接 62 的模型事件和 [104](batches/104.md) 的用量，再做正式分段比较 | [63A](batches/63a.md) 获得可恢复样本与 SIM 账本；[89-3](batches/89.md#batch-89-item-3) 获得可回放的工具记录 |
 | 实现与接入 | 63A-1 做形成；63A-2 消费 62 窗口 B 的 LRU／scope 列行和 63 样本，先接获准原文，再验 Dreaming；63A-3 叠常驻。[64](batches/64.md) 按子项接入：[52-2](batches/52.md#batch-52-item-2) 交可用方法，62-3 供智能组合，63A 供工作记忆／历史接续 | 从正常助理入口得到可核对的草稿、来源与发送状态，交 [76](batches/76.md) |
 | 扩大验证 | 76 跨报告周期观察；89-3 在 42、63 与适用真实样本就绪后扩到全目录，独立于 76 的观察周期。[67-2](batches/67.md#batch-67-item-2) 用 Coding 真任务验工具效果，[86](batches/86.md) 再按原前置比较逐次与程序化调用 | 各按真实产出、范围、返工和成本下结论；周报仅作首例，Coding 用自己的工作产物 |
+
+<a id="deps-2026-11-25-full-optimization"></a>
+
+### 11-25 全量剩余批次逐批方案优化、PR 解耦与新增第 112 批依赖校准（[决定 68](decisions.md#decision-68)）
+
+1. **新增第 [`112`](batches/112.md) 批并入前置链**：拆为正交并行两 PR——`112-1`（删除 `jelly-whisper` 与 626 MB WhisperKit 链、更名 `molis-material` 补 `ja-JP` OCR）与 `112-2`（`Jelly` 瘦身为 4 张关系表：日历＋极简笔记，砍除私有 AI 与 `JellyCommand`），与 `44C` 并行推进（`106`、`107` 已合入 `main`），在 [`108`](batches/108.md)（Jelly 迁分区）与 [`54`](batches/54.md)（轻量语音双通道）之前合入。两 PR 均已合入（`112-1` [#2337](https://github.com/molis-ai/molis-work/pull/2337) `d866aa2b57`、`112-2` [#2338](https://github.com/molis-ai/molis-work/pull/2338) `17face2867`，2026-11-26），`108` 与 `54` 的这条前置已满足。
+2. **关键批次内部 PR 拆分与解耦提速**：
+   - `91`：`111 → 91-0c → 91A` 串行；`91B`：`91B-1 → (91B-2 ∥ 91B-3) → 91B-4` 四 PR；
+   - `62`：`62-0`（窗口 B 换包）→ `62-1A`（Agent Host 与四策略，联动 `105-1` 波次审批）→ `62-2/3`（结清 `BL-128`）→ `62-1B`；
+   - `63`：`63-1`（Piece 0 接 `91-2`＋`104-1` 不等 `62`）→ `63-2`（含图形化「`设置 › 评测`」后台）；`63A`：`63A-0`（`111` 后先行拆大文件）→ `63A-1` → `63A-2`；
+   - `66` 与 `67`：`66-2` PR 评论产线化消费 `67-1A` `plugins/native/git` 公开 PR 动作；
+   - `77`：`77-1`（原 `72` 组装公共合同＋定样）→ `77-2`（手动组装＋零污染试跑，仅等 `68-A/B` 与 `73-A`）；
+   - `82`：`82-A`（Alchemist）∥ `82-B`（CGS 七技能包＋纯 `Blueprint` 场景）独立并行；`83`：`83-A`（通用性＋14 样例＋评测基线）与 `83-B`（全站呈现＋三语文案收口）；
+   - `84` → `85`：`84` 拆为 `84-A`（CLI 合同＋`D1/D7`＋`C1～C4`）∥ `84-B`（`E7` 交互计划页），**`85` 仅等 `84-B` 与 `66`，无需等待 `84-A`**；
+   - `86`：`86-A`（Coding 效率＋Prompt 剪枝，仅等 `63-2` 与 `67-2`）∥ `86-B`（创作台阶段简化，等 `83-A` 创作基线）；
+   - `89`：`89-A`（情境 W7）∥ `89-B`（回执阶段 6，剔除已删 `Jelly` AI）∥ `89-C`（全目录 Skill 三段式评测进「`设置 › 评测`」）。
+3. **封板与对外发布／服务端总序**：阶段 1～4 全部非服务端批次收官于 [`90`](batches/90.md)（Clean v1 `version: 1` 总核封板）→ [`REL-5`](batches/rel-5.md)（M1 `1.0.0` Apple Silicon `arm64` 首发，前置 `REL-1～4` 含 `REL-3-A→3-B` 与 `REL-4-A∥4-B`）→ [`SRV-1`～`SRV-8`](server-batch.md#server-batch)（基于 `1.0.0` 金样与 `U5`／`U1` 连续升级链推进）。

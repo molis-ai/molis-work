@@ -32,6 +32,30 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 /** Each project's registrations that declare `project_runtime`, read from the generated platform registry (PG-067). */
 const PROJECT_RUNTIME_ENTRIES = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.project_runtime);
 
+/**
+ * The workbench files that read the list of shipped plugins directly. Everything else reads the registration it needs through them
+ * (`manifestFor`, `builtinPluginDirectory`, the runtime directory), so what a page knows about plugins is what is installed, shipped or not.
+ * `plugin-workbench.ts` and `stage-renderers.ts` are the trust boundary of in-page code (scripts/check-package-boundaries.mjs): only a
+ * shipped package's renderer runs in the page itself.
+ */
+const SHIPPED_LIST_READERS = ["host-surfaces.ts", "plugin-catalog.ts", "plugin-workbench.ts", "stage-renderers.ts"];
+
+test("PSD-04 the list of shipped plugins is read by four workbench files and no other", async () => {
+  const root = join(repoRoot, "apps", "workbench", "src"), readers: string[] = [];
+  for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".ts") || entry.name === "builtin-plugins.ts") continue;
+    const path = join(entry.parentPath, entry.name);
+    // The package's own index hands the list to the tests and the Host's checks; it does not read it.
+    if (/\bBUILTIN_PLUGIN_CATALOG\b/u.test(await readFile(path, "utf8")) && path !== join(root, "index.ts")) readers.push(path.slice(root.length + 1));
+  }
+  assert.deepEqual(readers.sort(), SHIPPED_LIST_READERS);
+  for (const dir of ["apps/local-host/src", "apps/desktop/src", "packages/ui-host/src"]) {
+    for (const entry of await readdir(join(repoRoot, dir), { recursive: true, withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".ts")) assert.doesNotMatch(await readFile(join(entry.parentPath, entry.name), "utf8"), /\bBUILTIN_PLUGIN_CATALOG\b/u, `${dir}/${entry.name}`);
+    }
+  }
+});
+
 /** Started by `createPluginPlatform` in each project: the declared project instances, and nothing written by hand (BL-616). */
 const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map(
   PROJECT_RUNTIME_ENTRIES.map(entry => [entry.project_plugin_id, entry.project_runtime!.package_name] as const));
@@ -225,15 +249,18 @@ test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace G
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-// RAC-44 (Cognia moved to a Home Runtime, specs/archive/repository-anti-corruption): Cognia reaches the product only through its
-// catalog entry's Home Runtime declaration and the public plugin contract; the old Host wiring is gone and none comes back.
+// RAC-44 (Cognia moved to a Home Runtime, specs/archive/repository-anti-corruption; since batch 108 one instance per partition,
+// specs/unified-partition-plugins §4.2): Cognia reaches the product only through its catalog entry's project_runtime declaration and
+// the public plugin contract; the old Host wiring is gone and none comes back.
 // The hybrid check above reads the project supervisor's list only, so the Host side is asserted here for Cognia: no Host
 // file named after it, no provider registered for it, no Host source that imports its package. That it really starts
 // from the declaration is the next test.
-test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled only from its Home Runtime declaration", async () => {
-  const cognia = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia"), runtime = cognia?.runtime;
-  assert.ok(runtime, "Cognia's catalog entry declares a Home Runtime");
-  assert.equal(cognia?.manifest.runtime?.scope, "home", "where it runs is its Manifest's");
+test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled only from its partition Runtime declaration", async () => {
+  const cognia = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia"), runtime = cognia?.project_runtime;
+  assert.ok(runtime, "Cognia's catalog entry declares the Runtime each partition starts");
+  assert.equal(cognia?.runtime, undefined, "no Home Runtime");
+  assert.equal(cognia?.manifest.runtime?.scope, undefined, "where it runs is its Manifest's: no Home scope");
+  assert.ok(cognia?.manifest.databases?.partition, "a library in each partition");
   assert.equal(runtime.package_name, "@molis-ai/molis-work-plugin-cognia");
   assert.ok(!APPROVED_BUILD_TIME_EXCEPTIONS.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
   const sources = await hostSourceFiles();

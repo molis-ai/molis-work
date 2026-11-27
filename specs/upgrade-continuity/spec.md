@@ -1,12 +1,12 @@
 # 升级后持续可用
 
-状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 68](../post-anticorruption-roadmap/reference/decisions.md#decision-68)：开发前阶段采用方案 A——零现有用户数据、零迁移、零开发金样；通用 U1/U3/U4 升级引擎源码休眠保留在仓内待 1.0 启用，全部具体迁移段、开发期金样夹具、存储结构快照与 `golden-replay` CI 作业已清除）。以下正文保留作为 1.0 对外发布时的设计与验收参考，**开发前阶段不按本文编写任何迁移步骤或维护开发金样**。历史背景：U1 [升级链](upgrade-chain-design.md)、U2 [金样回放](golden-replay-design.md)、U3 [按主人隔离与回退](owner-isolation-and-rollback-design.md) 与 U4 已于 2026-11-08～11-12 实现并合入；U5、U6 的副本演练与接更新器、U7 排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-5)。
+状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)：开发前阶段采用方案 A——零现有用户数据、零迁移、零开发金样；通用 U1/U3/U4 升级引擎源码休眠保留在仓内待 1.0 启用，全部具体迁移段、开发期金样夹具、存储结构快照与 `golden-replay` CI 作业已清除）。以下正文保留作为 1.0 对外发布时的设计与验收参考，**开发前阶段不按本文编写任何迁移步骤或维护开发金样**。历史背景：U1 [升级链](upgrade-chain-design.md)、U2 [金样回放](golden-replay-design.md)、U3 [按主人隔离与回退](owner-isolation-and-rollback-design.md) 与 U4 已于 2026-11-08～11-12 实现并合入；U5、U6 的副本演练与接更新器、U7 排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-5)。
 
 验收编号见 §9，前缀 `UPG`；U1、U2 设计新增的检查前缀 `UPG1`、`UPG2`，在各自设计里。
 
 
 > [!IMPORTANT]
-> **2026-11-26 架构状态（[决定 68](../post-anticorruption-roadmap/reference/decisions.md#decision-68)）**：开发前阶段全仓所有持久化库与带版本文件均锁定为 `v1` 且 `upgrades: []`（原地修改 v1 基线，旧开发 Home 直接删掉干净重建），不再维护开发期 `0.1.0` 金样、临时复位白名单或同版哈希例外；通用 U1/U3/U4 升级引擎源码休眠保留，待 1.0.0 首次对外发布前再启用升级链与金样回放。离线快照、恢复与库升级枚举按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66) 统一经 `partitionRoot()` + `listPartitions()`（含 `<Home>/personal-space/` 与 `<分区根>/libraries/<库名>.db`）。
+> **2026-11-26 架构状态（[决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)）**：开发前阶段全仓所有持久化库与带版本文件均锁定为 `v1` 且 `upgrades: []`（原地修改 v1 基线，旧开发 Home 直接删掉干净重建），不再维护开发期 `0.1.0` 金样、临时复位白名单或同版哈希例外；通用 U1/U3/U4 升级引擎源码休眠保留，待 1.0.0 首次对外发布前再启用升级链与金样回放。离线快照、恢复与库升级枚举按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66) 统一经 `partitionRoot()` + `listPartitions()`（含 `<Home>/personal-space/` 与 `<分区根>/libraries/<库名>.db`）。
 
 ## 1. 要解决的问题
 

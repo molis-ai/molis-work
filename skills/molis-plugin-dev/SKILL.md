@@ -89,7 +89,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 1. 对象与时刻（上面四问）。
 2. Manifest 身份：`schema_version`（现行格式为 1）、`host_api_version`、`plugin_id`、`name`、`version`、`kind`、`publisher`、`entrypoints`、`permissions`（每条带 reason；要用侧栏浏览器的网站，写 `surface:browser` 并列出 `origins`，见 [ui.md](ui.md) 侧栏标签一节）、`requires`（每条同时写入 `capabilities.consumes`）。权限只写真会用的。
-3. 个人还是项目：个人插件（如灵光、Todo、Jelly、Cognia，以各包 `src/registration.ts` 的 `personal: true` 为准）在每个项目都可用；Goals、Feed、Inbox、Coding 等按项目启用。判断规则归 `modules/judgment-rules`。插件创作台和置物架由[平台入口登记](../../apps/local-host/src/host-surface-list.ts)，不参与项目启用。
+3. 在哪里启用：内置插件都按分区（个人空间与每个项目）启用，没有「个人插件」（第 108 批删除 `personal: true`）；每个分区一份数据的写 `databases.partition`（[partitions.md](partitions.md)）。判断规则归 `modules/judgment-rules`。插件创作台和置物架由[平台入口登记](../../apps/local-host/src/host-surface-list.ts)，不参与项目启用。
 4. UI 槽 + contribution。槽只有 `navigator` | `stage` | `settings` | `island` | `side`。列表详情用 `renderPluginStageShell`。视觉、客户端：[ui.md](ui.md)。
 5. HTTP：写 Manifest `routes`，Host 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。短名路径已全部删除（Pages、灵光、Schedule、Inbox、Feed 等走 Manifest `routes`，最后的 `/api/alchemist` 随旧炼金术士在第 44B 批删除），新插件不新增 `<插件>-native-plugin-http.ts`。未声明或未接线的路径到不了插件。
 6. 浏览器客户端：Pages 族在插件包 `CLIENT_FACTORY_SCRIPT`，Workbench pack 注入。Feed/Inbox 的业务客户端在各自插件包的 `src/browser/factory.ts`，经 `src/registration.ts` 的 `workbench.clientFactory` 挂载。只出静态 HTML 不够。

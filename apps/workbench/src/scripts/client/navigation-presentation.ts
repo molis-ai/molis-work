@@ -15,12 +15,12 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   const stageHost = document.querySelector('.immersive-plugin-stage');
   if (stageHost) new MutationObserver(titleStages).observe(stageHost, { childList: true });
   const dismiss = (event) => {
-    // The project menu, the account menu and the Feed source menu also close once something in them is chosen. Escape and a
+    // The project menu, the account menu and any plugin menu marked data-closes-on-choice also close once something in them is chosen. Escape and a
     // press outside close them as every floating details closes (design-system browser/floating-details.ts).
     // The path is taken at dispatch, so a row that re-rendered under the click still counts as inside its menu.
     const path = typeof event.composedPath === 'function' ? event.composedPath().filter((node) => node.nodeType === 1) : [];
     const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target?.nodeType === 1 && event.target.closest(selector));
-    for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open], [data-feed-source-menu][open]')) {
+    for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open], [data-closes-on-choice][open]')) {
       const inside = path.includes(menu) || menu.contains(event.target);
       if (inside && along('a, button') && !along('summary')) menu.open = false;
     }

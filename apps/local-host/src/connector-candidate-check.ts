@@ -1,12 +1,12 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
-import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
+import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { accountDriver } from "./builtin-drivers.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorReadFailure } from "./connector-access.js";
 import { connectionTenantOrigin, serviceTenant } from "./connector-request-credentials.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
-import { accountProviderWithToken, accountReader } from "./account-providers.js";
 
 /**
  * A key checked before it is saved (§13.6 ④d, BL-1058): the key the person typed is asked of its service as it is, and nothing is written
@@ -23,7 +23,7 @@ export interface CandidateCheck { checked_at: string; account?: { login: string;
 
 /** Keys this check can ask about: the services whose account a key alone can read (§13.2); others are checked where they are used. */
 export function candidateCheckable(serviceId: string): boolean {
-  return isCatalogConnectorId(serviceId) || accountReader(serviceId) !== undefined;
+  return accountDriver(serviceId) !== undefined;
 }
 
 /**
@@ -50,7 +50,8 @@ function assertCandidateDestination(home: string, serviceId: string, token: stri
 export async function checkCandidateKey(home: string, input: { serviceId: string; token: string; target?: CandidateTarget },
   caller: { signal?: AbortSignal } = {}): Promise<CandidateCheck | null> {
   const { serviceId, token, target } = input;
-  if (!candidateCheckable(serviceId)) return null;
+  const driver = accountDriver(serviceId);
+  if (!driver) return null;
   assertCandidateDestination(home, serviceId, token, target);
   const signal = AbortSignal.any([AbortSignal.timeout(30_000), ...(caller.signal ? [caller.signal] : [])]);
   // A replacement stops when its connection changes (removed, renamed, another key put in) while the service is asked.
@@ -63,13 +64,13 @@ export async function checkCandidateKey(home: string, input: { serviceId: string
   const control: ConnectorCallControl = { signal, current, beforeEffect: async () => current() };
   const fetchImpl: typeof fetch = controlledConnectorFetch((request, init) => globalThis.fetch(request, init), control);
   const checked_at = () => new Date().toISOString();
-  if (isCatalogConnectorId(serviceId)) {
-    const result = await catalogWhoami({ connectorId: serviceId, token, fetchImpl });
+  if (driver.check === "identity" && driver.identity) {
+    const result = await driver.identity({ token, fetch: fetchImpl });
     current();
     if (!result.ok) throw connectorReadFailure(result);
     return { checked_at: checked_at(), account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) } };
   }
-  const provider = accountProviderWithToken(home, serviceId, { token, fetchImpl });
+  const provider = runWithMolisWorkHome(home, () => driver.source?.({ token, fetch: fetchImpl }));
   if (!provider) throw connectorErrors["connector.connection.invalid"]("这个服务的密钥要在使用它的地方检查");
   const health = await provider.health(control);
   current();

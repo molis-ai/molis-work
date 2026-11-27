@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, catalogBoardText } from "@molis-ai/molis-work-app-workbench";
 
 import { runInNewContext } from "node:vm";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pagePack, pageTextScript, withPageText } from "./fixtures/page-text.js";
+import { pagePack } from "./fixtures/page-text.js";
+import { pageTextScriptForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 // specs/visual-ui-experience VUX-40「数量」and specs/font-and-skin-system FSS-39: a message's values are filled in one way
 // (the SDK's `fillMessage`) on the Host and in the page, and an English count agrees with its number.
@@ -24,15 +25,17 @@ test("VUX-40: fillMessage fills named values once and picks the word that agrees
   assert.equal(fillMessage("{count} items", undefined), "{count} items");
 });
 
-test("VUX-40 FSS-39 QEA-165: Host and browser fill the same whole sentences; every plural form shows its count", () => withPageText("en", ["git"], () => {
+const countPacks = ["zh", "en"].flatMap(locale => [catalogBoardText.pack(locale)!, pagePack("git", locale)]);
+
+test("VUX-40 FSS-39 QEA-165: Host and browser fill the same whole sentences; every plural form shows its count", () => withPagePacks("en", countPacks, () => {
   const page = { document: { documentElement: {} }, t: undefined as typeof t | undefined };
-  runInNewContext(pageTextScript("en", "git"), page);
+  runInNewContext(pageTextScriptForPacks("en", countPacks), page);
   assert.ok(page.t);
   for (const read of [t.text, page.t.text]) {
     assert.equal(read("git.commit.staged", { count: 1 }), "Commit 1 staged file…");
     assert.equal(read("git.commit.staged", { count: 2 }), "Commit 2 staged files…");
-    assert.equal(read("workbench.import.transcription-remaining", { count: 1 }), "1 file still needs transcription. You can continue.");
-    assert.equal(read("workbench.import.transcription-remaining", { count: 2 }), "2 files still need transcription. You can continue.");
+    assert.equal(read("workbench.import.remaining-files", { count: 1 }), "1 file remains. Select Import to continue.");
+    assert.equal(read("workbench.import.remaining-files", { count: 2 }), "2 files remain. Select Import to continue.");
     for (const count of [0, 1, 2]) {
       const skills = count === 1 ? "skill" : "skills";
       assert.equal(read("workbench.settings-skills.count-count-skill-skills-enabled-enabled", { count, enabled: 0 }), `${count} ${skills}, 0 enabled`);

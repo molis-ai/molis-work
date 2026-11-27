@@ -195,6 +195,36 @@ CREATE TABLE context_edges (
     state TEXT NOT NULL CHECK (state IN ('active', 'removed')),
     PRIMARY KEY (scope_kind, scope_id, edge_key, revision)
   );
+CREATE TABLE plugin_overview_rows (
+  install_id TEXT NOT NULL CHECK (length(install_id) BETWEEN 1 AND 200),
+  kind TEXT NOT NULL CHECK (kind IN ('task', 'event', 'notification', 'brief', 'background_task', 'scheduled_run')),
+  row_id TEXT NOT NULL CHECK (length(row_id) BETWEEN 1 AND 200),
+  title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 500),
+  status TEXT CHECK (status IS NULL OR status IN ('open', 'done', 'cancelled')),
+  due_at TEXT,
+  remind_at TEXT,
+  priority INTEGER CHECK (priority IS NULL OR priority BETWEEN 0 AND 3),
+  tags_json TEXT,
+  starts_at TEXT,
+  ends_at TEXT,
+  all_day INTEGER CHECK (all_day IS NULL OR all_day IN (0, 1)),
+  time_zone TEXT,
+  level TEXT CHECK (level IS NULL OR level IN ('info', 'warning', 'urgent')),
+  source TEXT,
+  occurred_at TEXT,
+  summary TEXT,
+  state TEXT,
+  waiting INTEGER CHECK (waiting IS NULL OR waiting IN (0, 1)),
+  started_at TEXT,
+  reports_to TEXT CHECK (reports_to IS NULL OR reports_to = 'assistant'),
+  missed_at TEXT,
+  needs_json TEXT,
+  open_surface TEXT,
+  open_id TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (install_id, kind, row_id)
+);
+CREATE INDEX plugin_overview_rows_remind ON plugin_overview_rows(remind_at) WHERE remind_at IS NOT NULL;
 CREATE TABLE attention_entries (
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,

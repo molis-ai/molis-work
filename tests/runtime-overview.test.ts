@@ -1,56 +1,60 @@
-import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalWebCoreFactory, decideRuntimeRun, expiredOwnerKey, expiredSeen, LocalProjectDatabase, markExpiredSeen, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type HomeAggregatePorts, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
+import { createLocalWebCoreFactory, decideRuntimeRun, expiredOwnerKey, expiredSeen, LocalProjectDatabase, markExpiredSeen, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, scheduledRunsOf, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts, isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, RUN_MISSED_KEPT_MS, type ActionCallContext, type ActionDefinition, type ActionView, type RunsOverview,
+import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, RUN_MISSED_KEPT_MS, type ActionDefinition, type ActionView, type RunsOverview,
   type RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { OverviewIndexRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
+import { writeMainOverviewRows } from "./fixtures/overview-rows.js";
 import { createProject, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 
 /**
- * RES-05: the Host finds every owner of runs by type — the project ones in each open project, the Home ones in the Home — asks each once,
- * and puts the answers side by side; one that fails or sends what cannot be drawn is named by its code and costs the others nothing.
+ * RES-05, V17: the partitions' runs come from the overview, where each plugin wrote them as `scheduled_run` rows (no project is asked or
+ * opened); the Home's own owners are found by type and asked once. All are put side by side; a Home owner that fails or sends what cannot
+ * be drawn is named by its code and costs the others nothing.
  */
 
 const NOW = "2026-11-11T09:00:00.000Z";
 const reference = (projectId: string): LocalHostProjectReference => ({ project_id: projectId, storage_key: `/tmp/${projectId}` });
-const context = (projectId: string): ActionCallContext => ({ actor_id: "owner", project_id: projectId, audience: "user", permissions: [] });
 const view = (definition: ActionDefinition, provider: string, projectId: string | null, available = true): ActionView => ({
   capability_id: definition.capability_id, version: definition.version, operation: definition.operation, action: definition.action,
-  provider: { provider_id: provider, title: provider, kind: "plugin", ...(projectId ? { project_id: projectId } : {}) },
+  provider: { provider_id: provider, title: provider, kind: "plugin", ...(projectId ? { project_id: projectId, plugin_id: provider } : {}) },
   availability: available ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "停用了" },
 });
-const projectOverview = (id: string) => defineRunsOverviewAction(`${id}.runs.overview`, 1, id, [], "project");
 const projectDecision = (id: string) => defineRunDecisionAction(`${id}.runs.decide`, 1, id, [], "project");
 const homeOverview = defineRunsOverviewAction("assistant.runs.overview", 1, "助理", [], "home");
 const homeDecision = defineRunDecisionAction("assistant.runs.decide", 1, "助理", [], "home");
 const run = (id: string, due: string, needs: Array<"network" | "model"> = [], project: string | null = null) =>
   ({ run_id: id, title: id, due_at: due, project_id: project, open: null, needs });
+const MANIFESTS = new Map([["schedule", { plugin_id: "schedule", name: "定时任务" }], ["feed", { plugin_id: "feed", name: "Feed 来源" }]]);
+/** One `scheduled_run` row as the overview index hands it over. */
+const row = (partition: string, plugin: string, id: string, due: string, more: { missed_at?: string; needs?: string[]; open?: { surface: string; id: string } } = {}): OverviewIndexRow =>
+  ({ partition_id: partition, install_id: `install-${plugin}`, plugin_id: plugin, kind: "scheduled_run", row_id: id,
+    fields: { title: id, due_at: due, updated_at: NOW, needs: more.needs ?? [], open: more.open ?? { surface: plugin, id }, ...(more.missed_at ? { missed_at: more.missed_at } : {}) } });
 
-function harness(answers: Record<string, (input: unknown) => unknown>, options: { online?: boolean; model?: boolean; seen?: Record<string, string> } = {}) {
+function harness(rows: readonly OverviewIndexRow[], answers: Record<string, (input: unknown) => unknown>, options: { online?: boolean; model?: boolean; seen?: Record<string, string> } = {}) {
   const calls: string[] = [];
   const projects = [reference("p1"), reference("p2")];
-  const projectViews = (projectId: string) => [view(projectOverview("schedule"), "schedule", projectId), view(projectDecision("schedule"), "schedule", projectId),
-    view(projectOverview("feed"), "feed", projectId), view(projectDecision("feed"), "feed", projectId)];
+  const projectViews = (projectId: string) => [view(projectDecision("schedule"), "schedule", projectId), view(projectDecision("feed"), "feed", projectId)];
   const answer = (key: string, input: unknown) => { calls.push(key); const respond = answers[key]; if (!respond) throw new ActionError("actions.not_found", "没有"); return respond(input); };
-  const aggregate: HomeAggregatePorts = {
-    openProjects: () => projects, whileOpen: async (_reference, work) => work(),
-    client: project => (fakeActionClient({ discover: async () => projectViews(project.project_id),
-      invoke: async (_caller, action, input) => answer(`${project.project_id}:${action.capability_id}`, input) })),
-    context: async project => context(project.project_id), projectPlugins: async () => () => true,
-  };
   const homeViews = [view(homeOverview, "assistant", null), view(homeDecision, "assistant", null)];
   const client = (scope: string | null): RunsClient => ({
     discover: async () => scope === null ? homeViews : projectViews(scope),
     invoke: async (action, input) => answer(`${scope ?? "home"}:${action.capability_id}`, input),
   });
   const ports: RuntimeOverviewPorts = {
-    aggregate, within: async (scope, work) => scope === null || projects.some(project => project.project_id === scope) ? work(client(scope)) : undefined,
+    projectRuns: async (window, bounds) => {
+      assert.equal(window.now.toISOString(), NOW);
+      assert.equal(window.until.getTime() - window.now.getTime(), 48 * 3_600_000, "the next two days");
+      return scheduledRunsOf(rows, MANIFESTS, window, bounds);
+    },
+    within: async (scope, work) => scope === null || projects.some(project => project.project_id === scope) ? work(client(scope)) : undefined,
     now: () => new Date(NOW), online: () => options.online ?? true, model: () => options.model ?? true,
     gaps: () => [{ from: "2026-11-11T01:00:00.000Z", to: "2026-11-11T07:00:00.000Z", cause: "sleep" }],
     expiredSeen: () => options.seen ?? {},
@@ -65,44 +69,44 @@ const overview = (source: string, upcoming: unknown[], missed: unknown[] = [], e
   return { source: { surface: source, title }, upcoming, missed, expired } as RunsOverview;
 };
 
-test("RES-05 every owner found by type is asked once and the answers are put side by side, sorted, each with where it came from", async () => {
-  const { ports, calls } = harness({
-    "p1:schedule.runs.overview": overview("schedule", [run("t2", "2026-11-11T12:00:00.000Z", ["model"], "elsewhere")], [{ ...run("t0", "2026-11-11T06:00:00.000Z"), missed_at: NOW }]),
-    "p2:schedule.runs.overview": overview("schedule", []),
-    "p1:feed.runs.overview": overview("feed", [run("pull", "2026-11-11T10:00:00.000Z", ["network"])]),
-    "p2:feed.runs.overview": overview("feed", []),
+test("RES-05 UPP-37 the partitions' runs are read from the overview and the Home owners asked once; all side by side, sorted, each with where it came from", async () => {
+  const { ports, calls } = harness([
+    row("p1", "schedule", "t2", "2026-11-11T12:00:00.000Z", { needs: ["model"] }),
+    row("p1", "schedule", "t0", "2026-11-11T06:00:00.000Z", { missed_at: NOW }),
+    row("p1", "feed", "pull", "2026-11-11T10:00:00.000Z", { needs: ["network"] }),
+    // Past the two days, or gone by: not listed.
+    row("p2", "feed", "far", "2026-11-14T10:00:00.000Z"), row("p2", "schedule", "past", "2026-11-11T08:00:00.000Z"),
+  ], {
     "home:assistant.runs.overview": overview("assistant", [run("fu", "2026-11-11T11:00:00.000Z", ["model"])], [{ ...run("fu-old", "2026-11-11T08:00:00.000Z"), missed_at: NOW }]),
   });
   const result = await runtimeOverview(ports);
   assert.equal(result.state, "running");
-  assert.deepEqual(calls.sort(), ["home:assistant.runs.overview", "p1:feed.runs.overview", "p1:schedule.runs.overview", "p2:feed.runs.overview", "p2:schedule.runs.overview"],
-    "each owner once, never the decision actions");
-  assert.deepEqual(result.upcoming.map(row => [row.run_id, row.project_id, row.source.scope_project_id, row.source.provider_id]), [
-    ["pull", "p1", "p1", "feed"], ["fu", null, null, "assistant"], ["t2", "p1", "p1", "schedule"]], "by time; a project owner's run is that project's whatever it says");
-  assert.deepEqual(result.missed.map(row => [row.run_id, row.source.surface]), [["fu-old", "assistant"], ["t0", "schedule"]], "latest first");
+  assert.deepEqual(calls, ["home:assistant.runs.overview"], "only the Home owner is asked; no project is");
+  assert.deepEqual(result.upcoming.map(item => [item.run_id, item.project_id, item.source.scope_project_id, item.source.provider_id, item.source.title]), [
+    ["pull", "p1", "p1", "feed", "Feed 来源"], ["fu", null, null, "assistant", "assistant"], ["t2", "p1", "p1", "schedule", "定时任务"]], "by time; a partition's run is that partition's");
+  assert.deepEqual(result.missed.map(item => [item.run_id, item.source.surface]), [["fu-old", "assistant"], ["t0", "schedule"]], "latest first");
   assert.deepEqual(result.gaps.map(gap => gap.cause), ["sleep"]);
   assert.deepEqual(result.unavailable_sources, []);
 });
 
-test("RES-05 one owner that fails, times out or answers what cannot be drawn is named by its code; the others are listed as usual", async () => {
-  const { ports } = harness({
-    "p1:schedule.runs.overview": () => { throw new ActionError("schedule.unreadable", "PRIVATE owner words"); },
-    "p2:schedule.runs.overview": () => new Promise(() => undefined),
-    "p1:feed.runs.overview": () => ({ source: { surface: "bad surface!", title: "x" }, upcoming: [], missed: [], expired: 0 }),
-    "p2:feed.runs.overview": overview("feed", [run("pull", "2026-11-11T10:00:00.000Z", ["network"])]),
-    "home:assistant.runs.overview": overview("assistant", [run("fu", "2026-11-11T11:00:00.000Z", ["model"])]),
+test("RES-05 a Home owner that fails, times out or answers what cannot be drawn is named by its code; the partitions' runs are listed as usual", async () => {
+  const { ports } = harness([row("p2", "feed", "pull", "2026-11-11T10:00:00.000Z", { needs: ["network"] }), row("p1", "schedule", "t1", "2026-11-11T11:00:00.000Z", { needs: ["model"] })], {
+    "home:assistant.runs.overview": () => { throw new ActionError("assistant.unreadable", "PRIVATE owner words"); },
   }, { online: false });
   const result = await runtimeOverview(ports);
-  assert.deepEqual(result.upcoming.map(row => [row.run_id, row.waiting]), [["pull", true], ["fu", false]], "without a network the pull waits; the model one does not");
+  assert.deepEqual(result.upcoming.map(item => [item.run_id, item.waiting]), [["pull", true], ["t1", false]], "without a network the pull waits; the model one does not");
   assert.deepEqual(result.waiting, { network: true, model: false });
-  assert.deepEqual(result.unavailable_sources.map(issue => [issue.project_id, issue.provider_id, issue.code]).sort(), [
-    ["p1", "feed", "actions.output_invalid"], ["p1", "schedule", "schedule.unreadable"], ["p2", "schedule", "actions.timeout"]]);
+  assert.deepEqual(result.unavailable_sources.map(issue => [issue.project_id, issue.provider_id, issue.code]), [[null, "assistant", "assistant.unreadable"]]);
   assert.doesNotMatch(JSON.stringify(result), /PRIVATE/u, "what an owner said in its error stays out");
+  const stalled = await runtimeOverview(harness([], { "home:assistant.runs.overview": () => new Promise(() => undefined) }).ports);
+  assert.deepEqual(stalled.unavailable_sources.map(issue => issue.code), ["actions.timeout"]);
+  const undrawable = await runtimeOverview(harness([], { "home:assistant.runs.overview": () => ({ source: { surface: "bad surface!", title: "x" }, upcoming: [], missed: [], expired: 0 }) }).ports);
+  assert.deepEqual(undrawable.unavailable_sources.map(issue => issue.code), ["actions.output_invalid"]);
 });
 
-test("RES-05 现在做 and 跳过 go to the decision action of the same provider in the same place; an owner no longer there is gone", async () => {
+test("RES-05 现在做 and 跳过 go to the decision action of the same owner in the same place (in a partition, its plugin); an owner no longer there is gone", async () => {
   const decided: unknown[] = [];
-  const { ports } = harness({
+  const { ports } = harness([], {
     "p1:feed.runs.decide": input => { decided.push(input); return { state: "started" }; },
     "home:assistant.runs.decide": input => { decided.push(input); return { state: "skipped" }; },
   });
@@ -115,27 +119,27 @@ test("RES-05 现在做 and 跳过 go to the decision action of the same provider
     assert.throws(() => runtimeRunDecisionRequest(bad), { code: "actions.input_invalid" });
 });
 
-test("BL-missed-runs-never-expire the runs expired and not yet told are counted together and by owner, each owner asked from its own mark", async () => {
+test("BL-missed-runs-never-expire UPP-37 the runs expired and not yet told are counted together and by owner, each owner from its own mark", async () => {
   const asked: Record<string, string | null> = {};
-  const counting = (key: string, source: string, title: string, expired: number) => (input: unknown) => {
-    asked[key] = (input as RunsWindow).expired_after; return overview(source, [], [], expired, title)(input);
-  };
-  const answers = {
-    "p1:schedule.runs.overview": counting("p1:schedule", "schedule", "定时任务", 2), "p2:schedule.runs.overview": counting("p2:schedule", "schedule", "定时任务", 1),
-    "p1:feed.runs.overview": counting("p1:feed", "feed", "Feed 来源", 1), "p2:feed.runs.overview": counting("p2:feed", "feed", "Feed 来源", 0),
-    "home:assistant.runs.overview": counting("home:assistant", "assistant", "助理定时", 0),
-  };
   const told = "2026-11-10T09:00:00.000Z", earlier = "2026-11-08T09:00:00.000Z";
-  const result = await runtimeOverview(harness(answers, { seen: { [expiredOwnerKey("p1", "schedule")]: told, [expiredOwnerKey("p2", "feed")]: earlier,
-    [expiredOwnerKey(null, "assistant")]: told } }).ports);
-  assert.deepEqual(asked, { "p1:schedule": told, "p2:schedule": null, "p1:feed": null, "p2:feed": earlier, "home:assistant": told },
-    "each owner counts only what it has not been told about: its own mark, or none");
+  const rows = [
+    // p1's Schedule was told at `told`: of its runs past their seven days, one due after `told` less seven days and one missed after `told` count.
+    row("p1", "schedule", "a", "2026-11-03T10:00:00.000Z", { missed_at: "2026-11-03T10:00:00.000Z" }),
+    row("p1", "schedule", "b", "2026-11-02T10:00:00.000Z", { missed_at: "2026-11-02T10:00:00.000Z" }),
+    row("p1", "schedule", "c", "2026-11-01T10:00:00.000Z", { missed_at: "2026-11-10T10:00:00.000Z" }),
+    // Never told: every expired one counts.
+    row("p2", "schedule", "d", "2026-11-01T10:00:00.000Z", { missed_at: "2026-11-01T10:00:00.000Z" }),
+    row("p1", "feed", "e", "2026-11-02T10:00:00.000Z", { missed_at: "2026-11-02T10:00:00.000Z" }),
+    // Told at `earlier`, before which this one had already expired.
+    row("p2", "feed", "f", "2026-11-01T08:00:00.000Z", { missed_at: "2026-11-01T08:00:00.000Z" }),
+  ];
+  const result = await runtimeOverview(harness(rows, { "home:assistant.runs.overview": input => { asked.home = (input as RunsWindow).expired_after; return overview("assistant", [], [], 0, "助理定时")(input); } },
+    { seen: { [expiredOwnerKey("p1", "schedule")]: told, [expiredOwnerKey("p2", "feed")]: earlier, [expiredOwnerKey(null, "assistant")]: told } }).ports);
+  assert.deepEqual(asked, { home: told }, "the Home owner counts only what it has not been told about");
   assert.deepEqual(result.expired, { count: 4, through: NOW, sources: [{ title: "定时任务", count: 3 }, { title: "Feed 来源", count: 1 }],
     owners: [expiredOwnerKey("p1", "schedule"), expiredOwnerKey("p2", "schedule"), expiredOwnerKey("p1", "feed"), expiredOwnerKey("p2", "feed"), expiredOwnerKey(null, "assistant")].sort() },
-    "one count across projects, by owner, the moment it was made, and the owners that answered");
-  const failing = await runtimeOverview(harness({ ...answers, "p1:feed.runs.overview": () => ({ source: { surface: "feed", title: "Feed" }, upcoming: [], missed: [] }) }).ports);
-  assert.deepEqual(failing.unavailable_sources, [{ project_id: "p1", provider_id: "feed", code: "actions.output_invalid" }], "an owner that does not say how many expired is not drawn");
-  assert.ok(!failing.expired.owners.includes(expiredOwnerKey("p1", "feed")), "and is not among the owners told: its mark stays where it was");
+    "one count across partitions, by owner, the moment it was made, and the owners read");
+  assert.deepEqual(result.missed, [], "none of them is listed: their seven days are over");
   assert.throws(() => runtimeExpiredSeenRequest({ through: "later" }), ActionError);
   assert.deepEqual(runtimeExpiredSeenRequest({ through: NOW }), { through: NOW });
 });
@@ -200,6 +204,9 @@ test("BL-missed-runs-never-expire /api/runtime/expired/seen isolates homes, igno
     db.db.prepare(
       "INSERT INTO schedule_missed_runs (project_id, run_id, kind, ref, title, due_at, missed_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)",
     ).run(project.project_id, `reminder:r1:${dueAt}`, "r1", "过期提醒", dueAt, missedAt);
+    // The row Schedule keeps with it in the overview (V17), which the panel reads.
+    await writeMainOverviewRows(homeA, db, project.project_id, scheduleManifest, rows => rows.upsert("scheduled_run",
+      { row_id: `reminder:r1:${dueAt}`, title: "过期提醒", due_at: dueAt, missed_at: missedAt, updated_at: missedAt }));
   } finally {
     db.close();
   }

@@ -22,7 +22,7 @@ const walChanges = new Set(["sqlite-version", "sqlite-owner", "sqlite-schema"]);
 async function fixture(t: TestContext, kind: string, changing = false) {
   const f = await smallSnapshotHome(t);
   if (kind.startsWith("file-")) {
-    const source = await f.file("images/assets/kept.bin", Buffer.alloc(2 * 1024 * 1024, 0x41));
+    const source = await f.file("plugin-files/install/kept.bin", Buffer.alloc(2 * 1024 * 1024, 0x41));
     if (kind === "file-link") await symlink(source, join(dirname(source), "linked.bin"));
     return { ...f, source };
   }
@@ -73,7 +73,7 @@ async function assertNoOutput(f: Awaited<ReturnType<typeof fixture>>) {
 
 test("RAC-109-S-06: public storage file ports classify static invalid input without copying it", async t => {
   const f = await smallSnapshotHome(t);
-  const source = await f.file("images/kept", "retained bytes"), alias = join(dirname(source), "hardlink");
+  const source = await f.file("plugin-files/kept", "retained bytes"), alias = join(dirname(source), "hardlink");
   await link(source, alias);
   const invalid = { code: "actions.input_invalid", kind: "invalid" };
   assert.throws(() => readSnapshotFile(source, 100), invalid);

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -49,60 +48,6 @@ test("VUX-31: a Todo that could not be ticked stays open, says why, and ticks th
   await evaluate("document.querySelector('[data-todo-done]').click()");
   await waitFor("document.querySelector('[data-todo-note-text]').textContent.startsWith('已完成')", 10_000);
   assert.equal((await state()).error, false);
-});
-
-test("VUX-31: a note task that could not be saved is unticked again and the notice says why", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
-  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "jelly");
-  const store = openJellyStore(browser.homeDirectory);
-  try { store.execute({ type: "note.create", id: "task-note", title: "出差清单", markdown: "- [ ] 订机票\n- [ ] 订酒店" }, store.read().revision); } finally { store.close(); }
-  await wide(browser); await openPlugin(browser, "jelly");
-  await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')", 20_000);
-  await browser.evaluate(`document.querySelector('[data-work-surface="jelly"]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: 'task-note' } }))`);
-  await waitFor("document.querySelectorAll('[data-jelly-task-check]').length === 2", 10_000);
-  const ticked = () => evaluate<boolean[]>("[...document.querySelectorAll('[data-jelly-task-check]')].map((box) => box.checked)");
-  const failing = await failRequests(browser, ["*io.molis.work.jelly/commands"]);
-  try {
-    await evaluate("document.querySelector('[data-jelly-task-check]').click()");
-    await waitFor("!document.querySelector('[data-jelly-notice]').hidden", 10_000);
-    assert.deepEqual(await ticked(), [false, false], "the box the person ticked is unticked again");
-    assert.equal(await evaluate("document.querySelector('[data-jelly-notice]').textContent"), MESSAGE);
-    assert.equal(await evaluate("document.querySelector('[data-jelly-notice]').classList.contains('is-error')"), true);
-    assert.equal(failing.count(), 1);
-  } finally { await failing.stop(); }
-  await evaluate("document.querySelector('[data-jelly-task-check]').click()");
-  await waitFor("[...document.querySelectorAll('[data-jelly-task-check]')].map((box) => box.checked).join() === 'true,false'", 10_000);
-});
-
-test("VUX-31: an item dropped on another day that could not be moved stays on its day and the notice says why", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
-  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "jelly");
-  const now = new Date(), day = (offset: number) => { const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, 12); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const store = openJellyStore(browser.homeDirectory);
-  try { store.execute({ type: "item.create", item: { id: "drag-a", title: "拖动的事项", kind: "task", start_date: day(0), end_date: day(0) } }, store.read().revision); } finally { store.close(); }
-  await wide(browser); await openPlugin(browser, "jelly");
-  await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')", 20_000);
-  await evaluate("document.querySelector('[data-jelly-mode=week]').click()");
-  await waitFor("!!document.querySelector('[data-jelly-occurrence=\"drag-a\"]') && document.querySelectorAll('[data-jelly-day]').length > 1", 10_000);
-  // Any other day of the week on the page is a place to drop it.
-  const target = await evaluate<string>(`[...document.querySelectorAll('[data-jelly-day]')].map((node) => node.dataset.jellyDay).find((value) => value !== ${JSON.stringify(day(0))})`);
-  const dropOn = () => evaluate(`(() => { const data = new DataTransfer(), item = document.querySelector('[data-jelly-occurrence="drag-a"]');
-    item.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }));
-    const cell = document.querySelector('[data-jelly-day="${target}"]');
-    cell.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }));
-    cell.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data })); })()`);
-  const dayOfItem = () => evaluate<string>("document.querySelector('[data-jelly-occurrence=\"drag-a\"]').closest('[data-jelly-day]').dataset.jellyDay");
-  assert.equal(await dayOfItem(), day(0));
-  const failing = await failRequests(browser, ["*io.molis.work.jelly/commands"]);
-  try {
-    await dropOn();
-    await waitFor("!document.querySelector('[data-jelly-notice]').hidden", 10_000);
-    assert.equal(await dayOfItem(), day(0), "the item stays on its day");
-    assert.equal(await evaluate("document.querySelector('[data-jelly-notice]').textContent"), MESSAGE);
-    assert.equal(failing.count(), 1);
-  } finally { await failing.stop(); }
-  await dropOn();
-  await waitFor(`document.querySelector('[data-jelly-occurrence="drag-a"]')?.closest('[data-jelly-day]')?.dataset.jellyDay === ${JSON.stringify(target)}`, 10_000);
 });
 
 test("VUX-31: a Shelf action dragged to another place that could not be saved goes back and the bar says why", { timeout: 120_000 }, async (t) => {

@@ -78,7 +78,7 @@ export function pluginMemoryScene(pluginId: string | null | undefined, explicit?
   return (projectId && installedScenes.get(installedKey(projectId, pluginId))) || activeHomeSceneFor(pluginId) || "common";
 }
 
-/** Who reads Skills in a plugin's workspace rounds: its declared scene (Coding's `coding`), or `agent` when it declares none. */
+/** Who reads Skills in a plugin's workspace rounds: its declared scene (its Manifest's `memory_scene`), or `agent` when it declares none. */
 export function skillConsumerOf(pluginId: string, projectId?: string | null): string {
   const scene = pluginMemoryScene(pluginId, undefined, projectId);
   return isPluginSceneName(scene) ? scene : "agent";

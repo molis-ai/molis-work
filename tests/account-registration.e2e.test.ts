@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {openGoalBrowser} from './fixtures/goal-browser.js';
 import {pluginFrameBrowser} from './fixtures/plugin-frame-browser.js';
+import {addProjectPlugin} from '@molis-ai/molis-work-test-kit/local-host-http';
+import {PERSONAL_SPACE_PROJECT_ID} from '@molis-ai/molis-work-contracts/platform/actions';
 import {accountRefreshFixture} from './fixtures/account-refresh.js';
 import {createSingleHomeTestWebServer} from './fixtures/local-web-core.js';
 import {createLocalWebAssets,createLocalHostWorkbenchRenderer} from '@molis-ai/molis-work-app-local-host';
@@ -30,7 +32,11 @@ test('ASR-04 first installation page stays inert until registration, while its r
   t.after(browser.on('Runtime.exceptionThrown',params=>{consoleErrors.push(params.exceptionDetails);}));
   try {
     await f.login('alice');
-    const html = await (await f.request('/plugins/cognia')).text();
+    // Cognia is a partition plugin (batch 108): the page opens it in the personal space it is added to.
+    const web={get:async<T,>(path:string)=>await (await f.request(path)).json() as T,post:async<T,>(path:string,body:unknown)=>{const response=await f.request(path,'POST',{},body);assert.equal(response.status,200,path);return await response.json() as T;}};
+    await addProjectPlugin(web as never,PERSONAL_SPACE_PROJECT_ID,'cognia');
+    const cogniaPage=`/projects/${PERSONAL_SPACE_PROJECT_ID}/?openPlugin=cognia`;
+    const html = await (await f.request(cogniaPage)).text();
     assert.match(html, /<body[^>]*\binert\b[^>]*data-account-registering/u, 'the interaction gate is present in SSR, before browser scripts run');
     await browser.command('Network.enable',{},browser.sessionId);
     await browser.command('Network.setCookie',{name:'molis-work-session',value:f.cookie.slice(f.cookie.indexOf('=')+1),url:f.origin},browser.sessionId);
@@ -47,7 +53,7 @@ test('ASR-04 first installation page stays inert until registration, while its r
       };
     }`},browser.sessionId);
     const child = await pluginFrameBrowser(t,browser,'cognia');
-    await browser.navigate(()=>browser.command('Page.navigate',{url:f.origin+'/plugins/cognia'},browser.sessionId));
+    await browser.navigate(()=>browser.command('Page.navigate',{url:f.origin+cogniaPage},browser.sessionId));
     await browser.waitFor('window.registrationProbe?.held && document.body.inert');
     await child.waitFor("document.querySelector('[data-cognia-search]')");
     await browser.waitFor("Boolean(document.querySelector('iframe[data-plugin-frame=cognia]')) && !document.querySelector('iframe[data-plugin-frame=cognia]').closest('[data-ui-client-state=loading]')");

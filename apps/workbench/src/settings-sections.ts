@@ -1,10 +1,11 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
+import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
+import { listedSettingsSections } from "./platform-settings-registry.js";
 import type { DynamicPluginSettingsNavItem } from "./settings-view.js";
 
 /**
- * The one list of global settings categories. The independent settings page and the settings cover in the
+ * The one list of global settings categories: the platform's (`platform-settings-registry.ts`) and the plugins'. The independent settings page and the settings cover in the
  * workbench both draw from it, so a category never exists in one and not the other (specs/archive/page-interaction-flow).
  *
  * Host pages carry a fixed order and a group. A plugin's settings page is placed by the `order` its Manifest
@@ -22,40 +23,10 @@ interface GlobalSettingsSection {
   readonly addressHash: string;
 }
 
-/** `desktop`: the page is the desktop app's own (设置 › 运行), listed only there. */
-interface HostSection { id: string; label: string; icon: PluginIconName; group: string; order: number; desktop?: true }
-
-/** The address a global settings category is served from. */
-export function globalSettingsSectionPath(id: string): string {
-  return (CAPABILITY_SETTINGS_SECTIONS as readonly string[]).includes(id) ? `/capabilities/${id}` : `/settings/${id}`;
-}
-
-const HOST_SECTIONS: readonly HostSection[] = [
-  { id: "appearance", label: "workbench.settings-sections.appearance-and-language", icon: "sun", group: "workbench.settings-sections.this-device", order: 10 },
-  { id: "directories", label: "workbench.settings-sections.local-directories", icon: "folder", group: "workbench.settings-sections.this-device", order: 12 },
-  { id: "memory", label: "workbench.settings-sections.memory", icon: "bookmark", group: "workbench.settings-sections.personal", order: 15 },
-  { id: "work-records", label: "workbench.settings-sections.work-records", icon: "database", group: "workbench.settings-sections.personal", order: 16 },
-  { id: "sync", label: "workbench.settings-sections.sync", icon: "network", group: "workbench.settings-sections.personal", order: 17 },
-  { id: "models", label: "workbench.settings-sections.models", icon: "key", group: "workbench.settings-sections.ai", order: 20 },
-  { id: "assistant", label: "workbench.settings-sections.assistant", icon: "message", group: "workbench.settings-sections.ai", order: 30 },
-  { id: "characters", label: "workbench.settings-sections.characters", icon: "user", group: "workbench.settings-sections.ai", order: 35 },
-  { id: "kit", label: "workbench.kit.title", icon: "sparkles", group: "workbench.settings-sections.ai", order: 45 },
-  { id: "runtimes", label: "workbench.settings-sections.ai-and-runtimes", icon: "terminal", group: "workbench.settings-sections.tools-and-access", order: 50 },
-  { id: "library", label: "workbench.settings-sections.capability-library", icon: "book", group: "workbench.settings-sections.tools-and-access", order: 60 },
-  { id: "connections", label: "workbench.settings-sections.service-connections", icon: "link", group: "workbench.settings-sections.tools-and-access", order: 61 },
-  { id: "web-search", label: "workbench.settings-sections.web-search", icon: "search", group: "workbench.settings-sections.tools-and-access", order: 61.5 },
-  { id: "access", label: "workbench.settings-sections.external-access", icon: "shield", group: "workbench.settings-sections.tools-and-access", order: 62 },
-  { id: "authorizations", label: "workbench.authorization.manage", icon: "key", group: "workbench.settings-sections.tools-and-access", order: 62.5 },
-  { id: "history", label: "workbench.settings-sections.call-history", icon: "workflow", group: "workbench.settings-sections.tools-and-access", order: 63 },
-  { id: "running", label: "workbench.settings-sections.running", icon: "clock", group: "workbench.settings-sections.system", order: 88, desktop: true },
-  { id: "update", label: "workbench.settings-sections.update", icon: "download", group: "workbench.settings-sections.system", order: 89 },
-  { id: "diagnostics", label: "workbench.settings-sections.diagnostics", icon: "bug", group: "workbench.settings-sections.system", order: 90 },
-];
-
 /** A host settings page's name in the person's language, for text that points at the page; undefined for an id that is no host page. */
 export function hostSettingsSectionLabel(id: string): string | undefined {
-  const section = HOST_SECTIONS.find(entry => entry.id === id);
-  return section ? uiText.text(section.label) : undefined;
+  const section = listedSettingsSections().find(entry => entry.id === id);
+  return section ? uiText.text(section.row.label) : undefined;
 }
 
 /** Plugin pages past every host page share one group. */
@@ -67,12 +38,13 @@ function globalSettingsSections(
   desktop: boolean,
   dynamicPlugins: readonly DynamicPluginSettingsNavItem[] = [],
 ): GlobalSettingsSection[] {
+  const hostSections = listedSettingsSections();
   const builtinPluginNav = listPluginSettingsNavItems(shown);
   const coveredPluginIds = new Set(builtinPluginNav.map(item => item.plugin_id));
-  const coveredSectionIds = new Set([...HOST_SECTIONS.map(item => item.id), ...builtinPluginNav.map(item => item.section_id)]);
+  const coveredSectionIds = new Set([...hostSections.map(item => item.id), ...builtinPluginNav.map(item => item.section_id)]);
   const dynamicNav = dynamicPlugins.filter(item => !coveredPluginIds.has(item.plugin_id) && !coveredSectionIds.has(item.section_id));
   const placed = [
-    ...HOST_SECTIONS.filter(section => desktop || !section.desktop).map((section) => ({ ...section, kind: "host" as const, addressQuery: "", addressHash: "" })),
+    ...hostSections.filter(section => desktop || !section.row.desktop).map(({ id, row }) => ({ id, label: row.label, icon: row.icon, group: row.group, order: row.order, kind: "host" as const, addressQuery: "", addressHash: "" })),
     ...builtinPluginNav.map((item) => ({
       id: item.section_id,
       label: item.label,
@@ -94,7 +66,7 @@ function globalSettingsSections(
       addressHash: "",
     })),
   ].sort((left, right) => left.order - right.order);
-  let group = HOST_SECTIONS[0]!.group;
+  let group = hostSections[0]!.row.group;
   return placed.map((section) => {
     if (section.kind !== "plugin") group = section.group;
     const own = section.kind === "plugin" ? (section.order < HOST_ORDER_END ? group : PLUGIN_GROUP) : section.group;

@@ -1,6 +1,6 @@
 # U1 升级链：设计
 
-状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 68](../post-anticorruption-roadmap/reference/decisions.md#decision-68)：通用 U1 升级引擎源码休眠保留在仓内，开发前阶段全部具体持久化库与带版本文件锁定 v1 且零 `upgrades` 升级段，所有具体 1→2 迁移段与开发期迁移门禁已清除；下文保留作为 1.0 启用时的引擎设计参考）。原 2026-11-06 设计与第 05 批（#1908/#1916/#1926/#1958/#1979）通用引擎实现保留；行为与验收见[升级后持续可用](spec.md)。
+状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)：通用 U1 升级引擎源码休眠保留在仓内，开发前阶段全部具体持久化库与带版本文件锁定 v1 且零 `upgrades` 升级段，所有具体 1→2 迁移段与开发期迁移门禁已清除；下文保留作为 1.0 启用时的引擎设计参考）。原 2026-11-06 设计与第 05 批（#1908/#1916/#1926/#1958/#1979）通用引擎实现保留；行为与验收见[升级后持续可用](spec.md)。
 
 **版本起点。** 各库已回到统一第 1 版：#1837 把它们归一，真实 Home 按检查单重建，统一起点登记在 `docs/releases/CHECKLIST.md` 第 4 节（#1914，2026-11-07）。#1837 把自有版本的维护入口收到 `tooling/versions.json`：代码里还是数字字面量，旁边一条 `/* @version <条目> */` 标记，由 `pnpm versions:generate` 改写，没有生成的常量文件。所以 §2.1 的写法不变；升版本是改表再生成，手改数字会被核对拦下；新基线同时加条目和标记。段的 `from` 不是版本声明，不用标记（`version-declarations.mjs` 的字段名单不含它）。
 
@@ -683,7 +683,7 @@ U1 的机制代码（U1-a～c）本身不改库的版本；随本批同一次合
 
 ### 15.2 跟进（不在 U1）
 
-- **已经没有的库（第 41 批，用户 2026-11-14 定）**：一个库连同它的主人不再存在时（Goals 的 Home 库 `goals/goals.db`，方法变成技能后没有主人），不写升级段，也不留读取代码；目录名登记在 `apps/local-host/src/home-upgrade.ts` 的 `REMOVED_HOME_STORES`，升级轮在列库之前把它连目录删掉（否则离线快照会因未登记条目报 `unknown_data`）。删除不可恢复，所以往这张表里加一项要先经用户确认，并记进 `docs/system/CONTRACT-CHANGES.md`。测试 `tests/home-upgrade.test.ts`「SKL-41-2」。
+- **已经没有的库（第 41 批，用户 2026-11-14 定）**：一个库连同它的主人不再存在时（Goals 的 Home 库 `goals/goals.db`，方法变成技能后没有主人），不写升级段，也不留读取代码；目录名登记在 `apps/local-host/src/home-upgrade.ts` 的 `removedHomeStores()`，升级轮在列库之前把它连目录删掉（否则离线快照会因未登记条目报 `unknown_data`）。删除不可恢复，所以往这张表里加一项要先经用户确认，并记进 `docs/system/CONTRACT-CHANGES.md`。测试 `tests/home-upgrade.test.ts`「SKL-41-2」。
 - `computer/` 不在 `homeStores()` 里：现有 Home 有这个目录时，离线快照报 `unknown_data`。`config/external-mcp-actions.json`、`config/connector-mcp-actions.json` 同样没登记。这是现成缺陷，和升级无关，主会话记 BL；U2 的覆盖面也要管它们。
 - `HOME-DATA.md` 与代码对不上的几处（核账第二节）在 U1-c 顺手只改升级相关的一行，其余另算。
 

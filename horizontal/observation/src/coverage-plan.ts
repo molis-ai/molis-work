@@ -20,14 +20,15 @@ const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "rep
 const SCHEDULE_ENTRY: ObservationEntry = "schedule";
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
-  // This covers the protected Goal source review (`goals.inputs.review_source`, `goals.inputs.review_change`),
-  // fixed Pages comparison (`pages.artifacts.diff`), Form-to-Dataset delivery (`placement.convert`, `dataset.content.receive`),
+  // This covers a plugin's protected source review and fixed-version comparison (each plugin registers its own rows), delivery between
+  // plugins (`placement.convert` and the receiving plugin's own action),
   // and dynamic Skill/Kit scene candidate reads and bindings (`kit.catalog.list`, `skills.kit.report`, `skills.catalog.list`,
   // `skills.import.preview`, `skills.import.confirm`, `skills.drafts.adopt`, `plugins.install.preview`), and signed package repair through the two protected settings actions
   // (`plugins.installed.repair`, `plugins.home.installed.repair`).
+  // Both signed-package install screens record the same plugins.install.confirm action exit, including an explicit discard of kept data.
   // Generated connection cards use the same connector binding and component-submit action exits; Studio icon selection belongs to the designer round.
   // Connector record binding, MCP configuration usage reports and connection list reads use this same action exit.
-  // The action exit also covers the work line's `background.tasks.decide` and Coding's `agent.reviews.pending-ids` and `agent.write-checks.read`.
+  // The action exit also covers the work line's `mainline.line.contains` and `background.tasks.decide` and Coding's `agent.reviews.pending-ids` and `agent.write-checks.read`.
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", SCHEDULE_ENTRY, "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },
   // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.
@@ -57,20 +58,21 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:agent", fact: "agent.subagent.events", entries: ["agent"], state: "unavailable", reason: "child_stream_not_followed" },
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
-  // Partition due-registry timer wakeups (`horizontal/scheduler/src/due-registry.ts`, batch 106; run by the Host since batch 107, which logs a
-  // fired entry it has no delivery for): delivery handlers and observation sink join in batch 108.
-  { owner: "service:scheduler", fact: "scheduler.due_wakeup", entries: [SCHEDULE_ENTRY], state: "not_connected", reason: "due_timer_sink_not_wired" },
-  // A per-partition plugin instance's start, stop, idle stop and crash (`apps/local-host/src/partition-plugin-host.ts`, batch 107): a failed
-  // start is in the Host log with the plugin, partition and code; the lifecycle joins the sink with the partition services in batch 108.
-  { owner: "service:home", fact: "home.partition_plugin_lifecycle", entries: ["host"], state: "not_connected", reason: "partition_lifecycle_sink_not_wired" },
-  // The background pass that settles a carry a cut left half done (`placement-actions.ts`, batch 107): the move that started it is the action
-  // exit's record; the pass itself writes the ledger's own history (`placement.carried`, `placement.carry_undone`) and no observation yet.
-  { owner: "service:home", fact: "home.placement_carry_settle", entries: ["background"], state: "not_connected", reason: "carry_settle_sink_not_wired" },
+  // Each fallen-due entry of a partition's due registry handed to its (plugin, partition) instance (batch 108): succeeded when it raised a
+  // reminder, no_action when it had none to raise, failed (and tried again) when the instance could not take it (`partition-observation.ts`).
+  { owner: "service:scheduler", fact: "scheduler.due_wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
+  // Each start and stop of a per-partition plugin instance, with why (opened, due, push, sync; idle, switched off, partition gone, Host
+  // closing) and the error's code when it failed (`PartitionPluginAssembly` lifecycle, batch 108).
+  { owner: "service:home", fact: "home.partition_plugin_lifecycle", entries: ["host"], state: "complete" },
+  // The background pass that settles a carry a cut left half done (`placement-actions.ts`): the move that started it is the action exit's
+  // record, the carries are the ledger's own history; each pass records how many it found and left (batch 108).
+  { owner: "service:home", fact: "home.placement_carry_settle", entries: ["background"], state: "complete" },
   // Each panel write on an Assistant work, joined to that work; the call's content is the exit's, the rounds it started are the agent's.
   { owner: "service:assistant", fact: "assistant.work", entries: ["workbench"], state: "complete" },
   { owner: "service:home", fact: "home.selection", entries: ["workbench"], state: "complete" },
-  // Portable person-settings sync channel (`horizontal/person-settings`, wired in `personal-sync.ts`): background replica sync observation sink is not wired yet.
-  { owner: "service:home", fact: "home.person_settings_sync", entries: ["background"], state: "not_connected", reason: "person_settings_sync_not_wired" },
+  // Portable person-settings sync channel (`horizontal/person-settings`, wired in `personal-config-sync.ts`): each change received and each
+  // upload confirmed, never the setting's key or value (batch 108).
+  { owner: "service:home", fact: "home.person_settings_sync", entries: ["background"], state: "complete" },
   { owner: "service:automation", fact: "automation.adoption", entries: ["workbench"], state: "complete" },
   // Grants whose owner keeps no history: a folder grant's row is deleted, an MCP grant is written over. Given by the person (in Settings, at the
   // folder chooser, through a task's categories) or taken by the Host after an uninstall or a folder that changed.

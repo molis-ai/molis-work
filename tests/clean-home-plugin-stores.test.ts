@@ -10,7 +10,7 @@ import { PAGES_DATABASE, pagesManifest } from "@molis-ai/molis-work-plugin-pages
 import { FORM_DATABASE, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { ISSUES_DATABASE, issuesManifest } from "@molis-ai/molis-work-plugin-issues";
 
-// Pages and Form keep a library in each partition (batch 107), opened there; Issues keeps its one Home library.
+// Pages and Form (batch 107) and Issues (batch 108) keep a library in each partition, opened there.
 const PARTITION = "project-clean";
 const cases = [
   { declaration: PAGES_DATABASE, manifest: pagesManifest, table: "pages", seed: "INSERT INTO pages (id,title,body_json,created_at,updated_at,version) VALUES ('kept','title','{}','t','t',1)" },

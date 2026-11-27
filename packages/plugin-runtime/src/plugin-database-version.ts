@@ -1,4 +1,5 @@
 import { pluginErrors, type PluginDatabaseDeclaration, type PluginDatabaseVersionSwitch, type PluginDefinition, type PluginDeployment, type PluginExecutor, type PluginInstanceRecord, type PluginManifest, type PluginRuntimeRepository, type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { resolveActionProviderId } from "./install-identity.js";
 import { pluginManifestDigest } from "./identity.js";
 import { cloneRecord, safeErrorMessage } from "./runtime-rules.js";
 import { outsidePluginAction } from "./action-scope.js";
@@ -69,7 +70,7 @@ export async function validateUpgradeFor(executor: PluginExecutor, definition: P
   const grants = Object.freeze([...targetGrants]);
   const context: PluginUpgradeContext = Object.freeze({
     install_id: from.install_id, installation_generation: from.installation_generation,
-    plugin_id: from.plugin_id, version: definition.manifest.version, deployment, grants, assertCurrent,
+    provider_id: resolveActionProviderId(from), plugin_id: from.plugin_id, version: definition.manifest.version, deployment, grants, assertCurrent,
     requireGrant(permission: string) {
       if (!grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
     },

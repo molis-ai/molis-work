@@ -1,10 +1,11 @@
 import { openPartitionPluginLibrary, partitionPluginScope, PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { COGNIA_DATABASE, CogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { DATASET_DATABASE, DatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_DATABASE, FormStore } from "@molis-ai/molis-work-plugin-form";
 import { JELLY_DATABASE, JellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LINGGUANG_DATABASE, LingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { PAGES_DATABASE, PagesStore, type PagesSql } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, PptStore } from "@molis-ai/molis-work-plugin-ppt";
@@ -26,13 +27,6 @@ const atomically = (db: DatabaseSync) => <T>(run: () => T): T => {
   try { const result = run(); db.exec("COMMIT"); return result; }
   catch (error) { db.exec("ROLLBACK"); throw error; }
 };
-// Seed the same complete library the Runtime opens, including platform-owned sync tables.
-function completeDeclaration(declaration: { store_name: string; version: number; schema: string }) {
-  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.map(row => row.manifest).find(row => row.databases?.home?.store_name === declaration.store_name);
-  return manifest?.databases?.home ? pluginSyncDatabaseDeclaration(manifest, manifest.databases.home) : declaration;
-}
-const open = (home: string, declaration: { store_name: string; version: number; schema: string }) => openBaselineHomeSqlite(home, declaration.store_name, completeDeclaration(declaration));
-
 /**
  * A plugin's library in one partition (U2): `<partition root>/libraries/<store>.db`, opened the way the Host opens it for that partition's instance
  * — the partition root checked, the complete baseline (with the platform's sync tables) applied, the Home's storage space bound.
@@ -50,9 +44,9 @@ function openPartition(home: string, partition: string, declaration: { store_nam
   return { db, file: scope.libraryPath(declaration.store_name) };
 }
 
-export function openTodoStore(home: string, now?: () => Date): TodoStore {
-  const db = open(home, TODO_DATABASE);
-  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+/** Todo's library in one partition (batch 108): the personal space unless a test names a project. */
+export function openTodoStore(home: string, now?: () => Date, partition = "personal"): TodoStore {
+  const { db } = openPartition(home, partition, TODO_DATABASE);
   return new TodoStore(sqlOf(db), atomically(db), () => db.close(), now);
 }
 export function openFormStore(home: string, partition: string): FormStore {
@@ -72,34 +66,32 @@ export function openPptStore(home: string, partition: string): PptStore {
   return new PptStore(sqlOf(db), partition, atomically(db), () => db.close());
 }
 /** Where a partition's library of one of these plugins lives, for tests that look at the file itself. */
+/** Images' library in one partition (batch 108), opened by the Host's own path; the test writes its rows directly. */
+export function openImagesDatabase(home: string, partition: string): DatabaseSync {
+  return openPartition(home, partition, { store_name: "images" }).db;
+}
 export const partitionLibraryFile = (home: string, partition: string, store: string) => partitionPluginScope(home, partition, store, `${store}-test`).libraryPath(store);
 /** A test's own connection to the library a plugin keeps in one partition (U2); the plugin must have made it already. */
 export const openPartitionLibraryDatabase = (home: string, partition: string, store: string) =>
   openSqliteConnection(partitionLibraryFile(home, partition, store), { fileMustExist: true });
 
-/** A library opened and given its baseline the way these three stores always were: the database first, then the baseline on it. */
-function openWithBaseline(home: string, declaration: { store_name: string; version: number; schema: string }, pragmas: string): DatabaseSync {
-  const db = openHomeSqliteDatabase(home, declaration.store_name);
-  try { db.exec(pragmas); applySqliteBaseline(db, homeSqlitePath(home, declaration.store_name), completeDeclaration(declaration)); return db; }
-  catch (error) { db.close(); throw error; }
+/** Jelly's rows in one partition (batch 108), the Runtime's shape without a caller: `write` runs in one transaction. The personal space unless a test names a project. */
+export interface JellyTestStore { read<T>(run: (store: JellyStore) => T): T; write<T>(run: (store: JellyStore) => T): T; close(): void }
+export function openJellyStore(home: string, partition = "personal"): JellyTestStore {
+  const { db } = openPartition(home, partition, JELLY_DATABASE);
+  const run = atomically(db);
+  const transaction: PluginDatabaseTransaction = {
+    get: (query: string, parameters: readonly SQLInputValue[] = []) => db.prepare(query).get(...parameters) ?? null,
+    all: (query: string, parameters: readonly SQLInputValue[] = []) => db.prepare(query).all(...parameters),
+    run: (query: string, parameters: readonly SQLInputValue[] = []) => db.prepare(query).run(...parameters),
+    savepoint: () => { throw new Error("Jelly 不用保存点"); },
+  };
+  return { read: work => work(new JellyStore(transaction)), write: work => run(() => work(new JellyStore(transaction))), close: () => db.close() };
 }
-export function openJellyStore(home: string): JellyStore {
-  const db = openWithBaseline(home, JELLY_DATABASE, "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-  try {
-    const run = atomically(db);
-    const store = new JellyStore({
-      get: (query, parameters = []) => db.prepare(query).get(...parameters) ?? null,
-      all: (query, parameters = []) => db.prepare(query).all(...parameters),
-      run: (query, parameters = []) => db.prepare(query).run(...parameters),
-    }, run, () => db.close());
-    run(() => store.initialize());
-    return store;
-  } catch (error) { db.close(); throw error; }
-}
-export function openCogniaStore(home: string): CogniaStore {
-  const db = openWithBaseline(home, COGNIA_DATABASE, "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-  const run = <T>(work: () => T): T => { db.exec("BEGIN IMMEDIATE"); try { const result = work(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; } };
-  return new CogniaStore(sqlOf(db), run, () => db.close());
+/** Cognia's library in one partition (batch 108); the personal space's unless a test names another. */
+export function openCogniaStore(home: string, partition = "personal"): CogniaStore {
+  const { db } = openPartition(home, partition, COGNIA_DATABASE);
+  return new CogniaStore(sqlOf(db), atomically(db), () => db.close());
 }
 export function openWorkflowsStore(home: string, partition: string): WorkflowsStore {
   const { db } = openPartition(home, partition, WORKFLOWS_DATABASE);

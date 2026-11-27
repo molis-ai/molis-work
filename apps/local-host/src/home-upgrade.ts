@@ -18,6 +18,8 @@ import {
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { diagnosticId } from "./home-unavailable-owners.js";
+import { shippedParts } from "./plugin-registry.js";
+import { homeStores } from "./home-stores.js";
 
 /** What this call did. Nothing to do reads `ran: false`; a store that failed is in `units`, not an exception (§5.2). */
 export interface HomeUpgradeReport {

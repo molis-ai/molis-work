@@ -9,7 +9,8 @@ import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { WORK_BRIEF_PLUGIN_ID } from "@molis-ai/molis-work-plugin-work-brief";
+import { dualPlugin } from "./fixtures/dual-plugin.js";
 import { homeStores, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -70,12 +71,11 @@ for (const version of [2, 1] as const) {
     assert.doesNotMatch(html, /<script\b[^>]*\bsrc\s*=/iu, "only the inline Host theme/desktop bootstrap may run");
     assert.doesNotMatch(html, /\btarget\s*=\s*["']?_blank\b|\bwindow\s*\.\s*open\s*\(/iu, "recovery stays in the current Host page");
     assert.doesNotMatch(html, /id="molis-work-data"/u, "the failure response has no Goals snapshot");
-    assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1, "the unavailable Runtime stage owns the only Issues page");
-    assert.doesNotMatch(html, /<form\b[^>]*\bdata-issue-composer\b/u, "Manifest fallback must not revive the unavailable plugin");
     assert.match(html, /data-home-plugin-unavailable/u);
     assert.match(html, /查看插件状态/u);
     assert.match(html, /Home 插件运行库不可用/u);
-    const own = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/state`);
+    // A Home plugin's own entry (Work Brief's Home half; Issues runs in partitions since batch 108) keeps its own failure.
+    const own = await request(`/api/plugins/${WORK_BRIEF_PLUGIN_ID}/enable`, { method: "POST", body: {} });
     assert.equal(own.status, 503, "the unavailable Home entry keeps its own failure");
     assert.deepEqual(readStore(runtimePath(home)), before, "no installs, grants, generations, releases, version or schema were changed");
     assert.deepEqual(await readFile(runtimePath(home)), beforeBytes, "rendering leaves the bad ledger bytes intact");
@@ -88,26 +88,29 @@ for (const version of [2, 1] as const) {
   });
 }
 
+// Since batch 108 the Home stage on a project page is a dual-instance plugin's whose view is in its Home half (no personal plugin draws one).
 test("W5-01-HOME-STAGE-01 Home stage remains single through Runtime disable and re-enable", { timeout: 60_000 }, async t => {
-  const { host, project, request } = await serveHomeRuntime(t);
+  const probe = dualPlugin("singlehomestage");
+  const { host, project, request } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: probe.home, dual_instance: true }], project: [probe.project] } });
   const one = await project("Home stage has one Runtime owner");
   const platform = await host.homePlugins!.ready();
-  const install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
+  const install = host.homePlugins!.installation(probe.id)!;
+  // One stage either way: the Home half's view while it runs, its placeholder while it does not.
+  const id = probe.id.replaceAll(".", "\\.");
+  const stage = new RegExp(`<section\\b[^>]*(?:\\bdata-plugin-owner="${id}"[^>]*\\bdata-plugin-slot="workbench\\.main"|data-work-surface="${id}"[^>]*data-home-plugin-unavailable)`, "gu");
   const page = async () => {
     const response = await request(`/projects/${one.project_id}`);
     assert.equal(response.status, 200, await response.clone().text());
     const html = await response.text();
-    assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1);
-    return html + pluginDocuments(html).join("");
+    assert.equal([...html.matchAll(stage)].length, 1);
+    return html;
   };
-  assert.match(await page(), /<form\b[^>]*\bdata-issue-composer\b/u);
-  platform.supervisor.revoke(ISSUES_PLUGIN_ID);
+  assert.doesNotMatch(await page(), /data-home-plugin-unavailable/u);
+  platform.supervisor.revoke(probe.id);
   await platform.runtime.stop(install.install_id);
-  const unavailable = await page();
-  assert.match(unavailable, /data-home-plugin-unavailable/u);
-  assert.doesNotMatch(unavailable, /<form\b[^>]*\bdata-issue-composer\b/u);
-  await platform.supervisor.enable(ISSUES_PLUGIN_ID);
-  assert.match(await page(), /<form\b[^>]*\bdata-issue-composer\b/u);
+  assert.match(await page(), /data-home-plugin-unavailable/u);
+  await platform.supervisor.enable(probe.id);
+  assert.doesNotMatch(await page(), /data-home-plugin-unavailable/u);
 });
 
 test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an interleaved stale update from another connection", { timeout: 60_000 }, async t => {

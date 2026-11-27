@@ -3,7 +3,6 @@ import test from "node:test";
 import { mkdir, truncate, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openProjectVersionStores, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { seedBoard } from "./fixtures/goal-application.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
@@ -307,58 +306,6 @@ for (const rejected of [false, true]) test(`QEA-23 stopping after the current ${
   assert.equal(await b.evaluate("window.__importCalls"), rejected ? 5 : 4);
 });
 
-// QEA-25: the native speech helper is a deterministic model stand-in. HTTP and stored versions are real;
-// one pre-dispatch transport failure is injected to verify that failed and untouched clips remain resumable.
-test("QEA-25 stopped transcription keeps failed and untouched clips across hiding, then resumes only those clips", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {
-  const b = await openImport(t, "en"); if (!b) return;
-  const helper = join(b.homeDirectory, "speech-helper");
-  await writeFile(helper, `#!${process.execPath}
-const fs=require('node:fs');
-if(!process.argv.includes('--allow-model-download')){process.stdout.write(JSON.stringify({error:'model_required',message:'Consent needed',approximate_bytes:1000000}));process.exit(1);}
-process.stderr.write(JSON.stringify({stage:'transcribing',progress:0.5})+'\\n');
-process.stdout.write(JSON.stringify({text:fs.readFileSync(process.argv[3],'utf8'),extractor:'fixture',pages:[],coverage:{status:'sufficient',processed_pages:0,total_pages:0,issues:[]}}));
-`, { mode: 0o700 });
-  const previous = process.env.MOLIS_MATERIAL_WHISPER_HELPER;
-  process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
-  t.after(() => { if (previous === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = previous; });
-  const files = ["first", "second", "third"].map(name => join(b.homeDirectory, `${name}.m4a`));
-  await Promise.all(files.map((file, index) => writeFile(file, `Clip ${index}.`)));
-  await b.pick(files); await b.click("[data-knowledge-import-submit]"); await b.idle();
-  const originals = b.records(); assert.equal(originals.length, 3);
-  assert.ok(originals.every(row => row.version === 1 && (row.payload as Record<string, unknown>).content === ""));
-  await b.evaluate(`(() => {
-    const original=window.molisWorkRequest.stream; window.__transcribeCalls=0;
-    window.molisWorkRequest.stream=async (...args)=>{
-      const call=++window.__transcribeCalls;
-      if(call===1)throw new Error('Fixture: transport unavailable before dispatch');
-      const saved=await original(...args);
-      if(call===2){window.__transcribeHeld=true;await new Promise(resolve=>{window.__releaseTranscribe=resolve;});}
-      return saved;
-    };
-  })()`);
-  await b.click("[data-knowledge-import-model-yes]"); await b.waitFor("window.__transcribeHeld === true", 30_000);
-  try {
-    await b.click("[data-knowledge-import-dialog] footer [data-knowledge-import-close]");
-    assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-dialog]').open"), true);
-  } finally { await b.evaluate("window.__releaseTranscribe()"); }
-  await b.idle();
-  assert.equal(await b.evaluate("window.__transcribeCalls"), 2);
-  assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-model]').hidden"), false);
-  assert.match(await b.evaluate<string>("document.querySelector('[data-knowledge-import-status]').textContent"), /1 transcribed, 2 still/);
-  assert.deepEqual(await b.rows(), [{ name: "first.m4a", failed: true, done: false }, { name: "second.m4a", failed: false, done: true }, { name: "third.m4a", failed: false, done: false }]);
-  await captureStoppedImport(b, "transcription-en");
-  await b.click("[data-knowledge-import-dialog] header [data-knowledge-import-close]"); await b.click("[data-knowledge-import-open]");
-  await b.click("[data-knowledge-import-model-yes]"); await b.idle();
-  assert.equal(await b.evaluate("window.__transcribeCalls"), 4);
-  assert.deepEqual(await b.rows(), [{ name: "third.m4a", failed: false, done: true }, { name: "first.m4a", failed: false, done: true }]);
-  assert.equal(await b.evaluate("document.querySelector('[data-knowledge-import-model]').hidden"), true);
-  for (const row of originals) {
-    const latest: ArtifactVersionRecord = openProjectVersionStores(b.store).artifacts.query.latestArtifactVersion(b.projectId!, row.artifact_id)!;
-    assert.equal(latest.version, 2, "each original gets one transcribed version, including the already-completed second clip");
-    assert.equal((latest.payload as Record<string, unknown>).content, `Clip ${["first", "second", "third"].indexOf(row.title)}.`);
-  }
-});
-
 async function captureStoppedImport(b: NonNullable<Awaited<ReturnType<typeof openImport>>>, name: string) {
   const evidence = `${REVIEW_EVIDENCE}/quality-experience-audit`; await mkdir(evidence, { recursive: true });
   for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
@@ -376,8 +323,10 @@ async function captureStoppedImport(b: NonNullable<Awaited<ReturnType<typeof ope
 test("QEA-25 online import offers Hide while waiting and retains the result on reopening", { timeout: 90_000 }, async t => {
   const b = await openImport(t, "en"); if (!b) return;
   withConnectorConnections(b.homeDirectory, store => store.createToken({ serviceId: "notion", displayName: "Fixture", token: "fixture-only-unused-token" }));
-  await b.evaluate(`document.querySelector('[data-knowledge-import-source]').value='notion'`);
   await b.click('[data-knowledge-import-dialog] input[name="kind"][value="online"]');
+  // The sources come from the integrations' declarations once online is chosen (44C), in their order; the connected one is picked as a person would.
+  await b.waitFor(`document.querySelector('[data-knowledge-import-source] option[value="notion"]')`);
+  await b.evaluate(`(() => { const picker = document.querySelector('[data-knowledge-import-source]'); picker.value = 'notion'; picker.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   await b.waitFor("!document.querySelector('[data-knowledge-import-submit]').disabled");
   await b.evaluate(`document.querySelector('[data-knowledge-import-url]').value='https://www.notion.so/fixture'`);
   await b.evaluate(`(() => {

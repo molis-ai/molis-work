@@ -153,9 +153,6 @@ export type SettingLayers = Partial<Record<SettingSource, SandboxJson>>;
 export type SettingSource = (typeof SETTINGS_SOURCES)[number];
 
 export interface SettingsDeclaration {
-    model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration & {
-        key: string;
-    };
     entries: SettingEntryDeclaration[];
     read: Pick<ActionReference, "capability_id" | "version">;
     write: Pick<ActionReference, "capability_id" | "version">;

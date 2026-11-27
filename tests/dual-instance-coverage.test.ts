@@ -34,7 +34,7 @@ type Shares = Record<"home" | "project", PluginAppContribution>;
 
 async function started(definition: PluginDefinition, redemption: RedemptionScope, service: ActionService, projectId?: string): Promise<PluginAppContribution | string> {
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, redemption: () => redemption,
-    actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: () => definition.manifest.plugin_id } });
+    actions: { registry: service, ...(projectId ? { project_id: projectId } : {}) } });
   const grants = definition.manifest.permissions.map(declared => declared.permission);
   try {
     const { install } = runtime.install({ definition, deployment: "local", trust: { level: "host" }, grants });

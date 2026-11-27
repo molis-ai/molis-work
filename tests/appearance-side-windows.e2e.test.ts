@@ -5,7 +5,8 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
-import { issueView, ISSUE_FRAME, type IssueBrowser } from "./fixtures/issue-browser.js";
+import { issueView, ISSUE_FRAME, personalIssues, type IssueBrowser } from "./fixtures/issue-browser.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
@@ -56,6 +57,14 @@ async function openTab(t: TestContext, b: IssueBrowser, path: string, plugin?: s
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, sessionId), sessionId);
   await wait("typeof molisWorkRestoreAppearance === 'function'");
   return { evaluate, wait, child, targetId };
+}
+
+/** Keep a real, previously opened capture document behind each window while testing connection sharing. */
+async function openAndCloseCapture(tab: Pick<IssueBrowser, "evaluate">, wait: (expression: string) => Promise<unknown>) {
+  await tab.evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'plugin', view: 'issues/capture' }, cancelable: true }))");
+  await wait(sideReady);
+  await tab.evaluate(String.raw`window.dispatchEvent(new KeyboardEvent("keydown", { key: "\\", metaKey: true, ctrlKey: true }))`);
+  await wait("document.body.dataset.sideOpen === 'false'");
 }
 
 function observeAppearance(b: IssueBrowser) {
@@ -109,12 +118,14 @@ async function openOutputFile(t: TestContext, b: IssueBrowser, workbench: string
   return tab;
 }
 
-test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a project file and a fourth can read it too", { timeout: 100_000 }, async t => {
+test("FSS-06 FSS-07 three Workbench windows with previously opened Issues still read a project file and a fourth can read it too", { timeout: 100_000 }, async t => {
   // Keep the real Web Host's catalog directory ports so the materials reader reads the configured output.
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, {}, undefined,
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
   assert.ok(b.projectId);
+  // Issues is a personal-space plugin (batch 108): the person has it there, and each window preloads its capture view.
+  await personalIssues(b);
   const project = `/projects/${b.projectId}`, workbench = project + "/";
   const page = openPagesStore(b.homeDirectory, b.projectId), decks = openPptStore(b.homeDirectory, b.projectId);
   const note = page.create({ title: "保留页面", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开 Pages" }] }] } });
@@ -129,18 +140,18 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a p
   const pages = await pluginFrameBrowser(t, b, "pages");
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + workbench + "?openPlugin=pages&openItem=" + note.id }, b.sessionId));
   await pages.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')?.textContent === '打开 Pages'");
-  await b.waitFor(sideReady);
+  await openAndCloseCapture(b, b.waitFor);
   const ppt = await openTab(t, b, workbench + "?openPlugin=ppt&openItem=" + deck.id, "ppt");
   await ppt.child!.waitFor("document.querySelector('[data-ppt-preview] .ppt-card h2')?.textContent === '打开 PPT'");
-  await ppt.wait(sideReady);
+  await openAndCloseCapture(ppt, ppt.wait);
 
   const files = await openTab(t, b, workbench);
-  await files.wait(sideReady);
+  await openAndCloseCapture(files, files.wait);
   await readOutputFile(files, file);
   const third = traffic.streams.size;
   const direct = await openOutputFile(t, b, workbench, file);
-  await direct.wait(sideReady);
-  assert.ok(traffic.opened.every(source => source.pathname === workbench), "preloaded Issues has no additional HTTP stream");
+  await openAndCloseCapture(direct, direct.wait);
+  assert.ok(traffic.opened.every(source => source.pathname === workbench), "opened Issues has no additional HTTP stream");
   assert.ok(third > 0 && third <= 3 && traffic.streams.size <= 4);
   t.diagnostic(JSON.stringify({ third, fourth: traffic.streams.size, embeddedStreams: traffic.opened.filter(source => source.pathname !== workbench).length }));
 });
@@ -150,7 +161,9 @@ test("FSS-06 FSS-07 QEA-169 three chooser windows keep their selected project an
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
   assert.ok(b.projectId);
-  const project = `/projects/${b.projectId}`, side = "/plugins/issues?side=capture";
+  // Issues is a personal-space plugin (batch 108): every partition's Issues tab draws the personal space's capture view.
+  const project = `/projects/${b.projectId}`, side = `/projects/${PERSONAL_SPACE_PROJECT_ID}/side/issues/capture`;
+  await personalIssues(b);
   const file = await seedOutputFile(b, b.projectId);
   singleHomeAccounts(b);
   const traffic = observeAppearance(b), chooserConnected = deferred();
@@ -162,16 +175,18 @@ test("FSS-06 FSS-07 QEA-169 three chooser windows keep their selected project an
   const selected = `location.pathname === '/' && document.body.dataset.arrival === 'chooser'
     && document.body.dataset.projectId === ${JSON.stringify(b.projectId)}
     && document.body.dataset.routePrefix === ${JSON.stringify(project)} && ${card}?.getAttribute('aria-selected') === 'true'`;
-  const ready = `${selected} && ${sideReady}`;
   await b.setViewport(1440, 950);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/" }, b.sessionId));
-  await b.waitFor(ready);
+  await b.waitFor(selected);
   const second = await openTab(t, b, "/");
-  await second.wait(ready);
+  await second.wait(selected);
   const third = await openTab(t, b, "/");
-  await third.wait(ready);
+  await third.wait(selected);
   const choosers = [{ evaluate: b.evaluate, wait: b.waitFor }, second, third];
-  for (const chooser of choosers) await chooser.evaluate(`window.originalChooserSide = ${issueDocument}`);
+  for (const chooser of choosers) {
+    await openAndCloseCapture(chooser, chooser.wait);
+    await chooser.evaluate(`window.originalChooserSide = ${issueDocument}`);
+  }
   await chooserConnected.promise;
 
   const chooserStreams = [...traffic.streams.values()].map(source => source.pathname + source.search);
@@ -200,7 +215,7 @@ test("FSS-07 FSS-27 a side view reads after the parent reconnects and applies ap
   const b = await openGoalBrowser(t, "user", undefined, null);
   if (!b) return;
   assert.ok(b.projectId);
-  const project = `/projects/${b.projectId}`, side = project + "/side/issues/capture";
+  const project = `/projects/${b.projectId}`, side = `/projects/${PERSONAL_SPACE_PROJECT_ID}/side/issues/capture`;
   const topPath = project + "/", directPath = side + "?standalone=1";
   singleHomeAccounts(b);
   const traffic = observeAppearance(b), reconnected = deferred(), directConnected = deferred();
@@ -220,7 +235,7 @@ test("FSS-07 FSS-27 a side view reads after the parent reconnects and applies ap
   const frameId = await issue.frame.frameId();
   await b.evaluate(`window.originalAppearanceSide = ${issueDocument}`);
   const direct = await openTab(t, b, directPath);
-  assert.equal(await direct.evaluate("document.body.dataset.sideView"), "issues");
+  assert.equal(await direct.evaluate("document.body.dataset.sideView"), "issues/capture", "a partition side view is named by plugin and view");
   await directConnected.promise;
   const { targetInfo } = await b.command<{ targetInfo: { targetId: string } }>("Target.getTargetInfo", {}, b.sessionId);
   await b.command("Target.activateTarget", { targetId: targetInfo.targetId });

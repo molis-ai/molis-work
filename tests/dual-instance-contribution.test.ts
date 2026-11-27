@@ -53,7 +53,7 @@ const projectHalf = () => plugin({ actions: [projectRead.handler], action_scenes
 
 function runtime(service: ActionService, redemption?: (definition: PluginDefinition) => RedemptionScope, projectId?: string) {
   return new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: new Set([PLUGIN, `${PLUGIN}-other`]), ...(redemption ? { redemption } : {}),
-    actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: record => record.plugin_id } });
+    actions: { registry: service, ...(projectId ? { project_id: projectId } : {}) } });
 }
 async function start(target: PluginRuntime, definition: PluginDefinition) {
   const grants = definition.manifest.permissions.map(declared => declared.permission);

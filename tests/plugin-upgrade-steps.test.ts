@@ -1,7 +1,7 @@
 // UPG1-14: a plugin's upgrade steps, by the one run every plugin gets (specs/upgrade-continuity/upgrade-chain-design.md §2.4). The refusals of a
 // step that reaches past the plugin's own tables are in tests/security-invariants-plugin-upgrade-steps.test.ts (S-147); the upgrade process
 // around them in tests/plugin-table-upgrade.test.ts (UPG1-10). Every plugin here exists only for its test, beside the built-in plugins'
-// tables of a project's library this build makes; the Todo library is the real declaration, in a temporary file.
+// tables of a project's library this build makes; a Home library with a business trigger is a probe of its own.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -12,7 +12,6 @@ import type { PluginDatabaseDeclaration, PluginManifest } from "@molis-ai/molis-
 import { pluginSyncDatabaseDeclaration, pluginSyncNamespace, runHomeUpgrade, upgradePluginLibrary, upgradePluginLibraryFile } from "@molis-ai/molis-work-app-local-host";
 import { PLUGIN_UPGRADE_NONDETERMINISTIC_FUNCTIONS } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { TODO_DATABASE, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import {
   declaration, foreignKeys, ledgerObjects, ledgerRow, libraryState, libraryTemplate, openCode, othersOf, probeManifest, projectLibrary, tracking, upgradeCode,
@@ -213,33 +212,37 @@ const homeCode = (db: ReturnType<typeof openSqliteConnection>, manifest: PluginM
   catch (error) { return String((error as { code?: unknown }).code); }
 };
 
-const todoAt = (version: number, sql?: string, reduces?: readonly string[]): PluginManifest =>
-  ({ ...todoManifest, databases: { home: { ...TODO_DATABASE, version, ...(sql ? { upgrades: [{ from: 1, sql, ...(reduces ? { reduces_rows: reduces } : {}) }] } : {}) } } });
+/** A Home library with a business trigger of its own: deleting a note records it in notes_gone. No shipped library declares one since Todo moved to partitions (batch 108). */
+const NOTES_SCHEMA = `CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL);
+CREATE TABLE notes_gone (id INTEGER PRIMARY KEY);
+CREATE TRIGGER notes_gone_log AFTER DELETE ON notes BEGIN INSERT INTO notes_gone (id) VALUES (OLD.id); END;`;
+const notesAt = (version: number, sql?: string, reduces?: readonly string[]): PluginManifest =>
+  probeManifest(declaration(1, "CREATE TABLE probe_unused (id INTEGER PRIMARY KEY);"), {
+    home: declaration(version, NOTES_SCHEMA, sql ? [{ from: 1, sql, ...(reduces ? { reduces_rows: reduces } : {}) }] : undefined, "probe_home"),
+  });
 
-test("UPG1-14 Todo's step DELETE FROM todo_items leaves no new row in todo_deleted_projects: the business trigger is not there while the steps run", t => {
-  const { db } = homeLibrary(t, todoAt(1), "INSERT INTO todo_items (id, title, status, placement, project_id, created_at, updated_at, revision) VALUES ('t1', 'one', 'open', 'inbox', 'p1', '2026-01-01', '2026-01-01', 1);");
-  const v2 = todoAt(2, "DELETE FROM todo_items", ["todo_items"]);
+test("UPG1-14 a step DELETE FROM notes leaves no new row in notes_gone: the business trigger is not there while the steps run", t => {
+  const { db } = homeLibrary(t, notesAt(1), "INSERT INTO notes (id, body) VALUES (1, 'one');");
+  const v2 = notesAt(2, "DELETE FROM notes", ["notes"]);
   assert.equal(homeCode(db, v2), "ok");
-  assert.equal(count(db, "todo_items"), 0);
-  assert.equal(count(db, "todo_deleted_projects"), 0, "what a trigger would do, the step writes itself");
-  assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND name = 'todo_deleted_project'").get(), "made again after the last step");
+  assert.equal(count(db, "notes"), 0);
+  assert.equal(count(db, "notes_gone"), 0, "what a trigger would do, the step writes itself");
+  assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND name = 'notes_gone_log'").get(), "made again after the last step");
   assert.equal(Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version), 2);
 });
 
 test("UPG1-14 a Home library with a business trigger: rebuilding its table keeps the trigger, word for word the declaration's", t => {
-  const { db } = homeLibrary(t, todoAt(1), "INSERT INTO todo_items (id, title, status, placement, project_id, created_at, updated_at, revision) VALUES ('t1', 'one', 'open', 'inbox', 'p1', '2026-01-01', '2026-01-01', 1);");
-  const create = TODO_DATABASE.schema.slice(TODO_DATABASE.schema.indexOf("CREATE TABLE todo_items"), TODO_DATABASE.schema.indexOf(");", TODO_DATABASE.schema.indexOf("CREATE TABLE todo_items")) + 2);
-  const rebuild = `${create.replace("CREATE TABLE todo_items", "CREATE TABLE todo_items_new")}
-    INSERT INTO todo_items_new SELECT * FROM todo_items; DROP TABLE todo_items; ALTER TABLE todo_items_new RENAME TO todo_items;
-    CREATE INDEX todo_items_project ON todo_items (project_id);`;
-  const v2 = todoAt(2, rebuild);
-  const trigger = () => rows(db, "SELECT sql FROM sqlite_schema WHERE type = 'trigger' AND name = 'todo_deleted_project'");
+  const { db } = homeLibrary(t, notesAt(1), "INSERT INTO notes (id, body) VALUES (1, 'one');");
+  const rebuild = `CREATE TABLE notes_new (id INTEGER PRIMARY KEY, body TEXT NOT NULL);
+    INSERT INTO notes_new SELECT * FROM notes; DROP TABLE notes; ALTER TABLE notes_new RENAME TO notes;`;
+  const v2 = notesAt(2, rebuild);
+  const trigger = () => rows(db, "SELECT sql FROM sqlite_schema WHERE type = 'trigger' AND name = 'notes_gone_log'");
   const before = trigger();
   assert.equal(homeCode(db, v2), "ok");
   assert.deepEqual(trigger(), before);
-  assert.equal(count(db, "todo_items"), 1);
-  db.exec("DELETE FROM todo_items");
-  assert.equal(count(db, "todo_deleted_projects"), 1, "the trigger works again after the round");
+  assert.equal(count(db, "notes"), 1);
+  db.exec("DELETE FROM notes");
+  assert.equal(count(db, "notes_gone"), 1, "the trigger works again after the round");
 });
 
 test("UPG1-14 across two versions, a current trigger that names a column the middle version does not have yet goes through: triggers are made only after the last step", t => {

@@ -10,6 +10,9 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDefinition,
+  PluginDueContext,
+  PluginDueDelivery,
+  PluginDueOutcome,
   PluginInstanceRecord,
   PluginManifest,
   PluginPrivateStorage,
@@ -17,6 +20,7 @@ import type {
   PluginUpgradeContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import {
@@ -29,6 +33,8 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
+  outsidePluginAction,
+  resolveActionProviderId,
   type InProcessAdmission,
   type PluginConsentLedger,
   type PluginEventsDatabase,
@@ -39,13 +45,14 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
-import type { PluginPlatformHome } from "./home-side.js";
+import { bundledDirectoryFor, type PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import { registerInstalledActions } from './installed-action-registration.js';
-import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from "./host-plugin-ids.js";
+import { HOST_PLUGIN_IDS, releasePackagesFor } from "./host-plugin-ids.js";
+import { localPublisherKeyId } from "./installed-plugin-publisher.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
@@ -150,6 +157,11 @@ export interface PluginPlatform {
   invokeOwnedAction<Input, Output>(expected: { actor_id: string; project_id: string; plugin_id: string; install_id: string; installation_generation: string },
     reference: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference, input: Input,
     control: import("@molis-ai/molis-work-contracts/platform/plugin").PluginExecutionControl): Promise<Output>;
+  /**
+   * Hands one due entry to the running plugin's `onDue` (batch 108), outside every action: what it does there is its own background work.
+   * Answers its outcome, or undefined when it gives no handler; refused when the plugin is not running here.
+   */
+  deliverDue(pluginId: string, delivery: PluginDueDelivery): Promise<PluginDueOutcome | undefined>;
   dualInstance(pluginId: string): boolean;
   /** Whether a dual-instance plugin's matching Home half is currently running (always true for non-dual plugins). */
   dualHomeRunning(record: PluginInstanceRecord): boolean;
@@ -229,6 +241,7 @@ async function startPlatformEntries(ctx: {
   options: PluginPlatformOptions;
   identity: ReturnType<typeof pluginEntryIdentity>;
   supervisor: PluginSupervisor;
+  runtime: PluginRuntime;
   wiring: PluginInputGraph;
   events: PluginEventBus;
   closed(): boolean;
@@ -251,7 +264,7 @@ async function startPlatformEntries(ctx: {
       const state = ctx.supervisor.state(entry.definition.manifest.plugin_id);
       if (!state?.install_id || state.status !== "running") return [];
       const installId = state.install_id;
-      return [{ manifest: entry.definition.manifest, providerId: ctx.identity.providerFor(entry.definition, installId),
+      return [{ manifest: entry.definition.manifest, providerId: resolveActionProviderId(ctx.runtime.get(installId)),
         current: () => !ctx.closed() && ctx.supervisor.state(entry.definition.manifest.plugin_id)?.status === "running" && ctx.supervisor.state(entry.definition.manifest.plugin_id)?.install_id === installId }];
     }) });
   return report;
@@ -261,7 +274,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
   if (options.home === undefined) throw new Error("插件平台要说明它的 Home：给出进程内的 Home，或明确给 null");
   const identity = pluginEntryIdentity();
-  const providerFor = identity.providerFor;
   const consents = options.consents ?? options.home?.consents ?? null;
   // One install table in the Home (batch 106, §4.2): a partition instance keeps its durable installation records, install directory
   // and signed release packages there with it, while keeping its own per-partition runtime state (`running`/`crashed`/idle stop) in
@@ -282,7 +294,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const isDualId = (pluginId: string): boolean => identity.dualInstanceId(pluginId) || isDualSandboxPlugin(supervisor, records, pluginId);
   const executor = new PluginHostExecutor({
     installations: installations.client, record: installId => records.get(installId), invalidateView,
-    providerFor, localePacks: identity.localePacks, databaseFor: identity.databaseFor, dualInstance: isDualDefinition,
+    localePacks: identity.localePacks, databaseFor: identity.databaseFor, dualInstance: isDualDefinition,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     ...(options.partitionScope ? { partitionScope: options.partitionScope } : {}),
     ...(options.projects ? { projects: options.projects } : {}),
@@ -296,10 +308,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const dualHomeRunning = (record: PluginInstanceRecord) => dualHomeRunningFor(options.home, isDualId, record);
   const effectiveGrants = (record: PluginInstanceRecord) => effectiveGrantsFor(runtime, isDualId, dualHomeRunning, record);
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
-    { inProcess: options.inProcess, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: options.installDatabase ? { kind: "home" } : { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
+    { inProcess: options.inProcess, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: options.installDatabase ? { kind: "home" } : { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: releasePackagesFor(bundledDirectoryFor(options.home?.directory), () => options.home ? localPublisherKeyId(options.home.directory) : null), ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: installDb, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
-      actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
+      actions: { ...options.actions,
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions, {
           dualHomeRunning: () => { const now = records.get(record.install_id); return Boolean(now && dualHomeRunning(now)); },
           effectiveGrants: () => { const now = records.get(record.install_id); return now ? effectiveGrants(now) : []; },
@@ -349,12 +361,31 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       rememberedScenes.clear();
       await wiring.close(); await events.close(); await hostEvents.close();
     },
+    async deliverDue(pluginId, delivery) {
+      const state = supervisor.state(pluginId), contribution = supervisor.contribution(pluginId);
+      const installId = state?.install_id;
+      const current = () => !closed && supervisor.state(pluginId)?.status === "running" && supervisor.state(pluginId)?.install_id === installId;
+      if (!installId || !contribution || !current()) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没有运行");
+      if (contribution.kind !== "app" || !contribution.onDue) return undefined;
+      const handler = contribution.onDue, controller = new AbortController();
+      const beforeEffect = () => {
+        if (controller.signal.aborted || !current()) throw new ActionError("actions.plugin_unavailable", "这个插件在这里已经停止");
+      };
+      const context: PluginDueContext = { project_id: options.project_id, plugin_id: pluginId, install_id: installId, signal: controller.signal, beforeEffect };
+      try {
+        const outcome = await outsidePluginAction(() => Promise.resolve().then(() => {
+          beforeEffect();
+          return handler.call(contribution, structuredClone(delivery), context);
+        }));
+        return outcome ?? undefined;
+      } finally { controller.abort(); }
+    },
     dualInstance: isDualId, dualHomeRunning, effectiveGrants,
     router: () => buildPlatformRouter(supervisor, runtime, records, isDualId),
     consents, upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, opt) => supervisor.upgrade(pluginId, definition, opt),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-    start: (entries, control) => startPlatformEntries({ options, identity, supervisor, wiring, events, closed: () => closed }, entries, control),
+    start: (entries, control) => startPlatformEntries({ options, identity, supervisor, runtime, wiring, events, closed: () => closed }, entries, control),
   };
 }
 

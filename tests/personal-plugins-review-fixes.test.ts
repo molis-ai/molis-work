@@ -105,11 +105,12 @@ async function listenDispatcher(
 // Batch 61: the web search service's Home library `web-search/` (the default source and its last use; never a key).
 // BL-b44-feed-home-dir-and-styles: the platform's secrets and evidence bodies sit in `security/` (once `feed/`).
 // Batch 106: the due registry, the evidence ledger and the settings that follow the person, each a Home library of its own.
+// Batch 108: Todo, Issues, Cognia, Images and Jelly keep a library in each partition (under `personal-space/` and `projects/`), none in the Home.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.ok(homeStores().get("config/native-session-token")?.snapshot.omit, "本机账号桥接凭据必须排除在离线快照之外");
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "config/mcp-client-credentials", "sync", "projects", "personal-space", "outputs", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "blueprints", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "memory-forgetting.json", "observation", "evaluation", "external-sessions", "conversation-attachments", "mainline", "home-pages", "materials", "web-search", "search", "knowledge", "security", "feed-content", "server",
-    "issues", "cognia", "images", "jelly", "todo", "work-brief", "artifacts", "agent-runtime", "runtime-config-backups",
+    "work-brief", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/automation-recommendations.json", "config/automation-offers.json", "config/onboarding.json", "config/plugin-publisher.json",
     "config/project-arrival.json", "config/ui-locale.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "due-registry", "evidence", "person-settings", "interface", "upgrade", "run", "config/desktop.json"].sort());
 });
@@ -444,7 +445,7 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
         actorId: "web-user", homeDirectory: home, actions: pluginActions(store, DEMO_PROJECT_ID) });
       assert.ok(platform, "Runtime 必须实际启动，不能仅将 app 插件从检查中排除");
       // A plugin's market words are its Manifest's `summary` since W5-02 PR-B (B2); the registration no longer carries them.
-      const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.manifest.summary));
+      const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => Boolean(entry.manifest.summary));
       const packed = new Set(BUILTIN_PLUGIN_WORKBENCH.map(pack => pack.project_plugin_id));
       for (const entry of shipped) {
         if (packed.has(entry.project_plugin_id)) continue;
@@ -471,17 +472,18 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
 test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
   await withHome(async (home) => {
     const host = new MolisWorkLocalHost({ homeDirectory: home });
-    let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
-    let server: MolisWorkServer | undefined;
+    // A failure while setting up (the grant, say) still closes the host: its running plugins (Schedule's reconcile loop) would
+    // otherwise keep the file alive until the runner's timeout, and the failure would read as a hang.
     try {
       // The Home is served so that the project and the client's grants are made the way a person makes them, through the settings routes.
-      served = await serveTestHost(t, { home, host });
+      const served = await serveTestHost(t, { home, host });
+      // Batch 107 (做法 A): Pages is no longer a personal plugin, so a new project carries it only once it is added.
       const project = await served.createProject("MCP Promote", ["pages"]);
       const databasePath = project.database_path;
       const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
       const createName = molisWorkActionToolName(pagesActions.create), readName = molisWorkActionToolName(pagesActions.get), promoteName = molisWorkActionToolName(pagesActions.promote);
       await served.grant(caller.actor_id, project.project_id, [pagesActions.create, pagesActions.get, pagesActions.promote]);
-      server = new MolisWorkServer("runtime", {
+      const server = new MolisWorkServer("runtime", {
         databasePath,
         projectId: project.project_id,
         webBaseUrl: "http://127.0.0.1:4173",
@@ -490,47 +492,50 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
         runtimeContext: { runtime_id: "codex", stable_work_context_id: "pages-promote", host_declares_stable: true },
         webBaseUrl: "http://127.0.0.1:4173",
       }, host);
-      await server.handleMessage({
-        jsonrpc: "2.0",
-        id: 0,
-        method: "initialize",
-        params: { protocolVersion: "2025-03-26", capabilities: {} },
-      });
-      const created = await server.handleMessage({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name: createName, arguments: { title: "MCP 发出", goal_id: "CORE" } },
-      }) as { result: { isError: boolean; content: Array<{ text: string }> } };
-      assert.equal(created.result.isError, false, created.result.content[0]?.text);
-      const page = JSON.parse(created.result.content[0]?.text ?? "{}") as { document: { id: string } };
-      const current = await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call",
-        params: { name: readName, arguments: { id: page.document.id } } }) as { result: { isError?: boolean; content: Array<{ text: string }> } };
-      assert.notEqual(current.result.isError, true, current.result.content[0]?.text);
-      const read = JSON.parse(current.result.content[0]?.text ?? "{}") as { document: { version: number } };
-      assert.ok(Number.isInteger(read.document.version));
-      const promoted = await server.handleMessage({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "tools/call",
-        params: { name: promoteName, arguments: { id: page.document.id, goal_id: "CORE", expected_version: read.document.version } },
-      }) as { result: { isError: boolean; content: Array<{ text: string }> } };
-      assert.equal(promoted.result.isError, false, promoted.result.content[0]?.text);
-      const body = JSON.parse(promoted.result.content[0]?.text ?? "{}") as { artifact: { artifact_id: string } };
-      assert.equal(body.artifact.artifact_id, `pages-${page.document.id}`);
-      const verify = new LocalProjectDatabase(databasePath);
       try {
-        const library = openProjectVersionStores(verify);
-        assert.ok(library.artifacts.query.getArtifactVersion(project.project_id, {
-          artifact_id: body.artifact.artifact_id,
-          version: 1,
-        }));
+        await server.handleMessage({
+          jsonrpc: "2.0",
+          id: 0,
+          method: "initialize",
+          params: { protocolVersion: "2025-03-26", capabilities: {} },
+        });
+        const created = await server.handleMessage({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: createName, arguments: { title: "MCP 发出", goal_id: "CORE" } },
+        }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+        assert.equal(created.result.isError, false, created.result.content[0]?.text);
+        const page = JSON.parse(created.result.content[0]?.text ?? "{}") as { document: { id: string } };
+        const current = await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call",
+          params: { name: readName, arguments: { id: page.document.id } } }) as { result: { isError?: boolean; content: Array<{ text: string }> } };
+        assert.notEqual(current.result.isError, true, current.result.content[0]?.text);
+        const read = JSON.parse(current.result.content[0]?.text ?? "{}") as { document: { version: number } };
+        assert.ok(Number.isInteger(read.document.version));
+        const promoted = await server.handleMessage({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: { name: promoteName, arguments: { id: page.document.id, goal_id: "CORE", expected_version: read.document.version } },
+        }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+        assert.equal(promoted.result.isError, false, promoted.result.content[0]?.text);
+        const body = JSON.parse(promoted.result.content[0]?.text ?? "{}") as { artifact: { artifact_id: string } };
+        assert.equal(body.artifact.artifact_id, `pages-${page.document.id}`);
+        const verify = new LocalProjectDatabase(databasePath);
+        try {
+          const library = openProjectVersionStores(verify);
+          assert.ok(library.artifacts.query.getArtifactVersion(project.project_id, {
+            artifact_id: body.artifact.artifact_id,
+            version: 1,
+          }));
+        } finally {
+          verify.close();
+        }
       } finally {
-        verify.close();
+        await server.close();
+        await served.close();
       }
     } finally {
-      await server?.close();
-      await served?.close();
       await host.close();
     }
   });

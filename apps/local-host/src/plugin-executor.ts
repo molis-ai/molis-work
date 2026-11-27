@@ -1,4 +1,3 @@
-import { observationPluginDataCleared } from "./observation-host.js";
 import { ActionError, requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
@@ -21,6 +20,7 @@ import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hoo
 
 import { commitInstalledDatabaseUpgrade } from "./plugin-sandbox-database-upgrade.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
+import { forgetMainOverviewRows } from "./plugin-overview-service.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -75,12 +75,6 @@ export interface PluginHostExecutorOptions {
   /** Test seam for `services.sourcePull.connector`: the Home's integration registry, with providers of the test's own. Production never passes it. */
   sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
-  /**
-   * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
-   * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions
-   * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
-   */
-  providerFor?(definition: PluginDefinition, installId: string): string;
   /**
    * The installation's record as the Runtime's repository holds it now. An activation's jobs read it before every write
    * (`services.background.keep`, PG-038); without it a job is refused, never trusted.
@@ -143,10 +137,10 @@ export class PluginHostExecutor implements PluginExecutor {
     if (this.options.home) directoryForHome(this.options.home.directory).forgetInstallation(record.install_id, this.options.project_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
-    // Its work records in this project, and the content of the calls it answered or made, go with its data (observation-collection §6).
-    if (this.options.home && !record.retain_private_data) observationPluginDataCleared(this.options.home.directory, record, this.options.project_id);
     // File registrations and record bindings are authorization, removed on every uninstall even when private data is kept (BL-356).
     forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+    // Its rows in the partition's overview summary table are the platform's, like an authorization: they go on every uninstall (V17).
+    if (this.options.projectLibrary?.db) forgetMainOverviewRows(this.options.projectLibrary.db, record.install_id);
   }
 
   prepareReinstall(record: PluginInstanceRecord): void {
@@ -160,7 +154,6 @@ export class PluginHostExecutor implements PluginExecutor {
 
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
-    if (this.options.home) observationPluginDataCleared(this.options.home.directory, record, this.options.project_id);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */
@@ -198,7 +191,7 @@ export class PluginHostExecutor implements PluginExecutor {
         || context.actor_id !== expected.actor_id || context.plugin_id !== expected.plugin_id
         || this.options.project_id !== expected.project_id || this.options.actor_id !== expected.actor_id
         || !definition || definition.operation !== "command" || !definition.action.audiences?.includes("plugin")
-        || reference.provider_id !== (this.options.providerFor?.(held.definition, expected.install_id) ?? expected.install_id))
+        || reference.provider_id !== context.provider_id)
         throw new ActionError("actions.provider_stopped", "原来源安装或自有动作已不再可用");
     };
     check(); await control.beforeEffect(); check();

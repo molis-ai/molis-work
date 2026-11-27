@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { homeAggregatePorts } from "./home-aggregate.js";
 import { hostHasTextModel } from "./host-complete-text.js";
 import { currentHostPresence } from "./host-presence.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { homeScheduledRuns } from "./home-overview.js";
 import { decideRuntimeRun, hasNetwork, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
 import { expiredSeen, markExpiredSeen } from "./runs-expired-seen.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -24,11 +24,12 @@ function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReferen
 
 export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: string): RuntimeOverviewPorts {
   return {
-    aggregate: homeAggregatePorts(host),
+    projectRuns: async (window, bounds) => homeScheduledRuns({ home: homeDirectory, reach: partitionId => host.projectPluginReach(partitionId) }, await host.partitions(), window, bounds),
     within: async (projectId, work) => {
       if (projectId === null) return work(personRuns(host, undefined));
-      const reference = host.projects().find(row => row.project_id === projectId && row.state !== "closing");
-      // A project that is not open now is not opened to decide one of its runs: its row is gone from the panel until it is.
+      // The panel lists a sleeping project's runs from the overview, so the person's 「现在做」 or 「跳过」 opens it to hand the run to its owner.
+      const reference = host.projects().find(row => row.project_id === projectId && row.state !== "closing")
+        ?? (await host.closedProjects()).find(row => row.project_id === projectId);
       return reference ? host.withProject(reference, () => work(personRuns(host, reference))) : undefined;
     },
     now: () => new Date(), online: hasNetwork,

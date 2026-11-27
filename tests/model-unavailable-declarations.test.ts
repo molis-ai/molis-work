@@ -6,9 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { IMAGES_ACTION_PERMISSIONS, imagesActions } from "@molis-ai/molis-work-plugin-images";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { homeSqlitePath, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 // AI entry inventory 7.4: an action that cannot work for want of a model or a connection says so in the directory, so the
 // Assistant sees the reason before it calls. The directory says so to the Assistant, MCP clients, workflows and plugins; the
@@ -20,7 +20,6 @@ async function fixture(t: test.TestContext) {
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   const home = await mkdtemp(join(tmpdir(), "model-unavailable-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   t.after(async () => {
     await host.close(); resetSecretStoreCache();
     if (previousBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
@@ -32,7 +31,8 @@ async function fixture(t: test.TestContext) {
   const availability = async (capabilityId: string, audience: ActionAudience) =>
     (await host.inspectActions(caller("a", audience), ref)).find(view => view.capability_id === capabilityId)!.availability;
   const project = (audience: ActionAudience) => bindActionClient(host.actionClient(ref), () => caller("a", audience));
-  const personal = bindActionClient(host.homeActionClient(), () => caller(null, USER));
+  // The image services follow the person (batch 108): the person's page sets them up from any partition Images is in, here a.
+  const personal = bindActionClient(host.actionClient(ref), () => caller("a", USER));
   return { home, availability, project, personal };
 }
 
@@ -62,8 +62,8 @@ test("generating an image is unavailable to the Assistant until an image service
 test("W5-01-IMGPORT-01 Images startup opens its owned store; directory availability does not write business data", async t => {
   const f = await fixture(t);
   await f.availability(imagesActions.start.capability_id, AGENT);
-  const path = homeSqlitePath(f.home, "images");
-  assert.ok(existsSync(path), "the Home Runtime opens and recovers Images before publishing its actions");
+  const path = partitionLibraryFile(f.home, "a", "images");
+  assert.ok(existsSync(path), "the partition's instance opens and recovers Images before publishing its actions");
   const contents = () => [path, path + "-wal"].map(file => existsSync(file) ? readFileSync(file) : null);
   const before = contents();
   for (const audience of ["agent", "mcp", "workflow", "plugin", "user"] as const) await f.availability(imagesActions.start.capability_id, audience);

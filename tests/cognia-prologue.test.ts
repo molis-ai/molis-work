@@ -15,7 +15,7 @@ import { COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/m
 import { ModelProviderStore, initializeCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 
@@ -38,9 +38,11 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
   models(store => { store.upsert({ credential_ref: connection.credential_ref!, provider_id: "cognia-test", display_name: "Cognia model", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] }); });
   ensureSystemAgentService(host, home);
-  const bound = bindActionClient(host.homeActionClient(), () => ({ actor_id: "trusted-cognia-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
+  // Cognia works in a partition (batch 108): these calls are made in project "a".
+  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+  const bound = bindActionClient(host.actionClient(reference), () => ({ actor_id: "trusted-cognia-user", project_id: "a", audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
   t.after(async () => { await host.close(); if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); rmSync(home, { recursive: true, force: true }); });
-  return { home, host, bound, models, secrets, connection };
+  return { home, host, reference, bound, models, secrets, connection };
 }
 
 
@@ -116,7 +118,7 @@ for (const protocol of ["http", "https"]) test(`configured Cognia model runs thr
     assert.equal(draft.body, "完整运行结果 [S1]"); assert.equal(requests, 1);
     hold = true;
     const abort = new AbortController();
-    const pending = f.host.homeActionClient().invoke({ actor_id: "network-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, signal: abort.signal }, actions.synthesize, { material_ids: [material.id] });
+    const pending = f.host.actionClient(f.reference).invoke({ actor_id: "network-user", project_id: "a", audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, signal: abort.signal }, actions.synthesize, { material_ids: [material.id] });
     const rejected = assert.rejects(pending);
     await entered.promise; abort.abort(); await rejected;
     assert.equal(requests, 2); assert.equal((await f.bound.invoke(actions.workspace, {})).drafts.length, 1);

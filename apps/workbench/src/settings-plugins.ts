@@ -45,6 +45,8 @@ export function renderPluginTrustSettings({ projectId, chevron, kinds }: { readT
  */
 export const PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT = String.raw`
 (() => {
+const renderPluginWord = node => { node.textContent = globalThis.t.text(node.dataset.pluginWord, node.dataset.keptName ? { name: node.dataset.keptName, version: node.dataset.keptVersion } : {}); };
+const pluginWord = (node, key) => { node.dataset.pluginWord = key; renderPluginWord(node); return node; };
 const bind = (root) => {
 if (!root || root.dataset.pluginTrustBound === "1") return;
 root.dataset.pluginTrustBound = "1";
@@ -231,7 +233,14 @@ return box;
 };
 const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act, managed) => {
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
-copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", readText(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + readText(STATE[plugin.state] || plugin.state)));
+const status = el("span");
+status.append(pluginWord(el("span"), TRUST[plugin.trust] || plugin.trust), " · ");
+if (plugin.publisher_label) {
+const label = el("span", "", plugin.publisher_label); label.translate = false;
+status.append(label, " · ");
+}
+status.append(pluginWord(el("span"), STATE[plugin.state] || plugin.state));
+copy.append(el("strong", "", plugin.name + " · " + plugin.version), status);
 copy.id = "plugin-trust-description-" + (act === homeApi ? "home-" : "project-") + plugin.install_id;
 summary.setAttribute("aria-label", readText("workbench.settings-plugins.plugin-details", { plugin: plugin.name }));
 summary.setAttribute("aria-describedby", copy.id);
@@ -310,7 +319,7 @@ draw($("publishers"), readText("workbench.settings-plugins.have-not-pinned-publi
 if (outcome) result();
 };
 const preview = $("preview");
-const close = () => { preview.replaceChildren(); preview.hidden = true; };
+const close = () => { preview.replaceChildren(); preview.hidden = true; $("choose").focus(); };
 const review = (shown) => {
 const view = shown.preview, panel = el("div", "plugin-trust-review"); panel.style.overflowWrap = "anywhere";
 panel.append(el("h3", "", shown.name + " · " + view.version), el("span", "settings-muted", view.plugin_id + " · " + readText("workbench.settings-plugins.signed-id", { id: shown.publisher.key_id })));
@@ -350,12 +359,24 @@ field.append(el("span", "", readText("workbench.settings-plugins.have-not-truste
 const footer = el("div", "plugin-trust-actions"), cancel = button(readText("common.control.cancel"), "mw-btn--secondary"), install = button(readText("workbench.settings-plugins.agree-install"), "mw-btn--primary");
 footer.style.flexWrap = "wrap"; install.style.maxWidth = "100%"; install.style.whiteSpace = "normal";
 cancel.addEventListener("click", close);
+let discard = false;
 install.addEventListener("click", async () => {
 const name = label ? label.value.trim() : "";
 if (label && !name) { label.setAttribute("aria-invalid", "true"); label.focus(); return; }
+if (shown.kept_data_incompatible && !discard) {
+discard = true;
+const heading = el("h3"), description = el("p");
+description.dataset.keptName = shown.name; description.dataset.keptVersion = view.version;
+for (const [node, word] of [[heading, "cannot-read-kept-data"], [description, "discard-consequence"], [cancel, "not-installing-now"], [install, "discard-and-install"]]) {
+pluginWord(node, "workbench.package-install-card." + word);
+}
+install.classList.replace("mw-btn--primary", "mw-btn--danger");
+panel.replaceChildren(heading, description, footer); heading.tabIndex = -1; heading.dataset.installFocus = ""; heading.focus();
+return;
+}
 install.disabled = true; error.hidden = true;
-try { await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(label ? { pin_label: name } : {}) }); toast(readText("workbench.settings-plugins.installed")); await load(); await globalThis.molisSkillUI.enable(preview, root.dataset.project, view.plugin_id, close); }
-catch (failure) { fail(failure, badPackage(failure)); install.disabled = false; }
+try { const done = await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(discard ? { discard_kept_data: true } : {}), ...(label ? { pin_label: name } : {}) }); toast(readText(done.retained_cleanup_incomplete ? "workbench.package-install-card.cleanup-incomplete" : "workbench.settings-plugins.installed")); await load(); await globalThis.molisSkillUI.enable(preview, root.dataset.project, view.plugin_id, close); }
+catch (failure) { close(); fail(failure, badPackage(failure)); }
 });
 footer.append(cancel, install); panel.append(footer);
 preview.replaceChildren(panel); preview.hidden = false; panel.scrollIntoView?.({ block: "nearest" });
@@ -388,6 +409,10 @@ globalThis.molisWorkBindPluginTrustSettings = (container = document) => {
 if (container.matches?.("[data-plugin-trust-settings]")) bind(container);
 else container.querySelectorAll?.("[data-plugin-trust-settings]").forEach(bind);
 };
+document.addEventListener("molis-work:language-changed", () => {
+const cached = globalThis.molisWorkSettingsLanguageRoots?.() || [];
+for (const root of [document, ...cached.filter(panel => !panel.isConnected)]) root.querySelectorAll("[data-plugin-word]").forEach(renderPluginWord);
+});
 document.addEventListener("molis-work:settings-embed", (event) => globalThis.molisWorkBindPluginTrustSettings(event.detail && event.detail.root));
 const start = () => globalThis.molisWorkBindPluginTrustSettings(document);
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();

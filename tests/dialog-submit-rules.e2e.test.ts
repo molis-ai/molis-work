@@ -438,6 +438,9 @@ test("VUX-29: while a plugin's modal dialog is open the workbench outside its fr
   await command("Page.bringToFront", {}, sessionId);
   await waitFor("document.readyState === 'complete' && typeof globalThis.molisWorkControlHeaders === 'function'", 20_000);
   await view.waitFor("document.querySelector('[data-work-surface]')");
+  // The page can draw before the frame's runtime has connected to the workbench; a dialog opened before then is one the workbench is
+  // never told of. Wait for the runtime's own hook on showModal (it is how the workbench hears of a modal), not for time.
+  await view.waitFor("!String(HTMLDialogElement.prototype.showModal).includes('[native code]')");
   const scrim = await evaluate<string>(BACKDROP);
   assert.notEqual(scrim, "rgba(0, 0, 0, 0)", "a modal dialog's backdrop has a colour");
   type Seen = { outside: Array<{ color: string; opacity: number; on: string }>; inside: string; animated: string };

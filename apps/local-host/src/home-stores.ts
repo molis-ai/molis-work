@@ -2,7 +2,7 @@ import { DUE_REGISTRY_HOME_STORE } from "@molis-ai/molis-work-service-scheduler"
 import { EVIDENCE_HOME_STORE } from "@molis-ai/molis-work-service-evidence";
 import { PERSON_SETTINGS_HOME_STORE } from "@molis-ai/molis-work-service-person-settings";
 import { MCP_CLIENT_CREDENTIAL_DIRECTORY } from "./mcp-client-credentials.js";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname } from "node:path";
 import { HOME_SECURITY_DIRNAME, readStorageSpace } from "@molis-ai/molis-work-storage";
 import { installedSnapshotOptions } from "./installed-library-snapshot.js";
 import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
@@ -36,7 +36,6 @@ import { lstatSync } from "node:fs";
 import { inspectSnapshotSqlite } from "@molis-ai/molis-work-storage";
 import { ORIGINAL_FILES_HOME_STORE } from "./material-original-files.js";
 import { CONVERSATION_ATTACHMENTS_HOME_STORE } from "./material-attachments.js";
-import { MATERIALS_HOME_STORE } from "./material-home.js";
 import type { HomeStoreSnapshotExclusion } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIRECTORY_GRANTS_HOME_STORE } from "./plugin-directory-store.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
@@ -67,12 +66,6 @@ import {SYNC_HOME_STORE} from '@molis-ai/molis-work-module-sync-replication';
  * declares, `databases.home`). `uninstall --purge-user-data` removes all of them (decision #20); a plugin may be given a library only if the
  * library is registered here as its own. Built on first use: the stores are declared in modules that may import this one.
  */
-/** Where the plugins this build ships keep their model choice (`model_configuration.preference`), for the upgrade process. */
-export const platformModelPreferences = (): readonly { readonly owner: string; readonly path: string }[] => shippedParts().flatMap(({ manifest }) => {
-  const preference = manifest.settings_entries?.model_configuration?.preference;
-  return preference ? [{ owner: manifest.plugin_id, path: join(preference.store_name, preference.file_name) }] : [];
-});
-
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs", "preserve") }),
@@ -93,7 +86,11 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("apps/local-host/src/installer", { path: "backups", snapshot: { emptyOnly: true } }),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, WEB_SEARCH_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
-      ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, MATERIALS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
+      ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE,
+      // Retired with on-device transcription (batch 112, user 2026-11-26): nothing creates or reads `materials/` any more. An older Home may
+      // still hold its model cache; this entry only keeps it out of snapshots so backups go on working. Kept mechanism in CONTRACT-CHANGES.md,
+      // removed at the batch-90 v1 seal.
+      { path: "materials", snapshot: omittedSnapshot("Retired transcription model cache (batch 112); safe to delete", "reset") }),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("horizontal/scheduler", DUE_REGISTRY_HOME_STORE),
     ...owned("horizontal/evidence", EVIDENCE_HOME_STORE),

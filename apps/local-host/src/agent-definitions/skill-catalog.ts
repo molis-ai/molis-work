@@ -275,7 +275,10 @@ export class SkillCatalog {
         ? "个人空间的技能设置统一使用全局个人层（home），这里没有项目层"
         : "需要当前项目才能设置项目技能");
     }
-    const scoped = input.scope === "home" ? { ...caller, project_id: null } : caller;
+    // The personal space keeps its settings in the person's own layer (`scopeOf`), and sees the Skills of the plugins running in it as
+    // well as the Home's (batch 108: Issues, Todo, Cognia and Images run in the personal space's partition).
+    const personalSpace = caller.project_id === PERSONAL_SPACE_PROJECT_ID;
+    const scoped = input.scope === "home" && !personalSpace ? { ...caller, project_id: null } : caller;
     // Await authority, then recheck the captured installation synchronously before committing.
     const skills = await this.ports.withSkills(scoped, skills => skills);
     await caller.beforeEffect();
@@ -286,7 +289,7 @@ export class SkillCatalog {
     const live = this.ports.publishers();
     skill.assertCurrent();
     skill.assertPublisher(live);
-    if (input.scope === "home" && skill.pack.scope !== "home") throw skillErrors.scope_mismatch("项目技能不能设到个人空间");
+    if (input.scope === "home" && skill.pack.scope !== "home" && !personalSpace) throw skillErrors.scope_mismatch("项目技能不能设到个人空间");
     const availability = skill.availability;
     if (!availability.available && SKILL_SETTINGS_LOCKED_REASONS.some(reason => reason === availability.reason))
       throw skillErrors.settings_locked("请先恢复技能所在的插件", { reason: availability.reason });

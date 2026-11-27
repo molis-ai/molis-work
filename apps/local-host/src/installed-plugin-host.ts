@@ -15,7 +15,8 @@ import { openProjectVersionStores } from './project-version-stores.js';
 import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-studio';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-studio';
-import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./project-plugin-databases.js";
+import { stageProjectDatabaseDiscard, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import type { LocalProjectDatabase } from './project-database.js';
 import type { PluginPlatform, PluginPlatformOptions } from './plugin-platform.js';
@@ -164,12 +165,12 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
     holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId, platform.runtime.get(installId)) });
   const declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') => {
     const record = recordFor(release.pluginId);
     if (!record || !release.packaged || record.version !== installedVersion(release)) return;
     const value = definition(release, approvedFor(release.pluginId) ?? release.permissions);
     rememberInstalledMemoryScene(projectId, release.pluginId, state === 'enabled' ? value.manifest.memory_scene : undefined);
-    declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored);
+    declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, record.installation_generation);
     reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({
@@ -182,6 +183,10 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     records,
   });
   const lifecycleContext: InstalledLifecycleContext = { platform, home: homeDirectory, library: store.path, project_id: projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+    discardDatabase(previous, next) {
+      const schema = (manifest?: PluginManifest) => manifest?.databases?.project && { declaration: manifest.databases.project, ...projectPluginPlatformExtension(manifest) };
+      return stageProjectDatabaseDiscard(store.db, previous, schema(packages.installedManifest(previous)), schema(next), projectPluginSchemaInspector, store.path);
+    },
     async forget(pluginId, installId) {
       declared.release(pluginId);
       forgetInstalledMemoryScene(projectId, pluginId);
@@ -264,7 +269,7 @@ async function reconcileInstalledDualHalf(ctx: {
   platform: PluginPlatform;
   withdraw(pluginId: string): void;
   expose(release: InstalledRelease): Promise<void>;
-  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
   standing: ReturnType<typeof publisherStanding>;
   definition(release: InstalledRelease, approved: SandboxEffects): ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
 }, pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) {

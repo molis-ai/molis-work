@@ -81,7 +81,7 @@ async function openProbe() {
     ] };
   } });
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
-    { hostIds: new Set([PLUGIN]), actions: { registry: service, project_id: "project-one", providerId: () => PLUGIN } });
+    { hostIds: new Set([PLUGIN]), actions: { registry: service, project_id: "project-one" } });
   // This fixture Host ships the definition; the stable plugin-id provider requires the Host's evidence.
   const installed = runtime.install({ trust: { level: "host" }, definition, deployment: "local", grants: [MODEL] }).install;
   await runtime.start(installed.install_id);

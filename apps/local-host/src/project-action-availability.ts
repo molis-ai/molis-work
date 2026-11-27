@@ -1,5 +1,5 @@
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
-import { availableProjectPluginIds, builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
+import { availableProjectPluginIds, builtinPluginByManifestId } from "./plugin-registry.js";
 import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
@@ -53,16 +53,15 @@ export function cachedProjectReachablePlugins(
   return reachable;
 }
 
-export function projectMembershipReach({ plugins, hidden }: ProjectPluginMembership): ReadonlySet<string> {
-  return availableProjectPluginIds(shownProjectPlugins(plugins, hidden));
+export function projectMembershipReach({ plugins }: ProjectPluginMembership): ReadonlySet<string> {
+  return availableProjectPluginIds(plugins);
 }
 
 /**
- * The plugins a project's actions and routes may reach right now (PG-013): what it shows (enabled ones, and personal ones the person
- * did not hide there) and what those embed. `null` where there is no project record (a deleted project): nothing is hidden there.
- * The one list actions and routes share; it reads the catalog on every call, so hiding and unhiding count at once. `outsideBuild` is
- * the Home's personal plugins its build does not ship (`homePluginsOutsideBuild`, #679): reached unless the project hid them. A caller
- * that passes none reaches none of them.
+ * The plugins a project's actions and routes may reach right now (PG-013): the ones the project has and what those embed. `null`
+ * where there is no project record (a deleted project). The one list actions and routes share; it reads the catalog on every call, so
+ * adding and taking out count at once. `outsideBuild` is the Home plugins its build does not ship (`homePluginsOutsideBuild`, #679):
+ * reached unless the project hid them (until batch 109-3). A caller that passes none reaches none of them.
  */
 export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
   outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
@@ -79,8 +78,11 @@ export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "
   }
 }
 
-/** Whether a catalog plugin can be reached from a project: where there is no project list, only a personal plugin (it has nothing to hide). */
-export function pluginReachable(entry: Pick<PluginRegistration, "personal" | "project_plugin_id">, reachable: ReadonlySet<string> | null): boolean {
+/**
+ * Whether a catalog plugin can be reached from a project: where there is no project list, only a Home plugin outside the build (it is on
+ * in every project and has nothing to hide; removed with the Home runtime in batch 109-3).
+ */
+export function pluginReachable(entry: { readonly personal?: true; readonly project_plugin_id: string }, reachable: ReadonlySet<string> | null): boolean {
   return reachable === null ? entry.personal === true : reachable.has(entry.project_plugin_id);
 }
 

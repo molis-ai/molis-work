@@ -99,7 +99,7 @@ export const assistantUnderWay = (state: string | null | undefined): boolean => 
 
 /** The surface a work, message or material came from. Data about the screen, never an instruction. */
 export interface AssistantSurfaceRef {
-  /** e.g. `pages`, `coding`, `home`. */
+  /** e.g. a plugin's project key, or `home`. */
   surface: string;
   plugin_id?: string;
   /** What the person saw it called. */
@@ -197,7 +197,7 @@ export interface AssistantPageCardInput {
 
 export interface AssistantEffectDetail {
   work_id: string;
-  /** The capability it ran, e.g. `pages.docs.update`; surfaces match on their own prefix. */
+  /** The capability it ran, e.g. `notes.docs.update`; surfaces match on their own prefix. */
   capability_id: string;
   /** For work carried by a plugin's own session. */
   session_id?: string | null;

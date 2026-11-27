@@ -220,8 +220,8 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const demoId = created.project.project_id;
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
-        // Batch 107: the six former personal plugins are project plugins now, so the demo turns them on like the rest.
-        ["coding", "dataset", "feed", "form", "goals", "inbox", "lingguang", "pages", "ppt", "risk", "schedule", "workflows"],
+        // Batches 107 and 108: the former personal plugins are project plugins now, so the demo turns them on like the rest.
+        ["coding", "cognia", "dataset", "feed", "form", "goals", "images", "inbox", "issues", "jelly", "lingguang", "pages", "ppt", "risk", "schedule", "todo", "workflows"],
       );
       const existing = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(existing.status, "existing");

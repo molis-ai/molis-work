@@ -197,9 +197,15 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     const runtimeBackup = join(item.home, "runtime-config-backups", "codex", "before-molis-work.bak");
     await mkdir(dirname(runtimeBackup), { recursive: true });
     await writeFile(runtimeBackup, "runtime config backup\n");
-    for (const storeName of ["images", "jelly", "todo", "functions"]) {
+    // Jelly keeps its library in each partition since batch 108 (the personal space above); Functions keeps a Home library of its own.
+    for (const storeName of ["functions"]) {
       await mkdir(join(item.home, storeName), { recursive: true });
       await writeFile(join(item.home, storeName, `${storeName}.db`), "personal-store\n");
+    }
+    // Images and Todo keep a library in each partition since batch 108: the personal space's go with its directory.
+    for (const storeName of ["images", "todo"]) {
+      await mkdir(join(item.home, "personal-space", "libraries"), { recursive: true });
+      await writeFile(join(item.home, "personal-space", "libraries", `${storeName}.db`), "partition-library\n");
     }
     // The discussion tab's database, with the WAL files a running host leaves beside it, is registered with the purge too.
     const discussionDatabase = join(item.home, "server", "server.sqlite");
@@ -227,7 +233,9 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     }
     assert.ok(plan.changes.some((change) => change.target === join(item.home, "runtime-config-backups")));
     assert.ok(plan.changes.some((change) => change.target === join(item.home, "server")), "purge 要删讨论库 server/");
-    for (const storeName of ["images", "jelly", "todo", "functions"]) {
+    assert.ok(plan.changes.some((change) => change.target === join(item.home, "personal-space")), "purge 要删个人空间（含其中各插件的库）");
+    // Jelly keeps its library in each partition since batch 108 (the personal space above); Functions keeps a Home library of its own.
+    for (const storeName of ["functions"]) {
       assert.ok(
         plan.changes.some((change) => change.target === join(item.home, storeName)),
         `purge 要删 ${storeName} 个人库`,

@@ -10,7 +10,6 @@ import { TODO_ORGANIZE_DATA_MAX_CHARS, organizeParts, organizePrompt, parseOrgan
 import { TodoOrganizer, validEdits, type TodoApplyResult, type TodoCandidateDecision } from "./organize.js";
 import { TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
 import type { TodoAccess, TodoStores } from "./store.js";
-import { withProjectReach } from "./reach.js";
 
 export { TODO_BATCH_SUBJECT_KIND };
 
@@ -20,14 +19,13 @@ const array = (items: unknown, extra: Record<string, unknown> = {}) => ({ ...arr
 const date = { ...text, pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 const time = { ...text, pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$" };
 const choices = (entries: readonly (readonly [string, string])[], title?: string) => ({ oneOf: entries.map(([value, name]) => ({ const: value, title: name })), ...(title ? { title } : {}) });
-const placement = choices([["personal", "个人空间"], ["project", "当前项目"], ["unassigned", "暂未归类"]], "放在哪里");
 const subject = object({ kind: { ...id, maxLength: 80 }, id });
 const open = object({ surface: { ...text, pattern: "^[a-z0-9_-]{1,40}$" }, id });
 const changeValues = object(Object.fromEntries(["title", "due_date", "due_time", "planned_date", "notes"].map(key => [key, nullable(text)])), []);
 const candidate = object({
   candidate_id: id, kind: { enum: ["request", "commitment", "waiting", "suggestion"] }, title: text, why: text,
   owner: object({ value: text, stated: { type: "boolean" } }), due_date: nullable(date), due_time: nullable(time), due_phrase: nullable(text),
-  suggested_date: nullable(date), topic: nullable(text), placement, waiting: nullable(object({ who: text, what: text })),
+  suggested_date: nullable(date), topic: nullable(text), waiting: nullable(object({ who: text, what: text })),
   evidence: array(object({ material: { type: "integer", minimum: 1 }, excerpt: text })), uncertain: array(text), depends_on: array(id),
   existing: nullable(object({ item_id: id, title: text, relation: { enum: ["same", "update", "conflict", "maybe_done", "reopen"] }, changes: changeValues,
     protected: array(object({ field: { enum: ["title", "due_date", "due_time", "planned_date", "notes"] }, value: nullable(text) })), reason: text })),
@@ -36,24 +34,24 @@ const candidate = object({
 });
 const material = object({ index: { type: "integer", minimum: 1 }, title: text, subject: nullable(subject), open: nullable(open), received_at: nullable(text),
   read: { enum: ["read", "truncated", "failed"] }, note: text });
-const batch = object({ batch_id: id, title: text, origin: { enum: ["assistant", "onboarding", "manual"] }, project_id: nullable(id), method: text,
+const batch = object({ batch_id: id, title: text, origin: { enum: ["assistant", "onboarding", "manual"] }, method: text,
   materials: array(material), candidates: array(candidate), reference_only: array(object({ summary: text, material: { type: "integer", minimum: 1 } })),
   notes: array(text), status: { enum: ["open", "done"] }, created_at: text, updated_at: text, revision: { type: "integer", minimum: 1 } });
 const materialInput = object({ title: { ...text, minLength: 1, maxLength: 200, title: "材料名称（邮件主题、文件名）" }, text: { ...text, minLength: 1, maxLength: 200_000, title: "材料正文" },
   subject: nullable(subject), open: nullable(open), received_at: nullable({ ...text, maxLength: 40, title: "材料的发出或收到时间" }),
   read: { enum: ["read", "truncated", "failed"], title: "读成了多少：全文、只读了一部分、没读成" }, note: { ...text, maxLength: 200, title: "没读全时说明缺了什么" } }, ["title", "text"]);
 const decision = object({ candidate_id: id, action: choices([["add", "加入待办"], ["merge", "合并到已有待办"], ["update", "更新已有待办"], ["complete", "把已有待办标为完成"], ["reopen", "重新打开已有待办"], ["ignore", "忽略"]], "怎么处理"),
-  edits: object({ title: { ...text, minLength: 1, maxLength: 200 }, due_date: nullable(date), due_time: nullable(time), planned_date: nullable(date), placement, notes: { ...text, maxLength: 10_000 } }, []),
+  edits: object({ title: { ...text, minLength: 1, maxLength: 200 }, due_date: nullable(date), due_time: nullable(time), planned_date: nullable(date), notes: { ...text, maxLength: 10_000 } }, []),
   accept_protected: array({ enum: ["title", "due_date", "due_time", "planned_date", "notes"] }), ignore_reason: { ...text, maxLength: 100 } }, ["candidate_id", "action"]);
 
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   permissions: readonly string[], extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<I, O> {
-  return withProjectReach(createActionDefinition<I, O>(`todo.${name}`, operation, { title, description, scope: "home",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input, output_schema: output, ...extra }, version));
+  return createActionDefinition<I, O>(`todo.${name}`, operation, { title, description, scope: "project",
+    audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input, output_schema: output, ...extra }, version);
 }
 const READ = ["todo:read"], WRITE = ["todo:read", "todo:write"];
 
-const batchReader = defineSubjectContextAction("todo.batch.subject.read", /* @version action.todo.batch.subject.read */ 1, TODO_BATCH_SUBJECT_KIND, "整理结果", ["todo:read"], "home");
+const batchReader = defineSubjectContextAction("todo.batch.subject.read", /* @version action.todo.batch.subject.read */ 1, TODO_BATCH_SUBJECT_KIND, "整理结果", ["todo:read"]);
 
 export const todoOrganizeActions = {
   extract: define<{ materials: TodoOrganizeMaterial[]; title?: string; request?: string; request_id?: string; origin?: "onboarding"; me?: string[]; method?: "basic" | "organizer" }, { batch: TodoBatch; replayed: boolean }>(
@@ -83,7 +81,7 @@ export interface TodoOrganizePorts extends TodoStores {
   modelAvailability(): ActionAvailability;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   today?(): string;
-  access(caller: ActionCallContext, reach?: "caller" | "listed" | "required"): TodoAccess;
+  access(caller: ActionCallContext): TodoAccess;
 }
 
 const KIND: Record<string, string> = { request: "要你处理", commitment: "你的承诺", waiting: "在等别人", suggestion: "建议" };
@@ -146,20 +144,20 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
     // Onboarding's drafts (contract-design §2.5): the same organizer and request key, in the platform's shape.
     bind(todoOnboardingActions.draft, async (input, caller) => ({ batch: onboardingDraftBatch((await extract({ origin: "onboarding", title: input.title, request_id: input.request_id,
       materials: input.materials.map(material => ({ title: material.title, text: material.text })) }, caller)).batch) }), { availability: () => ports.modelAvailability() }),
-    bind(todoOnboardingActions.get, (input, caller) => reading(value => ({ batches: input.ids.map(id => onboardingDraftBatch(value.get(id, ports.access(caller, "listed")))) }))),
+    bind(todoOnboardingActions.get, (input, caller) => reading(value => ({ batches: input.ids.map(id => onboardingDraftBatch(value.get(id, ports.access(caller)))) }))),
     bind(todoOnboardingActions.keep, (input, caller) => writing(caller, value => {
-      const access = ports.access(caller, "listed"), batch = value.get(input.id, access);
+      const access = ports.access(caller), batch = value.get(input.id, access);
       if (batch.revision !== input.expected_revision) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
       const decisions = keepDecisions(batch, input.keep);
       return { batch: onboardingDraftBatch(decisions.length ? value.apply(input.id, decisions, input.expected_revision, access).batch : batch) };
     })),
-    bind(todoOrganizeActions.list, (input, caller) => reading(value => ({ batches: value.list(ports.access(caller, "listed"), input.status ?? "open") }))),
-    bind(todoOrganizeActions.get, (input, caller) => reading(value => ({ batch: value.get(input.id, ports.access(caller, "listed")) }))),
+    bind(todoOrganizeActions.list, (input, caller) => reading(value => ({ batches: value.list(ports.access(caller), input.status ?? "open") }))),
+    bind(todoOrganizeActions.get, (input, caller) => reading(value => ({ batch: value.get(input.id, ports.access(caller)) }))),
     bind(todoOrganizeActions.apply, (input, caller) => writing(caller, value => {
       if (!input.decisions.every(entry => validEdits(entry.edits))) throw todoErrors.invalid("日期或时间写法不对");
-      return value.apply(input.id, input.decisions, input.expected_revision, ports.access(caller, "listed"));
+      return value.apply(input.id, input.decisions, input.expected_revision, ports.access(caller));
     })),
-    bind(todoOrganizeActions.close, (input, caller) => writing(caller, value => ({ batch: value.close(input.id, ports.access(caller, "listed")) }))),
+    bind(todoOrganizeActions.close, (input, caller) => writing(caller, value => ({ batch: value.close(input.id, ports.access(caller)) }))),
     { ...todoOrganizeActions.subject, handle: (caller, input) => reading(value => {
       const found = value.get((input as { subject_id: string }).subject_id, ports.access(caller));
       return subjectContext({ subject: { kind: TODO_BATCH_SUBJECT_KIND, id: found.batch_id }, revision: String(found.revision), title: found.title, content: batchText(found),

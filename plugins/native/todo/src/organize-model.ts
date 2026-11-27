@@ -1,5 +1,5 @@
 import { fencedMaterials, instructed, MODEL_DATA_MAX_CHARS, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidate, type TodoCandidateKind, type TodoItem, type TodoPlacement } from "./contract.js";
+import { TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidate, type TodoCandidateKind, type TodoItem } from "./contract.js";
 import { isTodoDate, isTodoTime, localDate } from "./dates.js";
 import { parseTodoQuickText } from "./quick-parse.js";
 
@@ -33,7 +33,6 @@ const TODO_ORGANIZE_PART_CHARS = 40_000;
 export const TODO_ORGANIZE_DATA_MAX_CHARS = MODEL_DATA_MAX_CHARS;
 
 const KINDS: readonly TodoCandidateKind[] = ["request", "commitment", "waiting", "suggestion"];
-const PLACEMENTS: readonly TodoPlacement[] = ["project", "personal", "unassigned"];
 const RELATIONS = ["same", "update", "conflict", "maybe_done"] as const;
 const CHANGE_FIELDS = ["title", "due_date", "due_time", "planned_date", "notes"] as const;
 
@@ -278,7 +277,6 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
       ref, kind, title, why: text(value.why, 500), owner: { value: ownerWho, stated: ownerStated },
       due_date: dueDate, due_time: dueDate ? dueTime : null, due_phrase: phrase,
       suggested_date: suggested, topic: text(value.topic, 80) || null,
-      placement: PLACEMENTS.includes(value.placement) ? value.placement as TodoPlacement : "unassigned",
       waiting, evidence, uncertain, depends_on: (Array.isArray(value.depends_on) ? value.depends_on : []).map((entry: unknown) => text(entry, 20)).filter(Boolean),
       existing: existingLink,
     });

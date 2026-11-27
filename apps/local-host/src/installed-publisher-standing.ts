@@ -42,11 +42,18 @@ export function publisherStops(c: { standing: ReturnType<typeof publisherStandin
     try { if (record.state === 'running') await c.platform.runtime.stop(record.install_id); }
     catch (error) { c.recoveryErrors.set(record.plugin_id, pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE + '（停用没有完成：' + (error instanceof Error ? error.message : String(error)) + '）')); }
   };
-  let reconciledAt = consentRevision();
-  const reconcile = async () => {
-    if (reconciledAt === consentRevision()) return;
-    reconciledAt = consentRevision();
-    for (const record of c.records()) if (!c.standing.trusted(record)) await suspend(record);
+  let reconciledAt = consentRevision(), stopping: Promise<void> = Promise.resolve();
+  const stopUntrusted = async () => { for (const record of c.records()) if (!c.standing.trusted(record)) await suspend(record); };
+  // A reader that comes while an earlier one's stops are still going waits for them, or it would read an installation as running that is being stopped.
+  const reconcile = (): Promise<void> => {
+    if (reconciledAt !== consentRevision()) {
+      reconciledAt = consentRevision();
+      stopping = stopping.catch(() => undefined).then(stopUntrusted).catch(error => {
+        reconciledAt = -1;
+        throw error;
+      });
+    }
+    return stopping;
   };
   return { suspend, reconcile };
 }

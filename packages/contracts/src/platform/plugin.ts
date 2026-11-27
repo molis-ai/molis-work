@@ -27,6 +27,7 @@ export * from "./plugin-data-sections.js";
 export * from "./plugin-database.js";
 export * from "./plugin-overview.js";
 export * from "./plugin-partition.js";
+export * from "./plugin-due.js";
 export * from "./plugin-attention.js";
 export * from "./plugin-scenes.js";
 export * from "./plugin-judgments.js";
@@ -134,6 +135,12 @@ export interface PluginAppContribution {
     event: PluginEventRecord,
     context: PluginEventDeliveryContext,
   ): void | Promise<void>;
+  /**
+   * An entry of this per-partition instance fell due (`services.due`, or a reminder time of its overview table): the platform woke only this
+   * plugin in this partition to hand it over (S-partition-wake-scope). Only a plugin with `databases.partition` is handed any.
+   */
+  onDue?(entry: import("./plugin-due.js").PluginDueDelivery, context: import("./plugin-due.js").PluginDueContext):
+    void | import("./plugin-due.js").PluginDueOutcome | Promise<void | import("./plugin-due.js").PluginDueOutcome>;
 }
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
@@ -145,8 +152,8 @@ export interface PluginStartContext {
    * `install_id` and differ here, and the Host's services refuse a call from the other half (specs/archive/dual-instance-plugins U3).
    */
   readonly installation_generation: string;
-  /** Trusted action identity; Home built-ins use plugin_id, project installs use install_id. */
-  readonly provider_id?: string;
+  /** The provider this installation's actions are registered under, as the Runtime works it out from the install record. */
+  readonly provider_id: string;
   plugin_id: string;
   /** Executing implementation version; a compatible implementation may be newer than the persisted install. */
   version: string;
@@ -173,7 +180,7 @@ export interface PluginStartContext {
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
   readonly assertCurrent?: () => void;
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "personSettings" | "due" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

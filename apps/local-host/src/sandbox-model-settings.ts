@@ -4,7 +4,7 @@ import { createConsumerModelConfiguration, modelConfigurationInvalid, type Consu
 import type { PluginPlatformHome } from "./home-side.js";
 import { sandboxProviderId } from "./sandbox-home-names.js";
 
-// A Home package's own model settings (`sdk.model.settings`, PG-017 BL-491, S-60). The Manifest has no `model_configuration` block for a sandboxed package: the
+// A Home package's own model settings (`sdk.model.settings`, PG-017 BL-491, S-60). No Manifest declares these settings: the
 // package asks with `effects.modelSettings` and the Host derives the rest. The choice is kept where the installation's own files are, next to (not inside) the
 // folder the package's declared files live in, so the package cannot write it as a file: <Home>/plugin-files/<installation>/.model-settings/preference.json,
 // which an uninstall that keeps no data removes with the installation's folder (`removeSandboxOwnerFiles`). The Home upgrade process enumerates the existing choice files by installation.

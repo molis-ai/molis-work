@@ -4,7 +4,7 @@ import { installedPluginStages } from "./installed-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
 import { matchPageRoute } from "./page-routes.js";
-import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -12,7 +12,7 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import { renderProjectArtifactContext } from "./artifact-library-http.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { lookingForArea, type MolisWorkWebView, type WebViewOptions } from "./web-view.js";
-import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { PROJECT_SETTINGS_SECTIONS, type LocalWebCatalogRunner } from "./web-project-settings.js";
 import { renderWorkbenchRefreshDocument, type createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -23,9 +23,6 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 import { isInstalledPackage } from "./installed-plugin-common.js";
 import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
-/** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "characters", "grants", "rules", "general"] as const)
-  .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 
 interface StageRouteError {
@@ -74,7 +71,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   // A plugin with a library in each partition runs as its own instance here (batch 107); its entry is that instance's.
   const directory = projectPluginPlatforms(record).flatMap(platform => runningPluginDirectory(platform.supervisor).filter(entry => entry.chosen || !installedPackageOn(platform, entry.plugin_id)));
   const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory()) };
-  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
+  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? [...configuration.plugins],
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins),
     ...(ports.homeDirectory ? { homeDirectory: ports.homeDirectory } : {}) });
   return { html: runtime.html, panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,
@@ -152,7 +149,7 @@ export function createLocalProjectPagesHttp(ports: {
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
     store: LocalProjectDatabase, homeDirectory?: string,
   ): Promise<boolean> {
-    const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
+    const open = PROJECT_SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
       const view = await readWebView();
       if (!view.project) {

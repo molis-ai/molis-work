@@ -10,11 +10,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { activateConnectorConnection, createPluginConnectionsPort, homeIntegrationRegistry, oauthEndpointFingerprint, pluginSlotScope, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
+import { runInPluginAction, type PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 
@@ -49,7 +49,7 @@ test("S-69 RAC-346 every registered service names exact https origins (or a tena
     }
     const methods = Object.entries(service.credential);
     assert.ok(methods.length > 0 && methods.every(([method, scheme]) => ["token", "oauth"].includes(method)
-      && ["bearer", "bot", "bare", "private-token", "x-figma-token", "basic"].includes(scheme)), id);
+      && (typeof scheme === "string" ? ["bearer", "bot", "bare", "basic"] : ["private-token", "x-figma-token"]).includes(typeof scheme === "string" ? scheme : scheme.header)), id);
     assert.ok(service.refresh === "host" || service.refresh === "none", id);
   }
 });
@@ -137,6 +137,23 @@ test("S-69 RAC-346 a bound connection pinned to one origin is refused on the ser
   await assert.rejects(port.request(target, dispatch("https://dash.cloudflare.com/oauth2/userinfo")),
     (error: unknown) => code("connector.plugin_requests.connection_unavailable")(error) && !String((error as Error).message).includes(BEARER_VALUE));
   assert.equal(seen.length, sent, "the refused request was not sent, with or without the credential");
+});
+
+// S-71 (batch 108, specs/unified-partition-plugins §4.2 第 5 条): the person's own account in an installation slot is refused, through the real
+// port, to a caller that is not the person, their assistant, their workflow or the plugin's own work, before the account is read or sent.
+test("S-71 UPP-15 a bound installation slot is refused to an MCP client or a project Agent before anything is sent, and used by the person", { timeout: 30_000 }, async t => {
+  const { seen, testServer, lookup } = await standIn(t, ["api.cloudflare.com"]);
+  const { home, target } = await bound(t, "cloudflare");
+  const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });
+  const url = "https://api.cloudflare.com/client/v4/user/tokens/verify";
+  const as = <T>(caller: Partial<ActionExecutionContext>, run: () => Promise<T>) => runInPluginAction({ install_id: target.install_id, installation_generation: "1",
+    definition: { capability_id: "slots.use", version: 1 } as ActionDefinition, caller: { project_id: "personal", permissions: [], ...caller } as ActionExecutionContext }, run);
+  for (const caller of [{ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "mcp" as const }, { actor_id: "agent:project-a", audience: "agent" as const }]) {
+    await assert.rejects(as(caller, () => port.request(target, dispatch(url))),
+      (error: unknown) => code("connector.plugin_requests.connection_unavailable")(error) && !String((error as Error).message).includes(BEARER_VALUE), caller.audience);
+  }
+  assert.equal(seen.length, 0, "no refused request reached the server");
+  assert.equal((await as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" }, () => port.request(target, dispatch(url)))).authenticated, true, "the person's own call uses it");
 });
 
 const BOUND = { plugin_id: "com.example.connectionservices", slot_id: "account" };

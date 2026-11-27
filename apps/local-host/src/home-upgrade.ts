@@ -386,9 +386,11 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
 
 /**
  * Directories of a Home that held a store this build no longer has. Nothing reads them, and an entry the store registry does not name
- * stops the Home's snapshot, so a round removes them before it lists the stores.
+ * stops the Home's snapshot, so a round removes them before it lists the stores. Batch 108 moved Todo, Jelly, Cognia, Images and Issues
+ * into each partition's own library; their old top-level Home libraries are not migrated and go (user 2026-11-26, CONTRACT-CHANGES
+ * 「当前保留机制」).
  */
-export const REMOVED_HOME_STORES: readonly string[] = [];
+export const REMOVED_HOME_STORES: readonly string[] = ["todo", "jelly", "cognia", "images", "issues"];
 
 /**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that

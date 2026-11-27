@@ -3,7 +3,7 @@
 // take the lock are in tests/home-upgrade-entries.test.ts.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statfsSync, truncateSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statfsSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
@@ -455,13 +455,17 @@ test("UPG1-05: a resumed round holds the same lock rules: another holder stops i
   } finally { owner.release(); }
 });
 
-test("SKL-41-2: the removed-store list starts empty at the clean v1 origin and a round leaves other stores untouched", t => {
+test("SKL-41-2: a round removes the Home libraries batch 108 moved into partitions and leaves other stores untouched", t => {
   const { home } = upgradeTestHome(t);
   const kept = seedStore(home, "first"), bodies = () => notesOf(kept).map(note => note.body), notes = bodies();
   useDescriptors(t, notesDescriptor("first"));
-  assert.deepEqual([...REMOVED_HOME_STORES], []);
+  // User 2026-11-26: the old top-level libraries of the five plugins batch 108 moved are not migrated; the upgrade deletes them, so the
+  // Home's snapshot, which refuses an entry its registry does not name, works again.
+  assert.deepEqual([...REMOVED_HOME_STORES], ["todo", "jelly", "cognia", "images", "issues"]);
+  for (const name of REMOVED_HOME_STORES) { mkdirSync(join(home, name), { recursive: true }); writeFileSync(join(home, name, `${name}.db`), "old"); }
   const report = runHomeUpgrade(home);
   assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["first/first.db", "committed"]]);
+  for (const name of REMOVED_HOME_STORES) assert.equal(existsSync(join(home, name)), false, `${name}/ is gone`);
   assert.deepEqual(bodies(), notes, "a store the build still has keeps its rows");
   assert.equal(runHomeUpgrade(home).ran, false, "nothing left to do on the next start");
 });

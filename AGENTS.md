@@ -27,7 +27,7 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 | 推进路线书的一批：主会话怎样开工、同步 main、评审、入队、收尾 | `specs/post-anticorruption-roadmap/reference/batch-runbook.md` |
 | 某项任务 | `specs/<task>/spec.md`（开头写状态句，完成后按 `specs/README.md` 归档） |
 | 多会话、工作树、子代理并行 | `docs/system/PARALLEL-DEVELOPMENT.md` |
-| 改合同、库结构、版本、发版 | `docs/system/CONTRACT-CHANGES.md`、`specs/upgrade-continuity/upgrade-chain-design.md`、`docs/releases/POLICY.md` |
+| 改合同、库结构、版本、发版 | `docs/system/CONTRACT-CHANGES.md`、`docs/releases/POLICY.md` |
 | 包归谁、请谁评审 | `docs/SSOT-MATRIX.md`「归属」列、`.github/CODEOWNERS` |
 | 门禁怎么量、红了怎么办 | `tooling/gates/README.md`、`scripts/gates/README.md` |
 
@@ -45,10 +45,10 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 - **模型调用只经 `horizontal/agent-host`**（唯一依赖 `@prologue/sdk` 的包）。一个 Home 只有一个执行进程，其他入口转发给常驻宿主。
 - **外部插件作者只装 `packages/contracts` 与 `packages/plugin-sdk`。** SDK 只依赖 contracts，不转出私有包；作者和平台共用的运行时工具放在 SDK 里，平台各层取同一份。SDK 算共享核心，改它按共享核心跑全量。
 - **取消、撤权、停用的调用不再写业务记录。** 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。处理器开始前就被拒的只留一行不含内容的诊断。两个由用户定的例外：跨分区移动被拒后平台把对象移回原处（S-35），OAuth 共用刷新的凭据写回（S-95），条件见 `docs/system/SECURITY-INVARIANTS.md`。
-- **合同只认现行取值。** 库与带版本文件改结构须经 `tooling/versions.json` 与 `pnpm versions:generate` 升版本、附连续升级步骤、同步 `docs/releases/CHECKLIST.md` 第 3 节并在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」留记录，且 `tests/fixtures/golden-homes/` 有旧版金样可回放；读取时不兜底历史取值；新增兼容或迁移逻辑先写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」并经用户确认。
+- **开发前阶段：零存量、零迁移、零兼容、全量 v1（2026-11-26 定）。** 产品尚未对外发布、没有存量用户数据，不保留旧开发 Home、不写任何数据迁移步骤（`upgrades` 保持空）、不保留历史格式读时兼容、不维护开发金样。所有合同、动作、持久化 SQLite 库与带版本文件一律固定版本 `1`（由 `scripts/gates/initial-versions.mjs` 与 `tooling/versions.json` 守住），改结构或改形状直接原地修改 v1 基线与全部仓内消费者；旧本机开发 Home 直接删除并干净重建。通用升级引擎代码仅休眠保留供未来 1.0 对外发布启用，开发前阶段禁止新增历史兼容读取、一次性旧 Home 补丁或库升版方案，也不得就此询问是否保留旧 Home 或写迁移。
 - **可信身份从调用上下文来**，不从输入读；密钥只给引用。
 - **新的内置插件只有一条路：** 在自己包的 `src/registration.ts` 写 `registration`，项目级给 `project_runtime`，由每个项目的监督器（`apps/local-host/src/project-plugins.ts`）按登记装配，那个文件不为新插件改；Home 级在 Manifest 写 `runtime: { scope: "home" }` 并在登记上给 `runtime`，由 `apps/local-host/src/home-plugins.ts` 装配（写法见 `skills/molis-plugin-dev/host.md`）。`apps/workbench/src/builtin-plugins.ts`、`apps/local-host/src/plugin-registry.generated.ts` 及三处 `package.json` 的内置插件依赖均由 `node scripts/generate-plugin-registry.mjs` 生成，不手改。构建期手写接线已清零（第 44B 批，`tests/builtin-plugin-assembly-gate.test.ts` 的名单为空），不得新增。插件创作台（用户 2026-11-22 定）和置物架（第 44B 批）是平台自带入口，见[宿主登记](apps/local-host/src/host-surface-list.ts)与[工作台登记](apps/workbench/src/host-surfaces.ts)。插件目录仅列可作为插件启用的包。
-- **插件同等待遇。** 官方、个人、创作台生成或第三方用同一套 SDK、合同、装配、平台服务与授权；安装信任按发布者签名区分。插件的数据库升级段随 Manifest 申报，由平台按归属执行；已装签名包在用户确认换版时升级。插件缺什么就补进平台，不给某个插件开私路。
+- **插件同等待遇。** 官方、个人、创作台生成或第三方用同一套 SDK、合同、装配、平台服务与授权；安装信任按发布者签名区分。第三方签名包的数据库升级机制随平台保留（开发前阶段内置库一律固定 v1、不写升级段，该能力供外部签名包与未来 1.0 启用）；已装签名包在用户确认换版时升级。插件缺什么就补进平台，不给某个插件开私路。
 - **插件只提供内容，挂在工作台的位置**，不出自己的整页、不开第二个标签页（例外见 `specs/shell-page-exceptions/spec.md`）。
 - **成果库只收人要留存、引用的固定版本与导入文件**，类型在 manifest `artifacts.produces` 声明；交给别的插件的数据是过程项（`process_items.produces`）。
 - **删除项目只有一份 Host 服务**（`apps/local-host/src/project-deletion-service.ts`），操作者由入口给。
@@ -65,7 +65,7 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 - **构建与回归隔离：** 改过 `*/src`、`scripts`、`package.json` 后，跑测试前先 `pnpm build`；全量回归期间不改源码、脚本、`package.json` 和 `skills/`，也不并发构建。
 - **定向测试、排队与全量：** 跑测试用 `node scripts/run-tests.mjs <文件…>`，挑相关用例用 `node scripts/affected-tests.mjs`。本机整体构建、工作区清理、类型检查、定向测试（含非浏览器）和健康检查经 `scripts/machine-slot.mjs` 共用一个槽，每批默认执行一个测试文件或同时编译至多两个包；单包构建按开发手册显式取槽；**本机不跑全量**（全量交 CI `full-suite` 标签）；停进程只按 `pid`，不用 `pkill`。详见 `docs/system/PARALLEL-DEVELOPMENT.md` 第 5–8 节。
 - **门禁只许变严。** `pnpm health:check` 的各组数字对照 merge-base 量、只许变小，PR 里没有办法调大（`--update`、改基线都不行）；包含 Biome 静态检查、调用次数预算（`tooling/gates/call-budget.json`，必要增长走 `tooling/gates/call-budget-allowances/`）、错误码归属与测试双加载绝对零（`testImportSplits`，同一测试进程不能既读 `src` 又读包名/`dist`，可用 `node scripts/test-imports.mjs --write` 修复）。日常边界与专项校验还有 `pnpm boundary:check`、`pnpm test:security`、`pnpm test:contracts`。口径与例外见 `tooling/gates/README.md`。
-- **快照、版本与合并重生：** 有意改公开 API、动作合同、库结构、自有版本时，分别跑 `pnpm api:update`、`pnpm actions:update`、`pnpm schemas:update`、`pnpm versions:generate`，提交生成的文件并在 PR 里写对调用方的影响。同步 `main` 后跑 `pnpm merge:regenerate` 自动重生成被合并驱动跳过的快照，不手工合并快照文件。
+- **快照、版本与合并重生：** 有意改公开 API、动作合同或自有版本时，分别跑 `pnpm api:update`、`pnpm actions:update`、`pnpm versions:generate`，提交生成的文件并在 PR 里写对调用方的影响（开发前阶段库结构直接原地修改 v1 基线，无库结构快照）。同步 `main` 后跑 `pnpm merge:regenerate` 自动重生成被合并驱动跳过的快照，不手工合并快照文件。
 - **页面资源、首屏字节与插件样式按预算表管：** 静态资源（`pnpm page-assets:check`）与首屏字节（`node scripts/gates/first-screen.mjs --base origin/main`）对照 `tooling/gates/page-asset-budgets.json` 的路由、总载荷与首屏冷热上限（[决定 58](specs/post-anticorruption-roadmap/reference/decisions.md#decision-58)、第 100 批），插件样式预算（`pnpm plugin-styles:check`）只许降。预算内的改动不用逐字节许可；预算表的上限与各路由计入的资源相对 merge-base 只许收紧，调高上限或把资源移出路由先问用户，新增路由只能列确切资源（量法见 `docs/cli-and-development.md`「页面资源体积」「首屏字节」）。改共用样式或外壳另跑 `pnpm visual:compare`。
 - **原生与脚本检查：** 改 Rust（`apps/desktop`、`server/src/sync`、`apps/sync-worker`）、Swift 或 `.sh`/`.py` 时，跑 `node scripts/gates/native-checks.mjs <rust|swift|shell|python>`（对应 CI 的 `native-checks` 与 `shell-checks`）。
 - spec 的验收标准逐条带编号，证明它的测试在名字或注释里写出编号（`specs/README.md`「验收编号」）。
@@ -78,5 +78,5 @@ Molis Work：本地优先的 **Agent OS**、**人机与团队协作工作台**�
 ## 协作
 
 - **工作树与真实 Home 隔离：** 同一台机器上常有多个会话与工作树，开工前看 `git worktree list`；从最新 `origin/main` 开独立工作树，不在主检出里改、不重置或覆盖别人的未提交改动，只提交自己的。测试与预览一律用隔离 Home（`MOLIS_WORK_HOME` 或 `pnpm dev`），不直接动真实 Home（`~/.molis-work`，常驻服务占 `4173` / `4207` / `4208` 与唯一存储锁）。
-- **以下红线必须先问用户：** 动真实 Home、换 `vendor/prologue-sdk/` 或改上游、推送 / 开 PR / 发版 / 改版本号、改门禁或 CI、新增兼容读取或迁移逻辑、调高页面资源或首屏预算（含把资源移出路由）、改变产品语义或推翻已定决定。
+- **以下红线必须先问用户：** 触碰正在运行的本机真实 Home（按指示重建时可直接清空重建，无需保留旧数据）、换 `vendor/prologue-sdk/` 或改上游、推送 / 开 PR / 发版 / 改版本号、改门禁或 CI、调高页面资源或首屏预算（含把资源移出路由）、改变产品语义或推翻已定决定。**开发前阶段一律禁止新增历史兼容读取、数据迁移步骤或旧 Home 一次性补丁，也不得就此向用户提出迁移方案。**
 - **并行规则与包登记：** 并行开发规矩见 `docs/system/PARALLEL-DEVELOPMENT.md`；包归属与 CODEOWNERS 规则维护在 `scripts/package-owners.mjs`（改了跑 `node scripts/package-owners.mjs --write`），包成熟度维护在 `scripts/workspace-packages.mjs`（内置插件写在各自 `package.json` 的 `"molis-work"` 块，变更同步 `docs/SSOT-MATRIX.md` 并由 `pnpm boundary:check` 核对）。

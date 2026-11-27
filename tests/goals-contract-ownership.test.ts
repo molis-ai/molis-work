@@ -64,13 +64,13 @@ const tracked = (...directories: string[]) => execFileSync("git", ["ls-files", "
 // Batch 06 (materials-ui-contract §1) added the receipt kind of a version the platform's materials service fixed and its locator.
 // Batch 44-3 moved requirement judgments/evidence to the platform and updated Goals' decision-request schemas.
 const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_CONCERN_CITED_SUBJECT_LIMIT",
-  "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding", "boardSnapshotSchema", "boolean", "change", "changeInput",
-  "citedSubjects", "closure", "concern", "count", "decision", "decisionRequest", "effect", "effectInput", "enumeration", "eventType", "goalAcceptanceCriterionSchema",
+  "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding", "boardSnapshotSchema", "boolean", "change",
+  "citedSubjects", "closure", "concern", "count", "decision", "decisionRequest", "effect", "enumeration", "eventType", "goalAcceptanceCriterionSchema",
   "goalAction", "goalArchiveResultSchema", "goalConfigSchema", "goalConfirmedInputSchema", "goalContractSchema", "goalDecisionMethods",
   "goalDecompositionReviewSchema", "goalDecompositionReviewStatuses", "goalDirectoryItemSchema", "goalEntryActions", "goalEventAcknowledgementCategories",
   "goalEventAcknowledgementTreatments", "goalEventClosureKinds", "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds",
-  "goalEventDecisionPurposes", "goalEventDecisionRequestStatuses", "goalEventFieldFormats", "goalEventNewDecisionEffectKinds", "goalEventNewDecisionPurposes",
-  "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSchema",
+  "goalEventDecisionPurposes", "goalEventDecisionRequestStatuses", "goalEventFieldFormats",
+  "goalEventPageSchema", "goalEventSchema",
   "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds",
   "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds", "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema",
   "goalPolicySchema", "goalProgressResultSchema", "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema",

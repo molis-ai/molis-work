@@ -126,7 +126,7 @@ export class GoalEventStateAgreement {
     if (!agreementChangeEquals(existing.authorized_change, change)) {
       throw goalErrors["goals.event_agreement.change_mismatch"]("引用的决定批准的是另一份变化，不能套用到这次约定修改");
     }
-    if (!agreementChangeCommitmentCurrent(existing.commitment, () => this.host.requirementTerms(goal.project_id, goal.goal_id, input.acceptance), currentOutcome)) {
+    if (!agreementChangeCommitmentCurrent(existing.commitment, currentOutcome)) {
       throw goalErrors["goals.event_decision.stale_commitment"]("原约定或受影响要求已经变化，不能把旧决定套用到新约定");
     }
     const later = laterComparableDecision(this.records.decisions.listAppliedDecisions(goal.project_id, goal.goal_id), existing);

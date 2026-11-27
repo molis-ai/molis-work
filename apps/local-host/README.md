@@ -1,6 +1,6 @@
 # 本地应用装配中心
 
-索引Home在生产和冷维护入口显式选择 `indexed-v1`；Memory ledger现行基线2、恢复journal现行schema2，只创建新容器、拒绝错版，不转换旧库。原snapshot registry对 `agent-runtime` 和既有 `plugin-builder/<project>/runs/<build>` SDK材料复用同一相对路径规则：精确 `records.sqlite` 源必须standalone且精确journal/WAL/SHM均不存在；任何业务SQLite打开前由原Storage文件检查拒绝。目标DB及三种精确侧车只作原件保存、DB替换与侧车reset，storage.key和owner锁继续preserve。Memory清理只接SDK实际材料回执，Session inventory保护DB/侧车不被会话清理改动。原旧布局rename-reconciled故障不能代表索引COMMIT；现commit-unknown用例在native COMMIT返回后注入EIO，要求关闭后原回滚、原件归还、已忘不复活及未选内容保留，不将未知提交记为成功。工程验证仍待本次统一构建与定向运行；`tests/home-restore-indexed-memory.test.ts` 和原Home恢复文件持有对应动线。
+索引Home在生产和冷维护入口显式选择 `indexed-v1`；Memory ledger 现行基线 v1，只创建新容器、拒绝错版，不转换旧库。原snapshot registry对 `agent-runtime` 和既有 `plugin-builder/<project>/runs/<build>` SDK材料复用同一相对路径规则：精确 `records.sqlite` 源必须standalone且精确journal/WAL/SHM均不存在；任何业务SQLite打开前由原Storage文件检查拒绝。目标DB及三种精确侧车只作原件保存、DB替换与侧车reset，storage.key和owner锁继续preserve。Memory清理只接SDK实际材料回执，Session inventory保护DB/侧车不被会话清理改动。原旧布局rename-reconciled故障不能代表索引COMMIT；现commit-unknown用例在native COMMIT返回后注入EIO，要求关闭后原回滚、原件归还、已忘不复活及未选内容保留，不将未知提交记为成功。工程验证仍待本次统一构建与定向运行；`tests/home-restore-indexed-memory.test.ts` 和原Home恢复文件持有对应动线。
 
 ## SDK Session 终止的 Home 恢复
 
@@ -155,7 +155,7 @@ Knowledge 状态薄桥在本次目录中固定同 provider/plugin/project/当前
 
 Memory 自动学习共享原 `memory.learn` kind 和 runner。Coding 任务只保存 canonical refs、当前安装身份及持久 installation_generation；queued 重启经正常项目装配重新进入当前安装的自有 Action，running 重启仍由 SDK 标为需对账，不重放。当前 owner 在尚未返回的嵌套形成内同步核完整来源并集，原 Run 冻结配方与当前 Memory 策略求交；缺少持久队列、来源证明或当前 owner 时明确拒绝。
 
-Memory 恢复从当前可核验的唯一顶层 `memory-forgetting-v2.json` 取得较新决定，与归档事实单调合并；文件名 v2 是当前物理代，内容仍为严格 JSON v1，不采用旧名、不双读或转换旧 Home/归档。旧版 CLI 复用原未知顶层路径或独立事实缺失门拒绝；新版正常启动只认当前路径，双名混放由原 snapshot/restore inventory 拒绝，不增加启动全树扫描。目标 `memory.db` 仍当 opaque 原件。唯一发布材料经原 owner 输入进入全部 journal phase，原归档及 manifest 不变。在同一 `publishing` 阶段清除旧正式记录、候选与投影，journal 最终记实际发布字节；原件、preserved 与密钥依赖集合不变。SDK 可修改材料仅限选中的既有 Memory / candidate 文件，其他 kind 仍核原 digest，新文件拒绝。未提交失败／崩溃回到含较新决定的原 Home，committed 只校验并收尾。
+Memory 恢复从当前可核验的唯一顶层 `memory-forgetting.json`（严格 JSON v1）取得较新决定，与归档事实单调合并，不双读或转换旧归档；正常启动只认当前路径，不增加启动全树扫描。目标 `memory.db` 仍当 opaque 原件。唯一发布材料经原 owner 输入进入全部 journal phase，原归档及 manifest 不变。在同一 `publishing` 阶段清除旧正式记录、候选与投影，journal 最终记实际发布字节；原件、preserved 与密钥依赖集合不变。SDK 可修改材料仅限选中的既有 Memory / candidate 文件，其他 kind 仍核原 digest，新文件拒绝。未提交失败／崩溃回到含较新决定的原 Home，committed 只校验并收尾。
 
 独立文件登记于现 homeStoreRegistry：旧离线 snapshot / restore 拒绝未知顶层 store，旧 recover 在 journal 路径校验拒绝，早于任何 rollback / publish。旧正常 Host/Web/MCP 仍依赖当前完整偏好合同的初始化拒写，两部分必须一起交付，不能删除事实文件退版。仅记忆账本损坏且独立事实可核验时保证恢复；独立文件丢失/损坏不能补空，也不伪造机制出现前的历史事实。项目和 Session 删除恢复不据本片完成。回归：`tests/home-restore-memory-forgetting.test.ts`。
 本机内容包签名由 `plugin-install` 的 `plugins.local_packages.sign@1` 持有。本人从发起项目确认导入后，宿主在接触发布身份前核对内容，再返回普通安装预览 ID。安装服务按原项目、操作者和有效期回取视图，沿同一次明确同意确认安装。发布者未被固定时，确认才会固定。隔离 Home 的回归在 [安装](../../tests/security-invariants-plugin-install.test.ts) 与 [导入](../../tests/security-invariants-skill-import.test.ts) 用例中。

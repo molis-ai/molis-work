@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { partitionLibraryFile } from './fixtures/plugin-home-stores.js';
 
-import {cogniaSyncProjection} from '@molis-ai/molis-work-plugin-cognia';
+import {cogniaManifest, cogniaSyncProjection} from '@molis-ai/molis-work-plugin-cognia';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import { bindDatabaseSpace, ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
 
@@ -25,7 +25,7 @@ test('S-129 PCSYNC-01/11/22 knowledge refuses a local scanner path, corrupt orig
 });
 test('S-129 PCSYNC-12 N41-PERSONAL-01 Cognia refuses old structure and wrong versions without changing original rows or bytes',t=>{
  // The personal space's library (batch 108: each partition keeps its own), written by hand at the old structure or a newer version.
- const currentSql=readFileSync(new URL('./fixtures/home-store-schemas/cognia.sql',import.meta.url),'utf8');
+ const currentSql=cogniaManifest.databases!.partition!.schema;
  for(const [version,schema,code] of [[1,currentSql+'; DROP TABLE cognia_drafts;','storage.schema_structure_mismatch'],[2,currentSql,'storage.store_too_new']] as const){
   const home=mkdtempSync(join(tmpdir(),'cognia-old-schema-'));t.after(()=>rmSync(home,{recursive:true,force:true}));const space=ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
   const file=partitionLibraryFile(home,'personal','cognia');mkdirSync(dirname(file),{recursive:true,mode:0o700});

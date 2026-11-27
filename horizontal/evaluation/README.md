@@ -57,5 +57,5 @@ node scripts/run-tests.mjs tests/evaluation-service.test.ts tests/security-invar
   - 人工复查追加不覆盖自动结论、不回写历史事实（`PWA-52`、`OCL-17`）：`evaluation.reviews.record@1` 只向 `evaluation_reviews` 追加记录并更新 `effective_verdict`（保留 `automated_verdict`），绝不改动采集层记录或插件业务表。
   - 隔离回放阻断外部副作用（`PWA-53`、`OCL-13`、`EC-18`）：`isolated_replay` 运行在 `source_class: "replay"` 作用域内并拒绝 `external: true` 或连接器写动作（`evaluation.replay_external_effect_blocked`），不混入真实工作查询与统计。
   - 库在首次调用 `evaluation.*@1` 时懒打开，不在宿主启动时创建空库；删除项目时清除该项目关联的样本、运行与人工复查记录。
-- 改动后必跑：`node scripts/run-tests.mjs tests/evaluation-service.test.ts tests/security-invariants-evaluation.test.ts tests/store-schema-snapshot.test.ts tests/action-contract-snapshot.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/evaluation-service.test.ts tests/security-invariants-evaluation.test.ts tests/action-contract-snapshot.test.ts`
 - 相关手册：[docs/horizontal/evaluation.md](../../docs/horizontal/evaluation.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

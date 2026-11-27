@@ -1,16 +1,14 @@
 import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
-  goalEventNewDecisionPurposes,
+  goalEventDecisionPurposes,
   type GoalEventAgreementChange,
-  type GoalEventNewDecisionPurpose,
+  type GoalEventDecisionPurpose,
 } from "../contract/goals.js";
 import { assertAllowedKeys, requiredText } from "./event-facts-validation.js";
 
 /*
- * A Goal's agreement is its outcome (batch 44, user 2026-11-18, contract-design §10.9 question 3): the requirements are the platform's,
- * so a change names a new outcome and nothing else, and changing it no longer puts any requirement back to undecided. A change recorded
- * before keeps its requirement fields in its record; it is compared as it was recorded and authorizes only a change equal to it, which a
- * new change with requirement fields cannot be.
+ * A Goal's agreement is its outcome (contract-design §10.9 question 3): the requirements are the platform's,
+ * so a change names a new outcome and nothing else.
  */
 
 const CHANGE_KEYS = new Set(["outcome"]);
@@ -30,11 +28,11 @@ export function requiredVersion(
   return value;
 }
 
-export function requiredDecisionPurpose(value: unknown): GoalEventNewDecisionPurpose {
-  if (typeof value !== "string" || !(goalEventNewDecisionPurposes as readonly string[]).includes(value)) {
+export function requiredDecisionPurpose(value: unknown): GoalEventDecisionPurpose {
+  if (typeof value !== "string" || !(goalEventDecisionPurposes as readonly string[]).includes(value)) {
     throw goalErrors["goals.event_decision.invalid_purpose"]("决定用途必须是 suggestion、action 或 agreement_change；认可要求在平台的逐项审阅里做");
   }
-  return value as GoalEventNewDecisionPurpose;
+  return value as GoalEventDecisionPurpose;
 }
 
 export function normalizeAgreementChange(raw: GoalEventAgreementChange | undefined): CanonicalAgreementChange {
@@ -50,14 +48,9 @@ export function toWireChange(change: CanonicalAgreementChange): GoalEventAgreeme
   return change.outcome != null ? { outcome: change.outcome } : {};
 }
 
-/** A recorded change that also changed requirements (before batch 44). */
-function changedRequirements(value: GoalEventAgreementChange): boolean {
-  return Boolean(value.new_requirements?.length || value.revise_requirements?.length || value.retire_requirement_ids?.length);
-}
-
-/** Whether a recorded change authorizes exactly this one: the same new outcome, and no requirement change on either side. */
+/** Whether a recorded change authorizes exactly this one: the same new outcome. */
 export function agreementChangeEquals(recorded: GoalEventAgreementChange | null | undefined, change: CanonicalAgreementChange): boolean {
-  if (recorded == null || changedRequirements(recorded)) return false;
+  if (recorded == null) return false;
   const outcome = recorded.outcome == null ? null : recorded.outcome.trim();
   return outcome === change.outcome;
 }

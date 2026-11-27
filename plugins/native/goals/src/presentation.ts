@@ -124,7 +124,7 @@ export function goalNextStep(state: Pick<GoalEventStateView, "work_status" | "pe
   if (state.work_status === "completed" || state.work_status === "cancelled") return null;
   const clip = (value: string) => value.trim().slice(0, 200);
   const asked = state.pending_decisions[0];
-  if (asked) return { text: clip(asked.question), waiting_on: uiText.text(asked.purpose === "requirement_acceptance" ? "goals.items.waiting-acceptance" : "goals.items.waiting-decision") };
+  if (asked) return { text: clip(asked.question), waiting_on: uiText.text("goals.items.waiting-decision") };
   const next = state.progress_summary?.next_step?.trim();
   return next ? { text: clip(next), ...(state.progress_summary?.next_actor?.trim() ? { waiting_on: clip(state.progress_summary.next_actor) } : {}) } : null;
 }

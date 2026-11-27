@@ -966,12 +966,6 @@
     "reason": "Prologue SDK 子会话开场观察事实的 format 判别值，由上游定义；我们只原样核对，不是自有版本。"
   },
   {
-    "file": "packages/storage/src/adapters/memory-forgetting.ts",
-    "name": "memory-forgetting-v2.json",
-    "values": { "memory-forgetting-v2.json": 1 },
-    "reason": "遗忘决定文件在 Home 里的文件名，v2 只标物理代（2026-11-06 更名片），是名字不是版本；文件里的格式版本由 format.memory.forgetting 管。"
-  },
-  {
     "file": "apps/workbench/src/package-install-specimens.ts",
     "name": "version",
     "values": { "1.0.0": 1, "1.1.0": 1 },

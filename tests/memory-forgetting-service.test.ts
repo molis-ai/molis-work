@@ -193,7 +193,7 @@ test("MEM-40: accepted pending cleanup hides formal and candidate bodies from pu
   assert.equal((await f.raw().list(where.scope, where.owner)).some(one => one.memory_id === saved.memory!.memory_id), true,
     "physical body still exists under the original management-only cleanup authority");
   assert.equal((await f.raw().candidates.list(where.scope, where.owner)).some(one => one.candidate_id === candidate.candidate_id), true);
-  const accepted = fs.readFileSync(join(f.home, "memory-forgetting-v2.json"), "utf8");
+  const accepted = fs.readFileSync(join(f.home, "memory-forgetting.json"), "utf8");
   assert.equal(accepted.includes("独有"), false);
   assert.deepEqual(f.ledger().forgetting.read().decisions[0]?.memories, [{ memory_id: saved.memory!.memory_id, version: saved.memory!.version }]);
   await f.close(); service = await f.open();
@@ -211,13 +211,13 @@ test("MEM-40: accepted pending cleanup hides formal and candidate bodies from pu
   assert.equal(prompts[0]!.includes("独有旧正文甲"), false);
   assert.equal(prompts[0]!.includes("独有待审正文乙"), false);
   await assert.rejects(service.change(caller("forget"), { ...request, expected_version: request.expected_version + 1 }));
-  assert.equal(fs.readFileSync(join(f.home, "memory-forgetting-v2.json"), "utf8"), accepted);
+  assert.equal(fs.readFileSync(join(f.home, "memory-forgetting.json"), "utf8"), accepted);
   const completed = await service.change(caller("forget"), request);
   assert.equal(completed.memory, null);
   assert.equal((await f.raw().list(where.scope, where.owner)).some(one => one.memory_id === request.memory_id), false);
   assert.equal((await f.raw().candidates.list(where.scope, where.owner)).some(one => one.candidate_id === candidate.candidate_id), false);
   assert.equal(f.ledger().candidates(LOCAL_PERSON_ACTOR_ID).some(one => one.candidate_id === candidate.candidate_id), false);
-  assert.equal(fs.readFileSync(join(f.home, "memory-forgetting-v2.json"), "utf8"), accepted);
+  assert.equal(fs.readFileSync(join(f.home, "memory-forgetting.json"), "utf8"), accepted);
 });
 
 test("MEM-40: a linked candidate changing while the final formal read waits must refuse before accepting a stale fixed selection", async t => {

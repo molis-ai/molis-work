@@ -21,7 +21,7 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 - [ ] 改过 `*/src`、`scripts` 或 `package.json` 后已整体 `pnpm build`
 - [ ] 健康门禁对照 merge-base 通过：`node scripts/check-health-gates.mjs --base origin/main`（CI 也这样比，在 PR 里 `--update` 放不过变大的）；数字变小可用 `--update --base origin/main` 更新本工作树的本地快查，不提交快查文件
 - [ ] 公开 API（contracts 各 subpath、插件 SDK）有变化时：已 `pnpm api:update` 刷新 `tooling/gates/api/`，并在「做了什么」写明对插件和调用方的影响
-- [ ] 动作或消费场景（Manifest 声明的，或宿主登记的）的身份、权限、受众、输入输出有变化时：`pnpm build` 后已 `pnpm actions:update` 刷新 `tooling/gates/actions/`（`pnpm test:contracts` 会对照）；同一 `capability@version` 下形状变了的，写明已升版本并改完固定它的引用，或为什么没有固定它的引用会坏
+- [ ] 动作或消费场景（Manifest 声明的，或宿主登记的）的身份、权限、受众、输入输出有变化时：`pnpm build` 后已 `pnpm actions:update` 刷新 `tooling/gates/actions/`（`pnpm test:contracts` 会对照）；开发前阶段按现行 v1 原地修改，写明对仓库内固定引用的影响并同 PR 改完（1.0 阶段二起再升版本）
 - [ ] 改过样式、客户端脚本、`/desktop/pty-client.js` 或字体：`pnpm build` 后 `node scripts/gates/page-assets.mjs --base origin/main` 通过（按 `tooling/gates/page-asset-budgets.json` 路由与首屏总载荷预算校验；预算内改动无需逐字节许可，上限只许收紧）
 - [ ] 相关用例：`node scripts/affected-tests.mjs` 选出的用例已跑 → 通过 / 失败数（它建议全量时，说明跑了还是按什么理由不跑）：
 - [ ] 全量回归（适用时）：`full-suite.yml` 的运行链接、对应提交、通过 / 失败 / 跳过情况；未运行写明原因。`node scripts/run-tests.mjs` 不带文件参数会包含浏览器用例，不是非浏览器子集：
@@ -32,10 +32,10 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 
 ## 公开合同与 API 影响
 
-<!-- 合同怎样变更见 docs/system/CONTRACT-CHANGES.md：起点之前不留兼容期，同一个 PR 改完所有消费者。 -->
+<!-- 合同与存储结构变更见 docs/system/CONTRACT-CHANGES.md：开发前阶段（1.0 发布前）不留兼容期、不做旧数据迁移，所有持久化库与带版本文件固定 v1 直接原地改、零 upgrades，同一个 PR 改完所有消费者。 -->
 
 - [ ] 没有改 `packages/contracts` 的导出、`packages/plugin-sdk` 的出口、动作的输入输出 schema、插件 Manifest 格式、MCP 工具名或对外合同 id
-- [ ] 改了：写明改了哪几项、版本号怎么变、消费者清单（仓库内、外部）和是否都在本 PR 改完；公开 API 快照（`tooling/gates/api/`）和动作合同快照（`tooling/gates/actions/`）的 diff 与兼容影响：
+- [ ] 改了：写明改了哪几项、消费者清单（仓库内、外部）和是否都在本 PR 改完；公开 API 快照（`tooling/gates/api/`）和动作合同快照（`tooling/gates/actions/`）的 diff 与影响（开发前阶段不留历史兼容读取或迁移步骤）：
 
 ## 只许减少的数字
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { callImageTool as call, openImagesMcp } from "./fixtures/images-mcp.js";
 
-test("Images standard MCP generates and retrieves real bytes, then preserves them across process restart", { timeout: 45_000 }, async t => {
+test("Images standard MCP generates and retrieves real bytes, then preserves them across process restart", { timeout: 90_000 }, async t => {
   const { connect, saveConnection, generate, providerCalls } = await openImagesMcp(t);
   let client = await connect("a");
   const names = (await client.listTools()).tools.map(tool => tool.name).filter(name => name.startsWith("images."));

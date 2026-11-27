@@ -199,12 +199,12 @@ test('W2-18-DATASET-01/02: an external write during file reading conflicts again
 
 test('F-plugins-rest-w2-13: a delayed autosave response after placement move does not resurrect the moved dataset', { timeout: 45_000 }, async t => {
   const f = await openImport(t); if (!f) return;
-  const { evaluate, waitFor, idle, a, b } = f;
+  const { evaluate, waitFor, idle, a, b, origin } = f;
   await evaluate(`(() => {
     const original = window.molisWorkRequest;
     window.molisWorkRequest = Object.assign(async (url, init) => {
       const result = await original(url, init);
-      const path = new URL(url, location.origin).pathname;
+      const path = new URL(url, ${JSON.stringify(origin)}).pathname;
       if (init?.method === 'POST' && path.endsWith('/datasets/${a.id}') && !window.heldAutosave) {
         window.heldAutosave = true;
         await new Promise(resolve => { window.releaseAutosave = resolve; });

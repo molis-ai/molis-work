@@ -421,7 +421,15 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   if (stamp === fingerprint) return NOTHING;
   const previous = readUpgradeLedger(root);
   removeUpgradeTemporaries(root);
-  for (const path of removedHomeStores()) rmSync(join(root, path), { recursive: true, force: true });
+  for (const path of removedHomeStores()) {
+    const target = join(root, path);
+    try {
+      lstatSync(target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+    }
+    rmSync(target, { recursive: true, force: true });
+  }
   releaseHeldHomeSqlite(root);
   const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [], onUnitDone: options.onUnitDone };
   const resumed = finishInterrupted(round, previous);

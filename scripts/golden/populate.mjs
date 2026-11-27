@@ -176,6 +176,19 @@ async function cardsInOneOrder(home, account, projects, named, seed) {
     }
     await named("knowledge-settle");
     await seed(session, projects, write => write.afterKnowledgeRebuild);
+    if (!account) {
+      // The Studio draft survives deleting its setup model. Capture it after removing both synthetic connections through Settings.
+      await session.http("/api/settings/models/golden-model-seed", { method: "DELETE" });
+      const route = "/api/settings/connectors/connections";
+      const { connections } = await session.http(route, { method: "GET" });
+      for (const row of connections.filter(row => row.service_id === "model-api")) {
+        await session.http(route + "/" + encodeURIComponent(row.connection_id) + "/manage", {
+          body: { action: "remove", expected_revision: row.revision },
+        });
+      }
+      const remaining = await session.http(route, { method: "GET" });
+      if (remaining.connections.some(row => row.service_id === "model-api")) throw goldenFailure("golden.setup_connection_still_present", "root");
+    }
     await named("knowledge-edit-settle");
   } finally { await session.close(); }
 }

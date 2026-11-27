@@ -2,15 +2,13 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
 import { LocalCatalogMetadata, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 
 /**
- * One-time fix kept under docs/system/CONTRACT-CHANGES.md「当前保留机制」(user confirmed 2026-11-25, batch 107; widened to batch 108's five,
- * user 2026-11-26). The native registrations identify which plugins previously appeared in every partition. Those plugins moved in batches
- * 107 and 108. A Home made before that saw them in every partition that did not hide them;
- * on its first open with this version each such partition gets a member row, written once. A Home made with this version
- * is marked at creation and never runs it. Removed with batch 111 or the first release.
+ * An unmarked Home keeps the six members originally preserved in batch 107. Existing member choices are retained.
+ * New Homes are marked at creation. Batch 108's five plugins are enabled by the person in each partition.
+ * Remove this one-time repair with batch 111 or the first release (CONTRACT-CHANGES).
  */
 export function formerPersonalPlugins(): string[] {
   // The already agreed historical cohort. Adding a partition declaration in a future release cannot enroll an old Home in it.
-  return PLATFORM_PLUGIN_REGISTRATIONS.filter(plugin => plugin.preservedMembershipBatch !== undefined).map(plugin => plugin.project_plugin_id);
+  return PLATFORM_PLUGIN_REGISTRATIONS.filter(plugin => plugin.preservedMembershipBatch === 107).map(plugin => plugin.project_plugin_id);
 }
 export const FORMER_PERSONAL_PLUGINS_MARK = "mark.former-personal-plugins";
 /** Rows this writes are the platform's upgrade, never the person's own choice. */

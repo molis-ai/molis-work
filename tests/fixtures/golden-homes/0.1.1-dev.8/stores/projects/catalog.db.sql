@@ -103,12 +103,6 @@ CREATE TABLE project_instruction_settings (
       confirmed_workspace_id TEXT,
       updated_at TEXT NOT NULL
     );
-CREATE TABLE project_plugin_exclusions (
-      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL,
-      removed_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, plugin_id)
-    );
 CREATE TABLE project_portable_plugins (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL,

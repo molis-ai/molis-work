@@ -197,9 +197,20 @@ async function readEverything(manifest, homes) {
 /** Each owner's minimal write on each Home, read back through the same owner (§4 step 6). */
 async function writeEverything(homes) {
   const writes = await loadGoldenWrites();
+  const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   let count = 0;
   for (const item of homes) {
     if (!item.projects.length) continue;
+    // Exercise each owner's write on the restored copy as an explicit member, after verifying the historical state.
+    await withMolisWorkProjectCatalog({ homeDirectory: enterHome(item.at) }, async catalog => {
+      const project_id = item.projects[0].project_id;
+      const enabled = new Set(catalog.listProjectPlugins(project_id));
+      for (const { owner } of writes) {
+        if (local.BUILTIN_PLUGIN_IDS.includes(owner) && !enabled.has(owner)) {
+          await catalog.addProjectPlugin({ project_id, plugin_id: owner, actor_id: "golden-replay" });
+        }
+      }
+    });
     const session = await openGoldenHost(item.at, { web: !item.account });
     try {
       const actions = goldenActions(session, item.projects[0], "replay");

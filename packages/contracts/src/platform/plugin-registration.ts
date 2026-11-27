@@ -167,7 +167,7 @@ export interface PluginRegistration {
   /** Position in the catalog, unique across the build; the derived lists keep this order. */
   readonly catalog_order: number;
   /** Historical fact of a shipped registration. Only the original one-time catalog update consumes it. New plugins leave it absent. */
-  readonly preservedMembershipBatch?: 107 | 108;
+  readonly preservedMembershipBatch?: 107;
   readonly manifest: PluginManifest;
   /** Product setup choice for new projects; stored as ordinary membership and freely removable afterwards. */
   readonly default_enabled?: true;

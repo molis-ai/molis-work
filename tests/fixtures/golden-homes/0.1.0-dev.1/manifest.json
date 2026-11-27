@@ -483,7 +483,7 @@
         "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
         "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
       },
-      "sha256": "c66f5c0f9e11be06f35b4a6224064365eb568403a3861a2d4d1a2097a2c4dee4"
+      "sha256": "8ba893dae4f546cc4a03b5d0c2e39647bbee8b824ea47de92b17448ef1e5c80d"
     },
     {
       "path": "personal-space/libraries/pages.db",
@@ -851,7 +851,6 @@
         "project_deletions": 0,
         "project_events": 27,
         "project_instruction_settings": 0,
-        "project_plugin_exclusions": 0,
         "project_portable_plugins": 27,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
@@ -865,7 +864,7 @@
         "workspace_source_links": 0,
         "workspaces": 4
       },
-      "sha256": "95f654ef4989e12877e7976221f4a51c29a3ecbe844d43d37278e24532127345"
+      "sha256": "8552c2ce325dbf7bcb91e3c1c228e54c4e2fab3235365056520c679f50637ab9"
     },
     {
       "path": "projects/goalboard-v1-demo/molis-work.db",

@@ -2,11 +2,11 @@ PRAGMA foreign_keys=OFF;
 BEGIN;
 CREATE TABLE jelly_categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT NOT NULL, sort_index INTEGER NOT NULL, revision INTEGER NOT NULL);
 CREATE TABLE jelly_items (id TEXT PRIMARY KEY, title TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('task', 'event')), category_id TEXT NOT NULL,
-    start_date TEXT NOT NULL, end_date TEXT NOT NULL, start_time INTEGER, end_time INTEGER, time_zone TEXT NOT NULL, notes TEXT NOT NULL,
+    start_date TEXT NOT NULL, end_date TEXT NOT NULL, start_time INTEGER, end_time INTEGER, time_zone TEXT NOT NULL, reminder_minutes INTEGER CHECK (reminder_minutes BETWEEN 0 AND 10080), notes TEXT NOT NULL,
     completed_at TEXT, revision INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE jelly_notes (id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL, day TEXT, revision INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE jelly_series (id TEXT PRIMARY KEY, title TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('task', 'event')), category_id TEXT NOT NULL,
-    start_date TEXT NOT NULL, end_date TEXT NOT NULL, start_time INTEGER, end_time INTEGER, time_zone TEXT NOT NULL, notes TEXT NOT NULL,
+    start_date TEXT NOT NULL, end_date TEXT NOT NULL, start_time INTEGER, end_time INTEGER, time_zone TEXT NOT NULL, reminder_minutes INTEGER CHECK (reminder_minutes BETWEEN 0 AND 10080), notes TEXT NOT NULL,
     weekdays TEXT NOT NULL, until TEXT, exceptions TEXT NOT NULL, completions TEXT NOT NULL, revision INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE molis_overview_rows (
   kind TEXT NOT NULL CHECK (kind IN ('task', 'event', 'notification', 'brief', 'background_task', 'scheduled_run')),

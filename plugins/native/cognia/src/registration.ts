@@ -6,7 +6,6 @@ import { COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT,
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  preservedMembershipBatch: 108,
   project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, catalog_order: 2,
   project_runtime: { create: createCogniaPlugin, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
   manifest: cogniaManifest,

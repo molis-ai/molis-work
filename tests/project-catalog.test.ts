@@ -1087,24 +1087,24 @@ test("project catalog rejects retired GoalBoard owner metadata", async () => {
   });
 });
 
-// UPP-18, UPP-03: the one-time fix of batches 107 and 108 (CONTRACT-CHANGES「当前保留机制」). A Home from before them saw the eleven
-// former personal plugins in every partition that did not hide them; its first open now writes those member rows once.
-test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal plugins once, hidden stays closed and later removals stay removed", async () => {
+// UPP-18, UPP-30, B2R-08: first open preserves the original six. Batch 108 membership is the person's choice.
+test("UPP-18 UPP-30 an older Home keeps the six batch-107 plugins once and preserves explicit batch-108 choices", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, ".molis-work");
     const databasePath = join(home, "projects", "catalog.db");
-    // Batch 107's six and batch 108's five (user 2026-11-26: keep the rule, widen the test).
-    const historicalMembers = ["cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "todo", "workflows"];
+    const historicalMembers = ["dataset", "form", "lingguang", "pages", "ppt", "workflows"];
+    const onDemand = ["cognia", "images", "issues", "jelly", "todo"];
     const made = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const open = await made.createProject({ display_name: "看得见", actor_id: "user" });
     const hiding = await made.createProject({ display_name: "隐藏过 Pages", actor_id: "user" });
+    made.addProjectPlugin({ project_id: hiding.project_id, plugin_id: "images", actor_id: "user" });
     made.close();
     // A new Home is marked done at creation: it never backfills.
     const fresh = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       assert.deepEqual(fresh.listProjectPlugins(open.project_id).filter(id => historicalMembers.includes(id)), [], "a Home made with this version gains nothing");
     } finally { fresh.close(); }
-    // Make it look like a Home from before batch 107: no mark, no member rows for the eleven, one partition hid Pages.
+    // Make it look like a Home from before batch 107: no mark, no member rows for the six, one partition hid Pages.
     const older = openTestSqlite(databasePath);
     try {
       older.prepare("DELETE FROM catalog_meta WHERE key = 'mark.former-personal-plugins'").run();
@@ -1116,10 +1116,12 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
     const upgraded = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       for (const partition of ["personal", open.project_id]) {
+        assert.deepEqual(upgraded.listProjectPlugins(partition).filter(id => onDemand.includes(id)), []);
         assert.deepEqual(upgraded.listProjectPlugins(partition).filter(id => historicalMembers.includes(id)), historicalMembers, `${partition} keeps reading its old Pages and Dataset data`);
       }
       const hidden = upgraded.listProjectPlugins(hiding.project_id);
       assert.equal(hidden.includes("pages"), false, "the partition that hid Pages stays closed");
+      assert.deepEqual(hidden.filter(id => onDemand.includes(id)), ["images"]);
       assert.equal(hidden.includes("dataset"), true);
       upgraded.removeProjectPlugin({ project_id: open.project_id, plugin_id: "dataset", actor_id: "user" });
     } finally { upgraded.close(); }
@@ -1133,11 +1135,10 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
       } finally { db.close(); }
     };
     const before = facts();
-    // Exactly the eleven: the fix takes them by declaration (databases.partition, no plugin names in platform source), so a later batch
-    // that moves another plugin to a partition library fails here and has to decide what this one-time fix does with it.
     assert.deepEqual([...new Set((before.rows as { plugin_id: string; enabled_by: string }[])
       .filter(row => row.enabled_by === "upgrade:former-personal-plugins").map(row => row.plugin_id))].sort(), historicalMembers,
-      "the one-time fix writes exactly the eleven former personal plugins, nothing a later batch moved");
+      "the one-time fix writes exactly the original six members");
+    assert.ok((before.rows as { plugin_id: string; enabled_by: string }[]).some(row => row.plugin_id === "images" && row.enabled_by === "user"));
     assert.ok((before.rows as { plugin_id: string; enabled_by: string }[]).filter(row => historicalMembers.includes(row.plugin_id)).every(row => row.enabled_by === "upgrade:former-personal-plugins"), "the platform's upgrade wrote them, not the person");
 
     const again = await openMolisWorkProjectCatalog({ homeDirectory: home });

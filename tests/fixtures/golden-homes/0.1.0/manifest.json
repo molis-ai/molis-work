@@ -871,7 +871,7 @@
         "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
         "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
       },
-      "sha256": "c66f5c0f9e11be06f35b4a6224064365eb568403a3861a2d4d1a2097a2c4dee4"
+      "sha256": "8ba893dae4f546cc4a03b5d0c2e39647bbee8b824ea47de92b17448ef1e5c80d"
     },
     {
       "path": "personal-space/libraries/pages.db",
@@ -1239,7 +1239,6 @@
         "project_deletions": 0,
         "project_events": 25,
         "project_instruction_settings": 0,
-        "project_plugin_exclusions": 0,
         "project_portable_plugins": 25,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
@@ -1253,7 +1252,7 @@
         "workspace_source_links": 0,
         "workspaces": 4
       },
-      "sha256": "208b42c9168b64defa25cffc63d8e1ed29bf9d5d0c5d5d0b15ea78caf8b07748"
+      "sha256": "3e76b0f64c1fb1dca7d7fbbd961acb03c85f8ad097475ca4b77d1f9966f36311"
     },
     {
       "path": "projects/goalboard-v1-demo/molis-work.db",
@@ -2437,7 +2436,7 @@
         "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
         "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
       },
-      "sha256": "e921bfebaa612c3efd2644379f6263b8e3785984c328a97cefadc0e38e1cd9d1"
+      "sha256": "abd822e8b87a7879afcf39fea72807c3f2885ffd855ef57dfddf1bf7916d4610"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/pages.db",
@@ -2805,7 +2804,6 @@
         "project_deletions": 0,
         "project_events": 10,
         "project_instruction_settings": 0,
-        "project_plugin_exclusions": 0,
         "project_portable_plugins": 10,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
@@ -2819,7 +2817,7 @@
         "workspace_source_links": 0,
         "workspaces": 2
       },
-      "sha256": "cf767205e258d0ff62da4de2b951f7f8fa4244b64c979e83e9d19d929edd1067"
+      "sha256": "3c89dd6b1524bfce382f85d87cbfe5771affc0b1a2f57ec2eda4c2ebfdf99e85"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c/libraries/dataset.db",

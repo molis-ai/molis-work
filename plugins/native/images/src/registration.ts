@@ -6,7 +6,6 @@ import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  preservedMembershipBatch: 108,
   project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, catalog_order: 4,
   project_runtime: { create: createImagesPlugin,
     package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" },

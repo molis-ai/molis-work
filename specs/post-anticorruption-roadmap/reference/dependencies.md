@@ -608,7 +608,7 @@ flowchart LR
 | --- | --- | --- |
 | `44B-0` | 已合入（`#2262` `de25e3090d`）：全局保留 `io.molis.work.` 前缀（`S-reserved-host-prefix`）与修两处第三方正则 | [44B](batches/44b.md#batch-44b-item-0) |
 | `44B` | 已合入（`#2279` 删除旧 Alchemist、`#2294` `b57fd115ff` 收口其余全部、`#2308` 两轮复核修复）：Shelf 收归纯平台 `modules/shelf`（`always_on=0`、免重写 3,150 行 Rust）、删旧 Alchemist 与 `better-sqlite3`、D5 Clean v1 拍平、官方集成驱动化（`youtube`→`rss`、`planning-methods`→`packages/system-skills/`）、修 `#2231` Inbox 劫持、上线 G1 | [44B](batches/44b.md) |
-| `44C` | 已合入（`#2333` `56a094ec0e`，2026-11-26；收尾五问随收尾 PR）：统一 `resolveActionProviderId`、`RuntimePluginDirectory`、`PLATFORM_SETTINGS_REGISTRY`，M15，内置集成进程内启动、签名集成经 Home Runtime 挂接；PSD-03 单包及 G1 例外见批次实施记录；范围以 44B 记录末尾两节为准（用户 2026-11-24 定）；前置为 `44B` 和 `106` | [44C](batches/44c.md) |
+| `44C` | 已合入（`#2333` `56a094ec0e`，2026-11-26；收尾五问随收尾 PR）：统一 `resolveActionProviderId`、`RuntimePluginDirectory`、`PLATFORM_SETTINGS_REGISTRY`，M15，内置集成进程内启动、签名集成经 Home Runtime 挂接；PSD-03 单包及 G1 例外见[整改 #2354](batches/44c.md#batch-44c-remediation)，109-2 接 Git 适配，109-3 接统一装配；范围以 44B 记录末尾两节为准（用户 2026-11-24 定）；前置为 `44B` 和 `106` | [44C](batches/44c.md) |
 | `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/平台定格式总览表 `overview_projection`（到期提醒从中取）、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
 | `107`（UPP-B1） | 等 `106`：6 个独立库插件迁 `databases.partition`，删 `databases.home.partition` 复用器（`project_rows`、`artifact_join` 归 `109`） | [107](batches/107.md) |
 | `108`（UPP-B2） | 等 `107`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，删 `personal:true`/`hidden`/`project_reach`（`scope:"home"` 与 `outsideBuild` 链归 `109`） | [108](batches/108.md) |

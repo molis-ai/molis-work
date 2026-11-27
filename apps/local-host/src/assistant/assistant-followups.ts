@@ -87,7 +87,7 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   /** The work by id; throws when it no longer exists. */
   work(workId: string): W;
   holdWork?(work: W): Promise<{ assertCurrent(): void; release(): void } | undefined>;
-  notify(notice: Pick<AssistantNotice, "kind" | "work_id" | "work_title" | "text" | "open">, dedupe: string): boolean;
+  notify(notice: Pick<AssistantNotice, "kind" | "work_id" | "work_title" | "text" | "open" | "reminder_source">, dedupe: string): boolean;
   setting(key: string): string | null;
   setSetting(key: string, value: string): void;
   rules(): AssistantRule[];

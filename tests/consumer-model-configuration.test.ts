@@ -7,9 +7,8 @@ import { syncBuiltinESMExports } from "node:module";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { ModelProviderStore, initializeCatalog, hostCompleteText, CATALOG_SCHEMA_VERSION, createConsumerModelConfiguration, bindPrologueInference } from "@molis-ai/molis-work-app-local-host";
-/** A consumer's declaration as a plugin's Manifest gives it (a sandbox plugin's is the same shape); Jelly was the built-in one until batch 112-2. */
-const PROBE_MODEL_CONFIGURATION = { preference: { store_name: "probe", file_name: "preferences.json" }, custom_provider: { provider_id: "probe-text", display_name: "探针模型" },
-  actions: { read: { capability_id: "probe.model.settings", version: 1 }, save: { capability_id: "probe.model.configure", version: 1 } } };
+/** A consumer's declaration: where its choice is kept and its own provider. The Host derives one for each Home package (`sandboxModelDeclaration`, BL-491). */
+const PROBE_MODEL_CONFIGURATION = { preference: { store_name: "probe", file_name: "preferences.json" }, custom_provider: { provider_id: "probe-text", display_name: "探针模型" } };
 const configuration = (home: string) => createConsumerModelConfiguration(home, PROBE_MODEL_CONFIGURATION);
 const completion = (home: string) => hostCompleteText({ homeDirectory: home, selection: configuration(home).selection() });
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";

@@ -63,23 +63,10 @@ export function validateSettingsDeclaration(manifest: {
   if (!isJsonObject(declaration)) return [{ path: root, reason: "设置声明必须是对象" }];
   const definitions: readonly unknown[] = Array.isArray(manifest.actions) ? manifest.actions : [];
   return [
-    ...extraFields(declaration, ["entries", "read", "write", "model_configuration"], root),
+    ...extraFields(declaration, ["entries", "read", "write"], root),
     ...entryProblems(declaration.entries, manifest.plugin_id),
-    ...modelEntryProblems(declaration, definitions),
     ...settingsActionProblems(declaration, definitions),
   ];
-}
-
-function modelEntryProblems(declaration: Record<string, unknown>, definitions: readonly unknown[]): PluginDeclarationProblem[] {
-  const config = declaration.model_configuration;
-  if (config === undefined) return [];
-  const entry = isJsonObject(config) && Array.isArray(declaration.entries) && declaration.entries.find(item => isJsonObject(item) && item.key === config.key);
-  const read = declaration.read;
-  if (!entry || !isText(entry.key) || !Array.isArray(entry.layers) || entry.layers.length !== 1 || entry.layers[0] !== "personal" ||
-    !isJsonObject(read) || !definitions.some(def => isJsonObject(def) && def.capability_id === read.capability_id && def.version === read.version &&
-      isJsonObject(def.action) && def.action.scope === "home"))
-    return [{ path: root + ".model_configuration", reason: "模型选择须绑定本主人声明的 Home 个人设置" }];
-  return [];
 }
 
 export function settingsActionProblems(declaration: { readonly read?: unknown; readonly write?: unknown }, definitions: readonly unknown[]): PluginDeclarationProblem[] {

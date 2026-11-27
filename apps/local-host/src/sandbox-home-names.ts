@@ -17,8 +17,6 @@ const digest = (installId: string): string => createHash("sha256").update(instal
 export const sandboxImageNamespace = (installId: string): string => IMAGE_CONNECTIONS_PREFIX + digest(installId);
 export const sandboxProviderId = (installId: string): string => SANDBOX_PROVIDER_PREFIX + digest(installId);
 
-/** Whether an id is one the Host derives as a sandboxed package's own provider (refused where a shipped plugin declares its provider). */
-export const sandboxProviderName = (id: string): boolean => id.startsWith(SANDBOX_PROVIDER_PREFIX);
 /** Whether a store name is one the Host derives as a sandboxed package's image namespace (refused where a shipped plugin declares its image store). */
 export const sandboxImageNamespaceName = (name: string): boolean => name.startsWith(IMAGE_CONNECTIONS_PREFIX);
 

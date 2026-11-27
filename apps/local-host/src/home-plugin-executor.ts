@@ -68,7 +68,6 @@ export class HomePluginExecutor implements PluginExecutor {
     home: string; actorId: string; client: ActionClient; registry: ActionRegistryPort;
     database(definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined;
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
-    modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
     /** The Host's start list said this is the Home half of a dual-instance plugin (specs/archive/dual-instance-plugins). */
     dualInstance(definition: PluginDefinition): boolean;
@@ -156,8 +155,8 @@ export class HomePluginExecutor implements PluginExecutor {
         try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
       });
       const authorized = { ...context, requireGrant: authorize };
-      // A sandboxed package has no `model_configuration` or `image_generation` block: its settings and image connections are derived from its contract's effects (BL-491).
-      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.settings_entries?.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);
+      // A sandboxed package has no `image_generation` block: its model settings and image connections are derived from its contract's effects (BL-491).
+      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive), home, definition, authorized, assertActive);
       const imageGeneration = sandboxImageGenerationFor(home, definition, authorized, assertActive)
         ?? pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
       const localTools = pluginLocalToolsFor(definition, authorized, assertActive);

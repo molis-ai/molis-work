@@ -178,8 +178,8 @@ export interface PluginRegistration {
    * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
    * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;
    * personal visibility alone never migrates an existing plugin. Trusted: the Host reads it from this registration only, never from a
-   * Manifest or an installed package. Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image
-   * generation are the Manifest's `owner_files`, `model_configuration` and `image_generation` (PG-102).
+   * Manifest or an installed package. Its library is the Manifest's `databases.home` (PG-022). Its files and image
+   * generation are the Manifest's `owner_files` and `image_generation` (PG-102).
    */
   readonly runtime?: {
     readonly create: () => PluginDefinition;

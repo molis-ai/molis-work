@@ -1,4 +1,3 @@
-import type { ActionReference } from "./actions.js";
 import type { PluginModelSelection } from "./plugin-model.js";
 import type { ModelApiFormat, ModelRecord } from "../modules/model-providers.js";
 
@@ -31,28 +30,10 @@ export interface PluginModelConfigurationView {
   readonly custom_connection_id?: string;
 }
 
-/** Installed consumer configuration, bound by the Host to the declared settings actions. */
+/** A Home package's own model settings, derived by the Host from the package's `effects.modelSettings` (BL-491). */
 export interface PluginModelConfigurationClient {
   /** Only this consumer's selected provider/model names, also usable during availability discovery. */
   selection(): PluginModelSelection | undefined;
-  /** The declared setting actions. Only host-executed plugins receive this service. */
-  readonly preferences?: {
-    read(input: import("./settings.js").SettingsReadInput): Promise<import("./settings.js").SettingsValues>;
-    write(input: import("./settings.js").SettingsWriteInput): Promise<import("./settings.js").SettingsValues>;
-  };
   read(options?: { preference_revision: true }): Promise<PluginModelConfigurationView>;
   save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
-}
-
-/**
- * What a plugin's settings declaration binds (`settings_entries.model_configuration`, PG-102), like any plugin's: the Host gives the service only to a
- * definition on its start list, whose preference directory its store registry holds as this plugin's.
- */
-export interface PluginModelConfigurationDeclaration {
-  readonly preference: { readonly store_name: string; readonly file_name: string };
-  readonly custom_provider: { readonly provider_id: string; readonly display_name: string };
-  readonly actions: {
-    readonly read: Pick<ActionReference, "capability_id" | "version">;
-    readonly save: Pick<ActionReference, "capability_id" | "version">;
-  };
 }

@@ -366,7 +366,11 @@ export async function startPartitionPluginInstance(ports: ProjectPluginPorts, sc
     // A start the platform recorded as failed is no instance: the assembly forgets it and the next use tries again.
     // An uninstalled one is held back (`plugin.revoked`), which is not a failed start.
     const failed = uninstalled ? undefined : report.failed.find(item => item.plugin_id === scope.plugin_id) ?? report.blocked.find(item => item.plugin_id === scope.plugin_id);
-    if (failed || (!uninstalled && !report.running.includes(scope.plugin_id))) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没能启动", { details: { plugin_id: scope.plugin_id, code: failed?.code ?? null } });
+    if (failed || (!uninstalled && !report.running.includes(scope.plugin_id))) {
+      // The supervisor can report a generic entrypoint failure. This partition's instance still has the original code until shutdown.
+      const cause = failed?.code === "plugin.executor_failed" && failed.install_id ? platform.runtime.get(failed.install_id).last_error_code : null;
+      throw new ActionError("actions.plugin_unavailable", "这个插件在这里没能启动", { details: { plugin_id: scope.plugin_id, code: cause ?? failed?.code ?? null } });
+    }
   } catch (error) {
     stopObservers();
     await stopProjectPlugins(platform, ports.projectId).catch(() => {});

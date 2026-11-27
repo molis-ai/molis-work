@@ -383,7 +383,7 @@ test("UPP-34 the overview table: the SDK checks each row's format and its limit,
 
 // S-partition-wake-scope for due entries (§6.1): the one due timer wakes the (plugin, partition) an entry belongs to and nothing else.
 const DUE_OWNER = { install_id: "todo-install", plugin_id: "io.molis.work.todo", partition_id: "personal" };
-test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partition) an entry belongs to", async () => {
+test("UPP-32 S-partition-wake-scope the due timer wakes only the (plugin, partition) an entry belongs to", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-due-wake-"));
   let now = new Date("2026-11-24T10:00:00.000Z");
   const due = openDueRegistry(home, { now: () => now });

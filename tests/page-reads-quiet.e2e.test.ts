@@ -209,7 +209,7 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   await waitFor("document.body.dataset.desktopSurface === 'todo'", 30_000); await settle();
   phase = "project";
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelectorAll('[data-titlebar-tabs] .tab-item').length >= 2", 30_000); await settle();
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelectorAll('[data-titlebar-tabs] .tab-item').length >= 2", 30_000); await settle();
   phase = "tab";
   await click("[data-titlebar-tabs] .tab-item:not([aria-current]) .tab-item-trigger");
   await settle();
@@ -236,9 +236,9 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
     const frameWords = reads.filter(one => one.method === "GET" && one.path === "/api/ui/locales");
     const appearance = reads.filter(one => one.method === "GET" && one.path === "/api/ui/appearance/events");
     const registrations = reads.filter(one => one.method === "POST" && one.path === "/api/host/plugin-pages");
-    // The chooser has no open plugin. The other steps show one, so their per-frame budgets exercise a real document.
-    if (name === "chooser") assert.equal(registrations.length, 0, "the closed chooser side registers no plugin page");
-    else assert.ok(registrations.length > 0, `${name}: a visible plugin frame registered its page`);
+    // The chooser and the inline Goals board use only the shell. Both Todo visits and the opened side each mount one plugin document.
+    const expectedRegistrations = name === "chooser" || name === "project" ? 0 : 1;
+    assert.equal(registrations.length, expectedRegistrations, `${name}: register each opened plugin document exactly once`);
     assert.equal(words.length, new Set(words.map(one => one.frame)).size, `${name}: at most one language script per document`);
     assert.ok(frameWords.length <= registrations.length, `${name}: no repeated frame word reads`);
     assert.ok(appearance.length <= 1, `${name}: one appearance subscription`);

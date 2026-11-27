@@ -421,8 +421,12 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   await evaluate(`(() => { window.__reads = 0; const original = window.fetch; window.fetch = (...args) => { if (String(args[0]).includes('?window=')) window.__reads++; return original(...args); }; })()`);
   await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
-  await evaluate(`(() => { window.__card = document.querySelector(${JSON.stringify(card)}); document.querySelector(${JSON.stringify(field)}).focus(); })()`);
+  await waitFor(`document.querySelector(${JSON.stringify(card)})?.dataset.answerable === 'true' && document.querySelector(${JSON.stringify(field)})?.matches(':enabled')`);
+  await click(field);
+  await waitFor(`document.hasFocus() && document.activeElement === document.querySelector(${JSON.stringify(field)})`);
+  await evaluate(`window.__card = document.querySelector(${JSON.stringify(card)}); true`);
   await command("Input.insertText", { text: "写到一半的话" }, sessionId);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(field)}).value`), "写到一半的话", "the typed text reached the question before polling");
   await evaluate(`document.querySelector(${JSON.stringify(field)}).setSelectionRange(3, 3)`);
   // Scrolled up with the wheel, as a person reading back does.
   const lane = await evaluate<{ x: number; y: number; room: number }>(`(() => { const node = document.querySelector(${JSON.stringify(turns)}), r = node.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, room: node.scrollHeight - node.clientHeight }; })()`);

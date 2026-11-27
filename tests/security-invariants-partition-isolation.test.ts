@@ -403,9 +403,9 @@ test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partit
 
 /** Waits for a condition the Host reaches on its own (a timer firing), reading it again every 50 ms; fails after `ms`. */
 async function until(what: string, ready: () => boolean, ms = 20_000): Promise<void> {
-  const end = Date.now() + ms;
+  const end = performance.now() + ms;
   while (!ready()) {
-    if (Date.now() > end) assert.fail(`timed out waiting: ${what}`);
+    if (performance.now() > end) assert.fail(`timed out waiting: ${what}`);
     await new Promise(resolve => setTimeout(resolve, 50));
   }
 }
@@ -418,6 +418,8 @@ test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
   const a = await f.project("提醒 A", ["todo", "images"]), b = await f.project("提醒 B", ["todo", "images"]), c = await f.project("提醒 C", ["todo", "images"]);
   const host = existingPartitionPluginHost(f.home), services = host?.services;
   assert.ok(host && services, "the Host started the partition services");
+  // Advance the due clock only once all three projects have really gone to sleep. Native Host timers still run.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const soon = new Date(Date.now() + 3_000).toISOString(), later = new Date(Date.now() + 86_400_000).toISOString();
   const remind = (p: typeof a, title: string, at: string) => f.host.actionClient(p.reference).invoke(runtimePerson(TODO_ACTION_PERMISSIONS, p.project_id), todoActions.create, { title, remind_at: at });
   await remind(a, "A 到点", soon);
@@ -437,6 +439,8 @@ test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
   assert.deepEqual(f.host.projects(), [], "and no project is open");
 
   const fallen = (p: typeof a, plugin: string) => services.due.entries(p.project_id).filter(entry => entry.plugin_id === plugin && Date.parse(entry.due_at) <= Date.parse(soon));
+  t.mock.timers.setTime(Date.parse(soon));
+  services.timer.arm();
   await until("both fallen-due entries are settled", () => fallen(a, todoManifest.plugin_id).length === 0 && fallen(b, imagesManifest.plugin_id).length === 0);
   assert.deepEqual(host.assembly.instances().map(item => `${item.plugin_id}@${item.partition_id}`).sort(),
     [`${imagesManifest.plugin_id}@${b.project_id}`, `${todoManifest.plugin_id}@${a.project_id}`].sort(),

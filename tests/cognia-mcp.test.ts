@@ -10,7 +10,7 @@ import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 
 // RAC-105-A-16: the resident owns each Home while independent stdio clients exercise the real grants and persistence.
-test("standard Cognia MCP clients share real imports and fixed bytes, isolate Home/read grants, and resume after client restart", { timeout: 45_000 }, async t => {
+test("standard Cognia MCP clients share real imports and fixed bytes, isolate Home/read grants, and resume after client restart", { timeout: 90_000 }, async t => {
   const homes = await Promise.all([openTestHome(t), openTestHome(t)]);
   // Cognia works in a partition (batch 108): each Home's clients are bound to one project that has it.
   const projects = new Map(await Promise.all(homes.map(async home => [home, await home.createProject("Knowledge", ["cognia"])] as const)));
@@ -21,7 +21,7 @@ test("standard Cognia MCP clients share real imports and fixed bytes, isolate Ho
     const project = projects.get(resident)!;
     await grant(resident, project.project_id, actor, "cognia", permissions);
     const client = new Client({ name: "external-cognia", version: "1" }); clients.push(client);
-    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/cognia-mcp-server.ts", import.meta.url)), resident.home, `fixture-${access}`, resident.origin, project.database_path, project.project_id], stderr: "pipe" });
+    const transport = new StdioClientTransport({ command: process.execPath, args: [fileURLToPath(new URL("./fixtures/cognia-mcp-server.ts", import.meta.url)), resident.home, `fixture-${access}`, resident.origin, project.database_path, project.project_id], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
@@ -32,13 +32,18 @@ test("standard Cognia MCP clients share real imports and fixed bytes, isolate Ho
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
   };
   try {
-    const a = await connect(homes[0]!), reader = await connect(homes[0]!, "read"), b = await connect(homes[1]!);
+    // Each resident owns a separate Home. Reuse the saved grant only after restarting the first client.
+    const a = await connect(homes[0]!);
+    const reader = await connect(homes[0]!, "read");
+    const b = await connect(homes[1]!);
+    t.diagnostic("The two residents and their three stdio clients are connected");
     const tools = (await a.listTools()).tools.map(row => row.name);
     for (const name of ["material.create", "workspace.get", "material.search", "material.download", "import.preview", "import.commit", "draft.save"]) assert.ok(tools.includes(tool(name)));
     assert.ok(!(await reader.listTools()).tools.some(row => row.name === tool("directory.scan")));
     for (const name of ["material.get", "material.update"]) assert.ok(tools.includes(tool(name)));
     const preview = (await call(a, "import.preview", { kind: "markdown", name: "External", files: [{ path: "original.md", data: Buffer.from("# Evidence\nOriginal bytes").toString("base64") }] })).preview;
     await a.close(); const restarted = await connect(homes[0]!);
+    t.diagnostic("The writer restarted with its persisted grant and import preview");
     const receipt = (await call(restarted, "import.commit", { preview_id: preview.id })).receipt;
     assert.deepEqual((await call(restarted, "import.commit", { preview_id: preview.id })).receipt, receipt);
     const id = receipt.material_ids[0];

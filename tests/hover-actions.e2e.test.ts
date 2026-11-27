@@ -101,7 +101,10 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       checked++;
       // A key press first, so the focus that follows is keyboard focus (:focus-visible).
       for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Shift", code: "ShiftLeft", windowsVirtualKeyCode: 16 }, sessionId);
-      const how = await evaluate<string>(hoverFocus(item.index));
+      // Chromium requires user activation for a cross-origin frame to receive focus from the shell.
+      const how = page === browser
+        ? await browser.evaluate<string>(hoverFocus(item.index))
+        : await children[name]!.evaluate<string>(hoverFocus(item.index), undefined, "person");
       await pause(350);
       const alpha = await evaluate<number>(hoverShown(item.index));
       if (!how) found.push(`${name}: ${kind} "${item.name}" can't be reached by keyboard`);

@@ -72,7 +72,7 @@ test("WLHR-01: Coding reports pending IDs for its bound Agent session; the workb
   assert.equal(await home.host.sleepIfIdle(project.reference, 0), true);
   const asleep = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
   assert.ok(asleep.background_tasks.tasks.some(one => one.subject.id === sessionId), "listed while the project sleeps");
-  assert.ok(!home.host.status().projects.some(one => one.project_id === project_id), "reading the list did not open the project");
+  assert.ok(!home.host.status().projects.some((one: { project_id: string }) => one.project_id === project_id), "reading the list did not open the project");
 });
 
 test("W5-01-CODING-32 UPP-37 Coding declares its background tasks as a read-only project query and its overview rows as `background_task`; its reader and the Host's old one are gone", () => {
@@ -130,7 +130,7 @@ test("W5-01-CODING-33 UPP-37 the Home lists the Coding sessions under way or wai
   await seed(unopened, [["u1", "running", later(99)]]);
   // Coding is not enabled in the fourth project, whose database holds a session (and its row) all the same: the Home does not read its rows there.
   await seed(without, [["w1", "running", later(98)]]);
-  assert.ok(!home.host.status().projects.some(project => project.project_id === unopened.project_id), "the Home never opened the third project");
+  assert.ok(!home.host.status().projects.some((project: { project_id: string }) => project.project_id === unopened.project_id), "the Home never opened the third project");
 
   const rows = (await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention")).background_tasks.tasks;
   assert.deepEqual(rows.map(row => [row.project_name, row.subject.id, row.state, row.waiting]), [
@@ -139,7 +139,7 @@ test("W5-01-CODING-33 UPP-37 the Home lists the Coding sessions under way or wai
     ["Alpha", "a6", "paused", true], ["Alpha", "a3", "approval", true], ["Alpha", "a1", "running", false],
     ["Beta", "b4", "running", false], ["Beta", "b1", "interrupted", false], ["Beta", "b2", "verify", true],
   ], "a finished session with nothing left for the person is not listed; a session cut off by a restart reads as interrupted, not as running; the unopened project is listed at once");
-  assert.ok(!home.host.status().projects.some(project => project.project_id === unopened.project_id), "listing it did not open it");
+  assert.ok(!home.host.status().projects.some((project: { project_id: string }) => project.project_id === unopened.project_id), "listing it did not open it");
   assert.ok(rows.every(row => row.origin.surface === "coding" && row.subject.kind === codingManifest.plugin_id && row.scope === "project" && row.executor.kind === "plugin"));
   assert.ok(rows.every(row => row.serves.length === 1 && row.serves[0]!.id === row.subject.id && row.open?.kind === "item" && row.open.surface === "coding" && row.open.id === row.subject.id));
   assert.ok(rows.every(row => row.commands.length === 0 && row.decisions.length === 0), "a row carries no command and no decision: they are read in the project");
@@ -284,5 +284,5 @@ test("W5-01-CODING-39 UPP-07 reading the list writes nothing in a project and op
   const attention = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
   assert.deepEqual(attention.background_tasks.tasks.map(row => row.subject.id), ["q1"]);
   assert.equal(snapshot(), before, "the project's database is as it was");
-  assert.ok(!home.host.status().projects.some(one => one.project_id === projectId), "the project was not opened to be read");
+  assert.ok(!home.host.status().projects.some((one: { project_id: string }) => one.project_id === projectId), "the project was not opened to be read");
 });

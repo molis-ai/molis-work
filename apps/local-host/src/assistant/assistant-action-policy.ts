@@ -21,10 +21,15 @@ function policyOf(view: Metadata, policies: ReturnType<AssistantStore["policies"
     operation: view.operation, effect: actionEffect(view.action, view.capability_id), scope: view.action.scope };
 }
 
+/**
+ * What the Assistant may use here. A plugin this project does not reach (taken out of it, BL-088) keeps its actions registered so a call
+ * is refused as off here; they are not offered (S-72): the same judgement actions use (`projectPluginReach`).
+ */
 export async function assistantActionPolicies(host: MolisWorkLocalHost, store: AssistantStore, reference?: LocalHostProjectReference) {
   const catalog = await host.inspectPreparedActionMetadata(metadataCaller(reference), reference);
+  const reaches = reference ? await host.projectPluginReach(reference.project_id) : undefined;
   const policies = store.policies.read(LOCAL_PERSON_ACTOR_ID);
-  return catalog.map(view => policyOf(view, policies));
+  return catalog.filter(view => !reaches || !view.provider.plugin_id || reaches(view.provider.plugin_id) !== false).map(view => policyOf(view, policies));
 }
 
 export async function assistantActionPolicyView(host: MolisWorkLocalHost, store: AssistantStore, reference: LocalHostProjectReference | undefined,

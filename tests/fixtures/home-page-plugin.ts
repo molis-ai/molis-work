@@ -1,5 +1,5 @@
 import type { Server } from "node:http";
-import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginContribution, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * A Home plugin with a standalone page (`/plugins/<plugin id>`): one main view drawn in the common opaque frame, so the page has a plugin
@@ -15,7 +15,7 @@ export function homePagePlugin(name = "Home page probe"): { id: string; key: str
     publisher: { publisher_id: "example", signature: "home-page-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [view], views: [{ view_id: "page", slot: "stage", title: name }] }, actions: [] };
-  const definition: PluginDefinition = { manifest, start: () => ({ kind: "app", views: [{
+  const definition: PluginDefinition = { manifest, start: async (): Promise<PluginContribution> => ({ kind: "app", views: [{
     descriptor: { contribution_id: view, kind: "embedded", label: name, surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
     render: () => `<section data-home-page-probe><h1>${name}</h1></section>`,
   }] }) };

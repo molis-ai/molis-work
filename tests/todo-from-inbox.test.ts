@@ -83,7 +83,7 @@ test("RAC-135 a whole object or a passage made into a todo lands in the partitio
   for (const [granularity, project] of [["object", "project-a"], ["object", "personal"], ["range", "project-a"]] as const) {
     const input = await asked(granularity, project);
     assert.equal("placement" in input || "project_id" in input, false, `${granularity} in ${project}`);
-    assert.equal((await from(project).invoke(todoActions.create, input as TodoCreateInput)).item.title, "回复报价");
+    assert.equal((await from(project).invoke(todoActions.create, input as Partial<TodoCreateInput> as TodoCreateInput)).item.title, "回复报价");
   }
 });
 test("RAC-1668 a selection made into a todo is cut in whole Unicode characters to the lengths todo.items.create counts, and todo.items.create takes it as offered", async t => {

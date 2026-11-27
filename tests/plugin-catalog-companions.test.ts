@@ -59,7 +59,6 @@ test("每个目录里的插件都在导航条上有自己的一格", () => {
   const enabled = BUILTIN_PLUGIN_IDS;
   const rail = railEntries(enabled).map((entry) => entry.id);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
-    if (entry.personal === true) continue;
     const hasNavigator = (entry.manifest.ui.views ?? []).some((view) => view.slot === "navigator");
     if (!hasNavigator) continue;
     assert.equal(rail.includes(entry.project_plugin_id), true,

@@ -29,7 +29,7 @@ test("S-49 UPP-37 services.overview stamps the installation, writes only declare
   const changed: string[] = [];
   const overview = pluginOverviewFor(codingManifest, context, library, store.db, () => {}, record, id => changed.push(id));
   assert.ok(overview, "a plugin that keeps its data in the main database and declares overview kinds is given the client");
-  const rows = () => store.db.prepare("SELECT install_id, kind, row_id, state FROM plugin_overview_rows ORDER BY install_id, row_id").all();
+  const rows = () => store.db.prepare("SELECT install_id, kind, row_id, state FROM plugin_overview_rows ORDER BY install_id, row_id").all() as Array<{ install_id: string; kind: string; row_id: string; state: string }>;
   const write = (body: Parameters<NonNullable<typeof overview>["join"]>[1]) => library.transaction(async () => {}, tx => overview!.join(tx, body));
 
   await write(rows => rows.upsert("background_task", ROW));
@@ -42,14 +42,14 @@ test("S-49 UPP-37 services.overview stamps the installation, writes only declare
 
   await assert.rejects(write(rows => rows.upsert("scheduled_run", { row_id: "r", title: "r", due_at: ROW.updated_at, updated_at: ROW.updated_at })), { code: "actions.forbidden" },
     "a kind the Manifest does not declare is refused");
-  await assert.rejects(write(rows => rows.upsert("made-up" as never, ROW)), { code: "actions.input_invalid" });
+  await assert.rejects(write(rows => rows.upsert("made-up" as never, ROW as never)), { code: "actions.input_invalid" });
   await assert.rejects(write(rows => rows.upsert("background_task", { ...ROW, state: "made-up" } as never)), "a row the SDK's check refuses is refused here too");
 
   // The row and the business write are one commit: a write that fails takes its row with it.
   await assert.rejects(library.transaction(async () => {}, tx => overview!.join(tx, rows => { rows.upsert("background_task", ROW); throw new Error("the business write failed"); })));
   assert.equal(rows().filter(row => row.install_id === installId).length, 0, "nothing of the failed write is kept");
 
-  state = "stopped";
+  state = "disabled";
   await assert.rejects(write(rows => rows.upsert("background_task", ROW)), { code: "actions.forbidden" }, "an installation no longer running writes nothing");
   assert.equal(rows().filter(row => row.install_id === installId).length, 0);
 });

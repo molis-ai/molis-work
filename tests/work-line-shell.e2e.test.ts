@@ -131,7 +131,7 @@ test("WLN-04 WLN-06 POLISH-34: the input takes the next request at once while th
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const item = store.create({ title: "报价单", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const item = store.create({ title: "报价单", planned_date: today() }, { actor: "user" as const, actorId: "test" }).item;
   store.close();
   served = { kind: "todo_item", id: item.id };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);

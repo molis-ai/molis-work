@@ -54,7 +54,7 @@ test("Jelly syncs one row per key, a note and an entry travelling on their own, 
   // UPP-35: an entry that arrived is in the receiving partition's overview as it would be had it been written there (batch 108).
   const overviewEvents = (home: string) => {
     const db = openPartitionLibraryDatabase(home, "personal", "jelly");
-    try { return db.prepare("SELECT row_id, title FROM molis_overview_rows WHERE kind = 'event'").all().map(row => ({ ...row })); }
+    try { return db.prepare("SELECT row_id, title FROM molis_overview_rows WHERE kind = 'event'").all().map(row => ({ ...row as { row_id: string; title: string } })); }
     finally { db.close(); }
   };
   assert.deepEqual(overviewEvents(f.homes[1]!), [{ row_id: "i1", title: "评审" }]);

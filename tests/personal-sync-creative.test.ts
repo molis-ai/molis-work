@@ -51,7 +51,7 @@ test('Host exposes and transfers all registered creative collections through the
   }finally{s.close();}})();
   const jelly=(()=>{const s=openJellyStore(f.homes[0],project.project_id);try{const now=new Date().toISOString();return s.write(store=>store.insert('note',{id:'sync-note',title:'跨设备笔记',body:'同步内容',day:null,revision:1,created_at:now,updated_at:now})).id;}finally{s.close();}})();
   // Todo and Jelly keep a library in each partition since batch 108: these are the project's.
-  const todo=(()=>{const s=openTodoStore(f.homes[0],undefined,project.project_id);try{return s.create({title:'跨设备待办'},{projectId:null,projectIds:[],actor:'user',actorId:'alice'}).item.id;}finally{s.close();}})();
+  const todo=(()=>{const s=openTodoStore(f.homes[0],undefined,project.project_id);try{return s.create({title:'跨设备待办'},{actor:'user',actorId:'alice'}).item.id;}finally{s.close();}})();
   const character=(()=>{const s=openCharacters(f.homes[0],LOCAL_PERSON_ACTOR_ID);try{
     return s.service.create({title:'跨设备角色',instructions:'核对事实',host_tools:null}).character_id;
   }finally{s.close();}})();
@@ -77,7 +77,7 @@ test('Host exposes and transfers all registered creative collections through the
     assert.equal(receivedJelly.read(store=>store.get('note',jelly))?.title,'跨设备笔记');
   }finally{receivedJelly.close();}
   const receivedTodo=openTodoStore(f.homes[1],undefined,project.project_id);try{
-    assert.equal(receivedTodo.get(todo,{projectId:null,projectIds:[],actor:'user',actorId:'alice'}).title,'跨设备待办');
+    assert.equal(receivedTodo.get(todo,{actor:'user',actorId:'alice'}).title,'跨设备待办');
   }finally{receivedTodo.close();}
   const receivedCharacter=openCharacters(f.homes[1],LOCAL_PERSON_ACTOR_ID);try{
     assert.equal(receivedCharacter.service.get(character)?.title,'跨设备角色');

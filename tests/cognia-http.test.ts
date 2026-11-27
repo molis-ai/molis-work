@@ -44,7 +44,7 @@ test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads
 
 test("Cognia is a partition plugin: no personal mark, project-scoped read-only actions that read that partition's library", async t => {
   const entry = BUILTIN_PLUGIN_CATALOG.find(e => e.project_plugin_id === 'cognia');
-  assert.equal(entry?.personal, undefined); assert.equal(entry?.manifest.plugin_id, COGNIA_PLUGIN_ID); assert.equal(entry?.manifest.databases?.home, undefined);
+  assert.equal(Object.hasOwn(entry ?? {}, "personal"), false); assert.equal(entry?.manifest.plugin_id, COGNIA_PLUGIN_ID); assert.equal(entry?.manifest.databases?.home, undefined);
   assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e => e.project_plugin_id === 'cognia'));
   assert.ok(!homeStores().stores.some(store => store.path === 'cognia'), 'no Home library: each partition keeps its own');
   for (const action of [cogniaActions.search, cogniaActions.read]) { assert.equal(action.operation, 'query'); assert.equal(action.action.scope, 'project'); }

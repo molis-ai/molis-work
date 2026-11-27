@@ -41,7 +41,8 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   await waitFor("document.querySelector('[data-todo-detail-note]')?.textContent.includes('fixture save refused')", 10_000);
   const fields = () => evaluate(`['title','notes','due_date','due_time'].map(key => document.querySelector('[data-todo-field="' + key + '"]').value)`);
   const retained = ["保留输入", "尚未保存的说明", "2026-10-30", "11:00"];
-  for (const mode of ["500", "network"]) for (const operation of ["back", "other", "placement", "complete", "link", "search", "batch", "quick"]) {
+  // Todo's own placement buttons left with the placement field (batch 108); a move between partitions is the platform's placement.
+  for (const mode of ["500", "network"]) for (const operation of ["back", "other", "complete", "link", "search", "batch", "quick"]) {
     await evaluate(`window.todoMode = ${JSON.stringify(mode)}`);
     const before = await evaluate<number>("window.todoWrites.length");
     await evaluate(`(() => {
@@ -50,7 +51,7 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
         document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(operation === "batch" ? "batch:unrelated" : second!.id)} } })); return;
       }
       if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-pop-open="link"]').click();
-      const selector = ${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : operation === "link" ? `[data-todo-link-pick="${second!.id}"]` : '[data-todo-status="done"]')};
+      const selector = ${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "link" ? `[data-todo-link-pick="${second!.id}"]` : '[data-todo-status="done"]')};
       const button = document.querySelector(selector); if (!button) throw new Error('Missing Todo target: ' + selector); button.click();
     })()`);
     await waitFor(`window.todoWrites.length > ${before} && !document.querySelector('[data-todo-save-status]').textContent.includes('保存中')`);
@@ -71,19 +72,19 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   try { concurrent.update(first!.id, { notes: "另一入口保存的说明" }, undefined, access); } finally { concurrent.close(); }
   await evaluate("const notes = document.querySelector('[data-todo-field=notes]'); notes.value = '冲突时保留的输入'; notes.dispatchEvent(new Event('input', { bubbles: true }));");
   await waitFor("window.todoFailures.includes('409') && document.querySelector('[data-todo-detail-note]').textContent.length > 0", 10_000);
-  for (const operation of ["back", "other", "placement", "link", "search"]) {
+  for (const operation of ["back", "other", "link", "search"]) {
     const before = await evaluate<number>("window.todoWrites.length");
     await evaluate(`(() => {
       if (${JSON.stringify(operation)} === 'search') { document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(second!.id)} } })); return; }
       if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-pop-open="link"]').click();
-      document.querySelector(${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : `[data-todo-link-pick="${second!.id}"]`)}).click();
+      document.querySelector(${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : `[data-todo-link-pick="${second!.id}"]`)}).click();
     })()`);
     await waitFor(`window.todoWrites.length > ${before} && !document.querySelector('[data-todo-save-status]').textContent.includes('保存中')`);
     assert.deepEqual(await fields(), ["保留输入", "冲突时保留的输入", "2026-10-30", "11:00"]);
     if (operation === "link") assert.equal(await evaluate("document.querySelector('[data-todo-pop=link]').hidden"), true, "a refused pick closes the popover, so it does not sit on the recovery message");
   }
   const protectedOwner = openTodoStore(homeDirectory, undefined, projectId!);
-  try { const item = protectedOwner.get(first!.id, access); assert.equal(item.notes, "另一入口保存的说明"); assert.deepEqual(item.links, []); assert.equal(item.placement, "project"); } finally { protectedOwner.close(); }
+  try { const item = protectedOwner.get(first!.id, access); assert.equal(item.notes, "另一入口保存的说明"); assert.deepEqual(item.links, []); } finally { protectedOwner.close(); }
   await evaluate("document.querySelector('[data-todo-reload]').closest('details').open = true");
   await click("[data-todo-reload]"); await waitFor("document.querySelector('[data-todo-confirm]').open");
   await click("[data-todo-confirm] [data-confirm-ok]");

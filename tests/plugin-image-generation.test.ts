@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { imagesManifest, imagesActions as actions } from "@molis-ai/molis-work-plugin-images";

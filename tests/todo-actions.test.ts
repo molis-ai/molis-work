@@ -217,7 +217,7 @@ test("links: todo relations read from both ends; unreachable todos cannot be lin
   // A todo of another partition is not here to link to.
   const other = (await f.inA.invoke(actions.create, { title: "A 的事" })).item;
   const sendNow = (await f.me.invoke(actions.get, { id: send.id })).item;
-  await assert.rejects(f.agent.invoke(actions.link, { id: send.id, expected_revision: sendNow.revision, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: "A 的事" } }), { code: "todo.not_found" });
+  await assert.rejects(f.agent.invoke(actions.link, { id: send.id, expected_revision: sendNow.revision, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: "A 的事", relation: "related", open: null, outcome: null } }), { code: "todo.not_found" });
   const outcome = await f.me.invoke(actions.link, { id: send.id, add: { kind: "outcome", subject: { kind: "page", id: "doc-1" }, title: "回复张总的草稿", outcome: "draft", open: { surface: "pages", id: "doc-1" } } });
   assert.equal(outcome.item.links.length, 2);
   const undone = await f.me.invoke(actions.revert, { change_id: outcome.change_id });
@@ -361,7 +361,7 @@ test("placement carries a todo between partitions: a move keeps its id, dates an
   const f = fixture(t);
   const other = (await f.inA.invoke(actions.create, { title: "留在 A 的事" })).item;
   const made = (await f.inA.invoke(actions.create, { title: "A 项目的事", due_date: "2026-10-02", remind_at: "2026-10-01T09:00:00+08:00" })).item;
-  const linked = (await f.inA.invoke(actions.link, { id: made.id, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: other.title, relation: "related" } })).item;
+  const linked = (await f.inA.invoke(actions.link, { id: made.id, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: other.title, relation: "related", open: null, outcome: null } })).item;
   const subject = { kind: "todo_item", id: made.id };
   const exported = await f.inA.invoke(actions.placementExport, { subject });
   assert.equal(exported.revision, String(linked.revision));

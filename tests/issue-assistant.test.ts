@@ -146,7 +146,7 @@ test("ISSUE-07 assistant discovers Issue in the personal space and confirms exac
 });
 
 test("ISSUE-25 ISSUE-38 ISSUE-53 asked to record, the Assistant saves the spoken issue directly, a malformed save is told its contract, and the work's undo takes the record back", { timeout: 120_000 }, async t => {
-  const { replies, requests, request, list, state, send, issuesRoute, space } = await assistantHome(t);
+  const { replies, requests, request, list, state, send, space } = await assistantHome(t);
   const identity = { capability_id: "issues.create", version: 1, provider_id: ISSUES_PLUGIN_ID };
   const input = { title: "切换项目后草稿丢失", type: "bug", description: "记个 issue：切换项目后草稿丢失" };
   // The malformed call seen from MiniMax: the business values beside `input` instead of inside it. It is refused with the

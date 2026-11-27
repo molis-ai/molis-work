@@ -14,7 +14,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const all = () => { const store = openTodoStore(homeDirectory, undefined, projectId!); try { return store.list({ projectId, projectIds: [], actor: "user", actorId: "test" }); } finally { store.close(); } };
+  const all = () => { const store = openTodoStore(homeDirectory, undefined, projectId!); try { return store.list({ actor: "user", actorId: "test" }); } finally { store.close(); } };
   const byTitle = (title: string) => all().find(item => item.title === title);
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   const screenshot = async (name: string) => {
@@ -58,7 +58,6 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   await waitFor(`document.querySelector('[data-todo-view="today"]').getAttribute('aria-pressed') === 'true'`);
   const call = byTitle("给王总回电话")!;
   assert.equal(call.due_date !== null && call.planned_date === null, true);
-  assert.equal(call.placement, "unassigned", "项目里记下的默认暂未归类");
 
   await type("[data-todo-quick-input]", "今天整理会议纪要");
   await click("[data-todo-quick-submit]");
@@ -159,7 +158,7 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const everything = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
+  const everything = { actor: "user" as const, actorId: "test" };
   const store = openTodoStore(homeDirectory, undefined, projectId!);
   const now = Date.now();
   let dueId = "", overdueId = "";
@@ -223,7 +222,7 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
   const { command, sessionId, navigate, origin, projectId, homeDirectory, localHost } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const everything = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
+  const everything = { actor: "user" as const, actorId: "test" };
   const items = () => { const store = openTodoStore(homeDirectory, undefined, projectId!); try { return store.list(everything); } finally { store.close(); } };
   // The Assistant's path: an agent asks Todo to organize; the result waits for the person.
   await localHost.actionClient(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: projectId! })).invoke({ actor_id: "assistant", project_id: projectId, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,

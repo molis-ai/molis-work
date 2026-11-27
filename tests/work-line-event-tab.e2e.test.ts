@@ -35,7 +35,7 @@ test("WLHR-02 WLHR-03: the real event card shows each Agent proposal and records
   assert.ok(localHost && projectId);
   const store = openTodoStore(homeDirectory, undefined, projectId!);
   try {
-    eventId = store.create({ title: "核对报价", planned_date: today() }, { projectId, projectIds: [], actor: "user", actorId: "test" }).item.id;
+    eventId = store.create({ title: "核对报价", planned_date: today() }, { actor: "user", actorId: "test" }).item.id;
   } finally { store.close(); }
   await setViewport(1440, 900);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
@@ -147,12 +147,14 @@ test("MLN-06 WLN-20: returning to an item's event restores its conversation, dra
   const { projectId, web, evaluate, waitFor, click } = browser;
   const store = openTodoStore(browser.homeDirectory, undefined, browser.projectId!);
   const task = store.create({ title: "核对合同", planned_date: today() },
-    { projectId, projectIds: [], actor: "user", actorId: "test" }).item;
+    { actor: "user", actorId: "test" }).item;
   store.close();
   const api = `/projects/${projectId}/api/mainline/`;
   const create = async (name: string) => (await web.post<{ item: { item_id: string } }>(api + "items/create", { name })).item.item_id;
   const first = await create("合同事项"), second = await create("另一件事");
   await web.post(api + "holds/bind", { subject: { kind: "todo_item", id: task.id }, target: { kind: "work_item", id: first } });
+  // A desktop window: the demo project has five more plugins' rows since batch 108, and the default window no longer holds the item list.
+  await browser.setViewport(1440, 960);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + projectId + "/" }, browser.sessionId));
   const selectItem = async (id: string, name: string) => {
     await click("[data-top-corner-toggle]");
@@ -210,7 +212,7 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13 POLISH-66: a press on an event turns th
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const item = store.create({ title: "给王总回电话", notes: "问预算", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const item = store.create({ title: "给王总回电话", notes: "问预算", planned_date: today() }, { actor: "user" as const, actorId: "test" }).item;
   store.close();
   const subject = { kind: "todo_item", id: item.id };
   // The todo's event among the line's others (the demo project's Inbox and Feed put theirs there too).
@@ -398,7 +400,7 @@ test("WLN-18: at 390 the event's conversation is a layer above the one input and
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const item = store.create({ title: "给王总回电话", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const item = store.create({ title: "给王总回电话", planned_date: today() }, { actor: "user" as const, actorId: "test" }).item;
   store.close();
   const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`;
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
@@ -431,7 +433,7 @@ test("WLN-32: the reply that handed a task out says where it went; 「改」 ope
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const item = store.create({ title: "给王总回电话", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const item = store.create({ title: "给王总回电话", planned_date: today() }, { actor: "user" as const, actorId: "test" }).item;
   store.close();
   const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__handed = null; (() => { const real = window.fetch; window.fetch = async function (input, init) {
@@ -504,7 +506,7 @@ test("WLN-03 WLN-40: 「发给」 lists the Assistant, the Characters and the li
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const item = store.create({ title: "给王总回电话", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const item = store.create({ title: "给王总回电话", planned_date: today() }, { actor: "user" as const, actorId: "test" }).item;
   store.close();
   const characters = openCharacters(homeDirectory, "web-user");
   t.after(() => characters.close());
@@ -577,7 +579,7 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const item = store.create({ title: "给王总回电话", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const item = store.create({ title: "给王总回电话", planned_date: today() }, { actor: "user" as const, actorId: "test" }).item;
   store.close();
   const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`, KEY = `todo_item:${item.id}`;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -590,7 +592,7 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
   // A duplicate title chip is hidden in this card. Refresh the owner's actual presentation while the card stays open.
   const owner = openTodoStore(homeDirectory, undefined, projectId!);
   try {
-    owner.update(item.id, { title: "给王总回电话（已确认）" }, item.revision, { projectId, projectIds: [], actor: "user", actorId: "test" });
+    owner.update(item.id, { title: "给王总回电话（已确认）" }, item.revision, { actor: "user", actorId: "test" });
   } finally { owner.close(); }
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:plugins-changed'))");
   await waitFor(`${CARD}?.querySelector('[data-card-body]')?.textContent.includes('给王总回电话（已确认）')`, 15_000);
@@ -644,7 +646,7 @@ test("WLN-10: a waiting task's question heads the event's card with what would c
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor } = browser;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const item = store.create({ title: "给王总回电话", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  const item = store.create({ title: "给王总回电话", planned_date: today() }, { actor: "user" as const, actorId: "test" }).item;
   store.close();
   const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`, KEY = `todo_item:${item.id}`;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__asks = []; window.__decided = []; (() => { const real = window.fetch; window.fetch = async function (input, init) {

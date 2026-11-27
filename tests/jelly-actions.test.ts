@@ -22,7 +22,7 @@ function fixture(t: { after(fn: () => Promise<void>): void }) {
   // The partition's overview rows Jelly keeps beside its entries, as the platform reads them.
   const events = () => {
     const db = openPartitionLibraryDatabase(home, "a", "jelly");
-    try { return db.prepare("SELECT row_id, title, starts_at, ends_at, all_day, time_zone, remind_at FROM molis_overview_rows WHERE kind = 'event' ORDER BY row_id").all(); }
+    try { return db.prepare("SELECT row_id, title, starts_at, ends_at, all_day, time_zone, remind_at FROM molis_overview_rows WHERE kind = 'event' ORDER BY row_id").all() as Array<{ row_id: string; starts_at: string }>; }
     finally { db.close(); }
   };
   return { home, host, caller, service, bound, month, events };

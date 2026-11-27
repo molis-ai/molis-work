@@ -6,7 +6,8 @@ import { openWork, readWork, sendBrowser } from "./fixtures/assistant-send-journ
 
 // W2-18-PAGE-CARDS-01: two actual page offers share a work; rendering one cannot remove its sibling.
 test("W2-18-PAGE-CARDS-01: both page cards remain visible and executing or ignoring each survives rereading", { timeout: 90_000 }, async t => {
-  const browser = await sendBrowser(t, false); if (!browser) return;
+  // The cards record into Todo, a plugin of the project since batch 108.
+  const browser = await sendBrowser(t, false, ["pages", "todo"]); if (!browser) return;
   const offer = (title: string, work?: string) => browser.evaluate<{ work_id: string; card: AssistantCard }>(`fetch('/projects/${browser.projectId}/api/assistant/cards', {
     method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ message_id: crypto.randomUUID(), source: { surface: 'pages', title: 'Pages' },
       ${work ? `work_id: ${JSON.stringify(work)},` : ""} card: { title: ${JSON.stringify(title)}, summary: '把选中的文字记到待办', reference: { capability_id: 'todo.items.create', version: 1, provider_id: 'io.molis.work.todo' },
@@ -21,7 +22,7 @@ test("W2-18-PAGE-CARDS-01: both page cards remain visible and executing or ignor
   assert.deepEqual(await cards(), [[first.card.card_id, "ready"], [second.card.card_id, "ready"]], "both Host cards must be reachable in the same work");
   const savedTodos = () => {
     const store = openTodoStore(browser.homeDirectory, undefined, browser.projectId!);
-    try { return store.list({ projectId: browser.projectId, projectIds: [], actor: "user", actorId: "web-user" }).map(todo => todo.title); }
+    try { return store.list({ actor: "user", actorId: "web-user" }).map(todo => todo.title); }
     finally { store.close(); }
   };
   assert.ok(!savedTodos().includes("执行第一张页面卡"), "placing a card performs no business action");

@@ -71,8 +71,6 @@ test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what
   assert.equal(todos().length, 1);
   assert.equal(item!.id, first.subject.id);
   assert.equal(item!.title, "联系阿杰确认秋季发布计划"); assert.equal(item!.notes, FIRST);
-  // The offer leaves placement for the person: unassigned is its current create contract.
-  assert.deepEqual([item!.placement, item!.project_id], ["unassigned", null]);
   assert.equal(item!.sources[0]!.subject?.id, page.id); assert.equal(item!.sources[0]!.excerpt, FIRST); assert.equal(JSON.stringify(todos()).includes(SECOND), false);
 
   // The person set the Assistant to confirm Todo's create each time. That is the Assistant's setting for what it asks to do; the

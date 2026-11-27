@@ -70,7 +70,8 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
     /** The personal space, with these plugins added the way its settings add them (only those declared on by default are there at first). */
     async personal(plugins: readonly string[] = []) {
       for (const pluginId of plugins) await addProjectPlugin(web, PERSONAL_SPACE_PROJECT_ID, pluginId);
-      const project = await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(PERSONAL_SPACE_PROJECT_ID));
+      // The Host's own catalog handle (it holds the Home's storage lock); typed here because `withCatalog` is inferred through the Host.
+      const project = await withCatalog({ homeDirectory: home }, (catalog: Parameters<Parameters<typeof withMolisWorkProjectCatalog>[1]>[0]) => catalog.getProject(PERSONAL_SPACE_PROJECT_ID));
       return { project_id: project.project_id, database_path: project.database_path,
         reference: molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }) };
     },

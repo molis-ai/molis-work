@@ -29,6 +29,9 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: home.origin },
     { homeDirectory: home.home, webBaseUrl: home.origin, runtimeContext: { runtime_id: "removed-pages", stable_work_context_id: "removed-pages-session", host_declares_stable: true } }, home.host, home.origin);
   t.after(() => mcp.close());
+  // The Assistant panel's own list (its `/` and the switches in its settings) offers only what this project reaches.
+  const panelLists = async () => (await home.web.get<{ capabilities: Array<{ capability_id: string }> }>(
+    `/projects/${encodeURIComponent(project.project_id)}/api/assistant/capabilities`)).capabilities.some(row => row.capability_id === pagesActions.list.capability_id);
   const mcpTools = async () => ((await mcp.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" }))?.result as { tools: Array<{ name: string }> }).tools.map(tool => tool.name);
 
   const page = (await client.invoke(person, pagesActions.create, { title: "第四季度计划要点", body: doc("预算控制在50万以内") }) as { document: { id: string } }).document;
@@ -37,6 +40,7 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
     assert.deepEqual(pagesHits(await search()), [page.id], "the project's search finds the Pages document");
     assert.ok((await offered()).includes(pagesActions.list.capability_id), "the assistant's directory offers Pages");
     assert.ok((await mcpTools()).includes(pagesListTool), "the project's MCP lists the granted Pages tool");
+    assert.ok(await panelLists(), "the Assistant panel lists Pages' actions");
     const listed = await client.invoke(person, pagesActions.list, {}) as { documents: Array<{ id: string; title: string }> };
     assert.deepEqual(listed.documents.map(document => [document.id, document.title]), [[page.id, "第四季度计划要点"]]);
   };
@@ -56,6 +60,7 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   assert.deepEqual(refusals, Object.fromEntries(before.map(id => [id, "actions.plugin_disabled"])), "what it was offered is refused because Pages is off there");
   for (const caller of [person, assistant]) await assert.rejects(client.invoke(caller, pagesActions.list, {}), { code: "actions.plugin_disabled" });
   assert.ok(!(await mcpTools()).includes(pagesListTool), "the grant stays, but the tool is not listed while Pages is off");
+  assert.equal(await panelLists(), false, "the Assistant panel does not list a removed plugin's actions");
   const called = (await mcp.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: pagesListTool, arguments: {} } }))?.result as { isError: boolean; content: Array<{ text: string }> };
   assert.equal(called.isError, true);
   assert.equal(JSON.parse(called.content[0]!.text).code, "actions.plugin_disabled");

@@ -17,7 +17,6 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
-  PAGES_PROJECT_PLUGIN_ID,
   PAGES_STYLES,
   PAGES_TEMPLATES,
   convertedBlocks,

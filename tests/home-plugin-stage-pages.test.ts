@@ -115,7 +115,7 @@ test("RAC-2621.4 a page key nothing registers has no page, framed or not, even a
       }
     }
     // A built-in Home plugin answers with its own page, which has its own page token and frames no package.
-    const builtin = await (await fetch(`${served.origin}/plugins/todo?frame=workbench`)).text();
+    const builtin = await (await fetch(`${served.origin}/plugins/work-brief?frame=workbench`)).text();
     assert.ok(!builtin.includes('"mode":"installed"') && !builtin.includes("?frame=workbench"), "the answer is not an installed package's page");
   } finally { await served.close(); await host.close(); }
 });

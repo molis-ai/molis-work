@@ -1,3 +1,4 @@
+import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
@@ -990,7 +991,7 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   const client = home.host.homeActionClient(), read = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", permissions: [], project_id: null } as ActionCallContext;
   const assistant = { ...person, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:work-1" } as ActionCallContext;
-  const rows = async (caller: ActionCallContext) => (await client.invoke(caller, read, { kinds: ["notification"] })).rows
+  const rows = async (caller: ActionCallContext) => ((await client.invoke(caller, read, { kinds: ["notification"] })) as OverviewReadResult).rows
     .filter(row => row.install_id === ATTENTION_OVERVIEW_SOURCE).map(row => [row.partition_id, row.row_id, row.fields] as const).sort();
 
   const byPerson = await rows(person);

@@ -9,7 +9,7 @@ import { layoutFindings } from "./fixtures/layout-audit.js";
 import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.js";
 
 // specs/visual-ui-experience, the surfaces the 2026-10-20~23 review found outside every audit: a Home plugin's own pages
-// (/plugins/issues, /plugins/todo), the side-view documents (/projects/<id>/side/issues/capture, .../lingguang/side), and
+// (Issues in the personal space since batch 108), the side-view documents (/projects/personal/side/issues/capture, .../lingguang/side), and
 // the discussion side panel's real IM composer. The shell around them is what the existing audits already read; here the
 // opaque plugin frame (and the IM iframe) are read from their own execution contexts.
 
@@ -143,7 +143,7 @@ test("VUX-16 (fallback): the discussion side panel's IM composer is the same fie
 
 test("VUX-28: the Issue type radio group in a Home Issue and in the Issue side view rove, one tab stop each", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, navigate, origin, projectId } = browser;
+  const { command, sessionId, evaluate, navigate, origin } = browser;
   await browser.setViewport(1440, 900);
   await addProjectPlugin(browser.web, PERSONAL_SPACE_PROJECT_ID, "issues");
   const child = await pluginFrameBrowser(t, browser, "issues");
@@ -171,7 +171,7 @@ test("VUX-28: the Issue type radio group in a Home Issue and in the Issue side v
 
 test("VUX-04 VUX-30: Home Issue/Todo pages and Issue/Lingguang side views wrap text and lay out cleanly at 1280 and 390 px", { timeout: 300_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
+  const { command, sessionId, waitFor, navigate, origin, projectId } = browser;
   for (const plugin of ["issues", "todo"]) await addProjectPlugin(browser.web, PERSONAL_SPACE_PROJECT_ID, plugin);
   const children = {
     issues: await pluginFrameBrowser(t, browser, "issues"),

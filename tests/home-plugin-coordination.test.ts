@@ -84,13 +84,13 @@ test("RAC-745 a Home instance that is not dual-instance and declares an event is
   assert.equal(refused.databaseCreated, false, "the refusal precedes even the Home database service's construction");
   const allowed = await run(true);
   assert.equal(allowed.started, 1, "the same declaration on a dual-instance Home half starts");
-  assert.equal(allowed.state.status, "running", allowed.state.message);
+  assert.equal(allowed.state.status, "running", allowed.state.message ?? undefined);
   assert.equal(allowed.installation.state, "running");
   assert.equal(allowed.installation.last_error_code, null);
   assert.equal(allowed.databaseCreated, true);
   const plain = await run(false, false);
   assert.equal(plain.started, 1, "a non-dual Home plugin without project coordination still starts");
-  assert.equal(plain.state.status, "running", plain.state.message);
+  assert.equal(plain.state.status, "running", plain.state.message ?? undefined);
   assert.equal(plain.installation.state, "running");
   assert.equal(plain.installation.last_error_code, null);
   assert.equal(plain.databaseCreated, true);

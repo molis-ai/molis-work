@@ -272,7 +272,7 @@ test("S-71 UPP-15 only the person, the personal assistant, the person's workflow
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:main" }), true, "the personal assistant");
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "workflow" }), true, "the person's workflow");
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "plugin", plugin_install_id: install_id }), true, "the plugin's own call");
-  assert.equal(as({ actor_id: "agent:project-a", audience: "agent", actor_kind: "agent" }), false, "a project Agent");
+  assert.equal(as({ actor_id: "agent:project-a", audience: "agent" }), false, "a project Agent");
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "mcp" }), false, "an MCP client");
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "plugin", plugin_install_id: "io.molis.work.other@molis" }), false, "another plugin's call");
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", delegated_by: "io.molis.work.other" }), false, "a delegated call");

@@ -5,7 +5,8 @@ import { openWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journ
 // specs/visual-ui-experience VUX-26 in the Assistant itself: the conversation's scroll has one owner (window.molisFollow).
 // Read away from the end, what arrives waits behind 「新消息」; the pill brings the reader back and the conversation follows again.
 test("VUX-26: in the Assistant, a reader who scrolled up stays put when news arrives, and 新消息 brings them back to following", { timeout: 120_000 }, async t => {
-  const browser = await sendBrowser(t); if (!browser) return;
+  // The cards record into Todo, a plugin of the project since batch 108.
+  const browser = await sendBrowser(t, true, ["pages", "todo"]); if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, projectId } = browser;
   const id = await seedWork(browser, "列一下这周要做的事");
   await openWork(browser, id);

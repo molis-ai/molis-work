@@ -1158,7 +1158,7 @@
     "database.evaluation_baseline": 1,
     "database.ledger_baseline": 1,
     "database.lingguang_database": 1,
-    "database.mainline_baseline": 2,
+    "database.mainline_baseline": 1,
     "database.memory_ledger_baseline": 2,
     "database.observation_baseline": 1,
     "database.original_files_baseline": 1,

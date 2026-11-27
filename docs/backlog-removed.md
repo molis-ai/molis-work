@@ -7,7 +7,7 @@
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
 | BL-sdk-home-aggregate-query-export | 已完成并删除 | 2026-11-26：第 108 批（V17）删除首页聚合与 `home_aggregate` 标记，SDK 不再导出 `isHomeAggregateQuery`；接替它的 `isProjectReadQuery` 是项目面板与事项线（`horizontal/mainline`）共用的只读项目查询判定，随 SDK 根入口导出（[108](../specs/post-anticorruption-roadmap/reference/batches/108.md)） |
-| BL-b36-review-followups | 已完成并删除 | 2026-11-26。主线库 v2 按事项保存修订号，旧事项升级后从 1 起算。改名、转换及来源版本变化会更新读取修订号。空名字统一报错，重复完成保留排列版本，两处共用下一步合同。两处提供方身份已由 [44C #2333](https://github.com/molis-ai/molis-work/pull/2333) 统一。[事项合同](../specs/work-mainline/contract-design.md) |
+| BL-b36-review-followups | 已完成并删除 | 2026-11-26。主线按事项保存修订号，新事项从 1 起算。改名、转换及来源版本变化会更新读取修订号。空名字统一报错，重复完成保留排列版本，两处共用下一步合同。两处提供方身份已由 [44C #2333](https://github.com/molis-ai/molis-work/pull/2333) 统一。[事项合同](../specs/work-mainline/contract-design.md) |
 | BL-work-line-event-card-line-read | 已完成并删除 | 2026-11-26。事件卡按本人权限、对象种类及时间窗口核对是否在线，每次核对只发现一次目录，只问声明了该对象种类的登记方，任务总表读取次数为 0。[事件卡合同](../specs/work-line/spec.md#44-点一个事件) |
 | BL-122 | 不再适用并删除 | 2026-11-26：它要把 `jelly-whisper` 的 SwiftPM 包构建改成挡合并；第 112-1 批连根删除了 `jelly-whisper`（WhisperKit、626 MB 语音模型下载链）和 CI 里那一步 `continue-on-error`，Swift 检查只剩挡合并的类型检查（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |
 | BL-398 | 不再适用并删除 | 2026-11-26：关对话框停不下本机语音模型的下载与转写；第 112-1 批删除了本机转写与模型下载，音视频导入只保存原件，这条下载不再存在（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-item-1)） |

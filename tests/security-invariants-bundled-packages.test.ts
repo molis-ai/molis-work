@@ -331,7 +331,7 @@ test("S-bundled-packages an unsigned bundled pack is signed by this Home only wh
     const signedBytes = await readFile(signedFile);
     await writeFile(signedFile, "{");
     await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }),
-      "P-13: a damaged signed release cannot authorize the draft under the Home signer");
+      { code: "plugin.package_invalid" }, "P-13: a damaged signed release cannot authorize the draft under the Home signer");
     await writeFile(signedFile, signedBytes);
     const both = await list();
     assert.deepEqual([both.plugins.map(item => item.signed_here), both.refused.map(item => item.file)], [[undefined], [`${PLUGIN_ID}.draft.json`]], "the signed one is offered; its draft is refused");

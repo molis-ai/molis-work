@@ -504,11 +504,11 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   const findRecord = () => projectClient.invoke(person, searchActions.query, { query: "mineralogyonereview" }) as Promise<SearchQueryResponse>;
   assert.ok(!JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"));
   const writer = byLocal("artifact.save");
-  await exerciseReview(t, home, project.reference, writer, { word: "mineralogyonereview" });
-  assert.ok(JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"), "PSD-03 M12: system search found the immutable output by the producer's payload field");
   const chrome = locateTestChrome(); assert.ok(chrome, "dedicated test browser");
   const browser = await ChromeHarness.start(home.home, { executable: chrome }); assert.ok(browser);
   try {
+    await exerciseReview(t, home, project.reference, writer, { word: "mineralogyonereview" }, browser);
+    assert.ok(JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"), "PSD-03 M12: system search found the immutable output by the producer's payload field");
     const surface = "app-" + sandboxPackageBuildId(SIGNED_SANDBOX_ID, publisher.identity);
     const page = await browser.page(), child = await pluginFrameBrowser(t, { sessionId: page.sessionId, command: browser.command.bind(browser),
       on: browser.on.bind(browser), evaluate: page.evaluate.bind(page) }, surface);

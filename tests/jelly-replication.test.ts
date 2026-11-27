@@ -102,7 +102,7 @@ test("B2R-04 a synced deletion also fills a free reminder slot on the receiving 
   sync();
   const target = openPartitionLibraryDatabase(f.homes[1]!, "personal", "jelly");
   try {
-    const next = () => target.prepare("SELECT remind_at FROM molis_overview_rows WHERE kind = 'event' AND row_id = 'slot-500'").get()?.remind_at;
+    const next = () => target.prepare<[], { remind_at: string }>("SELECT remind_at FROM molis_overview_rows WHERE kind = 'event' AND row_id = 'slot-500'").get()?.remind_at;
     assert.equal(next(), undefined);
     source!.write(store => store.delete("item", "slot-0", 1));
     sync();

@@ -3,14 +3,16 @@ import {completeInstallationLogin} from './fixtures/installation-login.js';
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, rmSync, readFileSync, cpSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, cpSync, copyFileSync, mkdirSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { createServer, type Server } from 'node:http';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {
   ensureStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef,
-  openHomeSqliteDatabase,
+  openHomeSqliteDatabase, homeSqlitePath, openBaselineHomeSqlite, openExistingBaselineHomeSqlite,
 } from '@molis-ai/molis-work-storage';
 import { LocalProjectDatabase, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
@@ -219,5 +221,55 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     await close(server);await close(upstream);
     names.forEach((name,i)=>{if(previous[i]===undefined)delete process.env[name];else process.env[name]=previous[i];});
     rmSync(home,{recursive:true,force:true});
+  }
+});
+
+test("S-project-space-preflight D0276: existing-only Home reads refuse foreign or missing ownership without reading business data or changing files", async t => {
+  const root = mkdtempSync(join(tmpdir(), "molis-existing-space-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const baseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY);" };
+  for (const damage of ["foreign", "database-binding", "home-binding"] as const) {
+    await t.test(damage, () => {
+      const source = join(root, damage, "source");
+      const home = join(root, damage, "target");
+      ensureStorageSpace(source, personalStorageSpace("https://auth.example", "work", "alice"));
+      const writer = openBaselineHomeSqlite(source, "notes", baseline);
+      writer.prepare("INSERT INTO notes VALUES (?)").run("private-content");
+      writer.close();
+      ensureStorageSpace(home, personalStorageSpace("https://auth.example", "work", damage === "foreign" ? "bob" : "alice"));
+      const file = homeSqlitePath(home, "notes");
+      mkdirSync(dirname(file));
+      copyFileSync(homeSqlitePath(source, "notes"), file);
+      if (damage === "database-binding") {
+        const db = new DatabaseSync(file);
+        try {
+          db.exec("DROP TABLE molis_storage_space");
+        } finally {
+          db.close();
+        }
+      }
+      if (damage === "home-binding") rmSync(join(home, "storage-space.json"));
+      const bytes = readFileSync(file);
+      const mode = statSync(file).mode;
+      const entries = readdirSync(dirname(file));
+      const homeEntries = readdirSync(home);
+      const descriptor = existsSync(join(home, "storage-space.json")) ? readFileSync(join(home, "storage-space.json")) : null;
+      let businessRead = false;
+      assert.throws(() => {
+        const reader = openExistingBaselineHomeSqlite(home, "notes", baseline)!;
+        try {
+          businessRead = true;
+          reader.prepare("SELECT id FROM notes").all();
+        } finally {
+          reader.close();
+        }
+      }, error => error instanceof ActionError && error.code === "storage.space_ownership_mismatch" && error.kind === "forbidden");
+      assert.equal(businessRead, false);
+      assert.deepEqual(readFileSync(file), bytes);
+      assert.equal(statSync(file).mode, mode);
+      assert.deepEqual(readdirSync(dirname(file)), entries);
+      assert.deepEqual(readdirSync(home), homeEntries);
+      assert.deepEqual(existsSync(join(home, "storage-space.json")) ? readFileSync(join(home, "storage-space.json")) : null, descriptor);
+    });
   }
 });

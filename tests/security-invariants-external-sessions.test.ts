@@ -4,6 +4,9 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
+import { buildSync } from "esbuild";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -848,7 +851,11 @@ test("S-sessions-git-files-only 1: worktree resolution reads only .git, commondi
     for (const name of readFiles) {
       assert.ok([".git", "commondir", "gitdir"].includes(name), `unexpected file read: ${name}`);
     }
-    await assert.rejects(() => realpath(gitMarker), "git binary and fsmonitor were never executed");
+    await assert.rejects(
+      () => realpath(gitMarker),
+      (err: unknown) => Boolean(err && typeof err === "object" && "code" in err && (err as { code?: unknown }).code === "ENOENT"),
+      "git binary and fsmonitor were never executed",
+    );
   });
 });
 
@@ -957,6 +964,452 @@ test("S-sessions-recheck-before-return 3: unlinking a root-exact workspace direc
         assert.equal(afterUnlink.sessions[0].attribution.reason, "relation_gone");
       }
       assert.equal((await svc.list({ view: "project" }, agentCaller)).sessions.length, 0);
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("P0-07 F-wb2-02 scope-sheet toggling an already-allowed project switch sends allowed: false and rolls back .checked on failure", async () => {
+  const bundle = buildSync({
+    entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/sessions/scope-sheet.ts", import.meta.url))],
+    bundle: true,
+    write: false,
+    format: "iife",
+    globalName: "ScopeSheet",
+    platform: "browser",
+    target: "es2022",
+  }).outputFiles[0]!.text;
+
+  type Listener = (event: { target: unknown; preventDefault(): void }) => void;
+  interface MockSwitch {
+    checked: boolean;
+    disabled: boolean;
+    readonly dataset: { permitSwitch: string };
+    readonly attrs: Map<string, string>;
+    getAttribute(name: string): string | null;
+    setAttribute(name: string, value: string): void;
+    closest(selector: string): unknown;
+    focus(): void;
+    click(): void;
+  }
+  interface MockRetryButton {
+    readonly dataset: { permitRetry: string; permitWant: string };
+    closest(selector: string): unknown;
+  }
+
+  const listeners = new Map<string, Listener[]>();
+  const switches = new Map<string, MockSwitch>();
+  const notes = new Map<string, { dataset: Record<string, string>; retryButton: MockRetryButton | null; innerHTML: string }>();
+  let renderedAiHtml = "";
+
+  const dispatch = (type: string, target: unknown) => {
+    for (const fn of listeners.get(type) ?? []) fn({ target, preventDefault() {} });
+  };
+
+  const makeNote = (pid: string) => {
+    let html = "";
+    const note = {
+      dataset: {} as Record<string, string>,
+      retryButton: null as MockRetryButton | null,
+      get innerHTML() { return html; },
+      set innerHTML(next: string) {
+        html = next;
+        const retryPid = /data-permit-retry="([^"]+)"/u.exec(next)?.[1];
+        const retryWant = /data-permit-want="([^"]+)"/u.exec(next)?.[1];
+        note.retryButton = retryPid && retryWant
+          ? {
+            dataset: { permitRetry: retryPid, permitWant: retryWant },
+            closest(selector: string) { return selector === "[data-permit-retry]" ? this : null; },
+          }
+          : null;
+      },
+    };
+    notes.set(pid, note);
+    return note;
+  };
+
+  const aiPanel = {
+    dataset: { sessionsScopePanel: "project_ai_read" },
+    hidden: false,
+    get innerHTML() { return renderedAiHtml; },
+    set innerHTML(html: string) {
+      renderedAiHtml = html;
+      switches.clear();
+      for (const match of html.matchAll(/<input\b([^>]*data-permit-switch="([^"]+)"[^>]*)>/gu)) {
+        const rawAttrs = match[1]!;
+        const pid = match[2]!;
+        const attrs = new Map<string, string>();
+        const ariaChecked = /\baria-checked="([^"]*)"/u.exec(rawAttrs)?.[1];
+        if (ariaChecked !== undefined) attrs.set("aria-checked", ariaChecked);
+        const sw: MockSwitch = {
+          checked: /(?:^|\s)checked(?:\s*=|\s|$)/u.test(rawAttrs),
+          disabled: /(?:^|\s)disabled(?:\s*=|\s|$)/u.test(rawAttrs),
+          dataset: { permitSwitch: pid },
+          attrs,
+          getAttribute(name: string) { return this.attrs.get(name) ?? null; },
+          setAttribute(name: string, value: string) { this.attrs.set(name, value); },
+          closest(selector: string) { return selector === "[data-permit-switch]" ? this : null; },
+          focus() {},
+          click() {
+            if (this.disabled) return;
+            this.checked = !this.checked;
+            dispatch("click", this);
+            dispatch("change", this);
+          },
+        };
+        switches.set(pid, sw);
+        if (!notes.has(pid)) makeNote(pid);
+      }
+    },
+  };
+  const toolsPanel = { dataset: { sessionsScopePanel: "tools" }, hidden: false, innerHTML: "" };
+  const returnBtn = { hidden: true, setAttribute(name: string) { if (name === "hidden") this.hidden = true; } };
+  const noticeEl = { textContent: "" };
+  const saveBtn = { hidden: false };
+
+  const dlg = {
+    open: false,
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    addEventListener(type: string, fn: Listener) {
+      const list = listeners.get(type) ?? [];
+      list.push(fn);
+      listeners.set(type, list);
+    },
+    querySelector(selector: string) {
+      if (selector === '[data-sessions-scope-panel="project_ai_read"]') return aiPanel;
+      if (selector === '[data-sessions-scope-panel="tools"]') return toolsPanel;
+      if (selector === "[data-sessions-scope-return]") return returnBtn;
+      if (selector === "[data-sessions-scope-notice]") return noticeEl;
+      if (selector === "[data-sessions-scope-save]") return saveBtn;
+      if (selector === ".mw-permit.is-current [data-permit-switch]") return switches.get("proj-1") ?? null;
+      const swMatch = /^\[data-permit-switch="([^"]+)"\]$/u.exec(selector);
+      if (swMatch) return switches.get(swMatch[1]!) ?? null;
+      const noteMatch = /^\[data-permit-project="([^"]+)"\] \.mw-permit__note$/u.exec(selector);
+      if (noteMatch) return notes.get(noteMatch[1]!) ?? null;
+      return null;
+    },
+    querySelectorAll(selector: string) {
+      if (selector === "[data-sessions-scope-panel]") return [toolsPanel, aiPanel];
+      return [];
+    },
+  };
+
+  const requests: Array<{ url: string; method?: string; body?: unknown }> = [];
+  let failNextSet = false;
+  let serverRevision = 3;
+  const mockRequest = async (url: string, options?: { method?: string; body?: unknown }) => {
+    requests.push({ url, method: options?.method, body: options?.body });
+    if (url.includes("/api/sessions/scope")) {
+      return {
+        scope_revision: 1,
+        sources: [],
+        tool_meta: [],
+        project_ai_reads: [
+          {
+            project: { project_id: "proj-1", display_name: "Alpha" },
+            allowed: true,
+            revision: serverRevision,
+            current: true,
+          },
+        ],
+      };
+    }
+    if (url.endsWith("/api/sessions/project-ai-read")) {
+      const body = options?.body as { allowed: boolean; expected_revision: number };
+      if (failNextSet) {
+        failNextSet = false;
+        throw new Error("simulated write failure");
+      }
+      serverRevision += 1;
+      return {
+        project: { project_id: "proj-1", display_name: "Alpha" },
+        allowed: body.allowed,
+        revision: serverRevision,
+        current: true,
+      };
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const tFn = Object.assign((key: string) => key, { text: (key: string) => key });
+  const context = vm.createContext({
+    t: tFn,
+    CSS: { escape: (value: string) => value },
+    requestAnimationFrame: (fn: () => void) => { fn(); return 1; },
+    molisWorkRequest: mockRequest,
+    document: {
+      body: { dataset: { projectId: "proj-1", routePrefix: "/projects/proj-1" } },
+      querySelector(selector: string) {
+        return selector === "[data-sessions-scope-sheet]" ? dlg : null;
+      },
+    },
+  });
+  vm.runInContext(bundle, context);
+  const { createSessionsScopeSheet } = vm.runInContext("ScopeSheet", context) as {
+    createSessionsScopeSheet(): { open(tab?: "tools" | "project_ai_read"): Promise<void> };
+  };
+
+  const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+  const sheet = createSessionsScopeSheet();
+  await sheet.open("project_ai_read");
+
+  const sw = switches.get("proj-1");
+  assert.ok(sw, "project switch is rendered from renderSwitch");
+  assert.equal(sw.checked, true, "initially authorized project renders checked native checkbox");
+  assert.equal(sw.getAttribute("aria-checked"), null, "renderSwitch emits native checkbox without aria-checked");
+  assert.equal(renderedAiHtml.includes("aria-checked"), false, "rendered switch markup uses native checkbox state");
+
+  // 1. Clicking an already-authorized switch MUST revoke permission (`allowed: false`).
+  sw.click();
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)), {
+    url: "/projects/proj-1/api/sessions/project-ai-read",
+    method: "POST",
+    body: { allowed: false, expected_revision: 3 },
+  }, "revoking an initially authorized project sends allowed: false");
+  assert.equal(sw.checked, false, "switch stays unchecked after revoke succeeds");
+  assert.equal(sw.disabled, false, "switch re-enables after request settles");
+
+  // 2. Re-enabling succeeds (`allowed: true`), then a failed revoke rolls `.checked` back to `true`.
+  sw.click();
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)?.body), { allowed: true, expected_revision: 4 });
+  assert.equal(sw.checked, true);
+
+  failNextSet = true;
+  sw.click();
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)?.body), { allowed: false, expected_revision: 5 });
+  assert.equal(sw.checked, true, "failed revoke rolls native checkbox .checked back to true");
+  assert.equal(sw.disabled, false, "switch re-enables after failure");
+
+  // 3. Clicking the rendered retry button retries `{ allowed: false }` and syncs `.checked` to `false`.
+  const retryBtn = notes.get("proj-1")?.retryButton;
+  assert.ok(retryBtn, "failure note offers a retry button");
+  assert.equal(retryBtn.dataset.permitWant, "false");
+  dispatch("click", retryBtn);
+  await flush();
+  assert.deepEqual(structuredClone(requests.at(-1)?.body), { allowed: false, expected_revision: 5 });
+  assert.equal(sw.checked, false, "successful retry syncs native checkbox .checked to false");
+  assert.equal(sw.disabled, false);
+});
+
+test("S-sessions-read-roots 4 F-horiz-runtime-43: switching CODEX_HOME or local tool root blocks cross-root scan, list, historyRead, and discoveryRun", async () => {
+  await withSandbox(async root => {
+    const homeDir = path.join(root, "home");
+    const userHomeA = path.join(root, "user-a");
+    const userHomeB = path.join(root, "user-b");
+    const codexDirA = path.join(root, "codex-a");
+    const codexDirB = path.join(root, "codex-b");
+    const repoDir = path.join(root, "repo");
+    const claudeDirA = path.join(userHomeA, ".claude", "projects", "p1");
+    const claudeDirB = path.join(userHomeB, ".claude", "projects", "p1");
+    for (const d of [homeDir, userHomeA, userHomeB, codexDirA, codexDirB, repoDir, claudeDirA, claudeDirB]) {
+      await mkdir(d, { recursive: true });
+    }
+    await writeFile(
+      path.join(claudeDirA, "cl-root-a.jsonl"),
+      `${JSON.stringify({ sessionId: "cl-root-a", cwd: repoDir, timestamp: "2026-11-10T08:00:00Z", message: { role: "user", content: "Root A Claude" } })}\n`,
+    );
+    await writeFile(
+      path.join(claudeDirB, "cl-root-b.jsonl"),
+      `${JSON.stringify({ sessionId: "cl-root-b", cwd: repoDir, timestamp: "2026-11-10T08:05:00Z", message: { role: "user", content: "Root B Claude secret" } })}\n`,
+    );
+
+    const listRoots: string[] = [];
+    const readRoots: string[] = [];
+    const baseA = createHostSessionsPorts(homeDir, () => undefined, () => {}, {
+      homeRoot: userHomeA,
+      env: { CODEX_HOME: codexDirA },
+      clock: () => new Date("2026-11-10T08:00:00Z"),
+    });
+    const svcA = new SessionsService(homeDir, {
+      ...baseA,
+      projects: { read: async op => op(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+      protocols: {
+        codexThreadList: async r => {
+          listRoots.push(r);
+          return {
+            threads: [{ id: "codex-a-1", title: "Root A Codex", cwd: repoDir, updated_at: "2026-11-10T08:00:00Z", activity: "idle", parent_thread_id: null }],
+            next_cursor: null,
+          };
+        },
+        codexThreadRead: async r => {
+          readRoots.push(r);
+          return {
+            activity: "idle",
+            entries: [{ position: "turn:0", role: "you", at: "2026-11-10T08:00:00Z", text: "Root A Codex body", truncated: false }],
+          };
+        },
+      },
+    });
+    let codexKeyA = "";
+    let claudeKeyA = "";
+    try {
+      const s0 = await svcA.scopeRead({}, PERSON);
+      await svcA.scopeSet(
+        {
+          expected_revision: s0.scope_revision,
+          sources: [
+            { entry_id: "codex", allowed: true, directories: { mode: "all" } },
+            { entry_id: "claude-code", allowed: true, directories: { mode: "all" } },
+          ],
+        },
+        PERSON,
+      );
+      await svcA.waitForDiscoveryIdle();
+      const listedA = await svcA.list({ view: "all" }, PERSON);
+      assert.equal(listedA.sessions.length, 2);
+      codexKeyA = listedA.sessions.find(s => s.tool.entry_id === "codex")!.session_key;
+      claudeKeyA = listedA.sessions.find(s => s.tool.entry_id === "claude-code")!.session_key;
+      assert.deepEqual(listRoots, [codexDirA]);
+    } finally {
+      svcA.close();
+    }
+
+    // Switch both CODEX_HOME and homeRoot to unapproved directories, advancing clock past the 5-minute stale threshold.
+    listRoots.length = 0;
+    readRoots.length = 0;
+    let fileListCallsB = 0;
+    let fileOpenCallsB = 0;
+    const baseB = createHostSessionsPorts(homeDir, () => undefined, () => {}, {
+      homeRoot: userHomeB,
+      env: { CODEX_HOME: codexDirB },
+      clock: () => new Date("2026-11-10T08:15:00Z"),
+    });
+    const svcB = new SessionsService(homeDir, {
+      ...baseB,
+      files: {
+        ...baseB.files,
+        list: async (...args) => {
+          fileListCallsB++;
+          return baseB.files.list(...args);
+        },
+        open: async (...args) => {
+          fileOpenCallsB++;
+          return baseB.files.open(...args);
+        },
+      },
+      projects: { read: async op => op(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+      protocols: {
+        codexThreadList: async r => {
+          listRoots.push(r);
+          return { threads: [], next_cursor: null };
+        },
+        codexThreadRead: async r => {
+          readRoots.push(r);
+          return { activity: "idle", entries: [] };
+        },
+      },
+    });
+    try {
+      const listedB = await svcB.list({ view: "all" }, PERSON);
+      await svcB.waitForDiscoveryIdle();
+      assert.equal(listedB.sessions.length, 0, "previous-root sessions must not appear under an unapproved new root");
+      assert.equal(listedB.sources.find(s => s.entry_id === "codex")?.state, "not_allowed");
+      assert.equal(listedB.sources.find(s => s.entry_id === "claude-code")?.state, "not_allowed");
+      assert.equal(listRoots.length, 0, "stale discovery must never scan unapproved new CODEX_HOME");
+      assert.equal(fileListCallsB, 0, "stale discovery must never list unapproved new Claude root");
+
+      await assert.rejects(
+        () => svcB.historyRead({ session_key: codexKeyA }, PERSON),
+        (err: unknown) => err instanceof ActionError && err.code === "sessions.not_found",
+      );
+      await assert.rejects(
+        () => svcB.historyRead({ session_key: claudeKeyA }, PERSON),
+        (err: unknown) => err instanceof ActionError && err.code === "sessions.not_found",
+      );
+      assert.equal(readRoots.length, 0, "historyRead must never call protocol on unapproved new CODEX_HOME");
+      assert.equal(fileOpenCallsB, 0, "historyRead must never open files under unapproved new root");
+
+      const discAll = await svcB.discoveryRun({}, PERSON);
+      await svcB.waitForDiscoveryIdle();
+      assert.deepEqual(discAll.queued, []);
+      assert.equal(listRoots.length, 0);
+      assert.equal(fileListCallsB, 0);
+
+      await assert.rejects(
+        () => svcB.discoveryRun({ entry_id: "codex" }, PERSON),
+        (err: unknown) => err instanceof ActionError && err.code === "sessions.not_allowed",
+      );
+      assert.equal(listRoots.length, 0);
+    } finally {
+      svcB.close();
+    }
+  });
+});
+
+test("S-sessions-untrusted-text 4 F-horiz-runtime-45: non-person history.read query preserves off-page matches without secret oracle or cache mutation", async () => {
+  await withSandbox(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const wsDir = path.join(root, "ws-p1");
+    const claudeDir = path.join(userHome, ".claude", "projects", "p1");
+    for (const d of [homeDir, userHome, wsDir, claudeDir]) await mkdir(d, { recursive: true });
+
+    const secretToken = ["sk", "proj", "OFFPAGE1234567890ABCDEFGHIJKLMN"].join("-");
+    const lines: string[] = [
+      JSON.stringify({
+        sessionId: "multi-page-q",
+        cwd: wsDir,
+        timestamp: "2026-11-10T01:00:00Z",
+        message: { role: "user", content: `Keep MIGRATION_DECISION and token ${secretToken}` },
+      }),
+    ];
+    for (let i = 1; i < 60; i++) {
+      const role = i % 2 === 1 ? "assistant" : "user";
+      lines.push(
+        JSON.stringify({
+          sessionId: "multi-page-q",
+          cwd: wsDir,
+          timestamp: `2026-11-10T01:${String(Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}Z`,
+          message: { role, content: `Routine follow-up message ${i}` },
+        }),
+      );
+    }
+    await writeFile(path.join(claudeDir, "multi-page-q.jsonl"), `${lines.join("\n")}\n`, "utf8");
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const snapshot: SessionProjectSnapshot = {
+      projects: [{ project_id: "proj-1", display_name: "P1" }],
+      directories: [{ workspace_id: "ws-1", canonical_path: wsDir, realpath_verified: true, display_name: "ws-p1", project_ids: ["proj-1"], person_project_ids: ["proj-1"], created_at: NOW_ISO, updated_at: NOW_ISO }],
+      bindings: [],
+    };
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async op => op(snapshot) },
+      directories: { identify: p => identifySessionDirectory(p, { homeDir: userHome }) },
+    });
+    const agentCaller: ActionCallContext = { actor_id: "agent:prologue", project_id: "proj-1", audience: "agent", permissions: [] };
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] }, PERSON);
+      await svc.waitForDiscoveryIdle();
+      await svc.projectAiReadSet({ allowed: true, expected_revision: 0 }, { ...PERSON, project_id: "proj-1" });
+
+      const key = (await svc.list({ view: "all" }, PERSON)).sessions[0]!.session_key;
+      const normalHit = await svc.historyRead({ session_key: key, query: "MIGRATION_DECISION", limit: 20 }, agentCaller);
+      assert.equal(normalHit.entries.length, 20);
+      assert.equal(normalHit.entries.some(e => e.text.includes("MIGRATION_DECISION")), false, "hit is outside the newest page");
+      assert.equal(normalHit.search?.scanned_all, true);
+      assert.equal(normalHit.matches.length, 1, "off-page non-secret hit must not be dropped");
+      assert.equal(normalHit.matches[0]?.ranges.length, 1);
+
+      const secretHit = await svc.historyRead({ session_key: key, query: secretToken, limit: 20 }, agentCaller);
+      assert.equal(secretHit.search?.scanned_all, true);
+      assert.deepEqual(secretHit.matches, [], "redacted secrets must never match non-person queries");
+
+      // Subsequent person read hits the same transcript cache and must still see unredacted original text.
+      const personRead = await svc.historyRead(
+        { session_key: key, from: { around: normalHit.matches[0]!.position }, limit: 5, query: secretToken },
+        PERSON,
+      );
+      assert.equal(personRead.matches.length, 1, "agent redacted query must not mutate cached transcript entries");
+      assert.ok(personRead.entries.some(e => e.text.includes(secretToken)));
     } finally {
       svc.close();
     }

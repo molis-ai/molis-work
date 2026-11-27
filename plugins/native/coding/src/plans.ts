@@ -5,6 +5,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import { agentTextMaterialContent, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PLAN_SCHEMA_VERSION, CODING_PLAN_TYPE } from "./artifacts.js";
 import { parseCodingPlan, parseCodingPlanAnswer, type CodingPlanContent } from "./plan-content.js";
+import { codingLocalFailure } from "./words.js";
 
 export interface CodingPlanDraft {
   revision: number;
@@ -34,8 +35,8 @@ export function planTask(chain: readonly AgentRunView[]): string {
   return first.join("\n\n") + (notes.length ? "\n\n规划时补充的意见（没有逐条核对是否已写进计划；以确认的计划为准）：\n" + notes.map(text => "- " + text).join("\n") : "");
 }
 export function planFromRun(sessionId: string, run: AgentRunView, earlier: readonly AgentRunView[] = []): Omit<CodingPlanDraft, "revision" | "confirmed"> {
-  if (run.phase !== "completed" || run.frozen.role_id !== "planner") throw new Error("请等待规划轮次完成，再查看提案");
-  if (!run.frozen.directory) throw new Error("代码计划需要原授权工作区");
+  if (run.phase !== "completed" || run.frozen.role_id !== "planner") throw codingLocalFailure("coding.server.plan-wait-turn", "请等待规划轮次完成，再查看提案");
+  if (!run.frozen.directory) throw codingLocalFailure("coding.server.plan-need-workspace", "代码计划需要原授权工作区");
   const answer = run.turns.filter(turn => turn.kind === "assistant").at(-1)?.text.trim() ?? "";
   return { content: parseCodingPlanAnswer(answer), source: { session_id: sessionId, run_id: run.ref.run_id, task: planTask([...earlier, run]), workspace_path: run.frozen.directory.canonical_path } };
 }
@@ -47,18 +48,18 @@ export function confirmedPlan(context: PluginStartContext, sessionId: string, re
   if (!record || record.artifact_type_id !== CODING_PLAN_TYPE || record.schema_version !== CODING_PLAN_SCHEMA_VERSION
     || record.producer_plugin_id !== context.plugin_id || record.producer_binding_signature !== "official-coding-binding"
     || record.project_id !== context.project_id || record.content_kind !== "inline" || record.availability !== "available"
-    || record.lifecycle_state !== "active") throw new Error("确认计划不可读，请重新查看原计划");
+    || record.lifecycle_state !== "active") throw codingLocalFailure("coding.server.plan-confirmed-unreadable", "确认计划不可读，请重新查看原计划");
   const plan = record.payload as CodingFixedPlan | null;
   if (plan?.revision !== revision || plan.source?.session_id !== sessionId || typeof plan.source?.run_id !== "string" || !plan.source.run_id
     || typeof plan.source.task !== "string" || Object.keys(plan.source).sort().join() !== "run_id,session_id,task"
     || Object.keys(plan).sort().join() !== "confirmed,content,revision,source"
-    || plan.confirmed?.artifact_id !== reference.artifact_id || plan.confirmed.version !== reference.version) throw new Error("计划来源与当前会话不一致");
+    || plan.confirmed?.artifact_id !== reference.artifact_id || plan.confirmed.version !== reference.version) throw codingLocalFailure("coding.server.plan-source-mismatch", "计划来源与当前会话不一致");
   const content = parseCodingPlan(plan.content);
-  if (content.blockers) throw new Error("计划仍有未解决阻塞");
+  if (content.blockers) throw codingLocalFailure("coding.server.plan-blocked", "计划仍有未解决阻塞");
   return { ...plan, content, confirmed: reference };
 }
 export function planMaterial(plan: CodingPlanDraft | CodingFixedPlan): AgentTextMaterial {
-  if (!plan.confirmed) throw new Error("请先确认这个计划版本");
+  if (!plan.confirmed) throw codingLocalFailure("coding.server.plan-confirm-version", "请先确认这个计划版本");
   const ref = plan.confirmed;
   const material = { material_id: `${ref.artifact_id}@${ref.version}`, source_artifact_id: ref.artifact_id,
     source_version: ref.version, title: `确认计划 / ${plan.content.title} / 修订 ${plan.revision}`,

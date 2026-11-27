@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { objectSchema } from "@molis-ai/molis-work-plugin-sdk";
+import { objectSchema, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ActionError, bindActionHandler, defineErrorCodes, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -75,15 +75,15 @@ export function feedInformationPlanContext(state: FeedInformationPlanState, proj
   const recent = state.items.slice(0, ITEM_LIMIT);
   const open = state.attention_entries.filter(entry => entry.subject_type === "feed_item" && ACTIVE.has(entry.status)).slice(0, INBOX_LIMIT);
   const titleOf = (itemId: string) => recent.find(item => item.item_id === itemId)?.title ?? state.titleOf(itemId) ?? "";
-  const items = recent.map(item => ({ id: item.item_id, source_id: item.source_id ?? "", title: wholeCharacters(item.title, 200), summary: cutHead(item.summary ?? "", 1000) }));
-  const inbox = open.map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: wholeCharacters(titleOf(entry.subject_id), 200) }));
+  const items = recent.map(item => ({ id: item.item_id, source_id: item.source_id ?? "", title: wholeCharacters(redactSecrets(item.title), 200), summary: cutHead(redactSecrets(item.summary ?? ""), 1000) }));
+  const inbox = open.map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: wholeCharacters(redactSecrets(titleOf(entry.subject_id)), 200) }));
   return { project_id: projectId, selected_item_id: items.some(item => item.id === input.selected_item_id) ? input.selected_item_id : null,
-    sources: state.sources.filter(source => source.enabled).slice(0, SOURCE_LIMIT).map(source => ({ source_id: source.source_id, name: wholeCharacters(source.name, 200) })), items, inbox };
+    sources: state.sources.filter(source => source.enabled).slice(0, SOURCE_LIMIT).map(source => ({ source_id: source.source_id, name: wholeCharacters(redactSecrets(source.name), 200) })), items, inbox };
 }
 
 /** The instruction's data: the bounded state fenced as untrusted data, then the person's words. */
 export const feedInformationPlanData = (context: ReturnType<typeof feedInformationPlanContext>, prompt: string): string =>
-  [fencedMaterials(context, randomBytes(8).toString("hex")), `用户请求：${prompt}`].join("\n\n");
+  [fencedMaterials(context, randomBytes(8).toString("hex")), `用户请求：${redactSecrets(prompt)}`].join("\n\n");
 
 /** The model's answer, held to what this project has: a source and sample that are here, Inbox entries that are open now. */
 export function checkedFeedInformationPlan(reply: unknown, context: ReturnType<typeof feedInformationPlanContext>): FeedInformationPlan {

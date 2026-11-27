@@ -6,7 +6,7 @@
 
 ## `.impeccable/`：评审截图与设计记录
 
-`.impeccable/` 有两种位置：仓库根目录的，和嵌在目录里的（`docs/design/<名字>/.impeccable/`、`horizontal/plugin-studio/.impeccable/`，以前还有 `apps/workbench/`、`specs/archive/goal-timeline-redesign/`）。里面是评审截图（`review/`）、设计记录（`surfaces/`、`design.json`）、mock 图（`mocks/`）。
+`.impeccable/` 有两种位置：仓库根目录的，和嵌在目录里的（`docs/design/<名字>/.impeccable/`、`horizontal/plugin-studio/.impeccable/`；历史上工作台与已归档目标时间线目录也曾含此子目录，均已移除）。里面是评审截图（`review/`）、设计记录（`surfaces/`、`design.json`）、mock 图（`mocks/`）。
 
 **只留被点名的。** 一个文件留在树里，当且仅当现行的 spec、文档、Skill、测试或脚本点名了它，或点名了它所在的评审组：
 
@@ -34,7 +34,7 @@ git grep -n -i "sidecar" -- '*DESIGN.md'
 
 - 根目录 314 个：`review/` 313 个（`action-service`、`continuous-v11` 等被现行 spec 或测试点名的评审组，加上 `feed/` 下被 Feed 记录链接的六张图），`surfaces/` 1 个（`feed-source-workbench.md`，插件 Feed 的 DESIGN.md 点名）。
 - 嵌套 4 个（2026-10-08 基线，2026-11-21 `91-0a` 按决定 60 ⑤ 进一步删去已由根 `DESIGN.md` 与 `packages/design-system/resources/` 取代的 3 份原型 sidecar，现仅保留 `horizontal/plugin-studio/.impeccable/design.json` 1 份）：原 4 份为 `docs/design/archive/molis-work-onboarding/prototype/`（已删）、`docs/design/archive/molis-work-onboarding/oauth-redesign/`（已删）、`docs/design/archive/soft-workbench/`（已删）和 `horizontal/plugin-studio/`（保留）。
-- 删掉的：没人点名的评审组、全部 `mocks/`、`critique/`、`goalboard-surface-brief.md`、根目录的 `design.json`（根 `DESIGN.md` 没有指望它）、`apps/workbench/.impeccable/` 的 2 份表面记录，以及 `specs/archive/goal-timeline-redesign/.impeccable/` 的 13 张图。
+- 删掉的：没人点名的评审组、全部 `mocks/`、`critique/`、`goalboard-surface-brief.md`、根目录的 `design.json`（根 `DESIGN.md` 没有指望它）、工作台旧表面记录（2 份），以及已归档目标时间线设计的 13 张评审图。
 
 被删的文件在提交 `e4bdeb12` 里一个不缺：
 
@@ -51,7 +51,7 @@ git ls-tree -r --name-only e4bdeb12 -- .impeccable
 
 | 材料 | 现在 | 说明 |
 | --- | --- | --- |
-| `molis-work-introduction.html`（9/25 第四版介绍页） | `docs/product-operations/archive/molis-work-introduction.html` | 对外介绍与运营文档统一在 `docs/product-operations/`（2026-10-18 整理）；旧介绍页与 V0–V3 归档，旧稿链接随迁移修正 |
+| `molis-work-introduction.html`（9/25 第四版介绍页） | 已从当前工作树移除（保留在 Git 历史中） | 对外介绍与运营文档统一在 `docs/product-operations/`（2026-10-18 整理）；旧介绍页与 V0–V3 历史归档检索见 `docs/product-operations/archive/版本说明.md` |
 | `outputs/`（定位材料与商业计划） | 不入库 | `.gitignore` 的 `/outputs/`；商业材料放在仓库之外 |
 | `.zcode/`（个人工具的会话计划） | 不入库 | `.gitignore` 的 `/.zcode/`；个人工具状态不进仓库 |
 

@@ -57,7 +57,7 @@ test("S-automation-adoption SCAF-01: only the person's current Host card can tur
   // Not offered to Agents: an Agent round can neither see nor call it.
   const agent: ActionCallContext = { ...person, audience: "agent", permissions: [] };
   assert.ok(!(await client.discover(agent)).some(view => view.action.capability_id === adoptRef.capability_id), "no Agent discovers the adoption");
-  await assert.rejects(client.invoke(agent, adoptRef, input), "an Agent cannot call it");
+  await assert.rejects(client.invoke(agent, adoptRef, input), { code: "actions.forbidden" }, "an Agent cannot call it");
   assert.deepEqual(await skills(), ["off", "off"]);
   // A plugin acting for the person or a delegated call (refused before the provider when the Host did not vouch for it), another actor: refused.
   await refused({ ...person, host_plugin: { plugin_id: "io.molis.work.todo", install_id: "builtin:io.molis.work.todo", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id } } as ActionCallContext, input, "*", "a plugin's call");

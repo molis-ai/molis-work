@@ -185,6 +185,9 @@ export class GoalEventStateEffects {
       );
       if (replay) return { ...replay, replayed: true };
       const goal = this.core.requireOwnedWritable(input.project_id, input.goal_id);
+      if (this.records.owner.workStatus(goal.project_id, goal.goal_id) === "cancelled") {
+        throw goalErrors["goals.event_closure.cancelled"]("已取消的 Goal 需要显式继续后才能记录新的用户决定");
+      }
       const request = input.request_id
         ? this.records.decisions.getDecisionRequest(goal.project_id, goal.goal_id, input.request_id)
         : null;

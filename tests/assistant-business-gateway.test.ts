@@ -621,16 +621,18 @@ test("APR-07 BL-360: upgrading the provider leaves the old approval unavailable 
 });
 
 test("a stopped round's change that was asked for but never handed over reads as not run; one that was sent stays not known", { timeout: 60_000 }, async t => {
-  const f = await fixture(t, [() => reply(undefined, "好的。")]);
+  let clock = Date.now();
+  const f = await fixture(t, [() => reply(undefined, "好的。")], { now: () => new Date(clock) });
   try {
     const sent = await f.service.send({ text: "准备一下", request_id: "req-00000081" }, { project_ref: f.project });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed" || undefined, "completed");
     const work = f.store.get("web-user", sent.work.work_id);
-    const began = new Date(Date.now() + 1000).toISOString();
+    clock = Date.now() + 1000;
+    const began = new Date(clock).toISOString();
     const step = (call_id: string, capability_id: string) => ({ call_id, verb: "change" as const, target: "Notes · Save a note", state: "unknown" as const, capability_id });
     const round = { run_id: "r1", text: "x", materials: [], context: null, started_at: began, phase: "stopped", turns: [], activity: [step("c1", "fixture.notes.write"), step("c2", "fixture.other.write")] } as never;
     const service = f.service.dispatcher as unknown as { settleUnsent(work: unknown, rounds: unknown[]): Array<{ activity: Array<{ state: string; reason?: string }> }>; noteDispatched(work: unknown, view: unknown): void };
-    await new Promise(resolve => setTimeout(resolve, 1100));
+    clock += 100;
     service.noteDispatched(work, { capability_id: "fixture.notes.write" });
     const [settled] = service.settleUnsent(work, [round]);
     assert.deepEqual(settled!.activity.map(item => [item.state, item.reason ?? null]), [["unknown", null], ["failed", "interrupted"]]);

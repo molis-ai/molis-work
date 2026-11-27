@@ -53,8 +53,9 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
     };
     const subjectParts=(id)=>{const at=id.indexOf(':');return at<1?null:{workspace_id:id.slice(0,at),path:id.slice(at+1).split('/')};};
     // A long file: its first window, read through the materials service as the person, without fixing or remembering anything.
-    const readWindow=async(cursor)=>{
-      const result=await post('/api/materials/read',{ref:{subject:state.subject,pin:{mode:'current',read_revision:state.revision||'size:0'}},mode:'text',...(cursor?{cursor}:{})});
+    const readWindow=async(cursor,target=state)=>{
+      if(!target)return null;
+      const result=await post('/api/materials/read',{ref:{subject:target.subject,pin:{mode:'current',read_revision:target.revision||'size:0'}},mode:'text',...(cursor?{cursor}:{})});
       const part=result.window;
       return {text:result.text||'',start:part?.start||0,cursor:part?.cursor||null,next:part?.next_cursor||null,revision:result.read_revision};
     };
@@ -62,24 +63,25 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
       const subject=item?.subject||file?.subject;
       const where=subject?.kind==='workspace_file'?subjectParts(subject.id):null;
       if(!where||file.encoding!=='utf8'||file.revision==='unreadable'){close();return false;}
-      state={subject,...where,title:file.title||item?.title||'',media_type:file.media_type,file,whole:true,text:file.data,revision:file.revision,windows:[{text:file.data,start:0,cursor:null}],next:null,quote:null,pinned:null};
+      const target=state={subject,...where,title:file.title||item?.title||'',media_type:file.media_type,file,whole:true,text:file.data,revision:file.revision,windows:[{text:file.data,start:0,cursor:null}],next:null,quote:null,pinned:null};
       // What the panel showed in place of a long file is a sentence; the file itself is read on in windows.
       if(/^size:/.test(file.revision)){
         try{
-          const first=await readWindow(null);if(!isCurrent())return true;
-          Object.assign(state,{whole:!first.cursor,text:first.text,revision:first.revision,windows:[{text:first.text,start:first.start,cursor:first.cursor}],next:first.next});
-        }catch{if(isCurrent())close();return false;}
+          const first=await readWindow(null,target);if(!isCurrent()||state!==target)return true;
+          Object.assign(target,{whole:!first.cursor,text:first.text,revision:first.revision,windows:[{text:first.text,start:first.start,cursor:first.cursor}],next:first.next});
+        }catch{if(isCurrent()&&state===target)close();return false;}
       }
       tools.hidden=false;paintText();paintHeld();return true;
     };
     const unlist=()=>tools.querySelector('[data-'+name+'-passages]')?.remove();
     const close=()=>{state=null;say(null);tools.hidden=true;held.hidden=true;held.innerHTML='';unlist();};
     const next=async(button)=>{
-      if(!state?.next)return;button.disabled=true;
+      const target=state;if(!target?.next)return;button.disabled=true;
       try{
-        const part=await readWindow(state.next);
-        state.windows.push({text:part.text,start:part.start,cursor:part.cursor});state.next=part.next;paintText();
-      }catch(error){button.disabled=false;say(error);}
+        const part=await readWindow(target.next,target);
+        if(!part||state!==target)return;
+        target.windows.push({text:part.text,start:part.start,cursor:part.cursor});target.next=part.next;paintText();
+      }catch(error){if(state===target){button.disabled=false;say(error);}}
     };
     // The selection's exact place in the file: inside one window it is counted from that window's start; on a rendered page it is
     // the selected words found once in the file. Anything else is chosen from the passages instead.
@@ -102,16 +104,18 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
       for(const part of state.windows){const re=/[^\n]+(?:\n[^\n]+)*/g;let match;while((match=re.exec(part.text)))if(match[0].trim())list.push({start:part.start+match.index,end:part.start+match.index+match[0].length,cursor:part.cursor,text:match[0]});}
       return list;
     };
-    const fix=async(range,button,port)=>{
-      const input={workspace_id:state.workspace_id,path:state.path,...(range.cursor?{cursor:range.cursor}:{fingerprint:state.revision}),...(range.end!==undefined?{start:range.start,end:range.end}:{}),...(port?{port}:{})};
+    const fix=async(range,button,port,target=state)=>{
+      if(!target)return null;
+      const input={workspace_id:target.workspace_id,path:target.path,...(range.cursor?{cursor:range.cursor}:{fingerprint:target.revision}),...(range.end!==undefined?{start:range.start,end:range.end}:{}),...(port?{port}:{})};
       button.disabled=true;
-      try{return await post('/api/materials/capture',input);}
-      catch(error){say(error);return null;}
+      try{const result=await post('/api/materials/capture',input);return state===target?result:null;}
+      catch(error){if(state===target)say(error);return null;}
       finally{button.disabled=false;}
     };
     const quote=async(range,button)=>{
-      const label=labelOf(range.start,range.end),fixed=await fix(range,button);
-      if(fixed&&state){state.quote={ref:fixed.ref,label:readText("workbench.materials-reader.selection")+' · '+label,title:state.title+' · '+label};paintHeld();}
+      const target=state;if(!target)return;
+      const label=labelOf(range.start,range.end),fixed=await fix(range,button,undefined,target);
+      if(fixed&&state===target){target.quote={ref:fixed.ref,label:readText("workbench.materials-reader.selection")+' · '+label,title:target.title+' · '+label};paintHeld();}
     };
     const choosePassage=(button)=>{
       unlist();
@@ -137,8 +141,9 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
     };
     // A whole file fixed as it is now; handed to Diff as the version before or after when the person says so (one commit with the port).
     const pin=async(button,port)=>{
-      const fixed=await fix({start:0},button,port);
-      if(fixed&&state){state.pinned={ref:fixed.ref,label:port?readText("workbench.picker.pin-snapshot")+' · '+readText(port==='before'?'workbench.materials-reader.before':'workbench.materials-reader.after'):readText("workbench.picker.pin-snapshot"),title:state.title};state.quote=null;paintHeld();}
+      const target=state;if(!target)return;
+      const fixed=await fix({start:0},button,port,target);
+      if(fixed&&state===target){target.pinned={ref:fixed.ref,label:port?readText("workbench.picker.pin-snapshot")+' · '+readText(port==='before'?'workbench.materials-reader.before':'workbench.materials-reader.after'):readText("workbench.picker.pin-snapshot"),title:target.title};target.quote=null;paintHeld();}
     };
     let menu=null;
     const pinMenu=(button)=>{

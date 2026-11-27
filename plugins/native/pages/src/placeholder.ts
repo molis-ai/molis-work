@@ -1,5 +1,5 @@
 import { ResolvedPos } from "prosemirror-model";
-import { pagesSchema } from "./schema.js";
+import { pagesSchema, safePagesHeadingLevel } from "./schema.js";
 
 /** What an empty block should whisper, decided by the block itself and by what holds it. */
 export function blockPlaceholder($pos: ResolvedPos): string {
@@ -7,7 +7,7 @@ export function blockPlaceholder($pos: ResolvedPos): string {
   const node = $pos.parent;
   if (!node.isTextblock || node.content.size > 0) return "";
   if (node.type === s.nodes.code_block) return "pages.editor.code";
-  if (node.type === s.nodes.heading) return ["pages.editor.heading-1", "pages.editor.heading-2", "pages.editor.heading-3"][Number(node.attrs.level) - 1] ?? "";
+  if (node.type === s.nodes.heading) return ["pages.editor.heading-1", "pages.editor.heading-2", "pages.editor.heading-3"][safePagesHeadingLevel(node.attrs.level) - 1] ?? "";
   if (node.type !== s.nodes.paragraph) return "";
   const holder = $pos.depth > 0 ? $pos.node($pos.depth - 1) : null;
   if (holder?.type === s.nodes.list_item) return "pages.editor.list-item";

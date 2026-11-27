@@ -14,6 +14,7 @@ import { offerConsequences, surfaceOfferOperation, surfaceOfferSources, type Hel
 import { bindSurfacePlacement, isPlacementKind, prepareSurfacePlacement, type SurfacePlacementTarget } from "./surface-placement.js";
 import { observeSurfaceCommand } from "./surface-command-delivery.js";
 import type { PositionChoice } from "./surface-position-offers.js";
+import { readWorkbenchText } from "./ui-error-words.js";
 
 type Route = NonNullable<ReturnType<typeof displayedRoute>>;
 type Intent = { label: string; primary: boolean; warning?: SurfaceItemAction["consequence"] }
@@ -45,7 +46,7 @@ export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeRead
       const fallback = displayedFallback(sample, item);
       if (fallback && item.actions.some(action => action.ref === "open")) {
         const token = randomUUID();
-        controls.set(token, { key: token, kind: "fallback-open", label: "打开", primary: false, item,
+        controls.set(token, { key: token, kind: "fallback-open", label: readWorkbenchText("common.control.open"), primary: false, item,
           route: { entry: fallback.entry, reader: fallback.proof.reader } });
       }
       continue;
@@ -60,17 +61,17 @@ export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeRead
     const offers = row.read.state === "ok" ? surfaceOfferSources(sample.directory, item.subject.kind, view => homeOwnsView(route.entry, view)) : [];
     if (offers.length) {
       sample.retain(offers.flatMap(({ source, action }) => [source, action]));
-      capture({ kind: "offers", choices: offers, label: "更多操作", primary: false });
+      capture({ kind: "offers", choices: offers, label: readWorkbenchText("common.presentation.more"), primary: false });
     }
     for (const operation of item.actions) {
       if (operation.ref === "open" || operation.ref === "peek") {
-        capture({ kind: operation.ref, label: operation.ref === "open" ? "打开" : "速览", primary: operation.primary });
+        capture({ kind: operation.ref, label: readWorkbenchText(operation.ref === "open" ? "common.control.open" : "common.presentation.peek"), primary: operation.primary });
         continue;
       }
       if (row.read.state !== "ok") continue;
       if (isPlacementKind(operation.ref)) {
         const bound = bindSurfacePlacement(sample, route, item, operation.ref, revision, project, metadata);
-        if (bound) capture({ kind: "placement", bound, label: operation.ref === "place" ? "用于项目" : "交给", primary: false });
+        if (bound) capture({ kind: "placement", bound, label: readWorkbenchText(operation.ref === "place" ? "workbench.placement.use-project-2" : "common.presentation.hand_off"), primary: false });
         continue;
       }
       if (!operation.provider_id) continue;

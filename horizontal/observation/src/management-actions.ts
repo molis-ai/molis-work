@@ -122,7 +122,7 @@ export async function handleCleanupPreview(
 
 export async function handleCleanupApply(
   deps: ManagementActionDeps,
-  caller: ActionCallContext,
+  caller: ActionExecutionContext,
   input: ObservationCleanupScopeInput,
 ): Promise<ObservationCleanupResult> {
   assertPersonCaller(caller);
@@ -132,6 +132,11 @@ export async function handleCleanupApply(
       throw observationErrors.forbidden("所选项目不存在、已删除或正在关闭");
     }
   }
+  await caller.beforeEffect?.();
+  caller.assert_authority_current?.();
+  caller.signal?.throwIfAborted();
   const db = openForManagement(deps.writer);
-  return applyCleanup(db, input, deps.env.now(), deps.flowOwners);
+  const result = applyCleanup(db, input, deps.env.now(), deps.flowOwners);
+  if (result.deleted_records > 0) deps.writer.clearFolds();
+  return result;
 }

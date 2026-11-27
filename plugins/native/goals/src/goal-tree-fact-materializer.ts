@@ -8,7 +8,7 @@ export class GoalTreeFactMaterializer {
   constructor(
     private readonly goals: { commands: Pick<GoalsCommandApi, "applyConfirmedRelations">; query: Pick<GoalsQueryApi, "getGoal"> },
     private readonly inputs: GoalTreeInputReader,
-    private readonly createIntent: (input: CreateGoalIntentInput) => CreateGoalIntentResult,
+    private readonly createIntent: (input: CreateGoalIntentInput, options?: { hangRequirements?: boolean }) => CreateGoalIntentResult,
   ) {}
 
   materializeGoalTreeRelations(
@@ -30,6 +30,7 @@ export class GoalTreeFactMaterializer {
     actorId: string,
     _reasonText: string,
     _at: string,
+    options?: { preview?: boolean },
   ): ProposalAffectedObject {
     if (item.kind !== "goal" || item.operation !== "create") {
       throw treeErrors["goals.goal_tree_proposal.item_operation_invalid"]("结构提案只能新增 Goal");
@@ -59,7 +60,7 @@ export class GoalTreeFactMaterializer {
       actor_id: actorId,
       idempotency_key: `tree-goal:${item.item_id}`,
       source_kind: "tree",
-    });
+    }, { hangRequirements: !options?.preview });
     return { object_type: "goal", object_id: goalId };
   }
 }

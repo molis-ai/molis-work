@@ -9,6 +9,7 @@ import test from "node:test";
 import { goalsModuleExports as goalsPackage } from "./fixtures/goals-modules.js";
 import {
   GoalsModule,
+  validatePlanningProposalGraph,
 } from "./fixtures/goals-modules.js";
 
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -168,4 +169,38 @@ test("Goals public Lifecycle API owns archive and trash", () => {
     store.close();
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("F-goals-05: validatePlanningProposalGraph applies both relation/deactivate payload shapes", () => {
+  const currentGoals = [
+    { goal_id: "A", trashed_at: null },
+    { goal_id: "B", trashed_at: null },
+  ];
+  const currentRelations = [
+    { relation_id: "rel-ab", from_goal_id: "A", to_goal_id: "B", type: "depends_on" as const, state: "active" as const },
+  ];
+  const reverseAdd = {
+    item_id: "add-ba",
+    kind: "relation" as const,
+    operation: "create" as const,
+    payload: { from_goal_id: "B", to_goal_id: "A", type: "depends_on", reason: "Reverse order" },
+  };
+  // Without deactivating A -> B, adding B -> A creates a cycle.
+  assert.ok(validatePlanningProposalGraph(currentGoals, currentRelations, [reverseAdd]).length > 0);
+  // Shape 1: { relation_id, reason } without from/to/type.
+  assert.deepEqual(
+    validatePlanningProposalGraph(currentGoals, currentRelations, [
+      { item_id: "deact-by-id", kind: "relation", operation: "deactivate", payload: { relation_id: "rel-ab", reason: "Replace edge" } },
+      reverseAdd,
+    ]),
+    [],
+  );
+  // Shape 2: { from_goal_id, to_goal_id, type } without relation_id.
+  assert.deepEqual(
+    validatePlanningProposalGraph(currentGoals, currentRelations, [
+      { item_id: "deact-by-endpoints", kind: "relation", operation: "deactivate", payload: { from_goal_id: "A", to_goal_id: "B", type: "depends_on", reason: "Replace edge" } },
+      reverseAdd,
+    ]),
+    [],
+  );
 });

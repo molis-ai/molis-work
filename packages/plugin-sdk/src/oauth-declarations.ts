@@ -6,6 +6,7 @@ import {
   OAUTH_SETTING_USES,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { CONNECTOR_ACCOUNT_ORIGINS, CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { isSafeOAuthPattern } from "./oauth-pattern.js";
 import {
   oauthDeclarableHeader,
   oauthKey,
@@ -340,8 +341,7 @@ function parse(value: string): URL | undefined {
 }
 
 function compiles(value: unknown): boolean {
-  if (typeof value !== "string" || value.length === 0) return false;
-  try { return new RegExp(value, "u") instanceof RegExp; } catch { return false; }
+  return isSafeOAuthPattern(value);
 }
 
 function pointer(value: unknown): value is string {

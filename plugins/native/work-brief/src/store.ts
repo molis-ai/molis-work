@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import { workBriefErrors } from "./error.js";
@@ -6,6 +7,11 @@ import { BRIEF_LIMITS, type BriefBody, type BriefEdit, type BriefFixed, type Bri
 
 const text = (value: unknown) => String(value ?? "");
 const parse = <T>(value: unknown, fallback: T): T => typeof value === "string" && value ? JSON.parse(value) as T : fallback;
+
+/** Deterministic id for a singleton brief (home per project, personal per person), so offline devices share one sync key. */
+export function singletonBriefId(scope: "home" | "personal", ownerId: string): string {
+  return `brief-${scope}-${createHash("sha256").update(ownerId).digest("hex").slice(0, 32)}`;
+}
 
 function briefOf(row: PluginSqlRow): BriefRecord {
   return { brief_id: text(row.id), project_id: text(row.project_id), scope: text(row.scope) as BriefScope, title: text(row.title), current_version: Number(row.current_version),
@@ -60,6 +66,10 @@ export class BriefStore {
     });
   }
 
+  /** Deterministic id for this store's singleton home or personal brief. */
+  singletonId(scope: "home" | "personal", actorId?: string): string {
+    return singletonBriefId(scope, scope === "personal" ? actorId ?? "" : this.projectId ?? "");
+  }
   create(input: { brief_id: string; scope: BriefScope; title: string; actor_id?: string }, at: string): BriefRecord {
     this.tx.run("INSERT INTO briefs (id, project_id, actor_id, scope, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [input.brief_id, input.scope === "personal" ? "" : this.projectId ?? "", input.actor_id ?? "", input.scope, input.title, at, at]);

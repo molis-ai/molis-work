@@ -55,6 +55,10 @@ export function pageTerminalOwnership(home?: string) {
         throw new ActionError("actions.forbidden", "终端不属于当前插件页面");
       } };
     },
+    ownerOf(panelId: string): Owner | undefined { return owners.get(panelId); },
+    release(panelId: string, expected?: Owner) {
+      if (expected === undefined || owners.get(panelId) === expected) owners.delete(panelId);
+    },
     clear() { owners.clear(); },
   };
 }

@@ -102,7 +102,7 @@ function placementChoice(binding: PlacementBinding, choice: { project: string; n
       : actions.invoke(action("link"), { object: binding.source, project_id: choice.project }, controlFor(context, valid)));
     try { valid(); }
     catch (cause) { throw new ActionError("actions.outcome_unknown", "操作结果需要到原对象核对", { cause }); }
-    return { title: "title" in result ? uiText.text("workbench.placement.turned-into") + " · " + result.title : uiText.text("workbench.placement.used-project-project", { project: choice.name }), result,
+    return { title: "title" in result ? uiText.text("workbench.index.turned-into-title", { title: result.title }) : uiText.text("workbench.placement.used-project-project", { project: choice.name }), result,
       ...(binding.receiver ? { request_id: request } : {}) };
   } };
 }

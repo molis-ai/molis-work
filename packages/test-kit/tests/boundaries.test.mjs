@@ -738,3 +738,21 @@ test("rejects a Plugin importing a private UI package, and lets only Plugin Stud
   const workbench = { importer: boundaryPackage("@molis-ai/molis-work-app-workbench", "apps/workbench", "app", [designSystem.name]), target: designSystem, specifier: designSystem.name, sourceFile: "apps/workbench/src/renderer.ts" };
   assert.ok(!violationCodes(workbench).has("plugin-private-ui-dependency"));
 });
+
+test("F-cf3-01 extracts imports and re-exports after regex literals with quotes without false positives inside regexes", () => {
+  const source = [
+    'const attr = /\\bdata-directory-panel\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s>]+))/g;',
+    "const oddQuote = /'/g;",
+    "const ratio = total / count / 2;",
+    'const fake = /import x from "@scope\\/inside-regex"/;',
+    'const fakeInClass = /import x from "@scope[/]inside-class"/;',
+    "if (flag) /'/.test(text);",
+    'export { renderProjectHome } from "./project-home.js";',
+    'import { forbidden } from "@scope/after-regex";',
+  ].join("\n");
+
+  assert.deepEqual(extractImportSpecifiers(source), [
+    "./project-home.js",
+    "@scope/after-regex",
+  ]);
+});

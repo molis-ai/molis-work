@@ -61,6 +61,22 @@ test("Base URL 末尾的斜杠和已经写全的路径都不会被拼坏", () =>
   assert.equal(
     modelRequestShape({ base_url: "https://x.test/v1/messages", api_format: "anthropic-messages" }, "k").url,
     "https://x.test/v1/messages", "已经写到 /messages 就不再追加");
+  // F-cf-10: /v1 base URLs do not double-prefix /v1/v1/messages, and hostnames containing "completion" still append /chat/completions.
+  assert.equal(
+    modelRequestShape({ base_url: "https://api.anthropic.com/v1", api_format: "anthropic-messages" }, "k").url,
+    "https://api.anthropic.com/v1/messages");
+  assert.equal(
+    modelRequestShape({ base_url: "https://api.anthropic.com/v1/", api_format: "anthropic-messages" }, "k").url,
+    "https://api.anthropic.com/v1/messages");
+  assert.equal(
+    modelRequestShape({ base_url: "https://completion-gateway.corp.example/v1", api_format: "openai-chat-completions" }, "k").url,
+    "https://completion-gateway.corp.example/v1/chat/completions");
+  assert.equal(
+    modelRequestShape({ base_url: "https://api.openai.com/v1/chat/completions", api_format: "openai-chat-completions" }, "k").url,
+    "https://api.openai.com/v1/chat/completions");
+  assert.equal(
+    modelRequestShape({ base_url: "https://api.openai.com/v1/completions", api_format: "openai-chat-completions" }, "k").url,
+    "https://api.openai.com/v1/completions");
 });
 
 test("供应商状态分清「没填密钥」「关掉了」「没启用模型」", () => {

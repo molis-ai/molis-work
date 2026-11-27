@@ -110,3 +110,42 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'));
   await moreClick('[data-ppt-delete]');await waitFor("document.querySelector('[data-ppt-confirm]').open");await click('[data-ppt-confirm] [data-confirm-ok]');await idle();assert.equal(read().length,0);
 });
+
+test("F-plugins-rest-w2-13: a delayed PPT autosave after placement move does not resurrect the moved presentation", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "ppt");
+  const store = openPptStore(homeDirectory, projectId!);
+  const deckA = store.create({ title: "演示 A" });
+  const deckB = store.create({ title: "演示 B" });
+  store.close();
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=ppt` }, sessionId));
+  await browser.waitFor("document.querySelector('[data-plugin-id=ppt]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "ppt") await browser.click("[data-plugin-strip] [data-plugin-id=ppt]");
+  await click(`[data-ppt-id="${deckA.id}"]`);
+  await waitFor("document.querySelector('[data-ppt=workbench]').getAttribute('aria-busy') === 'false'");
+  await evaluate(`(() => {
+    const original = window.molisWorkRequest;
+    window.molisWorkRequest = Object.assign(async (url, init) => {
+      const response = await original(url, init);
+      const path = new URL(url, ${JSON.stringify(origin)}).pathname;
+      if (init?.method === "POST" && path.endsWith("/ppt/${deckA.id}") && !window.heldPptSave) {
+        window.heldPptSave = true;
+        await new Promise(resolve => { window.releasePptMoveSave = resolve; });
+      }
+      return response;
+    }, original);
+  })()`);
+  await evaluate(`(() => { const el = document.querySelector('[data-ppt-title]'); el.value = '移走前标题'; el.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await waitFor("typeof window.releasePptMoveSave === 'function'");
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:placement-changed', { detail: { mode: 'move', from: { kind: 'presentation', id: '${deckA.id}' }, to: { kind: 'presentation' } } }))`);
+  await waitFor("document.querySelector('[data-ppt-stage-workspace]').hidden");
+  await evaluate("window.releasePptMoveSave()");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate("document.querySelector('[data-ppt-stage-workspace]').hidden"), true);
+  assert.equal(await evaluate(`document.querySelector('[data-ppt-id="${deckA.id}"]')?.classList.contains('is-selected') ?? false`), false);
+  await click(`[data-ppt-id="${deckB.id}"]`);
+  await waitFor("document.querySelector('[data-ppt=workbench]').getAttribute('aria-busy') === 'false'");
+  assert.equal(await evaluate("document.querySelector('[data-ppt-title]').value"), "演示 B");
+});

@@ -455,6 +455,12 @@ struct ServiceCommandResult {
     status: String,
 }
 
+#[derive(Deserialize)]
+struct ServiceDetectionResult {
+    state: String,
+    owned: bool,
+}
+
 fn service_command_status(stdout: &[u8]) -> Option<String> {
     if let Ok(result) = serde_json::from_slice::<ServiceCommandResult>(stdout) {
         return Some(result.status);
@@ -472,9 +478,55 @@ fn service_command_status(stdout: &[u8]) -> Option<String> {
     None
 }
 
+fn service_detection(stdout: &[u8]) -> Option<ServiceDetectionResult> {
+    if let Ok(result) = serde_json::from_slice::<ServiceDetectionResult>(stdout) {
+        return Some(result);
+    }
+    let text = std::str::from_utf8(stdout).ok()?;
+    for line in text.lines().rev() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Ok(result) = serde_json::from_str::<ServiceDetectionResult>(trimmed) {
+            return Some(result);
+        }
+    }
+    None
+}
+
+fn should_sync_managed_service(detection: &ServiceDetectionResult) -> bool {
+    detection.owned
+        && matches!(
+            detection.state.as_str(),
+            "needs_repair" | "running" | "unhealthy"
+        )
+}
+
 fn sync_managed_web_service_after_upgrade(home: &Path) -> bool {
     let cli = home.join("bin").join("molis-work");
     if !cli.is_file() {
+        return false;
+    }
+    // Only refresh/restart a LaunchAgent that already exists and belongs to this Home.
+    // Never silently install and bootstrap a KeepAlive LaunchAgent when service is "absent".
+    let Ok(status_output) = Command::new(&cli)
+        .args(["service", "status", "--home"])
+        .arg(home)
+        .arg("--json")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+    else {
+        return false;
+    };
+    if !status_output.status.success() {
+        return false;
+    }
+    let Some(detection) = service_detection(&status_output.stdout) else {
+        return false;
+    };
+    if !should_sync_managed_service(&detection) {
         return false;
     }
     let Ok(output) = Command::new(&cli)
@@ -681,6 +733,7 @@ pub(crate) fn start_molis_work_web(
         return Ok(Started::Upgrading);
     }
     let healthy_before = web_healthy();
+    let had_installed_before = read_installed_program(&home).is_some();
     let upgraded_runtime = if let Some(resource_dir) =
         resource_dir.filter(|resource_dir| embedded_runtime_upgrade_available(resource_dir, &home))
     {
@@ -692,7 +745,7 @@ pub(crate) fn start_molis_work_web(
         false
     };
     if upgraded_runtime {
-        if packaged_test_home().is_none() {
+        if had_installed_before && packaged_test_home().is_none() {
             let _ = sync_managed_web_service_after_upgrade(&home);
             adopt_endpoint_port(&home);
         }
@@ -1139,7 +1192,7 @@ mod embedded_runtime_version_tests {
         fs::write(
             &cli,
             format!(
-                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nprintf '{{\"status\":\"installed\"}}\\n'\n",
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nif [ \"$1\" = \"service\" ] && [ \"$2\" = \"status\" ]; then\n  printf '{{\"state\":\"needs_repair\",\"owned\":true}}\\n'\n  exit 0\nfi\nprintf '{{\"status\":\"installed\"}}\\n'\n",
                 receipt.display()
             ),
         )
@@ -1154,8 +1207,9 @@ mod embedded_runtime_version_tests {
         assert_eq!(
             fs::read_to_string(&receipt).unwrap().trim(),
             format!(
-                "service install --home {} --confirm --json",
-                PathBuf::from(&home).display()
+                "service status --home {} --json\nservice install --home {} --confirm --json",
+                PathBuf::from(&home).display(),
+                PathBuf::from(&home).display(),
             ),
         );
         fs::remove_dir_all(home).unwrap();
@@ -1171,7 +1225,7 @@ mod embedded_runtime_version_tests {
         fs::write(
             &cli,
             format!(
-                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nif [ \"$1\" = \"service\" ] && [ \"$2\" = \"install\" ]; then\n  printf '{{\"status\":\"unchanged\"}}\\n'\nfi\n",
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nif [ \"$1\" = \"service\" ] && [ \"$2\" = \"status\" ]; then\n  printf '{{\"state\":\"running\",\"owned\":true}}\\n'\n  exit 0\nfi\nif [ \"$1\" = \"service\" ] && [ \"$2\" = \"install\" ]; then\n  printf '{{\"status\":\"unchanged\"}}\\n'\nfi\n",
                 receipt.display()
             ),
         )
@@ -1186,9 +1240,10 @@ mod embedded_runtime_version_tests {
         assert_eq!(
             fs::read_to_string(&receipt).unwrap().trim(),
             format!(
-                "service install --home {} --confirm --json\nservice restart --home {} --confirm",
+                "service status --home {} --json\nservice install --home {} --confirm --json\nservice restart --home {} --confirm",
                 PathBuf::from(&home).display(),
-                PathBuf::from(&home).display()
+                PathBuf::from(&home).display(),
+                PathBuf::from(&home).display(),
             ),
         );
         fs::remove_dir_all(home).unwrap();
@@ -1204,7 +1259,7 @@ mod embedded_runtime_version_tests {
         fs::write(
             &cli,
             format!(
-                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexit 1\n",
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nif [ \"$1\" = \"service\" ] && [ \"$2\" = \"status\" ]; then\n  printf '{{\"state\":\"needs_repair\",\"owned\":true}}\\n'\n  exit 0\nfi\nexit 1\n",
                 receipt.display()
             ),
         )
@@ -1217,11 +1272,50 @@ mod embedded_runtime_version_tests {
         assert_eq!(
             fs::read_to_string(&receipt).unwrap().trim(),
             format!(
-                "service install --home {} --confirm --json",
-                PathBuf::from(&home).display()
+                "service status --home {} --json\nservice install --home {} --confirm --json",
+                PathBuf::from(&home).display(),
+                PathBuf::from(&home).display(),
             ),
         );
         fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn embedded_runtime_upgrade_never_installs_launch_agent_when_absent_or_unowned() {
+        for (label, json) in [
+            ("absent", r#"{"state":"absent","owned":false}"#),
+            ("conflict", r#"{"state":"conflict","owned":false}"#),
+            ("stopped", r#"{"state":"stopped","owned":true}"#),
+            ("unsupported", r#"{"state":"unsupported","owned":false}"#),
+        ] {
+            let home = scratch(&format!("service-skip-{label}"));
+            let bin = home.join("bin");
+            let cli = bin.join("molis-work");
+            let receipt = home.join("called.txt");
+            fs::create_dir_all(&bin).unwrap();
+            fs::write(
+                &cli,
+                format!(
+                    "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nprintf '%s\\n' '{}'\n",
+                    receipt.display(),
+                    json,
+                ),
+            )
+            .unwrap();
+            let mut permissions = fs::metadata(&cli).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&cli, permissions).unwrap();
+
+            assert!(
+                !sync_managed_web_service_after_upgrade(&home),
+                "must not install or restart LaunchAgent for state {label}"
+            );
+            assert_eq!(
+                fs::read_to_string(&receipt).unwrap().trim(),
+                format!("service status --home {} --json", home.display()),
+            );
+            fs::remove_dir_all(home).unwrap();
+        }
     }
 }
 

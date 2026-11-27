@@ -55,8 +55,10 @@ export const REPORT_CLICKS: readonly ClickRule[] = [
   ["[data-coding-progress-goal]", page => {
     const { host, s } = page, goal = s.progressView?.preview?.report_goal;
     if (!goal || s.progressSaving) return;
+    const surface = typeof host.surfaceFor === "function" ? host.surfaceFor("goal") : "goals";
+    if (!surface) return;
     closeProgress(page);
-    host.openItem("goals", goal.goal_id, goal.title);
+    host.openItem(surface, goal.goal_id, goal.title);
   }],
   ["[data-coding-report-output]", setReportOutput],
   ["[data-coding-report-save]", page => {

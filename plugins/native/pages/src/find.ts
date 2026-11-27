@@ -6,6 +6,25 @@ interface FindHit {
   to: number;
 }
 
+function foldedTextMap(raw: string, folded: string): { text: string; starts: number[]; ends: number[] } {
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let built = "";
+  let offset = 0;
+  while (offset < raw.length) {
+    const code = raw.codePointAt(offset)!;
+    const step = code > 0xffff ? 2 : 1;
+    const piece = raw.slice(offset, offset + step).toLowerCase();
+    built += piece;
+    for (let i = 0; i < piece.length; i += 1) {
+      starts.push(offset);
+      ends.push(offset + step);
+    }
+    offset += step;
+  }
+  return { text: built.length === folded.length ? folded : built, starts, ends };
+}
+
 /** Non-overlapping matches inside text nodes. A match does not jump across a line break. */
 export function findHits(doc: Node, query: string): FindHit[] {
   const needle = query.trim().toLowerCase();
@@ -13,13 +32,32 @@ export function findHits(doc: Node, query: string): FindHit[] {
   const hits: FindHit[] = [];
   doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
-    const folded = node.text.toLowerCase();
+    const raw = node.text;
+    const folded = raw.toLowerCase();
+    if (folded.length === raw.length) {
+      let start = 0;
+      while (start <= folded.length - needle.length) {
+        const at = folded.indexOf(needle, start);
+        if (at < 0) break;
+        hits.push({ from: pos + at, to: pos + at + needle.length });
+        start = at + needle.length;
+      }
+      return;
+    }
+    const mapped = foldedTextMap(raw, folded);
     let start = 0;
-    while (start <= folded.length - needle.length) {
-      const at = folded.indexOf(needle, start);
+    while (start <= mapped.text.length - needle.length) {
+      const at = mapped.text.indexOf(needle, start);
       if (at < 0) break;
-      hits.push({ from: pos + at, to: pos + at + needle.length });
-      start = at + needle.length;
+      const end = at + needle.length;
+      const validStart = at === 0 || mapped.starts[at] !== mapped.starts[at - 1];
+      const validEnd = end === mapped.text.length || mapped.starts[end] !== mapped.starts[end - 1];
+      if (validStart && validEnd) {
+        hits.push({ from: pos + mapped.starts[at], to: pos + mapped.ends[end - 1] });
+        start = end;
+      } else {
+        start = at + 1;
+      }
     }
   });
   return hits;

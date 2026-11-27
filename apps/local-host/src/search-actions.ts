@@ -23,6 +23,8 @@ interface SearchHostPorts {
   registry: ActionRegistryPort;
   /** The open project behind a caller, or undefined when it is not open (or the caller has none). */
   project(projectId: string): LocalHostProjectReference | undefined;
+  /** Open project eligible for background search/knowledge catch-up (excludes partitions opened only for a single due wakeup). */
+  backgroundProject?(projectId: string): LocalHostProjectReference | undefined;
   projectClient(reference: LocalHostProjectReference): HostActionClient;
   homeClient(): HostActionClient;
   /** The local person's trusted context over one scope, as the Web uses it. */
@@ -42,6 +44,8 @@ export interface SearchHost {
   clearProvider(providerId: string, projectId: string | null): void;
   /** A provider was registered or withdrawn: install, enable, upgrade, disable, uninstall. */
   providerChanged(provider: Pick<ActionProvider, "provider_id" | "project_id">): void;
+  /** Cancel pending background refresh work when a project closes or sleeps. */
+  projectClosed(projectId: string): void;
   projectDeleted(projectId: string): void;
   /**
    * Whether each object a person picked for a reference answer is still one they may use in that project (of an allowed
@@ -65,9 +69,11 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     return ports.projectClient(reference);
   };
   const searchClient = (client: HostActionClient): ActionClient => selectedActionClient(client, ({ action }) => isSearchEntriesSource(action) || isSubjectReader(action));
+  const backgroundProject = ports.backgroundProject ?? ports.project;
   const service = new SearchService({
     index,
     background: refresh => outsidePluginAction(() => runBackgroundWorkIn(ports.homeDirectory, refresh)),
+    canBackgroundRefresh: projectId => projectId === null || Boolean(backgroundProject(projectId)),
     indexer: async projectId => {
       if (!projectId) return { client: searchClient(ports.homeClient()), caller: await ports.ownerContext(undefined) };
       const reference = ports.project(projectId) ?? (projectId === PERSONAL_SPACE_PROJECT_ID ? await ports.openPersonalSpace?.() : undefined);
@@ -95,7 +101,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     if (!reference) throw new ActionError("search.project_closed", "项目未打开，稍后在该项目里搜索时再更新");
     return ports.ownerContext(reference);
   };
-  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, index, clientFor, ownerContext, sessionLifecycle: ports.sessionLifecycle,
+  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, index, clientFor, ownerContext, backgroundReady: projectId => Boolean(backgroundProject(projectId)), sessionLifecycle: ports.sessionLifecycle,
     search: { query: (access, input) => service.query({ ...access, client: searchClient(access.client) }, input), indexedCatalog: access => service.indexedCatalog(access) },
     ...(ports.onError ? { onError: ports.onError } : {}) });
   const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
@@ -113,6 +119,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     changed: (providerId, projectId) => { service.markChanged(providerId, projectId); knowledge.changed(projectId); },
     clearProvider: (providerId, projectId) => { service.clearProvider(providerId, projectId); knowledge.changed(projectId); },
     providerChanged: provider => service.markRegistration(provider.provider_id, provider.project_id ?? null),
+    projectClosed: projectId => { knowledge.projectClosed(projectId); },
     projectDeleted: projectId => { service.removeProject(projectId); knowledge.projectDeleted(projectId); },
     confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
     readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),

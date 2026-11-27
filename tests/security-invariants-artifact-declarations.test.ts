@@ -10,11 +10,12 @@ import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { createPluginRuntimeReleaseArtifact, PluginRuntime, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { readRestoredAssets, restoreWorkAssets } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, declarationOwnersFor, artifactLinkKinds, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declaredArtifactTypes,
+import { DEMO_PROJECT_ID, LocalProjectDatabase, artifactActionProvider, artifactLinkKinds, artifactProducerSources, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declarationOwnersFor, declaredArtifactTypes,
   heldInstalls, pluginHeldElsewhere, homeStores, installedArtifacts, openProjectVersionStores, restoreArtifactVersions, seedDemoBoard, seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { DECLARED_RULE_OPTIONS, declaredRule, declaredScene } from "./fixtures/declared-rules.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -455,4 +456,69 @@ test("RAC-417 S-82 two Homes in one process do not share names", { timeout: 120_
   assert.throws(() => one.install(plugin(OTHER, "1.0.0", ["example.note"])), refusal, "in the Home that holds the name");
   assert.doesNotThrow(() => two.install(plugin(OTHER, "1.0.0", ["example.note"])), "another Home's installation does not hold it");
   assert.doesNotThrow(() => one.install(plugin(PRODUCER, "2.0.0", ["example.note", "example.sheet"])), "the owner's own version change is not another owner");
+});
+
+test("F-hc-14: artifactProducerSources isolates project views and artifactActionProvider resolves link kinds dynamically", async t => {
+  const home = bareHome(t);
+  const p = project(t, home);
+  const pluginA = plugin("com.example.dyn-a", "1.0.0", ["example.dyn.a"], ["example.dyn.a.link"]).manifest;
+  const pluginB = plugin("com.example.dyn-b", "1.0.0", ["example.dyn.b"], ["example.dyn.b.link"]).manifest;
+  const pluginHome = plugin("com.example.dyn-home", "1.0.0", ["example.dyn.home"], ["example.dyn.home.link"]).manifest;
+
+  const provider = artifactActionProvider(
+    { project_id: p.projectId, artifacts: p.versions.artifacts, processItems: p.versions.processItems, store: p.store } as never,
+    { homeDirectory: home },
+  );
+  const linksHandler = provider.handlers.find(handler => handler.capability_id === "artifacts.links");
+  assert.ok(linksHandler, "artifacts.links handler exists");
+
+  const scope = { kind: "personal" as const, id: p.projectId };
+  const ledger = createContextLedger(p.store.db, { initializeSchema: false, authorize: () => true });
+  ledger.commands.put({ actor_id: LOCAL_PERSON_ACTOR_ID, scope }, {
+    key: "dyn-edge-a",
+    source: { module: "plugins", plugin_id: pluginA.plugin_id, object_type: "item", id: "item-a", version: null, scope, project_id: p.projectId },
+    target: { module: "artifacts", object_type: "artifact_version", id: "art-dyn", version: 1, scope, project_id: p.projectId },
+    type: "example.dyn.a.link",
+    cause: "dyn-a",
+  });
+  ledger.commands.put({ actor_id: LOCAL_PERSON_ACTOR_ID, scope }, {
+    key: "dyn-edge-b",
+    source: { module: "plugins", plugin_id: pluginB.plugin_id, object_type: "item", id: "item-b", version: null, scope, project_id: p.projectId },
+    target: { module: "artifacts", object_type: "artifact_version", id: "art-dyn", version: 1, scope, project_id: p.projectId },
+    type: "example.dyn.b.link",
+    cause: "dyn-b",
+  });
+
+  const invokeLinks = async () => await linksHandler.handle(
+    { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: p.projectId, permissions: ["artifacts:read"], beforeEffect: async () => {} } as never,
+    { reference: { artifact_id: "art-dyn", version: 1 } },
+  ) as { plugins: Array<{ plugin_id: string }>; other: number };
+
+  const before = await invokeLinks();
+  assert.deepEqual(before, { plugins: [], other: 2 }, "before watching, neither dynamic link kind is recognized");
+
+  const unwatchA = installedArtifacts.watch({ project_id: p.projectId, alive: () => true, effectiveManifests: () => [pluginA], knownPluginIds: () => [pluginA.plugin_id] });
+  const unwatchB = installedArtifacts.watch({ project_id: "other-project", alive: () => true, effectiveManifests: () => [pluginB], knownPluginIds: () => [pluginB.plugin_id] });
+  const unwatchHome = installedArtifacts.watch({ project_id: null, alive: () => true, effectiveManifests: () => [pluginHome], knownPluginIds: () => [pluginHome.plugin_id] });
+  try {
+    const aIds = artifactProducerSources(p.projectId).map(source => source.plugin_id);
+    const bIds = artifactProducerSources("other-project").map(source => source.plugin_id);
+    assert.equal(aIds.includes(pluginA.plugin_id), true);
+    assert.equal(aIds.includes(pluginHome.plugin_id), true);
+    assert.equal(aIds.includes(pluginB.plugin_id), false, "project A must not see project B's artifacts");
+    assert.equal(bIds.includes(pluginB.plugin_id), true);
+    assert.equal(bIds.includes(pluginHome.plugin_id), true);
+    assert.equal(bIds.includes(pluginA.plugin_id), false, "project B must not see project A's artifacts");
+
+    const during = await invokeLinks();
+    assert.deepEqual(during.plugins.map(item => item.plugin_id), [pluginA.plugin_id], "provider dynamically sees project A's newly watched link kind and excludes project B's");
+    assert.equal(during.other, 1);
+  } finally {
+    unwatchA();
+    unwatchB();
+    unwatchHome();
+  }
+
+  const after = await invokeLinks();
+  assert.deepEqual(after, { plugins: [], other: 2 }, "after unwatch, removed link kind is immediately dropped");
 });

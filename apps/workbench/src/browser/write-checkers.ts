@@ -41,7 +41,7 @@ export function bindWriteCheckers(host: WriteCheckersHost): void {
   heading.id += ++sections;
   dialog.setAttribute("aria-labelledby", heading.id);
   const call = <T>(body?: unknown) => molisWorkRequest<T>(host.prefix + "/api/project-settings/write-checkers", { body, fallback: say.failed });
-  let folders: readonly Folder[] = [], lists: Kept[] = [], busy = false;
+  let folders: readonly Folder[] = [], lists: Kept[] = [], busy = false, loaded = false;
   let editing: { workspace_id: string; checker_id: string | null } | null = null;
 
   // A copy of a template with its `{slots}` filled (once: a value is never read for slots again) and the `data-if` parts it does not use dropped.
@@ -78,8 +78,16 @@ export function bindWriteCheckers(host: WriteCheckersHost): void {
   };
   const read = async (failure: HTMLElement = status): Promise<boolean> => {
     status.textContent = say.loading;
-    try { lists = (await call<{ lists: Kept[] }>()).lists; render(); return true; }
-    catch (caught) { status.textContent = ""; molisWorkRequest.show(failure, caught); return false; }
+    try {
+      lists = (await call<{ lists: Kept[] }>()).lists;
+      loaded = true;
+      render();
+      return true;
+    } catch (caught) {
+      status.textContent = "";
+      molisWorkRequest.show(failure, caught);
+      return false;
+    }
   };
   const save = async (kept: Kept, checkers: AgentWriteChecker[], target: HTMLElement): Promise<boolean> => {
     lock(true);
@@ -149,5 +157,15 @@ export function bindWriteCheckers(host: WriteCheckersHost): void {
   dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });
   // Closed any way (saved, cancelled, Esc): the list was drawn anew behind it, so the opener is gone; focus goes where the person was.
   dialog.addEventListener("close", () => { if (editing) refocus(editing.workspace_id, editing.checker_id, "edit"); editing = null; });
+  const onLanguageChanged = () => {
+    if (!section.isConnected) {
+      document.removeEventListener("molis-work:language-changed", onLanguageChanged);
+      return;
+    }
+    try { if (section.dataset.say) Object.assign(say, JSON.parse(section.dataset.say)); } catch { /* Keep previous copy. */ }
+    if (loaded) render();
+    if (dialog.open && editing) heading.textContent = editing.checker_id ? say.edit : say.add;
+  };
+  document.addEventListener("molis-work:language-changed", onLanguageChanged);
   host.load = (next) => { folders = next; return read(); };
 }

@@ -47,10 +47,11 @@ export async function readGrantedDirectory(root: string, request: PluginDirector
         if (!info.isFile() || info.isSymbolicLink()) return { outcome: "unsupported" };
         const limit = Math.min(request.max_bytes && request.max_bytes > 0 ? request.max_bytes : kind === "text" ? MAX_TEXT_BYTES : MAX_BYTES, MAX_BYTES);
         if (info.size > limit) return { outcome: "too-large", bytes: info.size, limit };
-        const handle = await open(current, constants.O_RDONLY | constants.O_NOFOLLOW);
+        const handle = await open(current, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
         try {
           const opened = await handle.stat(); check();
           if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino) return { outcome: "changed" };
+          if (opened.size > limit) return { outcome: "too-large", bytes: opened.size, limit };
           const bytes = Buffer.alloc(opened.size);
           let offset = 0;
           while (offset < bytes.length) {

@@ -21,6 +21,7 @@ import { captureWebsite, websiteFilename, WEBSITE_MIME } from "./website.js";
 
 /** A folder comes in whole, up to the same 32 MB as one file: its copies travel to the Home instance in one request. */
 export const SHELF_FOLDER_MAX_BYTES = 32 * 1024 * 1024;
+export const SHELF_FOLDER_MAX_ENTRIES = 10_000;
 
 /** Everything that puts a copy on the shelf: a file, a folder, pasted text, a link, the sample, a result used again as material. */
 export class ShelfAdmissions {
@@ -53,18 +54,28 @@ export class ShelfAdmissions {
       // can be explicitly received again; deleted copies are new admissions.
       if (input.artifact_source) {
         const source = input.artifact_source;
-        const original = catalog.items.find(item => item.artifact_source?.project_id === source.project_id
-          && item.artifact_source.project_path === source.project_path
+        const originalIndex = catalog.items.findIndex(item => item.artifact_source?.project_id === source.project_id
           && item.artifact_source.reference.artifact_id === source.reference.artifact_id
           && item.artifact_source.reference.version === source.reference.version);
+        const original = originalIndex >= 0 ? catalog.items[originalIndex] : undefined;
         if (original) {
           if (original.artifact_source!.content_hash !== source.content_hash) throw shelfErrors.source_conflict("同一成果版本的内容不一致，未覆盖已有副本");
           if (!writer.stat(original.relative_path)) throw shelfErrors.missing_output("原接收副本已不可读，请先在 Shelf 核对处理");
+          let updated = original;
+          let changed = false;
           if (original.hidden) {
-            original.hidden = false;
+            updated = { ...updated, hidden: false };
+            changed = true;
+          }
+          if (source.project_path && original.artifact_source!.project_path !== source.project_path) {
+            updated = { ...updated, artifact_source: { ...original.artifact_source!, project_path: source.project_path } };
+            changed = true;
+          }
+          if (changed) {
+            catalog.items[originalIndex] = updated;
             saveCatalog(writer, catalog);
           }
-          return publicItem({ ...original, hidden: false });
+          return publicItem({ ...updated, hidden: false });
         }
       }
       const bytes = Buffer.from(input.bytes);
@@ -79,11 +90,34 @@ export class ShelfAdmissions {
    * The directory shows the children inline, never a second file browser.
    */
   async admitFolder(input: ShelfAdmitFolderInput): Promise<ShelfItemRecord> {
+    if (input.entries.length > SHELF_FOLDER_MAX_ENTRIES) {
+      throw shelfErrors.invalid("文件夹内文件数量超过上限");
+    }
     const folderName = safeFolderName(input.name);
     const entries = input.entries
       .map((entry) => ({ ...entry, relative: safeRelative(entry.relative) }))
       .filter((entry) => entry.relative && entry.bytes.byteLength > 0);
     if (!entries.length) throw shelfErrors.empty_file("这个文件夹里没有可以加入的文件");
+    const seen = new Set<string>();
+    const dirs = new Set<string>();
+    for (const entry of entries) {
+      if (entry.relative.length > 1000 || seen.has(entry.relative)) {
+        throw shelfErrors.invalid("文件夹内存在重复或冲突的路径");
+      }
+      seen.add(entry.relative);
+      const parts = entry.relative.split("/");
+      if (parts.some((part) => part.length > 255)) {
+        throw shelfErrors.invalid("文件夹内存在重复或冲突的路径");
+      }
+      for (let i = 1; i < parts.length; i += 1) {
+        dirs.add(parts.slice(0, i).join("/"));
+      }
+    }
+    for (const rel of seen) {
+      if (dirs.has(rel)) {
+        throw shelfErrors.invalid("文件夹内存在重复或冲突的路径");
+      }
+    }
     const total = entries.reduce((sum, entry) => sum + entry.bytes.byteLength, 0);
     if (total > SHELF_FOLDER_MAX_BYTES) throw shelfErrors.too_large("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来");
     const itemId = newId("item");

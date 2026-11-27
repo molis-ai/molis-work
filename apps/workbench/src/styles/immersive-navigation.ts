@@ -43,7 +43,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     display: flex; flex: 1; flex-direction: column; align-items: center; gap: 4px; min-height: 0;
     overflow: auto;
   }
-  body.immersive-workbench .plugin-rail-update-count { position: absolute; top: 0; right: -1px; min-width: 14px; height: 14px; box-sizing: border-box; padding: 0 4px; border-radius: 8px; background: var(--accent, #b75337); color: white; font-size: 11px; line-height: 14px; text-align: center; font-weight: 600; }
+  body.immersive-workbench .plugin-rail-update-count { position: absolute; top: 0; right: -1px; min-width: 14px; height: 14px; box-sizing: border-box; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--on-accent); font-size: 11px; line-height: 14px; text-align: center; font-weight: 600; }
   body.immersive-workbench .plugin-rail-rule {
     flex: none; width: 16px; height: 1px; margin: 4px 0; border: 0; border-radius: 1px; background: var(--line);
   }
@@ -377,7 +377,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     outline: none; border: 0; box-shadow: none; background: transparent;
   }
   body.immersive-workbench .global-search-field kbd {
-    flex: none; font: 11px/1.4 inherit; color: var(--faint); background: transparent; border: 0; padding: 0;
+    flex: none; font: inherit; font-size: 11px; line-height: 1.4; color: var(--faint); background: transparent; border: 0; padding: 0;
   }
   body.immersive-workbench .global-search-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 8px 12px; }
   body.immersive-workbench .global-search-group { margin: 0; padding: 8px 0 8px; }
@@ -395,7 +395,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--weight-control, 500);
   }
   body.immersive-workbench .global-search-hit-plugin { flex: none; font-size: 11px; color: var(--faint); }
-  body.immersive-workbench .global-search-hit kbd { flex: none; font: 10px/1.4 inherit; color: var(--faint); border: 0; background: transparent; padding: 0; }
+  body.immersive-workbench .global-search-hit kbd { flex: none; font: inherit; font-size: 11px; line-height: 1.4; color: var(--faint); border: 0; background: transparent; padding: 0; }
   body.immersive-workbench .global-search-empty { margin: 16px 12px; font-size: 13px; color: var(--muted); }
   html[data-resolved-theme="dark"] body.immersive-workbench .global-search-dialog { box-shadow: var(--lift-3); }
   html[data-resolved-theme="dark"] body.immersive-workbench .global-search-dialog::backdrop { background: var(--scrim); }

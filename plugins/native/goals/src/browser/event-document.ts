@@ -43,6 +43,62 @@ const OPPOSITE_EFFECT: Readonly<Record<string, string>> = { accept_concerns: "re
 const narrow = () => matchMedia("(max-width: 760px)").matches;
 const newKey = () => globalThis.crypto?.randomUUID?.() || (String(Date.now()) + Math.random());
 
+function createCitedSurfaceNamer(documentPane: HTMLElement, route: Route, keepAlive: () => boolean): () => void {
+  let citedSurfaces: Promise<Map<string, string> | null> | null = null;
+  return () => {
+    if (!keepAlive()) return;
+    const pending = [...documentPane.querySelectorAll<HTMLButtonElement>("[data-goal-cited]:not([data-goal-cited-ready])")];
+    if (!pending.length) return;
+    citedSurfaces ??= molisWorkRequest<{ surfaces?: Record<string, { kind: string }> } | null>(route("/api/contextual/surfaces")).then((answer) => {
+      const by = new Map<string, string[]>();
+      for (const [surface, { kind }] of Object.entries(answer?.surfaces ?? {})) by.set(kind, [...(by.get(kind) ?? []), surface]);
+      return new Map([...by].filter(([, surfaces]) => surfaces.length === 1).map(([kind, surfaces]) => [kind, surfaces[0] ?? ""]));
+    }).catch(() => {
+      citedSurfaces = null;
+      return null;
+    });
+    // Not read is not none: the buttons wait unnamed, and the next change to the document asks again.
+    void citedSurfaces.then((surfaces) => surfaces && pending.forEach((button) => {
+      if (!button.isConnected) return;
+      button.dataset.goalCitedReady = "";
+      const surface = surfaces.get(button.dataset.kind || "");
+      if (!surface) {
+        button.disabled = true;
+        return;
+      }
+      const label = document.querySelector<HTMLElement>('[data-work-surface="' + CSS.escape(surface) + '"]')?.dataset.workSurfaceLabel;
+      button.dataset.workbenchItemPlugin = surface;
+      button.dataset.workbenchItemId = button.dataset.id;
+      const name = button.querySelector("[data-goal-cited-label]");
+      if (label && name) name.textContent = label;
+    }));
+  };
+}
+
+function createDecisionPoster(route: Route, goalId: () => string, disconnected: () => Error) {
+  const decisions = new WeakMap<HTMLFormElement, RetainedDecision>();
+  return {
+    clearDecision(form: HTMLFormElement) { decisions.delete(form); },
+    async postDecision(form: HTMLFormElement, goal: string, draft: Record<string, unknown>, key: string) {
+      if (!form.dataset.reviewVersion) throw disconnected();
+      const body = { ...draft, goal_id: goal, idempotency_key: key, observed_version: form.dataset.reviewVersion };
+      const encoded = JSON.stringify(body);
+      let retained = decisions.get(form);
+      if (retained?.encoded !== encoded) {
+        const response = await molisWorkRequest<Response>(route("/api/project-approvals/request"), { method: "POST", as: "response",
+          body: { action: GOALS_DECISION_ACTIONS.decide, request_id: (typeof draft.request_id === "string" && draft.request_id) || key, draft: body } });
+        if (!response.ok) return response;
+        const { reference } = await response.json() as { reference: unknown };
+        if (!form.isConnected || goalId() !== goal) throw disconnected();
+        retained = { encoded, reference };
+        decisions.set(form, retained);
+      }
+      return molisWorkRequest<Response>(route("/api/project-approvals/decide"), { method: "POST", as: "response",
+        body: { reference: retained.reference, choice_id: "apply", request_key: key } });
+    },
+  };
+}
+
 /** The event document of a Goal: its readers, forms and decisions. */
 export function eventDocumentClient(host: EventDocumentHost) {
   const { documentPane, route, isAbortError, showError, showStatus, reloadDocument } = host;
@@ -50,7 +106,6 @@ export function eventDocumentClient(host: EventDocumentHost) {
   let moreRequest = 0;
   let returnFocusTarget: HTMLElement | null = null;
   const reading: Reading = { goal: "", item: "", filter: "all", reader: "", form: "", infoOpen: null, hold: "" };
-  const decisions = new WeakMap<HTMLFormElement, RetainedDecision>();
   const root = () => documentPane.querySelector<HTMLElement>("[data-goal-event-document]");
   const goalId = () => root()?.dataset.goalView || "";
   const goalPath = (goal: string, path: string) => route(GOALS_PLUGIN_API + "/goals/" + encodeURIComponent(goal) + path);
@@ -64,23 +119,7 @@ export function eventDocumentClient(host: EventDocumentHost) {
     if (failureOf(error).code === "ui_host.outcome_unknown") throw new Error(globalThis.t.text("goals.event-document-client.could-not-reach-local-service-input-kept-please"));
     throw error;
   });
-  const postDecision = async (form: HTMLFormElement, goal: string, draft: Record<string, unknown>, key: string) => {
-    if (!form.dataset.reviewVersion) throw disconnected();
-    const body = { ...draft, goal_id: goal, idempotency_key: key, observed_version: form.dataset.reviewVersion };
-    const encoded = JSON.stringify(body);
-    let retained = decisions.get(form);
-    if (retained?.encoded !== encoded) {
-      const response = await molisWorkRequest<Response>(route("/api/project-approvals/request"), { method: "POST", as: "response",
-        body: { action: GOALS_DECISION_ACTIONS.decide, request_id: (typeof draft.request_id === "string" && draft.request_id) || key, draft: body } });
-      if (!response.ok) return response;
-      const { reference } = await response.json() as { reference: unknown };
-      if (!form.isConnected || goalId() !== goal) throw disconnected();
-      retained = { encoded, reference };
-      decisions.set(form, retained);
-    }
-    return molisWorkRequest<Response>(route("/api/project-approvals/decide"), { method: "POST", as: "response",
-      body: { reference: retained.reference, choice_id: "apply", request_key: key } });
-  };
+  const { postDecision, clearDecision } = createDecisionPoster(route, goalId, disconnected);
   const captureRestore = (): EventRestore => ({
     goal: reading.goal || goalId(),
     item: reading.item,
@@ -294,6 +333,7 @@ export function eventDocumentClient(host: EventDocumentHost) {
       return;
     }
     const current = await readEventState(currentGoal);
+    if (goalId() !== currentGoal || !form.isConnected) return;
     if (conflict) {
       conflict.hidden = false;
       conflict.innerHTML = "<p>" + escapeText(body.error || globalThis.t.text("goals.event-document-client.current-agreement-has-changed-input-kept")) + "</p>"
@@ -407,15 +447,32 @@ export function eventDocumentClient(host: EventDocumentHost) {
     }
   };
   const retryAgainstCurrent = async (article: HTMLElement) => {
-    const state = await molisWorkRequest<EventState | null>(goalPath(goalId(), "/event-state")) ?? {};
+    const currentGoal = goalId();
+    let state: EventState;
+    try {
+      state = await molisWorkRequest<EventState | null>(goalPath(currentGoal, "/event-state")) ?? {};
+    } catch (error) {
+      if (isAbortError(error) || goalId() !== currentGoal || !article.isConnected) return;
+      const message = messageOf(error) || globalThis.t.text("goals.event-document-client.read-disconnected");
+      const activeForm = article.querySelector<HTMLFormElement>("[data-event-form]:not([hidden])");
+      const status = activeForm?.querySelector<HTMLElement>("[data-form-status]") ?? null;
+      if (status) showStatusText(status, message);
+      else showError?.(message);
+      return;
+    }
+    if (goalId() !== currentGoal || !article.isConnected) return;
     const form = article.querySelector<HTMLFormElement>("[data-event-form]:not([hidden])");
-    if (!form) return;
+    if (!form || !form.isConnected) return;
     const config = form.querySelector<HTMLInputElement>('[name="expected_config_version"]');
     const agreement = form.querySelector<HTMLInputElement>('[name="expected_agreement_version"]');
     if (config) config.value = String(state.config?.version ?? 0);
     if (agreement) agreement.value = String(state.agreement?.version ?? 0);
     form.dataset.configVersion = String(state.config?.version ?? 0);
     form.dataset.agreementVersion = String(state.agreement?.version ?? 0);
+    if (typeof state.review_version === "string" && state.review_version) {
+      form.dataset.reviewVersion = state.review_version;
+    }
+    clearDecision(form);
     delete form.dataset.idempotencyKey;
     const box = article.querySelector<HTMLElement>("[data-event-conflict]");
     if (box) {
@@ -564,54 +621,57 @@ export function eventDocumentClient(host: EventDocumentHost) {
 
   // The objects a concern cites carry only kind and id: each is named by the surface that opens its kind (the plugins' own
   // declarations), and then opens through the workbench like any other item (an item side view first). A kind no surface opens stays text.
-  let citedSurfaces: Promise<Map<string, string> | null> | null = null;
-  const nameCited = () => {
-    const pending = [...documentPane.querySelectorAll<HTMLButtonElement>("[data-goal-cited]:not([data-goal-cited-ready])")];
-    if (!pending.length) return;
-    citedSurfaces ??= molisWorkRequest<{ surfaces?: Record<string, { kind: string }> } | null>(route("/api/contextual/surfaces")).then((answer) => {
-      const by = new Map<string, string[]>();
-      for (const [surface, { kind }] of Object.entries(answer?.surfaces ?? {})) by.set(kind, [...(by.get(kind) ?? []), surface]);
-      return new Map([...by].filter(([, surfaces]) => surfaces.length === 1).map(([kind, surfaces]) => [kind, surfaces[0] ?? ""]));
-    }).catch(() => {
-      citedSurfaces = null;
-      return null;
-    });
-    // Not read is not none: the buttons wait unnamed, and the next change to the document asks again.
-    void citedSurfaces.then((surfaces) => surfaces && pending.forEach((button) => {
-      if (!button.isConnected) return;
-      button.dataset.goalCitedReady = "";
-      const surface = surfaces.get(button.dataset.kind || "");
-      if (!surface) {
-        button.disabled = true;
-        return;
-      }
-      const label = document.querySelector<HTMLElement>('[data-work-surface="' + CSS.escape(surface) + '"]')?.dataset.workSurfaceLabel;
-      button.dataset.workbenchItemPlugin = surface;
-      button.dataset.workbenchItemId = button.dataset.id;
-      const name = button.querySelector("[data-goal-cited-label]");
-      if (label && name) name.textContent = label;
-    }));
+  const lifecycle = new AbortController();
+  let wasConnected = documentPane.isConnected;
+  let observer: MutationObserver | null = null;
+  const dispose = () => {
+    lifecycle.abort();
+    observer?.disconnect();
+    observer = null;
+  };
+  const keepAlive = () => {
+    if (documentPane.isConnected) {
+      wasConnected = true;
+      return true;
+    }
+    if (wasConnected) {
+      dispose();
+      return false;
+    }
+    return true;
   };
 
+  const nameCited = createCitedSurfaceNamer(documentPane, route, keepAlive);
+
   document.addEventListener("click", (event) => {
+    if (!keepAlive()) return;
     const target = elementOf(event);
     root()?.querySelectorAll<HTMLDetailsElement>("[data-record-menu][open], .goal-more[open]").forEach((menu) => {
       if (!target || !menu.contains(target)) menu.open = false;
     });
-  });
-  documentPane.addEventListener("click", onClick);
-  documentPane.addEventListener("change", onChange);
-  documentPane.addEventListener("input", (event) => clearHold(elementOf(event)?.closest<HTMLElement>("[data-event-form]")));
-  documentPane.addEventListener("submit", onSubmit);
-  documentPane.addEventListener("keydown", onKeydown);
+  }, { signal: lifecycle.signal });
+  documentPane.addEventListener("click", onClick, { signal: lifecycle.signal });
+  documentPane.addEventListener("change", onChange, { signal: lifecycle.signal });
+  documentPane.addEventListener("input", (event) => clearHold(elementOf(event)?.closest<HTMLElement>("[data-event-form]")), { signal: lifecycle.signal });
+  documentPane.addEventListener("submit", onSubmit, { signal: lifecycle.signal });
+  documentPane.addEventListener("keydown", onKeydown, { signal: lifecycle.signal });
   documentPane.addEventListener("toggle", (event) => {
     const target = elementOf(event);
     if (target instanceof HTMLDetailsElement && target.matches("[data-goal-info]") && target.closest("[data-goal-event-document]") === root()) reading.infoOpen = target.open;
-  }, true);
-  window.addEventListener("resize", () => requestAnimationFrame(syncPanelPresence));
-  new MutationObserver(nameCited).observe(documentPane, { childList: true, subtree: true });
+  }, { capture: true, signal: lifecycle.signal });
+  window.addEventListener("resize", () => {
+    if (!keepAlive()) return;
+    requestAnimationFrame(() => {
+      if (!keepAlive()) return;
+      syncPanelPresence();
+    });
+  }, { signal: lifecycle.signal });
+  observer = new MutationObserver(nameCited);
+  observer.observe(documentPane, { childList: true, subtree: true });
 
   return {
+    dispose,
+    isDisposed: () => lifecycle.signal.aborted,
     openEventReader(name: string) { showForm(name); },
     bindGoalEventDocument(restore?: EventRestore | null) {
       const article = root();

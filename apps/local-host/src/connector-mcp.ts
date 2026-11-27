@@ -23,8 +23,10 @@ import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprot
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { assertSecretStoreWritable } from "@molis-ai/molis-work-storage";
+import { isIP } from "node:net";
 import { isLoopbackHttpOrigin, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { PRODUCT_VERSION } from "./product-version.js";
+import { publicAddress, sendPublicHttpsResponse } from "./public-https.js";
 import { activeMcpOperation, resolveMcpServer, mcpOperationAuthority, mcpSourcePin, productMcpClientEligible, type McpSourcePin, type McpOperationAuthority } from "./connector-mcp-configuration.js";
 import { businessMcpRequestId, trackMcpDispatch, useLocalMcpConnection, watchMcpReplies, watchMcpStdioDispatch } from "./connector-local-mcp.js";
 
@@ -135,6 +137,18 @@ interface ConnectorMcpHostOptions {
   stdioTransport?: (parameters: StdioServerParameters) => Transport;
 }
 
+async function readMcpFetchBody(input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Uint8Array | undefined> {
+  const raw = init?.body !== undefined ? init.body : input instanceof Request ? await input.clone().arrayBuffer() : undefined;
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw === "string") return Buffer.from(raw, "utf8");
+  if (raw instanceof Uint8Array) return raw;
+  if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
+  if (ArrayBuffer.isView(raw)) return new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+  if (raw instanceof URLSearchParams) return Buffer.from(raw.toString(), "utf8");
+  if (raw instanceof Blob) return new Uint8Array(await raw.arrayBuffer());
+  throw connectorErrors["connector.mcp.configuration"]("MCP 请求正文格式不受支持");
+}
+
 /** The transport may retry an authenticated POST. Keep effect tracking at the actual transport boundary. */
 function guardConnectorMcpFetch(config: McpConfiguration, checkActive: () => void, control: McpRequestOptions, testEndpoints: boolean): typeof fetch {
   return async (input, init) => {
@@ -144,14 +158,38 @@ function guardConnectorMcpFetch(config: McpConfiguration, checkActive: () => voi
     const configured = new URL(config.endpoint);
     const permittedLocal = url.origin === configured.origin && (testEndpoints || isLoopbackHttpUrl(configured) && (config.serviceId === CUSTOM_MCP_SERVICE || localMcpServer(config.serviceId)?.loopback === true));
     if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址");
+    const host = url.hostname.replace(/^\[|\]$/gu, "");
+    if (!permittedLocal && isIP(host) && !publicAddress(host)) throw connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址");
     await beforeDispatch?.();
     checkActive();
     init?.signal?.throwIfAborted();
-    if (dispatch && init?.method === "POST" && typeof init.body === "string" && /^application\/json(?:\s*;|$)/iu.test(new Headers(init.headers).get("content-type") ?? "")) {
+    const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+    const mergedHeaders = new Headers(input instanceof Request ? input.headers : undefined);
+    if (init?.headers) new Headers(init.headers).forEach((value, key) => mergedHeaders.set(key, value));
+    if (dispatch && method === "POST" && typeof init?.body === "string" && /^application\/json(?:\s*;|$)/iu.test(mergedHeaders.get("content-type") ?? "")) {
       const id = businessMcpRequestId(JSON.parse(init.body));
       if (id !== undefined) dispatch.send(id);
     }
-    const response = await fetch(input, { ...init, redirect: "error", signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT), ...(init?.signal ? [init.signal] : []), ...(signal ? [signal] : [])]) });
+    if (permittedLocal) {
+      const response = await fetch(input, { ...init, redirect: "error", signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT), ...(init?.signal ? [init.signal] : []), ...(signal ? [signal] : [])]) });
+      checkActive();
+      return response;
+    }
+    const body = await readMcpFetchBody(input, init);
+    const requestSignal = AbortSignal.any([...(init?.signal ? [init.signal] : []), ...(signal ? [signal] : [])]);
+    const response = await sendPublicHttpsResponse({
+      url,
+      method,
+      headers: Object.fromEntries(mergedHeaders.entries()),
+      ...(body !== undefined ? { body } : {}),
+      signal: requestSignal,
+      timeoutMs: REQUEST_TIMEOUT,
+      ...(beforeDispatch ? { beforeEffect: async () => { await beforeDispatch(); } } : {}),
+      current: checkActive,
+      failure: (reason, detail) => reason === "private_address"
+        ? connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址")
+        : connectorErrors["connector.mcp.provider"](detail),
+    });
     checkActive();
     return response;
   };
@@ -203,8 +241,8 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const checkActive = () => {
       control.signal?.throwIfAborted();
       if (state) assertMcpAuthorizationPending(home, state, now());
-      if (control.assertCurrent) requireSynchronous(control.assertCurrent());
-      else authority.check();
+      authority.check();
+      requireSynchronous(control.assertCurrent?.());
     };
     let authorizationUrl: string | undefined;
     const saveConfig = () => {
@@ -234,7 +272,8 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         checkActive();
         if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
         const local = url.origin === new URL(config.endpoint).origin && (options.testServers || config.serviceId === CUSTOM_MCP_SERVICE && isLoopbackHttpUrl(url));
-        if (url.username || url.password || (url.protocol !== "https:" && !local)) throw connectorErrors["connector.mcp.authorization"]("MCP 返回的授权地址无效");
+        const host = url.hostname.replace(/^\[|\]$/gu, "");
+        if (url.username || url.password || (url.protocol !== "https:" && !local) || (url.protocol === "https:" && !options.testServers && isIP(host) && !publicAddress(host))) throw connectorErrors["connector.mcp.authorization"]("MCP 返回的授权地址无效");
         authorizationUrl = url.href;
       },
       discoveryState: () => { checkActive(); return config.discovery; },

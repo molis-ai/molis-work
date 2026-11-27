@@ -114,3 +114,37 @@ test("W5-01-CODING-12 the host no longer composes the boundary: no file, no Shel
   assert.doesNotMatch(ports, /ShelfResultPorts|projectPath\(/, "the plugin needs no host-composed ports");
   assert.match(ports, /services\?\.actions\?\.dependencies;[\s\S]*dependencies\.invoke\(/, "the Home instance delivers through the public action service");
 });
+
+test("F-modules-server-18 Shelf refuses a producer document whose returned reference does not match the requested artifact record", async () => {
+  const { shelfRuntimeActionHandlers } = await import("@molis-ai/molis-work-module-shelf/surface");
+  const { actionViewFor } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { startContext, CODING_PLUGIN, SHELF_PLUGIN } = await import("./fixtures/coding-results.js");
+  const platform = fakePlatform({ artifacts: [reportRecord()] }, CONSUMED);
+  const view = {
+    capability_id: codingResultDocument.capability_id, version: codingResultDocument.version, operation: codingResultDocument.operation,
+    provider: { provider_id: CODING_PLUGIN, kind: "plugin" as const, title: "Coding", plugin_id: CODING_PLUGIN, project_id: PROJECT_ID },
+    action: codingResultDocument.action, availability: { available: true as const },
+  };
+  const actions = {
+    discover: async () => [],
+    discoverOne: async () => undefined,
+    availability: () => ({ available: true as const }),
+    invokeQuery: async () => { throw new Error("unused"); },
+    invoke: async () => { throw new Error("unused"); },
+    dependencies: {
+      discover: async () => [view],
+      discoverOne: async (reference: { capability_id: string; version: number }) => actionViewFor([view], reference),
+      check: async () => {},
+      invoke: async () => ({
+        reference: { artifact_id: "forged-other-artifact", version: 99 },
+        title: "伪造身份", saved_at: "2026-10-20T08:30:00.000Z", markdown: "body",
+      }) as never,
+    },
+  };
+  const context = startContext(SHELF_PLUGIN, { artifacts: platform.artifacts(SHELF_PLUGIN), actions }, { project_id: undefined });
+  const handlers = shelfRuntimeActionHandlers(context, () => ({ admit: async () => { throw new Error("unused"); }, snapshot: async () => { throw new Error("unused"); } }));
+  await assert.rejects(
+    async () => handlerOf(handlers, shelfRuntimeActions.preview).handle(owner, { reference: REPORT_REFERENCE }),
+    (error: unknown) => (error as { code?: string }).code === "shelf.invalid",
+  );
+});

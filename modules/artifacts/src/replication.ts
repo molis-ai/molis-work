@@ -9,6 +9,8 @@ export interface ArtifactReplicationContext {
   spaceId: string;
   projectId: string;
   authorize(): void;
+  /** The person this Home belongs to, when replicating the personal 成果库. */
+  homeOwner?: string;
 }
 export type PortableArtifact = PortableVersionBundle<ArtifactVersionRecord>;
 export type PortableProcessItem = PortableVersionBundle<ProcessItemRecord>;

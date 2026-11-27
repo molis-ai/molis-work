@@ -28,8 +28,9 @@ export function mountCodingSubtask(host: CodingWorkbenchHost): void {
     conversation, parent: { target: "", title: say("parent") },
     get details() { return [...questions.remember(target, JSON.stringify(conversation.child.child_run), conversation.questions), ...(conversation.approvals.length ? [{ id: "approvals:" + JSON.stringify(conversation.approvals), title: say("approvals"), content: { text: "" }, expanded: true }] : [])]; },
   });
+  const composerLabels = codingComposerLabels(t.text, /Mac/i.test(navigator.platform));
   const source = createAgentSubtaskSource({
-    drafts: host.drafts, labels: codingComposerLabels(t.text, /Mac/i.test(navigator.platform)), text: say,
+    drafts: host.drafts, labels: composerLabels, text: say,
     read: async (target, signal) => present(target, await hostRequest<AgentSubagentConversation>(host, lifetime, pathOf(target), { signal })),
     async wait(target, since, signal) {
       const { version, view } = await hostRequest<{ version: string; view: AgentSubagentConversation }>(host, lifetime,
@@ -51,6 +52,10 @@ export function mountCodingSubtask(host: CodingWorkbenchHost): void {
   let target = targetOf(task.input);
   const open = () => { if (lifetime.visible) void handle.open(target); };
   lifetime.own(task.subscribe(input => { const next = targetOf(input); if (next !== target) { target = next; open(); } }));
+  lifetime.listen(root.ownerDocument, "molis-work:language-changed", () => {
+    Object.assign(composerLabels, codingComposerLabels(t.text, /Mac/i.test(navigator.platform)));
+    open();
+  });
   lifetime.whenVisible(() => { open(); return () => handle.close(); });
   lifetime.own(() => handle.destroy());
 }

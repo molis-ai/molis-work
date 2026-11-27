@@ -42,10 +42,10 @@ function whatRead(category: GoalEventAcknowledgementCategory, mine: boolean, _L:
   return mine ? uiText.text("goals.event-acknowledgement-body.decision") : uiText.text("goals.event-acknowledgement-body.decision-2");
 }
 
-function whoRead(by: GoalEventAcknowledgementBy, actorId: string, readText: Translate): string {
+function whoRead(by: GoalEventAcknowledgementBy, actorId: string, _readText: Translate): string {
   const session = by.session_id ? by.session_id.slice(0, SESSION_ID_SHOWN) : "";
   if (by.channel === "assistant") return session ? uiText.text("goals.event-acknowledgement-body.assistant-session-session", { session }) : uiText.text("goals.event-acknowledgement-body.assistant");
-  if (by.channel === "agent") return readText("goals.event-acknowledgement-body.agent-actor", { actor: actorId });
+  if (by.channel === "agent") return uiText.text("goals.event-acknowledgement-body.agent-actor", { actor: actorId });
   const runtime = by.runtime_id === null ? uiText.text("goals.event-acknowledgement-body.external-ai") : runtimeName(by.runtime_id);
   return session ? uiText.text("goals.event-acknowledgement-body.runtime-session-session", { runtime, session }) : uiText.text("goals.event-acknowledgement-body.runtime-session", { runtime });
 }

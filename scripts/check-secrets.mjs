@@ -205,42 +205,85 @@ export function diffHeaderPath(header) {
 export const printablePath = (file) => file.replace(/[\u0000-\u001f\u007f]/g, (ch) => ({ "\n": "\\n", "\r": "\\r", "\t": "\\t" })[ch] ?? `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`);
 
 /**
- * Stream the patch text and call `onLine(file, lineNumber, text, commit)` for every added line. A "commits" range is read
- * with `git log -p`, one commit at a time (`commit` is its short id; merge commits add nothing of their own); a "tree" range
- * is read as one diff from the empty tree (`commit` is null).
+ * Stream one git patch command and call `onLine(file, lineNumber, text, commit)` for every added line.
+ * Handles both standard unified diffs (`@@`, single `+`) and combined diffs from `git log --cc` (`@@@+`, all-`+` prefix).
  */
-function forEachAddedLine(cwd, range, onLine) {
-  // --no-ext-diff and --no-textconv: read the added lines as committed, not as a driver from the user's own git
-  // configuration or attributes file would rewrite them. The prefixes are fixed so diff.noprefix cannot change the headers.
-  const common = ["--unified=0", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames", "--diff-filter=ACMRT"];
-  const args = range.mode === "tree"
-    ? ["diff", ...common, EMPTY_TREE, range.head, "--"]
-    : ["log", "-p", "--no-merges", ...common, "--format=commit:%H", `${range.from}..${range.head}`, "--"];
+function streamPatch(cwd, args, onLine) {
   return new Promise((resolve, reject) => {
     const child = spawn("git", ["-c", "core.quotepath=off", ...args], { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", reject);
     let commit = null;
     let file = null;
     let inHunk = false;
+    let prefixWidth = 1;
     let next = 0;
     const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
     lines.on("line", (text) => {
-      // At zero context every hunk line starts with +, - or a backslash, so a "commit:" line can only be a record header.
-      if (text.startsWith("commit:")) { commit = text.slice(7, 15); file = null; inHunk = false; return; }
-      if (text.startsWith("diff --git ")) { file = null; inHunk = false; return; }
-      if (!inHunk && text.startsWith("+++ ")) { file = diffHeaderPath(text.slice(4)); return; }
-      if (text.startsWith("@@")) {
-        inHunk = true;
-        const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(text);
-        next = hunk ? Number(hunk[1]) : 0;
+      // Every hunk line starts with prefix characters from [ +-] or a backslash, so record and diff headers are unambiguous.
+      if (text.startsWith("commit:")) {
+        commit = text.slice(7, 15);
+        file = null;
+        inHunk = false;
+        prefixWidth = 1;
         return;
       }
-      if (inHunk && text.startsWith("+") && file) onLine(file, next++, text.slice(1), commit);
+      if (text.startsWith("diff --git ") || text.startsWith("diff --cc ") || text.startsWith("diff --combined ")) {
+        file = null;
+        inHunk = false;
+        prefixWidth = 1;
+        return;
+      }
+      if (!inHunk && text.startsWith("+++ ")) {
+        file = diffHeaderPath(text.slice(4));
+        return;
+      }
+      if (text.startsWith("@@")) {
+        inHunk = true;
+        const hunk = /^(@{2,}) (?:-\d+(?:,\d+)? )+\+(\d+)(?:,\d+)? \1/.exec(text);
+        prefixWidth = hunk ? hunk[1].length - 1 : 1;
+        next = hunk ? Number(hunk[2]) : 0;
+        return;
+      }
+      if (inHunk && file && !text.startsWith("\\")) {
+        const prefix = text.slice(0, prefixWidth);
+        if (prefix.length === prefixWidth && /^[ +-]+$/.test(prefix) && !prefix.includes("-")) {
+          const lineNumber = next++;
+          if (prefix === "+".repeat(prefixWidth)) {
+            onLine(file, lineNumber, text.slice(prefixWidth), commit);
+          }
+        }
+      }
     });
-    child.on("close", (code) => code === 0 ? resolve() : reject(new Error(`git ${args[0]} failed (${code}): ${stderr.trim()}`)));
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`git ${args[0]} failed (${code}): ${stderr.trim()}`));
+    });
   });
+}
+
+/**
+ * Stream the patch text and call `onLine(file, lineNumber, text, commit)` for every added line. A "commits" range reads
+ * `git log -p --cc` (covering both ordinary commits and lines introduced by merge commits) and, when the range contains any
+ * merge commit, also checks the net diff `git diff <from> <head>` so lines resurrected from an older ancestor are caught too.
+ * A "tree" range is read as one diff from the empty tree (`commit` is null).
+ */
+async function forEachAddedLine(cwd, range, onLine) {
+  // --no-ext-diff and --no-textconv: read the added lines as committed, not as a driver from the user's own git
+  // configuration or attributes file would rewrite them. The prefixes are fixed so diff.noprefix cannot change the headers.
+  const common = ["--unified=0", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames", "--diff-filter=ACMRT"];
+  if (range.mode === "tree") {
+    await streamPatch(cwd, ["diff", ...common, EMPTY_TREE, range.head, "--"], onLine);
+    return;
+  }
+  await streamPatch(cwd, ["log", "-p", "--cc", ...common, "--format=commit:%H", `${range.from}..${range.head}`, "--"], onLine);
+  const hasMerges = Boolean(git(cwd, ["rev-list", "--merges", "-n", "1", `${range.from}..${range.head}`]));
+  if (hasMerges) {
+    await streamPatch(cwd, ["diff", ...common, range.from, range.head, "--"], onLine);
+  }
 }
 
 async function main() {
@@ -256,13 +299,23 @@ async function main() {
 
   const range = resolveRange(cwd, options);
   const findings = [];
+  const seenInCommits = new Set();
   let scanned = 0;
   let allowed = 0;
   try {
     await forEachAddedLine(cwd, range, (file, line, text, commit) => {
       scanned++;
       for (const finding of scanLine(text)) {
-        if (isAllowed(allowlist, finding.value)) { allowed++; continue; }
+        if (isAllowed(allowlist, finding.value)) {
+          allowed++;
+          continue;
+        }
+        const dedupeKey = `${file}\0${finding.rule}\0${finding.value}`;
+        if (commit !== null) {
+          seenInCommits.add(dedupeKey);
+        } else if (range.mode === "commits" && seenInCommits.has(dedupeKey)) {
+          continue;
+        }
         findings.push({ file, line, commit, ...finding });
       }
     });

@@ -6,8 +6,8 @@ import { sameRef } from "./service.js";
 import { ledgerErrors } from "./errors.js";
 
 function identity(ref: ObjectRef): string {
-  return JSON.stringify([ref.scope.kind, ref.scope.id, ref.module, ref.object_type ?? null,
-    ref.project_id ?? null, ref.id, ref.version]);
+  return JSON.stringify([ref.scope.kind, ref.scope.id, ref.module, ref.plugin_id ?? null, ref.object_type ?? null,
+    ref.project_id ?? null, ref.id, ref.version, ref.revision ?? null]);
 }
 
 /** No content store or durable cache: every attempt reads the current authorized owners. */

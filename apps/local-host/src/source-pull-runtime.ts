@@ -49,13 +49,21 @@ export function createSourcePullRuntime(options: {
     },
   };
   let publicFeedReceipt: RssFetchReceipt | null = null;
+  const rssTransport = driver.createTransport(options.fetch ?? globalThis.fetch, {
+    userAgent: `Molis Work/${PRODUCT_VERSION} (+local feed ingest)`,
+    conditional: driver.conditional(options.sourceCursor),
+    onReceipt(receipt) { publicFeedReceipt = receipt; },
+  });
   const rssHost = createPortBackedNodeSearchHost({
     appId: APP_ID,
-    transport: driver.createTransport(options.fetch ?? globalThis.fetch, {
-      userAgent: `Molis Work/${PRODUCT_VERSION} (+local feed ingest)`,
-      conditional: driver.conditional(options.sourceCursor),
-      onReceipt(receipt) { publicFeedReceipt = receipt; },
-    }),
+    transport: {
+      async execute(call) {
+        await options.beforeDispatch?.();
+        options.assertCurrent?.();
+        return rssTransport.execute(call);
+      },
+      ...(rssTransport.shutdown ? { shutdown: () => rssTransport.shutdown!() } : {}),
+    },
     content: createSearchContentPort(content, options.assertCurrent, options.beforeContentWrite),
   });
   const rssRuntime = createSearchRuntime({

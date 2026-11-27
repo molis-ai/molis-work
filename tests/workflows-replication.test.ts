@@ -162,3 +162,21 @@ test("imported workflow execution marker and history survive reopening the targe
     assert.throws(() => reopened.assertExecutableInstance(instance.instance_id), /仅可查看/);
   } finally { reopened.close(); }
 });
+
+test("F-plugins-rest-01: Workflows sync counts titles in Unicode code points and rejects whitespace-only titles", t => {
+  const f = fixture(t), a = f.stores[0]!, b = f.stores[1]!;
+  const title = "😀".repeat(120);
+  const flow = a.create({ title, chain: { stations: [newStation("pages"), newStation("inbox")], links: [manualLink()] } });
+  const instance = a.startInstance(flow, { plugin: "pages", item_id: "doc", title });
+  const defEvent = f.take(), instEvent = f.take();
+  f.deliver(defEvent);
+  f.deliver(instEvent);
+  assert.equal(f.replicas[1]!.counts().conflicts, 0);
+  assert.equal(b.get(flow.workflow_id).title, title);
+  assert.equal(b.instance(instance.instance_id).title, title);
+  const blank = structuredClone(defEvent.value) as { record: { title: string } };
+  blank.record.title = "   ";
+  f.deliver({ ...defEvent, operationId: "blank-title", value: blank, revision: f.revision() });
+  assert.equal(f.replicas[1]!.counts().conflicts, 1);
+  assert.equal(b.get(flow.workflow_id).title, title);
+});

@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {cloudFixture} from './testing.mjs';
 
 const url=(f,path,extra={})=>path+'?'+new URLSearchParams({namespace:f.namespace,key:'asset',...extra});
-const archive=(f,base,value,operation='archive',attachments=[])=>f.call('/v1/history/archive','alice',{namespace:f.namespace,policyRevision:1,mutation:{operationId:operation,key:'asset',base,value},attachments});
+const archive=(f,base,value,operation='archive',attachments=[],key='asset')=>f.call('/v1/history/archive','alice',{namespace:f.namespace,policyRevision:1,mutation:{operationId:operation,key,base,value},attachments});
 const pin=(f,revision)=>f.call('/v1/history/pin','alice',{namespace:f.namespace,key:'asset',revision,policyRevision:1});
 const restore=(f,sourceRevision,revision,operationId='restore-history')=>f.call('/v1/history/restore','alice',{namespace:f.namespace,key:'asset',sourceRevision,revision,operationId,policyRevision:1});
 const purge=(f,sourceRevision,revision,confirm=true)=>f.call('/v1/history/purge','alice',{namespace:f.namespace,key:'asset',sourceRevision,revision,confirm});
@@ -141,4 +141,35 @@ test('PCSYNC-01/16 a fresh device can enumerate retained asset keys with bounded
  await f.db.prepare("UPDATE sync_heads SET deleted_at=unixepoch()*1000-2678400000 WHERE key='retained-20'").run();
  assert.deepEqual((await(await f.call(endpoint+'&after=retained-19')).json()).items.map(item=>item.key),['retained-21'],'expired branches are hidden before maintenance');
  await f.call('/v1/policy','alice',{spaceId:f.space('alice'),revision:1,selections:[]},'PUT');assert.equal((await f.call(endpoint)).status,403);
+});
+
+test('F-modules-server-29/31 24h folded retention keeps accurate retainedAt and archive replay survives policy changes',async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ const now=Date.now();
+ const seedAt=async(operation,base,value,createdAt)=>{
+  const fingerprint=createHash('sha256').update(JSON.stringify(['folded-doc',base,value,[],'write'])).digest('hex');
+  await f.db.prepare("INSERT INTO sync_events(space,namespace,operation,key,base,value,attachments,policy_revision,fingerprint,action,created_at) VALUES (?,?,?,?,?,?,?,1,?,'write',?)")
+   .bind(f.space('alice'),f.namespace,operation,'folded-doc',base,JSON.stringify(value),'[]',fingerprint,createdAt).run();
+  return (await f.db.prepare("SELECT revision FROM sync_heads WHERE space=? AND namespace=? AND key='folded-doc'").bind(f.space('alice'),f.namespace).first()).revision;
+ };
+ const v1=await seedAt('fold-v1',0,{text:'base'},now-3*3600_000);
+ const v2Created=now-2*3600_000;
+ const v2=await seedAt('fold-v2',v1,{text:'mid'},v2Created);
+ const v3Res=await f.write('fold-v3','folded-doc',{text:'head'},{base:v2});
+ assert.equal(v3Res.status,200);
+ const v3=(await v3Res.json()).revision;
+ const listed=await(await f.call('/v1/history/keys?'+new URLSearchParams({namespace:f.namespace}))).json();
+ const row=listed.items.find(item=>item.key==='folded-doc');
+ assert.ok(row,'folded-doc is listed');
+ assert.ok(row.retainedAt>=v2Created,`expected retainedAt >= v2Created (${v2Created}), got ${row.retainedAt}`);
+
+ // F-modules-server-31: archive replay succeeds with the original revision even after policyRevision bumps.
+ const archived=await archive(f,v3,{text:'branch'},'archive-replay-op',[],'folded-doc');
+ assert.equal(archived.status,200);
+ const firstReceipt=await archived.json();
+ assert.equal((await f.call('/v1/policy','alice',{spaceId:f.space('alice'),revision:1,selections:[f.selection]},'PUT')).status,200);
+ const replayed=await archive(f,v3,{text:'branch'},'archive-replay-op',[],'folded-doc');
+ assert.equal(replayed.status,200);
+ assert.deepEqual(await replayed.json(),firstReceipt);
+ assert.equal((await archive(f,v3,{text:'tampered'},'archive-replay-op',[],'folded-doc')).status,409);
 });

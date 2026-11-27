@@ -807,3 +807,28 @@ test("ASR withdrawal after an authorized bootstrap does not bootout or restart f
   await assert.rejects(readFile(item.manager.plistPath), { code: "ENOENT" });
   await assert.rejects(readFile(item.manager.receiptPath), { code: "ENOENT" });
 });
+
+test("F-host-subsystems-w2-03 remove succeeds when the plist is already missing and only the receipt remains", async t => {
+  for (const running of [false, true]) {
+    const item = await fixture();
+    t.after(() => rm(item.directory, { recursive: true, force: true }));
+    const install = await item.manager.prepare("install");
+    await item.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" });
+    if (!running) {
+      const stop = await item.manager.prepare("stop");
+      await item.manager.confirm({ plan_id: stop.plan_id, decision: "confirmed" });
+    }
+    await rm(item.manager.plistPath);
+    const detection = await item.manager.detect();
+    assert.equal(detection.owned, true);
+    assert.equal(detection.state, running ? "conflict" : "needs_repair");
+    const plan = await item.manager.prepare("remove");
+    assert.equal(plan.status, "ready");
+    const removed = await item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" });
+    assert.equal(removed.status, "removed");
+    assert.equal(removed.detection.state, "absent");
+    assert.equal(item.isLoaded(), false);
+    await assert.rejects(stat(item.manager.plistPath), { code: "ENOENT" });
+    await assert.rejects(stat(item.manager.receiptPath), { code: "ENOENT" });
+  }
+});

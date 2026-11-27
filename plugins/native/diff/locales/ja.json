@@ -19,6 +19,7 @@
     "diff.msg.change-unreadable": "この変更を読み込めませんでした",
     "diff.msg.mode-executable": "ファイル権限：実行権限を追加（100644 → 100755）",
     "diff.msg.mode-not-executable": "ファイル権限：実行権限を削除（100755 → 100644）",
+    "diff.msg.no-change-at": "このターンには {index} 番目の変更ファイルがありません",
     "diff.msg.no-change-in": "このターンでは {path} に変更はありませんでした",
     "diff.msg.no-readable-review": "このターンには確認できるテキスト差分がありません。コマンドや外部操作は実行記録をご確認ください",
     "diff.msg.renamed": "名前変更：{from} → {to}",

@@ -46,6 +46,6 @@ export class MaterialRecentUses {
       this.db.prepare(`DELETE FROM material_recent_uses WHERE caller_kind = ? AND caller_id = ? AND sequence NOT IN (
         SELECT sequence FROM material_recent_uses WHERE caller_kind = ? AND caller_id = ? ORDER BY sequence DESC LIMIT ?)`)
         .run(caller.kind, caller.id, caller.kind, caller.id, MATERIAL_RECENT_KEEP);
-    })();
+    }).immediate();
   }
 }

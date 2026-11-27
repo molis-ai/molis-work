@@ -2,6 +2,7 @@ import { Node } from "prosemirror-model";
 import { bookmarkLabel, safePagesBookmarkTitle, safePagesHref, safePagesImageSrc } from "./link.js";
 import { safePagesLanguage } from "./code-language.js";
 import { cardText } from "./card-content.js";
+import { safePagesHeadingLevel } from "./schema.js";
 
 function inlineToMarkdown(node: Node): string {
   if (node.isText) {
@@ -54,7 +55,7 @@ function blockToMarkdown(node: Node, indent: number): string {
   const name = node.type.name;
   const card = cardText(node);
   if (card.length) return indentLines(card.join("\n"), indent);
-  if (name === "heading") return indentLines(`${"#".repeat(Number(node.attrs.level) || 1)} ${inlineToMarkdown(node)}`, indent);
+  if (name === "heading") return indentLines(`${"#".repeat(safePagesHeadingLevel(node.attrs.level))} ${inlineToMarkdown(node)}`, indent);
   if (name === "paragraph") return indentLines(inlineToMarkdown(node), indent);
   if (name === "bullet_list" || name === "ordered_list" || name === "task_list") return listToMarkdown(node, indent);
   if (name === "blockquote" || name === "callout") {

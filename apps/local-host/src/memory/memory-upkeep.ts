@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { findSubjectReader, isSubjectReader, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { findSubjectReader, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryUpkeepReport } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { MEMORY_TIDY } from "../agent-definitions/system-prompts.js";
@@ -96,10 +96,10 @@ async function objectState(localHost: MolisWorkLocalHost, ref: { kind: string; i
   const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
   const context = await contextFor(reference);
   const views: readonly ActionView[] = await Promise.resolve(client.discover(context)).catch(() => []);
-  const reader = views.find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(ref.kind));
-  if (!reader) return "unknown";
+  const reader = findSubjectReader(views, ref.kind);
+  if (reader.found !== "one") return "unknown";
   try {
-    await client.invoke(context, { capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: ref.id });
+    await client.invoke(context, { capability_id: reader.view.capability_id, version: reader.view.version, provider_id: reader.view.provider.provider_id }, { subject_id: ref.id });
     return "ok";
   } catch (error) {
     return readerOutcome(String((error as { code?: string }).code ?? ""));

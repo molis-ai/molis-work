@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
 import type { AccountCallControl, AccountEnvironmentConfig, SessionView, UserView } from "@molis-ai/molis-work-contracts/services/account";
-import { createAccountSessionManager, parseAccountEnvironment, type AccountSessionManager, type AccountSessionStorage } from "@molis-ai/molis-work-service-account";
+import { createAccountAuthentication, createAccountSessionManager, parseAccountEnvironment, type AccountLoginAttempt, type AccountSessionManager, type AccountSessionStorage } from "@molis-ai/molis-work-service-account";
 
 const config = (): AccountEnvironmentConfig => parseAccountEnvironment({
   environmentId: "unified-local", environmentKind: "LOCAL", authOrigin: "http://127.0.0.1:8787", productOrigin: "http://127.0.0.1:4207",
@@ -344,4 +344,115 @@ test("WUA-08 WUA-09 WUA-34 S-unified-account-session: duplicate or superseded co
   await assert.rejects(h.manager.completeLogin(superseded, h.tokens, control()), { code: "account.invalid_request" });
   assert.equal(logouts(h.calls).length, 0); assert.deepEqual(h.store.record, saved);
   assert.equal((await h.manager.readSession(control())).state, "AUTHENTICATED"); await h.manager.close();
+});
+
+test("F-horiz-runtime-28: finished management transactions evict cleanly for new logins and capacity conflict cancels its login attempt", async t => {
+  const h = harness();
+  const auth = createAccountAuthentication(config(), h.manager, h.fetcher);
+  let seq = 0;
+  h.setHook(async call => {
+    if (call.path === "/api/v2/users/me/reauthentications") {
+      return json({ transactionId: `reauth-${String(++seq).padStart(8, "0")}`, status: "VERIFIED", nextStep: "COMPLETE", expiresAt: stamp(h.now + 600_000) });
+    }
+    if (call.path.startsWith("/api/v2/auth/transactions/") && call.path.endsWith("/complete")) {
+      return json({ kind: "OPERATION_PROOF", operationProof: `proof-${"a".repeat(32)}`, expiresAt: stamp(h.now + 600_000) });
+    }
+    if (call.path === "/api/v2/users/me/password/change") {
+      return json({ passwordChanged: true, keptLoginSessionId: h.tokens.session.loginSessionId, session: h.tokens.session });
+    }
+    if (call.path === "/api/v2/auth/transactions") {
+      return json({ transactionId: `login-${String(++seq).padStart(8, "0")}`, status: "PENDING", nextStep: "REQUEST_CHALLENGE", expiresAt: stamp(h.now + 600_000) });
+    }
+    return undefined;
+  });
+  await h.login();
+  for (let i = 0; i < 32; i++) {
+    const tx = await auth.reauthenticate({ method: "EMAIL_PASSWORD", operation: "CHANGE_PASSWORD", target: { kind: "PASSWORD" } }, control());
+    await auth.submit(tx.handle, { step: "COMPLETE" }, control());
+    await auth.mutate("password", { reauthHandle: tx.handle, newPassword: ["new", "password", "1234"].join("-"), expectedVersion: 0 }, key(), control());
+  }
+  await h.manager.logout("CURRENT_LOGIN", key(), control());
+  const nextLogin = await auth.create({ purpose: "LOGIN", method: "EMAIL_CODE" }, control());
+  assert.equal(nextLogin.status, "PENDING");
+  auth.close();
+  await h.manager.close();
+
+  const h2 = harness();
+  const auth2 = createAccountAuthentication(config(), h2.manager, h2.fetcher);
+  let seq2 = 0;
+  h2.setHook(async call => {
+    if (call.path === "/api/v2/users/me/reauthentications") {
+      return json({ transactionId: `open-${String(++seq2).padStart(8, "0")}`, status: "VERIFIED", nextStep: "COMPLETE", expiresAt: stamp(h2.now + 600_000) });
+    }
+    return undefined;
+  });
+  await h2.login();
+  for (let i = 0; i < 32; i++) {
+    await auth2.reauthenticate({ method: "EMAIL_PASSWORD", operation: "CHANGE_PASSWORD", target: { kind: "PASSWORD" } }, control());
+  }
+  await h2.manager.logout("CURRENT_LOGIN", key(), control());
+  let leaked: AccountLoginAttempt | undefined;
+  const origBegin = h2.manager.beginLogin.bind(h2.manager);
+  t.mock.method(h2.manager, "beginLogin", (callControl: AccountCallControl) => {
+    leaked = origBegin(callControl);
+    return leaked;
+  });
+  await assert.rejects(auth2.create({ purpose: "LOGIN", method: "EMAIL_CODE" }, control()), { code: "account.conflict" });
+  assert.ok(leaked);
+  assert.equal(leaked.signal.aborted, true, "capacity conflict must cancel the freshly begun login attempt");
+  assert.equal(h2.calls.filter(call => call.path === "/api/v2/auth/transactions").length, 0);
+  auth2.close();
+  await h2.manager.close();
+});
+
+test("F-horiz-runtime-28: authentication invoke racing with logout during rotation never returns a credential or account.unavailable", async () => {
+  const h = harness();
+  await h.login();
+  const authSession = await h.manager.authentication(control());
+  const refreshEntered = deferred<void>(), refreshRelease = deferred<void>();
+  h.setHook(async call => {
+    if (call.path.endsWith("/token")) {
+      refreshEntered.resolve();
+      await refreshRelease.promise;
+    }
+    return undefined;
+  });
+
+  let logoutPromise: Promise<unknown> | undefined;
+  let readRejected: Promise<unknown> | undefined;
+  const invokePromise = authSession.invoke(
+    "createReauthentication",
+    {
+      body: {
+        clientId: config().clientId,
+        redirectUri: config().redirectAllowlist[0],
+        state: "state-".padEnd(32, "a"),
+        method: "EMAIL_PASSWORD",
+        codeChallenge: "challenge-".padEnd(43, "a"),
+        codeChallengeMethod: "S256",
+        initiatorChallenge: "initiator-".padEnd(43, "a"),
+        operation: "CHANGE_PASSWORD",
+        target: { kind: "PASSWORD" },
+      },
+    },
+    {
+      assertCurrent() {},
+      async beforeEffect() {
+        h.advance(901_000);
+        readRejected = assert.rejects(h.manager.readSession(control()));
+        await refreshEntered.promise;
+        logoutPromise = h.manager.logout("CURRENT_LOGIN", key(), control());
+      },
+    },
+  );
+  await assert.rejects(invokePromise, (error: { code?: string }) => {
+    assert.notEqual(error.code, "account.unavailable");
+    assert.ok(["account.cancelled", "account.conflict", "account.login_required"].includes(String(error.code)));
+    return true;
+  });
+  refreshRelease.resolve();
+  await logoutPromise;
+  await readRejected;
+  assert.equal(h.calls.filter(call => call.path === "/api/v2/users/me/reauthentications").length, 0);
+  await h.manager.close();
 });

@@ -53,6 +53,8 @@ export interface SearchServiceOptions {
   refreshDelayMs?: number;
   /** Scope a scheduled refresh under the same Home as its index, starting at the timer. */
   background?(refresh: () => Promise<void>): Promise<void>;
+  /** Whether background refreshes may touch `projectId` now (skips sleeping or single-plugin due-woken partitions). */
+  canBackgroundRefresh?(projectId: string | null): boolean;
   /** Projects that still exist in this Home; index rows of any other project are dropped. Null while unknown. */
   knownProjects?(): Promise<readonly string[] | null>;
   /**
@@ -410,11 +412,11 @@ export class SearchService {
   private async refreshKnown(pending: ProviderSequences): Promise<void> {
     const scopes = refreshScopes(this.options.index.sources(), pending);
     await Promise.all([...scopes].map(([scope, providers]) => queueScopeRefresh(this.refreshingScopes, scope, async () => {
-      if (this.closed) return;
+      if (this.closed || (this.options.canBackgroundRefresh && !this.options.canBackgroundRefresh(scope))) return;
       try {
         const owner = this.owner(scope);
         const directory = indexDirectory(await owner(), scope);
-        if (this.closed) return;
+        if (this.closed || (this.options.canBackgroundRefresh && !this.options.canBackgroundRefresh(scope))) return;
         const dirty = directory.sources.filter(source => providers.has(source.reference.provider_id));
         await this.removeSources(disabledSearchSources(this.options.index, dirty), directory.observedAt);
         await this.reconcile(scope, directory);

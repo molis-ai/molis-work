@@ -75,7 +75,7 @@ function openStore(homeDirectory: string, actorId: string): DatabaseSync {
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const filename = join(directory, CHARACTERS_HOME_STORE.library.file), db = new DatabaseSync(filename);
   try {
-    db.exec("PRAGMA busy_timeout = 3000");
+    db.exec("PRAGMA busy_timeout = 3000; PRAGMA foreign_keys = ON;");
     applySqliteBaseline(db, filename, CHARACTERS_STORE_BASELINE);
     const space = ensureStorageSpace(homeDirectory);
     bindDatabaseSpace(db, space);

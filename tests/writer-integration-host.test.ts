@@ -90,7 +90,7 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   const readyReview=composition.agentHost.reviews.get(ready.review_id)!;
   const index=await readFile(path.join(root,".git/index"));await composition.agentHost.reviews.respond({review_id:ready.review_id, version: readyReview.reference.version,decision:"approve",actor_id:"user"});
   assert.equal(composition.agentHost.reviews.receipt(ready.review_id)?.effect_settled,true);assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"changed after review\n");assert.deepEqual(await readFile(path.join(root,".git/index")),index);
-  await assert.rejects(access(path.join(root,"z-legacy.cfg")),"DEL-01: confirmed integration removed z-legacy.cfg on disk");
+  await assert.rejects(access(path.join(root,"z-legacy.cfg")),{code:"ENOENT"},"DEL-01: confirmed integration removed z-legacy.cfg on disk");
   // DEL-07: real agent.run.reviews returns this round's settled subtask integration (with the deleted file) and refuses foreign callers.
   const liveReviews = await reads.invoke(agent.readRunReviews, [session, handle.ref]);
   const liveRow = liveReviews.find(row => row.request.review_id === ready.review_id);

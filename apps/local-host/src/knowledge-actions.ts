@@ -43,6 +43,8 @@ export interface KnowledgeHostPorts {
   clientFor(caller: ActionCallContext): HostActionClient;
   /** The project owner's authority, which indexing and organizing read every source with. */
   ownerContext?(projectId: string): Promise<ActionCallContext>;
+  /** Whether background catch-up and organizing may run for this project (never wakes sleeping partition plugins). */
+  backgroundReady?(projectId: string): boolean;
   /** The project's text model now (tests give their own); by default the Home's configured text model. */
   writer?(): KnowledgeWriter | null;
   /** The text model `knowledge.locate` asks (tests give their own); by default the Home's configured text model. */
@@ -56,6 +58,8 @@ export interface KnowledgeHost {
   readonly organizer: KnowledgeOrganizer;
   /** Something in a project's catalog may have changed: organize it shortly after. */
   changed(projectId: string | null): void;
+  /** Cancel any pending background organize timer when a project closes or sleeps. */
+  projectClosed(projectId: string): void;
   projectDeleted(projectId: string): void;
   /** How many pieces a caller whose directory is `views` would see listed in a project, by source (no titles, no text). */
   tally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
@@ -199,7 +203,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   };
   const organizer = new KnowledgeOrganizer({ store, catalog,
     sourceState: async (projectId, source, subject) => {
-      if (!ports.ownerContext) return "unknown";
+      if (!ports.ownerContext || (ports.backgroundReady && !ports.backgroundReady(projectId))) return "unknown";
       const caller = await ports.ownerContext(projectId);
       return querySubjectState({ caller, client: ports.clientFor(caller) }, subject, source);
     },
@@ -214,10 +218,11 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   // Something in the project changed with nobody searching: its sources are brought current with the owner's authority first, so
   // the catalog (each round's directory and counts, the cards) holds the new piece before anyone asks for it.
   const settle = async (projectId: string) => {
+    if (closed || (ports.backgroundReady && !ports.backgroundReady(projectId))) return;
     if (ports.ownerContext) {
       try {
         const owner = await ports.ownerContext(projectId);
-        if (closed) return;
+        if (closed || (ports.backgroundReady && !ports.backgroundReady(projectId))) return;
         await service.catchUp({ client: ports.clientFor(owner), caller: owner });
       } catch (error) {
         // A project that is not open is brought current by its next search or listing; that is not a failure.
@@ -225,7 +230,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
         return;
       }
     }
-    if (!closed) await organizer.kick(projectId);
+    if (!closed && (!ports.backgroundReady || ports.backgroundReady(projectId))) await organizer.kick(projectId);
   };
   const changed = (projectId: string | null) => {
     if (closed || !projectId || timers.has(projectId)) return;
@@ -299,6 +304,10 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
       definitions: [...Object.values(knowledgeActions), ...Object.values(knowledgeManageActions)], handlers },
     organizer,
     changed,
+    projectClosed: projectId => {
+      clearTimeout(timers.get(projectId));
+      timers.delete(projectId);
+    },
     projectDeleted: projectId => { clearTimeout(timers.get(projectId)); timers.delete(projectId); organizer.removeProject(projectId); store.removeProject(projectId); },
     tally: (projectId, views) => service.tally(projectId, views),
     catalog: async (projectId, views, words, access) => {

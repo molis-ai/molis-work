@@ -54,9 +54,51 @@ const authority = (caller: MemoryCaller) => ({ actor_id: caller.actor_id, projec
   plugin_id: caller.plugin_id ?? null, character_id: caller.character?.id ?? null, session_id: caller.session_id ?? null,
   current_scene: caller.current_scene ?? null, person: caller.person === true, purpose: caller.purpose ?? "management" });
 
+/** Remove upkeep-pending entries that belong to deleted scopes so project deletion never deadlocks later maintenance. */
+export function clearUpkeepPendingForScopes(
+  ledger: MemoryLedgerPort,
+  actorId: string,
+  scopes: readonly { scope: MemoryScope; owner: string }[],
+  projectId: string,
+  at: string,
+): void {
+  const plans = (ledger.marker(actorId, INDEX)?.body as { plans: string[] } | undefined)?.plans;
+  if (!plans?.length) return;
+  const gone = new Set(scopes.map(target => JSON.stringify([target.scope, target.owner])));
+  const retained = plans.filter(id => {
+    const step = ledger.marker(actorId, keyOf(id))?.body as Step | undefined;
+    if (!step || step.phase === "committed") return false;
+    if (gone.has(JSON.stringify([step.scope, step.owner]))) return false;
+    if (step.scope === "character" && step.authority?.project_id === projectId) return false;
+    return true;
+  });
+  if (retained.length !== plans.length) {
+    ledger.setMarker(actorId, INDEX, { plans: retained }, at);
+  }
+}
+
 /** Fixed maintenance steps are reconciled before active-entry selection, using existing history and SDK receipts. */
 export class MemoryUpkeep {
   constructor(private readonly ports: Ports) {}
+
+  /** Drop orphan upkeep-pending entries whose scope is no longer active and whose step was already closed or forgotten. */
+  pruneOrphans(caller: MemoryCaller, activeScopes: readonly { scope: MemoryScope; owner: string }[]): void {
+    const plans = this.pending(caller);
+    if (!plans.length) return;
+    const active = new Set(activeScopes.map(one => JSON.stringify([one.scope, one.owner])));
+    const retained = plans.filter(id => {
+      const step = this.read(caller, id);
+      if (!step || step.phase === "committed") return false;
+      if (active.has(JSON.stringify([step.scope, step.owner]))) return true;
+      if (step.phase === "closed") return false;
+      const targets = [step.memory_id, ...(step.drop ? [step.drop.memory_id] : [])];
+      if (targets.some(memoryId => this.ports.ledger.marker("", `memory-forgotten:${memoryId}`))) return false;
+      return true;
+    });
+    if (retained.length !== plans.length) {
+      this.ports.ledger.setMarker(caller.actor_id, INDEX, { plans: retained }, this.ports.now().toISOString());
+    }
+  }
 
   async recover(caller: MemoryCaller, scope: MemoryScope, owner: string, report: MemoryUpkeepReport): Promise<void> {
     for (const id of this.pending(caller)) {

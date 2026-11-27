@@ -1,3 +1,4 @@
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 
@@ -20,7 +21,7 @@ function exact(value: Row, fields: readonly string[]): void {
   if (Object.keys(value).length !== fields.length || fields.some(field => !Object.hasOwn(value, field))) invalid();
 }
 function str(value: unknown, max: number, nullable = false): boolean {
-  return nullable && value === null || typeof value === "string" && value.length <= max;
+  return nullable && value === null || typeof value === "string" && !exceedsCharacters(value, max);
 }
 function date(value: unknown, nullable = false): boolean {
   return nullable && value === null || typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -46,14 +47,14 @@ function validateTask(value: unknown, taskId: string): Row {
   return row;
 }
 function validateTurns(value: unknown, taskId: string): Row[] {
-  if (!Array.isArray(value) || value.length > 1_000) invalid();
+  if (!Array.isArray(value)) invalid();
   const ids = new Set<string>();
   return value.map(input => {
     const turn = record(input);
     exact(turn, TURN_COLUMNS);
     if (!str(turn.turn_id, 100) || !String(turn.turn_id) || ids.has(String(turn.turn_id))
       || turn.task_id !== taskId || !["user", "assistant", "system"].includes(String(turn.kind))
-      || !str(turn.text, 100_000) || !String(turn.text).trim()
+      || typeof turn.text !== "string" || !turn.text.trim()
       || (turn.important !== 0 && turn.important !== 1) || !date(turn.created_at)) invalid();
     ids.add(String(turn.turn_id));
     return turn;
@@ -108,17 +109,19 @@ export function scheduleCollection(projectId: string): PluginSyncCollectionDefin
         || !str(project.title, 120) || !String(project.title).trim()) invalid();
       const task = validateTask(wire.task, id);
       const turns = validateTurns(wire.turns, id);
-      const foreign = db.prepare(`SELECT turn_id FROM schedule_conversation_turns WHERE turn_id IN (${turns.map(() => "?").join(",") || "NULL"}) AND task_id<>?`)
-        .all(...turns.map(turn => String(turn.turn_id)), id);
-      if (foreign.length) throw syncError("scope", "对话记录标识已属于其他任务");
+      const hasForeign = db.prepare("SELECT 1 FROM schedule_conversation_turns WHERE turn_id=? AND task_id<>?");
+      for (const turn of turns) {
+        if (hasForeign.get(String(turn.turn_id), id)) throw syncError("scope", "对话记录标识已属于其他任务");
+      }
       const columns = [...TASK_COLUMNS, "job_id"];
       const values = [...TASK_COLUMNS.map(column => column === "enabled" ? 0 : task[column] as string|number|null), null];
       db.prepare(`INSERT INTO schedule_conversation_tasks (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})
         ON CONFLICT(task_id) DO UPDATE SET ${columns.filter(column => column !== "task_id").map(column => `${column}=excluded.${column}`).join(",")}`)
         .run(...values);
       db.prepare("DELETE FROM schedule_conversation_turns WHERE task_id=?").run(id);
-      for (const turn of turns) db.prepare(`INSERT INTO schedule_conversation_turns (${TURN_COLUMNS.join(",")})
-        VALUES (${TURN_COLUMNS.map(() => "?").join(",")})`).run(...TURN_COLUMNS.map(column => turn[column] as string|number|null));
+      const insertTurn = db.prepare(`INSERT INTO schedule_conversation_turns (${TURN_COLUMNS.join(",")})
+        VALUES (${TURN_COLUMNS.map(() => "?").join(",")})`);
+      for (const turn of turns) insertTurn.run(...TURN_COLUMNS.map(column => turn[column] as string|number|null));
       context.authorize();
     },
   };

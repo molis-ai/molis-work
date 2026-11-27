@@ -34,9 +34,9 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 - 不变量：
   - 数据按分区分库：一个实例只打开它所在分区的库，表里不再有 `project_id` 列。
   - 冲突保留本地输入，并阻止发布或切表。
-  - 固定事务在更新根行、登记成果及最终提交时复查原调用授权（S-18）。提交前取消、撤权或提供方变化会回滚表引用、成果、事件及复制记录（`tests/dataset-promote-authority.test.ts tests/dataset-client-bundle.test.ts tests/creative-tools-plugins.test.ts`）。
+  - 固定事务在更新根行、登记成果及最终提交时复查原调用授权（S-18）。提交前取消、撤权或提供方变化会回滚表引用、成果、事件及复制记录（`tests/creative-promote-authority.test.ts tests/dataset-client-bundle.test.ts tests/creative-tools-plugins.test.ts`）。
   - 项目被删除时平台删掉这个分区自己的整份库（`<分区根>/libraries/<库名>.db` 与它的日志），也就删掉了数据表与保存的版本，连同创建回执；确认框里的说法与顺序来自 Manifest 的 `databases.partition.deletion`（`src/database.ts`）。插件的代码不参与，库不存在时不创建，重复运行没有副作用（PG-024，第 107 批起）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/dataset-actions.test.ts tests/dataset-mcp.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/dataset-promote-authority.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/dataset-actions.test.ts tests/dataset-mcp.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/creative-promote-authority.test.ts`
 - Owner 列名与跨 Form 转表改动加跑：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/work-placement-plugins.e2e.test.ts`（后一份需要本机 Chrome）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/dataset-actions.e2e.test.ts tests/dataset-file-import.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

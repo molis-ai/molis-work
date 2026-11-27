@@ -423,3 +423,47 @@ test("D0207 a retained OAuth completion missing its protocol or declaration is r
   await assert.rejects(assertHeldOAuthDeclared("/unused-held-context", completion, async () => { consulted++; return null; }), { code: "connector.connection.invalid" });
   assert.equal(consulted, 0);
 });
+
+// Regression coverage promoted from the 2026-09-27 Connector review.
+test("product-configured OAuth can reconnect the disconnected account without asking the user for a client secret", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-review-reconnect-"));
+  const keys = ["MOLIS_WORK_CONNECTOR_ASANA_OAUTH_CLIENT_ID", "MOLIS_WORK_CONNECTOR_ASANA_OAUTH_CLIENT_SECRET"];
+  const previous = keys.map(key => process.env[key]);
+  process.env[keys[0]!] = "review-app";
+  process.env[keys[1]!] = "review-fixture-secret";
+  const reviewTransport: typeof fetch = async (url) => new Response(JSON.stringify(String(url).includes("oauth_token")
+    ? { access_token: "review-fixture-access", refresh_token: "review-fixture-refresh", expires_in: 3600 }
+    : { data: { gid: "review-account", name: "Review account" } }), { headers: { "content-type": "application/json" } });
+  try {
+    const first = await startApiOAuth(directory, { serviceId: "asana", displayName: "Review account", clientId: "", origin });
+    await completeApiOAuth(directory, { origin, state: new URL(first.authorization_url).searchParams.get("state")!, code: "review-code" }, reviewTransport);
+    withConnectorConnections(directory, store => store.disconnect(first.connection_id));
+    const retry = await startApiOAuth(directory, { serviceId: "asana", displayName: "Review account", clientId: "", connectionId: first.connection_id, origin });
+    assert.equal(retry.connection_id, first.connection_id);
+  } finally {
+    keys.forEach((key, i) => {
+      if (previous[i] === undefined) delete process.env[key];
+      else process.env[key] = previous[i];
+    });
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("generic OAuth reconnect restores the same connection after disconnect", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-review-feed-"));
+  const reviewApp = { serviceId: "asana", displayName: "Review account", clientId: "review-app", clientSecret: "review-fixture-secret", origin };
+  const reviewTransport: typeof fetch = async (url) => new Response(JSON.stringify(String(url).includes("oauth_token")
+    ? { access_token: "review-fixture-access", refresh_token: "review-fixture-refresh", expires_in: 3600 }
+    : { data: { gid: "review-account", name: "Review account" } }), { headers: { "content-type": "application/json" } });
+  try {
+    const first = await startApiOAuth(directory, reviewApp);
+    await completeApiOAuth(directory, { origin, state: new URL(first.authorization_url).searchParams.get("state")!, code: "review-code" }, reviewTransport);
+    withConnectorConnections(directory, store => store.disconnect(first.connection_id));
+    assert.equal(withConnectorConnections(directory, store => store.state(store.require(first.connection_id))), "disconnected");
+    const retry = await startApiOAuth(directory, { ...reviewApp, connectionId: first.connection_id });
+    await completeApiOAuth(directory, { origin, state: new URL(retry.authorization_url).searchParams.get("state")!, code: "review-code" }, reviewTransport);
+    assert.equal(withConnectorConnections(directory, store => store.state(store.require(first.connection_id))), "connected");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

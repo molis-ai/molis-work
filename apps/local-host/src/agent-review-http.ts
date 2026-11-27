@@ -52,7 +52,10 @@ const missing = (message: string) => new ActionError("actions.missing", message)
 const REVIEW_CONFLICT = "agent.review_conflict";
 /** A decision or a check that cannot be recorded (decided, expired, cancelled, too soon, nothing to check against) is a conflict, not a fault. */
 const conflict = (error: unknown, fallback: string) => {
-  if (["forbidden", "not_found", "cancelled"].includes(actionErrorKind(error))) return error;
+  if (
+    ["forbidden", "not_found", "cancelled"].includes(actionErrorKind(error))
+    || (error instanceof ActionError && (error.code === "actions.unavailable" || error.code === "actions.host_closed"))
+  ) return error;
   const code = (error as { code?: unknown } | null)?.code;
   const decision = (error as { details?: { review_decision?: AgentReviewDecisionAvailability } } | null)?.details?.review_decision;
   const message = decision?.available === false ? say.text(decision.reason) : error instanceof Error && error.message ? error.message : fallback;
@@ -73,7 +76,7 @@ export const agentReviewActions = {
       caller.signal?.throwIfAborted();
       requireSynchronous(caller.assert_authority_current?.()); entry.page?.assertCurrent(); held.assertPending();
       if (input.mode === "automatic") held.assertCurrent();
-      assertHumanReview(entry.ports.computerHolder?.() ?? null, held.session);
+      assertHumanReview(entry.ports.computerHolder?.() ?? null, held.session, entry.ports.now?.());
     };
     const beforeEffect = async () => {
       await caller.beforeEffect(); await entry.page?.beforeEffect();
@@ -101,6 +104,7 @@ export const agentReviewActions = {
     };
     assertCurrent();
     await ports.agentHost.reviews.refresh(review!.project_id);
+    assertCurrent();
     try {
       return { receipt: await ports.agentHost.reviews.respond({ review_id: input.review_id, version: input.version, decision: input.decision, actor_id: ports.actorId,
         ...(input.note ? { note: input.note } : {}), ...(input.remember ? { remember: input.remember } : {}) }, {
@@ -318,6 +322,7 @@ export async function handleAgentReviewHttp(
   }
 
   if (request.method === "POST" && url.pathname === "/api/agent/reviews/decide") {
+    const control = webEffectControl(request, response, ports.host, ports.assertAccountCurrent);
     const body = await readLocalWebBody(request);
     const reviewId = typeof body.review_id === "string" ? body.review_id : "";
     const decision = body.decision === "approve" || body.decision === "reject"
@@ -334,8 +339,9 @@ export async function handleAgentReviewHttp(
       sendLocalWebJson(response, 400, { error: uiText.text("workbench.agent-review.bad-remember") }); return true;
     }
     try {
+      control.assertCurrent();
       // 200 carries the receipt, not a claim that the effect happened: that is `effect_settled`, and it stays false until a real result comes back.
-      sendLocalWebJson(response, 200, await door.invoke(asPerson(request, ports, responseAbortSignal(response)), agentReviewActions.decide.definition, { review_id: reviewId, version: typeof body.version === "string" ? body.version : "", decision,
+      sendLocalWebJson(response, 200, await door.invoke({ ...asPerson(request, ports, responseAbortSignal(response)), assertCurrent: control.assertCurrent }, agentReviewActions.decide.definition, { review_id: reviewId, version: typeof body.version === "string" ? body.version : "", decision,
         ...(typeof body.note === "string" && body.note !== "" ? { note: body.note } : {}),
         ...(body.remember === "session" || body.remember === "app-this-round" ? { remember: body.remember } : {}) }));
     } catch (error) { refuse(response, error); }
@@ -354,7 +360,7 @@ export async function handleUnscopedAgentReviews(
   request: IncomingMessage,
   response: ServerResponse,
   url: URL,
-  ports: Pick<AgentReviewHttpPorts, "host" | "agentHost" | "actorId" | "computerHolder" | "now"> & { ready?: () => Promise<void> },
+  ports: Pick<AgentReviewHttpPorts, "host" | "agentHost" | "actorId" | "computerHolder" | "assertAccountCurrent" | "now"> & { ready?: () => Promise<void> },
 ): Promise<boolean> {
   if (url.pathname !== "/api/agent/reviews" && url.pathname !== "/api/agent/reviews/decide") return false;
   await ports.ready?.();
@@ -364,6 +370,7 @@ export async function handleUnscopedAgentReviews(
     agentHost: ports.agentHost,
     actorId: ports.actorId,
     computerHolder: ports.computerHolder,
+    assertAccountCurrent: ports.assertAccountCurrent,
     now: ports.now,
   });
 }

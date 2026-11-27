@@ -1,9 +1,9 @@
 import type { OwnedTextRef, TextArgs, TextDateOptions, TextDateStyle, TextNumberStyle, UiFormatTool, UiLocalePack, UiSayOptions, UiSayTool, UiTextProvider, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLATFORM_TEXT_OWNER, SHARED_OWNER } from "./text-keys.js";
 import { escapeHtml } from "./html.js";
-import { formatDate, formatNumber } from "./message-format.js";
+import { formatDate, formatMessage, formatNumber } from "./message-format.js";
 import { uiTextErrors } from "./text-errors.js";
-import { guarded, languageFor, localeChain, packsProvider, prefixIndex, report, sayText, UI_TEXT_UNAVAILABLE, wordText } from "./text-lookup.js";
+import { findMessage, guarded, languageFor, localeChain, packsProvider, prefixIndex, report, sayText, UI_TEXT_UNAVAILABLE, wordText } from "./text-lookup.js";
 import { textArgs, textRefProblems } from "./text-ref.js";
 
 export { UI_TEXT_UNAVAILABLE };
@@ -77,8 +77,15 @@ export function tryUiText(key: string, args?: TextArgs): string | undefined {
   const prefix = key.slice(0, dot);
   const owner = prefix === SHARED_OWNER ? PLATFORM_TEXT_OWNER : provider.ownerOfPrefix(prefix);
   if (owner === null) return undefined;
-  const list = args === undefined ? {} : { args: textArgs(args) };
-  return guarded(provider, () => wordText(provider, { owner, key, ...list }, locale), "") || undefined;
+  try {
+    const found = findMessage(provider, owner, key, locale);
+    if (found === null) return undefined;
+    const list = args === undefined ? undefined : textArgs(args);
+    const text = formatMessage(found.message, list, provider.intlLocale?.(found.locale) ?? found.locale);
+    return text || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Internal lookup of a shared `common.*` word when a UI text provider and active locale are present; returns `undefined` otherwise without logging or throwing. */

@@ -3,15 +3,21 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundExecution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSdkMethod } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { BACKGROUND_EXECUTIONS, DEFAULT_SANDBOX_LIMITS, SANDBOX_BACKGROUND_LIMITS, SANDBOX_NOT_GIVEN, SandboxBroker, SandboxError, assertContract, assertSandboxDeclarations,
-  createBackgroundLane, createSandboxRunner, sandboxServicesFor, type SandboxBackground, type SandboxServices } from "@molis-ai/molis-work-plugin-sandbox";
+  createBackgroundLane, createSandboxRunner, sandboxServicesFor, type SandboxBackground, type SandboxBackgroundLane, type SandboxServices } from "@molis-ai/molis-work-plugin-sandbox";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { pluginActions } from "./fixtures/plugin-actions.js";
+import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 // S-67 for `services.background` (PG-017 P3): a sandboxed plugin starts a run of one of its own commands in the background. Three gates in series:
 // the broker (the declared and approved `background` effect naming the operation, a command for anything that starts or cancels work, the input checked
 // before the Host accepts, a bound on the runs outstanding), the Host's client (the plugin's own concurrent command with `background_job`, the original
-// caller's authority; asserted with the real client in security-invariants-sandbox-background-host.test.ts) and the lane, a second process of the
+// caller's authority; asserted with the real client in this file) and the lane, a second process of the
 // package that runs one operation at a time, so a long run never holds up the first process. A run is not replayed when its process dies. RAC-236
 // is this slice's. The Host's client is a stand-in in this file (it runs the work under its own signal); the processes are real Seatbelt processes.
 
@@ -258,4 +264,97 @@ test('RAC2871 background model effects keep actual per-call operation/service bu
   assert.equal(await lane.run('work',null,{limits:{operationTimeoutMs:660000,serviceTimeoutMs:630000}}),true);
   assert.ok(recorded.includes(600000),'the actual runner scheduled the fixed operation deadline');assert.ok(recorded.includes(60000),'the actual broker scheduled the fixed service deadline');
   assert.equal(recorded.includes(660000)||recorded.includes(630000),false,'model-derived or caller budgets cannot lift the background limits');
+});
+
+test("S-67 RAC-236 the sandbox path reaches the real Host client which refuses outside, undeclared and non-concurrent actions before accepting a legal command", { timeout: 60_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "sandbox-background-host-"));
+  const file = join(directory, "project.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  const shared = pluginActions(store, DEMO_PROJECT_ID);
+  const values = new Map<string, string>();
+  const probe = backgroundProbe("sbxbackground", "project");
+  const platform = createPluginPlatform({
+    actions: shared,
+    project_id: DEMO_PROJECT_ID,
+    actor_id: "tester",
+    db: store.db,
+    journal: store,
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
+    processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
+    ui: new UiHost(),
+    privateStorageFor: () => ({ get: key => values.get(key) ?? null, set: (key, value) => { values.set(key, value); }, delete: key => values.delete(key), compareAndSet: () => true }),
+    home: null,
+  });
+  const target: SandboxOperationContract = { id: "work", kind: "command", effects: {}, input: { type: "string" }, output: { type: "string" }, errors: [], examples: [] };
+  const launch: SandboxOperationContract = { ...target, id: "launch", effects: { background: ["work"] } };
+  const checks = createBackgroundLane({
+    contract: { version: 1, pluginId: probe.id, revision: "one", entities: [], pages: [], acceptance: [], operations: [launch, target] },
+    create: async () => { throw new Error("this test observes the lane's work without a process"); },
+  });
+  const ran: Array<{ target: string; input: unknown }> = [];
+  const completed = Promise.withResolvers<void>();
+  const lane: SandboxBackgroundLane = {
+    check: (id, input) => checks.check(id, input),
+    stop: () => checks.stop(),
+    async run(id, input, control) {
+      await control.beforeEffect?.();
+      control.signal?.throwIfAborted();
+      ran.push({ target: id, input });
+      completed.resolve();
+      return input;
+    },
+  };
+  let broker: SandboxBroker | undefined;
+  probe.definition.execution = "sandbox";
+  delete probe.definition.stop;
+  const original = probe.definition.start;
+  probe.definition.start = async context => {
+    const contribution = await original(context);
+    assert.equal(contribution.kind, "app");
+    broker = new SandboxBroker(
+      { projectId: DEMO_PROJECT_ID, installationId: context.install_id, pluginId: context.plugin_id, namespace: "installed" },
+      { background: ["work"] },
+      sandboxServicesFor(context.services, { backgroundLane: lane }),
+      DEFAULT_SANDBOX_LIMITS,
+    );
+    const starts = new Set([probe.start, probe.serial, probe.undeclared, probe.query].map(action => action.capability_id));
+    return {
+      ...contribution,
+      actions: contribution.actions!.map(action => starts.has(action.capability_id)
+        ? {
+            ...action,
+            handle: async (caller: ActionExecutionContext, input: unknown) => {
+              const id = await broker!.invoke(launch, caller.signal ?? new AbortController().signal, "background.start", ["work", (input as { id: string }).id], () => caller.beforeEffect());
+              return { id, state: "running" };
+            },
+          }
+        : action),
+    };
+  };
+  t.after(async () => {
+    broker?.stop(new SandboxError("sandbox.stopped", "test finished"));
+    await lane.stop();
+    try {
+      await platform.closeCoordination();
+      const install = platform.supervisor.installation(probe.id);
+      if (install?.running) await platform.runtime.stop(install.install_id);
+    } finally {
+      store.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  assert.deepEqual((await platform.start([{ definition: probe.definition, grants: probe.permissions }])).running, [probe.id]);
+  assert.ok(broker, "the sandboxed definition received the actual Host services");
+  await assert.rejects(broker.invoke(launch, new AbortController().signal, "background.start", ["work", "outside"]), { code: "plugin.background_action_required" });
+  const caller: ActionCallContext = { actor_id: "tester", project_id: DEMO_PROJECT_ID, audience: "user", permissions: probe.permissions };
+  for (const action of [probe.undeclared, probe.serial, probe.query]) {
+    await assert.rejects(shared.client.invoke(caller, action, { id: "refused" }), { code: "plugin.background_undeclared" });
+    assert.deepEqual(ran, [], "the real Host refused before any lane work was accepted");
+  }
+  const answer = await shared.client.invoke(caller, probe.start, { id: "accepted" }) as { id: string; state: string };
+  assert.equal(typeof answer.id, "string");
+  assert.equal(answer.state, "running");
+  await completed.promise;
+  assert.deepEqual(ran, [{ target: "work", input: "accepted" }], "the legal action reached the lane exactly once");
 });

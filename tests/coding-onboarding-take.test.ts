@@ -38,7 +38,7 @@ test("BCD-18 Coding's onboarding take is the person's alone, takes only the proj
 
   // Not the person: an Agent or an MCP client cannot hand Coding a folder.
   for (const audience of ["agent", "mcp"] as const)
-    await assert.rejects(client.invoke({ ...owner, actor_id: "runtime:client", audience }, take, input), audience);
+    await assert.rejects(client.invoke({ ...owner, actor_id: "runtime:client", audience }, take, input), { code: "actions.forbidden" }, audience);
   // A folder that is not the project's output is refused, and no session is made.
   await assert.rejects(client.invoke(owner, take, { ...input, request_id: "onboarding:j0:take", code_root: { workspace_id: "elsewhere" } }),
     (error: { code?: string }) => error.code === "coding.onboarding_root_mismatch");

@@ -14,8 +14,10 @@ export type CodeTokenKind = "comment" | "string" | "number" | "keyword" | "type"
  * comment or string) starts where it opens, and a diff's hunk is read again from its header. See `growCodeTokens`.
  */
 export function codeTokens(text: string, language: string, from = 0): Array<[CodeTokenKind | null, string]> {
-  const lang = ({ typescript: "ts", tsx: "ts", javascript: "js", jsx: "js", mjs: "js", cjs: "js", python: "py", shell: "sh", bash: "sh", zsh: "sh", console: "sh",
-    yml: "yaml", htm: "html", xml: "html", svg: "html", vue: "html", golang: "go", rs: "rust", patch: "diff", jsonc: "json", md: "markdown", kt: "java", kotlin: "java", cs: "java", csharp: "java", cpp: "c", h: "c", hpp: "c" } as Record<string, string>)[language.toLowerCase()] ?? language.toLowerCase();
+  const rawLang = typeof language === "string" ? language.toLowerCase() : "";
+  const aliases: Record<string, string> = { typescript: "ts", tsx: "ts", javascript: "js", jsx: "js", mjs: "js", cjs: "js", python: "py", shell: "sh", bash: "sh", zsh: "sh", console: "sh",
+    yml: "yaml", htm: "html", xml: "html", svg: "html", vue: "html", golang: "go", rs: "rust", patch: "diff", jsonc: "json", md: "markdown", kt: "java", kotlin: "java", cs: "java", csharp: "java", cpp: "c", h: "c", hpp: "c" };
+  const lang = Object.hasOwn(aliases, rawLang) ? aliases[rawLang]! : rawLang;
   const out: Array<[CodeTokenKind | null, string]> = [];
   const push = (kind: CodeTokenKind | null, value: string) => { if (!value) return; const last = out[out.length - 1]; if (last && last[0] === kind) last[1] += value; else out.push([kind, value]); };
   if (lang === "diff") {
@@ -56,9 +58,10 @@ export function codeTokens(text: string, language: string, from = 0): Array<[Cod
     sql: "select from where and or not insert into values update set delete create table index drop alter join left right inner outer on group by order having limit as distinct null is in like between primary key foreign references",
     css: "important", json: "true false null", yaml: "true false null yes no",
   };
-  const keywords = new Set((words[lang] ?? words.ts).split(" "));
+  const hasWords = Object.hasOwn(words, lang);
+  const keywords = new Set((hasWords ? words[lang]! : words.ts!).split(" "));
   const lineComment = ["py", "sh", "yaml", "rust"].includes(lang) ? (lang === "rust" ? "//" : "#") : lang === "sql" ? "--" : ["json", "html", "css", "markdown"].includes(lang) ? "" : "//";
-  const blockComment = ["js", "ts", "css", "go", "rust", "java", "c"].includes(lang) || !words[lang];
+  const blockComment = ["js", "ts", "css", "go", "rust", "java", "c"].includes(lang) || !hasWords;
   if (lang === "html") {
     // A comment left open runs to the end, as it does in HTML; a quoted value ends on its line. So no piece reaches back over
     // another when the text changes further down (see `from`).
@@ -159,10 +162,12 @@ export function diffRowTokens(rows: ReadonlyArray<{ text: string; kind: string }
 
 /** The language a fenced block or a file path names, when it names one this colours. */
 export function codeLanguage(hint: string): string {
+  if (typeof hint !== "string") return "";
   const value = hint.toLowerCase().trim();
   const name = value.includes(".") || value.includes("/") ? value.split("/").pop()!.split(".").pop()! : value.replace(/^language-/, "");
-  return ({ ts: "ts", tsx: "ts", mts: "ts", cts: "ts", js: "js", jsx: "js", mjs: "js", cjs: "js", json: "json", py: "py", sh: "sh", bash: "sh", zsh: "sh",
+  const map: Record<string, string> = { ts: "ts", tsx: "ts", mts: "ts", cts: "ts", js: "js", jsx: "js", mjs: "js", cjs: "js", json: "json", py: "py", sh: "sh", bash: "sh", zsh: "sh",
     yml: "yaml", yaml: "yaml", html: "html", htm: "html", xml: "html", svg: "html", vue: "html", css: "css", scss: "css", less: "css", go: "go", rs: "rust",
     java: "java", kt: "java", cs: "java", c: "c", h: "c", cpp: "c", hpp: "c", sql: "sql", diff: "diff", patch: "diff", md: "markdown", markdown: "markdown",
-    typescript: "ts", javascript: "js", python: "py", shell: "sh", rust: "rust", golang: "go" } as Record<string, string>)[name] ?? "";
+    typescript: "ts", javascript: "js", python: "py", shell: "sh", rust: "rust", golang: "go" };
+  return Object.hasOwn(map, name) ? map[name]! : "";
 }

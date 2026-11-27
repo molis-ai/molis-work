@@ -4,6 +4,7 @@ import {
   type PluginAuthMethodDeclaration,
   type PluginOAuthMethodDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { isSafeOAuthPattern, MAX_OAUTH_SETTING_VALUE_LENGTH } from "./oauth-pattern.js";
 
 // The rules an `oauth` declaration's templates and values are read by (W5-11 §2.1), one copy for both readers: the SDK's shape check
 // and the Host's interpreter take them from here, so neither accepts what the other refuses.
@@ -154,7 +155,11 @@ export function oauthSettingValueFault(setting: { readonly use: string; readonly
   tenantDomain: string | undefined): OAuthSettingValueFault | undefined {
   const words = setting.use === "scope" ? value.split(/\s+/u) : [value];
   if (setting.enum && !words.every(word => setting.enum!.includes(word))) return "enum";
-  if (setting.pattern !== undefined && !words.every(word => new RegExp(`^(?:${setting.pattern})$`, "u").test(word))) return "pattern";
+  if (setting.pattern !== undefined) {
+    if (!isSafeOAuthPattern(setting.pattern) || value.length > MAX_OAUTH_SETTING_VALUE_LENGTH) return "pattern";
+    const regex = new RegExp(`^(?:${setting.pattern})$`, "u");
+    if (!words.every(word => regex.test(word))) return "pattern";
+  }
   if (setting.use === "path" && !oauthPathSegment(value)) return "path";
   if (setting.use === "tenant" && (!tenantDomain || !oauthTenantOriginUnder(tenantDomain, value))) return "tenant";
   return undefined;

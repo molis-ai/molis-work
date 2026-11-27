@@ -6,12 +6,12 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 - `schema_version`：现行格式为 `1`，支持 ports、events、views、routes、agent 和 actions。
 - `host_api_version`：与 schema 对齐，使用 `1`。
-- `plugin_id`：反向域名，前缀必须是 `io.molis.work.`，后面只用小写字母、数字、点和连字符，如 `io.molis.work.feed`；最长 200 个字符。声明了 `ui.locales` 的，最后一段是文字键的第一段，要以小写字母开头，不能是 `common`（[text-and-appearance.md](text-and-appearance.md)）。
+- `plugin_id`：合法反向域名（符合 `PLUGIN_ID_PATTERN`，由小写字母、数字、点和连字符组成，最长 200 个字符）。其中 `io.molis.work.`（`HOST_PLUGIN_ID_PREFIX`）仅保留给宿主随包内置插件，第三方包使用该前缀会在安装时被 `S-reserved-host-prefix` 直接拒装；第三方与作者包应使用自己的发布者反向域名（如 `com.example.notes`，详见 [skills-and-kits.md](skills-and-kits.md)）。声明了 `ui.locales` 的，最后一段是文字键的第一段，要以小写字母开头，不能是 `common`（[text-and-appearance.md](text-and-appearance.md)）。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
 - `name`、`version`：给人看的名字；代码变化必须自己递增 version。同一 `plugin_id + version + signature` 的 Manifest 不能静默改内容。升级来源要通过 `upgrade_compatibility` 精确声明。
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
-- `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
+- `kind`：`native` | `app` | `integration` | `content`。选贡献形态，不是信任等级。
 
 ## 版本升级
 
@@ -78,7 +78,7 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 
 - `ui.locales`：`{ default, available }` 声明随包提供的语言文件（`locales/<语言>.json`，推荐覆盖 `en`/`zh`/`ja` 并向 N 语种扩展；禁止写二元 `zh`/`en` 逻辑分支），详见 [text-and-appearance.md](text-and-appearance.md)。
 - `ui.contributions`：contribution id 列表。
-- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（限平台图标集，集合外的名字 Manifest 读取即被拒）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
+- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（限平台图标集，集合外的名字 Manifest 读取即被拒）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。工作台对象标签名单由宿主从运行中各插件 Manifest 写入页面的 `plugin_directory` 动态派生（BL-388 已落地），内置与运行时安装的插件声明后均可按对象开标签；不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
 - **槽（合同五选一）**：`navigator` 一级入口（底栏插件切换与 Dock）、`stage` 工作区工具面、`settings` 全局设置目录、`island` 底栏右侧的个人常驻入口（项目圆钮旁）、`side` 侧栏里的一个标签（见 [ui.md](ui.md#侧栏标签side)）。不要发明第六个。
 - 没有 `ui.commands`：界面命令没有一处调用，已取消（BL-363），Manifest 写了会被拒。
 - 贡献 descriptor 的 HTML Slot：`workbench.directory` / `workbench.main` / `workbench.overlay` / `workbench.settings` / `workbench.side`。`settings-page` 只能挂 settings。
@@ -175,7 +175,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 每个角色写 `role_id`、`version`、`name`，用 `prompts` 点名自己的提示词，用 `host_tools` 点名能叫的 Host 工具。不写 `prompts` 时，运行组合会把本插件声明的全部提示词交给这个角色；解析器同时要求有一条与 `role_id` 同名的 Prompt，否则 Manifest 无效。只读角色点名自己的那几条。
 
-一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个角色。角色可以写 `skills: { allowed: [...], default: [...] }`：`allowed` 是这个用途能挑的方法（只能点名 agent 块 `skills` 里声明过的），`default` 是这个用途默认选上的（必须在 `allowed` 里，用户可以去掉）。每个可选方法要的 `tools` 都必须在角色的 `host_tools` 里，否则 Manifest 无效：给不了工具的方法不该出现在这个用途里。现在只有解析 Manifest 时的这些检查：宿主开新一轮时还不按 `default` 选上，也不拒绝 `allowed` 之外的方法，要等宿主那一片（#576 的后续 PR）合入后，宿主开轮时才按它选上；在那之前写了不生效。不需要按用途分方法就不写。
+一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个独立角色。角色定义（`AgentRoleDeclaration`）不再支持旧的按角色 `skills: { allowed, default }` 字段（已于第 09 批移除）；技能统一在 `agent.skills`（供本插件 Agent）或顶层 `methods`（供其他 Agent）声明，执行权限仍由角色的 `host_tools` 与平台授权约束。
 
 提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。提示词正文放在 `PluginDefinition.agent_prompts`，Skill 正文放在 `PluginDefinition.agent_skills`，不进 Manifest；Manifest 声明的每段 Prompt、`compaction` 与 `ending_review` 都要在 `agent_prompts` 里有正文，否则开跑时角色是空的。运行中的非沙箱插件由 Host 从 Manifest 的 `agent` 与定义的正文登记（内置与安装的插件同一条路，PG-051），停下后按「未运行」留在设置里，作者不必再另接一份 catalog。沙箱插件的登记尚待 PG-017。正文与缺失检查见 [authoring.md](authoring.md#sdk)。
 
@@ -193,6 +193,6 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 没有「浏览目录」这项设置，也没有「首选工作区」：读写不指定目录时就是输出目录，页面在几个目录里看哪一个是页面自己的状态，不写回项目。输入目录只读，输出目录才可写：Git 的写、终端、Agent 的会话和轮次、原生 Character 在只作输入的目录里开会被拒（`projects.directory_input_only`），本人把它设为输出之后再开。改目录（`add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source`，都带读到的 `expected_revision`）只给本人，插件、Agent 与 MCP 调不到；页面里的插件要关联目录或换输出，用 `host.workspaces.add(path)`、`host.workspaces.setOutput(id)`，由宿主显示并真实确认。Coding 并行写手的独立工作树由宿主建、按 `worktree_id` 认，不是项目的目录。
 
-`settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
+`settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目指导（原项目说明）已于第 44 批迁归平台 `modules/projects`（`projects.guidance.*`），不再属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
 
 生产事件要从事实 owner 的提交或回执接出，不能从审批通过或一次历史查询推断新执行。Coding `run-updated`、Git `operation-updated` 是刷新提示，包含失败/未知状态；不冒充旧的 review 失效或 file-changed 协议。Host 按项目和 activation 装配、停止时注销；提示到 Git 后只失效视图 revision。可靠业务副作用仍需要自己的提交一致性，不能由 UI revision 冒充持久 outbox。

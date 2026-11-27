@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { MemoryForgetting } from "./forgetting.js";
 import { MemoryOperations } from "./operations.js";
 import { memoryPromotionSources } from "./promotion.js";
+import { clearUpkeepPendingForScopes } from "./upkeep.js";
 import { isDeepStrictEqual } from "node:util";
 
 function projectScopes(ledger: MemoryLedgerPort, projectId: string): Array<{ scope: MemoryScope; owner: string }> {
@@ -80,10 +81,12 @@ export async function purgeProjectMemories(ports: { backend: MemoryBackendPort |
   unchanged?.();
   assertCurrent();
   ledger.transaction(() => {
+    const clearedAt = now().toISOString();
     for (const id of forgotten) ledger.forget(id, "related");
     ledger.forgetScopes({ scopes, project_id: projectId, prefs_keys: [projectPrefsKey(projectId)],
       signal_prefixes: scopes.map(target => `${target.scope}|${target.owner}|`), marker_keys: scopes.map(target => `tidy:${target.scope}:${target.owner}`) });
-    ledger.setMarker(caller.actor_id, scopeKey, { scopes, complete: true }, now().toISOString());
+    clearUpkeepPendingForScopes(ledger, caller.actor_id, scopes, projectId, clearedAt);
+    ledger.setMarker(caller.actor_id, scopeKey, { scopes, complete: true }, clearedAt);
   });
   return { removed: forgotten.size };
 }

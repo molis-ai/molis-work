@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SKILL_AUTHORED_PLUGIN_IDS, type SkillCatalogEntry, type SkillDraft, type SkillDraftAdoptResult, type SkillTrial } from "@molis-ai/molis-work-contracts/services/skills";

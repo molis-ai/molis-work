@@ -128,9 +128,10 @@ function syncButtons(page: ShelfPage): void {
   const source = selected?.artifact_source;
   // The copy stays when its project is deleted (BL-680); there is nowhere to go, so the link gives way to a note that says so.
   const deleted = selected?.origin_project_deleted === true;
+  const basePath = source ? (source.project_path || (source.project_id ? "/projects/" + encodeURIComponent(source.project_id) : "")) : "";
   if (original) {
-    original.hidden = !source || deleted || Boolean(selClip);
-    if (source) (original as HTMLAnchorElement).href = source.project_path + "/artifacts/" + encodeURIComponent(source.reference.artifact_id) + "/versions/" + source.reference.version;
+    original.hidden = !source || !basePath || deleted || Boolean(selClip);
+    if (source && basePath) (original as HTMLAnchorElement).href = basePath + "/artifacts/" + encodeURIComponent(source.reference.artifact_id) + "/versions/" + source.reference.version;
   }
   if (gone) gone.hidden = !source || !deleted || Boolean(selClip);
   const editBtn = on("[data-shelf-edit]");

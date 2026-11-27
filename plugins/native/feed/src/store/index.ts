@@ -5,3 +5,4 @@ export * from "./sources.js";
 export * from "./signals.js";
 export * from "./listener.js";
 export * from "./sql.js";
+export { FEED_UNASSIGNED_BODY_HOLDER, type ProjectBodyRefRow } from "./history-reads.js";

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
+import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KIT_REPORT_INPUT_TYPE, KIT_REPORT_OUTPUT_TYPE, type KitEntry, type KitReport, type KitReportedEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
 import { skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { pluginAgentRegistration, pluginControlActions, pluginInstallActions, SandboxPackageStore } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
+import { gatherKit } from "@molis-ai/molis-work-service-kit";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, signedContentPackage } from "./fixtures/content-package.js";
 import { kitHost } from "./fixtures/kit-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
@@ -132,4 +134,106 @@ test("CPK-14: a Skill whose requirement is not met puts its pack in attention po
   const tool = entry(kit, shared);
   assert.equal(kit.entries.filter(row => row.key === shared).length, 1);
   assert.ok(tool.kind === "tool" && tool.in_packs?.includes("system:builtin") && tool.in_packs.includes(coding.pack_id));
+});
+
+test("F-horiz-runtime-35 gatherKit strips traversal manage.href, propagates caller AbortError, and counts 65+ unavailable roles in pack state", async () => {
+  const PLUGIN_ID = "io.example.kit-guard";
+  const PLUGIN_SOURCE = { kind: "plugin", plugin_id: PLUGIN_ID, title: "Guard", version: "1.0.0", install_id: "i-guard", publisher_label: "Guard", trust: "pinned" } as const;
+  const SYSTEM_WORDS = {
+    "system:builtin": { name: "Molis Work 自带", description: "内置能力" },
+    "system:characters": { name: "你的角色", description: "角色" },
+  } as const;
+  const NONE = { tools: [], permissions: [], connector_categories: [] };
+  const makeView = (provider_id: string, plugin?: { plugin_id: string; install_id: string }): ActionView => ({
+    capability_id: `${provider_id}.kit.report`, version: 1,
+    provider: plugin
+      ? { provider_id, title: provider_id, kind: "plugin", plugin_id: plugin.plugin_id, plugin_install_id: plugin.install_id }
+      : { provider_id, title: provider_id, kind: "system" },
+    action: { input_type: KIT_REPORT_INPUT_TYPE, output_type: KIT_REPORT_OUTPUT_TYPE },
+    availability: { available: true },
+  }) as never;
+  const makePrompt = (entry_id: string, href: string, extra: Record<string, unknown> = {}): KitReportedEntry => ({
+    kind: "prompt", entry_id, name: entry_id, description: "", version: { label: "1" }, declares: NONE,
+    scope: "project", where: [], availability: { available: true }, usage: { kind: "none" }, export: "none",
+    manage: { href, label: "管理" }, ref: { owner_id: PLUGIN_ID, prompt_id: entry_id },
+    prompt: { use: "agent", edited: false, roles: [] }, ...extra,
+  }) as KitReportedEntry;
+
+  // 1. Path traversal / backslash / encoded-dot manage links are stripped for both plugin and host reporters.
+  const views = [
+    makeView("plugin-install"),
+    makeView("plugin.reporter", { plugin_id: PLUGIN_ID, install_id: "i-guard" }),
+    makeView("system.agent-definitions"),
+  ];
+  const reports: Record<string, KitReport> = {
+    "plugin-install": { entries: [], packs: [{ source: PLUGIN_SOURCE, description: "", status: "enabled" }] },
+    "plugin.reporter": { entries: [
+      makePrompt("ok-root", `/plugins/${PLUGIN_ID}`),
+      makePrompt("ok-sub", `/plugins/${PLUGIN_ID}/tabs/prompts?v=1#top`),
+      makePrompt("escape-settings", `/plugins/${PLUGIN_ID}/../../settings/security`),
+      makePrompt("escape-other", `/plugins/${PLUGIN_ID}/../io.molis.work.coding`),
+      makePrompt("escape-pct", `/plugins/${PLUGIN_ID}/%2e%2e/other`),
+      makePrompt("escape-pct-upper", `/plugins/${PLUGIN_ID}/%2E%2E/settings`),
+      makePrompt("escape-backslash", `/plugins/${PLUGIN_ID}\\..\\other`),
+      makePrompt("escape-ctrl", `/plugins/${PLUGIN_ID}/ok\n`),
+    ] },
+    "system.agent-definitions": { entries: [
+      makePrompt("sys-ok", "/settings/prompts", { source: { kind: "system", module: "agent-host", title: "Molis" }, pack: "system:builtin" }),
+      makePrompt("sys-proj-ok", "/projects/p1/settings/plugins", { source: { kind: "system", module: "agent-host", title: "Molis" }, pack: "system:builtin" }),
+      makePrompt("sys-escape-dot", "/settings/../../plugins/evil", { source: { kind: "system", module: "agent-host", title: "Molis" }, pack: "system:builtin" }),
+      makePrompt("sys-escape-pct", "/settings/%2e%2e/plugins/evil", { source: { kind: "system", module: "agent-host", title: "Molis" }, pack: "system:builtin" }),
+      makePrompt("sys-escape-bs", "/settings\\..\\plugins/evil", { source: { kind: "system", module: "agent-host", title: "Molis" }, pack: "system:builtin" }),
+    ] },
+  };
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: "p1", audience: "user", permissions: [] };
+  const gathered = await gatherKit(caller, {
+    discover: async () => views,
+    invoke: async (_ctx: ActionCallContext, ref: { provider_id?: string }) => reports[ref.provider_id!],
+  } as never, SYSTEM_WORDS);
+  const manageByName = Object.fromEntries(gathered.entries.map(row => [row.name, row.manage?.href ?? null]));
+  assert.deepEqual(manageByName, {
+    "ok-root": `/plugins/${PLUGIN_ID}`,
+    "ok-sub": `/plugins/${PLUGIN_ID}/tabs/prompts?v=1#top`,
+    "escape-settings": null,
+    "escape-other": null,
+    "escape-pct": null,
+    "escape-pct-upper": null,
+    "escape-backslash": null,
+    "escape-ctrl": null,
+    "sys-ok": "/settings/prompts",
+    "sys-proj-ok": "/projects/p1/settings/plugins",
+    "sys-escape-dot": null,
+    "sys-escape-pct": null,
+    "sys-escape-bs": null,
+  });
+
+  // 2. Caller signal abort propagates AbortError directly instead of turning into actions.timeout issues.
+  const abort = new AbortController();
+  const started = Promise.withResolvers<void>();
+  const abortedCall = gatherKit({ ...caller, signal: abort.signal }, {
+    discover: async () => [makeView("system.skills")],
+    invoke: async () => { started.resolve(); return await new Promise(() => {}); },
+  } as never, SYSTEM_WORDS);
+  await started.promise;
+  abort.abort();
+  await assert.rejects(abortedCall, (error: unknown) => error instanceof Error && error.name === "AbortError");
+
+  // 3. 65th unavailable role still triggers pack attention even though displayed pack.roles is capped at 64.
+  const manyRoles: KitReportedEntry[] = Array.from({ length: 65 }, (_, index) => ({
+    kind: "role", entry_id: `role-${index}`, name: `Role ${index}`, description: "", version: { label: "1" },
+    declares: NONE, scope: "project", where: [], usage: { kind: "none" }, export: "none",
+    availability: index === 64 ? { available: false, reason: "第 65 个角色不可用" } : { available: true },
+    ref: { kind: "plugin", owner_id: PLUGIN_ID, role_id: `r${index}` },
+    role: { subagent: false, host_tools: [] },
+  })) as KitReportedEntry[];
+  const large = await gatherKit(caller, {
+    discover: async () => [makeView("plugin-install"), makeView("plugin.reporter", { plugin_id: PLUGIN_ID, install_id: "i-guard" })],
+    invoke: async (_ctx: ActionCallContext, ref: { provider_id?: string }) => ref.provider_id === "plugin-install"
+      ? { entries: [], packs: [{ source: PLUGIN_SOURCE, description: "", status: "enabled" }] }
+      : { entries: manyRoles },
+  } as never, SYSTEM_WORDS);
+  const guardPack = large.packs.find(pack => pack.pack_id === "plugin:i-guard")!;
+  assert.equal(guardPack.roles.length, 64);
+  assert.equal(guardPack.state.kind, "attention");
+  assert.ok(guardPack.state.kind === "attention" && guardPack.state.items.some(item => item.entry === "plugin.reporter/role-64"));
 });

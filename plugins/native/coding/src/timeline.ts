@@ -1,4 +1,4 @@
-import { dateArg, renderRoundReportCard, type MwRoundReportCheck, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, dateArg, renderRoundReportCard, type MwRoundReportCheck, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * How one round reads in the conversation: each tool call is a row that says what it touched and how it
  * ended, consecutive calls fold into one summary, and a round closes with what actually happened.
@@ -365,7 +365,7 @@ export function createCodingTimeline(words: TimelineWords, changeTally: CodingCh
   const renderGroup = (detail: Element, items: TimelineActivity[], run: TimelineRun, latest: boolean) => {
     const ended = TERMINAL.includes(run.phase), waiting = latest && run.phase === "awaiting-review";
     if (!detail.dataset.bound) { detail.dataset.bound = "true"; remember(detail, detail.dataset.codingActivity ?? ""); }
-    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0, checkOf(item, run.write_checks)])]);
+    const signature = JSON.stringify([activeUiLocale(), run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0, checkOf(item, run.write_checks)])]);
     if (detail.dataset.signature === signature) return; detail.dataset.signature = signature;
     const summary = sumText(items, ended, waiting);
     const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="mw-spinner" aria-hidden="true"></span>' : summary.waiting ? '<span data-mw-state="waiting" aria-hidden="true"></span>' : ""}<span>${escape(summary.text)}</span></span>`;
@@ -413,7 +413,8 @@ export function createCodingTimeline(words: TimelineWords, changeTally: CodingCh
       // Only a round waiting on the model can go quiet; a running command or test is allowed to take its time.
       footer.dataset.quietable = String(run.phase === "running" && !run.activity.some(item => item.state === "started" && item.name !== "reasoning"));
       const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time mw-num" data-num-ghost="${escape(uiText.text("coding.timeline.hours", { hours: 99, minutes: 59 }))}" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
-      if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
+      const liveKey = `${activeUiLocale() ?? ""}:${text}:${footer.dataset.state}`;
+      if (footer.dataset.html !== liveKey) { footer.innerHTML = html; footer.dataset.html = liveKey; }
       tick(block);
       return;
     }

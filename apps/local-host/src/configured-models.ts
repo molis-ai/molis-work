@@ -1,15 +1,33 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { LocalSqliteStorage, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { inspectPromptCacheChoice, type ModelProviderRecord, type ModelRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { ModelProviderStore, type ModelSecretPort } from "./model-provider-store.js";
+import { ModelProviderStore, type ModelSecretPort, type ModelSecretTarget } from "./model-provider-store.js";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export interface TextModelSelection { provider_id: string; model_id: string }
 export interface ConfiguredTextModel { provider: ModelProviderRecord; model: ModelRecord; connection_revision: string | null }
+
+/**
+ * Shared secret port for `ModelProviderStore`: requires an active, unremoved `model-api` connection
+ * pinned to `provider.base_url`'s exact origin before touching `SecretStore.get`.
+ */
+export function createModelSecretPort(home: string): ModelSecretPort {
+  return {
+    get(authRef, provider) {
+      if (!authRef.trim() || !provider || provider.credential_ref !== authRef) return null;
+      const allowed = withConnectorConnections(home, store => {
+        const connection = store.list("model-api").find(row => row.credential_ref === authRef);
+        return currentModelConnection(store, connection, provider);
+      }, true) === true;
+      if (!allowed) return null;
+      return runWithMolisWorkHome(home, () => createFileSecretStore().get(authRef));
+    },
+  };
+}
 
 /** Opens only the existing catalog owned by the Host; no second provider registry. */
 export function openConfiguredModels(home: string): { storage: LocalSqliteStorage; store: ModelProviderStore } | undefined {
@@ -19,10 +37,7 @@ export function openConfiguredModels(home: string): { storage: LocalSqliteStorag
   try {
     assertOwnedCatalog(storage, path);
     assertCurrentCatalog(storage, path);
-    let secrets: SecretStore | undefined;
-    const get = () => secrets ??= runWithMolisWorkHome(home, () => createFileSecretStore());
-    const port: ModelSecretPort = { get: ref => get().get(ref) };
-    return { storage, store: new ModelProviderStore({ db: storage.db, secrets: port }) };
+    return { storage, store: new ModelProviderStore({ db: storage.db, secrets: createModelSecretPort(home) }) };
   } catch (error) { storage.close(); throw error; }
 }
 
@@ -59,7 +74,7 @@ export function validateTextModelUrl(address: string): string {
   return url.toString().replace(/\/+$/u, "");
 }
 
-type CredentialProvider = Pick<ModelProviderRecord, "credential_ref" | "base_url">;
+type CredentialProvider = ModelSecretTarget;
 
 function supportsTextModels(provider: ModelProviderRecord): boolean {
   if (!provider.enabled || !["anthropic-messages", "openai-chat-completions"].includes(provider.api_format) || inspectPromptCacheChoice(provider)) return false;
@@ -70,10 +85,18 @@ function hasSealedCredential(home: string, provider: CredentialProvider): boolea
   return Boolean(runWithMolisWorkHome(home, () => peekSealedEntry(provider.credential_ref)));
 }
 
-function currentModelConnection(store: ConnectorConnectionStore, connection: ConnectorConnectionRecord | undefined, provider: CredentialProvider) {
+function providerOrigin(baseUrl: string): string | null {
+  try {
+    const origin = new URL(baseUrl).origin;
+    return origin === "null" ? null : origin;
+  } catch { return null; }
+}
+
+function currentModelConnection(store: ConnectorConnectionStore, connection: ConnectorConnectionRecord | undefined, provider: CredentialProvider): boolean {
   if (!connection?.enabled || connection.disconnected_at) return false;
+  const origin = providerOrigin(provider.base_url);
   // A credential is usable only at the origin selected for this connection.
-  return store.targetOrigin(connection.connection_id) === new URL(provider.base_url).origin;
+  return origin !== null && store.targetOrigin(connection.connection_id) === origin;
 }
 
 /** Metadata inspection never decrypts a credential or probes a provider. */

@@ -24,6 +24,17 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   };
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.("shelf");
+  const relayShelfEvent=(name,detail)=>{
+    if(typeof CustomEvent==="function"&&typeof window!=="undefined"&&typeof window.dispatchEvent==="function"){
+      const init=detail!==undefined?{detail}:undefined;
+      if(name==="molis:shelf-notice")window.dispatchEvent(new CustomEvent("molis:shelf-notice",init));
+      else if(name==="molis:shelf-refresh")window.dispatchEvent(new CustomEvent("molis:shelf-refresh",init));
+      else if(name==="molis:shelf-send-tui")window.dispatchEvent(new CustomEvent("molis:shelf-send-tui",init));
+    }
+    if(typeof document==="undefined"||typeof document.querySelector!=="function")return;
+    const frame=document.querySelector('[data-side-body^="plugin:shelf/"] > iframe[data-side-frame]');
+    frame?.contentWindow?.postMessage({type:"molis:shelf-desktop-event",name,detail:detail??null},location.origin);
+  };
   globalThis.molisWorkShelfNotice=(message,partial=false,originalWarning=null,notice=null)=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     message=String(message||"");
@@ -43,16 +54,14 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
       const warn=tr("original-not-registered");
       if(warn)display=message.slice(0,-originalWarning.length)+warn;
     }
-    window.dispatchEvent(new CustomEvent("molis:shelf-notice",{detail:{message:notice?display:message}}));
+    relayShelfEvent("molis:shelf-notice",{message:notice?display:message});
     const toast=document.querySelector("[data-settings-toast], [data-toast]");
     if(!toast||!globalThis.molisWorkRequest?.toast)return;
     globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
     if(partial===true){toast.setAttribute("data-mw-state","partial");toast.classList.remove("is-error");}
   };
-  globalThis.molisWorkShelfRefresh=()=>{
-    if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
-    window.dispatchEvent(new CustomEvent("molis:shelf-refresh"));
-  };
+  globalThis.molisWorkShelfRefresh=(detail)=>{relayShelfEvent("molis:shelf-refresh",detail);};
+  globalThis.molisWorkShelfSendTui=(detail)=>{relayShelfEvent("molis:shelf-send-tui",detail);};
   let lastHostReconnect=0;
   globalThis.molisWorkHostReconnected=()=>{
     const now=Date.now();

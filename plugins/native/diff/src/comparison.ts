@@ -184,7 +184,10 @@ export function compareRunChangeSet(
   changeIndex?: number,
 ): DiffView {
   const empty: DiffWord = ["这一轮没有可读取的文本改动审查；命令及外部操作请查看执行记录", "diff.msg.no-readable-review"];
-  const missing: DiffWord = [`这一轮没有改动 ${path}`, "diff.msg.no-change-in", { path: String(path) }];
+  const indexLabel = String(Number(changeIndex ?? 0) + 1);
+  const missing: DiffWord = changeIndex !== undefined || path === undefined
+    ? [`这一轮没有第 ${indexLabel} 个改动文件`, "diff.msg.no-change-at", { index: indexLabel }]
+    : [`这一轮没有改动 ${path}`, "diff.msg.no-change-in", { path }];
   const hint = recovery["change-set"];
   const view = compareCodingChangeSet(input.content, input, changeIndex ?? path ?? 0, {
     empty: empty[0], missing: missing[0], recovery: hint[0],

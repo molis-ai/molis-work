@@ -24,7 +24,7 @@ const TEXT_ATTRIBUTES = new Set([
   "data-connector-search", "data-steps", "data-caption", "data-words",
   "data-rail-toggle-label", "data-idle", "data-output-label", "data-reopened",
   "data-conn-card-say", "data-connector-project-label", "data-web-search-name",
-  "data-placement-create-title",
+  "data-placement-create-title", "data-say", "data-consequence",
 ]);
 /**
  * A button-type input's label is its value. Every other `value` is data: a field's is the person's, and an `<option>`'s or a `<button>`'s goes with

@@ -7,6 +7,7 @@ import {
   COSS_CONTROL_STYLES,
   PRIMITIVE_STYLES,
   INTERACTION_TEXTURE_STYLES,
+  MICRO_INTERACTION_CLIENT_SCRIPT,
   MOLIS_WORK_DENSITY_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
@@ -537,4 +538,10 @@ test("inbox detail title uses full detail width and avoids hard-coded workbench 
   assert.doesNotMatch(detailReading, /\[data-inbox-workbench\][^{]*font-size/);
   const inboxStyles = readFileSync(new URL("../plugins/native/inbox/src/styles.ts", import.meta.url), "utf8");
   assert.doesNotMatch(inboxStyles, /\[data-inbox-workbench\][^{]*font-size/);
+});
+
+test("modifier enter submits the focused enabled button and leaves other dialogs on the plain request", () => {
+  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /form\.requestSubmit\(focused\)/);
+  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /else form\.requestSubmit\(\)/);
+  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /!button\.disabled && button\.form === form/);
 });

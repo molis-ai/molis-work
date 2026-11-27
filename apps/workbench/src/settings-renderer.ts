@@ -115,7 +115,7 @@ const PLATFORM_SETTINGS_PAGES: Readonly<Record<PlatformSettingsPage, (page: Sett
 };
 
 export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
-  const { readText, icon, htmlLang, controlTokenMeta, renderIconSprite,
+  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite,
     withDesktopQuery, settingsContextHref, renderSettingsNavigation,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
@@ -126,17 +126,17 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   const title = declared?.title ? uiText.text(declared.title)
     : pluginPage?.label ?? view.dynamic_plugin_settings?.find(item => item.section_id === view.section)?.label ?? groupedGlobalSettingsSections(undefined, true).flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section;
   const contextProject = view.context_project ?? null;
-  const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
+  const settingsPath = settingsContextHref(`/settings/${encodeURIComponent(view.section)}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
   const returnHref = desktopShell ? withDesktopQuery(rawReturnHref) : rawReturnHref;
   const projectManager = view.section === "projects";
   const content = declared ? PLATFORM_SETTINGS_PAGES[settingsSectionPage(declared)]({ view, primitives, capabilities, contextProject, settingsPath, desktopShell }) : view.plugin_settings_html ?? "";
   return `<!doctype html>
-<html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${uiText("workbench.settings-renderer.molis-work-settings")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}${appearanceHead(appearance)}</head>
-<body${primitives.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page global-preferences-page${capabilities ? " capabilities-page" : ""}" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
+<html lang="${escapeHtml(htmlLang())}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(title)} · ${uiText("workbench.settings-renderer.molis-work-settings")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}${appearanceHead(appearance)}</head>
+<body${primitives.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page global-preferences-page${capabilities ? " capabilities-page" : ""}" data-settings-section="${escapeHtml(view.section)}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
+  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${escapeHtml(returnHref)}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins, view.dynamic_plugin_settings))}
     <div class="settings-content">${withSettingsHelp(view.capabilities?.rules ? "judgment-rules" : platformSettingsHelp(view.section), content)}</div>

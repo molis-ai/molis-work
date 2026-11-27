@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pptActions as actions, PPT_ACTION_PERMISSIONS, pptxFilename } from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions as actions, PPT_ACTION_PERMISSIONS, pptxFilename, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -181,4 +181,18 @@ test("RAC-1884: pptxFilename cuts at 80 whole characters, and still replaces for
     { name: "forbidden characters", title: "Q4 <评审> / 决定: 1?", filename: "Q4 _评审_ _ 决定_ 1_.pptx" },
     { name: "only control characters", title: "\u0001\u0002", filename: "演示稿.pptx" },
   ]) await t.test(c.name, () => assert.equal(pptxFilename(c.title), c.filename));
+});
+
+test("F-plugins-rest-w2-09: slidesFromMarkdown keeps 7-12 bullets on headed slides and only splits heading-free paragraphs every 6 bullets", () => {
+  const eight = slidesFromMarkdown("## 议题一\n" + Array.from({ length: 8 }, (_, i) => `- 要点 ${i + 1}`).join("\n"), "默认");
+  assert.equal(eight.slides.length, 1);
+  assert.equal(eight.slides[0]!.title, "议题一");
+  assert.equal(eight.slides[0]!.bullets?.length, 8);
+
+  const fifteen = slidesFromMarkdown("## 议题二\n" + Array.from({ length: 15 }, (_, i) => `- 要点 ${i + 1}`).join("\n"), "默认");
+  assert.equal(fifteen.slides.length, 1);
+  assert.equal(fifteen.slides[0]!.bullets?.length, 12);
+
+  const unheaded = slidesFromMarkdown(Array.from({ length: 8 }, (_, i) => `纯段落 ${i + 1}`).join("\n"), "默认");
+  assert.deepEqual(unheaded.slides.map(slide => slide.bullets?.length), [6, 2]);
 });

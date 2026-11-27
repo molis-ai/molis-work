@@ -159,7 +159,7 @@ test("UPP-15 S-person-settings-private an incoming portable preference with an u
   for (const [index, [label, change]] of cases.entries()) {
     const value = structuredClone(mutation.value) as Record<string, unknown>;
     change(value);
-    assert.throws(() => replica.receive({ ...mutation, value, revision: index + 2, operationId: `invalid-${index}` }), label);
+    assert.throws(() => replica.receive({ ...mutation, value, revision: index + 2, operationId: `invalid-${index}` }), { code: "actions.input_invalid" }, label);
     assert.equal(JSON.stringify(settings.list(person, INSTALL)), before, `${label}: nothing kept`);
     assert.equal(replica.counts().conflicts, 0, `${label}: not even held as a conflict`);
   }
@@ -168,4 +168,29 @@ test("UPP-15 S-person-settings-private an incoming portable preference with an u
   (plain.data as { value: unknown }).value = { provider: "replicate" };
   replica.receive({ ...mutation, value: plain, revision: cases.length + 2, operationId: "plain" });
   assert.equal(replica.counts().conflicts, 1, "a plain preference meeting this device's unsent change is held as a conflict to choose");
+}));
+
+test("F-horiz-runtime-36 sync apply upgrades an existing non-portable row to portable preference so read and remote delete work", async () => withSettings(async settingsA => {
+  await withSettings(settingsB => {
+    const legacyDecl: PluginPersonSettingsDeclaration = { keys: [{ key: "mode", kind: "local_path" }] };
+    const portableDecl: PluginPersonSettingsDeclaration = { keys: [{ key: "mode", kind: "preference", portable: true }] };
+    settingsA.set(person, owner, legacyDecl, "mode", "/old/local/path");
+    assert.equal(settingsA.get(person, INSTALL, legacyDecl, "mode")?.portable, false);
+
+    settingsB.set(person, owner, portableDecl, "mode", { theme: "warm" });
+    const replicaB = personSettingsConfigReplica(settingsB.db, "space-1", () => {}, pluginId => pluginId === PLUGIN ? { install_id: INSTALL, declarations: portableDecl } : null);
+    const outgoing = replicaB.next();
+    assert.ok(outgoing?.value);
+
+    const replicaA = personSettingsConfigReplica(settingsA.db, "space-1", () => {}, pluginId => pluginId === PLUGIN ? { install_id: INSTALL, declarations: portableDecl } : null);
+    replicaA.receive({ ...outgoing, base: 0, revision: 1, operationId: "remote-upgrade" });
+    const upgraded = settingsA.get(person, INSTALL, portableDecl, "mode");
+    assert.equal(upgraded?.kind, "preference");
+    assert.equal(upgraded?.portable, true);
+    assert.deepEqual(upgraded?.value, { theme: "warm" });
+
+    // Because portable is now 1, remote delete removes the row cleanly instead of leaving a ghost row.
+    replicaA.receive({ ...outgoing, value: null, base: 1, revision: 2, operationId: "remote-delete" });
+    assert.equal(settingsA.get(person, INSTALL, portableDecl, "mode"), null);
+  });
 }));

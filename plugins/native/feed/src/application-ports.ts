@@ -10,6 +10,7 @@ import type { FeedAttentionPort } from "./store/items/types.js";
 export interface FeedApplicationPorts {
   readonly historyReads: {
     refs(projectId: string, sourceId: string, after: string): string[];
+    projectRefs(projectId: string, afterSourceId: string, afterRef: string): ReadonlyArray<{ readonly source_id: string; readonly ref: string }>;
     operations(projectId: string, sourceId: string, after: string): string[];
   };
   readonly sources: SourcesApi;

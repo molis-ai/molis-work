@@ -211,7 +211,7 @@ test('a code run written alongside others may write only its own operation\'s fi
     assert.equal(result.phase, 'completed');
     assert.match(await readFile(join(build, 'src', 'operations', '1.ts'), 'utf8'), /return 2/, 'its own file is written');
     assert.equal(await readFile(join(build, 'src', 'store.ts'), 'utf8'), 'export const PREFIX = "note:";', 'the shared module is not');
-    await assert.rejects(readFile(join(build, 'src', 'operations', '2.ts')), 'nor another operation');
+    await assert.rejects(readFile(join(build, 'src', 'operations', '2.ts')), { code: 'ENOENT' }, 'nor another operation');
     assert.match(JSON.stringify(result.activity), /may only write src\/operations\/1\.ts/);
   } finally { await agent.close(); await rm(root, { recursive: true, force: true }); }
 });

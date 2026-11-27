@@ -23,9 +23,9 @@
 // difference counts like a changed picture. Exit 1 when any picture or style changed, 2 on misuse.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { decodePng, diffImages, encodePng } from "./visual/png.mjs";
 import { diffStyles, readStyles } from "./visual/styles.mjs";
 
@@ -65,12 +65,29 @@ function run(command, args, cwd, env = {}) {
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 
+const insideDirectory = (outer, target) => {
+  const step = relative(outer, target);
+  return step !== "" && !step.startsWith("..") && !isAbsolute(step);
+};
+
 /** The merge-base tree, installed and built once; kept at a path named for its commit. */
 function baseTree(ref) {
   const commit = git("merge-base", "HEAD", ref);
   const tree = join(tmpdir(), `molis-work-visual-base-${commit.slice(0, 12)}`);
   if (existsSync(join(tree, ".visual-base-ready"))) return tree;
-  if (existsSync(tree)) git("worktree", "remove", "--force", tree);
+  if (existsSync(tree)) {
+    try {
+      git("worktree", "remove", "--force", tree);
+    } catch {
+      /* stale cache directory may no longer be a registered git worktree */
+    }
+    rmSync(tree, { recursive: true, force: true });
+  }
+  try {
+    git("worktree", "prune");
+  } catch {
+    /* best-effort prune of stale worktree metadata */
+  }
   git("worktree", "add", "--detach", tree, commit);
   run("pnpm", ["install", "--frozen-lockfile", "--offline"], tree);
   run(process.execPath, [join(ROOT, "scripts/machine-slot.mjs"), "run", "build", "--label", "visual-base", "--", "pnpm", "build"], tree);
@@ -78,10 +95,16 @@ function baseTree(ref) {
   return tree;
 }
 
-function capture(tree, out) {
+function capture(tree, out, { syncManagedCapture = false } = {}) {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  if (tree !== ROOT) copyFileSync(join(ROOT, CAPTURE), join(tree, CAPTURE));
+  if (syncManagedCapture && tree !== ROOT) {
+    // Only overwrite CAPTURE inside the disposable tmpdir() cache worktree owned by this script, never a user --base-tree.
+    const realTmp = realpathSync(tmpdir());
+    const realTree = realpathSync(tree);
+    if (insideDirectory(realTmp, realTree)) copyFileSync(join(ROOT, CAPTURE), join(tree, CAPTURE));
+  }
+  if (!existsSync(join(tree, CAPTURE))) usage(`missing ${CAPTURE} in ${tree}`);
   run(process.execPath, ["scripts/run-tests.mjs", CAPTURE], tree, { MOLIS_WORK_VISUAL_OUT: out });
 }
 
@@ -90,7 +113,11 @@ const manifest = directory => {
   if (!existsSync(file)) usage(`no manifest.json in ${directory}: not a finished capture`);
   return JSON.parse(readFileSync(file, "utf8"));
 };
-const pictures = directory => manifest(directory).pictures;
+const pictures = directory => {
+  const list = manifest(directory).pictures;
+  if (!Array.isArray(list)) usage(`invalid manifest.json in ${directory}: expected a "pictures" array`);
+  return list;
+};
 
 /** Per surface and scheme: the style differences, or a note when one side has no snapshot. */
 function compareStyles(baseDirectory, headDirectory) {
@@ -105,6 +132,9 @@ function compareStyles(baseDirectory, headDirectory) {
 
 function compare(baseDirectory, headDirectory, options) {
   const names = [...new Set([...pictures(baseDirectory), ...pictures(headDirectory)])];
+  if (names.length === 0) {
+    usage(`empty capture manifest in ${baseDirectory} and ${headDirectory}: refusing to pass with 0 pictures`);
+  }
   const diffDirectory = join(options.out, "diff");
   rmSync(diffDirectory, { recursive: true, force: true });
   mkdirSync(diffDirectory, { recursive: true });
@@ -158,7 +188,7 @@ else {
   headDirectory = join(options.out, "head");
   const tree = options.baseTree ?? baseTree(options.base);
   process.stdout.write(`visual-compare: base tree ${tree}${options.baseTree ? "" : " (kept for the next run; git worktree remove it when done)"}\n`);
-  capture(tree, baseDirectory);
+  capture(tree, baseDirectory, { syncManagedCapture: !options.baseTree });
   capture(ROOT, headDirectory);
 }
 const { rows, styles } = compare(baseDirectory, headDirectory, options);

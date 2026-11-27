@@ -1,4 +1,5 @@
-import { codingFailure } from "./words.js";
+import { codingFailure, codingLocalFailure } from "./words.js";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingRoundTally } from "./round-tally.js";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -27,7 +28,7 @@ export function readCodingChangeSet(artifacts: PluginArtifactClient, sessionId: 
   const reference = codingChangeSetReference(sessionId, runId), artifact = artifacts.read(reference);
   if (!artifact) return null;
   const saved = codingChangeSetPreview(artifact);
-  if (!saved) throw new Error("原固定变更不可用或与原会话不匹配");
+  if (!saved) throw codingLocalFailure("coding.server.change-mismatch", "原固定变更不可用或与原会话不匹配");
   return { change: saved.change, reference, saved_at: artifact.created_at };
 }
 
@@ -51,7 +52,7 @@ type ReviewRow = { request: AgentReviewRequest; receipt: AgentReviewReceipt | nu
  * outcome, or a file that is simply gone proves nothing for this round, so none is listed.
  */
 export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows: ReviewRow[]): CodingChangeSet {
-  if (!["completed", "failed", "stopped", "cancelled"].includes(run.phase)) throw new Error("请等待这一轮结束或先核对中断结果，再固定变更");
+  if (!["completed", "failed", "stopped", "cancelled"].includes(run.phase)) throw codingLocalFailure("coding.server.change-wait-turn", "请等待这一轮结束或先核对中断结果，再固定变更");
   const seen = new Set<string>();
   const files = rows.flatMap(({ request, receipt }): CodingFileChange[] => {
     const document = request.document;
@@ -62,8 +63,8 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
     const ofRound = document.kind === "text-edit"
       ? request.run?.run_id === run.ref.run_id && request.run.session_id === run.ref.session_id
       : request.run === null && document.source.run_id === run.ref.run_id && document.source.session_id === run.ref.session_id;
-    if (!ofRound) throw new Error("审查不属于这一轮");
-    if (!receipt || receipt.review_id !== request.review_id) throw new Error("原执行回执不可读，暂不能固定变更");
+    if (!ofRound) throw codingLocalFailure("coding.server.change-review-elsewhere", "审查不属于这一轮");
+    if (!receipt || receipt.review_id !== request.review_id) throw codingLocalFailure("coding.server.change-receipt-unreadable", "原执行回执不可读，暂不能固定变更");
     const execution = executionOf(receipt);
     if (document.kind === "git-integration") {
       // A child writes in its own session, so its own reviews are not this round's; what it brought back is proven here, file by
@@ -79,7 +80,7 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
       });
     }
     parseFilePath(document.target_path.split("/"));
-    if (document.exists !== (document.before_text !== null)) throw new Error("原审查文件状态不一致");
+    if (document.exists !== (document.before_text !== null)) throw codingLocalFailure("coding.server.change-file-state-mismatch", "原审查文件状态不一致");
     return [{ path: document.target_path, kind: document.exists ? "modified" as const : "added" as const,
       ...codingChangedLines(document.before_text, document.after_text),
       diff: "", review: { review_id: request.review_id, before_text: document.before_text, after_text: document.after_text, decision: receipt.status, execution } }];
@@ -103,17 +104,18 @@ const afterState = (file: CodingFileChange): string | null => file.kind === "del
 export function codingNetChange(change: CodingChangeSet, path: string):
   | { available: true; indices: number[]; before_text: string | null; after_text: string }
   | { available: false; indices: number[]; reason: string } {
+  const netReason = (key: string, fallback: string) => tryUiText(key) ?? fallback;
   const indices = change.files.flatMap((file, index) => file.path === path ? [index] : []);
-  if (indices.length < 2) return { available: false, indices, reason: "这个文件本轮只写入了一次" };
+  if (indices.length < 2) return { available: false, indices, reason: netReason("coding.change.net-single", "这个文件本轮只写入了一次") };
   const entries = indices.map(index => change.files[index]!);
   if (entries.some(({ review }) => review.decision !== "approved" || review.execution !== "applied"))
-    return { available: false, indices, reason: "有写入未批准或执行结果不确定，只能逐次查看" };
+    return { available: false, indices, reason: netReason("coding.change.net-unsettled", "有写入未批准或执行结果不确定，只能逐次查看") };
   for (let at = 1; at < entries.length; at++) {
-    if (entries[at]!.review.before_text !== afterState(entries[at - 1]!)) return { available: false, indices, reason: "两次写入之间文件被改过，只能逐次查看" };
+    if (entries[at]!.review.before_text !== afterState(entries[at - 1]!)) return { available: false, indices, reason: netReason("coding.change.net-changed-between", "两次写入之间文件被改过，只能逐次查看") };
   }
   const first = entries[0]!, last = entries.at(-1)!;
   if (first.review.before_text === null && afterState(last) === null) {
-    return { available: false, indices, reason: "文件在本轮新建后又被删除，请逐次查看" };
+    return { available: false, indices, reason: netReason("coding.change.net-created-deleted", "文件在本轮新建后又被删除，请逐次查看") };
   }
   return { available: true, indices, before_text: first.review.before_text, after_text: last.review.after_text };
 }

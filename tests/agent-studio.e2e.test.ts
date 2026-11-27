@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { pluginFrameBrowser } from './fixtures/plugin-frame-browser.js';
 import { LocalHostHttpClient } from '@molis-ai/molis-work-test-kit/local-host-http';

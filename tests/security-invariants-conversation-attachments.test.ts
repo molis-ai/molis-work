@@ -161,3 +161,12 @@ test("MR19-02 restoring missing document bytes keeps the original name and extra
   assert.equal((await readConversationAttachment(home, coding, note.ref, { as: "text" })).text, "周三同步");
   assert.deepEqual((await readConversationAttachment(home, coding, note.ref, { as: "original" })).original, words);
 }));
+
+test("F-hc-15: decoded document size rejects payloads 1 byte past the 25 MiB limit even with identical base64 length", async () => inHome(async home => {
+  const overLimit = Buffer.alloc(25 * 1024 * 1024 + 1, 0x61);
+  await assert.rejects(
+    attachConversationFile(home, coding, upload("over-limit.txt", overLimit)),
+    { code: "material.attachment.too_large" },
+  );
+  assert.equal(existsSync(blobs(home)) ? (await readdir(blobs(home))).length : 0, 0, "oversized document writes no blob");
+}));

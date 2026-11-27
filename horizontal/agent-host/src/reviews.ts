@@ -1,5 +1,6 @@
 import { agentErrors } from "./errors.js";
 import { isDeepStrictEqual } from "node:util";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BACKGROUND_TASK_MAX_HELD_REVIEWS } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
@@ -480,7 +481,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       .filter((row) => row.request.project_id === projectId
         && (status === undefined || this.#status(row) === status))
       .map((row) => clonePresentedReview(row.request))
-      .sort((left, right) => left.requested_at.localeCompare(right.requested_at));
+      .sort((left, right) => compareCodeUnits(left.requested_at, right.requested_at));
   }
 
   /** Task providers only need IDs. Scan once without copying any of the proposals. */

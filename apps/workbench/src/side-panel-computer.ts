@@ -80,6 +80,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const ctx=canvas.getContext('2d');
   const projectId=document.body.dataset.projectId||'';
   const routePrefix=document.body.dataset.routePrefix||(projectId?'/projects/'+encodeURIComponent(projectId):'');
+  const deciding=new Set();
   let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewVersion=null,reviewRow=null;
   const say=(text)=>{if(live)live.textContent=text||'';};
   const sayError=(error)=>{if(live)molisWorkRequest.show(live,error);};
@@ -126,9 +127,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       statusHtml=box("workbench.side-panel-computer.assistants-use-computer-off",globalThis.t.text("workbench.side-panel-computer.needs-system-permissions-affects-whole-computer-so-off"))
         +'<p><a class="mw-btn mw-btn--secondary mw-btn--sm" href="'+esc(settingsHref)+'">'+esc(globalThis.t.text("workbench.side-panel-computer.open-assistant-settings"))+'</a></p>';
     }else if(state.helper?.state==='unsupported'){
-      statusHtml=box("workbench.side-panel-computer.unavailable",globalThis.t.text(problem?.message||"workbench.side-panel-computer.using-computer-needs-mac-os-14-later"));
+      statusHtml=box("workbench.side-panel-computer.unavailable",problem?.message||globalThis.t.text("workbench.side-panel-computer.using-computer-needs-mac-os-14-later"));
     }else if(state.helper?.state==='missing'){
-      statusHtml=box("workbench.side-panel-computer.computer-helper-missing",globalThis.t.text(problem?.message||"workbench.side-panel-computer.install-has-no-computer-helper"));
+      statusHtml=box("workbench.side-panel-computer.computer-helper-missing",problem?.message||globalThis.t.text("workbench.side-panel-computer.install-has-no-computer-helper"));
     }else if(perms&&missing.length){
       const names={accessibility:globalThis.t.text("workbench.side-panel-computer.accessibility"),screen_recording:globalThis.t.text("workbench.side-panel-computer.screen-recording"),input_monitoring:globalThis.t.text("workbench.side-panel-computer.input-monitoring")};
       statusHtml=box("workbench.side-panel-computer.system-permissions-needed",globalThis.t.text("workbench.side-panel-computer.system-settings-privacy-security-turn-these-molis-work"))+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(globalThis.t.text("workbench.side-panel-computer.grant"))+'</button></div>').join('');
@@ -160,15 +161,15 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const isAppField=(field)=>Boolean(field&&field.key==='app');
   const pollReviews=async()=>{
     clearTimeout(reviewTimer);reviewTimer=null;
-    let rows=[];
+    let rows;
     try{
       // Only the round holding the computer, so another project's round never shows its card here.
       const holder=state?.control?.work_id;
       const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending'+(holder?'&run_session_id='+encodeURIComponent(holder):''));
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(isAppField)&&(!row.receipt||row.receipt.status==='pending'));
-    }catch{/* a failed poll is retried on the next tick below */}
-    renderApproval(rows[0]||null);
-    if(rows.length||(state?.control?.mode&&state.control.mode!=='idle'))reviewTimer=setTimeout(pollReviews,1500);
+    }catch{/* a failed poll keeps the visible approval card until the next tick */}
+    if(rows)renderApproval(rows[0]||null);
+    if(reviewing||rows?.length||(state?.control?.mode&&state.control.mode!=='idle'))reviewTimer=setTimeout(pollReviews,1500);
   };
   const renderApproval=(row)=>{
     reviewRow=row;
@@ -186,15 +187,25 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     approval.innerHTML='<h2 tabindex="-1">'+esc(globalThis.t.text("workbench.side-panel-computer.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||'')+'</p><dl>'+fields.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>').join('')+'</dl>'+(note?'<p>'+esc(note)+'</p>':'')
       +'<div class="side-computer-approval-row">'+choices+'</div>'+(canApprove&&roundAllow?'<div class="side-computer-approval-row">'+btn('approve-round',globalThis.t.text("workbench.side-panel-computer.allow-acting-app-turn",{app:roundAllow.label}),'ghost')+'</div>':'');
     approval.hidden=false;
+    for(const b of approval.querySelectorAll('[data-computer-review]'))b.disabled=deciding.has(reviewing);
     if(same&&focused)(approval.querySelector('[data-computer-review="'+focused.dataset.computerReview+'"]')||approval.querySelector('h2')).focus({preventScroll:true});
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'computer'}}));
   };
   const btn=(action,label,cls)=>'<button type="button" data-computer-review="'+action+'" class="'+(cls||'')+'">'+esc(label)+'</button>';
   const decide=async(decision,remember)=>{
-    const id=reviewing;if(!id)return;
+    const id=reviewing;if(!id||deciding.has(id))return;
+    deciding.add(id);for(const b of approval.querySelectorAll('[data-computer-review]'))b.disabled=true;
     const body={review_id:id,version:reviewVersion,decision};if(remember)body.remember=remember;
-    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body,fallback:globalThis.t.text("workbench.side-panel-computer.answer-was-not-sent")});}catch(error){sayError(error);}
-    if(reviewing===id){approval.hidden=true;reviewing=null;reviewMode=null;}void pollReviews();
+    try{
+      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body,fallback:globalThis.t.text("workbench.side-panel-computer.answer-was-not-sent")});
+      if(reviewing===id){approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;reviewRow=null;}
+      void pollReviews();
+    }catch(error){
+      sayError(error);
+    }finally{
+      deciding.delete(id);
+      if(reviewing===id)for(const b of approval.querySelectorAll('[data-computer-review]'))b.disabled=false;
+    }
   };
   const control=async(action)=>{
     if(action==='stop'){
@@ -226,10 +237,10 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,readText,state});
   root.addEventListener('click',event=>{
     const review=event.target.closest('[data-computer-review]');
-    if(review){if(review.dataset.computerReview==='approve')decide('approve');else if(review.dataset.computerReview==='approve-round')decide('approve','app-this-round');else decide('reject');return;}
-    const act=event.target.closest('[data-computer-action]');if(act){control(act.dataset.computerAction);return;}
+    if(review){if(review.dataset.computerReview==='approve')void decide('approve');else if(review.dataset.computerReview==='approve-round')void decide('approve','app-this-round');else void decide('reject');return;}
+    const act=event.target.closest('[data-computer-action]');if(act){void control(act.dataset.computerAction);return;}
     const grant=event.target.closest('[data-computer-grant]');
-    if(grant){molisWorkRequest(routePrefix+'/api/computer/permissions',{body:{kind:grant.dataset.computerGrant}}).then(()=>say(globalThis.t.text("workbench.side-panel-computer.opened-system-settings-grant-there-come-back-here"))).catch(sayError);return;}
+    if(grant){void molisWorkRequest(routePrefix+'/api/computer/permissions',{body:{kind:grant.dataset.computerGrant}}).then(()=>say(globalThis.t.text("workbench.side-panel-computer.opened-system-settings-grant-there-come-back-here"))).catch(sayError);return;}
   });
   document.addEventListener('visibilitychange',()=>sendRaw({type:'visible',visible:visible()}));
   connect();

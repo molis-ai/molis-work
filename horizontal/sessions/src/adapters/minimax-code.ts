@@ -4,6 +4,7 @@ import {
   buildCliResumeTarget,
   extractJsonlMetadata,
   isValidNativeId,
+  locateJsonlSessionFile,
   paginateAndSearchTranscript,
   parseMessageJsonlLines,
   readJsonlLines,
@@ -89,19 +90,19 @@ export const minimaxCodeAdapter: ExternalSessionSourceAdapter = {
       throw sessionsErrors.not_found("外部会话不存在或已被移除");
     }
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 4);
-    let matchedRelative: string | null = null;
-    for (const item of walked.files) {
-      const check = isMinimaxSessionFile(item.relative, item.entry.name);
-      if (check.candidate && check.stem === nativeId) {
-        matchedRelative = item.relative;
-        break;
-      }
-    }
-    if (!matchedRelative) {
+    const matched = await locateJsonlSessionFile(
+      context.ports,
+      context.root,
+      walked.files,
+      nativeId,
+      isMinimaxSessionFile,
+      signal,
+    );
+    if (!matched) {
       throw sessionsErrors.not_found("外部会话不存在或已被移除");
     }
     const root = context.root;
-    const relative = matchedRelative;
+    const relative = matched.relative;
     const parsed = await withFileTranscriptCache(context.ports, root, relative, signal, async () => {
       const stream = await context.ports.files.open(root, relative, signal);
       const { lines, stopped } = await readJsonlLines(stream, signal);

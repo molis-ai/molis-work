@@ -89,7 +89,7 @@
 | Workflows | `<partition>/libraries/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝（每个分区一份；第 107 批搬进分区、去掉 `project_id`，版本仍是 1：没有用户，旧库不迁移） |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝旧结构/旧版本（当前 v1 含 `im_messages.subjects_json`；旧结构在可写打开前拒绝，不转换） |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
-| 主线 | `mainline/mainline.db` | 1 | `user_version` | `horizontal/mainline/src/store.ts#MAINLINE_BASELINE` | 新库从 1 开始；高版本拒绝 |
+| 主线 | `mainline/mainline.db` | 2 | `user_version` | `horizontal/mainline/src/store.ts#MAINLINE_BASELINE` | 1→2 由升级流程给既有事项设置修订 1；高版本拒绝 |
 | 首页服务 | `home-pages/home-pages.db` | 1 | `user_version` | `horizontal/home/src/store.ts#HOME_PAGES_BASELINE` | 新库从 1 开始；高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 总览索引（同一文件里可重建的派生表） | `search/search.db#overview` | 1 | `overview_meta.schema` | `packages/storage/src/adapters/overview-index.ts#OVERVIEW_INDEX_VERSION` | 清空重读（第 106 批新建） |

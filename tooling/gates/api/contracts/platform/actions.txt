@@ -2581,10 +2581,10 @@ export declare const FILE_ENTRIES_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 surface: {
-                                    readonly type: "string";
-                                    readonly minLength: 1;
-                                    readonly maxLength: 64;
-                                    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
+                                    type: string;
+                                    minLength: number;
+                                    maxLength: number;
+                                    pattern: string;
                                 };
                                 id: {
                                     type: string;
@@ -2674,10 +2674,10 @@ export declare const FILE_ENTRY_SCHEMA: {
                 type: string;
                 properties: {
                     surface: {
-                        readonly type: "string";
-                        readonly minLength: 1;
-                        readonly maxLength: 64;
-                        readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
+                        type: string;
+                        minLength: number;
+                        maxLength: number;
+                        pattern: string;
                     };
                     id: {
                         type: string;
@@ -3090,202 +3090,6 @@ export declare const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, {
 }>;
 
 export declare const IMAGE_GENERATION_ROLES: readonly ["services.list", "generate", "generations.get", "image.read"];
-
-export declare const IMAGE_GENERATION_SCHEMAS: {
-    readonly "services.list": {
-        readonly input: {
-            readonly type: "object";
-            readonly properties: {};
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-        readonly output: {
-            readonly type: "object";
-            readonly properties: {
-                connections: {
-                    type: string;
-                    items: {
-                        readonly type: "object";
-                        readonly properties: {
-                            id: {
-                                readonly type: "string";
-                                readonly minLength: 1;
-                                readonly maxLength: 256;
-                            };
-                            available: {
-                                type: string;
-                            };
-                        };
-                        readonly required: string[];
-                        readonly additionalProperties: false;
-                    };
-                };
-            };
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-    };
-    readonly generate: {
-        readonly input: {
-            readonly type: "object";
-            readonly properties: {
-                request_id: {
-                    maxLength: number;
-                    type: "string";
-                    minLength: 1;
-                };
-                connection_id: {
-                    readonly type: "string";
-                    readonly minLength: 1;
-                    readonly maxLength: 256;
-                };
-                prompt: {
-                    type: string;
-                    minLength: number;
-                    maxLength: number;
-                };
-            };
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-        readonly output: {
-            readonly type: "object";
-            readonly properties: {
-                job: {
-                    readonly type: "object";
-                    readonly properties: {
-                        id: {
-                            readonly type: "string";
-                            readonly minLength: 1;
-                            readonly maxLength: 256;
-                        };
-                        connection_id: {
-                            readonly type: "string";
-                            readonly minLength: 1;
-                            readonly maxLength: 256;
-                        };
-                        status: {
-                            enum: string[];
-                        };
-                        images: {
-                            type: string;
-                            items: {
-                                readonly type: "object";
-                                readonly properties: {
-                                    id: {
-                                        readonly type: "string";
-                                        readonly minLength: 1;
-                                        readonly maxLength: 256;
-                                    };
-                                };
-                                readonly required: string[];
-                                readonly additionalProperties: false;
-                            };
-                        };
-                        error: {
-                            type: string;
-                        };
-                    };
-                    readonly required: string[];
-                    readonly additionalProperties: false;
-                };
-            };
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-    };
-    readonly "generations.get": {
-        readonly input: {
-            readonly type: "object";
-            readonly properties: {
-                id: {
-                    readonly type: "string";
-                    readonly minLength: 1;
-                    readonly maxLength: 256;
-                };
-            };
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-        readonly output: {
-            readonly type: "object";
-            readonly properties: {
-                job: {
-                    readonly type: "object";
-                    readonly properties: {
-                        id: {
-                            readonly type: "string";
-                            readonly minLength: 1;
-                            readonly maxLength: 256;
-                        };
-                        connection_id: {
-                            readonly type: "string";
-                            readonly minLength: 1;
-                            readonly maxLength: 256;
-                        };
-                        status: {
-                            enum: string[];
-                        };
-                        images: {
-                            type: string;
-                            items: {
-                                readonly type: "object";
-                                readonly properties: {
-                                    id: {
-                                        readonly type: "string";
-                                        readonly minLength: 1;
-                                        readonly maxLength: 256;
-                                    };
-                                };
-                                readonly required: string[];
-                                readonly additionalProperties: false;
-                            };
-                        };
-                        error: {
-                            type: string;
-                        };
-                    };
-                    readonly required: string[];
-                    readonly additionalProperties: false;
-                };
-            };
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-    };
-    readonly "image.read": {
-        readonly input: {
-            readonly type: "object";
-            readonly properties: {
-                id: {
-                    readonly type: "string";
-                    readonly minLength: 1;
-                    readonly maxLength: 256;
-                };
-                image_id: {
-                    readonly type: "string";
-                    readonly minLength: 1;
-                    readonly maxLength: 256;
-                };
-            };
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-        readonly output: {
-            readonly type: "object";
-            readonly properties: {
-                base64: {
-                    type: string;
-                };
-                mime_type: {
-                    type: string;
-                };
-            };
-            readonly required: string[];
-            readonly additionalProperties: false;
-        };
-    };
-};
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
@@ -4495,10 +4299,10 @@ export declare const SEARCH_ENTRIES_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 surface: {
-                                    readonly type: "string";
-                                    readonly minLength: 1;
-                                    readonly maxLength: 64;
-                                    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
+                                    type: string;
+                                    minLength: number;
+                                    maxLength: number;
+                                    pattern: string;
                                 };
                                 id: {
                                     type: string;
@@ -4575,10 +4379,10 @@ export declare const SEARCH_ENTRY_SCHEMA: {
                 type: string;
                 properties: {
                     surface: {
-                        readonly type: "string";
-                        readonly minLength: 1;
-                        readonly maxLength: 64;
-                        readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
+                        type: string;
+                        minLength: number;
+                        maxLength: number;
+                        pattern: string;
                     };
                     id: {
                         type: string;
@@ -4600,10 +4404,10 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
     type: string;
     properties: {
         surface: {
-            readonly type: "string";
-            readonly minLength: 1;
-            readonly maxLength: 64;
-            readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
+            type: string;
+            minLength: number;
+            maxLength: number;
+            pattern: string;
         };
         id: {
             type: string;
@@ -4615,13 +4419,6 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 };
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
-
-export declare const SEARCH_SURFACE_SCHEMA: {
-    readonly type: "string";
-    readonly minLength: 1;
-    readonly maxLength: 64;
-    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
-};
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
     readonly type: "object";
@@ -5635,12 +5432,12 @@ export declare const WORK_ITEM_NEXT_OUTPUT_SCHEMA: {
                                 readonly text: {
                                     readonly type: "string";
                                     readonly minLength: 1;
-                                    readonly maxLength: number;
+                                    readonly maxLength: 200;
                                 };
                                 readonly waiting_on: {
                                     readonly type: "string";
                                     readonly minLength: 1;
-                                    readonly maxLength: number;
+                                    readonly maxLength: 200;
                                 };
                                 readonly start: {
                                     readonly type: "object";
@@ -5683,6 +5480,53 @@ export declare const WORK_ITEM_NEXT_OUTPUT_SCHEMA: {
         };
     };
     readonly required: readonly ["items"];
+    readonly additionalProperties: false;
+};
+
+export declare const WORK_ITEM_NEXT_STEP_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly text: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly waiting_on: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly start: {
+            readonly type: "object";
+            readonly properties: {
+                readonly action: {
+                    readonly required: readonly ["capability_id", "version", "provider_id"];
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly capability_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                        readonly version: {
+                            readonly type: "integer";
+                            readonly minimum: 1;
+                        };
+                        readonly provider_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                    };
+                    readonly additionalProperties: false;
+                };
+                readonly input: {
+                    readonly type: "object";
+                };
+            };
+            readonly required: readonly ["action", "input"];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly required: readonly ["text"];
     readonly additionalProperties: false;
 };
 
@@ -5842,12 +5686,12 @@ export declare const WORK_ITEM_PARTS: {
                                         readonly text: {
                                             readonly type: "string";
                                             readonly minLength: 1;
-                                            readonly maxLength: number;
+                                            readonly maxLength: 200;
                                         };
                                         readonly waiting_on: {
                                             readonly type: "string";
                                             readonly minLength: 1;
-                                            readonly maxLength: number;
+                                            readonly maxLength: 200;
                                         };
                                         readonly start: {
                                             readonly type: "object";

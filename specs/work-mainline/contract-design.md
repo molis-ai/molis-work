@@ -55,6 +55,8 @@ interface Mainline {
 
 ## 3. 动作（`system.mainline`，项目范围）
 
+每件事项有独立的整数修订，从 1 起步。实际改名或转成对象时与事项同笔递增；原名改回也算一次。同名写入、移动事项及改动其他事项均保留该版本。正式对象的正文修订同时计入来源对象当前的修订。
+
 本人、Agent、MCP 都能调（MLN-13）；工作流只能读。改排列的写动作（移动、改组、完成、移出、改名、变成）带 `expected_revision`，排列冲突回 `mainline.conflict` 并带当前主线；只追加的写（新建事项、`holds` 的新建与放进）和切换不带，免得两个窗口互相冲突。权限：读 `mainline:read`，写 `mainline:arrange`（新）；宿主像给角色的权限一样把它加进本机本人的权限，Agent 与 MCP 经同一套授权取得，不另开名单。
 
 **要等别的主人的写（评审 M1）。** `items.create` 的 `from`／`create_as`、`items.convert`、`holds.bind`／`holds.create` 要先以调用方身份读或建来源对象，都声明 `scheduling: "concurrent"`，返回后先 `beforeEffect()` 再提交主线这边。新建来源对象的输入带 `request_id`（由主线服务从调用方给的 `request_id`——没给就用调用号——连同人、项目、种类和名字或事项派生），来源主人按它重放同一个对象；主线这边按来源唯一索引幂等，所以取消或冲突后重试不会多出一个 Goal。
@@ -70,7 +72,7 @@ interface Mainline {
 | `mainline.items.convert@1` | `{ expected_revision, item_id, kind }`，可带 `request_id` → `{ mainline, item }` | 「变成 xx」：在来源里新建对象并和轻量事项绑上，装的东西不变，名字改向来源读（MLN-21 在第 37 批走界面） |
 | `mainline.items.rename@1` | `{ expected_revision, item_id, name }` | 只对轻量事项 |
 | `mainline.items.move@1` | `{ expected_revision, item_id, group_id, index, pinned? }` | 组内拖动、移到别的组、固定在前 |
-| `mainline.items.complete@1` | `{ expected_revision, item_id, completed: boolean }` | 收进已完成、撤销、放回 |
+| `mainline.items.complete@1` | `{ expected_revision, item_id, completed: boolean }` | 收进已完成、撤销、放回；修订匹配时，事项不存在或已在所求状态就返回当前排列 |
 | `mainline.items.remove@1` | `{ expected_revision, item_id }` | 从主线移出：删容器和它的「装进」关联，不删装的对象、不删来源对象（MLN-10） |
 | `mainline.groups.edit@1` | `{ expected_revision, op: "add" \| "rename" \| "delete" \| "move", ... }` | 删组时组里的事项并到相邻的组（前一组，没有前一组就后一组），一件不丢（MLN-04） |
 | `mainline.switch@1` | `{ item_id: string \| null }` | 切换当前事项；`null` 是不选事项；更新最近切过 |
@@ -129,7 +131,7 @@ interface PresentationObject {
 
 ```sql
 CREATE TABLE mainline_items (owner_actor_id TEXT NOT NULL, project_id TEXT NOT NULL, item_id TEXT NOT NULL,
-  name TEXT, source_kind TEXT, source_id TEXT, created_at TEXT NOT NULL,
+  name TEXT, source_kind TEXT, source_id TEXT, created_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (owner_actor_id, project_id, item_id),
   CHECK ((name IS NULL) != (source_kind IS NULL)));
 CREATE UNIQUE INDEX mainline_items_source ON mainline_items (owner_actor_id, project_id, source_kind, source_id) WHERE source_kind IS NOT NULL;
@@ -143,7 +145,7 @@ CREATE INDEX mainline_holds_subject ON mainline_holds (owner_actor_id, project_i
 - 存的只有：轻量事项的名字、来源引用、装进的引用、排列（MLN-12）；查不到插件对象的标题、状态或正文。测试按列名与内容核对。
 - 删除项目：在宿主的项目删除主人表里加一项，删掉这个项目的三张表的行（同 Characters 的 `charactersProjectData`）。
 - 同步：主线是个人数据，个人同步合同落地之前只在本机（主线 §6）。
-- 库版本从 1 开始（新库），登记进 `home-stores.ts`、版本表、`docs/system/HOME-DATA.md` 与 `tooling/gates/table-owners.json`（表主人核对）。
+- 事项库现为 v2，v1 经显式升级给每行补修订 1，登记进 `home-stores.ts`、版本表、`docs/system/HOME-DATA.md` 与 `tooling/gates/table-owners.json`（表主人核对）。
 
 ## 7. 记录（MLN-18）
 

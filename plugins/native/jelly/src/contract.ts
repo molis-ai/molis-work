@@ -21,3 +21,6 @@ export interface JellySeries extends Omit<JellyItem, "completed_at"> {
 export interface JellyOccurrence extends JellyItem { series_id: string | null; original_date: string | null }
 /** A plain-text or Markdown note, kept for a day or on its own. */
 export interface JellyNote { id: string; title: string; body: string; day: string | null; revision: number; created_at: string; updated_at: string }
+export type JellyRestoreRows = { categories?: JellyCategory[]; items?: JellyItem[]; series?: JellySeries[]; notes?: JellyNote[] };
+/** Pass the receipt returned by the removing action back to restore, including checks for rows it modified in place. */
+export type JellyRestoreReceipt = JellyRestoreRows & { modified?: { kind: "item" | "series"; id: string; digest: string }[] };

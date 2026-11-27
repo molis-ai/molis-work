@@ -19,8 +19,7 @@ import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { shippedParts } from "./plugin-registry.js";
 import { checkedOwnerFilesBase } from "./plugin-sandbox-owner-files.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { partitionLibraryPath } from "./partition-plugin-assembly.js";
-import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { partitionPluginScope } from "./partition-plugin-assembly.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 
 const exportErrors = defineErrorCodes("host", {
@@ -337,8 +336,10 @@ function verifyInstalledHomeLibrary(
  */
 function readPartitionLibraryItems(homeDirectory: string, discovered: DiscoveredPluginData, declaration: PluginDatabaseDeclaration,
   tables: readonly string[], projectId: string): ReturnType<typeof readTableItems> {
-  if (!discovered.builtin) throw new ActionError("actions.forbidden", "第三方插件的分区独立库暂不支持导出");
-  const file = partitionLibraryPath(partitionRoot(realpathSync(homeDirectory), projectId), declaration.store_name);
+  const manifest = discovered.builtinManifest;
+  if (!discovered.builtin || !manifest) throw new ActionError("actions.forbidden", "第三方插件的分区独立库暂不支持导出");
+  const scope = partitionPluginScope(homeDirectory, projectId, manifest.plugin_id, installIdentity(manifest));
+  const file = scope.assertOwnPath(scope.libraryPath(declaration.store_name));
   if (!existsSync(file)) return { items: [], truncated: false };
   const db = openHomeSqliteFile(file, { readOnly: true });
   try { return readTableItems(db, tables); } finally { db.close(); }

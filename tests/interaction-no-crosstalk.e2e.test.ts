@@ -408,7 +408,7 @@ const OUR_GOAL = "甲项目的发布清单", THEIR_GOAL = "乙项目的发布清
 
 test("AC-05: a reference question in one project finds and keeps only that project's objects; switching projects carries no pick or answer across", { timeout: 300_000 }, async t => {
   const opened = await openCoding(t, [OURS, THEIRS]); if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding, heard, enter, ask, show, projectId, homeDirectory, waitObserved } = opened;
+  const { click, evaluate, waitFor, coding, heard, enter, ask, show, projectId, homeDirectory, waitObserved } = opened;
   const otherProject = await createProject(opened.web, "另一项目");
   for (const plugin_id of BUILTIN_PLUGIN_IDS) await addProjectPlugin(opened.web, otherProject.project_id, plugin_id);
   const other = otherProject.project_id;
@@ -419,15 +419,12 @@ test("AC-05: a reference question in one project finds and keeps only that proje
     .then(async r => { if (!r.ok) throw new Error(await r.text()); })`);
   const card = `${coding} [data-coding-question][data-ix-question]`;
   const query = `${card} [data-ix-field=r0] [data-ix-ref-query]`, list = `${card} [data-ix-field=r0] [role=listbox]`;
-  /** Types into the question's search until it offers something (a fresh Home may still be indexing); resolves to the labels offered. */
+  /** Type on the visible Coding card and wait for that query's result before picking from it. */
   const search = async (words: string) => {
-    for (let attempt = 0; attempt < 20 && !(await evaluate<boolean>(`!document.querySelector('${list}').hidden`)); attempt++) {
-      await click(query);
-      await evaluate(`document.querySelector('${query}').select()`);
-      await command("Input.insertText", { text: words }, sessionId);
-      assert.equal(await evaluate(`document.querySelector('${query}').value`), words, "the reference query received the typed text");
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+    await click(query);
+    await waitFor(`document.activeElement === document.querySelector('${query}')`);
+    await opened.frameCommand("Input.insertText", { text: words });
+    await waitFor(`document.querySelector('${query}').value === ${JSON.stringify(words)}`);
     await waitFor(`!document.querySelector('${list}').hidden`, 10_000);
     return evaluate<Array<{ value: string; label: string }>>(`[...document.querySelectorAll('${list} [role=option]')].map(o => ({ value: o.dataset.ixRefOption, label: o.dataset.label }))`);
   };

@@ -91,6 +91,7 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
     await prepare(name, isolated ? children[name]! : browser);
     for (const page of isolated ? [browser,children[name]!] : [browser]) {
     const {evaluate} = page;
+    const focusFrame: Awaited<ReturnType<typeof pluginFrameBrowser>> | undefined = page === browser ? undefined : children[name];
     await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
     const hidden = await evaluate<HoverHidden[]>(HOVER_HIDDEN);
     const seen = new Set<string>();
@@ -101,7 +102,8 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       checked++;
       // A key press first, so the focus that follows is keyboard focus (:focus-visible).
       for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Shift", code: "ShiftLeft", windowsVirtualKeyCode: 16 }, sessionId);
-      const how = await evaluate<string>(hoverFocus(item.index));
+      const focus = hoverFocus(item.index);
+      const how = focusFrame ? await focusFrame.evaluate<string>(focus, undefined, "person") : await evaluate<string>(focus);
       await pause(350);
       const alpha = await evaluate<number>(hoverShown(item.index));
       if (!how) found.push(`${name}: ${kind} "${item.name}" can't be reached by keyboard`);

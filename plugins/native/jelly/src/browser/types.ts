@@ -7,7 +7,7 @@ export type JellyHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
 /** A failed action: the Host's Error with its `code`, HTTP `status` and, for a conflict, which row and its revision now. */
 export type Failure = Error & { status?: number; code?: string; details?: { id?: string; revision?: number } };
 export type NoteSummary = Pick<JellyNote, "id" | "title" | "day" | "revision" | "updated_at"> & { excerpt: string };
-export type Rows = { categories?: JellyCategory[]; items?: JellyItem[]; series?: JellySeries[]; notes?: JellyNote[] };
+export type { JellyRestoreRows as Rows, JellyRestoreReceipt } from "../contract.js";
 export type Scope = "onlyThis" | "thisAndFuture" | "all";
 
 /** The entry being written in the side panel: a new one, a one-off entry, or one occurrence of a series. */
@@ -15,6 +15,7 @@ export interface Draft {
   occurrence: JellyOccurrence | null;
   title: string; kind: "task" | "event"; allDay: boolean;
   start_date: string; end_date: string; start_time: string; end_time: string; reminder_minutes: string;
+  originalRule?: { weekdays: number[]; until: string };
   repeat: boolean; weekdays: number[]; until: string;
   category_id: string; notes: string; scope: Scope;
   /** Set when the save met a newer version of this entry: the page says so and offers the latest. */

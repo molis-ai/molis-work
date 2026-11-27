@@ -1,6 +1,7 @@
+import { openImagesDatabase } from "./fixtures/plugin-home-stores.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
@@ -212,10 +213,27 @@ test("UPP-06 B2R-06 Images data export reads owner files only from the requested
     const dir = join(partitionRoot(home.home, partition), "plugin-files", installIdentity(imagesManifest), "images", "assets");
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "same-name.png"), partition);
+    const db = openImagesDatabase(home.home, partition);
+    try {
+      db.prepare(`INSERT INTO jobs (id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at)
+        VALUES ('job','request','digest','service','Test','openai-images','test',?,'auto','1:1','completed','[]','',?)`)
+        .run("image for " + partition, new Date().toISOString());
+    } finally { db.close(); }
   }
   for (const partition of ["personal", project.project_id]) {
     const snapshot = await client.invoke(caller, ref(pluginDataActions.export), { plugin_id: imagesManifest.plugin_id, project_id: partition }) as PluginDataExportResult;
     assert.deepEqual(snapshot.sections.flatMap(section => section.files ?? []).map(file => [file.path, Buffer.from(file.content_base64!, "base64").toString()]),
       [["assets/same-name.png", partition]]);
+    const jobs = snapshot.sections.flatMap(section => section.items).find(item =>
+      typeof item === "object" && item !== null && "table" in item && item.table === "jobs") as { rows: { prompt: string }[] };
+    assert.deepEqual(jobs.rows.map(row => row.prompt), ["image for " + partition]);
   }
+  // An empty directory outside the requesting partition is not one of its readable libraries.
+  const libraries = join(partitionRoot(home.home, project.project_id), "libraries");
+  const other = join(home.home, "empty-export-fixture");
+  await mkdir(other);
+  await rename(libraries, libraries + ".saved");
+  await symlink(other, libraries, "dir");
+  await assert.rejects(client.invoke(caller, ref(pluginDataActions.export),
+    { plugin_id: imagesManifest.plugin_id, project_id: project.project_id }), { code: "actions.forbidden" });
 });

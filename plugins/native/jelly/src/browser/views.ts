@@ -159,15 +159,21 @@ function week(state: JellyState): string {
   const { start } = period(state),
     today = civil(),
     days = Array.from({ length: 7 }, (_, index) => addDays(start, index));
-  const hour = 44,
-    first = 7,
-    top = (minute: number) => (minute / 60 - first) * hour;
+  // Split timed entries at midnight. Both the ruler and the columns use these visible intervals.
+  const slots = days.map(day => onDay(state, day).flatMap(entry => {
+    if (entry.start_time === null || entry.end_time === null) return [];
+    const from = day === entry.start_date ? entry.start_time : 0;
+    const until = day === entry.end_date ? entry.end_time : 1440;
+    return until > from ? [{ entry, from, until }] : [];
+  }));
+  const first = slots.reduce((hour, column) => column.reduce((earliest, slot) => Math.min(earliest, Math.floor(slot.from / 60)), hour), 7);
+  const hour = 44, top = (minute: number) => (minute / 60 - first) * hour;
   const heads = `<div class="jelly-wh"></div>${days.map((day) => `<button type="button" class="jelly-wh" ${day === today ? "data-today" : ""} ${day === state.selected ? "data-selected" : ""} data-jelly-day="${day}">${esc(weekdayLabel(day))}<b>${dayDate(day).getDate()}</b></button>`).join("")}`;
   const allDay = `<div class="jelly-allday-label">${uiText("jelly.item.all-day")}</div>${days
     .map(
       (day) =>
         `<div class="jelly-allday" data-jelly-day="${day}">${onDay(state, day)
-          .filter((entry) => entry.start_time === null || entry.start_date !== entry.end_date)
+          .filter((entry) => entry.start_time === null)
           .map((entry) => chip(state, entry))
           .join("")}</div>`,
     )
@@ -175,12 +181,10 @@ function week(state: JellyState): string {
   const ruler = `<div class="jelly-ruler">${Array.from({ length: 24 - first }, (_, index) => `<span style="top:${index * hour}px">${String(first + index).padStart(2, "0")}:00</span>`).join("")}</div>`;
   const columns = days
     .map(
-      (day) =>
-        `<div class="jelly-col" data-jelly-day="${day}">${onDay(state, day)
-          .filter((entry) => entry.start_time !== null && entry.start_date === entry.end_date)
-          .map((entry) => {
-            const y = Math.max(0, top(entry.start_time!)),
-              height = Math.max(22, top(entry.end_time ?? entry.start_time! + 30) - y - 2);
+      (day, index) =>
+        `<div class="jelly-col" data-jelly-day="${day}">${slots[index]!
+          .map(({ entry, from, until }) => {
+            const y = top(from), height = Math.min(top(1440) - y, Math.max(22, top(until) - y - 2));
             return `<div class="jelly-slot" style="top:${y}px;height:${height}px">${chip(state, entry)}</div>`;
           })
           .join("")}</div>`,
@@ -238,7 +242,7 @@ function rail(state: JellyState): string {
     <section><p class="jelly-sec">${icon("calendar")}${uiText("jelly.rail.schedule")}</p>
       ${entries.length ? entries.map((entry) => renderRow(state, entry)).join("") : `<p class="jelly-muted">${uiText("jelly.rail.nothing")}</p>`}
       <label class="jelly-quick">${icon("plus")}<input class="mw-input" data-jelly-quick placeholder="${uiText("jelly.rail.quick")}" aria-label="${uiText("jelly.rail.quick")}" maxlength="500"></label></section>
-    <section class="jelly-day-note-box" data-jelly-day-note><p class="jelly-sec">${icon("note")}${uiText("jelly.rail.note")}</p>${noteBox(state.dayNote, "jelly.rail.note", false)}</section>
+    <section class="jelly-day-note-box" data-jelly-day-note><p class="jelly-sec">${icon("note")}${uiText("jelly.rail.note")}</p>${state.dayNote.day === day ? noteBox(state.dayNote, "jelly.rail.note", false) : ""}</section>
   </aside>`;
 }
 
@@ -267,7 +271,8 @@ export function renderCalendar(state: JellyState, noteDays: ReadonlySet<string>)
 }
 
 export function renderNotes(state: JellyState): string {
-  if (!state.notes.length && !state.noteQuery && !state.note.note && !state.note.dirty && !state.note.open)
+  const isOpen = Boolean(state.note.note || state.note.dirty || state.note.open);
+  if (!state.notes.length && !state.noteQuery && !isOpen)
     return `<div class="jelly-center">${renderEmpty({
       icon: "note",
       title: tx("jelly.notes.empty-title"),
@@ -288,7 +293,7 @@ export function renderNotes(state: JellyState): string {
     )
     .join("");
   const editor =
-    state.note.note || state.note.dirty || state.note.open
+    isOpen
       ? `<section class="jelly-editor" data-jelly-notes-editor>
       <div class="jelly-ebar">${button("jelly.detail.back", { "data-jelly-act": "note-back" }, { icon: "chevron-left", iconOnly: true, className: "jelly-narrow" })}
         <label class="jelly-date-chip">${icon("calendar")}<span>${state.note.day ? esc(dateLabel(state.note.day)) : uiText("jelly.note.pin-day")}</span><input type="date" data-jelly-note-day value="${esc(state.note.day ?? "")}" aria-label="${uiText("jelly.note.pin-day")}"></label>
@@ -297,7 +302,7 @@ export function renderNotes(state: JellyState): string {
         ${state.note.note ? button("jelly.note.delete", { "data-jelly-act": "delete-note" }, { icon: "trash", iconOnly: true }) : ""}
       </div>${noteBox(state.note, "jelly.note.body", state.noteRead)}</section>`
       : `<section class="jelly-editor jelly-center"><p class="jelly-muted">${uiText("jelly.notes.pick")}</p></section>`;
-  return `<div class="jelly-notes" ${current || state.note.dirty ? "data-open" : ""}><nav class="jelly-nlist" aria-label="${uiText("jelly.tab.notes")}">
+  return `<div class="jelly-notes" ${isOpen ? "data-open" : ""}><nav class="jelly-nlist" aria-label="${uiText("jelly.tab.notes")}">
     <label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-jelly-note-search value="${esc(state.noteQuery)}" placeholder="${uiText("jelly.notes.search")}" aria-label="${uiText("jelly.notes.search")}"></label>
     ${rows || `<p class="jelly-muted jelly-pad">${uiText("jelly.notes.no-match")}</p>`}</nav>${editor}</div>`;
 }

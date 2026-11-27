@@ -6,7 +6,6 @@ import { createFormPlugin, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FAC
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  preservedMembershipBatch: 107,
   project_plugin_id: FORM_PROJECT_PLUGIN_ID, catalog_order: 16,
   manifest: formManifest,
   project_runtime: { create: createFormPlugin, package_name: "@molis-ai/molis-work-plugin-form", factory_export: "createFormPlugin" },

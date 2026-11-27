@@ -1,3 +1,4 @@
+import { openTestHome } from "./fixtures/test-home.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -258,4 +259,29 @@ test("BL-missed-runs-never-expire /api/runtime/expired/seen isolates homes, igno
   const afterRes = await fetch(`${originA}/api/runtime/overview`);
   const after = await afterRes.json() as { expired: { count: number } };
   assert.equal(after.expired.count, 0, "acknowledged expired summary is not repeated");
+});
+
+test("UPP-30 the runtime panel applies project readability to cached scheduled runs", async t => {
+  let denied = "";
+  const home = await openTestHome(t, { host: { overviewProjectAccess: (_caller, id) => id !== denied } });
+  const a = await home.createProject("A"), b = await home.createProject("B");
+  const now = new Date().toISOString(), due = new Date(Date.now() + 60_000).toISOString();
+  for (const project of [a, b]) {
+    await fetch(`${home.origin}/projects/${project.project_id}/?openPlugin=schedule`);
+    const store = new LocalProjectDatabase(project.database_path);
+    try {
+      await writeMainOverviewRows(home.home, store, project.project_id, scheduleManifest, rows => rows.upsert("scheduled_run",
+        { row_id: project.project_id, title: project.project_id, due_at: due, updated_at: now }));
+    } finally { store.close(); }
+  }
+  const titles = async () => {
+    const result = await fetch(`${home.origin}/api/runtime/overview`);
+    assert.equal(result.status, 200);
+    return ((await result.json()) as { upcoming: { title: string }[] }).upcoming.map(row => row.title);
+  };
+  const visible = await titles();
+  assert.ok(visible.includes(a.project_id) && visible.includes(b.project_id));
+  denied = a.project_id;
+  const allowed = await titles();
+  assert.ok(!allowed.includes(a.project_id) && allowed.includes(b.project_id));
 });

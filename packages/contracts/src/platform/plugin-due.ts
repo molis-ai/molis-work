@@ -1,11 +1,14 @@
 import type { PersonSettingRecord } from "../services/person-settings.js";
 
+/** A plugin can reserve this due entry to rebuild its projection from current business rows after waking, even after a long shutdown. */
+export const OVERVIEW_REFRESH_ENTRY_KEY = "overview:refresh";
+
 /**
  * Work a per-partition instance has to do at some time (specs/unified-partition-plugins §4.1 到期的工作, batch 108): kept in the Home's due
  * registry, so the instance need not run until then; at the time the platform wakes only this plugin in this partition
  * (S-partition-wake-scope) and hands it the entry (`onDue`). Two kinds of entries reach a plugin: the ones it registers itself
  * (`services.due`), and the reminder times the platform read from its overview table (`source: "overview"`, keyed `<kind>:<row_id>`), which
- * it never registers itself. An entry seven days past its time is not handed over (batch 95-3's rule for missed runs).
+ * it never registers itself. User reminders expire after seven days. The plugin's reserved projection refresh instead reconciles current rows without issuing a notice.
  */
 export interface PluginDueEntry {
   readonly entry_key: string;

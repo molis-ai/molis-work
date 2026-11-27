@@ -35,7 +35,7 @@
 | `apps/local-host/src/web-project-settings.ts` 的 `personProjects`（`GET /api/settings/projects`） | `listProjects` | 设置里的项目列表只对用户项目；个人空间不能改名、删除。`settingsProjects` 仍用 `listPartitions`：设置与能力页按 `?project=` 解析时个人空间也在；没点名也没打开过时，设置页落到第一个用户项目（`web-settings-arrival.ts`）；「设置 › 项目」的项目管理列表（`settings-project-manager.ts`）、授权管理/项目规则下拉（`settings-authorizations.ts`）、个人记忆「移入项目」列表（`settings-memory.ts`）与安装诊断的项目数均过滤掉 `personal`，其余设置与能力页的视图仍带全部分区，从个人空间点开时能解析、标注它 |
 | `apps/local-host/src/sessions-ports.ts` | `listProjects` | 外部会话归入个人空间随 111 批的界面一起做，本批不变 |
 | `modules/private-work-context/src/project-resolution.ts` | `listProjects` | 外部工具的项目建议与 MCP 项目列表一致，本批不建议个人空间；随 110 批 `S-mcp-personal-binding` 一起放开 |
-| `scripts/golden/populate.mjs` | `listPartitions` | 金样要覆盖全部分区 |
+| ~~开发金样填充脚本~~（已按[决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69) 移除） | — | 开发前阶段不维护开发金样 |
 
 ## 2. `host.projects()`（打开着的分区实例）
 
@@ -57,7 +57,7 @@
 | `apps/local-host/src/home-stores.ts`、`home-store-snapshot.ts` | 登记 `personal-space` 存储和它的快照规则（与项目库同一套 `partitionDatabaseSnapshot`） |
 | `apps/local-host/src/plugin-sandbox-owner-files.ts` | 项目级沙箱主人文件根改用 `partitionRoot()` |
 | `apps/local-host/src/platform-upgrade-stores.ts` 里的 `partitionFiles` / `libraryDescriptor` | 仍按 `<store>/projects/*` 找，因为今天没有内置插件申报按分区的 Home 库；107 批落地 `databases.partition` 时改到分区根 |
-| `tooling/gates/schemas/stores.tsv` 的键 | 本批不改名：改了键，本 PR 的基线对照就会跳过，等于放松门禁。路径由 `<partition>` 通配覆盖 |
+| ~~原 schema 存储清单表键~~（已按[决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69) 移除） | 开发前阶段改由 `scripts/gates/initial-versions.mjs` 统一守卫全量 v1 与零 `upgrades` |
 
 ## 4. `project_id: null` 逐文件
 
@@ -239,8 +239,6 @@
 | `plugins/native/todo/src/organize.ts` | 1 | ② | 原 Home 插件的个人位置 | 改 `personal` 分区 | 108 |
 | `plugins/native/todo/src/store-support.ts` | 1 | ② | 原 Home 插件的个人位置 | 改 `personal` 分区 | 108 |
 | `plugins/native/todo/src/store-writes.ts` | 3 | ② | 原 Home 插件的个人位置 | 改 `personal` 分区 | 108 |
-| `scripts/golden/home-library-sample.mjs` | 1 | ① | Home 系统作用域 | 保留 `null` | — |
-| `scripts/golden/session.mjs` | 1 | ① | Home 系统作用域 | 保留 `null` | — |
 | `scripts/preview-functions.mts` | 1 | ① | Home 系统作用域 | 保留 `null` | — |
 | `server/src/im/reads.ts` | 1 | ③ | 项目讨论 IM 的存储 | 个人空间 IM 已与项目同构（R21），存储键归类 | 110 |
 

@@ -368,8 +368,8 @@ for (const removal of ["project", "title"] as const) test(`B2R-02 the next model
   await grant("0", ["title", "status"]);
 
   let round = 0;
-  const wire: string[][] = [[], []];
-  const asked = [false, false];
+  const wire: string[][] = [[], [], []];
+  const asked = [false, false, false];
   const reply = answeringEndingReviews(text => respond(undefined, text), async () => {
     if (asked[round]) return respond();
     asked[round] = true;
@@ -389,7 +389,7 @@ for (const removal of ["project", "title"] as const) test(`B2R-02 the next model
       protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture" });
   agents.register(adapter);
   closeAssistantService(home.host);
-  const { service } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: agents, agentReady: async () => {},
+  const { service, store } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: agents, agentReady: async () => {},
     projectTitle: async () => "Overview", pages: async () => [], projectReference: async id => {
       if (id === a.project_id) return a.reference;
       if (id === b.project_id) return b.reference;
@@ -397,12 +397,12 @@ for (const removal of ["project", "title"] as const) test(`B2R-02 the next model
       return molisWorkHostProjectReference({ projectId: id, databasePath: join(home.home, "personal-space", "molis-work.db") });
     } });
   t.after(async () => { service.continuations.close(); await adapter.close(); });
-  async function send(workId?: string) {
+  async function send(workId?: string, expectRefusal = false) {
     const started = await service.send({ text: "读取已获准的待办摘要", request_id: "overview-round-" + round, work_id: workId }, {});
     const end = Date.now() + 25_000;
     for (;;) {
       const { work } = await service.read(started.work.work_id);
-      if (work.state === "completed") return work.work_id;
+      if (work.state === "completed" || (expectRefusal && ["blocked", "failed", "needs-check", "interrupted"].includes(work.state))) return work.work_id;
       assert.ok(Date.now() < end && !["failed", "blocked"].includes(work.state), "round ends successfully");
       await delay(50);
     }
@@ -414,4 +414,19 @@ for (const removal of ["project", "title"] as const) test(`B2R-02 the next model
   assert.equal(await send(workId), workId);
   assert.ok(wire[1]!.every(body => !body.includes(aTitle)), "no outgoing request contains the former A title");
   assert.ok(wire[1]!.some(body => body.includes(bTitle)), "fresh tool output with B reaches the model in this work");
+  // Withdraw B immediately after the fresh digest's tool receives B and before its next model dispatch.
+  let revoked = false;
+  const accept = store.preferences.noteOverview.bind(store.preferences);
+  t.mock.method(store.preferences, "noteOverview", (...args: Parameters<typeof accept>) => {
+    accept(...args);
+    if (!revoked && args[2].some(row => row.fields.title === bTitle)) {
+      revoked = true;
+      store.preferences.transaction({ actor_id: self.actor_id, owner_id: assistantSettingOwner.provider_id, project_id: null }, tx =>
+        tx.writeChange({ key: "assistant.overview_grants", layer: "personal", change: { set: { grants: [] } } }));
+    }
+  });
+  round = 2;
+  await send(workId, true);
+  assert.ok(revoked && wire[2]!.length > 0, "B was actually delivered to the fresh round before its permission was withdrawn");
+  assert.ok(wire[2]!.every(body => !body.includes(aTitle) && !body.includes(bTitle)), "the model transport receives neither withdrawn title");
 });

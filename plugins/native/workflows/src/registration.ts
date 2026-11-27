@@ -6,7 +6,6 @@ import { createWorkflowsPlugin, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, 
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  preservedMembershipBatch: 107,
   project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID, catalog_order: 20,
   manifest: workflowsManifest,
   project_runtime: { create: createWorkflowsPlugin, package_name: "@molis-ai/molis-work-plugin-workflows", factory_export: "createWorkflowsPlugin" },

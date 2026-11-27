@@ -77,8 +77,6 @@ ${CONTEXT_LEDGER_SCHEMA}` };
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
 export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by" | "character_selection_required"> {
   actor_id: string;
-  /** The Host has tracked overview disclosures since this work's first round. Older sessions resume from the person's own words. */
-  overview_tracked?: true;
   thread_round?: AssistantThreadRound;
   /** What the next plugin round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
   handover_brief?: string;
@@ -264,7 +262,7 @@ export class AssistantStore {
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
       executor: input.executor ?? { kind: "assistant" },
-      session_id: null, overview_tracked: true, draft: "", draft_revision: 1, created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
+      session_id: null, draft: "", draft_revision: 1, created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
       ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}),
       ...(input.delegated_by ? { delegated_by: { ...input.delegated_by } } : {}), ...(input.main ? { main: true as const } : {}), ...(input.work_item_id ? { work_item_id: input.work_item_id } : {}), ...(input.serves?.length ? { serves: input.serves.map(one => ({ ...one })) } : {}), ...(input.line_event ? { line_event: true as const } : {}) };
     this.db.prepare("INSERT INTO assistant_works(work_id,actor_id,revision,updated_at,archived,body) VALUES (?,?,?,?,0,?)")

@@ -71,13 +71,6 @@ export class ProjectRecordsRepository {
     return portableChanged || activeChanged;
   }
 
-  /** Only the first open of a catalog made before batch 107 reads these rows. New catalogs store partition membership. */
-  formerHiddenPlugins(projectId: string): ProjectPluginId[] {
-    if (!this.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_plugin_exclusions'").get()) return [];
-    return (this.db.prepare("SELECT plugin_id FROM project_plugin_exclusions WHERE project_id = ? ORDER BY plugin_id")
-      .all(projectId) as { plugin_id: ProjectPluginId }[]).map(row => row.plugin_id);
-  }
-
   /**
    * A live project's stored members and latest member add or remove, in one statement; null when there is no such
    * project. The latest event is what lets a revision tell an add-then-remove from no change. Both lists keep `ORDER BY plugin_id`.

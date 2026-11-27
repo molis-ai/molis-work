@@ -163,7 +163,7 @@ test(`MEM-A3: ${scenario} public project deletion stays forgotten after restorin
       assert.equal(replay.replayed, true);
     }
     await close();
-    const decisions = JSON.parse(await readFile(join(env.home, "memory-forgetting-v2.json"), "utf8"));
+    const decisions = JSON.parse(await readFile(join(env.home, "memory-forgetting.json"), "utf8"));
     t.diagnostic(`public deletion ${deletion.deletion.cleanup_state}; receipt=${deletion.deletion.deletion_id}; independent decisions=${decisions.decisions.length}`);
     assert.equal((await restoreHomeSnapshot({ homeDirectory: env.home, source: snapshot,
       inspectCatalog: inspectMolisWorkProjectCatalogSnapshot })).status, "restored");

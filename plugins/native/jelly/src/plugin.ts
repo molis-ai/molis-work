@@ -2,7 +2,9 @@ import { syncBindings } from "./sync-binding.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createJellyActionHandlers } from "./actions.js";
-import { JELLY_WINDOW_ENTRY, armJellyWindow, jellyDue, writeJellySeriesOverview } from "./overview.js";
+import { jellyAddDays } from "./calendar.js";
+import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_REFRESH_ENTRY_KEY } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { armJellyWindow, jellyDue, jellyWindowNeeded, writeJellyOverview, writeJellySeriesOverview } from "./overview.js";
 import { jellyManifest } from "./manifest.js";
 import { JellyStore, type JellyStores } from "./store.js";
 import { jellyUiContribution } from "./ui.js";
@@ -24,14 +26,16 @@ export function createJellyPlugin(): PluginDefinition {
         await database.transaction(
           async () => check(),
           (tx) => {
-            for (const series of new JellyStore(tx).series()) writeJellySeriesOverview(tx, series);
+            const store = new JellyStore(tx), today = new Date().toISOString().slice(0, 10);
+            for (const item of store.items(jellyAddDays(today, -1), jellyAddDays(today, OVERVIEW_EVENT_WINDOW_DAYS))) writeJellyOverview(tx, item);
+            for (const series of store.series()) writeJellySeriesOverview(tx, series);
           },
         );
         armJellyWindow(database, due, true);
       };
       if (
-        database.get("SELECT 1 AS active FROM jelly_series LIMIT 1") &&
-        !due?.list().some((entry) => entry.entry_key === JELLY_WINDOW_ENTRY)
+        jellyWindowNeeded(database, new Date().toISOString().slice(0, 10)) &&
+        !due?.list().some((entry) => entry.entry_key === OVERVIEW_REFRESH_ENTRY_KEY)
       )
         await roll(() => context.requireGrant("storage:private"));
       const stores: JellyStores = {
@@ -59,7 +63,7 @@ export function createJellyPlugin(): PluginDefinition {
         views: [jellyUiContribution],
         actions: createJellyActionHandlers(stores),
         onDue: async (entry, delivery) => {
-          if (entry.source === "plugin" && entry.entry_key === JELLY_WINDOW_ENTRY) {
+          if (entry.source === "plugin" && entry.entry_key === OVERVIEW_REFRESH_ENTRY_KEY) {
             await roll(delivery.beforeEffect);
             return {};
           }

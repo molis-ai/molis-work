@@ -8,7 +8,7 @@ import { currentHostPresence } from "./host-presence.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { homeScheduledRuns } from "./home-overview.js";
+import { homeScheduledRuns, hostOverviewSource } from "./home-overview.js";
 import { decideRuntimeRun, hasNetwork, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
 import { expiredSeen, markExpiredSeen } from "./runs-expired-seen.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -26,7 +26,10 @@ function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReferen
 
 export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: string): RuntimeOverviewPorts {
   return {
-    projectRuns: async (window, bounds) => homeScheduledRuns({ home: homeDirectory, reach: partitionId => host.projectPluginReach(partitionId) }, await host.partitions(), window, bounds),
+    projectRuns: async (window, bounds) => {
+      const source = hostOverviewSource(host);
+      return source ? homeScheduledRuns(source, await host.partitions(), window, bounds) : null;
+    },
     within: async (projectId, work) => {
       if (projectId === null) return work(personRuns(host, undefined));
       // The panel lists a sleeping project's runs from the overview, so the person's 「现在做」 or 「跳过」 opens it to hand the run to its owner.

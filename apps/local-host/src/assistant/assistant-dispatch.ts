@@ -364,20 +364,20 @@ export class AssistantDispatch {
         work = placed; assertSendCurrent(stillCurrent);
         dispatchHanded = true; intent?.handed?.();
         const delegation = !intent?.report_only && host.workDelegations?.(RUNTIME) ? assistantWorkPermission(work) : undefined;
-        const allowHistory = () => {
-          if (!work.overview_tracked) return false;
+        const allowHistory = (since = 0) => {
           const grants = assistantOverviewGrants(this.store);
           const allowed = this.ports.overviewReadable?.(this.actorId, work.work_id, grants.map(row => row.partition_id));
-          return this.store.preferences.permitsOverviewHistory(this.actorId, work.work_id, allowed ? grants.filter(row => allowed.includes(row.partition_id)) : grants);
+          return this.store.preferences.permitsOverviewHistory(this.actorId, work.work_id, allowed ? grants.filter(row => allowed.includes(row.partition_id)) : grants, since);
         };
         const history = allowHistory() ? "session" : "digest";
+        const since = history === "digest" ? this.store.preferences.overviewDisclosureRevision(this.actorId, work.work_id) : 0;
         const personalInputs = history === "digest" ? this.store.rounds(work.work_id, 16)
           .filter(round => round.written_by === undefined).map(round => cutHead(round.text, 600)).join("\n") : "";
         const textMaterials = personalInputs ? [...ready.materials, { material_id: "prior-person-input", title: "本人先前的要求", text: personalInputs }] : ready.materials;
         const scopeCheck = authority.assertBeforeDispatch;
         authority = { ...authority, assertBeforeDispatch: () => {
           requireSynchronous(scopeCheck?.());
-          if (history === "session" && !allowHistory()) throw assistantErrors.scope("这项工作的总览读取许可已改变");
+          if (!allowHistory(since)) throw assistantErrors.scope("这项工作的总览读取许可已改变");
         } };
         const started = await host.start(RUNTIME, roundStartInput(work, { history, actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: textMaterials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, resume_answer: intent?.resume_answer, ...(intent?.report_only ? { report_only: true as const } : {}) }), delegation ? { ...authority, delegation } : authority);
         handoff.accepted(); return started;

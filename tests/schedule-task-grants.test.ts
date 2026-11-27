@@ -52,7 +52,7 @@ test("PWA-148 the five plugins declare their read groups, and each Manifest is a
 test("PWA-148 日程 is Jelly's calendar and Schedule's reminders: notes, and other plugins' scheduled operations, are switches of their own", () => {
   const jelly = new Map(jellyManifest.read_groups!.map(group => [group.group_id, group.actions]));
   assert.deepEqual([...jelly.get("calendar")!].sort(), ["jelly.calendar.list", "jelly.item.get", "jelly.item.subject.read"]);
-  for (const id of ["jelly.note.list", "jelly.note.get", "jelly.note.subject.read", "jelly.content.read"]) {
+  for (const id of ["jelly.note.days", "jelly.note.list", "jelly.note.get", "jelly.note.subject.read", "jelly.content.read"]) {
     assert.ok(jelly.get("notes")!.includes(id), `${id} is a note read`);
     assert.ok(!jelly.get("calendar")!.includes(id), `and not in the calendar`);
   }

@@ -163,7 +163,6 @@ export interface PluginRegistration {
     };
     readonly project_plugin_id: string;
     readonly catalog_order: number;
-    readonly preservedMembershipBatch?: 107;
     readonly manifest: PluginManifest;
     readonly default_enabled?: true;
     readonly companions?: readonly string[];

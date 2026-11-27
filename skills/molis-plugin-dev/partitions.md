@@ -15,7 +15,7 @@
   - `defineObjectPutAction`：把带来的记录放进本分区。带 `target_id`（移动）就用原 id；这个 id 在本分区已有对象时，只认完全相同的一份（`sameCarriedRecord`，同一次移动的重试），不同就报冲突、绝不覆盖。不带（复制）就建新对象，同一个 `request_id` 总是同一份。
   - `defineObjectRemoveAction`：移动后去掉原来那份，只在仍是读出时的修订号时去；改过了就报冲突，平台把放进去的那份撤回。
   - 不要在动作输入里收目标项目，也不要自己去打开别的分区的库。这三个动作只给本人用（`audiences: ["user"]`）。
-- **库结构只有现行一版**：`schema` 写完整的当前结构；不写兼容读取，旧数据怎样处理先问（[CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
+- **库结构只有现行一版**：`schema` 写完整的当前结构；开发前阶段（[CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）所有分区库固定 `version: 1`，改结构直接改 v1 `schema`、零 `upgrades`、零兼容读取，旧开发 Home 直接清空重建，不写迁移也不问是否保留旧 Home。
 - **随本人走的设置不放分区库**：本人在任何分区都一样的偏好（默认服务、上次用的文件夹）声明在 `person_settings.keys`：每个键写 `key` 和 `kind`（`preference`、`secret_ref`、`connection_ref`、`local_path`）。只有 `preference` 能写 `portable: true`，跟着本人同步到他的其他设备；密钥引用、连接引用、本机路径标 `portable` 会被拒（`S-person-settings-private`）。这些设置只给本机本人和你自己的后台读写，项目 Agent、助理和别的插件都读不到。
 
 ```json
@@ -103,3 +103,5 @@ const { rows } = await globalThis.molisWorkRequest<OverviewReadResult>("/api/run
 ```
 
 路由检查本人页面身份，经 `overview.read@1` 取出可读分区和当前字段。个人助理从动作目录调用同一动作，按本人授予的项目与字段读取。插件提供本分区投影，其 SDK 调用不能代读个人空间。见[工作台路由](../../apps/local-host/src/runtime-overview-http.ts)、[总览动作](../../apps/local-host/src/overview-actions.ts)和[页面使用位置](../../apps/workbench/src/browser/personal-tasks.ts)。本次休眠同步装配支持声明了 `partitionSync` 的内置分区插件；外部签名包的能力见[沙箱入口](../../apps/local-host/src/plugin-host-services.ts)。
+
+有滚动窗口的插件可用 `services.due.register` 登记合同常量 `OVERVIEW_REFRESH_ENTRY_KEY`。即使关机超过七天，平台也只唤醒原分区的原插件来重建当前窗口。处理器在提交前调用 `beforeEffect` 并登记下次刷新。此键不产生用户通知；普通日程的漏提醒仍以七天为限。

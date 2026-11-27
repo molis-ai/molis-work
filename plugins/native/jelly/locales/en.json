@@ -29,6 +29,8 @@
     "jelly.cap.item-subject-read.title": "Read event details",
     "jelly.cap.item-update.description": "Change a one-off event, or mark it done",
     "jelly.cap.item-update.title": "Change an event",
+    "jelly.cap.note-days.description": "List the dates with notes in the selected range",
+    "jelly.cap.note-days.title": "View dates with notes",
     "jelly.cap.note-delete.description": "Delete a note; this can be undone",
     "jelly.cap.note-delete.title": "Delete a note",
     "jelly.cap.note-get.description": "Read a note in full",
@@ -163,6 +165,7 @@
     "jelly.tone.purple": "Purple",
     "jelly.tone.red": "Red",
     "jelly.tone.teal": "Teal",
+    "jelly.undo.partial": "Restored {restored}. Skipped {skipped} because they changed afterwards.",
     "jelly.undo.changed": "Couldn’t undo: it was changed after it was deleted"
   }
 }

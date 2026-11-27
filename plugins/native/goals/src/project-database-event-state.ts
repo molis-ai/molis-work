@@ -69,7 +69,7 @@ export const GOALS_EVENT_STATE_SQL = `
     question TEXT NOT NULL,
     options_json TEXT NOT NULL,
     scope_json TEXT NOT NULL,
-    purpose TEXT NOT NULL DEFAULT 'suggestion' CHECK (purpose IN ('suggestion', 'requirement_acceptance', 'action', 'agreement_change')),
+    purpose TEXT NOT NULL DEFAULT 'suggestion' CHECK (purpose IN ('suggestion', 'action', 'agreement_change')),
     proposed_change_json TEXT,
     commitment_json TEXT,
     status TEXT NOT NULL CHECK (status IN ('pending', 'decided')),

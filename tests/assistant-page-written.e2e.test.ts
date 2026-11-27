@@ -72,8 +72,10 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
   const typeAndSend = async (text: string) => {
     await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+    assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), text);
+    const send = "[data-assistant-composer] [data-composer-send]:enabled";
+    await waitFor(`document.querySelector(${JSON.stringify(send)})`);
+    await click(send);
   };
 
   // 1. The person types a message: no mark.
@@ -105,6 +107,8 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
   await waitFor("Boolean(document.querySelector('[data-card=\"e2e-stale-card\"] [data-ix-action=\"redo\"]'))", 10_000);
   await click('[data-card="e2e-stale-card"] [data-ix-action="redo"]');
   await roundsDone(4);
+  // Redo starts a Host round before its reply and the refreshed conversation reach the browser.
+  await waitFor("document.querySelectorAll('[data-assistant-thread] [data-round] [data-entry=status][data-phase=completed]').length === 4");
 
   // 5. The person types the very words the page handed over: they are the person's now (the page's mark does not stay behind on the words).
   await typeAndSend("帮我推进「以后报销都不用问我」");

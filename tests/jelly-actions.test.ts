@@ -28,9 +28,9 @@ function fixture(t: { after(fn: () => Promise<void>): void }) {
   return { home, host, caller, service, bound, month, events };
 }
 
-test("UPP-15 Jelly is a partition plugin with fifteen typed actions and no model, settings or routes; permissions and separate Homes hold", async t => {
+test("UPP-15 Jelly is a partition plugin with sixteen typed actions and no model, settings or routes; permissions and separate Homes hold", async t => {
   const f = fixture(t), other = fixture(t);
-  assert.equal(Object.keys(a).length, 15);
+  assert.equal(Object.keys(a).length, 16);
   assert.equal(jellyManifest.runtime, undefined, "no Home runtime: one instance per partition it is enabled in");
   assert.equal(jellyManifest.databases?.partition?.store_name, "jelly");
   assert.deepEqual(jellyManifest.overview_projection, { kinds: ["event"] });
@@ -96,6 +96,25 @@ test("a weekly series answers each scope at one occurrence, and its occurrences 
   await f.bound.invoke(a.restore, { rows: restore });
   assert.equal((await ids()).filter(id => id.startsWith(series.id)).length, 4);
   await assert.rejects(f.bound.invoke(a.updateSeries, { id: split.series.id, expected_revision: 1, original_date: "2026-09-22", scope: "onlyThis", patch: { title: "周二" } }), { code: "jelly.invalid" });
+  // B112-02: undo of a partial deletion leaves a subsequently deleted series gone.
+  const future = split.series;
+  const partial = await f.bound.invoke(a.deleteSeries, { id: future.id, expected_revision: future.revision, original_date: future.start_date, scope: "onlyThis" });
+  assert.ok(partial.series);
+  await f.bound.invoke(a.deleteSeries, { id: future.id, expected_revision: partial.series.revision, original_date: "2026-09-23", scope: "all" });
+  assert.deepEqual((await f.bound.invoke(a.restore, { rows: partial.restore })).skipped, [future.id]);
+  // B112-14: a replacement can reach the old receipt's exact revision.
+  const replacement = (await f.bound.invoke(a.createSeries, { series: { id: future.id, title: "新的系列",
+    start_date: future.start_date, weekdays: future.weekdays } })).series;
+  const revised = (await f.bound.invoke(a.updateSeries, { id: replacement.id, expected_revision: replacement.revision,
+    original_date: replacement.start_date, scope: "all", patch: { title: "保留新的系列" } })).series;
+  assert.equal(revised.revision, partial.series.revision);
+  assert.deepEqual((await f.bound.invoke(a.restore, { rows: partial.restore })).skipped, [future.id]);
+  assert.deepEqual((await f.bound.invoke(a.item, { id: future.id })).series, revised);
+  const currentDelete = await f.bound.invoke(a.deleteSeries, { id: revised.id, expected_revision: revised.revision,
+    original_date: revised.start_date, scope: "onlyThis" });
+  const currentUndo = await f.bound.invoke(a.restore, { rows: currentDelete.restore });
+  assert.deepEqual(currentUndo.skipped, []);
+  assert.deepEqual(currentUndo.rows.series[0], { ...revised, revision: revised.revision + 2 });
 });
 
 test("deleting a category moves its entries, including a single date's change, to uncategorized, and undo moves them back", async t => {
@@ -108,15 +127,25 @@ test("deleting a category moves its entries, including a single date's change, t
   const { item } = await f.bound.invoke(a.createItem, { item: { title: "评审", start_date: "2026-09-02", category_id: category.id } });
   const { series } = await f.bound.invoke(a.createSeries, { series: { title: "周会", start_date: "2026-09-07", weekdays: [1] } });
   await f.bound.invoke(a.updateSeries, { id: series.id, expected_revision: 1, original_date: "2026-09-14", scope: "onlyThis", patch: { category_id: category.id } });
+  const later = (await f.bound.invoke(a.createItem, { item: { title: "随后删除", start_date: "2026-09-03", category_id: category.id } })).item;
+  const changed = (await f.bound.invoke(a.createItem, { item: { title: "另一件", start_date: "2026-09-03", category_id: category.id } })).item;
+  const reused = (await f.bound.invoke(a.createItem, { item: { title: "原来的事项", start_date: "2026-09-04", category_id: category.id } })).item;
   const { restore } = await f.bound.invoke(a.deleteCategory, { id: category.id, expected_revision: 1 });
   const after = await f.month();
   assert.deepEqual(after.categories.map(row => row.id), ["uncategorized"]);
   assert.ok(after.items.every(entry => entry.category_id === "uncategorized"));
   // One moved entry since the delete stays where it is; the category and the rest still come back.
-  const first = (await f.bound.invoke(a.createItem, { item: { title: "另一件", start_date: "2026-09-03" } })).item;
-  const other = (await f.bound.invoke(a.updateItem, { id: first.id, expected_revision: 1, patch: { title: "另一件（改过）" } })).item;
-  const after2 = await f.bound.invoke(a.restore, { rows: { ...restore, items: [...restore.items ?? [], { ...first, category_id: category.id, revision: 0 }] } });
-  assert.deepEqual(after2.skipped, [other.id]);
+  // B112-02: one untouched item, one revised item, and one removed through another call.
+  const other = (await f.bound.invoke(a.updateItem, { id: changed.id, expected_revision: 2, patch: { title: "另一件（改过）" } })).item;
+  await f.bound.invoke(a.deleteItem, { id: later.id, expected_revision: 2 });
+  await f.bound.invoke(a.deleteItem, { id: reused.id, expected_revision: 2 });
+  const replacement = (await f.bound.invoke(a.createItem, { item: { id: reused.id, title: "同 ID 新事项", start_date: "2026-09-04" } })).item;
+  const kept = (await f.bound.invoke(a.updateItem, { id: replacement.id, expected_revision: replacement.revision, patch: { title: "保留新事项" } })).item;
+  const after2 = await f.bound.invoke(a.restore, { rows: restore });
+  assert.deepEqual(after2.skipped.sort(), [other.id, later.id, reused.id].sort());
+  assert.deepEqual((await f.bound.invoke(a.item, { id: reused.id })).item, kept);
+  assert.deepEqual(after2.rows.items.map(row => row.id), [item.id]);
+  await assert.rejects(f.bound.invoke(a.item, { id: later.id }), { code: "jelly.not_found" });
   const back = await f.month();
   assert.equal(back.items.find(entry => entry.id === item.id)?.category_id, category.id);
   assert.equal(back.items.find(entry => entry.id === `${series.id}@2026-09-14`)?.category_id, category.id);
@@ -141,12 +170,20 @@ test("an occurrence moved before its series' first date still shows in the range
 
 test("notes keep plain text or Markdown, pin to a day, list by day or words, refuse a stale save and come back after delete", async t => {
   const f = fixture(t);
+  const calendarBeforeNotes = await f.month();
   const { note } = await f.bound.invoke(a.saveNote, { title: "周一", body: "# 要点\n\n- 订会议室", day: "2026-09-07" });
   // An Assistant or MCP caller must name a version on every write: 0 is how it says "a new one".
   await f.service.invoke({ ...f.caller, audience: "agent" }, a.saveNote, { expected_revision: 0, title: "随想", body: "没有日期" });
   assert.deepEqual((await f.bound.invoke(a.notes, { day: "2026-09-07" })).notes.map(row => row.id), [note.id]);
   assert.deepEqual((await f.bound.invoke(a.notes, { day: null })).notes.map(row => row.title), ["随想"]);
   assert.deepEqual((await f.bound.invoke(a.notes, { query: "会议室" })).notes.map(row => [row.id, row.excerpt]), [[note.id, "# 要点 - 订会议室"]]);
+  // B112-13: the calendar-only response has the same contents whether the person has pinned notes or not.
+  assert.deepEqual(await f.month(), calendarBeforeNotes);
+  assert.deepEqual(Object.keys(calendarBeforeNotes).sort(), ["categories", "items"]);
+  assert.deepEqual(await f.bound.invoke(a.noteDays, { start: "2026-09-01", end: "2026-09-30" }), { days: ["2026-09-07"] });
+  assert.deepEqual(await f.bound.invoke(a.noteDays, { start: "2026-09-08", end: "2026-09-30" }), { days: [] });
+  await assert.rejects(f.bound.invoke(a.noteDays, { start: "2026-09-08", end: "2026-09-07" }), { code: "jelly.invalid" });
+  assert.equal((await f.bound.invoke(a.notes, { limit: 1 })).notes.length, 1);
   const saved = (await f.bound.invoke(a.saveNote, { id: note.id, expected_revision: 1, body: "改过" })).note;
   assert.deepEqual([saved.title, saved.body, saved.day, saved.revision], ["周一", "改过", "2026-09-07", 2]);
   await assert.rejects(f.bound.invoke(a.saveNote, { id: note.id, expected_revision: 1, body: "旧稿" }), { code: "jelly.conflict" });
@@ -156,4 +193,18 @@ test("notes keep plain text or Markdown, pin to a day, list by day or words, ref
   await assert.rejects(f.bound.invoke(a.saveNote, { id: note.id, expected_revision: 2, body: "删了还写" }), { code: "jelly.not_found" });
   await f.bound.invoke(a.restore, { rows: restore });
   assert.equal((await f.bound.invoke(a.note, { id: note.id })).note.body, "改过");
+});
+
+test("B2R-04 a calendar full of past one-offs still projects the next reminder", { timeout: 90_000 }, async t => {
+  const f = fixture(t);
+  const past = { start_date: "2000-01-01", end_date: "2000-01-01", time_zone: "UTC" };
+  for (let i = 0; i < 500; i++)
+    await f.bound.invoke(a.createItem, { item: { ...past, title: "Past " + i } });
+  assert.equal(f.events().length, 500);
+  const day = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const result = await f.bound.invoke(a.createItem, { item: { title: "Tomorrow", start_date: day, end_date: day,
+    start_time: 600, end_time: 660, time_zone: "UTC", reminder_minutes: 5 } });
+  assert.equal(f.events().length, 500);
+  assert.deepEqual(f.events().find(row => row.row_id === result.item.id), { row_id: result.item.id, title: "Tomorrow",
+    starts_at: day + "T10:00:00.000Z", ends_at: day + "T11:00:00.000Z", time_zone: "UTC", all_day: 0, remind_at: day + "T09:55:00.000Z" });
 });

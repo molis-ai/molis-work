@@ -491,13 +491,34 @@ test("UPP-32 a single Jelly event and a weekly occurrence due in a sleeping part
   assert.equal(response.status, 200);
   const delivered = (await response.json() as { notices: { open?: { project_id?: string; id?: string } }[] }).notices.filter(notice => notice.open?.project_id === a.project_id);
   for (const key of keys) assert.equal(delivered.filter(notice => JSON.stringify(notice).includes(key.slice(6))).length, 1, "one persistent notice for " + key);
-  assert.ok(clock.due.entries(a.project_id).some(row => row.entry_key === "calendar-window"));
+  assert.ok(clock.due.entries(a.project_id).some(row => row.entry_key === "overview:refresh"));
 });
 
 // Batch 107-1: the Host's per-partition assembly (`partition-plugin-host.ts`). A plugin with a library in each partition no longer runs on the
 // project platform: each partition it is enabled in has its own instance, with the installation in the Home's install table and its lifecycle
 // kept by that instance alone (in memory, per (install, partition)).
 const DATASET = "io.molis.work.dataset";
+
+test("B2R-04 a dormant future series enters its reminder window after a ten-day shutdown", async t => {
+  const f = await serveHomeRuntime(t), a = await f.project("Remote calendar", ["jelly"]), b = await f.project("Other calendar", ["jelly"]);
+  const assembly = existingPartitionPluginHost(f.home);
+  assert.ok(assembly?.services);
+  const current = Date.now(), date = new Date(current + 95 * 86_400_000), day = date.toISOString().slice(0, 10);
+  const client = bindActionClient(f.host.actionClient(a.reference), () => runtimePerson(jellyActions.createSeries.action.permissions, a.project_id));
+  const { series } = await client.invoke(jellyActions.createSeries, { series: { title: "Beyond the original window", start_date: day, end_date: day,
+    time_zone: "UTC", start_time: 600, end_time: 660, reminder_minutes: 5, weekdays: [date.getUTCDay() || 7] } });
+  const registry = assembly.services.due, key = "event:" + series.id + "@" + day;
+  assert.ok(!registry.entries(a.project_id).some(row => row.entry_key === key));
+  for (const project of [a, b]) await f.host.closeProject(project.reference);
+  await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
+  t.mock.timers.enable({ apis: ["Date"], now: current + 10 * 86_400_000 });
+  try {
+    await assembly.services.timer.fire();
+    assert.equal(registry.entries(a.project_id).find(row => row.entry_key === key)?.due_at, day + "T09:55:00.000Z");
+    assert.ok(registry.entries(a.project_id).some(row => row.entry_key === "overview:refresh" && Date.parse(row.due_at) > Date.now()));
+    assert.deepEqual(assembly.assembly.instances().map(row => [row.partition_id, row.plugin_id]), [[a.project_id, jellyManifest.plugin_id]]);
+  } finally { t.mock.timers.reset(); }
+});
 
 test("UPP-21 batch 107 the Host runs a plugin with a library in each partition as its own instance per partition; one crashing leaves the other and the Home's installation as they were; the Home store and the instances share no stale record", async t => {
   const f = await serveHomeRuntime(t);

@@ -44,7 +44,7 @@ Host 通过 `ProjectsModuleOptions` 注入数据库与目录：`projects_directo
 
 `projectReplicationOwner` 提供当前项目名称、时间和可携带插件清单；`validatePortableProject` 在准备目录前完整验证。`project_portable_plugins` 表示跨设备所需的插件，不等同于本机 `partition_plugins` 启用状态。接收只保存清单，不安装、激活或授予权限；`projectPluginRequirements` 返回本机可用/启用投影，供入口呈现缺失插件。后续本机重命名不会丢失尚未安装插件的要求。本机添加/移除仍由同一 ProjectService 更新清单并在事务内记事件；被动准备项目不生成上传，路径、目录关联及执行状态不进入可携带内容。
 
-项目资料当前拒绝直接接收空删除；完整删除/恢复仍须接入唯一 Host 删除服务，不能把资料同步通过记作项目生命周期已完成。错版的目录在打开可写连接前拒绝，不就地补表或改写真实 Home。
+项目资料当前拒绝直接接收空删除；完整删除/恢复仍须接入唯一 Host 删除服务，不能把资料同步通过记作项目生命周期已完成。错版的目录在打开可写连接前拒绝，不就地补表或改写旧库。
 
 `commands.renameProject` 必须带编辑器最初观察到的 `expectedDisplayName`。Projects 在同一事务内重读并比较当前名称，过期观察先于同名空操作检查而拒绝，不写事件或同步队列；调用方不能在保存旧草稿前读取新名称来补观察值。HTTP 的 `expected_display_name` 来自渲染表单的初始值，冲突保留用户草稿并要求重新核对。
 
@@ -86,7 +86,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-directori
   - 卸载检查只列 `projects` 表里的项目（`listCatalogProjectsForUninstall`）；`catalog_meta` 归 storage，目录是不是本产品的，由宿主用 `LocalCatalogMetadata` 判断后再问本模块。
   - 删除回执（`project_deletions`）带每个数据所有者的一步（`project_deletion_steps`：pending、complete），与目录自己的清理在同一个事务里写入；回执只有目录暂存已删且每一步都是 complete 时才是 complete。一步的所有者不在收尾的进程里时，这一步保持 pending 并留着上次的错误，等有这个所有者的进程来做，不会被当作无事可做。所有者清什么不归本模块。
   - 删除回执记下的暂存目录不可信（目录库可能被手改、恢复，或随 Home 一起拷走）：只认最后一段，且必须是这个项目的 `.deleting-<project_id>-<uuid>`，上层目录一律取本 Home 的 projects 目录（`recordedStagedProjectDirectoryPath`）。宿主在清理的第一步之前先推导；推不出来就拒绝（`catalog.project_storage_invalid`）：所有者不跑、步骤保持原样，不删文件，回执保持 pending 并留下错误（S-102）。
-  - 目录库与项目库的结构改动都走升级段（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_UPGRADES`、`apps/local-host/src/project-database-schema.ts` 的 `PROJECT_DATABASE_BASELINE.upgrades`）；低版本由启动升级过程升，较新的库拒绝，不在打开路径补表。
+  - 开发前阶段（2026-11-26 决定 69）目录库与项目库固定 v1、零 `upgrades` 升级段，结构改动直接修改 v1 基线，不在打开路径补表；错版或较新的库直接拒绝（通用升级链留待 1.0 启用）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/project-directories.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts tests/project-recycle.test.ts tests/security-invariants-project-storage.test.ts`；目录与默认输出目录另跑 `node scripts/run-tests.mjs tests/default-output-first-use.test.ts tests/material-recent-uses.test.ts`。
 - 个人资料同步另跑：`node scripts/run-tests.mjs tests/security-invariants-project-metadata-sync.test.ts tests/project-catalog.test.ts tests/personal-sync.test.ts`。
 - 项目长期说明另跑：`node scripts/run-tests.mjs tests/project-guidance-store.test.ts tests/project-guidance-characters.test.ts tests/project-guidance-actions.test.ts tests/project-guidance-sync.test.ts`。

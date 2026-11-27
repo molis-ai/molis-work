@@ -1,12 +1,12 @@
 # 升级后持续可用
 
-状态：已实现（2026-11-06 设计）。U1 [升级链](upgrade-chain-design.md) 与 U2 [金样回放](golden-replay-design.md) 已随路线书第 05 批合入 main：U1 的 #1958、U2 的 #1912/#1942 等分片先行，其余分片与全批收尾随 #1979 于 2026-11-08 合入 `500d868df3`；第一份金样 `tests/fixtures/golden-homes/0.1.0` 已入库，`golden-replay` 与覆盖面、建库语句两道门禁已接进挡合并的 CI，每天另有全量回放作业。真实基线已开始走升级：目录库 `projects/catalog.db` 与项目库 `projects/<project_id>/molis-work.db` 都是第 2 版（见 [U1 设计](upgrade-chain-design.md) §14）。保留机制与门禁用户 2026-11-06 已同意；U3（按主人隔离与较新的库）与 U6 的「回到上一版」已随路线书第 25 批 #2034 于 2026-11-12 合入 main `3d844d493a`；U4 的签名插件库升级随第 26 批交付。U5、U6 的副本演练与接更新器、U7 仍按路线书在后续批次。需求 2026-11-02 整理。用户装上新版本后，旧的 Home、库、插件和保存的引用都接着能用，只感觉到功能变多了。代码照样会迭代、会有不兼容的改动，但不兼容由平台在升级时消化掉，不交给用户。排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-5)。
+状态：暂缓至 1.0.0 对外发布前启用（2026-11-26 [决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)：开发前阶段采用方案 A——零现有用户数据、零迁移、零开发金样；通用 U1/U3/U4 升级引擎源码休眠保留在仓内待 1.0 启用，全部具体迁移段、开发期金样夹具、存储结构快照与 `golden-replay` CI 作业已清除）。以下正文保留作为 1.0 对外发布时的设计与验收参考，**开发前阶段不按本文编写任何迁移步骤或维护开发金样**。历史背景：U1 [升级链](upgrade-chain-design.md)、U2 [金样回放](golden-replay-design.md)、U3 [按主人隔离与回退](owner-isolation-and-rollback-design.md) 与 U4 已于 2026-11-08～11-12 实现并合入；U5、U6 的副本演练与接更新器、U7 排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-5)。
 
 验收编号见 §9，前缀 `UPG`；U1、U2 设计新增的检查前缀 `UPG1`、`UPG2`，在各自设计里。
 
 
 > [!IMPORTANT]
-> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（U13/V7）：① 离线快照、恢复与库升级枚举全部统一经 `partitionRoot()` + `listPartitions()`（含 `<Home>/personal-space/` 与 `<分区根>/libraries/<库名>.db`）；② `44B` 与 `106`～`111` 在 M1 前按 Clean v1 拍平并每批重生 `0.1.0` 金样（v2+ 库经批准的一次性复位白名单复位并在 `111` 清退，不留旧结构兼容读取）；③ `REL-4`（U5 合同过渡）从 `111` 后的 Clean v1 合同起点生效；④ `73-3`（U7）显式排除并重建可重建的 `overview_projections` 与搜索索引。
+> **2026-11-26 架构状态（[决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)）**：开发前阶段全仓所有持久化库与带版本文件均锁定为 `v1` 且 `upgrades: []`（原地修改 v1 基线，旧开发 Home 直接删掉干净重建），不再维护开发期 `0.1.0` 金样、临时复位白名单或同版哈希例外；通用 U1/U3/U4 升级引擎源码休眠保留，待 1.0.0 首次对外发布前再启用升级链与金样回放。离线快照、恢复与库升级枚举按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66) 统一经 `partitionRoot()` + `listPartitions()`（含 `<Home>/personal-space/` 与 `<分区根>/libraries/<库名>.db`）。
 
 ## 1. 要解决的问题
 

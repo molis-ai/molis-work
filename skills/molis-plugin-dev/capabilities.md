@@ -24,7 +24,7 @@
 - 可信身份（actor、项目、安装）从上下文来，不从输入里读。
 - 写入要算在某个 Runtime 会话名下的，声明 `authorship: "session"`：经 MCP 调用必须带稳定会话，作者从 `caller.audit_actor_id` 读。
 - 处理器里等模型或外部服务的，声明 `scheduling: "concurrent"`，并在返回后 `await caller.beforeEffect()`、按读取时的版本提交。
-- 结果合同读写都按严格合同校验，只认现行取值；存量数据由维护改成现行形状，schema 里不留历史取值。结果不合合同时，查询报 `actions.output_invalid`；写动作此时已提交，报 `actions.output_invalid_after_effect`，调用方刷新而不重试。
+- 结果合同读写都按严格合同校验，只认现行取值；开发前阶段直接修改 v1 现状与所有读写消费者，不做旧数据迁移，schema 里不留历史取值。结果不合合同时，查询报 `actions.output_invalid`；写动作此时已提交，报 `actions.output_invalid_after_effect`，调用方刷新而不重试。
 
 ## 声明有限委托范围
 

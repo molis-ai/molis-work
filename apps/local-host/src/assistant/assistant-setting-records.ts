@@ -29,29 +29,34 @@ export class AssistantSettingRecords {
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
   }
 
-  /** Only the names of fields already disclosed to this work. The source rows and their values stay with their owner. */
+  overviewDisclosureRevision(actor: string, workId: string): number {
+    return Number(this.row(actor, "overview/disclosed/" + workId)?.revision ?? 0);
+  }
+
+  /** Only the field names and the last delivery revision are stored. Values remain with their source. */
   noteOverview(actor: string, workId: string, rows: readonly OverviewIndexRow[]): void {
     if (!rows.length) return;
     this.atomic(true, () => {
-      const key = "overview/disclosed/" + workId;
-      const prior = JSON.parse(this.get(actor, key) ?? "[]") as OverviewGrant[];
-      const fields = new Map(prior.map(row => [row.partition_id, new Set<string>(row.fields)]));
+      const key = "overview/disclosed/" + workId, record = this.row(actor, key);
+      const revision = Number(record?.revision ?? 0) + 1;
+      const fields = new Map(JSON.parse(String(record?.value ?? "[]")) as [string, Record<string, number>][]);
       for (const row of rows) {
-        const known = fields.get(row.partition_id) ?? new Set<string>();
-        for (const name of Object.keys(row.fields)) known.add(name);
+        const known = fields.get(row.partition_id) ?? {};
+        for (const name of Object.keys(row.fields)) known[name] = revision;
         fields.set(row.partition_id, known);
       }
-      const next = JSON.stringify([...fields].map(([partition_id, names]) => ({ partition_id, fields: [...names] })));
-      if (next !== JSON.stringify(prior)) this.set(actor, key, next);
+      this.set(actor, key, JSON.stringify([...fields]));
     });
   }
 
-  /** Once a field in the session stops being readable the SDK must never replay that raw prefix. */
-  permitsOverviewHistory(actor: string, workId: string, grants: readonly OverviewGrant[]): boolean {
+  /** A full session can replay every delivery. A fresh digest can only replay deliveries since this round started. */
+  permitsOverviewHistory(actor: string, workId: string, grants: readonly OverviewGrant[], since = 0): boolean {
     const raw = this.get(actor, "overview/disclosed/" + workId);
     if (raw === null) return true;
     const current = new Map(grants.map(row => [row.partition_id, new Set<string>(row.fields)]));
-    return (JSON.parse(raw) as OverviewGrant[]).every(row => row.fields.every(field => current.get(row.partition_id)?.has(field)));
+    const delivered = JSON.parse(raw) as [string, Record<string, number>][];
+    return delivered.every(([partition, fields]) => Object.entries(fields).every(([field, revision]) =>
+      revision <= since || current.get(partition)?.has(field)));
   }
 
   private atomic<T>(write: boolean, run: () => T): T {

@@ -86,7 +86,7 @@ export class ImagesConnections {
     const services = next.map(withoutChange);
     const changes = Object.fromEntries(next.flatMap(item => item.change ? [[item.id, item.change.authId]] : []));
     const updates = [];
-    if (JSON.stringify(record?.value) !== JSON.stringify({ services }) || !record?.portable)
+    if (JSON.stringify(record?.value) !== JSON.stringify({ services }))
       updates.push({ key: IMAGES_CONNECTIONS_SETTING, value: { services }, expected_revision: record?.revision ?? null });
     if (Object.keys(changes).length || privateRecord)
       updates.push({ key: LOCAL_CHANGES, value: changes, expected_revision: privateRecord?.revision ?? null });
@@ -98,7 +98,7 @@ export class ImagesConnections {
 
 function joined(records: readonly ReturnType<PluginPersonSettingsClient["list"]>[number][]): StoredConnection[] {
   const record = records.find(row => row.key === IMAGES_CONNECTIONS_SETTING);
-  const services = parse(record?.value).map(item => record?.portable ? withoutChange(item) : item);
+  const services = record?.portable ? parse(record.value) : [];
   const changes = records.find(row => row.key === LOCAL_CHANGES)?.value;
   if (!changes || typeof changes !== "object" || Array.isArray(changes)) return services;
   return services.map(item => {
@@ -127,9 +127,7 @@ function parse(value: unknown): StoredConnection[] {
     const row = item as Record<string, unknown>;
     if (!row || typeof row !== "object" || [row.id, row.name, row.base_url, row.model, row.created_at, row.updated_at].some(field => typeof field !== "string")
       || (row.api_format !== "openai-images" && row.api_format !== "gemini")) return [];
-    const change = row.change as { authId?: unknown } | undefined;
     return [{ id: String(row.id), name: String(row.name), api_format: row.api_format, base_url: String(row.base_url), model: String(row.model),
-      created_at: String(row.created_at), updated_at: String(row.updated_at),
-      ...(change && typeof change === "object" && (change.authId === null || typeof change.authId === "string") ? { change: { authId: change.authId as string | null } } : {}) }];
+      created_at: String(row.created_at), updated_at: String(row.updated_at) }];
   });
 }

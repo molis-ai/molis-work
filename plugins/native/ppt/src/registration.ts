@@ -6,7 +6,6 @@ import { createPptPlugin, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  preservedMembershipBatch: 107,
   project_plugin_id: PPT_PROJECT_PLUGIN_ID, catalog_order: 18,
   manifest: pptManifest,
   project_runtime: { create: createPptPlugin, package_name: "@molis-ai/molis-work-plugin-ppt", factory_export: "createPptPlugin" },

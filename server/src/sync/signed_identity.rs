@@ -70,7 +70,7 @@ export async function syncReadIdentity(origin, application, authorization, token
   const response = await fetch(origin + '/api/v2/auth/sync-read-proof', {
     redirect: 'manual', headers: {Authorization: authorization},
   });
-  if (response.status >= 500) throw new Error('Auth proof issuance unavailable');
+  if (response.status >= 500 || response.status === 429) throw new Error('Auth proof issuance unavailable');
   if (!response.ok) return null;
   const proof = (await response.json())?.data?.proof;
   if (typeof proof !== 'string' || proof.length > 4096) return null;

@@ -5,22 +5,48 @@
 //   dist/bundled-plugins/<plugin_id>.draft.json: Molis Work has no publisher key of its own yet (batch 26, 26-1), so each Home signs one
 //   with its own publisher identity when the person installs it (specs/prologue-strategies/skill.md §10).
 // Run by `pnpm build` after the workspace is built; a pack that does not pack fails the build.
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, rm } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const { packBundledDraft, packSystemPack, readSystemPackChoice } = await import(join(root, "tooling/plugin-cli/dist/index.js"));
 const dist = join(root, "apps/local-host/dist");
+const systemOut = join(dist, "system-skills");
+const bundledOut = join(dist, "bundled-plugins");
+
+async function pruneStaleEntries(directory, keep) {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return;
+    throw error;
+  }
+  for (const entry of entries) {
+    if (!keep.has(entry.name)) {
+      await rm(join(directory, entry.name), { recursive: true, force: true });
+    }
+  }
+}
+
 const folders = async source => (await readdir(source, { withFileTypes: true })).filter(item => item.isDirectory())
   .sort((a, b) => a.name.localeCompare(b.name)).map(entry => join(source, entry.name));
+
+const systemFiles = new Set();
 for (const directory of await folders(join(root, "packages/system-skills"))) {
   if (!await readSystemPackChoice(directory)) throw new Error(`${directory}: a pack in packages/system-skills writes system.default_state`);
-  const { draft, file } = await packSystemPack(directory, join(dist, "system-skills"));
+  const { draft, file } = await packSystemPack(directory, systemOut);
+  systemFiles.add(basename(file));
   process.stdout.write(`system pack: ${draft.manifest.plugin_id} ${draft.manifest.version} -> ${file}\n`);
 }
+await pruneStaleEntries(systemOut, systemFiles);
+
+const bundledFiles = new Set();
 for (const directory of await folders(join(root, "plugins/content"))) {
   if (await readSystemPackChoice(directory)) throw new Error(`${directory}: a pack that comes with the system lives in packages/system-skills`);
-  const { draft, file } = await packBundledDraft(directory, join(dist, "bundled-plugins"));
+  const { draft, file } = await packBundledDraft(directory, bundledOut);
+  bundledFiles.add(basename(file));
   process.stdout.write(`bundled draft: ${draft.manifest.plugin_id} ${draft.manifest.version} -> ${file}\n`);
 }
+await pruneStaleEntries(bundledOut, bundledFiles);

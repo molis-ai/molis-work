@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { applyRunEvent, emptyCapabilityMatrix, emptyPrologueStreamState, type PrologueEvent } from "@molis-ai/molis-work-service-agent-host";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 
 /*
@@ -142,4 +142,43 @@ test("EVD-32: refused without a session the Host bound the call to, for a plugin
   await assert.rejects(other_input(check, caller), { code: "actions.input_invalid" });
   const other = await setup(t, rounds, "project-b");
   await assert.rejects(other.check(other.caller("agent", "s1"), "r1", ["c-pass"]), { code: "agent.run_unknown" }, "a session of another project");
+});
+
+test("EVD-33 / F-horiz-runtime-02: applyRunEvent maps EFFECT_RECONCILE_REQUIRED to unknown (changed_after: true) while TOOL_INTERRUPTED stays failed (changed_after: false)", async t => {
+  const projectEvents = (events: PrologueEvent[]) => {
+    const state = emptyPrologueStreamState();
+    for (const event of events) applyRunEvent(state, event, "2026-11-26T00:00:00.000Z");
+    return state;
+  };
+  // SDK loop-tools.js emits { type: "tool-result", outcome: "failed", errorCode: "EFFECT_RECONCILE_REQUIRED" }
+  // when a side effect may have occurred; agent.evidence.check must report changed_after: true.
+  const reconcileStream = projectEvents([
+    { type: "tool-call", call: { id: "c-pass", name: "run-command", input: { executable: "node", argv: ["--test"] } } },
+    { type: "tool-result", callId: "c-pass", name: "run-command", text: "exit 0\nok", outcome: "returned" },
+    { type: "tool-call", call: { id: "w-reconcile", name: "write", input: { path: "src/app.ts" } } },
+    { type: "tool-result", callId: "w-reconcile", name: "write", text: "EFFECT_RECONCILE_REQUIRED: write dispatched without final receipt", outcome: "failed", errorCode: "EFFECT_RECONCILE_REQUIRED" },
+  ]);
+  assert.equal(reconcileStream.activity.find(item => item.call_id === "w-reconcile")?.state, "unknown");
+
+  // SDK loop-state.js emits TOOL_INTERRUPTED only for unexecuted calls or discarded read-only calls; it must remain "failed".
+  const interruptedStream = projectEvents([
+    { type: "tool-call", call: { id: "c-pass", name: "run-command", input: { executable: "node", argv: ["--test"] } } },
+    { type: "tool-result", callId: "c-pass", name: "run-command", text: "exit 0\nok", outcome: "returned" },
+    { type: "tool-call", call: { id: "w-interrupted", name: "write", input: { path: "src/app.ts" } } },
+    { type: "tool-result", callId: "w-interrupted", name: "write", text: "TOOL_INTERRUPTED: this run was cancelled before the tool ran. Nothing ran.", outcome: "failed", errorCode: "TOOL_INTERRUPTED" },
+  ]);
+  assert.equal(interruptedStream.activity.find(item => item.call_id === "w-interrupted")?.state, "failed");
+
+  const { check, caller } = await setup(t, {
+    "r-reconcile": { command_outputs: [{ call_id: "c-pass" }], activity: reconcileStream.activity },
+    "r-interrupted": { command_outputs: [{ call_id: "c-pass" }], activity: interruptedStream.activity },
+  });
+  type CheckResult = { commands: Array<{ recorded: boolean; changed_after: boolean }> };
+  const reconcileCheck = await check(caller("agent", "s1"), "r-reconcile", ["c-pass"]) as CheckResult;
+  assert.equal(reconcileCheck.commands[0]!.recorded, true);
+  assert.equal(reconcileCheck.commands[0]!.changed_after, true, "EFFECT_RECONCILE_REQUIRED write after cited command must report changed_after: true");
+
+  const interruptedCheck = await check(caller("agent", "s1"), "r-interrupted", ["c-pass"]) as CheckResult;
+  assert.equal(interruptedCheck.commands[0]!.recorded, true);
+  assert.equal(interruptedCheck.commands[0]!.changed_after, false, "TOOL_INTERRUPTED unexecuted write must stay failed and report changed_after: false");
 });

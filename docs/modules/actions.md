@@ -18,4 +18,4 @@
 
 持续任务继续复用 Images 等业务 owner 的原记录。平台不另造任务表来复制其状态，也不将每次轻量调用升级为 Goal。合同包里曾有一个只含描述符的 `modules/actions` 占位子路径，W2-01 已删；它从来没有对应实现，不要据此再创建第二套动作执行服务。
 
-当前为迁移中，未达到整体内部完整。授权界面、MCP Client 接入、全部存量插件、通用工作流及调用记录仍有未完成项。唯一范围和验证记录见 [架构规格](../../specs/action-architecture/spec.md) 与 [迁移清单](../../specs/action-architecture/migration.md)。
+统一动作服务已在页面、助理、Agent、工作流、外部 MCP 及全部 20 个内置 Plugin Runtime 插件中正式投产（R8 已删除 typed capability 通道，MCP 逐客户端授权、调用记录与动作合同快照门禁均已落地）。完整动作合同与架构规格见 [架构规格](../../specs/action-architecture/spec.md)；早期迁移记录留档于 [历史迁移清单](../../specs/action-architecture/migration.md)。

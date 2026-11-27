@@ -1,5 +1,5 @@
 import { feedErrors } from "./contract/feed.js";
-import type { HomePluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * Feed's Home reference ledger (specs/archive/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md §3.2).
@@ -21,9 +21,21 @@ const FEED_CONTENT_LEDGER_SCHEMA = `
   );
   CREATE INDEX feed_content_holds_by_holder ON feed_content_holds (project_id, source_id);
 `;
+/** Project-scoped holds cleared by the platform when a project is deleted (PG-024), so deleted projects never pin shared evidence forever. */
+const FEED_CONTENT_PROJECT_ROWS: PluginProjectRowsDeclaration = {
+  label: { key: "feed.project-deletion.data" },
+  order: 95,
+  tables: [{ table: "feed_content_holds", column: "project_id" }],
+};
 /** The Home library the Feed's Home half is given (`services.database`). */
-export const FEED_HOME_DATABASE: HomePluginDatabaseDeclaration = { store_name: "feed-content", version: /* @version database.feed_home_database */ 1,
-  read_permission: "feed:read", write_permission: "feed:write", schema: FEED_CONTENT_LEDGER_SCHEMA };
+export const FEED_HOME_DATABASE: HomePluginDatabaseDeclaration = {
+  project_rows: FEED_CONTENT_PROJECT_ROWS,
+  store_name: "feed-content",
+  version: /* @version database.feed_home_database */ 1,
+  read_permission: "feed:read",
+  write_permission: "feed:write",
+  schema: FEED_CONTENT_LEDGER_SCHEMA,
+};
 
 /** The only bodies this ledger counts: what the Home's evidence store names. A reference to anything else (a research note) is not its. */
 const BODY_REF = /^molis-work-evidence\/sha256\/[0-9a-f]{64}$/u;

@@ -71,11 +71,14 @@ export class BrowserPage {
   private resumeUrl = "";
   private navigation = 0;
   private knownSource = true;
+  private readonly pendingSessions = new Set<string>();
+  private readonly pendingTargets = new Set<string>();
 
   constructor(readonly projectId: string, private readonly host: BrowserHost) {}
 
   get listening(): boolean { return this.listeners.size > 0; }
   owns(targetId: string): boolean { return this.stack.some(layer => layer.targetId === targetId); }
+  adopting(targetId: string): boolean { return this.pendingTargets.has(targetId); }
   private get top(): Layer | undefined { return this.stack.at(-1); }
 
   snapshot(): BrowserPageState {
@@ -150,29 +153,45 @@ export class BrowserPage {
     const running = await this.host.browser();
     this.connection = running.cdp;
     this.stack = [];
+    this.pendingSessions.clear();
+    this.pendingTargets.clear();
     for (const off of this.unsubscribe.splice(0)) off();
+    this.listenTo(running.cdp);
     const { targetId } = await running.cdp.send("Target.createTarget", { url: "about:blank" }) as { targetId: string };
     const layer = await this.attachTarget(targetId);
-    this.stack = [layer]; this.navigation++; this.knownSource = !this.resumeUrl;
+    this.stack = [layer];
+    this.pendingSessions.delete(layer.sessionId);
+    this.navigation++;
+    this.knownSource = !this.resumeUrl;
     this.status = "ready";
-    this.listenTo(running.cdp);
     this.emit();
     return layer;
   }
 
-  private async attachTarget(targetId: string): Promise<Layer> {
+  private async attachTarget(targetId: string, preAttached?: { sessionId: string; waitingForDebugger?: boolean }): Promise<Layer> {
     const cdp = this.connection!;
-    const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true }) as { sessionId: string };
-    await Promise.all([
-      cdp.send("Page.enable", {}, sessionId),
-      cdp.send("Runtime.enable", {}, sessionId),
-      cdp.send("Inspector.enable", {}, sessionId).catch(() => undefined),
-      cdp.send("Page.setInterceptFileChooserDialog", { enabled: true }, sessionId).catch(() => undefined),
-      cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }, sessionId).catch(() => undefined),
-      this.applyViewport(sessionId),
-      this.blockHostOrigins(sessionId),
-    ]);
-    return { targetId, sessionId };
+    const sessionId = preAttached?.sessionId
+      ?? ((await cdp.send("Target.attachToTarget", { targetId, flatten: true }) as { sessionId: string }).sessionId);
+    this.pendingSessions.add(sessionId);
+    try {
+      // Enable Fetch interception before any other domain or resuming a paused popup so forbidden local origins cannot race ahead.
+      await this.blockHostOrigins(sessionId);
+      await Promise.all([
+        cdp.send("Page.enable", {}, sessionId),
+        cdp.send("Runtime.enable", {}, sessionId),
+        cdp.send("Inspector.enable", {}, sessionId).catch(() => undefined),
+        cdp.send("Page.setInterceptFileChooserDialog", { enabled: true }, sessionId).catch(() => undefined),
+        cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }, sessionId).catch(() => undefined),
+        this.applyViewport(sessionId),
+      ]);
+      if (preAttached?.waitingForDebugger) {
+        await cdp.send("Runtime.runIfWaitingForDebugger", {}, sessionId).catch(() => undefined);
+      }
+      return { targetId, sessionId };
+    } catch (error) {
+      this.pendingSessions.delete(sessionId);
+      throw error;
+    }
   }
 
   /**
@@ -186,7 +205,7 @@ export class BrowserPage {
   }
 
   private listenTo(cdp: CdpConnection): void {
-    const mine = (sessionId: string | undefined) => !!sessionId && this.stack.some(layer => layer.sessionId === sessionId);
+    const mine = (sessionId: string | undefined) => !!sessionId && (this.stack.some(layer => layer.sessionId === sessionId) || this.pendingSessions.has(sessionId));
     const isTop = (sessionId: string | undefined) => !!sessionId && this.top?.sessionId === sessionId;
     this.unsubscribe.push(
       cdp.on("Page.screencastFrame", (params, sessionId) => {
@@ -236,7 +255,12 @@ export class BrowserPage {
   hostChanged(): void {
     if (this.connection?.closed) {
       if (this.url && this.url !== "about:blank") this.resumeUrl = this.url;
-      this.stack = []; this.connection = null; this.screencasting = null; this.loading = false;
+      this.stack = [];
+      this.pendingSessions.clear();
+      this.pendingTargets.clear();
+      this.connection = null;
+      this.screencasting = null;
+      this.loading = false;
       this.status = "stopped";
     }
     this.emit();
@@ -267,19 +291,48 @@ export class BrowserPage {
     void this.refreshTop();
   }
 
-  async adoptPopup(targetId: string): Promise<void> {
+  async adoptPopup(targetId: string, preAttached?: { sessionId: string; waitingForDebugger?: boolean }): Promise<void> {
     const connection = this.connection, parent = this.top, generation = this.navigation;
-    if (this.owns(targetId) || !connection) return;
-    const current = () => this.connection === connection && this.top === parent && this.navigation === generation;
-    const layer = await this.attachTarget(targetId).catch(() => null);
-    if (!layer) return;
-    const detach = () => connection.send("Target.detachFromTarget", { sessionId: layer.sessionId }).catch(() => undefined);
-    if (!current()) { await detach(); return; }
-    await this.stopScreencast();
-    if (!current()) { await detach(); return; }
-    this.stack.push(layer); this.navigation++; this.knownSource = false;
-    this.url = ""; this.title = ""; this.dialog = null; this.fileChooser = null; this.emit();
-    await this.refreshTop();
+    if (this.owns(targetId) || this.pendingTargets.has(targetId) || !connection) return;
+    this.pendingTargets.add(targetId);
+    let sessionId = preAttached?.sessionId;
+    const closeRejected = async () => {
+      if (sessionId) this.pendingSessions.delete(sessionId);
+      await connection.send("Target.closeTarget", { targetId }).catch(() => undefined);
+      if (sessionId) await connection.send("Target.detachFromTarget", { sessionId }).catch(() => undefined);
+    };
+    try {
+      const current = () => this.connection === connection && this.top === parent && this.navigation === generation;
+      if (!current()) {
+        await closeRejected();
+        return;
+      }
+      const layer = await this.attachTarget(targetId, preAttached).catch(() => null);
+      if (!layer) {
+        await closeRejected();
+        return;
+      }
+      sessionId = layer.sessionId;
+      if (!current()) {
+        await closeRejected();
+        return;
+      }
+      await this.stopScreencast();
+      if (!current()) {
+        await closeRejected();
+        return;
+      }
+      this.stack.push(layer);
+      this.pendingSessions.delete(layer.sessionId);
+      this.navigation++; this.knownSource = false;
+      this.url = ""; this.title = ""; this.dialog = null; this.fileChooser = null; this.emit();
+      await this.refreshTop();
+    } finally {
+      this.pendingTargets.delete(targetId);
+      if (sessionId && !this.stack.some(entry => entry.sessionId === sessionId)) {
+        this.pendingSessions.delete(sessionId);
+      }
+    }
   }
 
   private async refreshTop(): Promise<void> {

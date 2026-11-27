@@ -12,6 +12,7 @@ import { resolveManifestText } from "@molis-ai/molis-work-plugin-runtime";
 import { localeMessageArguments, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { manifestWordResolver, registeredBuiltinText, workbenchPlatformText } from "./ui-text-provider.js";
+import { localizeWebErrorMessage, readWorkbenchText } from "./ui-error-words.js";
 import { shippedParts } from "./plugin-registry.js";
 import { activeLocale, currentLocale } from "./web-locale.js";
 
@@ -123,11 +124,11 @@ export async function capabilitiesView(options: {
     const client = reference ? host.actionClient(reference) : host.homeActionClient();
     // Where it is used comes from the owners of saved references, through the same query MCP and Agents use.
     const reported = selected ? await client.invoke(caller, actionUsageActions.read, { action: { capability_id: selected.capability_id, version: selected.version, provider_id: selected.provider.provider_id } })
-      .catch((error: unknown) => ({ usages: [], issues: [error instanceof Error ? error.message : "暂时无法读取使用位置"] })) as ActionUsagesResult : undefined;
+      .catch((error: unknown) => ({ usages: [], issues: [localizeWebErrorMessage(error, "common.error.unavailable")] })) as ActionUsagesResult : undefined;
     const projectReaders = await projectActionLocaleReaders(host, reference);
     const words = resolveActionLibraryWords(actions, { host, projectReaders });
     return { ...model, actions, selected, library_titles: words.titles, library_descriptions: words.descriptions, library_providers: words.providers,
-      ...(selectedId && !selected ? { selection_error: "引用的能力或版本已不可访问，请检查插件状态、权限或重新选择。" } : {}),
+      ...(selectedId && !selected ? { selection_error: readWorkbenchText("workbench.capabilities.capability-selection-unavailable") } : {}),
       ...(selected ? { offered_in: offeredIn(actions, selected), reported_usages: reported!.usages, usage_issues: reported!.issues } : {}),
       ...(selected?.action.kind === "judgment" ? {
         scenes: await scenes.discoverScenes(caller, selected), usages: await scenes.usages(caller, selected),

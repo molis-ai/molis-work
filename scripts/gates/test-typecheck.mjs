@@ -13,6 +13,15 @@ export const BASELINE_FILE = "tooling/gates/test-typecheck-baseline.json";
 export const TSCONFIG_FILE = "tooling/types/tsconfig.tests.json";
 
 const DIAGNOSTIC_LINE = /^(.+?)\(\d+,\d+\): error (TS\d+):/;
+const GLOBAL_DIAGNOSTIC_LINE = /^error (TS\d+):/;
+
+export function parseGlobalTscDiagnostics(output) {
+  const diagnostics = [];
+  for (const rawLine of String(output).split(/\r?\n/)) {
+    if (GLOBAL_DIAGNOSTIC_LINE.test(rawLine)) diagnostics.push(rawLine.trim());
+  }
+  return diagnostics;
+}
 
 export function parseTscDiagnostics(output, root = "") {
   const counts = {};
@@ -88,6 +97,10 @@ export function runTestsTypecheck(root) {
   });
   if (result.error) throw result.error;
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  const globalDiagnostics = parseGlobalTscDiagnostics(output);
+  if (globalDiagnostics.length) {
+    throw new Error(`tsc reported ${globalDiagnostics.length} global diagnostic(s) (check ${TSCONFIG_FILE}):\n${globalDiagnostics.slice(0, 10).join("\n")}`);
+  }
   const measured = parseTscDiagnostics(output, root);
   if (result.status !== 0 && measured.total === 0) {
     throw new Error(`tsc failed with exit ${result.status} and no parsed diagnostics:\n${output.trim().slice(0, 600)}`);
@@ -148,7 +161,9 @@ function main() {
       files: measured.files,
     };
     const nextParsed = { total: measured.total, files: measured.files };
-    const errors = baselineLooseningProblems(nextParsed, baseBaseline, renames);
+    // Without --base, compare against the existing baseline file on disk so local --update can never silently raise counts.
+    const floorBaseline = baseBaseline ?? (existsSync(baselinePath) ? parseBaseline(readFileSync(baselinePath, "utf8"), BASELINE_FILE) : null);
+    const errors = baselineLooseningProblems(nextParsed, floorBaseline, renames);
     if (errors.length) {
       console.error(`Baseline not updated:\n- ${errors.join("\n- ")}`);
       process.exitCode = 1;

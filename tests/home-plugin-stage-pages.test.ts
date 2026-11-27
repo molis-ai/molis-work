@@ -134,7 +134,7 @@ test("RAC-2621.5 a Home whose plugin library breaks after it started offers no p
     const away = (from: string, to: string) => library.exec(`ALTER TABLE ${from} RENAME TO ${to}`);
     try {
       away("plugin_runtime_installs", "plugin_runtime_installs_away");
-      assert.throws(() => homePlugins.registered(), "the library really is unreadable now");
+      assert.throws(() => homePlugins.registered(), { code: "ERR_SQLITE_ERROR", message: /no such table: plugin_runtime_installs/ }, "the library really is unreadable now");
       assert.deepEqual(await packages(), []);
     } finally { away("plugin_runtime_installs_away", "plugin_runtime_installs"); library.close(); }
   } finally { await host.close(); }

@@ -81,10 +81,11 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
   return [
     bind(feedRuleActions.recommendations, async (_args, caller) => judgments ? judgments.recommendations(caller) : { recommendations: [] }),
     bind(feedRuleActions.judgments, async (_args, caller) => judgments ? judgments.catalog(caller) : { choices: [], usages: [] }),
-    bind(feedRuleActions.previewJudgment, async (args, caller) => {
+    // Not `async`: precondition checks and read run synchronously before awaiting hydration and preview.
+    bind(feedRuleActions.previewJudgment, (args, caller) => {
       if (!judgments) throw new ActionError("actions.scene_missing", "捕捉判断服务未连接");
-      const item = await hydrate(feed.getFeedItem(projectId, args.item_id));
-      return judgments.preview(args.judgment, feedCaptureContent(item), caller);
+      const item = feed.getFeedItem(projectId, args.item_id);
+      return Promise.resolve(hydrate(item)).then(hydrated => judgments.preview(args.judgment, feedCaptureContent(hydrated), caller));
     }),
     bind(feedRuleActions.list, () => ({ rules: feed.outRules.list(projectId) })),
     bind(feedRuleActions.create, async (args, caller) => {

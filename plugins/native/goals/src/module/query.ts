@@ -15,7 +15,7 @@ import {
   GoalsCommandContext,
   type GoalsCommandContextOptions,
 } from "./command-support.js";
-import { GoalsRepository } from "./repository.js";
+import { GoalsRepository, collectAncestorGoalIds } from "./repository.js";
 import { GoalQueryFactsRepository } from "./query-facts-repository.js";
 
 export class GoalsQueryService implements GoalsQueryApi {
@@ -131,6 +131,10 @@ export class GoalsQueryService implements GoalsQueryApi {
           ) ?? [],
         };
       });
+    const ancestors = collectAncestorGoalIds(
+      snapshot.relations.filter((relation) => relation.state === "active" && relation.type === "part_of"),
+      goalId,
+    );
     return {
       board: snapshot.board,
       observed_event_cursor: snapshot.observed_event_cursor,
@@ -142,7 +146,9 @@ export class GoalsQueryService implements GoalsQueryApi {
       ),
       resolved_policy: resolveGoalPolicy(
         snapshot.policy_bindings.filter((binding) =>
-          binding.goal_id == null || binding.goal_id === goalId
+          binding.goal_id == null
+          || binding.goal_id === goalId
+          || (binding.scope === "ancestor_minimum" && ancestors.has(binding.goal_id))
         ),
       ),
     };

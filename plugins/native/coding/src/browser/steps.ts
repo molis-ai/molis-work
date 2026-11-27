@@ -26,10 +26,11 @@ export function stepReports(ports: StepPorts): StepReports {
   const accept = q<HTMLButtonElement>("[data-coding-step-accept]"), reject = q<HTMLButtonElement>("[data-coding-step-reject]"), rework = q<HTMLButtonElement>("[data-coding-step-rework]"), reload = q<HTMLButtonElement>("[data-coding-step-refresh]");
   let owner = "", runId = "", stepId = "", ticket = 0, busy = false;
   let data: SessionRead | null = null, entry: PlanEntry | null | undefined = null, node: StepNode | null | undefined = null, verdict: StepVerdict | null = null;
-  const states: Record<string, string> = {
-    "not-started": uiText.text("coding.step.state.not-started"), ready: uiText.text("coding.step.state.ready"), running: uiText.text("coding.step.state.running"),
-    succeeded: uiText.text("coding.step.state.succeeded"), failed: uiText.text("coding.step.state.failed"), cancelled: uiText.text("coding.step.state.cancelled"), blocked: uiText.text("coding.step.state.blocked"),
+  const stateKeys: Readonly<Record<string, string>> = {
+    "not-started": "coding.step.state.not-started", ready: "coding.step.state.ready", running: "coding.step.state.running",
+    succeeded: "coding.step.state.succeeded", failed: "coding.step.state.failed", cancelled: "coding.step.state.cancelled", blocked: "coding.step.state.blocked",
   };
+  const stateText = (state: string) => stateKeys[state] ? uiText.text(stateKeys[state]!) : uiText.text("coding.step.state.unknown");
   const key = () => "molis-coding-step-notes:" + location.pathname + ":" + owner + ":" + runId + ":" + stepId;
   const remember = () => {
     try { sessionStorage.setItem(key(), notes.value); } catch { /* storage closed: the notes stay in the box */ }
@@ -48,7 +49,7 @@ export function stepReports(ports: StepPorts): StepReports {
     if (!plan || !board) throw new Error(uiText.text("coding.step.unreadable"));
     const planned = plan.content.steps[Number(step.id.replace("step-", "")) - 1];
     const shown = step.inserted ? { title: step.title || step.id, acceptance: insertedAcceptance(step.reports) || uiText.text("coding.step.see-insert") } : planned ?? { title: step.title || step.id, acceptance: "" };
-    detail.append(el("p", uiText.text("coding.step.run", { run: runId, revision: found.revision })), el("h3", shown.title), el("p", uiText.text("coding.step.acceptance", { acceptance: shown.acceptance })), el("p", states[step.state] || uiText.text("coding.step.state.unknown")));
+    detail.append(el("p", uiText.text("coding.step.run", { run: runId, revision: found.revision })), el("h3", shown.title), el("p", uiText.text("coding.step.acceptance", { acceptance: shown.acceptance })), el("p", stateText(step.state)));
     // Who holds the step now, and who made each report (a handover says so).
     if (step.owner) detail.append(el("p", uiText.text("coding.step.owner", { owner: stepActorText(readText, step.owner) })));
     const reports = el("ol", "");

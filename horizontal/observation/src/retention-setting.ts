@@ -4,6 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { OBSERVATION_PROVIDER_ID, OBSERVATION_RETENTION_MODES, type ObservationRetentionMode } from "@molis-ai/molis-work-contracts/services/observation";
 import type { SettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/settings";
 import { bindSettingsHandlers, defineSettingsActions, type SettingSnapshot, type SettingsOwner, type SettingsRequestIdentity } from "@molis-ai/molis-work-plugin-sdk";
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { assertPersonCaller } from "./access.js";
 import { sweepExpiredRecords } from "./cleanup.js";
 import { observationErrors } from "./errors.js";
@@ -54,6 +55,7 @@ export function retentionSettingHandlers(deps: ManagementActionDeps) {
       const receiptKey = ({ key, layer, request_id }: SettingsRequestIdentity) =>
         "settings.receipt:" + JSON.stringify([scope.actor_id, key, layer, request_id]);
       db.exec("BEGIN IMMEDIATE");
+      let swept = false;
       try {
         const result = run({
           readCurrent: key => snapshot(db, key),
@@ -71,15 +73,21 @@ export function retentionSettingHandlers(deps: ManagementActionDeps) {
             const value = "set" in change ? change.set : "keep";
             if (!OBSERVATION_RETENTION_MODES.includes(value as ObservationRetentionMode)) throw observationErrors.setting_invalid("清理期限无效");
             writeStoredSettings(db, { ...readStoredSettings(db), retention_mode: value as ObservationRetentionMode }, { retention: "set" in change });
-            sweepExpiredRecords(db, deps.env.now());
+            if ((sweepExpiredRecords(db, deps.env.now())?.deleted_records ?? 0) > 0) swept = true;
           },
           saveReceipt(identity, receipt) {
             db.prepare("INSERT INTO writer_state(key,value) VALUES (?,?)").run(receiptKey(identity), JSON.stringify(receipt));
           },
         });
         db.exec("COMMIT");
+        if (swept) deps.writer.clearFolds();
         return result;
-      } catch (error) { if (db.isTransaction) db.exec("ROLLBACK"); throw error; }
+      } catch (error) {
+        rollbackPreservingError(error, () => {
+          if (db.isTransaction) db.exec("ROLLBACK");
+        });
+        throw error;
+      }
     },
   };
   const bound = bindSettingsHandlers(retentionActions, declaration, owner);

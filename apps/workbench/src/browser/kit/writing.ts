@@ -97,8 +97,21 @@ export function skillWriting(page: WritingPage) {
     const asking = view.asking!;
     if (name === "au-drop") { view.asking = undefined; return draw("detail"); }
     if (name === "au-scope") { asking.scope = value as SkillScope; return draw("au-scope"); }
-    if (name === "au-self") return edit.create(asking.scope, { kind: "new" });
-    if (name !== "au-draft") return;
+    if (name === "au-self") {
+      if (asking.busy) return;
+      asking.busy = true;
+      asking.failure = undefined;
+      draw();
+      try {
+        await edit.create(asking.scope, { kind: "new" });
+      } catch (cause) {
+        asking.busy = false;
+        asking.failure = messageOf(cause);
+        if (view.asking === asking) draw("au-failure");
+      }
+      return;
+    }
+    if (name !== "au-draft" || asking.busy) return;
     asking.busy = true; asking.failure = undefined; draw();
     try {
       const fields = await draftFromSentence(project, asking.intent);
@@ -115,7 +128,7 @@ export function skillWriting(page: WritingPage) {
   async function run(name: string, value: string | undefined, origin: HTMLElement): Promise<void> {
     if (await skill.start(name, value, origin) || await skill.inDetail(name, value)) return;
     if (view.asking && name.startsWith("au-")) return fromSentence(name, value);
-    if (view.workshop) return turns.run(view.workshop, name, value);
+    if (view.workshop) return turns.run(view.workshop, name, value, origin);
   }
 
   /**

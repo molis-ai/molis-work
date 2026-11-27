@@ -369,7 +369,7 @@ Manifest `methods`、撤销声明、到期提醒、后台任务回报、放置�
 | N-16 | 测试执行器串行，全量回归耗时长 | `scripts/run-tests.mjs` 用 `--test-concurrency=1` |
 | N-17 | 没有公开 API 的变更检查 | 插件 SDK 与 contracts 的导出没有快照或检查 |
 | N-18 | 概念重叠：动作、能力、判断函数、方法、Skill、场景、行为并存 | 多套名称并存，分别出现在几个到上百个源码文件里 |
-| N-19 | 版本与发布策略缺失；根目录入库了介绍网页与定位材料 | 根包 0.2.0、其余 72 个包 0.0.0；`molis-work-introduction.html`、`outputs/` |
+| N-19 | 版本与发布策略缺失；根目录入库了介绍网页与定位材料 | 根包 0.2.0、其余 72 个包 0.0.0；`molis-work-introduction.html`（已于后续治理移出工作树，留存 Git 历史）、`outputs/` |
 | N-20 | 非 TypeScript 代码不在任何检查里 | 18 个 Rust、3 个 Swift、7 个 shell、1 个 Python 文件 |
 | C 组 | C 端就绪缺口：无自动更新、无崩溃上报与可观测性（`packages/observability` 是 absent）、无在线备份、ad-hoc 签名未公证、只有 macOS 桌面、生成插件沙箱依赖 `sandbox-exec`、CLI 没有第三方插件安装路径、核心 AI 依赖私有 vendored 包 | 体检报告 §3.3；本步只出方案 |
 

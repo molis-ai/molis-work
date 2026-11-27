@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { inspectLocaleSet } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pageTextForPacks, pageTextReaderScriptForPacks, pageTextScriptForPacks, shippedPagePack, withPagePacks } from "./page-text-packs.js";
 
 const builtins = new Map([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].map(entry => [entry.project_plugin_id, entry.manifest]));
+const SUPPORTED_LOCALES: readonly string[] = (
+  JSON.parse(readFileSync(new URL("../../apps/workbench/resources/languages.json", import.meta.url), "utf8")) as {
+    languages: ReadonlyArray<{ tag: string }>;
+  }
+).languages.map(entry => entry.tag);
 
 /** The actual built-in locale file; nothing projects a word from an unrelated owner's dictionary. */
 export function pagePack(owner: string, locale: string): UiLocalePack {
@@ -38,14 +44,16 @@ export function pageTextReaderScript(locale: WebLocale, ...plugins: string[]): s
   return pageTextReaderScriptForPacks(locale, ownedPacks(locale, plugins));
 }
 
-/** The shipped packs cover the checked keys and share parameters and plural shapes. */
+/** The shipped packs cover the checked keys across every supported locale and share parameters and plural shapes. */
 export function assertPageWords(owner: string, keys: Iterable<string>): void {
   const fallback = owner === "workbench" ? "zh" : builtins.get(owner)?.ui.locales?.default;
   assert.ok(fallback, owner);
-  const packs = [pagePack(owner, fallback), ...(fallback === "en" ? [] : [pagePack(owner, "en")])];
+  const locales = [fallback, ...SUPPORTED_LOCALES.filter(locale => locale !== fallback)];
+  const packs = locales.map(locale => pagePack(owner, locale));
   assert.deepEqual(inspectLocaleSet(packs, { default: fallback }), [], owner);
+  const commonPacks = SUPPORTED_LOCALES.map(locale => pagePack("workbench", locale));
   for (const key of new Set(keys)) {
-    const exact = key.startsWith("common.") ? [pagePack("workbench", "zh"), pagePack("workbench", "en")] : packs;
-    assert.ok(exact.every(pack => Object.hasOwn(pack.messages, key)), `${owner}: ${key} is in both language files`);
+    const exact = key.startsWith("common.") ? commonPacks : packs;
+    assert.ok(exact.every(pack => Object.hasOwn(pack.messages, key)), `${owner}: ${key} is in all language files (${locales.join(", ")})`);
   }
 }

@@ -162,3 +162,55 @@ test("RAC-2922 real AgentHost registration accepts ordinary/fixed starts and ref
     await assert.rejects(actions.invoke(agent.waitRun, [own, view.ref, null, 0]), { code: "actions.output_invalid" });
   }
 });
+
+test("F-cf-09 F-TEST-11 frozenOutput.reply_locale accepts ja and BCP-47 locale tags and rejects malformed tags", async () => {
+  for (const locale of ["zh", "en", "ja", "ja-JP", "zh-Hans-CN", "en-US"]) {
+    const view = run();
+    view.frozen = { ...view.frozen, reply_locale: locale };
+    assert.deepEqual(await serviceAnswering(() => view).invoke(caller, readRun, [...ref]), view, locale);
+    const whole = session(view);
+    assert.deepEqual(await serviceAnswering(() => whole).invoke(caller, readSession, [ref[0]]), whole, `${locale} (session)`);
+  }
+  for (const badLocale of ["", "123", "ja_JP", "japanese", "zh-hans"]) {
+    const view = run();
+    (view.frozen as { reply_locale?: unknown }).reply_locale = badLocale;
+    await assert.rejects(serviceAnswering(() => view).invoke(caller, readRun, [...ref]), { code: "actions.output_invalid" }, badLocale);
+  }
+});
+
+test("F-cf-08 prepareRewind output schema accepts reference and install_id and rejects missing reference", async () => {
+  const prepareRewind = forUser(agentHostCapabilities.prepareRewind);
+  const validReview = {
+    review_id: "rev-1",
+    reference: {
+      owner: { kind: "agent-review", project_id: "project-one", plugin_id: "coding", install_id: "coding" },
+      id: "rev-1",
+      version: "1",
+    },
+    run: null,
+    operation: { kind: "rewind", checkpoint_id: "cp-1" },
+    project_id: "project-one",
+    plugin_id: "coding",
+    install_id: "coding",
+    kind: "rewind",
+    document: { summary: "Rewind to checkpoint cp-1" },
+    requested_at: "2026-10-25T10:00:00.000Z",
+    expires_at: null,
+  };
+  const service = new ActionService();
+  let response: unknown = validReview;
+  service.registerProvider({
+    provider,
+    definitions: [prepareRewind],
+    handlers: [{ ...prepareRewind, handle: () => response as never }],
+  });
+  assert.deepEqual(await service.invoke(caller, prepareRewind, [ref[0], "cp-1", "role-1"]), validReview);
+  const withoutInstallId = { ...validReview };
+  delete (withoutInstallId as { install_id?: string }).install_id;
+  response = withoutInstallId;
+  assert.deepEqual(await service.invoke(caller, prepareRewind, [ref[0], "cp-1", "role-1"]), withoutInstallId);
+  const missingReference = { ...validReview };
+  delete (missingReference as { reference?: unknown }).reference;
+  response = missingReference;
+  await assert.rejects(service.invoke(caller, prepareRewind, [ref[0], "cp-1", "role-1"]), { code: "actions.output_invalid_after_effect" });
+});

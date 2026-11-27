@@ -9,8 +9,8 @@ function exact(row:Record<string,unknown>,allowed:readonly string[],required:rea
 function strings(value:unknown){if(!Array.isArray(value)||value.some(v=>typeof v!=='string'))builderSyncInvalid();}
 function stamp(value:unknown){if(typeof value!=='string'||!Number.isFinite(Date.parse(value)))builderSyncInvalid();}
 export function validateBuilderResults(row:Record<string,unknown>):void{
- if(row.browserResult!==undefined){const b=object(row.browserResult);exact(b,['passed','cases','at']);stamp(b.at);
-  if(typeof b.passed!=='boolean'||!Array.isArray(b.cases))builderSyncInvalid();
+ if(row.browserResult!==undefined){const b=object(row.browserResult);exact(b,['passed','cases','at','blocked'],['passed','cases','at']);stamp(b.at);
+  if(typeof b.passed!=='boolean'||!Array.isArray(b.cases)||b.blocked!==undefined&&(typeof b.blocked!=='string'||!b.blocked.length||b.blocked.length>4_000))builderSyncInvalid();
   for(const entry of b.cases as unknown[]){const c=object(entry);exact(c,['id','passed','detail']);if(typeof c.id!=='string'||typeof c.passed!=='boolean'||typeof c.detail!=='string')builderSyncInvalid();}
  }
  if(row.visualResult!==undefined){const v=object(row.visualResult);exact(v,['structural','status','issues','at','revision','elapsedMs']);stamp(v.at);strings(v.issues);

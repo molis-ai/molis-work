@@ -249,8 +249,8 @@ const providerIdOf = (view) => (typeof view.provider?.provider_id === "string" &
  * declaration the Manifest holds, and the same provider id in every view. Any other registration is a Host row, including one
  * under a Home-level provider of an `capability_id@version` a Manifest also declares (none today). Returns `{ rows, registered, problems }`:
  * `registered` maps each Manifest action's `capability_id@version` to the provider id the Host registers it under (its plugin's
- * registration, or, where the plugin registers none, the provider(s) that do); `problems` also names a Manifest action that no
- * view registers.
+ * registration, or, where the plugin registers none, the single provider that does); `problems` also names a Manifest action
+ * that no view registers or that is registered under multiple provider ids.
  */
 export const buildHostRows = (views, declared, effectOf) => {
   const problems = [], rows = new Map(), seenAnywhere = new Map(), byPlugin = new Map();
@@ -280,9 +280,13 @@ export const buildHostRows = (views, declared, effectOf) => {
   const registered = new Map();
   for (const row of declared) {
     const ids = [...(byPlugin.get(row.key) ?? seenAnywhere.get(row.key) ?? [])].sort(byText);
-    if (!ids.length) problems.push(`${row.key}: ${row.cells.provider} declares it but the Host registers it under no provider at all (a Manifest declares what the Host registers)`);
-    else if (byPlugin.has(row.key) && ids.length > 1) problems.push(`${row.key}: the Host registers it under ${ids.length} provider ids (${ids.join(", ")}); a persisted reference names exactly one, so a registration is under one`);
-    else registered.set(row.key, ids.join(","));
+    if (!ids.length) {
+      problems.push(`${row.key}: ${row.cells.provider} declares it but the Host registers it under no provider at all (a Manifest declares what the Host registers)`);
+    } else if (ids.length > 1) {
+      problems.push(`${row.key}: the Host registers it under ${ids.length} provider ids (${ids.join(", ")}); a persisted reference names exactly one, so a registration is under one`);
+    } else {
+      registered.set(row.key, ids[0]);
+    }
   }
   return { rows: [...rows.values()].sort(rowOrder("capability_id")), registered, problems };
 };
@@ -290,8 +294,9 @@ export const buildHostRows = (views, declared, effectOf) => {
 /**
  * What the Host's scene directory holds. `views` are what it lists (`ActionSceneView`: `definition`, `provider: { provider_id,
  * plugin_id? }`) over every audience and both scopes, so one registration appears several times; `declared` are the scene rows of
- * buildRows. A scene is the Manifest's when its provider's `plugin_id` is the Manifest that declares it; any other registration is a
- * Host row, the way buildHostRows treats an action: it needs a provider id, and every listing of it holds one declaration.
+ * buildRows. A scene is the Manifest's when its provider's `plugin_id` is the Manifest that declares it; it must then hold
+ * exactly the declaration the Manifest holds and the same provider id in every view. Any other registration is a Host row,
+ * the way buildHostRows treats an action: it needs a provider id, and every listing of it holds one declaration.
  * Returns `{ rows, registered, problems }`: `rows` are the Host's own scenes (key `scene_id@version via provider`), `registered` maps
  * each Manifest scene to the provider id the Host registers it under, and `problems` also names a Manifest scene that no view
  * registers or that is registered under two provider ids.
@@ -301,7 +306,15 @@ export const buildHostScenes = (views, declared) => {
   for (const view of views) {
     const key = `${view.definition?.scene_id}@${view.definition?.version}`, own = byKey.get(key), provider = providerIdOf(view);
     try {
-      if (own && provider && view.provider?.plugin_id === own.cells.provider) { found.set(key, new Set([...(found.get(key) ?? []), provider])); continue; }
+      if (own && provider && view.provider?.plugin_id === own.cells.provider) {
+        found.set(key, new Set([...(found.get(key) ?? []), provider]));
+        const cells = sceneCells(view.definition, own.cells.provider);
+        if (!sameCells(cells, own.cells, HOST_SCENE_COLUMNS)) {
+          const differing = HOST_SCENE_COLUMNS.filter((column) => cells[column] !== own.cells[column]).join(", ");
+          problems.push(`scene ${key}: the Host registers it under ${provider} with a declaration other than the Manifest's (${differing} differ)`);
+        }
+        continue;
+      }
       if (!provider) { problems.push(`scene ${key}: a registration of it names no provider id`); continue; }
       const cells = sceneCells(view.definition, provider);
       const rowKey = hostSceneKey(cells), before = rows.get(rowKey);

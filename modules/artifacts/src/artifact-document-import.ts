@@ -93,15 +93,26 @@ export interface ArtifactDocumentImportPorts {
   beforeSave?: () => void | Promise<void>;
 }
 
+interface PendingOriginal {
+  filename: string;
+  mime: string;
+  store(): Promise<StoredArtifactOriginal>;
+  sourceFilename?: string;
+}
+
 /** An explicit import creates a personal snapshot of the person; no scheduler or source write-back. */
 export async function importArtifactDocument(input: Record<string, unknown>, ports: ArtifactDocumentImportPorts) {
   const source = input.source;
   let document: ImportedArtifactDocument;
+  let pendingOriginal: PendingOriginal | undefined;
   const readFileText = ports.readFileText;
   const told = () => ({ text_available: document.content.trim().length > 0 });
   ports.signal?.throwIfAborted();
-  if (source === "file") document = await readFileDocument(input, { readHtml: ports.readHtml, ...readFileText ? { readFileText } : {}, ...ports.offered ? { offered: ports.offered } : {} });
-  else if (EXTERNAL_DOCUMENT_SOURCES.includes(source as ExternalDocumentSource)) {
+  if (source === "file") {
+    const read = await readFileDocument(input, { readHtml: ports.readHtml, ...readFileText ? { readFileText } : {}, ...ports.offered ? { offered: ports.offered } : {} });
+    document = read.document;
+    pendingOriginal = read.pendingOriginal;
+  } else if (EXTERNAL_DOCUMENT_SOURCES.includes(source as ExternalDocumentSource)) {
     const url = requiredString(input.url, "请输入文档链接", 4096);
     const connection_id = input.connection_id === undefined ? undefined : requiredString(input.connection_id, "请选择有效连接", 100);
     document = await ports.readExternal({ source: source as ExternalDocumentSource, url, ...(connection_id ? { connection_id } : {}) });
@@ -113,6 +124,17 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   }
   await ports.beforeSave?.();
   ports.signal?.throwIfAborted();
+  // Defer persisting >6 MiB originals until extraction, size validation, beforeSave (beforeEffect) and abort checks all pass (R-05 / F-modules-server-07).
+  if (pendingOriginal) {
+    const stored = await pendingOriginal.store();
+    await ports.beforeSave?.();
+    ports.signal?.throwIfAborted();
+    document = {
+      ...document,
+      ...(pendingOriginal.sourceFilename !== undefined ? { source_id: `${pendingOriginal.sourceFilename}:${stored.sha256}` } : {}),
+      original_file: { filename: pendingOriginal.filename, mime: pendingOriginal.mime, ...stored },
+    };
+  }
   // Project-scoped identity: the same source can be independently imported into two projects.
   const artifactId = `document-${digest(JSON.stringify([ports.projectId, document.source, document.source_id]))}`;
   const latest = ports.artifacts.query.latestArtifactVersion(ports.projectId, artifactId);
@@ -120,8 +142,9 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   const warnings = document.warnings.map(warning => ownedTextRef(warning, "workbench"));
   const payload = JSON.parse(JSON.stringify(document)) as ArtifactJsonValue;
   const previous = latest?.payload;
+  const withoutSourceUrl = (record: Record<string, unknown>) => Object.fromEntries(Object.entries(record).filter(([key]) => key !== "source_url"));
   const sameContent = previous && typeof previous === "object" && !Array.isArray(previous)
-    && Object.entries(document).every(([key, value]) => key === "source_url" || isDeepStrictEqual(previous[key], value));
+    && isDeepStrictEqual(withoutSourceUrl(previous as Record<string, unknown>), withoutSourceUrl(payload as Record<string, unknown>));
   if (latest?.schema_version === IMPORTED_DOCUMENT_SCHEMA_VERSION && sameContent && latest.lifecycle_state === "active" && latest.availability === "available") {
     return { artifact_id: artifactId, version: latest.version, title: latest.title, reused: true,
       url: ports.routePrefix + artifactVersionPath(latest), warnings, ...told() };
@@ -147,7 +170,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
 const mediaExtension = /\.(?:mp3|wav|wave|m4a|aac|aiff?|flac|ogg|opus|mp4|mov|m4v|webm|avi|mkv)$/iu;
 const mediaType = /^(?:audio|video)\//iu;
 
-async function readFileDocument(input: Record<string, unknown>, ports: Pick<ArtifactDocumentImportPorts, "readHtml" | "readFileText" | "offered">): Promise<ImportedArtifactDocument> {
+async function readFileDocument(input: Record<string, unknown>, ports: Pick<ArtifactDocumentImportPorts, "readHtml" | "readFileText" | "offered">): Promise<{ document: ImportedArtifactDocument; pendingOriginal?: PendingOriginal }> {
   const filename = requiredString(input.filename, "请选择一个文档文件", 255);
   if (/[\\/\u0000-\u001f]/u.test(filename)) throw documentErrors.filename_invalid("文件名无效");
   const extension = filename.toLowerCase().match(/\.(md|markdown|txt|html|htm)$/u)?.[1];
@@ -155,20 +178,34 @@ async function readFileDocument(input: Record<string, unknown>, ports: Pick<Arti
   const originalType = (input.original_file as { mime?: unknown } | null)?.mime;
   const media = mediaExtension.test(filename) || (typeof originalType === "string" && mediaType.test(originalType));
   if (!extension || media) {
-    const { original, bytes } = await originalFileOf(input.original_file, ports.offered);
+    const resolved = await originalFileOf(input.original_file, ports.offered);
     // The Host reads the text of what it can (PDF, DOCX); the original stays the snapshot, and its text is what agents find and read.
     // A file too big to hold in memory (over 2 GB) is still kept whole in the store; only its text is not read.
-    const held = !media && ports.readFileText ? await bytes().catch(error => {
+    const held = !media && ports.readFileText ? await resolved.bytes().catch(error => {
       if ((error as { code?: unknown } | null)?.code === "ERR_FS_FILE_TOO_LARGE") return null;
       throw error;
     }) : null;
     const read = held ? await ports.readFileText!({ filename, bytes: held }) ?? null : null;
     const unread = !media && ports.readFileText !== undefined && held === null;
     const text = read ? withinImportSize(read.text.trim()) : null;
-    return { source: "file", source_id: input.source_id === undefined ? `${filename}:${"sha256" in original ? original.sha256 : digest(original.data_base64)}` : requiredString(input.source_id, "文档来源标识无效", 512),
-      source_url: null, title: input.title == null || input.title === "" ? filename.replace(/\.[^.]+$/u, "") || filename : requiredString(input.title, "文档标题无效", 500),
-      content: text?.text ?? "", format: "file", warnings: [...media ? [{ key: "workbench.import.warning-media-original-only" }] : [], ...unread ? [{ key: "workbench.import.warning-original-too-big" }] : [],
-        ...read?.warnings ?? [], ...text?.cut ? [{ key: "workbench.import.warning-text-truncated" }] : []], original_file: original };
+    const title = input.title == null || input.title === "" ? filename.replace(/\.[^.]+$/u, "") || filename : requiredString(input.title, "文档标题无效", 500);
+    const warnings = [...media ? [{ key: "workbench.import.warning-media-original-only" }] : [], ...unread ? [{ key: "workbench.import.warning-original-too-big" }] : [],
+      ...read?.warnings ?? [], ...text?.cut ? [{ key: "workbench.import.warning-text-truncated" }] : []];
+    if ("original" in resolved) {
+      const original = resolved.original;
+      return {
+        document: {
+          source: "file",
+          source_id: input.source_id === undefined ? `${filename}:${"sha256" in original ? original.sha256 : digest(original.data_base64)}` : requiredString(input.source_id, "文档来源标识无效", 512),
+          source_url: null, title, content: text?.text ?? "", format: "file", warnings, original_file: original,
+        },
+      };
+    }
+    const explicitSourceId = input.source_id === undefined ? undefined : requiredString(input.source_id, "文档来源标识无效", 512);
+    return {
+      document: { source: "file", source_id: explicitSourceId ?? "", source_url: null, title, content: text?.text ?? "", format: "file", warnings },
+      pendingOriginal: { ...resolved.pending, ...(explicitSourceId === undefined ? { sourceFilename: filename } : {}) },
+    };
   }
   if (typeof input.content !== "string") throw documentErrors.content_invalid("文件必须是 UTF-8 文本");
   const whole = input.content.replace(/^\uFEFF/u, "");
@@ -180,27 +217,35 @@ async function readFileDocument(input: Record<string, unknown>, ports: Pick<Arti
   const extracted = html ? await ports.readHtml(original) : null;
   const title = input.title == null || input.title === "" ? extracted?.title || filename.replace(/\.[^.]+$/u, "")
     : requiredString(input.title, "文档标题无效", 500);
-  const originalFile = input.original_file === undefined ? undefined : (await originalFileOf(input.original_file, ports.offered)).original;
+  const resolved = input.original_file === undefined ? undefined : await originalFileOf(input.original_file, ports.offered);
+  const originalFile = resolved && "original" in resolved ? resolved.original : undefined;
+  const pendingOriginal = resolved && "pending" in resolved ? resolved.pending : undefined;
   return {
-    source: "file",
-    // A filename is not a durable remote document ID. Different files with the same name remain separate snapshots.
-    source_id: input.source_id === undefined ? `${filename}:${digest(original)}` : requiredString(input.source_id, "文档来源标识无效", 512),
-    source_url: null, title,
-    content: extracted?.content ?? original,
-    format: extension === "txt" ? "text" : "markdown",
-    warnings: [...html ? [{ key: "workbench.import.warning-html-snapshot" }] : [],
-      ...cut ? [{ key: "workbench.import.warning-text-truncated" }] : []],
-    ...(html ? { original_html: original } : {}),
-    ...(originalFile ? { original_file: originalFile } : {}),
+    document: {
+      source: "file",
+      // A filename is not a durable remote document ID. Different files with the same name remain separate snapshots.
+      source_id: input.source_id === undefined ? `${filename}:${digest(original)}` : requiredString(input.source_id, "文档来源标识无效", 512),
+      source_url: null, title,
+      content: extracted?.content ?? original,
+      format: extension === "txt" ? "text" : "markdown",
+      warnings: [...html ? [{ key: "workbench.import.warning-html-snapshot" }] : [],
+        ...cut ? [{ key: "workbench.import.warning-text-truncated" }] : []],
+      ...(html ? { original_html: original } : {}),
+      ...(originalFile ? { original_file: originalFile } : {}),
+    },
+    ...(pendingOriginal ? { pendingOriginal } : {}),
   };
 }
 
 /**
  * The original of an imported file: a safe name and a media type, with either its bytes (valid base64, at most the inline size) or,
- * without them, the file the Host was given for this import. That one stays inline up to the same size and is kept in the store above
- * it, so a version's shape follows only from the original's size.
+ * without them, the file the Host was given for this import. That one stays inline up to the same size and is deferred for store
+ * persistence above it until after `beforeSave` / abort checks pass, so a version's shape follows only from the original's size.
  */
-async function originalFileOf(value: unknown, offered: OfferedOriginal | undefined): Promise<{ original: ArtifactOriginalFile; bytes: () => Promise<Buffer> }> {
+async function originalFileOf(value: unknown, offered: OfferedOriginal | undefined): Promise<
+  | { original: ArtifactOriginalFile; bytes: () => Promise<Buffer> }
+  | { pending: PendingOriginal; bytes: () => Promise<Buffer> }
+> {
   const file = value as Record<string, unknown> | null | undefined;
   if (!file || typeof file !== "object") throw documentErrors.original_invalid("原文件快照无效");
   const name = requiredString(file.filename, "原文件名无效", 255);
@@ -214,7 +259,7 @@ async function originalFileOf(value: unknown, offered: OfferedOriginal | undefin
       const bytes = await offered.read();
       return { original: { filename: name, mime, data_base64: bytes.toString("base64") }, bytes: async () => bytes };
     }
-    return { original: { filename: name, mime, ...await offered.store() }, bytes: () => offered.read() };
+    return { pending: { filename: name, mime, store: () => offered.store() }, bytes: () => offered.read() };
   }
   if (typeof data !== "string" || data.length > 8_000_000 || data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(data)
     || Buffer.from(data, "base64").toString("base64") !== data || Buffer.from(data, "base64").length > ARTIFACT_ORIGINAL_INLINE_MAX_BYTES) {

@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";

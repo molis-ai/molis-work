@@ -15,6 +15,7 @@ import { CONTEXT_PANE_FACTORY_SCRIPT } from "./scripts/client/context-actions.js
 import { knowledgeClientTag } from "./settings-knowledge.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
+import { scriptJson } from "./plugin-directory.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 
@@ -70,10 +71,17 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   if (!surface) return null;
   const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id, primitives: { escape: escapeHtml, text: input.translate } };
   const html = uiHost.mount({ slot: WORKBENCH_UI_SLOTS.side, contribution: { contribution_id: view.contribution_id, surface: surface.surface_id, model } }).html;
-  const route = JSON.stringify(input.routePrefix);
   const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
+  const sideConfig = {
+    routePrefix: input.routePrefix,
+    projectId: input.projectId,
+    surfaceClient: surfaceClient
+      ? { id: surfaceClient.id, plugin_id: surfaceClient.plugin_id, bundle: surfaceClient.bundle, assets: surfaceClient.assets }
+      : null,
+  };
   const client = surfaceClient
-    ? `void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, projectId:()=>${JSON.stringify(input.projectId)}, projectTitle:()=>"", route:path=>${route}+path, side:true, page:(${SIDE_PAGE_SCRIPT}), status:status=>parent.postMessage({type:'molis:side-status',status},location.origin), openItem:(plugin,itemId,title)=>parent.postMessage({type:'molis:side-main-open', plugin, itemId, title, from:${JSON.stringify(surfaceClient.id)}}, location.origin)}, ${JSON.stringify(surfaceClient ? {id:surfaceClient.id,plugin_id:surfaceClient.plugin_id,bundle:surfaceClient.bundle,assets:surfaceClient.assets} : null)}).then(()=>{const root=document.querySelector('[data-side-view-root]');if(root?.isConnected){root.inert=false;root.removeAttribute('aria-busy');}}).catch(error=>{const root=document.querySelector('[data-side-view-root]');if(!root?.isConnected)return;root.inert=false;root.removeAttribute('aria-busy');molisWorkRequest.show(root,error);const retry=document.createElement('button');retry.type='button';retry.className='mw-btn mw-btn--secondary';retry.textContent=globalThis.t.text("common.control.retry");retry.addEventListener('click',()=>location.reload());root.append(retry);});`
+    ? `const __sideCfg = JSON.parse(document.querySelector('script[data-side-view-config]')?.textContent || '{}');
+      void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, projectId:()=>__sideCfg.projectId, projectTitle:()=>"", route:path=>__sideCfg.routePrefix+path, side:true, page:(${SIDE_PAGE_SCRIPT}), status:status=>parent.postMessage({type:'molis:side-status',status},location.origin), openItem:(plugin,itemId,title)=>parent.postMessage({type:'molis:side-main-open', plugin, itemId, title, from:__sideCfg.surfaceClient.id}, location.origin)}, __sideCfg.surfaceClient).then(()=>{const root=document.querySelector('[data-side-view-root]');if(root?.isConnected){root.inert=false;root.removeAttribute('aria-busy');}}).catch(error=>{const root=document.querySelector('[data-side-view-root]');if(!root?.isConnected)return;root.inert=false;root.removeAttribute('aria-busy');molisWorkRequest.show(root,error);const retry=document.createElement('button');retry.type='button';retry.className='mw-btn mw-btn--secondary';retry.textContent=globalThis.t.text("common.control.retry");retry.addEventListener('click',()=>location.reload());root.append(retry);});`
     : "";
   return renderWorkbenchDocument({
     lang: input.lang,
@@ -82,6 +90,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css">${appearanceHead(input.appearance)}<style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}`, ...(input.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root${surfaceClient ? ' inert aria-busy="true"' : ''}>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>${renderAppearanceRecovery(input.translate, input.appearance)}
+    <script type="application/json" data-side-view-config>${scriptJson(sideConfig)}</script>
     <script src="/assets/molis-work-plugin-frame.js"></script>
     <script>${MICRO_INTERACTION_CLIENT_SCRIPT}
 ${OVERFLOW_FADE_CLIENT_SCRIPT}
@@ -164,32 +173,53 @@ html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
 `;
 
 /** The same parent protocol serves Runtime Home views and project side views. */
-export function sideViewBridgeScript(routePrefix: string): string {
-  const route = JSON.stringify(routePrefix);
+export function sideViewBridgeScript(_routePrefix: string): string {
   return `      // This document and the side panel around it (S-30, the same checks as a split pane): the page events the view may
       // hand up (SIDE_FORWARD_SCRIPT) go to the page; an item the panel was asked to open here comes down as
       // molis:side-target and is handed, as it is, to the view's surface: the view finds it, nobody else reads the id.
       // What the person selects here is in hand as in a split pane (specs/context-program §21.4 W3-C): this document draws
       // the toolbar the top document sends it and sends the choices back, through the same checks.
       {
-        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT};
-        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: globalThis.t.text, paneMessages: messages, route: path => ${route} + path });
+        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT}, bridgeRoute = document.body.dataset.routePrefix || "";
+        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: globalThis.t.text, paneMessages: messages, route: path => bridgeRoute + path });
         if (window.parent !== window) for (const name of forwarded.names) addEventListener(name, (event) => {
           try { window.parent.postMessage({ type: "molis:side-forward", name, detail: event.detail }, location.origin); }
           catch { /* a detail that cannot be copied stays in this document */ }
         });
         const surface = document.querySelector("[data-side-view-root] > [data-work-surface]");
         let pendingItem;
-        const select = () => {
-          if (!surface || surface.hasAttribute("data-deferred-surface") || !pendingItem) return;
-          const itemId = pendingItem; pendingItem = null;
-          surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
+        const pendingShelf = [];
+        const dispatchShelf = (name, detail) => {
+          const init = detail !== null && detail !== undefined ? { detail } : undefined;
+          if (name === "molis:shelf-refresh") window.dispatchEvent(new CustomEvent("molis:shelf-refresh", init));
+          else if (name === "molis:shelf-send-tui") window.dispatchEvent(new CustomEvent("molis:shelf-send-tui", init));
+          else if (name === "molis:shelf-notice") window.dispatchEvent(new CustomEvent("molis:shelf-notice", init));
         };
-        if (surface) new MutationObserver(select).observe(surface, {attributes:true, attributeFilter:["data-deferred-surface"]});
+        const flush = () => {
+          if (!surface || surface.hasAttribute("data-deferred-surface")) return;
+          if (pendingItem) {
+            const itemId = pendingItem; pendingItem = null;
+            surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
+          }
+          while (pendingShelf.length) {
+            const next = pendingShelf.shift();
+            dispatchShelf(next.name, next.detail);
+          }
+        };
+        if (surface) new MutationObserver(flush).observe(surface, {attributes:true, attributeFilter:["data-deferred-surface"]});
         addEventListener("message", (event) => {
-          if (!messages.fromParent(event) || event.data.type !== "molis:side-target") return;
-          const item = event.data.target && event.data.target.item;
-          if (typeof item === "string" && item) { pendingItem = item; select(); }
+          if (!messages.fromParent(event)) return;
+          if (event.data.type === "molis:side-target") {
+            const item = event.data.target && event.data.target.item;
+            if (typeof item === "string" && item) { pendingItem = item; flush(); }
+            return;
+          }
+          if (event.data.type === "molis:shelf-desktop-event") {
+            const name = event.data.name;
+            if (name !== "molis:shelf-refresh" && name !== "molis:shelf-send-tui" && name !== "molis:shelf-notice") return;
+            if (surface && surface.hasAttribute("data-deferred-surface")) { pendingShelf.push({ name, detail: event.data.detail }); return; }
+            dispatchShelf(name, event.data.detail);
+          }
         });
       }`;
 }

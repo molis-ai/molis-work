@@ -341,7 +341,7 @@ enum Observe {
             if let frame, frame.width > 0, frame.height > 0, !frame.intersects(bounds) { continue }
             let role = text(0) ?? ""
             let subrole = text(1) ?? ""
-            let secure = subrole == "AXSecureTextField"
+            let secure = subrole == "AXSecureTextField" || role == "AXSecureTextField"
             var value: String?
             if secure {
                 if let frame { secureRects.append(rectArray(frame)) }
@@ -363,7 +363,7 @@ enum Observe {
                 if (pick(6) as? NSNumber)?.boolValue == true { node["focused"] = true }
                 if (pick(7) as? NSNumber)?.boolValue == true { node["selected"] = true }
                 if (pick(12) as? NSNumber)?.boolValue == true { node["expanded"] = true }
-                if interactiveRoles.contains(role) || name != nil || value != nil { nodes.append(node) }
+                if interactiveRoles.contains(role) || secure || name != nil || value != nil { nodes.append(node) }
             }
             // Children last-to-first so the stack pops them in reading order.
             let children = AX.elements(element, kAXChildrenAttribute)

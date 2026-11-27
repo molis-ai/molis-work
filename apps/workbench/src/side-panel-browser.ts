@@ -281,7 +281,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     reviewing=row.request.review_id;reviewMode=mode;approval.dataset.reviewVersion=row.request.reference.version;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(isSiteField)||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
-    const upload=fields.some(isWarningField)||/上传|\bupload\b|アップロード/i.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
+    const upload=fields.some(isWarningField),remember=!upload&&/^https?:\/\//.test(site);
     // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
     const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':!row.decisions.approve.available?'<p class="side-browser-approval-note">'+esc(globalThis.say.text(row.decisions.approve.reason))+'</p>':'';
     const details=fields.filter(field=>!isSiteField(field)).map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('');
@@ -307,17 +307,24 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const version=approval.dataset.reviewVersion;
     deciding.add(id);paintApprovalBusy();
     try{
-      if(site)await setSite(site,'allow');
       await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,version,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
       if(reviewing===id)renderApproval(null);
       void pollReviews();
+      if(site)await setSite(site,'allow');
     }catch(error){fail(error);}
     finally{deciding.delete(id);if(reviewing===id)paintApprovalBusy();}
   };
   const sitesUrl='/api/browser/sites';
   const renderSites=async()=>{
     const here=state?.origin||'',request=++sitesRender;
-    let rows=[],enabled=true;try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}catch{/* Keep default empty site list if browser policy read fails. */}
+    let rows,enabled;
+    try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}
+    catch(error){
+      if(request!==sitesRender||sitesBox.hidden)return;
+      sitesBox.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-browser.what-assistant-may-do-sites"))+'</h2><p class="side-browser-sites-error" role="alert"></p><div class="side-browser-actions-row">'+browserButton('sites-retry',globalThis.t.text("common.control.retry"))+'</div>';
+      molisWorkRequest.show(sitesBox.querySelector('.side-browser-sites-error'),error);
+      return;
+    }
     if(request!==sitesRender||sitesBox.hidden)return;
     const mine=rows.find(row=>row.scope===here);
     const label=(row)=>row.decision==='allow'?globalThis.t.text("workbench.side-panel-browser.may-act-without-asking"):globalThis.t.text("workbench.side-panel-browser.blocked-looking-acting");
@@ -368,6 +375,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       await decide(action==='reject'?'reject':'approve',reviewing,action==='approve-site'?approval.dataset.site:undefined);return;
     }
     if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();else sitesRender++;return;}
+    if(action==='sites-retry'){await renderSites();return;}
     if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope,action.slice(5));await renderSites();}catch(error){fail(error);}return;}
   });
   sitesBox.addEventListener('change',async event=>{

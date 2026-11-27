@@ -15,7 +15,7 @@
 
 ## 安装 Skill
 
-插件的 `sync` 集合声明、SDK 快照/增量合同、空间配置身份与未实现边界见 [同步接入规范](../../skills/molis-plugin-dev/sync.md)。当前 Pages 已有显式启用的本机 Rust/D1 同步试点，未部署公网，也不代表其他插件已接入。新增插件按同一合同提供 owner 适配并由可信 Host 注册，不向 Server 添加业务 payload 分支。
+插件的 `sync` 集合声明、SDK 快照/增量合同、空间配置身份与未实现边界见 [同步接入规范](../../skills/molis-plugin-dev/sync.md)。个人空间 Rust/D1/R2 同步已登记覆盖 Goals、Pages、Artifacts、Form、Dataset、PPT、灵光、Workflows、Jelly、Todo、Issues、Schedule、Characters、Feed、Inbox、Images、Cognia、Shelf、Coding 与创作台等同步方（默认关闭，须显式配置同步地址并由本设备开启，完整项目生命周期与公网生产验收仍按 `apps/sync-worker/README.md` 与 [Sync & Replication](../modules/sync-replication.md) 推进）。新增插件按同一合同提供 owner 适配并由可信 Host 注册，不向 Server 添加业务 payload 分支。
 
 正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；外部 Runtime 只经 MCP 接入并按动作目录发现能力（原 `goal-advance` Skill 已于第 44 批删除）。
 
@@ -314,7 +314,7 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 插件调别的动作只经 `context.services.actions.invoke`，被调的动作要列在清单的 `capabilities.consumes` 里，宿主的和别的插件的都可以（用户 2026-10-14 定；规则见 `skills/molis-plugin-dev/elements.md` 与 `docs/system/SECURITY-INVARIANTS.md` S-15）。另有一条路：声明 Manifest 权限 `actions:delegate` 的插件，在自己正在运行的动作里可用 `context.services.actions.directory`（`discover()`、`invoke(reference, input)`，以及只核不调的 `check(reference, input)`），以原调用者的身份、工作流受众，调目录里向工作流开放的任何动作，不用事先列进 `consumes`；它只受原调用者的权限约束，不收窄到插件自己的授权（用户 2026-10-20 定），调用记录里带 `delegated_by`；原调用者是 `plugin` 受众、动作之外、撤权和取消都拒绝，写法见 `skills/molis-plugin-dev/host.md` 的「动作目录委托」与 `docs/system/SECURITY-INVARIANTS.md` S-43。插件跨页读取项目设置使用具名能力，不读取设置页 DOM 或其他插件私有存储。项目的目录读 Contract 中 `projectDirectoryActions.get`（`projects.directories.get`，输入是空对象），声明到 Manifest `capabilities.consumes` 后以 `invoke(projectDirectoryActions.get, {})` 读取，得到输入目录与唯一的输出目录（每项带 `roles`，输入只读）；项目的 Agent 运行时读 `projectSettingsCapabilities.runtime`。只返回当前项目；没有项目编号、通配授权或任意 key。输入、输出在「项目设置 → 输入与输出」维护（改目录的动作只给本人），没指定目录的读写与运行落在输出目录，资料服务与 Git 不再依赖 Workspace 输出，项目也不记「浏览目录」；Coding 会话在输出目录里跑，或在宿主为这个会话建的独立工作树里跑。
 
-完整字段、迁移、示例与设置归属：[当前项目设置](PROJECT-SETTINGS.md)。`settings` 槽只负责呈现，`storage:private` 仍是插件私有状态；Goals 项目说明保持独立协议。
+完整字段、迁移、示例与设置归属：[当前项目设置](PROJECT-SETTINGS.md)。`settings` 槽只负责呈现，`storage:private` 仍是插件私有状态；项目指导（原项目说明）已于第 44 批迁归平台 `modules/projects`（`projects.guidance.*`），保持独立协议。
 
 ### 全局插件设置的数据
 
@@ -360,7 +360,7 @@ Runtime 管理的首方 Native 工厂会保存为单文件发行物，写入当�
 
 无论升级方式，目标 Manifest 都必须保留旧安装的全部 grant 声明及必需权限；升级不会重新授权、改变签名身份或创建新私人库。常规启动不会把新 Manifest 写成已安装版本；未声明支持的来源版本可在市场显示为不可升级，不会在项目启动时被静默替换。显式升级目标必须高于当前版本。项目包在当前项目升级，声明 Home 作用域的签名包在 Home Runtime 升级。
 
-Native 作者必须让实现代码变化对应到新的 Manifest 版本或 Manifest 指纹；相同的版本和指纹表示同一发行物。不要把未声明兼容关系的新版代码依赖于启动时替换旧安装。发行物表现在只为 Runtime 管理的、不是 `host` 信任的 Native 插件恢复旧版；Coding 面板等内置插件启动时跟随当前构建，不靠它恢复。仍由 Host 构建期组合的其他插件没有安装记录，也不会获得这条版本化恢复能力。Native Plugin 与 Host 在同一进程运行，版本归档不构成 JavaScript 沙箱。
+Native 作者必须让实现代码变化对应到新的 Manifest 版本或 Manifest 指纹；相同的版本和指纹表示同一发行物。不要把未声明兼容关系的新版代码依赖于启动时替换旧安装。发行物表现在只为 Runtime 管理的、不是 `host` 信任的 Native 插件恢复旧版；全部内置插件均已走 Plugin Runtime（第 44B 批起构建期组合已清零），启动时跟随当前构建，不靠发行物表恢复。Native Plugin 与 Host 在同一进程运行，版本归档不构成 JavaScript 沙箱。
 
 Plugin Builder 将每次发布保存为独立版本记录。发布新版只产生候选，不会启动新版本；作者需要明确选择直接兼容，或要求升级时校验数据。库页会显示 Runtime 实际安装版本和最新发布，用户选择「升级」后才调用同一套 Runtime 校验与回滚流程。Host 重启后按安装记录恢复对应的 Builder 发布版本；不要用 Builder 的最新发布覆盖尚未确认升级的版本。
 
@@ -666,7 +666,7 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 
 跨对象关系的被动历史通过 contracts `ContextHistoryReplication` 交给 Ledger 的公开 `createContextHistoryReplication`，可信 owner 明确来源模块、分区及关系/目标类型。完整历史的替换和尾检在同连接事务执行，拒绝跨来源键占用、非连续修订和未知字段；不经正常绑定命令重放，不授予内容访问或执行权限。上层 replica 仍须负责冲突确认与未采用分支保留，不向页面或插件直接暴露该可信端口。
 
-Work 属于系统 Module，不冒充插件或添加 Manifest。Host 使用原 Module 合同身份登记默认未选的“工作会话与交接”集合，传输的 `plugin_id` 在此只是 owner 归属字段；完整 Session/事件/交接走同一个 JSON/R2 codec，同一个本机保护提供方覆盖私密 owner 与共同暂存。被动恢复不携带 Native/工作目录绑定、未决发送或密钥，不执行交接；未知历史引用保持定位，不创建假 Goal。owner 两临时 Home 验证不等于 Host/Worker 或上线验收。
+旧 Work 会话及其交接同步已随 SC-4 移除，当前 Host 个人空间同步目录里不再有「工作会话与交接」集合；外部 AI 会话由 `horizontal/sessions` 在本机管理、原文不落库也不进入个人空间同步目录（见 `skills/molis-plugin-dev/sync.md`）。
 
 固定版本在同一内置目录条目声明 `scope:'project-fixed-versions'` 与 `store:'library'|'process'`。成果和过程项由原 Artifacts Module 的同一个版本引擎处理，但分别勾选，使用各自的表、日志与游标；过程项不进入成果库。Host 完整解码并通过 owner 的纯校验后才可创建缺失项目；同版本正文不同、跨项目身份与迟到撤权拒绝。恢复固定计划、变更集等内容不安装、启用或执行生产者，也不继承批准。此集合不包括插件私有草稿或 Work 会话。
 
@@ -762,7 +762,7 @@ await caller.beforeEffect(); // 写业务记录之前
 
 删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行和登记的作业（control 的 signal 中止，结果与失败都不交付），再删它的这个项目的数据，中间不 await。
 
-插件在 Home 库里按 `project_id` 一类的列记项目的行时，在 Manifest 的 `databases.home` 写 `project_rows`（合同 `PluginProjectRowsDeclaration`）：确认框里的 `label`、可选的先后 `order`，和要删的表 `tables`。每张表写 `table` 与记项目的 `column`；子表只记父表的键时写 `parent`（写在它后面、自己不带 `parent` 的一张表）和父表的键 `key`（默认 `id`），删的是父表里属于这个项目的那些键对应的行。行里记着插件自己文件的名字时写 `files`：每项是 `tables` 里一张不带 `parent` 的表、存名字的列（JSON 数组，元素是文件名；元素是对象时用 `key` 指出名字所在的字段）和 `owner_files` 里声明的一个目录（`directory`）。平台在同一个事务里先读出名字、再删行，提交后从那个目录删掉这些文件：只删名字是一段普通文件名、在那个目录里的普通文件，链接、文件夹、特殊节点、有多个硬链接的文件和带 `/`、`..` 的名字都不碰。平台照声明拼 `DELETE` 语句，只对这个插件自己的库、用宿主自己的连接、在一个写事务里删；实例正在写时等它（`busy_timeout`），等不到这一步留 pending，下次重试；库还不存在就不建。声明只能点这个库的 schema 建的表和列：SDK 查形状（小写标识符、不带库名），平台按建好的 schema 查列，不对就启动前拒绝，码 `plugin.declaration_invalid`。不能和 `partition: "project"` 同写（按项目分库的整份删）。清理说明 `label` 可以写 `{ key: "插件键前缀.project-deletion.data" }`，在自己的默认语言文件里提供无参单行短句。宿主从这份登记所属的插件词包取字，选中语言缺词时用该主人默认词。原文字符串和 `{ literal }` 原样显示，包括非内置插件写在名称后面的说明；原文和词条都必须非空、不超过 200 字符，不含控制字符或换行。平台把插件名、专属说明和确认框自己的提示分别从各自来源取字。沙箱插件暂不能声明，写了启动被拒（BL-619）。按项目分库的插件，平台关掉这个项目的库再删掉它。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用、卸载后没有运行实例时，平台照同一份声明删；插件不提供清除代码，目录条目上也没有 `project_data`（PG-024）。
+插件在 Home 库里按 `project_id` 一类的列记项目的行时，在 Manifest 的 `databases.home` 写 `project_rows`（合同 `PluginProjectRowsDeclaration`）：确认框里的 `label`、可选的先后 `order`，和要删的表 `tables`。每张表写 `table` 与记项目的 `column`；子表只记父表的键时写 `parent`（写在它后面、自己不带 `parent` 的一张表）和父表的键 `key`（默认 `id`），删的是父表里属于这个项目的那些键对应的行。行里记着插件自己文件的名字时写 `files`：每项是 `tables` 里一张不带 `parent` 的表、存名字的列（JSON 数组，元素是文件名；元素是对象时用 `key` 指出名字所在的字段）和 `owner_files` 里声明的一个目录（`directory`）。平台在同一个事务里先读出名字、再删行，提交后从那个目录删掉这些文件：只删名字是一段普通文件名、在那个目录里的普通文件，链接、文件夹、特殊节点、有多个硬链接的文件和带 `/`、`..` 的名字都不碰。平台照声明拼 `DELETE` 语句，只对这个插件自己的库、用宿主自己的连接、在一个写事务里删；实例正在写时等它（`busy_timeout`），等不到这一步留 pending，下次重试；库还不存在就不建。声明只能点这个库的 schema 建的表和列：SDK 查形状（小写标识符、不带库名），平台按建好的 schema 查列，不对就启动前拒绝，码 `plugin.declaration_invalid`。原 `databases.home` 上的 `partition: "project"` 复用器已随第 107 批删除，不再支持；每个分区一份的数据改为在 Manifest 声明 `databases.partition`（删项目时平台直接清理分区库文件，见 `skills/molis-plugin-dev/partitions.md`）。清理说明 `label` 可以写 `{ key: "插件键前缀.project-deletion.data" }`，在自己的默认语言文件里提供无参单行短句。宿主从这份登记所属的插件词包取字，选中语言缺词时用该主人默认词。原文字符串和 `{ literal }` 原样显示，包括非内置插件写在名称后面的说明；原文和词条都必须非空、不超过 200 字符，不含控制字符或换行。平台把插件名、专属说明和确认框自己的提示分别从各自来源取字。沙箱插件暂不能声明，写了启动被拒（BL-619）。按项目分库的插件，平台关掉这个项目的库再删掉它。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用、卸载后没有运行实例时，平台照同一份声明删；插件不提供清除代码，目录条目上也没有 `project_data`（PG-024）。
 
 非流式路由的 bytes 默认作为附件。PluginRouteResponse 可显式给 disposition 为 inline 或 attachment；Host 只保留 image/png、image/jpeg、image/webp，其他 MIME 强制 octet-stream 附件。nosniff、sandbox、no-store 始终由 Host 设置，插件不能覆盖。HTTP 项目来自已核对存在且显示该插件的路径，query/body 不授予身份。
 

@@ -198,10 +198,38 @@ export function goalsPageClient(host: PageHost) {
   });
   // A split pane's copy of a Goal document loads and binds its own events, apart from the page's document (102-1).
   const copiedDocuments = new WeakMap<HTMLElement, { events: ReturnType<typeof eventDocumentClient>; load: (goalId: string, restore?: EventRestore | null) => Promise<boolean | null> }>();
-  const loadGoalDocumentInto = (targetPane: HTMLElement, goalId: string): Promise<boolean | null> => {
-    if (targetPane === documentPane) return loadGoalDocument(goalId);
+  const activeCopies = new Map<HTMLElement, { dispose: () => void; mounted: boolean }>();
+  let copyObserver: MutationObserver | null = null;
+  const pruneDisconnectedCopies = () => {
+    for (const [pane, tracked] of activeCopies) {
+      if (pane.isConnected) {
+        tracked.mounted = true;
+        continue;
+      }
+      if (tracked.mounted) {
+        activeCopies.delete(pane);
+        copiedDocuments.delete(pane);
+        tracked.dispose();
+      }
+    }
+    if (activeCopies.size === 0 && copyObserver) {
+      copyObserver.disconnect();
+      copyObserver = null;
+    }
+  };
+  const watchCopyRemoval = () => {
+    if (copyObserver) return;
+    const container = document.querySelector("[data-tab-panes]") || document.body;
+    if (!container) return;
+    copyObserver = new MutationObserver(pruneDisconnectedCopies);
+    copyObserver.observe(container, { childList: true, subtree: true });
+  };
+  const ensureCopiedDocument = (targetPane: HTMLElement) => {
+    pruneDisconnectedCopies();
     let entry = copiedDocuments.get(targetPane);
-    if (!entry) {
+    let createdNow = false;
+    if (!entry || entry.events.isDisposed()) {
+      createdNow = true;
       let pendingRestore: EventRestore | null = null;
       const events = eventDocumentClient({
         documentPane: targetPane, route, isAbortError,
@@ -227,9 +255,30 @@ export function goalsPageClient(host: PageHost) {
         },
       };
       copiedDocuments.set(targetPane, created);
+      activeCopies.set(targetPane, { dispose: events.dispose, mounted: targetPane.isConnected });
+      watchCopyRemoval();
       entry = created;
+    } else if (targetPane.isConnected) {
+      const tracked = activeCopies.get(targetPane);
+      if (tracked) tracked.mounted = true;
     }
-    return entry.load(goalId);
+    return { entry, createdNow };
+  };
+  const ensureCopiedEventDocument = (targetPane: HTMLElement): void => {
+    if (targetPane === documentPane) return;
+    const { entry, createdNow } = ensureCopiedDocument(targetPane);
+    if (createdNow) entry.events.bindGoalEventDocument();
+  };
+  const bindCopiedEventDocument = (targetPane: HTMLElement): void => {
+    if (targetPane === documentPane) {
+      bindGoalEventDocument();
+      return;
+    }
+    ensureCopiedDocument(targetPane).entry.events.bindGoalEventDocument();
+  };
+  const loadGoalDocumentInto = (targetPane: HTMLElement, goalId: string): Promise<boolean | null> => {
+    if (targetPane === documentPane) return loadGoalDocument(goalId);
+    return ensureCopiedDocument(targetPane).entry.load(goalId);
   };
   const navigation = navigationClient({
     trashView, archiveView, documentPane,
@@ -247,7 +296,7 @@ export function goalsPageClient(host: PageHost) {
       restoreTreeCollapsed: tree.restoreTreeCollapsed, syncGoalCollectionFolds: tree.syncGoalCollectionFolds,
       setSelectedStatuses: tree.setSelectedStatuses, filterTree: tree.filterTree, selectTreeGoal: tree.selectTreeGoal,
       updateAllRelationFormPreviews: relation.updateAllRelationFormPreviews, bindGoalEventDocument: () => bindGoalEventDocument(),
-      bindCopiedEventDocument: (pane: HTMLElement) => copiedDocuments.get(pane)?.events.bindGoalEventDocument(),
+      bindCopiedEventDocument: (pane: HTMLElement) => bindCopiedEventDocument(pane),
       openEventReader, setGoalFactor,
     }),
   });
@@ -309,7 +358,13 @@ export function goalsPageClient(host: PageHost) {
     if (collapse) tabs()?.setItemView("goals", undefined, collapse.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane);
   });
   const languageAbort = new AbortController();
-  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
+  window.addEventListener("pagehide", () => {
+    languageAbort.abort();
+    copyObserver?.disconnect();
+    copyObserver = null;
+    for (const tracked of activeCopies.values()) tracked.dispose();
+    activeCopies.clear();
+  }, { once: true });
   document.addEventListener("molis-work:language-changed", () => {
     const graph = momentum.graphElement();
     if (graph?.dataset.loaded === "true") {
@@ -348,7 +403,7 @@ export function goalsPageClient(host: PageHost) {
   });
   return pageHooks({
     host, page, goalData, documentPane, treeScroll, collectionView, documentCollection, directGoalRequested, storageKey, goalMoveReceiptKey,
-    frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument, loadGoalDocumentInto,
+    frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument, loadGoalDocumentInto, ensureCopiedEventDocument,
     announceSelection, eventDocument, panels, dialogs, lifecycle, momentum, tree, relation, navigation, refresh,
   });
 }

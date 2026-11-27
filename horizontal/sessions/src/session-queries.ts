@@ -31,7 +31,6 @@ import {
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { getSessionAdapter } from "./adapters/index.js";
-import { literalRanges } from "./adapters/shared.js";
 import { sessionKeyForIdentity, toRowSummary } from "./attribution.js";
 import { type DiscoveryCoordinator, resolveLocalToolRoot } from "./discovery.js";
 import type { AdapterSourceContext, ExternalSessionSourceAdapter, SessionsPorts } from "./ports.js";
@@ -39,6 +38,7 @@ import {
   assertPersonalCaller,
   buildPersonSources,
   findTopLevelTool,
+  isLocationActiveForTool,
   isPersonalCaller,
   isSessionInScopeWithMaps,
   isSourceCurrentlyAllowed,
@@ -224,6 +224,9 @@ function precheckHistoryRead(
     const adapter = getSessionAdapter(session.entry_id);
     if (!tool || !adapter) throw sessionsErrors.source_unsupported("该来源暂不支持读取对话原文");
 
+    if (!isLocationActiveForTool(tool, session.location_key, ports)) {
+      throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
+    }
     const scope = store.decisions.getReadScope(session.entry_id, session.location_key);
     if (!scope || !scope.allowed) {
       if (isPerson) throw sessionsErrors.not_allowed("该外部工具尚未在读取范围中允许读取");
@@ -282,7 +285,12 @@ export async function runHistoryRead(
 
   let readOut: Awaited<ReturnType<NonNullable<ExternalSessionSourceAdapter["readHistory"]>>>;
   try {
-    readOut = await precheck.adapter.readHistory!(adapterContext, precheck.session.native_id, { from: input.from, limit, query: input.query }, signal);
+    readOut = await precheck.adapter.readHistory!(
+      adapterContext,
+      precheck.session.native_id,
+      { from: input.from, limit, query: input.query, redact: !isPerson },
+      signal,
+    );
   } catch (error) {
     rethrowAdapterError(error, precheck.session.entry_id, precheck.session.location_key, store, ports);
   }
@@ -322,13 +330,10 @@ export async function runHistoryRead(
     }
 
     const entries = isPerson ? readOut.entries : readOut.entries.map(entry => ({ ...entry, text: redactSecrets(entry.text) }));
-    const matches = isPerson || !input.query
-      ? readOut.matches
-      : entries.map(entry => ({ position: entry.position, ranges: literalRanges(entry.text, input.query!) })).filter(item => item.ranges.length > 0);
 
     return {
       session_key: liveSession.session_key, session: isPerson ? row : toRowSummary(row), entries, older_cursor: readOut.older_cursor, newer_cursor: readOut.newer_cursor,
-      matches, search: readOut.search, read_state: readOut.read_state, stopped: readOut.stopped, activity: readOut.activity, trust: "untrusted",
+      matches: readOut.matches, search: readOut.search, read_state: readOut.read_state, stopped: readOut.stopped, activity: readOut.activity, trust: "untrusted",
     };
   });
 }
@@ -352,7 +357,9 @@ export async function runToolSearch(
     const adapter = tool ? getSessionAdapter(tool.id) : undefined;
     if (!tool || !adapter?.searchTool) throw sessionsErrors.source_unsupported("该外部工具不支持自带搜索");
     const scope = store.decisions.getReadScope(tool.id, input.location_key);
-    if (!scope || !scope.allowed) throw sessionsErrors.not_allowed("该外部工具尚未在读取范围中允许读取");
+    if (!scope || !scope.allowed || !isLocationActiveForTool(tool, input.location_key, ports)) {
+      throw sessionsErrors.not_allowed("该外部工具尚未在读取范围中允许读取");
+    }
     if (tool.surface === "cloud") {
       const conn = scope.connection_id ? ports.connections.current(scope.connection_id) : null;
       if (!scope.connection_id || !conn || !conn.enabled) throw sessionsErrors.needs_login("云端账号登录已失效或未连接");
@@ -379,7 +386,7 @@ export async function runToolSearch(
     signal.throwIfAborted();
     caller.assert_authority_current?.();
     const currentScope = store.decisions.getReadScope(precheck.tool.id, input.location_key);
-    if (!isSourceCurrentlyAllowed(currentScope ?? undefined, precheck.tool.surface, ports) || currentScope!.connection_id !== precheck.connectionId) {
+    if (!isSourceCurrentlyAllowed(currentScope ?? undefined, precheck.tool, ports) || currentScope!.connection_id !== precheck.connectionId) {
       throw sessionsErrors.scope_changed("读取范围在搜索期间已变化");
     }
 

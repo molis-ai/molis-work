@@ -4,15 +4,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { LocalMcpServer, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { goalsActions, GOALS_PLUGIN_ID, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-plugin-goals/contract";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
-import { mcpGoalReviews, webGoalReviews } from "./fixtures/project-review-entry.js";
+import { mcpGoalReviews, prepareGoalReview, webGoalReviews } from "./fixtures/project-review-entry.js";
 import { callerPlugin, projectPluginCaller } from "./fixtures/plugin-callers.js";
-import { goalApplicationOf } from "./fixtures/goal-application.js";
+import { GoalProjectApplication, goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("user decisions share the action path without granting user authority to models or business input", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-decisions-"));
@@ -92,7 +93,7 @@ test("user decisions share the action path without granting user authority to mo
       BEGIN SELECT RAISE(FAIL, 'injected decision event failure'); END`));
     const failedInput = { ...payload, idempotency_key: "atomic-decision", conclusion: "必须原子保存的用户决定" };
     const pending = await web.prepare(goalsActions.decide, failedInput);
-    await assert.rejects(web.submit(pending), /injected decision event failure/);
+    await assert.rejects(web.submit(pending), { code: "actions.execution_failed" });
     assert.equal(await cursor(), beforeFailure);
     assert.equal(await governanceCount(), beforeGovernance, "failed event append rolls back the preceding Governance record");
     await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER fail_goal_decision_event"));
@@ -114,4 +115,298 @@ test("user decisions share the action path without granting user authority to mo
       assert.deepEqual(await webGoalReviews(next.web, project.project_id).submit(command), expected);
     } finally { await next.close(); await restarted.close(); }
   } finally { await management.close(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("F-goals-01 & Q-goals-01 (A3): concern resolve/overturn validates cited decision and cancelled goals refuse new decisions", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "goals-f01-a3-"));
+  const store = new LocalProjectDatabase(join(dir, "project.db"));
+  try {
+    const app = new GoalProjectApplication(store);
+    const projectId = "board-f01-a3";
+    app.initializeBoard({ project_id: projectId, actor_id: "user-1", idempotency_key: "init" });
+    const created = app.goalEvents.createIntent({
+      project_id: projectId,
+      goal_id: "G-CONCERN",
+      title: "Concern & Cancel",
+      outcome: "Safe closure",
+      requirements: [{ requirement_id: "r1", statement: "Deliver result" }],
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "intent-1",
+    });
+    const goalId = created.goal.goal_id;
+    app.goalEvents.configure({
+      project_id: projectId,
+      goal_id: goalId,
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      expected_version: 0,
+      idempotency_key: "cfg-1",
+      types: [{
+        type_id: "delivery",
+        version: 1,
+        name: "Delivery",
+        purpose: "Result",
+        fields: [{ field_id: "piece", name: "Piece", purpose: "Body", format: "text", required: true }],
+      }],
+    });
+    // Record a positive decision BEFORE opening the concern.
+    const earlyPositive = app.goalEvents.recordTrustedDecision({
+      project_id: projectId,
+      goal_id: goalId,
+      idempotency_key: "dec-early-pos",
+      authority: hostEventDecisionAuthority("web", projectId, "web-user", "dec-early-pos"),
+      conclusion: "Early approval",
+      effects: [{ kind: "authorize_action", action: "publish" }],
+      scope: { requirement_ids: ["r1"], action: "publish" },
+    });
+    const opened = app.goalEvents.applyConcern({
+      project_id: projectId,
+      goal_id: goalId,
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "open-c1",
+      action: "open",
+      title: "Release blocker",
+      statement: "Needs review",
+      blocks_closure: true,
+      scope: { requirement_ids: ["r1"], action: "publish" },
+    });
+    const concernId = opened.concern.concern_id;
+
+    // Decision recorded before opening the concern cannot resolve or overturn it.
+    assert.throws(
+      () => app.goalEvents.applyConcern({
+        project_id: projectId,
+        goal_id: goalId,
+        actor_id: "runtime-1",
+        actor_kind: "runtime",
+        idempotency_key: "early-overturn",
+        action: "overturn",
+        concern_id: concernId,
+        reason: "Try citing pre-concern decision",
+        cited_decision_id: earlyPositive.decision.decision_id,
+      }),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_concern.evidence_not_subsequent",
+    );
+
+    // Negative decisions (reject_concerns / deny_action) cannot resolve or overturn a concern.
+    const negDecisions = [
+      { key: "neg-reject-concern", effects: [{ kind: "reject_concerns" as const }], scope: { concern_ids: [concernId] } },
+      { key: "neg-deny-action", effects: [{ kind: "deny_action" as const, action: "publish" }], scope: { requirement_ids: ["r1"], action: "publish" } },
+    ];
+    for (const item of negDecisions) {
+      const dec = app.goalEvents.recordTrustedDecision({
+        project_id: projectId,
+        goal_id: goalId,
+        idempotency_key: item.key,
+        authority: hostEventDecisionAuthority("web", projectId, "web-user", item.key),
+        conclusion: `Negative ${item.key}`,
+        effects: item.effects,
+        scope: item.scope,
+      });
+      for (const action of ["resolve", "overturn"] as const) {
+        assert.throws(
+          () => app.goalEvents.applyConcern({
+            project_id: projectId,
+            goal_id: goalId,
+            actor_id: "runtime-1",
+            actor_kind: "runtime",
+            idempotency_key: `${item.key}-${action}`,
+            action,
+            concern_id: concernId,
+            reason: "Try citing negative decision",
+            cited_decision_id: dec.decision.decision_id,
+          }),
+          (error: unknown) => error instanceof ActionError && error.code === "goals.event_decision.invalid_effect",
+        );
+      }
+    }
+
+    // A superseded positive decision cannot resolve or overturn a concern.
+    const posThenRevoked = app.goalEvents.recordTrustedDecision({
+      project_id: projectId,
+      goal_id: goalId,
+      idempotency_key: "pos-1",
+      authority: hostEventDecisionAuthority("web", projectId, "web-user", "pos-1"),
+      conclusion: "Temporary accept",
+      effects: [{ kind: "accept_concerns" }],
+      scope: { concern_ids: [concernId] },
+    });
+    app.goalEvents.recordTrustedDecision({
+      project_id: projectId,
+      goal_id: goalId,
+      idempotency_key: "rev-1",
+      authority: hostEventDecisionAuthority("web", projectId, "web-user", "rev-1"),
+      conclusion: "Revoke accept",
+      effects: [{ kind: "reject_concerns" }],
+      scope: { concern_ids: [concernId] },
+    });
+    assert.throws(
+      () => app.goalEvents.applyConcern({
+        project_id: projectId,
+        goal_id: goalId,
+        actor_id: "runtime-1",
+        actor_kind: "runtime",
+        idempotency_key: "superseded-overturn",
+        action: "overturn",
+        concern_id: concernId,
+        reason: "Try citing superseded decision",
+        cited_decision_id: posThenRevoked.decision.decision_id,
+      }),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_decision.superseded",
+    );
+
+    // A fresh subsequent positive decision works, and supporting_event_ids passed alongside it are still validated.
+    const freshPositive = app.goalEvents.recordTrustedDecision({
+      project_id: projectId,
+      goal_id: goalId,
+      idempotency_key: "pos-fresh",
+      authority: hostEventDecisionAuthority("web", projectId, "web-user", "pos-fresh"),
+      conclusion: "Allow after check",
+      effects: [{ kind: "accept_concerns" }],
+      scope: { concern_ids: [concernId] },
+    });
+    assert.throws(
+      () => app.goalEvents.applyConcern({
+        project_id: projectId,
+        goal_id: goalId,
+        actor_id: "runtime-1",
+        actor_kind: "runtime",
+        idempotency_key: "bad-supporting-with-cited",
+        action: "resolve",
+        concern_id: concernId,
+        reason: "Bad supporting event should still fail",
+        cited_decision_id: freshPositive.decision.decision_id,
+        supporting_event_ids: ["gevt-nonexistent"],
+      }),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_concern.cross_goal_reference",
+    );
+    const resolved = app.goalEvents.applyConcern({
+      project_id: projectId,
+      goal_id: goalId,
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "resolve-ok",
+      action: "resolve",
+      concern_id: concernId,
+      reason: "Resolved with subsequent positive decision",
+      cited_decision_id: freshPositive.decision.decision_id,
+    });
+    assert.equal(resolved.concern.status, "resolved");
+
+    // Q-goals-01 (A3): cancelling the goal forbids recording new user decisions until resumed.
+    const st = app.goalEvents.readState(projectId, goalId);
+    const cancelled = app.goalEvents.submitClosure({
+      project_id: projectId,
+      goal_id: goalId,
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "cancel-goal",
+      kind: "cancel",
+      reason: "Pause work",
+      expected_config_version: st.config.version,
+      expected_agreement_version: st.agreement.version,
+    });
+    assert.equal(cancelled.work_status, "cancelled");
+    assert.throws(
+      () => app.goalEvents.recordTrustedDecision({
+        project_id: projectId,
+        goal_id: goalId,
+        idempotency_key: "dec-on-cancelled",
+        authority: hostEventDecisionAuthority("web", projectId, "web-user", "dec-on-cancelled"),
+        conclusion: "Should be refused while cancelled",
+        effects: [{ kind: "authorize_action", action: "publish" }],
+        scope: { action: "publish" },
+      }),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_closure.cancelled",
+    );
+    app.goalEvents.resumeWork({
+      project_id: projectId,
+      goal_id: goalId,
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "resume-after-cancel",
+      reason: "Resume work",
+    });
+    const afterResume = app.goalEvents.recordTrustedDecision({
+      project_id: projectId,
+      goal_id: goalId,
+      idempotency_key: "dec-after-resume",
+      authority: hostEventDecisionAuthority("web", projectId, "web-user", "dec-after-resume"),
+      conclusion: "Allowed after resume",
+      effects: [{ kind: "authorize_action", action: "publish" }],
+      scope: { action: "publish" },
+    });
+    assert.equal(afterResume.recorded, true);
+  } finally {
+    store.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+
+  // Q-goals-01 (A3) on real Host / decision-offers: cancelled goals mark both draft and non-draft offers unavailable.
+  const home = await mkdtemp(join(tmpdir(), "goals-a3-offer-"));
+  const project = await withCatalog({ homeDirectory: home }, async c => {
+    const created = await c.createProject({ display_name: "A3 Offer", actor_id: "user" });
+    c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" });
+    return created;
+  });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const served = await serveTestHost(t, { home, host });
+  const client = host.actionClient(ref);
+  const web = webGoalReviews(served.web, project.project_id);
+  const user: ActionCallContext = {
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    actor_kind: "user",
+    project_id: project.project_id,
+    audience: "user",
+    permissions: ["goals:read", "goals:write", "goals:decide"],
+  };
+  try {
+    await client.invoke(user, goalsActions.create, { goal_id: "CANCEL-OFFER", title: "Cancel offer", outcome: "Out", idempotency_key: "c-create" });
+    const req = await client.invoke(user, goalsActions.requestDecision, {
+      goal_id: "CANCEL-OFFER",
+      idempotency_key: "c-req",
+      question: "Proceed?",
+      purpose: "action",
+      options: [{ option_id: "yes", label: "Yes", impact: "Go" }, { option_id: "no", label: "No", impact: "Stop" }],
+      scope: { action: "publish" },
+    });
+    const state = await client.invoke(user, goalsActions.state, { goal_id: "CANCEL-OFFER" }) as {
+      config: { version: number };
+      agreement: { version: number };
+    };
+    await client.invoke(user, goalsActions.close, {
+      goal_id: "CANCEL-OFFER",
+      idempotency_key: "c-cancel",
+      kind: "cancel",
+      reason: "Cancelled before decision",
+      expected_config_version: state.config.version,
+      expected_agreement_version: state.agreement.version,
+    });
+    const draftOffer = await web.read(prepareGoalReview(goalsActions.decide, {
+      goal_id: "CANCEL-OFFER",
+      idempotency_key: "c-decide-draft",
+      conclusion: "Try approving cancelled goal",
+      effects: [{ kind: "authorize_action", action: "publish" }],
+      scope: { action: "publish" },
+    }));
+    assert.equal(draftOffer.choices[0]?.availability.available, false);
+    assert.equal(draftOffer.choices[0]?.availability.available === false && draftOffer.choices[0]?.availability.code, "actions.conflict");
+    const nonDraftOffer = await served.web.post<ReviewRequest>(`/projects/${encodeURIComponent(project.project_id)}/api/project-approvals/request`, {
+      action: { capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID },
+      request_id: (req as { decision_request: { request_id: string } }).decision_request.request_id,
+    });
+    assert.ok(nonDraftOffer.choices.length > 0);
+    assert.ok(nonDraftOffer.choices.every((choice) => !choice.availability.available && choice.availability.code === "actions.conflict"));
+    await assert.rejects(
+      web.submit({ reference: draftOffer.reference as Parameters<typeof web.submit>[0]["reference"], choice_id: "apply", request_key: "c-decide-draft" }),
+      { code: "actions.conflict" },
+    );
+  } finally {
+    await served.close();
+    await host.close();
+    await rm(home, { recursive: true, force: true });
+  }
 });

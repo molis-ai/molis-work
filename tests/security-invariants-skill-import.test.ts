@@ -302,7 +302,7 @@ test("SKC-10 S-skill-import CLI pack-content packs a folder of Skills with the s
   } finally { await h.done(); }
 });
 
-for (const scope of ["project", "home"] as const) test(`SKC-10 SPC-15 S-skill-import in a real Host the person imports a local Skills folder through the actions, it installs as a content plugin and its Skills are registered; an Agent or a call without the person's entry is refused (${scope})`, mac, async () => {
+for (const scope of ["project", "home"] as const) test(`SKC-10 SPC-15 S-skill-import in a real Host the person imports a local Skills folder through the actions, it installs as a content plugin and its Skills are registered; an Agent or a call without the person's entry is refused (${scope})`, { timeout: 90_000 }, async () => {
   const userHome = await mkdtemp(join(tmpdir(), "molis-work-user-")), was = process.env.HOME;
   process.env.HOME = userHome;
   try {
@@ -321,8 +321,8 @@ for (const scope of ["project", "home"] as const) test(`SKC-10 SPC-15 S-skill-im
         } };
       const ref = (action: typeof skillImportActions.preview | typeof skillImportActions.confirm) => ({ capability_id: action.capability_id, version: action.version });
       const input = { source: { kind: "runtime", runtime_id: "claude-code" } };
-      await assert.rejects(h.client.invoke({ ...caller, permissions: [SKILLS_MANAGE_PERMISSION] }, ref(skillImportActions.preview), input), "without the person's protected entry");
-      await assert.rejects(h.client.invoke({ ...person, audience: "agent" }, ref(skillImportActions.preview), input), "not offered to an Agent");
+      await assert.rejects(h.client.invoke({ ...caller, permissions: [SKILLS_MANAGE_PERMISSION] }, ref(skillImportActions.preview), input), { code: "actions.forbidden" }, "without the person's protected entry");
+      await assert.rejects(h.client.invoke({ ...person, audience: "agent" }, ref(skillImportActions.preview), input), { code: "actions.forbidden" }, "not offered to an Agent");
       const preview = await h.client.invoke(person, ref(skillImportActions.preview), input) as
         { preview_id: string; applies_to: string; candidates: Array<{ skill_id: string; importable: boolean; applies_to_from: string }> };
       assert.deepEqual(preview.candidates.map(item => [item.skill_id, item.importable, item.applies_to_from]).sort(), [["notes", true, "file"], ["plain", true, "suggested"]]);
@@ -371,7 +371,7 @@ for (const scope of ["project", "home"] as const) test(`SKC-10 SPC-15 S-skill-im
 });
 
 
-test("SPC-15 S-skill-import a retained 9.0.0 makes the final import exceed the budget without restoring public metadata", mac, async t => {
+test("SPC-15 S-skill-import a retained 9.0.0 makes the final import exceed the budget without restoring public metadata", { timeout: 90_000 }, async t => {
   const userHome = await mkdtemp(join(tmpdir(), "molis-skill-budget-user-"));
   const mockedHome = t.mock.method(os, "homedir", () => userHome);
   syncBuiltinESMExports();

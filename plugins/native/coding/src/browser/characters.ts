@@ -151,9 +151,11 @@ export function characterChoice(ports: CharacterPorts) {
     const id = session, selected = rows.find(item => key(item.ref) === key(candidate));
     if (candidate && !selected?.available)
       return;
-    selections.set(id, structuredClone(candidate));
-    skillSelections.set(id, candidate ? selectedSkills : []);
-    titles.set(id, selected?.title || '');
+    const previousSelection = selections.get(id), previousSkills = skillSelections.get(id), previousTitle = titles.get(id);
+    const nextSelection = structuredClone(candidate), nextSkills = candidate ? [...selectedSkills] : [], nextTitle = selected?.title || '';
+    selections.set(id, nextSelection);
+    skillSelections.set(id, nextSkills);
+    titles.set(id, nextTitle);
     controls();
     busy = true;
     submit.disabled = true;
@@ -167,6 +169,15 @@ export function characterChoice(ports: CharacterPorts) {
       status(uiText.text('coding.character.saved'));
     }
     catch (failure) {
+      if (selections.get(id) === nextSelection) {
+        if (previousSelection === undefined) selections.delete(id);
+        else selections.set(id, previousSelection);
+        if (previousSkills === undefined) skillSelections.delete(id);
+        else skillSelections.set(id, previousSkills);
+        if (previousTitle === undefined) titles.delete(id);
+        else titles.set(id, previousTitle);
+        if (current() === id) controls();
+      }
       error.textContent = uiText.text('coding.choice.save-failed', { reason: errorMessage(failure) });
     }
     finally {

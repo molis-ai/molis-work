@@ -26,6 +26,10 @@ export function uncertainGitResult(message: string, cause: unknown): Error {
   return Object.assign(new Error(message, { cause }), { code: "EFFECT_RECONCILE_REQUIRED" });
 }
 
+const wasNotDispatched = (error: unknown) => Boolean((error as { notDispatched?: unknown } | null)?.notDispatched);
+const wasUncertainRun = (error: unknown) => Boolean((error as { uncertain?: unknown } | null)?.uncertain);
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 async function operationRun(command: "git" | "gh", root: string, args: string[], input?: string, configuration?: GitCommandConfiguration): Promise<{ stdout: string; stderr: string }> {
   const env: Record<string, string | undefined> = { ...process.env, LC_ALL: "C", GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "Never", GH_PROMPT_DISABLED: "1", GIT_EDITOR: "true" };
   for (const key of Object.keys(env)) if (key.startsWith("GIT_") && !["GIT_TERMINAL_PROMPT", "GIT_EDITOR", "GIT_SSH_COMMAND", "GIT_ASKPASS"].includes(key)) delete env[key];
@@ -39,11 +43,15 @@ async function operationRun(command: "git" | "gh", root: string, args: string[],
     const { stdout, stderr } = await pending;
     return { stdout, stderr };
   } catch (error) {
-    const value = error as { code?: string | number; stderr?: string; stdout?: string; killed?: boolean };
-    if (value.code === "ENOENT") throw new Error(command === "gh" ? "这台电脑没有安装 GitHub CLI（gh）" : "这台电脑找不到 Git");
-    if (value.killed) throw new Error("操作超过 2 分钟没有完成，已停止；请检查网络或远端后重试");
+    const value = error as { code?: string | number; stderr?: string; stdout?: string; killed?: boolean; signal?: NodeJS.Signals | null };
+    if (value.code === "ENOENT") {
+      throw Object.assign(new Error(command === "gh" ? "这台电脑没有安装 GitHub CLI（gh）" : "这台电脑找不到 Git", { cause: error }), { notDispatched: true });
+    }
+    if (value.killed || value.signal) {
+      throw Object.assign(new Error("操作超过 2 分钟没有完成，已停止；请检查网络或远端后重试", { cause: error }), { uncertain: true });
+    }
     const said = `${value.stderr ?? ""}\n${value.stdout ?? ""}`.trim().split("\n").filter(Boolean).slice(-6).join("\n");
-    throw new Error(said || "命令没有成功");
+    throw new Error(said || "命令没有成功", { cause: error });
   }
 }
 
@@ -120,12 +128,29 @@ export async function readConflictFile(workspace: ProjectWorkspaceRef, file: str
 }
 
 /** A merge or pull that stopped on conflicts did its part: it says which files wait for the person, not that it failed. */
-async function mergeOutcome(workspace: ProjectWorkspaceRef, run: () => Promise<unknown>, done: string): Promise<string> {
+async function mergeOutcome(workspace: ProjectWorkspaceRef, run: () => Promise<unknown>, done: string, actionLabel: string): Promise<string> {
   try { await run(); return done; }
   catch (error) {
+    if (wasNotDispatched(error)) throw error;
     const after = await readGitSummary(workspace).catch(() => null);
     if (after?.merging && after.conflicted.length) {
       return `有 ${after.conflicted.length} 个文件冲突：${after.conflicted.slice(0, 8).join("、")}${after.conflicted.length > 8 ? " 等" : ""}。在 Git 面板逐个解决并提交，或放弃这次合并。`;
+    }
+    throw uncertainGitResult(`${actionLabel}结果未确认；请核对仓库状态，不要直接重试：${errorText(error)}`, error);
+  }
+}
+
+async function runLocalGitOperation(workspace: ProjectWorkspaceRef, summary: WorkspaceGitSummary, run: () => Promise<string>, actionLabel: string): Promise<string> {
+  try { return await run(); }
+  catch (error) {
+    if (wasNotDispatched(error)) throw error;
+    const after = await readGitSummary(workspace).catch(() => null);
+    const changed = !after
+      || after.revision !== summary.revision
+      || after.branches.length !== summary.branches.length
+      || after.branches.some((name, index) => name !== summary.branches[index]);
+    if (wasUncertainRun(error) || changed) {
+      throw uncertainGitResult(`${actionLabel}结果未确认；请核对仓库状态，不要直接重试：${errorText(error)}`, error);
     }
     throw error;
   }
@@ -153,7 +178,18 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.commit, summary: `提交暂存区的 ${summary.staged.length} 个文件`, check,
         fields: [...where, { label: "提交说明", value: message }, { label: "暂存的文件", value: summary.staged.map(file => `${file.status} ${file.path}`).join("\n") || "（完成合并）" },
           { label: "执行范围", value: "只提交已暂存的内容，未暂存的改动保持原样；会运行仓库配置的 Git hooks（如有）；不推送远端。" }],
-        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, ["commit", "-F", "-"], message + "\n"); const head = (await gitText(root, ["log", "-1", "--no-show-signature", "--format=%h %s"])).trim(); return `已提交 ${head}`; } };
+        async execute(assertCurrent) {
+          await check();
+          assertCurrent?.();
+          try {
+            await operationRun("git", root, ["commit", "-F", "-"], message + "\n");
+            const head = (await gitText(root, ["log", "-1", "--no-show-signature", "--format=%h %s"])).trim();
+            return `已提交 ${head}`;
+          } catch (error) {
+            if (wasNotDispatched(error)) throw error;
+            throw uncertainGitResult(`提交结果未确认；请核对仓库历史与钩子输出，不要直接重试：${errorText(error)}`, error);
+          }
+        } };
     }
     case "branch-create": {
       const name = operation.name.trim();
@@ -162,7 +198,14 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL["branch-create"], summary: operation.checkout ? `新建分支「${name}」并切换过去` : `新建分支「${name}」`, check,
         fields: [...where, { label: "新分支", value: name }, { label: "起点", value: summary.head_commit?.slice(0, 12) ?? "（尚无提交）" },
           { label: "执行范围", value: operation.checkout ? "从当前提交建分支并切换；未提交的改动随你带到新分支，不会丢失。不推送远端。" : "只建分支，不切换、不推送远端。" }],
-        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, operation.checkout ? ["switch", "-c", name] : ["branch", name]); return operation.checkout ? `已新建并切换到「${name}」` : `已新建分支「${name}」`; } };
+        async execute(assertCurrent) {
+          await check();
+          assertCurrent?.();
+          return runLocalGitOperation(workspace, summary, async () => {
+            await operationRun("git", root, operation.checkout ? ["switch", "-c", name] : ["branch", name]);
+            return operation.checkout ? `已新建并切换到「${name}」` : `已新建分支「${name}」`;
+          }, "新建分支");
+        } };
     }
     case "branch-switch": {
       const name = operation.name.trim();
@@ -170,7 +213,14 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       if (name === summary.branch) throw new Error("已经在这个分支上");
       return { tool: ACTION_TOOL["branch-switch"], summary: `切换到分支「${name}」`, check,
         fields: [...where, { label: "切换到", value: name }, { label: "未提交的改动", value: summary.staged.length + summary.unstaged ? `${summary.staged.length + summary.unstaged} 个文件；Git 会把它们带到新分支，有冲突时会拒绝切换，不会覆盖` : "没有" }],
-        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, ["switch", name]); return `已切换到「${name}」`; } };
+        async execute(assertCurrent) {
+          await check();
+          assertCurrent?.();
+          return runLocalGitOperation(workspace, summary, async () => {
+            await operationRun("git", root, ["switch", name]);
+            return `已切换到「${name}」`;
+          }, "切换分支");
+        } };
     }
     case "push": return preparePush(root, summary, operation, where, check,
       (args, config) => operationRun("git", root, args, undefined, config));
@@ -187,8 +237,18 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL["pr-create"], summary: `建 PR：${summary.branch} → ${base}`, check,
         fields: [...where, { label: "目标分支", value: base }, { label: "标题", value: title }, { label: "描述", value: body || "（空）" }, { label: "草稿", value: operation.draft ? "是" : "否" },
           { label: "执行范围", value: `经 GitHub CLI 在 ${support.host} 建 PR，使用它已有的登录；不改动本地仓库。` }],
-        async execute(assertCurrent) { await check(); assertCurrent?.(); const out = await operationRun("gh", root, ["pr", "create", "--base", base, "--head", summary.branch!, "--title", title, "--body", body, ...(operation.draft ? ["--draft"] : [])]);
-          const url = out.stdout.split("\n").map(line => line.trim()).find(line => /^https?:\/\//.test(line)); return url ? `已建 PR：${url}` : "已建 PR"; } };
+        async execute(assertCurrent) {
+          await check();
+          assertCurrent?.();
+          try {
+            const out = await operationRun("gh", root, ["pr", "create", "--base", base, "--head", summary.branch!, "--title", title, "--body", body, ...(operation.draft ? ["--draft"] : [])]);
+            const url = out.stdout.split("\n").map(line => line.trim()).find(line => /^https?:\/\//.test(line));
+            return url ? `已建 PR：${url}` : "已建 PR";
+          } catch (error) {
+            if (wasNotDispatched(error)) throw error;
+            throw uncertainGitResult(`建 PR 结果未确认；请到远端核对是否已创建，不要直接重试：${errorText(error)}`, error);
+          }
+        } };
     }
     case "merge": {
       const branch = operation.branch.trim();
@@ -199,7 +259,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.merge, summary: `把「${branch}」合并到「${summary.branch}」`, check,
         fields: [...where, { label: "合并进来的分支", value: branch },
           { label: "执行范围", value: "在本地合并，能快进时快进，否则生成合并提交；有冲突时停下，冲突文件留给你在面板里逐个解决。不推送远端。" }],
-        async execute(assertCurrent) { await check(); assertCurrent?.(); return mergeOutcome(workspace, () => operationRun("git", root, ["merge", "--no-edit", branch]), `已把「${branch}」合并到「${summary.branch}」`); } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); return mergeOutcome(workspace, () => operationRun("git", root, ["merge", "--no-edit", branch]), `已把「${branch}」合并到「${summary.branch}」`, "合并"); } };
     }
     case "pull": {
       if (!summary.branch || !summary.upstream) throw new Error("这个分支还没有远端跟踪分支，先推送并设置跟踪");
@@ -207,7 +267,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.pull, summary: `从 ${summary.upstream} 拉取并合并到「${summary.branch}」`, check,
         fields: [...where, { label: "远端跟踪分支", value: summary.upstream },
           { label: "执行范围", value: "使用这台电脑上已有的 Git 凭据取回远端，再合并（不变基）；有冲突时停下，冲突文件留给你逐个解决。不推送。" }],
-        async execute(assertCurrent) { await check(); assertCurrent?.(); return mergeOutcome(workspace, () => operationRun("git", root, ["pull", "--no-rebase", "--no-edit"]), `已从 ${summary.upstream} 拉取并合并`); } };
+        async execute(assertCurrent) { await check(); assertCurrent?.(); return mergeOutcome(workspace, () => operationRun("git", root, ["pull", "--no-rebase", "--no-edit"]), `已从 ${summary.upstream} 拉取并合并`, "拉取并合并"); } };
     }
     case "resolve": {
       const file = operation.path.trim(), content = operation.content.replace(/\r\n/g, "\n");
@@ -225,7 +285,14 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       if (!summary.merging) throw new Error("没有进行中的合并");
       return { tool: ACTION_TOOL["merge-abort"], summary: "放弃这次合并", check,
         fields: [...where, { label: "执行范围", value: "回到合并开始前的状态：冲突文件和已暂存的合并结果都撤回；合并前已提交的内容不受影响。" }],
-        async execute(assertCurrent) { await check(); assertCurrent?.(); await operationRun("git", root, ["merge", "--abort"]); return "已放弃这次合并"; } };
+        async execute(assertCurrent) {
+          await check();
+          assertCurrent?.();
+          return runLocalGitOperation(workspace, summary, async () => {
+            await operationRun("git", root, ["merge", "--abort"]);
+            return "已放弃这次合并";
+          }, "放弃合并");
+        } };
     }
   }
 }

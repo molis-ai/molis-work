@@ -91,7 +91,7 @@ function listenPaneButtons(
     const closeId = target.closest("[data-tui-close]")?.getAttribute("data-tui-close");
     if (closeId) {
       event.preventDefault();
-      void panelController.closePanel(closeId);
+      void panelController.closePanel(closeId).catch(report);
       return;
     }
     const selectId = target.closest("[data-tui-select]")?.getAttribute("data-tui-select");

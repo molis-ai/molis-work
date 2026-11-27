@@ -58,7 +58,7 @@ export function createPersonalHandlers(ports: PersonalPorts): ActionHandlerBindi
       return ports.write(caller, store => {
         const existing = store.personal(caller.actor_id);
         if ((existing?.revision ?? 0) !== (before.brief?.revision ?? 0)) throw workBriefErrors.conflict("个人简报刚被别处更新，请重新读取后再试");
-        store.append(existing ?? store.create({ brief_id: ports.newId("brief"), scope: "personal", title: "", actor_id: caller.actor_id }, at), existing?.revision ?? 1, body, { kind: "person" }, at);
+        store.append(existing ?? store.create({ brief_id: store.singletonId("personal", caller.actor_id), scope: "personal", title: "", actor_id: caller.actor_id }, at), existing?.revision ?? 1, body, { kind: "person" }, at);
         return { ...personalView(store, caller), changed: true, changes };
       });
     }),

@@ -190,6 +190,36 @@ export function applyReviewsToRun(base: EvaluationRunView, reviews: readonly Eva
   };
 }
 
+function normalizeMetricsTimestamp(raw: string, endOfDay: boolean, label: string): string {
+  const trimmed = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(trimmed)) {
+    const expanded = endOfDay ? `${trimmed}T23:59:59.999Z` : `${trimmed}T00:00:00.000Z`;
+    const ms = Date.parse(expanded);
+    if (!Number.isFinite(ms) || !new Date(ms).toISOString().startsWith(trimmed)) {
+      throw evaluationErrors.invalid(`${label}：${raw}`);
+    }
+    return new Date(ms).toISOString();
+  }
+  const ms = Date.parse(trimmed);
+  if (!Number.isFinite(ms)) {
+    throw evaluationErrors.invalid(`${label}：${raw}`);
+  }
+  return new Date(ms).toISOString();
+}
+
+export function normalizeMetricsWindow(input: EvaluationMetricsSummarizeInput): EvaluationMetricsSummarizeInput {
+  const since = input.since !== undefined ? normalizeMetricsTimestamp(input.since, false, "指标汇总起始时间不合法") : undefined;
+  const until = input.until !== undefined ? normalizeMetricsTimestamp(input.until, true, "指标汇总结束时间不合法") : undefined;
+  if (since !== undefined && until !== undefined && Date.parse(since) > Date.parse(until)) {
+    throw evaluationErrors.invalid("指标汇总 since 不能晚于 until");
+  }
+  return {
+    ...input,
+    ...(since !== undefined ? { since } : {}),
+    ...(until !== undefined ? { until } : {}),
+  };
+}
+
 export function clearProjectEvaluationRows(db: DatabaseSync, projectId: string): void {
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -198,7 +228,9 @@ export function clearProjectEvaluationRows(db: DatabaseSync, projectId: string):
     db.prepare("DELETE FROM evaluation_samples WHERE project_id = ?").run(projectId);
     db.exec("COMMIT");
   } catch (error) {
-    db.exec("ROLLBACK");
+    rollbackPreservingError(error, () => {
+      if (db.isTransaction) db.exec("ROLLBACK");
+    });
     throw error;
   }
 }
@@ -439,15 +471,16 @@ export class EvaluationStore {
     readonly runs: readonly StoredRunWithOutcomes[];
     readonly sampleCount: number;
   } {
+    const normalized = normalizeMetricsWindow(filter);
     const db = this.open();
     const clauses = ["sample_purpose = ?"];
-    const params: SQLInputValue[] = [filter.purpose];
-    if (filter.project_id === null) clauses.push("project_id IS NULL");
-    else if (typeof filter.project_id === "string") { clauses.push("project_id = ?"); params.push(filter.project_id); }
-    if (filter.work_mode) { clauses.push("work_mode = ?"); params.push(filter.work_mode); }
-    if (filter.execution_kind) { clauses.push("execution_kind = ?"); params.push(filter.execution_kind); }
-    if (filter.since) { clauses.push("evaluated_at >= ?"); params.push(filter.since); }
-    if (filter.until) { clauses.push("evaluated_at <= ?"); params.push(filter.until); }
+    const params: SQLInputValue[] = [normalized.purpose];
+    if (normalized.project_id === null) clauses.push("project_id IS NULL");
+    else if (typeof normalized.project_id === "string") { clauses.push("project_id = ?"); params.push(normalized.project_id); }
+    if (normalized.work_mode) { clauses.push("work_mode = ?"); params.push(normalized.work_mode); }
+    if (normalized.execution_kind) { clauses.push("execution_kind = ?"); params.push(normalized.execution_kind); }
+    if (normalized.since) { clauses.push("evaluated_at >= ?"); params.push(normalized.since); }
+    if (normalized.until) { clauses.push("evaluated_at <= ?"); params.push(normalized.until); }
     const rows = rowsAs<StoredRunRow>(
       db.prepare(`SELECT * FROM evaluation_runs WHERE ${clauses.join(" AND ")} ORDER BY evaluated_at ASC, rowid ASC`).all(...params),
     );
@@ -457,19 +490,19 @@ export class EvaluationStore {
       outcomeCounts: JSON.parse(row.outcome_counts) as StoredRunWithOutcomes["outcomeCounts"],
     }));
     const selectedClauses = ["purpose = ?"];
-    const selectedParams: SQLInputValue[] = [filter.purpose];
-    if (filter.project_id === null) selectedClauses.push("project_id IS NULL");
-    else if (filter.project_id !== undefined) {
+    const selectedParams: SQLInputValue[] = [normalized.purpose];
+    if (normalized.project_id === null) selectedClauses.push("project_id IS NULL");
+    else if (normalized.project_id !== undefined) {
       selectedClauses.push("project_id = ?");
-      selectedParams.push(filter.project_id);
+      selectedParams.push(normalized.project_id);
     }
-    if (filter.work_mode) {
+    if (normalized.work_mode) {
       selectedClauses.push("work_mode = ?");
-      selectedParams.push(filter.work_mode);
+      selectedParams.push(normalized.work_mode);
     }
-    if (filter.until) {
+    if (normalized.until) {
       selectedClauses.push("created_at <= ?");
-      selectedParams.push(filter.until);
+      selectedParams.push(normalized.until);
     }
     const selected = db.prepare(`SELECT DISTINCT sample_id FROM evaluation_samples WHERE ${selectedClauses.join(" AND ")}`).all(...selectedParams);
     const ids = new Set(rows.map(row => row.sample_id));
@@ -508,7 +541,9 @@ export class EvaluationStore {
       db.exec("COMMIT");
       return updated;
     } catch (error) {
-      db.exec("ROLLBACK");
+      rollbackPreservingError(error, () => {
+        if (db.isTransaction) db.exec("ROLLBACK");
+      });
       throw error;
     }
   }

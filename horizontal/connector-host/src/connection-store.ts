@@ -232,27 +232,34 @@ export class ConnectorConnectionStore {
   /** Register only after the protocol adapter has completed its real handshake. */
   saveProtocol(input: ConnectorProtocolConnectionInput): ConnectorConnectionRecord {
     if (!CONNECTION_ID.test(input.connectionId) || !SERVICE_ID.test(input.serviceId)) throw connectorErrors["connector.connection.invalid"]("连接标识无效");
-    const existing = this.get(input.connectionId);
-    if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "mcp")) throw connectorErrors["connector.connection.service_mismatch"]("连接不属于这个 MCP 服务");
-    const endpoint = input.transport === "stdio" ? null : new URL(input.endpoint);
+    const displayName = requiredText(input.displayName, "连接名称", 100);
+    let endpoint: URL | null = null;
+    if (input.transport !== "stdio") {
+      try { endpoint = new URL(input.endpoint); } catch { throw connectorErrors["connector.connection.invalid"]("MCP 地址无效"); }
+    }
     if (endpoint && (endpoint.username || endpoint.password || endpoint.hash || (endpoint.protocol !== "https:" && !isLoopbackHttpUrl(endpoint)))) throw connectorErrors["connector.connection.invalid"]("MCP 地址无效");
     for (const ref of [input.credentialRef, input.refreshRef, input.expiresRef]) {
       if (ref && !ref.startsWith(`connector-protocol:${input.connectionId}:`)) throw connectorErrors["connector.connection.invalid"]("MCP 凭据引用无效");
     }
     if (input.credentialRef && !this.secrets.get(input.credentialRef)?.trim()) throw connectorErrors["connector.connection.disconnected"]("MCP 凭据尚未保存");
-    inConnectorTransaction(this.db, () => {
-    const now = nextChange(this.db, input.connectionId, this.now());
-    this.db.prepare(`INSERT INTO connector_connections
-      (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(connection_id) DO UPDATE SET
-      display_name=excluded.display_name,credential_ref=excluded.credential_ref,refresh_ref=excluded.refresh_ref,
-      expires_ref=excluded.expires_ref,disconnected_at=NULL,updated_at=excluded.updated_at`)
-      .run(input.connectionId, input.serviceId, requiredText(input.displayName, "连接名称", 100), null, "mcp", input.credentialRef,
-        input.refreshRef ?? null, input.expiresRef ?? null, "managed", null, existing?.created_at ?? now, now);
-    if (endpoint) this.db.prepare("INSERT INTO connector_connection_targets(connection_id,origin) VALUES (?,?) ON CONFLICT(connection_id) DO UPDATE SET origin=excluded.origin").run(input.connectionId, endpoint.origin);
-    else this.db.prepare("DELETE FROM connector_connection_targets WHERE connection_id=?").run(input.connectionId);
+    const hadExisting = inConnectorTransaction(this.db, () => {
+      const raw = this.db.prepare("SELECT * FROM connector_connections WHERE connection_id = ?").get(input.connectionId) as Row | undefined;
+      if (raw && raw.removed_at !== null) throw connectorErrors["connector.connection.invalid"]("已删除的连接不能复用，请新建连接");
+      const existing = raw ? connectionFromRow(raw) : null;
+      if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "mcp")) throw connectorErrors["connector.connection.service_mismatch"]("连接不属于这个 MCP 服务");
+      const now = nextChange(this.db, input.connectionId, this.now());
+      this.db.prepare(`INSERT INTO connector_connections
+        (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(connection_id) DO UPDATE SET
+        display_name=excluded.display_name,credential_ref=excluded.credential_ref,refresh_ref=excluded.refresh_ref,
+        expires_ref=excluded.expires_ref,disconnected_at=NULL,updated_at=excluded.updated_at`)
+        .run(input.connectionId, input.serviceId, displayName, null, "mcp", input.credentialRef,
+          input.refreshRef ?? null, input.expiresRef ?? null, "managed", null, existing?.created_at ?? now, now);
+      if (endpoint) this.db.prepare("INSERT INTO connector_connection_targets(connection_id,origin) VALUES (?,?) ON CONFLICT(connection_id) DO UPDATE SET origin=excluded.origin").run(input.connectionId, endpoint.origin);
+      else this.db.prepare("DELETE FROM connector_connection_targets WHERE connection_id=?").run(input.connectionId);
+      return Boolean(existing);
     });
-    if (existing) this.onChange?.(input.connectionId);
+    if (hadExisting) this.onChange?.(input.connectionId);
     return this.require(input.connectionId);
   }
 
@@ -265,29 +272,37 @@ export class ConnectorConnectionStore {
     if (!CONNECTION_ID.test(input.connectionId) || !SERVICE_ID.test(input.serviceId)) {
       throw connectorErrors["connector.connection.invalid"]("OAuth 连接标识无效");
     }
-    const existing = this.get(input.connectionId);
-    if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "oauth")) {
-      throw connectorErrors["connector.connection.service_mismatch"]("不能把授权写入另一服务的连接");
-    }
-    if (!input.stableAccountValidated && existing?.account_label && input.accountLabel && existing.account_label !== input.accountLabel.trim()) {
-      throw connectorErrors["connector.connection.service_mismatch"]("授权账号与原连接不同，请新增连接");
-    }
+    const displayName = requiredText(input.displayName, "连接名称", 100);
     if (!this.secrets.get(input.accessRef)?.trim() || (input.refreshRef && !this.secrets.get(input.refreshRef)?.trim())) {
       throw connectorErrors["connector.connection.disconnected"]("OAuth 凭据尚未保存完整");
     }
-    const now = nextChange(this.db, input.connectionId, this.now());
-    this.db.prepare(`INSERT INTO connector_connections
-      (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(connection_id) DO UPDATE SET
-        display_name=excluded.display_name,account_label=excluded.account_label,
-        credential_ref=excluded.credential_ref,refresh_ref=excluded.refresh_ref,expires_ref=excluded.expires_ref,
-        disconnected_at=NULL,updated_at=excluded.updated_at`)
-      .run(input.connectionId, input.serviceId, requiredText(input.displayName, "连接名称", 100),
-        input.accountLabel?.trim() || existing?.account_label || null, "oauth",
-        input.accessRef, input.refreshRef, input.expiresRef ?? null, "managed", null,
-        existing?.created_at ?? now, now);
-    if (existing) this.onChange?.(input.connectionId);
+    const hadExisting = inConnectorTransaction(this.db, () => {
+      const raw = this.db.prepare("SELECT * FROM connector_connections WHERE connection_id = ?").get(input.connectionId) as Row | undefined;
+      if (raw && raw.removed_at !== null) {
+        throw connectorErrors["connector.connection.invalid"]("已删除的连接不能复用，请新建连接");
+      }
+      const existing = raw ? connectionFromRow(raw) : null;
+      if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "oauth")) {
+        throw connectorErrors["connector.connection.service_mismatch"]("不能把授权写入另一服务的连接");
+      }
+      if (!input.stableAccountValidated && existing?.account_label && input.accountLabel && existing.account_label !== input.accountLabel.trim()) {
+        throw connectorErrors["connector.connection.service_mismatch"]("授权账号与原连接不同，请新增连接");
+      }
+      const now = nextChange(this.db, input.connectionId, this.now());
+      this.db.prepare(`INSERT INTO connector_connections
+        (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(connection_id) DO UPDATE SET
+          display_name=excluded.display_name,account_label=excluded.account_label,
+          credential_ref=excluded.credential_ref,refresh_ref=excluded.refresh_ref,expires_ref=excluded.expires_ref,
+          disconnected_at=NULL,updated_at=excluded.updated_at`)
+        .run(input.connectionId, input.serviceId, displayName,
+          input.accountLabel?.trim() || existing?.account_label || null, "oauth",
+          input.accessRef, input.refreshRef, input.expiresRef ?? null, "managed", null,
+          existing?.created_at ?? now, now);
+      return Boolean(existing);
+    });
+    if (hadExisting) this.onChange?.(input.connectionId);
     return this.require(input.connectionId);
   }
 

@@ -88,13 +88,9 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 （情境浮条的三个事件，主人是 `context-toolbar`（设计系统的页面程序）：`molis:context-tools` 与 `molis:context-panel-open` 是 `request`，发的是拥有内容的插件，听的是浮条；`molis:context-tool-invoke` 是公告，浮条在插件发布工具的那个元素上发，插件自己执行。工作台已经采用它，Pages 是第一个真实的发送方；组件板的示范是另一个。`molis:context-panel-open` 带 `cancelable`：浮条接住了（有这个情境的浮条在）就 `preventDefault()`，没接住时插件自己把表单放在原处。）
 
-另有一处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它是现状，不是设计：
-
-- `molis-work:system-view-close`（主人 `tab-workspace`）：页签工作区（`apps/workbench/src/scripts/client/system-tabs.ts`）还听着它，供平台页的主人请它关掉自己的那一页；第 36A 批壳层对话批去掉「把助理的一件工作放到工作区当一页」之后，树里暂时没有主人发它（事件页由人在页签上关）。下一个需要自己收页的平台页主人直接发它；到那时仍没有，就连登记一起删。
-
 ## 4. 迁移
 
-Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native Plugin 的正式 Contribution，Workbench 经 UiHost 挂载。`decision-groups.ts` / `decision-results.ts` 归 Goals Plugin（Workbench 里曾经把它们拼成独立「决定中心」页的 `decision-center.ts` 与 `/decisions` 页已随 2026-10-08 的死代码批删除；「最近处理结果」贡献仍在 Goals 注册，暂时没有挂载点）。客户端确认/退回归 `proposal-client.ts`，Workbench 保留跨 Feed/Goal 的刷新、receipt 和共享状态。提案 CSS 在原层叠位置与 media query 内插入，英文文案由共享 catalog 组合。调用清单与 209 项验收见 `specs/molis-work-architecture-reorganization/dd2-caller-audit.md` 和 `dd2-validation.md`（当时的验收记录）。
+Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native Plugin 的正式 Contribution，Workbench 经 UiHost 挂载。`decision-groups.ts` / `decision-results.ts` 归 Goals Plugin（Workbench 里曾经把它们拼成独立「决定中心」页的 `decision-center.ts` 与 `/decisions` 页已随 2026-10-08 的死代码批删除；「最近处理结果」贡献仍在 Goals 注册，暂时没有挂载点）。客户端确认/退回归 `proposal-client.ts`，Workbench 保留跨 Feed/Goal 的刷新、receipt 和共享状态。提案 CSS 在原层叠位置与 media query 内插入，多语言文案按现行每主人 `locales/{zh,en,ja}.json` 词包提供（见第 5 节）。调用清单与 209 项验收见 `specs/molis-work-architecture-reorganization/dd2-caller-audit.md` 和 `dd2-validation.md`（当时的验收记录）。
 
 旧 `src/web/render.ts` 已删除，职责归 Workbench Shell、Design System、UI Host 和 Native Plugin UI；各产品内容由各 Native Plugin 提供。GW5 的 Goals 页面、交互、route descriptor 和就近文案已完成工程验收；Workbench 仅装配，GW4 的写入口边界保持不变。Cutover 已将跨 Decision/Feed 的具名 UI 组合归 Workbench，Native Goals 持有对应 Contribution，旧 renderer caller 清零。
 
@@ -107,7 +103,7 @@ Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native 
 - `packages/ui-host` 在 mount 时校验 contribution、surface、目标 Slot 与 format；Plugin 不能向未声明或不兼容的 Slot 插入内容。
 - Feed Native Plugin 已按 surface 显式声明可装载位置，Workbench 通过 UI Host mount，不直接调用 Plugin renderer。
 - `packages/design-system` 已接管主题、密度、browser bootstrap 和分层视觉样式；旧 `src/web/visual-foundation.ts` 已删除。
-- Workbench 浏览器 CSS/JS 按样式层和客户端职责拆分，旧静态内容保持逐字节兼容；全局 i18n runtime 已缩成语言选择/fallback 边界，现有 EN 产品文案暂存于 Workbench compatibility catalog，后续随各 Native Plugin UI Goal 就近迁出。
+- Workbench 浏览器 CSS/JS 按样式层和客户端职责拆分；旧的英文 compatibility catalog 与 `src/en.ts` 已随第 16 批三语/N 语种词包架构彻底移除，现行平台与各插件均由各自 `locales/<语言>.json` 词包提供文字（见第 5 节）。
 - AP3 只迁 Shell/UI 平台职责，不替 AR3、EX4、WK3、AP4 或已接受的 GW5 搬产品页面。Cutover 已完成其余 owner 迁移，旧 `src/web/render.ts` 已 retired。
 
 GW5 已提供全部 Goals contribution、专属客户端、集合/导航投影与 route descriptor，包括项目工作规则页面。Workbench 接管 full/refresh page、read/page/fragment 与 Planning 请求装配，共享刷新和跨 owner 状态仍在 Host。Module 保有事实和权限规则，Artifact/Companion/Decision HTML 由各自 owner 显式输入。175 项串行回归及边界/caller 对账见 `specs/molis-work-architecture-reorganization/gw5-validation.md`；不替代最终全产品 E2E。
@@ -148,7 +144,7 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 页面手里有一个签名包、想请用户装到这里时，调用 `host.packageInstall(place, { bundle }, { signal })`：外壳在 `place` 所在位置画安装单（一屏：包名与版本、发布者、装到哪里、必需与可选权限、要填的密钥），预览、用户的选择、密钥和每一次写入都在外壳与 Host 里完成，页面的脚本读不到也按不到。页面只拿到结果：`installed`（插件编号与版本）、`cancelled` 或 `failed`（拒绝的错误码）。Host 像对待设置里导入的包一样验签；装什么、要什么权限只看包本身。合同在 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPackageInstallTarget` 与 `UiPackageInstallOutcome`，边界见 `docs/system/security-invariants/S-package-install-sheet.md`。插件创作台发布后的「安装」页签就是这样装的，没有自己的安装、升级或卸载界面；停用、启用、卸载在「设置」的「插件」里。模型设置更新的通知由外壳传给各视图，再由插件按自身权限重读状态。
 
-页面终端有两样平台件，都在 `dist/web/pty-client.js`（`apps/workbench/src/terminal-client.ts`）：`molisTerminalRenderer` 画一个面板的屏幕（xterm、键盘、回放、主题、尺寸），`molisPageTerminal` 是页面拿到的通道。插件框架里的页面由框架经父页的受限通道给；工作台自己画的页面（Characters 的执行记录等）由 `terminal/page-terminal.ts` 的 `createPageTerminal` 在外壳自己的 `/pty` 通道上给出同一个 `UiPageTerminal`。页面只能 `attach` / `write` / `resize` / `kill` 后端已经建好的面板：通道在入口处拒绝别的命令（`spawn`、认证、缺 `panelId`、空命令），并按字段重建消息，页面不能起进程，也带不出额外字段；框架里已有 `molisPageTerminal` 时不覆盖（`tests/page-terminal.test.ts`）。终端客户端随各自的客户端包发，工作台的终端入口与 `terminal/` 不 import 任何插件包、不含插件 id；留在工作台的只有 Goal 工作面板的「工作终端」（靠控制令牌的 `/pty` 通道启动进程，`startWorkTerminalClient`）。
+页面终端有两样平台件，都在 `dist/web/pty-client.js`（`apps/workbench/src/terminal-client.ts`）：`molisTerminalRenderer` 画一个面板的屏幕（xterm、键盘、回放、主题、尺寸），`molisPageTerminal` 是页面拿到的通道。插件框架里的页面由框架经父页的受限通道给；工作台自己画的页面（Characters 的执行记录等）由 `terminal/page-terminal.ts` 的 `createPageTerminal` 在外壳自己的 `/pty` 通道上给出同一个 `UiPageTerminal`。页面只能 `attach` / `write` / `resize` / `kill` 后端已经建好的面板：通道在入口处拒绝别的命令（`spawn`、认证、缺 `panelId`、空命令），并按字段重建消息，页面不能起进程，也带不出额外字段；框架里已有 `molisPageTerminal` 时不覆盖（`tests/page-terminal.test.ts`）。终端客户端随各自的客户端包发，工作台的终端入口与 `terminal/` 不 import 任何插件包、不含插件 id；对象工作终端已泛化为平台统一的 `system.work-terminal`（PEQ-17，支持任意声明了 `work_terminals` 的内置或签名第三方插件对象，经受保护路由与 `/pty` 附着通道运行，`startWorkTerminalClient`）。
 
 隔离页面的 `host.terminal.mount(element, { panelId, onEvent })` 按需加载平台已有终端资源。返回的视图提供 `focus()`、`fit()` 和 `dispose()`；卸载视图不停止已接受的进程，停止须显式发送 `kill`。共享滚动、流式文字与复制反馈在子页面中初始化；`navigator.clipboard.writeText` 也接到同一受限复制通道，宿主仍检查真实用户激活，不提供剪贴板读取。
 

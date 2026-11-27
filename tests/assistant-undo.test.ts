@@ -259,3 +259,44 @@ test("two undo requests at once run the owner's undo once and agree on the outco
     assert.equal(f.store.undos("web-user", workId).find(undo => undo.undo_id === failing.undo_id)!.state, "undone", "a failed undo can be tried again");
   } finally { await f.close(); }
 });
+
+test("F-host-subsystems-02 undo still persists undone after external commit even if the client disconnects", async () => {
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  let undoCalls = 0;
+  let disconnectAfterCommit = false;
+  const controller = new AbortController();
+  const service = new AssistantService(store, {
+    pages: async () => ["home"],
+    host: async () => { throw new Error("not used"); },
+    authority: async () => { throw new Error("not used"); },
+    scopeActions: async () => ({
+      discover: async () => [],
+      invoke: async () => {
+        undoCalls += 1;
+        if (disconnectAfterCommit) controller.abort(new Error("client disconnected"));
+        return { removed: true };
+      },
+    }),
+  }, "web-user");
+  try {
+    const work = store.create({ actor_id: "web-user", title: "断连撤销", scope: { kind: "personal" }, origin: null });
+    const view = { ...add, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never;
+    service.outcomes.recordResult(work, view, { text: "只撤销一次" }, { note: { id: "note-disconnect" } });
+    const [record] = store.undos("web-user", work.work_id);
+    assert.ok(record);
+    disconnectAfterCommit = true;
+    await service.outcomes.undo(work.work_id, record.undo_id, {
+      project_id: null,
+      entry: undefined,
+      signal: controller.signal,
+      beforeEffect: async () => controller.signal.throwIfAborted(),
+      assertCurrent: () => controller.signal.throwIfAborted(),
+    });
+    assert.equal(undoCalls, 1);
+    assert.equal(store.undos("web-user", work.work_id)[0]!.state, "undone", "committed undo must be persisted despite post-commit disconnect");
+    await assert.rejects(service.outcomes.undo(work.work_id, record.undo_id), /已经撤销过了/);
+    assert.equal(undoCalls, 1, "retry must not re-run an already committed undo");
+  } finally {
+    service.continuations.close();
+  }
+});

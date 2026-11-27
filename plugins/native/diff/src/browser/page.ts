@@ -24,12 +24,22 @@ export function diffPage(host: Host): void {
   const busy = (value: boolean) => { reload.disabled = value; spin.hidden = !value; body.setAttribute("aria-busy", String(value)); };
   const load = async (previous?: DrawnComparison) => {
     if (!lifetime.visible) return;
-    const signal = view, id = ++read, selected = index;
+    const signal = view, id = ++read;
+    let selected = index;
     if (!previous) { busy(true); note.textContent = uiText.text("diff.stage.reading"); }
     try {
-      const state = await molisWorkRequest<StateAnswer>(host.pluginRoute(`/state?change_index=${selected}`), { signal, fallback: uiText.text("diff.error.unreadable") });
+      let state = await molisWorkRequest<StateAnswer>(host.pluginRoute(`/state?change_index=${selected}`), { signal, fallback: uiText.text("diff.error.unreadable") });
       lifetime.assertCurrent(signal);
       if (id !== read) return;
+      // When a new turn has fewer changed files than the index last selected (especially 1 file where the switcher is hidden), fall back to the first file.
+      if (!previous && selected > 0 && state.view?.phase === "unavailable" && state.view.group === "change-set"
+        && Array.isArray(state.view.files) && state.view.files.length > 0 && selected >= state.view.files.length) {
+        index = 0;
+        selected = 0;
+        state = await molisWorkRequest<StateAnswer>(host.pluginRoute("/state?change_index=0"), { signal, fallback: uiText.text("diff.error.unreadable") });
+        lifetime.assertCurrent(signal);
+        if (id !== read) return;
+      }
       const html = state.html ?? "";
       if (previous) {
         if (!retitle || drawn !== previous || JSON.stringify(previous.view) !== JSON.stringify(state.view)) {

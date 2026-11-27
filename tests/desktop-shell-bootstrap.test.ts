@@ -115,3 +115,55 @@ test("102-2 soft host reconnect refreshes attention and shelf state without relo
   assert.equal(shelfRefreshed, 1);
   assert.equal(JSON.stringify(dispatched), JSON.stringify([{ type: "molis-work:attention-refresh", detail: { reconnected: true } }]));
 });
+
+test("F-host-subsystems-w3-05 desktop shelf bridge relays refresh, send-tui, and notice to the Shelf side iframe", () => {
+  const topEvents: Array<{ type: string; detail?: unknown }> = [];
+  const posted: Array<{ message: unknown; targetOrigin: string }> = [];
+  const shelfFrame = {
+    contentWindow: {
+      postMessage: (message: unknown, targetOrigin: string) => {
+        posted.push({ message, targetOrigin });
+      },
+    },
+  };
+  const context: Record<string, unknown> = {
+    URL,
+    Response,
+    CustomEvent: class MockCustomEvent {
+      type: string;
+      detail?: unknown;
+      constructor(type: string, init?: { detail?: unknown }) { this.type = type; this.detail = init?.detail; }
+    },
+    console: { warn: () => {} },
+    window: {
+      dispatchEvent: (event: { type: string; detail?: unknown }) => { topEvents.push({ type: event.type, detail: event.detail }); },
+    },
+    document: {
+      documentElement: { dataset: {}, style: { setProperty: () => {} } },
+      querySelector: (selector: string) => selector === '[data-side-body^="plugin:shelf/"] > iframe[data-side-frame]' ? shelfFrame : null,
+    },
+    location: {
+      href: "http://127.0.0.1:4173/projects/test?desktop=1",
+      origin: "http://127.0.0.1:4173",
+      replace: () => {},
+    },
+    __TAURI__: {
+      core: { invoke: async () => ({}) },
+      window: { getCurrentWindow: () => ({ isFullscreen: async () => false, onResized: async () => () => {} }) },
+    },
+  };
+  runInNewContext(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, context);
+  (context.molisWorkShelfRefresh as (detail?: unknown) => void)({ item_ids: ["item-1"] });
+  (context.molisWorkShelfSendTui as (detail?: unknown) => void)({ item_ids: ["item-1"], text: "https://example.com" });
+  (context.molisWorkShelfNotice as (message: string) => void)("saved");
+  assert.equal(JSON.stringify(topEvents), JSON.stringify([
+    { type: "molis:shelf-refresh", detail: { item_ids: ["item-1"] } },
+    { type: "molis:shelf-send-tui", detail: { item_ids: ["item-1"], text: "https://example.com" } },
+    { type: "molis:shelf-notice", detail: { message: "saved" } },
+  ]));
+  assert.equal(JSON.stringify(posted), JSON.stringify([
+    { message: { type: "molis:shelf-desktop-event", name: "molis:shelf-refresh", detail: { item_ids: ["item-1"] } }, targetOrigin: "http://127.0.0.1:4173" },
+    { message: { type: "molis:shelf-desktop-event", name: "molis:shelf-send-tui", detail: { item_ids: ["item-1"], text: "https://example.com" } }, targetOrigin: "http://127.0.0.1:4173" },
+    { message: { type: "molis:shelf-desktop-event", name: "molis:shelf-notice", detail: { message: "saved" } }, targetOrigin: "http://127.0.0.1:4173" },
+  ]));
+});

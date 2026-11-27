@@ -81,7 +81,14 @@ pub(crate) async fn identity(req: &Request, env: &Env) -> ApiResult<String> {
             .with_redirect(RequestRedirect::Manual),
     )?;
     let mut response = Fetch::Request(request).send().await?;
-    require(response.status_code() == 200, 401, "UNAUTHORIZED")?;
+    let status = response.status_code();
+    if status == 429 {
+        return Err(Failure(429, "SYNC_AUTH_UNAVAILABLE"));
+    }
+    if status >= 500 {
+        return Err(Failure(503, "SYNC_AUTH_UNAVAILABLE"));
+    }
+    require(status == 200, 401, "UNAUTHORIZED")?;
     let identity: Value = response.json().await?;
     let data = &identity["data"];
     let user = string(&data["user"], "userId", 500)?;

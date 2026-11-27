@@ -49,6 +49,7 @@ export interface ChangesetClient {
   /** Opens the changes as they were fixed. */
   openFixed(runId: string): Promise<void>;
   active(): boolean;
+  retitle(): void;
 }
 
 type Layout = "unified" | "split";
@@ -249,7 +250,9 @@ function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], p
     whole.type = "button";
     whole.dataset.codingChangeNet = path;
     whole.setAttribute("aria-pressed", String(r.net && list.includes(r.index)));
-    whole.append(el("span", uiText.text("coding.change.net"), "coding-change-step"));
+    const netStep = el("span", uiText.text("coding.change.net"), "coding-change-step");
+    netStep.dataset.netRange = uiText.text("coding.change.net-range");
+    whole.append(netStep);
     lifetime.listen(whole, "click", () => {
       const first = list[0];
       if (!(r.net && list.includes(r.index)) && first !== undefined) void open(r, runValue, false, first, r.fixed, "1");
@@ -480,5 +483,15 @@ export function changesetClient(ports: ChangesetPorts): ChangesetClient {
   const r: Reader = { ports, reader: q("[data-coding-change-reader]"), message: q("[data-coding-change-status]"), runId: "", ticket: 0, index: 0, value: null, comments: [], fixed: false, net: false, netIndices: null, anchor: null, opened: new Set(), layout };
   showLayout(r);
   lifetime.listen(ports.root, "click", event => onClick(r, event));
-  return { close: () => close(r), openFixed: run => open(r, run, false, 0, true), active: () => Boolean(r.runId) };
+  return {
+    close: () => close(r),
+    openFixed: run => open(r, run, false, 0, true),
+    active: () => Boolean(r.runId),
+    retitle() {
+      if (!r.runId || !r.value) return;
+      renderFiles(r, r.value.change.files, r.runId);
+      drawReference(r, r.value, false);
+      renderComments(r);
+    },
+  };
 }

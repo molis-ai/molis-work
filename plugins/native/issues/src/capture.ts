@@ -9,7 +9,7 @@ interface IssuePage { url: string | null; title: string | null }
 export interface IssueDraft { draft_id: string; description: string; images?: IssueImage[]; page?: IssuePage }
 export interface IssueCapture { draft_id: string; title: string; type: IssueType }
 export type IssueNamed = { status: "saved"; issue: Issue } | { status: "needs_input"; question: string };
-interface HeldDraft { input: IssueDraft; expires: number; saved?: string; pending?: Promise<Issue> }
+interface HeldDraft { input: IssueDraft; expires: number; saved?: string; pending?: Promise<Issue>; naming?: Promise<IssueNamed> }
 // Long enough to come back to a capture that could not be named while the person was elsewhere.
 const lifetime = 2 * 60 * 60_000;
 const missing = () => new ActionError("actions.conflict", "这份录入草稿已失效，请在 Issue 里重新记录");
@@ -29,7 +29,7 @@ export class IssueCaptures {
     if (input.page !== undefined && !(input.page && text(input.page.url, 500) && text(input.page.title, 200))) throw new ActionError("actions.input_invalid", "记录页面格式不正确");
     validateIssueImages(input.images ?? []);
     await caller.beforeEffect();
-    for (const [id, draft] of this.drafts) if (draft.expires < Date.now()) this.drafts.delete(id);
+    for (const [id, draft] of this.drafts) if (draft.expires < Date.now() && !draft.pending && !draft.naming) this.drafts.delete(id);
     const held = this.drafts.get(input.draft_id);
     if (held) {
       if (held.saved) return { draft_id: input.draft_id };
@@ -41,7 +41,7 @@ export class IssueCaptures {
     // out of recording: the oldest idle one makes room. Its page, if still open, finds it gone and offers to save by hand.
     const open = [...this.drafts].filter(([, draft]) => !draft.saved);
     if (open.length >= 8) {
-      const oldest = open.filter(([, draft]) => !draft.pending).sort(([, a], [, b]) => a.expires - b.expires)[0];
+      const oldest = open.filter(([, draft]) => !draft.pending && !draft.naming).sort(([, a], [, b]) => a.expires - b.expires)[0];
       if (!oldest) throw new ActionError("actions.input_invalid", "还有 8 条记录正在保存，请稍候再记");
       this.drafts.delete(oldest[0]);
     }
@@ -65,9 +65,18 @@ export class IssueCaptures {
     if (!held || held.expires < Date.now()) throw missing();
     const already = await this.already(held, caller);
     if (already) return { status: "saved", issue: already };
-    const { naming, validate } = await nameIssue(model, held.input, caller.signal);
-    if (naming.status === "needs_input") { await caller.beforeEffect(); return naming; }
-    return { status: "saved", issue: await this.capture({ draft_id: draftId, title: naming.title, type: naming.type }, caller, validate) };
+    if (held.naming) {
+      const result = await held.naming;
+      await caller.beforeEffect();
+      return result.status === "saved" ? { status: "saved", issue: this.store.read(result.issue.id) } : result;
+    }
+    const run = (async (): Promise<IssueNamed> => {
+      const { naming, validate } = await nameIssue(model, held.input, caller.signal);
+      if (naming.status === "needs_input") { await caller.beforeEffect(); return naming; }
+      return { status: "saved", issue: await this.capture({ draft_id: draftId, title: naming.title, type: naming.type }, caller, validate) };
+    })();
+    held.naming = run;
+    try { return await run; } finally { if (held.naming === run) held.naming = undefined; }
   }
   private async already(held: HeldDraft, caller: ActionExecutionContext): Promise<Issue | null> {
     if (held.saved) { await caller.beforeEffect(); return this.store.read(held.saved); }

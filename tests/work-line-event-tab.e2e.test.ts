@@ -625,7 +625,7 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
   await waitFor("!document.querySelector('[data-work-task-float]')");
   // It stays parked over a reload (this viewer's own, per project). WLN-28: what is kept says which event, never its name; the
   // name comes back only from the line.
-  assert.doesNotMatch(String(await evaluate(`Object.keys(localStorage).filter(key => key.startsWith('molis.work-line.parked:')).map(key => localStorage.getItem(key)).join('')`)), /给王总回电话/u);
+  assert.doesNotMatch(String(await evaluate(`Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter(key => key?.startsWith('molis.work-line.parked:')).map(key => localStorage.getItem(key)).join('')`)), /给王总回电话/u);
   await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor(`${SIDE}?.querySelector('[data-card-name] strong')?.textContent === '给王总回电话（已确认）' && ${SIDE}.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 25_000);
 

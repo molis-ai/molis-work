@@ -4,6 +4,10 @@ Molis Work 是本地优先的插件基座加多个插件。Platform 就是这个
 
 - [Plugin Platform](PLUGIN-PLATFORM.md)：Kernel、Plugin Runtime、SDK、签名、授权和 Provider Binding。
 - [Plugin 开发](PLUGIN-DEVELOPMENT.md)：完整写插件见官方 Skill [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md)（含 Host 装配、CLI、接入）；本手册管本地源码运行、MCP 贡献、动作录取、打包签名。改平台合同时两处一起更新。
+- [Prologue AI 开发手册](PROLOGUE-AI.md)：单次有界模型调用、Agent 轮次、提示词治理、上下文设计与评测诊断的唯一 AI 手册。
+- [Local Host 与 Host Client](LOCAL-HOST.md)：本机常驻宿主进程边界、串行队列、并发声明、多语言错误出口与源码分区。
+- [项目设置与目录归属](PROJECT-SETTINGS.md)：项目输入/输出目录、Agent 运行时选择与插件私有偏好的归属边界。
+- [公开状态词表与状态环家族](STATE-VOCABULARY.md)：平台 29 个公开状态、21 个状态环家族与七义映射。
 - [Storage and Exchange](STORAGE-AND-EXCHANGE.md)：本地存储、可靠交换、同步分工和 Server 边界。
 - [UI Platform](UI-PLATFORM.md)：Workbench、UI Host、Design System、Slot 与嵌入。
 - [Desktop App 与 Tauri](DESKTOP.md)：macOS 外壳、面板、菜单栏、Native Adapter 与发布边界。

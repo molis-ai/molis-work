@@ -32,6 +32,6 @@ backend:store.backend().kind, encryptionKeyEmpty:process.env.MOLIS_WORK_ENCRYPTI
     assert.equal(await readFile(join(home, "sentinel"), "utf8"), "unchanged");
     await assert.rejects(access(join(root, "keychain-called")));
     await assert.rejects(access(join(home, "security")));
-    await assert.rejects(access(result.home), "runner cleans up its own temporary Home");
+    await assert.rejects(access(result.home), { code: "ENOENT" }, "runner cleans up its own temporary Home");
   } finally { await rm(root, { recursive: true, force: true }); }
 });

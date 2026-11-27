@@ -115,9 +115,9 @@ async function previewRead(home: string, service: string, access: ApiConnectionA
 
 /** `oauthFetch` is for tests only: how an OAuth connection's identity request is sent, `sendPublicHttps` otherwise. */
 export async function inspectApiConnection(home: string, id: string, preview = false, signal?: AbortSignal, beforeRead?: () => void | Promise<void>,
-  oauthFetch?: typeof fetch) {
+  oauthFetch?: typeof fetch, assertCurrent?: () => void) {
   return withConnectorRequest(home, id, signal, async signal => {
-  const control = connectorAccountControl(home, id, { signal, beforeEffect: beforeRead });
+  const control = connectorAccountControl(home, id, { signal, beforeEffect: beforeRead, current: assertCurrent });
   let access = await resolveApiConnection(home, id, control);
   const fetchImpl: typeof fetch = controlledConnectorFetch((input, init) => (access.fetchImpl ?? globalThis.fetch)(input, init), control);
   const service = access.connection.service_id;

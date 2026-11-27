@@ -1167,13 +1167,16 @@ test("parseProcessList keeps the node and pnpm processes of a run and drops cont
   assert.deepEqual(parseProcessList("", 1, 2), []);
 });
 
-test("--run refuses while another test run is going on this machine", async () => {
+test("--run refuses while another test run is going on this machine", async (t) => {
   const other = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)", "--", "run-tests.mjs-stand-in"], { stdio: "ignore" });
   try {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const busy = busyProcesses();
     assert.ok(busy === null || busy.some((item: { pid: number }) => item.pid === other.pid), "the stand-in is found by the same pattern the run uses");
-    if (busy === null) return;
+    if (busy === null) {
+      t.skip("process listing unavailable on this host");
+      return;
+    }
     assert.equal(busy.some((item: { pid: number }) => item.pid === process.pid), false, "this process is not another run");
     const refused = cli("plugins/native/alpha/src/main.ts", "--run", "--allow-stale");
     assert.equal(refused.code, 2);

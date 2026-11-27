@@ -5,11 +5,11 @@
  * and full set (with outer-shell `.mw-help-side` and settings bar) is in PRIMITIVE_STYLES.
  */
 export const ON_DEMAND_HELP_PLUGIN_STYLES = `
-  .mw-facts, .mw-help-content, .mw-help-section, .mw-help-section__list, .mw-help-next, .mw-help-card { display: flex; flex-direction: column; }
+  .mw-facts:not(dl), .mw-help-content, .mw-help-section, .mw-help-section__list, .mw-help-next, .mw-help-card { display: flex; flex-direction: column; }
   .mw-fact-row, .mw-help-card__head, .mw-help-card__foot, .mw-help-tip, .mw-help-tip__actions { display: flex; align-items: center; }
-  .mw-facts, .mw-help-next, .mw-help-tip { border: 1px solid var(--line); background: var(--surface-soft); }
+  .mw-facts:not(dl), .mw-help-next, .mw-help-tip { border: 1px solid var(--line); background: var(--surface-soft); }
   .mw-help-card__next, .mw-help-card__foot { flex: none; border-top: 1px solid var(--line); background: var(--surface-soft); }
-  .mw-facts { margin: 16px 0; padding: 12px 14px; border-radius: var(--r-card); gap: 8px; }
+  .mw-facts:not(dl) { margin: 16px 0; padding: 12px 14px; border-radius: var(--r-card); gap: 8px; }
   .mw-facts__heading { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
   .mw-fact-row { gap: 10px; font-size: 13px; line-height: 1.45; color: var(--ink); }
   .mw-fact-row__icon { width: 22px; height: 22px; border-radius: 6px; display: inline-grid; place-items: center; flex: none; background: var(--rail); color: var(--ink-soft); svg { width: 14px; height: 14px; } }

@@ -89,11 +89,19 @@ function openProjectHome(path: string): void {
  * workbench and a settings address opens its settings (returns.ts); any other address changes nothing.
  */
 function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string, openSettings: (url: URL) => void): void {
-  const url = new URL(message.url);
+  let url: URL;
+  try { url = new URL(message.url); } catch { return; }
   const objectLink = url.pathname === prefix + "/" && /^[a-z][a-z0-9-]{0,100}$/u.test(url.searchParams.get("openPlugin") ?? "")
     && [...url.searchParams.keys()].every(key => ["openPlugin", "openItem", "openTitle", "openVersion"].includes(key));
   if (url.origin !== location.origin) {
-    if (["https:", "http:", "mailto:"].includes(url.protocol)) window.open(url.href, "_blank", "noopener,noreferrer");
+    if (!navigator.userActivation?.isActive) return;
+    if (url.protocol === "https:" || url.protocol === "http:") {
+      const external = globalThis.molisWorkOpenExternalUrl;
+      if (typeof external === "function") void Promise.resolve(external(url.href)).catch(() => undefined);
+      else window.open(url.href, "_blank", "noopener,noreferrer");
+    } else if (url.protocol === "mailto:") {
+      window.open(url.href, "_blank", "noopener,noreferrer");
+    }
     return;
   }
   const project = objectLink ? null : otherProjectHome(url, prefix);
@@ -102,11 +110,62 @@ function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>
   const link = document.createElement("a"); link.href = url.pathname + url.search; link.hidden = true; root.append(link); link.click(); link.remove();
 }
 
+/** Shared S-47 per-frame once + 5 s cooldown for shell-reloading operations. */
+function claimShellRefresh(storageScope: string, alreadyRefreshed: boolean): boolean {
+  if (alreadyRefreshed) return false;
+  // Parent-only key survives document reload; plugin storage cannot write outside its own prefix.
+  const key = "molis-shell-refresh:" + storageScope + ":" + location.pathname;
+  try {
+    const last = Number(sessionStorage.getItem(key) ?? 0), now = Date.now();
+    if (!Number.isFinite(last) || now - last < 5000) return false;
+    sessionStorage.setItem(key, String(now));
+  } catch { return false; /* Storage unavailable: fail closed instead of entering a reload loop. */ }
+  return true;
+}
+
 /** An installed surface may have appeared since this shell loaded. The server rebuilds the current project's catalog. */
-function openPlugin(host: FrameHost, surface: unknown, prefix: string, view?: unknown, panel?: unknown): void {
+function openPlugin(host: FrameHost, surface: unknown, prefix: string, claimReload: () => boolean, view?: unknown, panel?: unknown): void {
   if (typeof surface !== "string" || !/^[a-z][a-z0-9-]{0,100}$/u.test(surface)) return;
-  if (host.openPlugin && document.querySelector('[data-work-surface="' + CSS.escape(surface) + '"]')) host.openPlugin(surface, typeof view === "string" && view.length <= 1000 ? view : undefined, typeof panel === "string" && panel.length <= 100 ? panel : undefined);
-  else location.assign(prefix + "/?openSurface=" + encodeURIComponent(surface));
+  if (host.openPlugin && document.querySelector('[data-work-surface="' + CSS.escape(surface) + '"]')) {
+    host.openPlugin(surface, typeof view === "string" && view.length <= 1000 ? view : undefined, typeof panel === "string" && panel.length <= 100 ? panel : undefined);
+    return;
+  }
+  if (!navigator.userActivation?.isActive) return;
+  let shell: Window = window;
+  if (host.side) {
+    try {
+      if (window.top && window.top !== window && window.top.location.origin === location.origin) shell = window.top;
+      else return;
+    } catch { return; }
+  }
+  if (!claimReload()) return;
+  shell.location.assign(prefix + "/?openSurface=" + encodeURIComponent(surface));
+}
+
+type ShelfEventName = "molis:shelf-refresh" | "molis:shelf-send-tui" | "molis:shelf-notice";
+function relayShelfEvents(pluginId: string, scope: FrameScope, port: MessagePort, isReady: () => boolean): () => void {
+  if (pluginId !== "system.shelf") return () => {};
+  const queue: Array<{ name: ShelfEventName; detail: unknown }> = [];
+  const post = (name: ShelfEventName, detail: unknown) => {
+    try { port.postMessage({ type: "shelf-event", name, detail }); } catch { /* ignore uncloneable detail */ }
+  };
+  const relay = (name: ShelfEventName) => (event: Event) => {
+    const detail = (event as CustomEvent).detail ?? null;
+    if (!isReady()) {
+      if (queue.length < 64) queue.push({ name, detail });
+    } else if (scope.alive) {
+      post(name, detail);
+    }
+  };
+  scope.listen(window, "molis:shelf-refresh", relay("molis:shelf-refresh"));
+  scope.listen(window, "molis:shelf-send-tui", relay("molis:shelf-send-tui"));
+  scope.listen(window, "molis:shelf-notice", relay("molis:shelf-notice"));
+  return () => {
+    while (queue.length && scope.alive) {
+      const next = queue.shift()!;
+      post(next.name, next.detail);
+    }
+  };
 }
 
 export function sanitizeFrameToastOptions(opt: unknown): boolean | { tone?: "default" | "success" | "warning" | "error"; duration?: "short" | "normal" | "long" | number } | null {
@@ -125,7 +184,7 @@ export function sanitizeFrameToastOptions(opt: unknown): boolean | { tone?: "def
 }
 
 /** D0124/D0335: one typed UI boundary, after the live/visible frame check. */
-function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement, port: MessagePort): void {
+function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement, claimReload: () => boolean, port: MessagePort): void {
   const args = message.args;
   if (!Array.isArray(args) || args.length > 3) return;
   const text = (value: unknown, limit = 1000): value is string => typeof value === "string" && value.length <= limit;
@@ -143,7 +202,7 @@ function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { t
   } else if (message.name === "openPlugin") {
     if ((args[1] === undefined || text(args[1])) && (args[2] === undefined || text(args[2], 100))) {
       if (paneId) host.focusPane?.(paneId);
-      openPlugin(host, args[0], prefix, args[1], args[2]);
+      openPlugin(host, args[0], prefix, claimReload, args[1], args[2]);
     }
   } else if (message.name === "openItem" || message.name === "openBeside") {
     if (!text(args[0], 101) || !/^[a-z][a-z0-9-]{0,100}$/u.test(args[0]) || !text(args[1]) || !args[1] || (args[2] !== undefined && !text(args[2]))) return;
@@ -343,6 +402,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
   });
   let invalidated = false, shellRefreshed = false, ownInvalidation = false;
+  const claimReload = () => {
+    if (!claimShellRefresh(grant.storage_scope, shellRefreshed)) return false;
+    shellRefreshed = true;
+    return true;
+  };
+  const flushShelf = relayShelfEvents(pack.plugin_id, scope, port, () => childReady);
   const environment = frameEnvironment(port, scope, root, frame);
   const { visible } = environment;
   const reviews = pageReviews(port, scope, root, frame, grant.page_id, route, host, visible);
@@ -476,17 +541,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (message.type === "knowledge-pick") { pickMaterials(message); return; }
     if (message.type === "skill-pick") { pickSkill(message); return; }
-    if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
+    if (["ui", "link", "refresh-shell", "print", "download"].includes(message.type) && (!root.isConnected || !visible())) return;
     if (message.type === "refresh-shell") {
-      if (shellRefreshed) return;
-      // Parent-only key survives document reload; plugin storage cannot write outside its own prefix.
-      const key = "molis-shell-refresh:" + grant.storage_scope + ":" + location.pathname;
-      try {
-        const last = Number(sessionStorage.getItem(key) ?? 0), now = Date.now();
-        if (!Number.isFinite(last) || now - last < 5000) return;
-        sessionStorage.setItem(key, String(now));
-      } catch { return; /* Storage unavailable: fail closed instead of entering a reload loop. */ }
-      shellRefreshed = true; location.reload(); return;
+      if (claimReload()) location.reload();
+      return;
     }
     if (message.type === "read-document") {
       if (!Number.isSafeInteger(message.id) || message.id <= 0 || documentReads.has(message.id)) return;
@@ -498,8 +556,14 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "copy") { void copyFromPage(port, message); return; }
     try {
       if (message.type === "page-message") receiveMessage(message.message);
-      else if (message.type === "download" && message.bytes instanceof ArrayBuffer && typeof message.filename === "string" && typeof message.mime === "string") downloadPageBlob(new Blob([message.bytes], { type: message.mime }), message.filename, scope);
-      else if (message.type === "print" && typeof message.html === "string") printPageDocument(message.html, scope);
+      else if (message.type === "download" && message.bytes instanceof ArrayBuffer && typeof message.filename === "string" && typeof message.mime === "string") {
+        if (!scope.visible || frame.hidden || !navigator.userActivation?.isActive) return;
+        downloadPageBlob(new Blob([message.bytes], { type: message.mime }), message.filename, scope);
+      }
+      else if (message.type === "print" && typeof message.html === "string") {
+        if (!scope.visible || frame.hidden || !navigator.userActivation?.isActive) return;
+        printPageDocument(message.html, scope);
+      }
       else if (message.type === "ready") {
         clearTimeout(deadline);
         childReady = true;
@@ -509,11 +573,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
           sideRoot.inert = false;
           sideRoot.removeAttribute("aria-busy");
         }
-        root.removeAttribute("data-deferred-surface"); environment.reset(); state(); navigation.focus(); readyResolve();
+        root.removeAttribute("data-deferred-surface"); environment.reset(); state(); navigation.focus(); flushShelf(); readyResolve();
       }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui") {
-        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId, root, port);
+        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId, root, claimReload, port);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
         else navigate(root, message, route(""), returns.link);

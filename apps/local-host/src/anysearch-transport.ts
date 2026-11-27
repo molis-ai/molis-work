@@ -3,23 +3,13 @@ import { BlockList, isIP } from "node:net";
 import { checkServerIdentity, type TLSSocket } from "node:tls";
 import { SearchError, type SearchProviderExecutionResponse } from "@adeptify/search-evidence-layer";
 import type { SearchHostTransportCall, SearchHostTransportPort } from "@adeptify/search-evidence-layer/host/node";
+import { isPublicAddress } from "@molis-ai/molis-work-contracts/platform/public-address";
 import { resolveModelHostname } from "@molis-ai/molis-work-service-agent-host";
 
 /** The binding id the search runtime gives AnySearch's provider; the transport accepts only calls bound to it. */
 export const ANYSEARCH_TRANSPORT_PROFILE_ID = /* @version type.anysearch-mcp "anysearch-mcp-v{version}" */ "anysearch-mcp-v1";
 const HOST = "api.anysearch.com";
 const MAX_REQUEST = 65_536, MAX_RESPONSE = 1_048_576;
-// Match SEL's public-address boundary. IPv4-mapped IPv6 is rejected rather
-// than relying on string normalization; ordinary A/AAAA records need no mapping.
-const denied = new BlockList();
-for (const [network, prefix] of [["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8],
-  ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.88.99.0", 24],
-  ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4]] as const) {
-  denied.addSubnet(network, prefix, "ipv4");
-}
-for (const [network, prefix] of [["2001::", 32], ["2001:2::", 48], ["2001:10::", 28], ["2001:20::", 28],
-  ["2001:db8::", 32], ["2002::", 16], ["3fff::", 20]] as const) denied.addSubnet(network, prefix, "ipv6");
-const globalV6 = new BlockList(); globalV6.addSubnet("2000::", 3, "ipv6");
 
 function unavailable(): SearchError {
   return new SearchError({ code: "provider_unavailable", retryable: false, sideEffectState: "none", recoveryAction: "none" });
@@ -65,8 +55,7 @@ async function execute(call: SearchHostTransportCall, signal: AbortSignal, socke
   if (!addresses.length) throw unavailable();
   for (const address of addresses) {
     const family = isIP(address);
-    if (family === 0 || address.includes("%") || (family === 6 && !globalV6.check(address, "ipv6"))
-      || denied.check(address, family === 4 ? "ipv4" : "ipv6")) throw unavailable();
+    if (family === 0 || address.includes("%") || !isPublicAddress(address)) throw unavailable();
   }
   const pinned = addresses[0]!;
   const family = isIP(pinned) as 4 | 6;

@@ -50,13 +50,15 @@ function renderToolsPanel(scope: SessionScopeWithMeta, dirMode: "linked_projects
   return `<section class="sessions-scope-group"><h3>${uiText("workbench.sessions.dir-scope-heading")}</h3><div class="mw-permits"><label class="sessions-tool-row"><span class="sessions-tool-main"><input type="radio" name="sessions-dir-mode" value="linked_projects"${dirMode === "linked_projects" ? " checked" : ""}><span class="sessions-tool-copy"><strong>${uiText("workbench.sessions.dir-linked-only")}</strong><small>${uiText("workbench.sessions.dir-linked-hint")}</small></span></span></label><label class="sessions-tool-row"><span class="sessions-tool-main"><input type="radio" name="sessions-dir-mode" value="all"${dirMode === "all" ? " checked" : ""}><span class="sessions-tool-copy"><strong>${uiText("workbench.sessions.dir-all")}</strong><small>${uiText("workbench.sessions.dir-all-hint")}</small></span></span></label></div><p class="sessions-scope-hint">${uiText("workbench.sessions.worktree-scope-note")}</p></section><section class="sessions-scope-group"><h3>${uiText("workbench.sessions.group-connected", { count: connected.length })}</h3><div class="mw-permits">${connected.map((m) => renderConnectedRow(m, byId.get(m.id as never))).join("")}</div></section><section class="sessions-scope-group"><h3>${uiText("workbench.sessions.group-export-only", { count: exportOnly.length })}</h3><div class="mw-permits">${exportRows}</div></section><section class="sessions-scope-group"><h3>${uiText("workbench.sessions.group-unsupported", { count: unsupported.length })}</h3><details><summary class="sessions-scope-hint">${uiText("workbench.sessions.show-unsupported")}</summary><div class="mw-permits">${unsupRows}</div></details></section>`;
 }
 
-function renderAiPanel(rows: readonly ExternalSessionProjectAiRead[], filter: string, notes: ReadonlyMap<string, MwPermitNote>): string {
+function renderAiPermitRows(
+  rows: readonly ExternalSessionProjectAiRead[],
+  filter: string,
+  notes: ReadonlyMap<string, MwPermitNote>,
+  pendingPermits?: ReadonlySet<string>,
+): string {
   const needle = filter.trim().toLowerCase();
   const visible = needle ? rows.filter((r) => r.project.display_name.toLowerCase().includes(needle)) : rows;
-  const search = rows.length > 8
-    ? `<label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-permit-filter value="${escapeHtml(filter)}" placeholder="${uiText("workbench.sessions.filter-projects")}" aria-label="${uiText("workbench.sessions.filter-projects")}"></label>`
-    : "";
-  const list = visible.map((row) => {
+  return visible.map((row) => {
     const pid = row.project.project_id;
     const descId = `permit-desc-${pid}`;
     const blockedTotal = row.counts ? row.counts.blocked.reduce((sum, item) => sum + item.count, 0) : 0;
@@ -67,10 +69,21 @@ function renderAiPanel(rows: readonly ExternalSessionProjectAiRead[], filter: st
       ? `<p class="sessions-scope-hint">${escapeHtml(uiText.text("workbench.sessions.permit-blocked-tools", { tools: row.counts.blocked.map(item => `${item.display_name} ${item.count}`).join(uiText.text("common.list.separator")) }))}</p>`
       : "";
     const badges = row.current ? renderBadge({ label: uiText.text("workbench.sessions.current-project-badge") }) : "";
-    const control = renderSwitch({ checked: row.allowed, label: row.project.display_name, attrs: { "data-permit-switch": pid, "aria-describedby": descId } });
+    const control = renderSwitch({ checked: row.allowed, disabled: Boolean(pendingPermits?.has(pid)), label: row.project.display_name, attrs: { "data-permit-switch": pid, "aria-describedby": descId } });
     return renderPermitRow({ project: { id: pid, name: row.project.display_name }, badges, description: desc, descriptionId: descId, control, current: row.current, note: notes.get(pid), attrs: { "data-permit-project": pid } }) + blocked;
   }).join("");
-  return `<p class="sessions-scope-hint">${uiText("workbench.sessions.ai-panel-intro")}</p>${search}<div class="mw-permits">${list}</div>`;
+}
+
+function renderAiPanel(
+  rows: readonly ExternalSessionProjectAiRead[],
+  filter: string,
+  notes: ReadonlyMap<string, MwPermitNote>,
+  pendingPermits?: ReadonlySet<string>,
+): string {
+  const search = rows.length > 8
+    ? `<label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-permit-filter value="${escapeHtml(filter)}" placeholder="${uiText("workbench.sessions.filter-projects")}" aria-label="${uiText("workbench.sessions.filter-projects")}"></label>`
+    : "";
+  return `<p class="sessions-scope-hint">${uiText("workbench.sessions.ai-panel-intro")}</p>${search}<div class="mw-permits">${renderAiPermitRows(rows, filter, notes, pendingPermits)}</div>`;
 }
 
 interface ScopeInternalState {
@@ -81,12 +94,26 @@ interface ScopeInternalState {
   permitFilter: string;
   overlayMode: boolean;
   readonly notes: Map<string, MwPermitNote>;
+  readonly pendingPermits: Set<string>;
   readonly listeners: Array<(next: SessionScopeWithMeta) => void>;
 }
 
 async function runPermitToggle(dlg: HTMLDialogElement, st: ScopeInternalState, pid: string, nextAllowed: boolean): Promise<void> {
-  const row = st.scope?.project_ai_reads.find((r) => r.project.project_id === pid);
-  if (!st.scope || !row) return;
+  const scope = st.scope;
+  const row = scope?.project_ai_reads.find((r) => r.project.project_id === pid);
+  if (!scope || !row) return;
+  const switchEl = () => dlg.querySelector<HTMLInputElement>(`[data-permit-switch="${CSS.escape(pid)}"]`);
+  if (st.pendingPermits.has(pid)) {
+    const sw = switchEl();
+    if (sw) sw.checked = row.allowed;
+    return;
+  }
+  st.pendingPermits.add(pid);
+  const initialSw = switchEl();
+  if (initialSw) {
+    initialSw.checked = nextAllowed;
+    initialSw.disabled = true;
+  }
   const setNote = (note: MwPermitNote) => {
     st.notes.set(pid, note);
     const noteEl = dlg.querySelector<HTMLElement>(`[data-permit-project="${CSS.escape(pid)}"] .mw-permit__note`);
@@ -95,16 +122,25 @@ async function runPermitToggle(dlg: HTMLDialogElement, st: ScopeInternalState, p
   setNote({ kind: "saving", label: uiText.text("workbench.sessions.permit-saving") });
   try {
     const updated = await sessionsApi.projectAiReadSet(pid, { allowed: nextAllowed, expected_revision: row.revision });
-    const idx = st.scope.project_ai_reads.findIndex((r) => r.project.project_id === pid);
-    if (idx >= 0) (st.scope.project_ai_reads as ExternalSessionProjectAiRead[])[idx] = { ...row, ...updated, counts: row.counts };
+    if (st.scope === scope) {
+      const idx = scope.project_ai_reads.findIndex((r) => r.project.project_id === pid);
+      if (idx >= 0) (scope.project_ai_reads as ExternalSessionProjectAiRead[])[idx] = { ...row, ...updated, counts: row.counts };
+    }
+    const currentSw = switchEl();
+    if (currentSw) currentSw.checked = updated.allowed;
     setNote(updated.allowed
       ? { kind: "on", status: uiText.text("workbench.sessions.permit-on"), text: uiText.text("workbench.sessions.permit-on-note") }
       : { kind: "off", status: uiText.text("workbench.sessions.permit-off"), text: uiText.text("workbench.sessions.permit-off-note") });
     const retBtn = dlg.querySelector<HTMLButtonElement>("[data-sessions-scope-return]");
     if (retBtn && st.overlayMode && pid === currentProjectId() && updated.allowed) retBtn.hidden = false;
   } catch {
-    dlg.querySelector<HTMLButtonElement>(`[data-permit-switch="${CSS.escape(pid)}"]`)?.setAttribute("aria-checked", String(row.allowed));
+    const currentSw = switchEl();
+    if (currentSw) currentSw.checked = row.allowed;
     setNote({ kind: "failed", text: uiText.text("workbench.sessions.permit-failed"), retry: uiText.text("common.control.retry"), retryAttrs: { "data-permit-retry": pid, "data-permit-want": String(nextAllowed) } });
+  } finally {
+    st.pendingPermits.delete(pid);
+    const currentSw = switchEl();
+    if (currentSw) currentSw.disabled = false;
   }
 }
 
@@ -145,13 +181,6 @@ function bindScopeDialogEvents(dlg: HTMLDialogElement, st: ScopeInternalState, s
     if (target.closest("[data-sessions-scope-save]")) { void runSaveToolsScope(dlg, st, paint); return; }
     const copyBtn = target.closest<HTMLElement>("[data-scope-copy]");
     if (copyBtn?.dataset.scopeCopy) { void copyPlainText(copyBtn.dataset.scopeCopy); return; }
-    const sw = target.closest<HTMLButtonElement>("[data-permit-switch]");
-    if (sw?.dataset.permitSwitch) {
-      const next = sw.getAttribute("aria-checked") !== "true";
-      sw.setAttribute("aria-checked", String(next));
-      void runPermitToggle(dlg, st, sw.dataset.permitSwitch, next);
-      return;
-    }
     const retry = target.closest<HTMLElement>("[data-permit-retry]");
     if (retry?.dataset.permitRetry) void runPermitToggle(dlg, st, retry.dataset.permitRetry, retry.dataset.permitWant === "true");
   });
@@ -160,19 +189,24 @@ function bindScopeDialogEvents(dlg: HTMLDialogElement, st: ScopeInternalState, s
     const next = tabBtn && nextRovingTab([...dlg.querySelectorAll<HTMLButtonElement>("[data-sessions-scope-tab]")], tabBtn, event.key);
     if (next?.dataset.sessionsScopeTab) { event.preventDefault(); st.activeTab = next.dataset.sessionsScopeTab as ScopeTabId; syncTabs(); next.focus(); }
   });
-  dlg.addEventListener("change", (e) => { const inp = e.target as HTMLInputElement | null; if (inp?.name === "sessions-dir-mode") { st.dirMode = inp.value === "all" ? "all" : "linked_projects"; st.dirDirty = true; } });
+  dlg.addEventListener("change", (e) => {
+    const inp = e.target as HTMLInputElement | null;
+    if (!inp) return;
+    if (inp.name === "sessions-dir-mode") { st.dirMode = inp.value === "all" ? "all" : "linked_projects"; st.dirDirty = true; return; }
+    if (inp.dataset.permitSwitch) void runPermitToggle(dlg, st, inp.dataset.permitSwitch, inp.checked);
+  });
   dlg.addEventListener("input", (e) => {
     const inp = e.target as HTMLInputElement | null;
     if (inp?.hasAttribute("data-permit-filter") && st.scope) {
       st.permitFilter = inp.value;
-      const aiEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="project_ai_read"]');
-      if (aiEl) aiEl.innerHTML = renderAiPanel(st.scope.project_ai_reads, st.permitFilter, st.notes);
+      const listEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="project_ai_read"] .mw-permits');
+      if (listEl) listEl.innerHTML = renderAiPermitRows(st.scope.project_ai_reads, st.permitFilter, st.notes, st.pendingPermits);
     }
   });
 }
 
 export function createSessionsScopeSheet(): ScopeSheetController {
-  const st: ScopeInternalState = { scope: null, activeTab: "tools", dirMode: "linked_projects", dirDirty: false, permitFilter: "", overlayMode: false, notes: new Map(), listeners: [] };
+  const st: ScopeInternalState = { scope: null, activeTab: "tools", dirMode: "linked_projects", dirDirty: false, permitFilter: "", overlayMode: false, notes: new Map(), pendingPermits: new Set(), listeners: [] };
   let wired = false;
   const dialog = () => document.querySelector<HTMLDialogElement>("[data-sessions-scope-sheet]");
 
@@ -196,7 +230,7 @@ export function createSessionsScopeSheet(): ScopeSheetController {
     const toolsEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="tools"]');
     const aiEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="project_ai_read"]');
     if (toolsEl) toolsEl.innerHTML = renderToolsPanel(st.scope, st.dirMode);
-    if (aiEl) aiEl.innerHTML = renderAiPanel(st.scope.project_ai_reads, st.permitFilter, st.notes);
+    if (aiEl) aiEl.innerHTML = renderAiPanel(st.scope.project_ai_reads, st.permitFilter, st.notes, st.pendingPermits);
     syncTabs();
   };
 

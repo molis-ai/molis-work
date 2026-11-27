@@ -1,8 +1,11 @@
-import { WORK_TERMINAL_PATH } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { WORK_TERMINAL_PATH as WorkTerminalPath } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createTerminalConnection, type PtyServerMessage } from "./connection.js";
 import { createPanelSpawner } from "./panel-spawn.js";
 import type { PanelProgram, PanelRecord, SpawnMode, TerminalPanelState, TerminalRequest, TerminalScreens, TerminalStatusSetter, WorkTerminalSubjectRef } from "./types.js";
+
+// Literal verified at compile time against the contract; keeps the actions barrel out of pty-client.js.
+const WORK_TERMINAL_PATH: typeof WorkTerminalPath = "/api/work-terminals";
 
 export interface TerminalPanelsOptions {
   screens: TerminalScreens;
@@ -28,7 +31,16 @@ interface PanelContext {
   readonly options: TerminalPanelsOptions;
   readonly state: TerminalPanelState;
   readonly spawner: ReturnType<typeof createPanelSpawner>;
+  opening: boolean;
+  readonly reopening: Set<string>;
+  readonly closing: Set<string>;
 }
+
+const upsertPanel = (state: TerminalPanelState, record: PanelRecord) => {
+  const index = state.panels.findIndex((item) => item.panel_id === record.panel_id || (record.key && item.key === record.key));
+  if (index >= 0) state.panels[index] = record;
+  else state.panels.push(record);
+};
 
 const sameSubject = (left: WorkTerminalSubjectRef, right: WorkTerminalSubjectRef) =>
   left.plugin_id === right.plugin_id && left.subject_kind === right.subject_kind && left.subject_id === right.subject_id;
@@ -143,14 +155,19 @@ async function loadPanels(ctx: PanelContext) {
   state.panels = panels;
   if (!state.panels.some((item) => item.panel_id === state.activeId)) state.activeId = state.panels[0]?.panel_id ?? null;
   options.renderTabs();
-  for (const panel of state.panels) {
-    if (panel.status === "open") await spawnQuietly(ctx, panel, "attach");
+  for (const panel of [...panels]) {
+    if (requestSequence !== state.loadSequence || !sameSubject(ref, options.subject())) return;
+    if (panel.status === "open" && state.panels.some((item) => item.panel_id === panel.panel_id)) {
+      await spawnQuietly(ctx, panel, "attach");
+    }
   }
+  if (requestSequence !== state.loadSequence || !sameSubject(ref, options.subject())) return;
   options.showTerminal(state.activeId);
 }
 
 async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
   const { options, state } = ctx;
+  if (ctx.opening) return;
   const ref = options.subject();
   if (!hasSubject(ref)) {
     options.setStatus(uiText.text("workbench.panels.after-opening-project-add-terminal-right-item"));
@@ -160,64 +177,85 @@ async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
     options.setStatus(options.readOnlyMessage(), "error");
     return;
   }
+  ctx.opening = true;
   let record: PanelRecord | undefined;
   try {
-    const opened = await openTerminal(options, ref, body);
-    // The title and program are the platform's record of it: read back once, by the key it was opened under.
-    record = opened ? (await listPanels(options, ref)).find(row => row.key === opened.key) : undefined;
-  } catch (error) {
-    options.setStatus(options.errorText(error), "error");
-    return;
-  }
-  if (!record || !sameSubject(ref, options.subject())) {
-    if (!record) options.setStatus(uiText.text("workbench.panels.could-not-open"), "error");
-    return;
-  }
-  record.status = "open";
-  state.panels.push(record);
-  state.activeId = record.panel_id;
-  options.renderTabs();
-  options.showTerminal(state.activeId);
-  options.setMenuOpen(false);
-  try {
-    await ctx.spawner.spawnPanel(record);
+    try {
+      const opened = await openTerminal(options, ref, body);
+      // The title and program are the platform's record of it: read back once, by the key it was opened under.
+      record = opened ? (await listPanels(options, ref)).find(row => row.key === opened.key) : undefined;
+    } catch (error) {
+      options.setStatus(options.errorText(error), "error");
+      return;
+    }
+    if (!record || !sameSubject(ref, options.subject())) {
+      if (!record) options.setStatus(uiText.text("workbench.panels.could-not-open"), "error");
+      return;
+    }
+    record.status = "open";
+    upsertPanel(state, record);
+    state.activeId = record.panel_id;
+    options.renderTabs();
     options.showTerminal(state.activeId);
-  } catch (error) {
-    options.setStatus(options.errorText(error), "error");
-    options.showTerminal(state.activeId);
+    options.setMenuOpen(false);
+    try {
+      await ctx.spawner.spawnPanel(record);
+      if (sameSubject(ref, options.subject())) options.showTerminal(state.activeId);
+    } catch (error) {
+      options.setStatus(options.errorText(error), "error");
+      if (sameSubject(ref, options.subject())) options.showTerminal(state.activeId);
+    }
+  } finally {
+    ctx.opening = false;
   }
 }
 
 async function closePanel(ctx: PanelContext, panelId: string) {
   const { options, state } = ctx;
+  if (ctx.closing.has(panelId)) return;
   const panel = state.panels.find((item) => item.panel_id === panelId);
   if (!options.canControlPanel(panel)) return;
   const ref: WorkTerminalSubjectRef = { plugin_id: panel.plugin_id, subject_kind: panel.subject_kind, subject_id: panel.subject_id };
-  await options.request(terminalsPath(options, ref, panel.key), { method: "DELETE", as: "response" });
-  options.screens.remove(panelId);
-  state.alive.delete(panelId);
-  ctx.spawner.forget(panelId);
-  state.panels = state.panels.filter((item) => item.panel_id !== panelId);
-  if (state.activeId === panelId) state.activeId = state.panels[0]?.panel_id ?? null;
-  options.renderTabs();
-  options.showTerminal(state.activeId);
+  ctx.closing.add(panelId);
+  try {
+    try {
+      await options.request(terminalsPath(options, ref, panel.key), { method: "DELETE" });
+    } catch (error) {
+      if ((error as { status?: number })?.status !== 404) throw error;
+    }
+    options.screens.remove(panelId);
+    state.alive.delete(panelId);
+    ctx.spawner.forget(panelId);
+    state.panels = state.panels.filter((item) => item.panel_id !== panelId);
+    if (state.activeId === panelId) state.activeId = state.panels[0]?.panel_id ?? null;
+    options.renderTabs();
+    options.showTerminal(state.activeId);
+  } finally {
+    ctx.closing.delete(panelId);
+  }
 }
 
 async function reopenPanel(ctx: PanelContext) {
   const { options, state } = ctx;
   const panel = state.panels.find((item) => item.panel_id === state.activeId) ?? null;
-  if (!options.canControlPanel(panel)) return;
+  if (!options.canControlPanel(panel) || ctx.reopening.has(panel.panel_id)) return;
   const ref: WorkTerminalSubjectRef = { plugin_id: panel.plugin_id, subject_kind: panel.subject_kind, subject_id: panel.subject_id };
-  // The same key with the program it was opened with: the platform starts it again (resuming the runtime's session when one was reported).
+  ctx.reopening.add(panel.panel_id);
   try {
-    await openTerminal(options, ref, { key: panel.key, ...panel.program });
-  } catch (error) {
-    options.setStatus(options.errorText(error), "error");
-    return;
+    // The same key with the program it was opened with: the platform starts it again (resuming the runtime's session when one was reported).
+    try {
+      await openTerminal(options, ref, { key: panel.key, ...panel.program });
+    } catch (error) {
+      options.setStatus(options.errorText(error), "error");
+      return;
+    }
+    if (!sameSubject(ref, options.subject()) || !state.panels.some((item) => item.panel_id === panel.panel_id)) return;
+    panel.status = "open";
+    await ctx.spawner.spawnPanel(panel, "reopen");
+    if (sameSubject(ref, options.subject())) options.showTerminal(state.activeId);
+  } finally {
+    ctx.reopening.delete(panel.panel_id);
   }
-  panel.status = "open";
-  await ctx.spawner.spawnPanel(panel, "reopen");
-  options.showTerminal(state.activeId);
 }
 
 /** Own panel loading/spawn/attach/reopen/exit state, not xterm rendering or prompt composition. */
@@ -239,7 +277,7 @@ export function createTerminalPanels(options: TerminalPanelsOptions) {
     canControlPanel: options.canControlPanel, setStatus: options.setStatus, showTerminal: options.showTerminal,
     connect: connection.connect, send: connection.send,
   });
-  const ctx: PanelContext = { options, state, spawner };
+  const ctx: PanelContext = { options, state, spawner, opening: false, reopening: new Set(), closing: new Set() };
   const current = () => state.panels.find((item) => item.panel_id === state.activeId) ?? null;
   return {
     get panels() { return state.panels; },

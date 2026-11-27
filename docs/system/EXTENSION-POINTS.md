@@ -8,7 +8,7 @@
 
 ## 白话说明
 
-Molis Work 是插件基座加多个插件。想加一个东西时，最好只动那个东西自己的包和它的声明，平台里的名单不用改。现实是：加一个内置插件要改十几处平台文件（包依赖、目录、监督器、色调、图标、翻译），加一个界面语言要改的是「界面语言」一节里点名的主要几处（语言值、`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch` 与设置页开关、客户端 `L`），另外代码里含 `"zh" | "en"` 字面量的文件约 15 个、词典 53 份——15 是字面量文件数，不是加语言必改的位置数。这份清单把每个方向「今天要改哪些文件」逐个点名，写出目标数字，再用六个真实的下一步功能（风险记录插件、Coding 质量保证、新的外部服务、团队与权限、自动化规则、调用诊断）演练一遍，看哪里超过目标、靠什么补。
+Molis Work 是插件基座加多个插件。想加一个东西时，最好只动那个东西自己的包和它的声明，平台里的名单不用改。2026-10-08 建表时，加一个内置插件要改十几处平台文件，加界面语言依赖旧的中文键与英文词典；现行架构下，内置插件已全部经 Plugin Runtime 与生成脚本装配（包外手改点名额度为 0，`pluginOutsideMentions = 0`，另需 SSOT 文档一行），界面语言已于第 16 批切换为稳定键加多语言清单（`apps/workbench/resources/languages.json`，原生支持 `zh`/`en`/`ja` 并面向 N 语种扩展，文字归各主人自己的 `locales/<语言>.json`）。这份清单保留 2026-10-08 基线与后续演进的对照记录，把每个方向要改的位置与目标数字列出，并用六个典型功能（风险记录插件、Coding 质量保证、新的外部服务、团队与权限、自动化规则、调用诊断）演练扩展成本。
 
 ## 1. 口径
 
@@ -34,7 +34,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 | # | 方向 | 现在 | 目标 | 靠什么到目标 |
 | --- | --- | --- | --- | --- |
-| 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（另需 SSOT 文档一行）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（另需 SSOT 文档一行）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
+| 1 | 内置插件（项目插件，经 Plugin Runtime） | 现行 0 处包外源码手改（`pluginOutsideMentions = 0`，由 `node scripts/generate-plugin-registry.mjs` 生成登记与依赖；另需 SSOT 文档一行）；2026-10-08 历史基线 11 | 1（另需 SSOT 文档一行） | 已达成（W5-02、PG-067/069/075 与第 44B 批构建期清零） |
 | 2 | 第三方插件 | 0，用户可预览并安装支持的签名沙箱包 | 0 | 现行安装与发布者信任见 §3.2 |
 | 3 | 服务集成 | token 型 1；公开来源型 5–7；OAuth 原实测基线 11，父采用后按 §3.3 分场景核定（未实测） | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
@@ -47,7 +47,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 11 | 新横向服务 | 6 | 4 | 同上 |
 | 12 | 新 Agent Runtime | Agent Host 内自写适配器 3；外部 Runtime 接入 5，接入加角色导入 12–15 | 3 / 2 | 无切片，建议新增 |
 | 13 | 界面插槽 | 5 | 2 | 无切片 |
-| 14 | 界面语言 | 15 个代码文件 + 53 份词典（15 是含字面量的文件数，不是必改位置数） | 1 + 每个词典所有者各交一份 | W5-03（2026-10-08 改为稳定键）覆盖一部分 |
+| 14 | 界面语言 | 现行：`apps/workbench/resources/languages.json` 清单 + 每个文字主人各自一份 `locales/<语言>.json`（支持 `zh`/`en`/`ja` 及 N 语种；历史基线 15 代码文件 + 53 旧词典已于第 16 批删除） | 1 + 每个词典所有者各交一份 | 已达成（第 16 批稳定键切换与三语治理） |
 | 15 | 操作系统平台 | 20 个 macOS 专用文件 | 4 个适配器 | 属 W1-21（C 端计划），本阶段不实现 |
 
 ## 3. 逐个方向
@@ -58,7 +58,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 下表及其成本数字保留 2026-10-08 基线与各行注明的后续修订，不是新增插件的操作清单；没有逐项重新计量。新增步骤按上面的现行入口与插件开发手册执行，旧宿主装配和词典接线只用于解释历史成本。
 
-**现在要改**（历史基线包外 11 处，另需 SSOT 文档一行）。最小样本是 Text Stats（2026-11-22 已退役删除，数字是基线时的）：包外被 11 个源码或配置文件点名；SSOT 的 owner 文档行在两端都不计入源码/配置处数；现行门禁名单从生成登记读取，新插件不手改。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
+**现在要改**：现行包外源码手改 **0 处**（`pluginOutsideMentions = 0`，由 `node scripts/generate-plugin-registry.mjs` 从包内 `src/registration.ts` 与 `package.json` 生成注册表及依赖，另需 SSOT 文档一行；以下表格保留 2026-10-08 历史基线 11 处作迁移对照）。最小样本是 Text Stats（2026-11-22 已退役删除，数字是基线时的）：包外被 11 个源码或配置文件点名；SSOT 的 owner 文档行在两端都不计入源码/配置处数；现行门禁名单从生成登记读取，新插件不手改。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
 
 | 栏 | 文件 | 要做什么 |
 | --- | --- | --- |
@@ -110,6 +110,8 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 - 新增 service_id 或账号请求来源：S-69 的 CONNECTOR_REQUEST_SERVICES / CONNECTOR_ACCOUNT_ORIGINS 仍是平台边界，两表同在 `packages/contracts/src/services/connector-host.ts`，按文件只计一处；宿主构建声明不能自行写 origins。新包登记、同步提供方等若确需改动，另按真实文件计，不由 OAuth 声明完成推断归零。
 
 上述样本在最终 OAuth 父采用树上尚未实测；原目标 1 和原 11 处实测均保留，不为数字改 S-69，也不重测整张表。公开来源型的同步接线不由本片结账。
+
+**已知缺口（第三方自定义 `service_id` 与 Feed 账号来源，V-BASE-01）：** 目前只有登记在平台 `packages/contracts/src/services/connector-host.ts` 的 `CONNECTOR_REQUEST_SERVICES` 里的内置服务会接入 Feed 的账号来源：`apps/local-host/src/connector-directory.ts` 仅对属于 `CONNECTOR_REQUEST_SERVICES` 的服务开启 `source_pull`，`plugins/native/feed/src/manifest.ts` 的 `connections.slots` 与 `plugins/native/feed/src/source-actions.ts` 的 `feed.sources.add_account@1` 输入枚举也仅覆盖这组静态服务。因此，**第三方集成包声明自定义 `service_id` 时，尚不能直接接入 Feed 账号来源**；该限制记录为已知设计缺口，待连接器目录与 Feed 来源槽支持按已安装集成声明动态扩展后再打通。
 
 ### 3.4 AI 能力、Agent 角色、提示词
 
@@ -251,7 +253,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 | # | 功能 | 现在 | 目标 | 补扩展点后再推演 | 补什么 |
 | --- | --- | --- | --- | --- | --- |
-| F1 | 风险记录插件 | 12（带 AI 建议时 13），另需 SSOT 文档一行 | 1，另需 SSOT 文档一行 | 1，另需 SSOT 文档一行 | W3-06、W4-03、W5-02、W5-06 加 X-1 |
+| F1 | 风险记录插件 | 已落地（`plugins/native/risk`，经 Plugin Runtime 装配，包外源码手改 0 处，另需 SSOT 文档一行；2026-10-08 历史推演 12/13） | 1，另需 SSOT 文档一行 | 已达成（0 处包外源码手改） | W3-06、W4-03、W5-02、W5-06 加 X-1 已落地 |
 | F2 | Coding 质量保证 | 0（库与运行接入） | 0 | 0 | Coding 自有数据库与 Runtime 登记已接入 |
 | F3 | 新的外部服务（自带 OAuth） | 11（原实测基线；父采用后待核） | 1（目标） | 1（目标，未实测） | W5-11 |
 | F4 | 团队与权限（成员、角色、访问决定） | 约 52（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
@@ -262,9 +264,8 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F1 风险记录插件**（`specs/risk-plugin/spec.md`：记风险、关联 Goal 与会话、动作进共同目录、只走 Plugin Runtime、插件只提供内容）。
 
-- 现在：3.1 的 12 处（外加 SSOT 一行），包外全是平台登记。关联 Goal、会话、消息、成果走公开对象引用，不 import 其他插件，包外 0 处；到期复查提醒用 `defineDueRemindersAction`，搜索用 `defineSearchEntriesAction`，都在包内。要在 Goal 事件里以「顾虑」引用风险，要改 `plugins/native/goals`，属功能自己的产品集成（Goals 是构建期例外），不计。带「建议处置办法」的 AI 动作会因缺 `services.model` 多一个宿主端口文件，所以是 13。
-- 超过目标：登记 8、名单 4；SSOT 文档一行在现在和目标里都不计入处数；门禁名单由生成登记读取，不是手改项。
-- 补什么：3.1 列出的四片加 X-1。**再推演（按当时模型）：1，另需 SSOT 文档一行**（`scripts/workspace-packages.mjs` 的一条登记；应用依赖要按 X-1 生成才不再手改，否则是 4）。
+- 现行（已于第 17 批落地，`plugins/native/risk`）：完全经 Plugin Runtime 装配（`databases.project` 声明项目表、`src/registration.ts` 声明登记与生成脚本接管包依赖），包外源码手改 **0 处**（`pluginOutsideMentions = 0`，另需 SSOT 文档一行）。关联 Goal、会话、消息、成果走公开对象引用，不 import 其他插件；到期复查提醒用 Schedule 任务，搜索用 `defineSearchEntriesAction`，均在包内完成。Goals 亦已随第 44B 批迁入 Plugin Runtime（不再是构建期例外），在 Goal 事件里以「顾虑」引用风险属产品集成而非平台扩展点成本。`services.model` 已作为 Runtime 插件服务就位，不再需要额外宿主端口文件。
+- 历史推演记录（2026-10-08 基线）：当时需改包外 12 处（带 AI 建议为 13 处，登记 8 + 名单 4），经 W3-06、W4-03、W5-02、W5-06 加 X-1 后降为现行 0 处包外源码手改（原推演目标 1 处 + SSOT 文档一行）。
 
 **F2 Coding 质量保证**（`specs/coding-quality-assurance/spec.md`：自检、交叉评审、对抗评审，设置放在 Coding，结论写回关联 Goal 的事件）。
 
@@ -290,7 +291,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 - 现在（推演，约 21，另需 SSOT 文档一行）：
   - 新 Module 7（含表）；
   - 一个「自动化」插件：12（另需 SSOT 文档一行）；
-  - 触发源：现有可订阅的事件总线只给经 Plugin Runtime 启动的插件（`skills/molis-plugin-dev/host.md`「接到插件事件总线」），Goals、Feed 等构建期插件不发布插件事件，所以要给规则引擎一个读领域事件的端口（读项目库的 `LocalSqliteJournal` 事件流），宿主装配和合同各一处：2。
+  - 触发源：现有可订阅的事件总线面向经 Plugin Runtime 启动的插件（`skills/molis-plugin-dev/host.md`「接到插件事件总线」）；Goals、Feed 等内置插件已全部迁入 Plugin Runtime（不再是构建期插件），可经插件事件总线发布事件；若规则引擎还需订阅平台 Module 写进项目库 `LocalSqliteJournal` 的领域事件，则需给规则引擎一个读领域事件的端口，宿主装配和合同各一处：2。
 - 执行规则里的动作：沿用现有受众（`ActionAudience`，`packages/contracts/src/platform/actions.ts`，目前是 `user | agent | workflow | mcp | plugin`），不新增受众（新增要改这个联合并复核所有按受众分支的位置）；无人在场执行的授权语义要在设计稿里单独定。
 - 补什么：X-6「领域事件订阅口」（读项目库事件流、按声明订阅）；插件部分靠 3.1 的四片加 X-1；Module 部分靠 3.10 的目标。**再推演：6，另需 SSOT 文档一行** = Module 4 + 插件 1 + 订阅口 1。
 

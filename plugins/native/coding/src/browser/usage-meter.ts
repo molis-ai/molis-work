@@ -1,4 +1,4 @@
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -54,7 +54,7 @@ const contextOf = (run: MeterRun | null | undefined) => {
 const spentOf = (data: UsageData) => data.usage_total ? data.usage_total.tokens.input + data.usage_total.tokens.output : 0;
 
 /** The panel's pieces, drawn from the view the meter holds. `budgetSaved` lets the meter say the budget line again. */
-interface PanelParts { readonly ports: UsageMeterPorts; readonly panel: HTMLElement; readonly budgetSaved: () => void }
+interface PanelParts { readonly ports: UsageMeterPorts; readonly panel: HTMLElement; readonly budgetSaved: () => void; readonly setBudgetDirty: (dirty: boolean) => void }
 
 const section = (panel: HTMLElement, title: string) => {
   const node = el("section");
@@ -118,7 +118,7 @@ function drawUsage({ panel }: PanelParts, total: UsageTotal) {
 }
 
 /** The line the person sets for the session, and how much of it is spent. */
-function drawBudget({ ports, panel, budgetSaved }: PanelParts, data: UsageData) {
+function drawBudget({ ports, panel, budgetSaved, setBudgetDirty }: PanelParts, data: UsageData, draftValue?: string) {
   const { lifetime, api, current, status, refresh } = ports;
   const budget = data.budget, spent = spentOf(data);
   const limit = section(panel, uiText.text("coding.meter.budget")), form = el("form", "coding-meter-budget"), input = el("input", "mw-input"), save = el("button", "mw-btn mw-btn--secondary", uiText.text("coding.meter.save"));
@@ -127,15 +127,18 @@ function drawBudget({ ports, panel, budgetSaved }: PanelParts, data: UsageData) 
   input.step = "any";
   input.inputMode = "decimal";
   input.placeholder = uiText.text("coding.meter.no-budget");
-  input.value = budget ? String(budget.tokens / 1e4) : "";
+  input.value = draftValue !== undefined ? draftValue : (budget ? String(budget.tokens / 1e4) : "");
   input.setAttribute("aria-label", uiText.text("coding.meter.budget-label"));
   save.type = "submit";
   form.append(input, el("span", "", uiText.text("coding.meter.budget-unit")), save);
+  lifetime.listen(input, "input", () => setBudgetDirty(true));
   lifetime.listen(form, "submit", async (event) => {
     event.preventDefault();
-    const value = input.value.trim(), tokens = value ? Math.round(Number(value) * 1e4) : null;
-    if (value && !(tokens !== null && tokens >= 1000)) {
-      status(uiText.text("coding.meter.budget-min"), true);
+    const value = input.value.trim();
+    const parsed = value ? Number(value) : null;
+    const tokens = parsed !== null ? Math.round(parsed * 1e4) : null;
+    if (value && (parsed === null || !Number.isFinite(parsed) || tokens === null || !Number.isSafeInteger(tokens) || tokens < 1000 || tokens > 1e10)) {
+      status(uiText.text(parsed !== null && Number.isFinite(parsed) && tokens !== null && tokens < 1000 ? "coding.meter.budget-min" : "coding.server.budget-range"), true);
       return;
     }
     save.disabled = true;
@@ -164,18 +167,63 @@ function drawBudget({ ports, panel, budgetSaved }: PanelParts, data: UsageData) 
 export function usageMeter(ports: UsageMeterPorts): UsageMeter {
   const { lifetime, q, current, status } = ports;
   const root = q("[data-coding-meter]"), toggle = q("[data-coding-meter-toggle]"), panel = q("[data-coding-meter-panel]"), fill = q<SVGElement>("[data-coding-meter-fill]"), label = q("[data-coding-meter-label]");
+  const summaryBox = el("div"), budgetBox = el("div");
   let view: MeterView | null = null, owner = "", warned = "", quiet = true;
+  let drawnKey = "", drawnLocale: string | undefined, budgetDirty = false;
   // The meter stays out of the way until the context or the budget is close to its limit, or the person opens it
   // (the palette's 「上下文与用量」); screen-polish §6.3.
   const show = () => { root.hidden = !view?.run || (quiet && panel.hidden); root.dataset.available = String(Boolean(view?.run)); };
-  const parts: PanelParts = { ports, panel, budgetSaved: () => { warned = ""; } };
-  const draw = () => {
+  const parts: PanelParts = {
+    ports,
+    panel,
+    budgetSaved: () => {
+      warned = "";
+      budgetDirty = false;
+      drawnKey = "";
+    },
+    setBudgetDirty: dirty => {
+      budgetDirty = dirty;
+    },
+  };
+  const panelKey = (next: MeterView) => JSON.stringify([activeUiLocale(), owner, next.data.run_count, next.data.usage_total, next.data.budget, next.data.next_history, next.data.compact_requested, next.run?.frozen?.model_context, next.run?.usage?.context]);
+  const draw = (force = false) => {
     if (!view) return;
-    panel.replaceChildren();
-    drawContext(parts, view);
+    const nextKey = panelKey(view);
+    if (!force && nextKey === drawnKey) return;
+    const localeNow = activeUiLocale() ?? undefined, localeChanged = drawnLocale !== localeNow;
+    const existingInput = budgetBox.querySelector<HTMLInputElement>("form.coding-meter-budget input");
+    const budgetActive = Boolean(existingInput && budgetBox.contains(document.activeElement));
+    const draftValue = existingInput && (budgetActive || budgetDirty) ? existingInput.value : undefined;
+    const selection = existingInput && document.activeElement === existingInput ? [existingInput.selectionStart, existingInput.selectionEnd] as const : null;
+    drawnKey = nextKey;
+    drawnLocale = localeNow;
+    if (!summaryBox.isConnected || !budgetBox.isConnected) {
+      panel.replaceChildren(summaryBox, budgetBox);
+    }
+    summaryBox.replaceChildren();
+    drawContext({ ...parts, panel: summaryBox }, view);
     if (view.data.usage_total) {
-      drawUsage(parts, view.data.usage_total);
-      drawBudget(parts, view.data);
+      drawUsage({ ...parts, panel: summaryBox }, view.data.usage_total);
+      if (!force && (budgetActive || budgetDirty) && budgetBox.childElementCount > 0 && !localeChanged) {
+        const note = budgetBox.querySelector<HTMLElement>(".coding-meter-note");
+        if (note) {
+          const budget = view.data.budget, spent = spentOf(view.data);
+          note.textContent = budget ? uiText.text("coding.meter.budget-used", { spent: short(spent), budget: short(budget.tokens), percent: Math.round(spent / budget.tokens * 100) }) : uiText.text("coding.meter.budget-how");
+        }
+      } else {
+        budgetBox.replaceChildren();
+        drawBudget({ ...parts, panel: budgetBox }, view.data, localeChanged ? draftValue : undefined);
+        if (localeChanged && selection) {
+          const nextInput = budgetBox.querySelector<HTMLInputElement>("form.coding-meter-budget input");
+          if (nextInput) {
+            nextInput.focus({ preventScroll: true });
+            try { nextInput.setSelectionRange(selection[0], selection[1]); } catch { /* number input may reject setSelectionRange */ }
+          }
+        }
+      }
+    } else {
+      budgetBox.replaceChildren();
+      budgetDirty = false;
     }
   };
   const open = (on: boolean) => {
@@ -183,8 +231,12 @@ export function usageMeter(ports: UsageMeterPorts): UsageMeter {
     show();
     toggle.setAttribute("aria-expanded", String(on));
     if (on) {
-      draw();
+      budgetDirty = false;
+      draw(true);
       panel.querySelector<HTMLElement>("button,input")?.focus({ preventScroll: true });
+    } else {
+      budgetDirty = false;
+      drawnKey = "";
     }
   };
   lifetime.listen(toggle, "click", () => open(panel.hidden));

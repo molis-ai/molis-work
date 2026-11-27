@@ -21,7 +21,7 @@ import { api, status } from "./request.js";
 type Listed = PromptCommandFile & { readonly origin: "project" | "mine" };
 type Readable = Extract<Listed, { text: string }>;
 /** What the next send is made from: a listed command (`listed`, read again with the list) or `/init`. */
-type Chosen = { readonly name: string; readonly text: string; readonly takes_arguments: boolean; readonly source: string; readonly listed: boolean };
+type Chosen = { readonly name: string; readonly text: string; readonly takes_arguments: boolean; readonly origin: "builtin" | "project" | "mine"; readonly listed: boolean };
 /** The ways of working that write, in the order `/init` takes them. */
 const WRITES = ["execute", "edit"] as const;
 
@@ -47,7 +47,8 @@ export interface PromptCommands {
 export function promptCommands(page: Page): PromptCommands {
   const { readText, refs, s, input } = page;
   let list: Listed[] = [], read = { workspace: "\u0000", at: 0 }, loading: Promise<void> | null = null, chosen: Chosen | null = null;
-  const groups = { builtin: readText("coding.commands.builtin"), project: readText("coding.commands.project"), mine: readText("coding.commands.mine") };
+  const groupLabel = (kind: "builtin" | "project" | "mine") => readText(kind === "builtin" ? "coding.commands.builtin" : kind === "project" ? "coding.commands.project" : "coding.commands.mine");
+  const originLabel = (origin: "builtin" | "project" | "mine") => readText(origin === "builtin" ? "coding.commands.from-builtin" : origin === "project" ? "coding.commands.from-project" : "coding.commands.from-mine");
   const load = (wait = AGAIN_MS) => {
     const workspace = s.workspaceId || "";
     if (loading || (read.workspace === workspace && Date.now() - read.at < wait)) return;
@@ -71,14 +72,14 @@ export function promptCommands(page: Page): PromptCommands {
   // What is typed after the chip is its argument: the prompt under the box follows it.
   page.lifetime.listen(input, "input", () => { if (chosen) refs.composer?.refresh("lines"); else if (input.value === "/") load(SLASH_MS); });
   const words = () => input.value;
-  const source = (one: Listed) => readText(one.origin === "project" ? "coding.commands.from-project" : "coding.commands.from-mine");
-  const listed = (one: Readable): Chosen => ({ name: one.name, text: one.text, takes_arguments: one.takes_arguments, source: source(one), listed: true });
+  const source = (one: Listed) => originLabel(one.origin);
+  const listed = (one: Readable): Chosen => ({ name: one.name, text: one.text, takes_arguments: one.takes_arguments, origin: one.origin, listed: true });
   const writes = () => WRITES.find(value => s.intents.some(option => option.value === value && !option.disabled));
   return {
     commands(builtIn) {
       load();
       return list.map((one): CommandItem => {
-        const group = one.origin === "project" ? groups.project : groups.mine;
+        const group = groupLabel(one.origin);
         if (!("text" in one) || builtIn.has(one.name)) {
           const why = !("text" in one) ? readText(PROBLEMS[one.unreadable]) : readText("coding.commands.why-built-in", { name: one.name });
           return { slash: one.name, label: one.name, hint: why, group, source: source(one), warning: readText("coding.commands.unreadable"),
@@ -95,16 +96,16 @@ export function promptCommands(page: Page): PromptCommands {
       return { slash: "init", label: readText("coding.commands.init"), hint: readText(intent ? "coding.commands.init-hint" : "coding.commands.init-no-write"), keywords: ["AGENTS.md", "CLAUDE.md", "说明", "instructions"],
         enabled: Boolean(intent) && !shut(page) && !roundActive(page),
         run: () => {
-          chosen = { name: "init", text: readText("coding.commands.init-prompt"), takes_arguments: false, source: readText("coding.commands.from-builtin"), listed: false };
+          chosen = { name: "init", text: readText("coding.commands.init-prompt"), takes_arguments: false, origin: "builtin", listed: false };
           if (intent) chooseIntent(page, intent);
           refs.composer?.refresh("lines"); refs.composer?.focus();
         } };
     },
-    menu: () => ({ groups: [{ label: groups.builtin }, { label: groups.project, empty: readText("coding.commands.project-empty") }, { label: groups.mine }], note: readText("coding.commands.note") }),
+    menu: () => ({ groups: [{ label: groupLabel("builtin") }, { label: groupLabel("project"), empty: readText("coding.commands.project-empty") }, { label: groupLabel("mine") }], note: readText("coding.commands.note") }),
     chip() {
       if (!chosen) return null;
       const one = chosen;
-      return { name: one.name, source: one.source, remove: { label: readText("coding.commands.remove", { name: one.name }), run: () => { chosen = null; } },
+      return { name: one.name, source: originLabel(one.origin), remove: { label: readText("coding.commands.remove", { name: one.name }), run: () => { chosen = null; } },
         prompt: { label: readText("coding.commands.prompt"), text: fillPromptCommand(one, words()) } };
     },
     task: typed => chosen ? fillPromptCommand(chosen, typed) : null,

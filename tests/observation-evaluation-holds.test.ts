@@ -39,7 +39,7 @@ const person = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({
   ...extra,
 });
 
-function createFixture(t: test.TestContext, initialNow = "2026-11-15T12:00:00.000Z") {
+function createFixture(t: test.TestContext, initialNow = "2026-11-15T12:00:00.000Z", readableProjects?: () => Promise<string[]>) {
   const home = mkdtempSync(join(tmpdir(), "observation-eval-holds-"));
   const secrets = memorySecrets();
   let currentNow = new Date(initialNow);
@@ -48,7 +48,7 @@ function createFixture(t: test.TestContext, initialNow = "2026-11-15T12:00:00.00
     platformVersion: "0.30.0",
     now: () => currentNow,
     projectClass: id => (projects.has(id) ? "user" : undefined),
-    readableProjects: async () => [...projects],
+    readableProjects: readableProjects ?? (async () => [...projects]),
   };
 
   let layer: ObservationLayer | undefined;
@@ -280,4 +280,50 @@ test("OCL-12 OCL-17: project deletion and plugin purge override evaluation holds
   assert.equal(readRecords(fx.db()).length, 0);
   assert.equal((fx.db().prepare("SELECT COUNT(*) AS n FROM evidence_blobs").get() as { n: number }).n, 0);
   assert.equal((fx.db().prepare("SELECT COUNT(*) AS n FROM evaluation_holds WHERE project_id = 'p2'").get() as { n: number }).n, 0);
+});
+
+test("F-horiz-runtime-22: holds.put and holds.release honor beforeEffect and revocation before mutating evaluation_holds", async t => {
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let gate = false;
+  const fx = createFixture(t, "2026-11-15T12:00:00.000Z", async () => {
+    if (gate) {
+      entered.resolve();
+      await release.promise;
+    }
+    return ["p1", "p2"];
+  });
+
+  fx.layer.sink("assistant")
+    .bind({ kind: "background", entry: "host", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "p1" })
+    .record({ fact: "assistant.work", outcome: "succeeded", subjects: [{ kind: "goal", id: "g-hold" }] });
+  fx.layer.flush();
+  const [rec] = readRecords(fx.db());
+  assert.ok(rec);
+
+  gate = true;
+  let revoked = false;
+  const putPending = fx.service.invoke(
+    person({ validate_authority: () => { if (revoked) throw new Error("hold put revoked"); } }),
+    observationActions.holdsPut,
+    { hold_id: "hold-aborted", sample_id: "sample-aborted", project_id: "p1", record_ids: [rec.record_id], expires_at: null },
+  );
+  await entered.promise;
+  revoked = true;
+  release.resolve();
+  await assert.rejects(putPending, /hold put revoked/);
+  assert.equal((fx.db().prepare("SELECT COUNT(*) AS n FROM evaluation_holds").get() as { n: number }).n, 0);
+
+  gate = false;
+  await fx.service.invoke(person(), observationActions.holdsPut, {
+    hold_id: "hold-kept", sample_id: "sample-kept", project_id: "p1", record_ids: [rec.record_id], expires_at: null,
+  });
+  assert.equal((fx.db().prepare("SELECT COUNT(*) AS n FROM evaluation_holds").get() as { n: number }).n, 1);
+
+  const ac = new AbortController();
+  ac.abort();
+  await assert.rejects(
+    fx.service.invoke(person({ signal: ac.signal }), observationActions.holdsRelease, { hold_id: "hold-kept" }),
+  );
+  assert.equal((fx.db().prepare("SELECT COUNT(*) AS n FROM evaluation_holds WHERE hold_id = 'hold-kept'").get() as { n: number }).n, 1);
 });

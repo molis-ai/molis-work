@@ -9,6 +9,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
 
 const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = readFileSync(new URL("../plugins/native/goals/dist/document-bundle.js", import.meta.url), "utf8");
+const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = readFileSync(new URL("../plugins/native/goals/dist/event-document-bundle.js", import.meta.url), "utf8");
 
 test("Goal document tabs retry lazy loading, restore selection, and keep the current event document", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -219,4 +220,144 @@ test("switching Goals while a document is loading still keeps the later selectio
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]').dataset.goalView"), "V1");
   const after = boardSnapshot(store, DEMO_PROJECT_ID);
   for (const key of ["goals", "relations"] as const) assert.deepEqual(after[key], before[key]);
+});
+
+test("F-goals-10 & F-goals-11: decision conflict retry refreshes review_version and detached event clients dispose global listeners", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t);
+  if (!browser) return;
+  const { origin, sessionId, command, navigate, evaluate } = browser;
+  await navigate(() => command("Page.navigate", { url: origin + "/goals/V1" }, sessionId));
+  const result = await evaluate<{
+    observedVersions: string[];
+    idempotencyKeys: string[];
+    retriedVersion: string;
+    decisionSucceeded: boolean;
+    menuClosedBeforeDispose: boolean;
+    menuKeptOpenAfterDispose: boolean;
+    menuKeptOpenAfterDetach: boolean;
+    surfaceCallsAfterDispose: number;
+  }>(`(async () => {
+    const createEventClient = (${GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT});
+    const observedVersions = [];
+    const idempotencyKeys = [];
+    let surfaceCalls = 0;
+    let reloaded = false;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, options) => {
+      const url = new URL(String(input), location.href);
+      if (url.pathname === '/api/contextual/surfaces') {
+        surfaceCalls += 1;
+        return new Response(JSON.stringify({ surfaces: {} }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url.pathname === '/api/project-approvals/request') {
+        const body = JSON.parse(String(options?.body || '{}'));
+        observedVersions.push(body.draft?.observed_version || '');
+        idempotencyKeys.push(body.draft?.idempotency_key || '');
+        if (observedVersions.length === 1) {
+          return new Response(JSON.stringify({ code: 'actions.conflict', error: 'Goal changed' }), { status: 409, headers: { 'content-type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ reference: { id: 'ref-2', version: 'fresh-v2' } }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url.pathname === '/api/project-approvals/decide') {
+        return new Response(JSON.stringify({ record: { decision_id: 'd-2' }, result: { event_id: 'ev-2' } }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url.pathname === '/api/plugins/io.molis.work.goals/goals/V1/event-state') {
+        return new Response(JSON.stringify({
+          agreement: { outcome: 'Updated outcome', version: 2 },
+          config: { version: 1 },
+          review_version: 'fresh-v2',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return originalFetch(input, options);
+    };
+    const pane = document.createElement('section');
+    pane.innerHTML = '<article data-goal-event-document data-goal-view="V1">'
+      + '<details data-record-menu open><summary>Add</summary></details>'
+      + '<form data-event-form="decision" data-review-version="stale-v1">'
+      + '<div class="event-form-body"><input name="conclusion" value="Approve change"><input type="checkbox" name="effect" value="authorize_action" checked><input name="scope_action" value="publish"></div>'
+      + '<p data-form-status hidden></p><button type="submit">Submit</button></form>'
+      + '<p data-event-conflict hidden></p></article>';
+    document.body.append(pane);
+    const client = createEventClient({
+      documentPane: pane,
+      route: path => path,
+      isAbortError: error => error instanceof DOMException && error.name === 'AbortError',
+      reloadDocument: async () => { reloaded = true; return true; },
+    });
+    try {
+      const form = pane.querySelector('form[data-event-form="decision"]');
+      const waitUntil = async (fn) => {
+        for (let i = 0; i < 60; i += 1) {
+          if (fn()) return;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        throw new Error('Condition timed out');
+      };
+      // F-goals-10: first submit gets 409; clicking [data-conflict-retry] refreshes review_version and clears idempotencyKey.
+      form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+      await waitUntil(() => pane.querySelector('[data-conflict-retry]') != null);
+      pane.querySelector('[data-conflict-retry]').click();
+      await waitUntil(() => form.dataset.reviewVersion === 'fresh-v2');
+      const retriedVersion = form.dataset.reviewVersion || '';
+      form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+      await waitUntil(() => reloaded);
+
+      // F-goals-11: document click closes menu while alive; after dispose() and after detach, global listeners and MutationObserver stop.
+      const menu = pane.querySelector('[data-record-menu]');
+      menu.open = true;
+      document.body.click();
+      const menuClosedBeforeDispose = !menu.open;
+      client.dispose();
+      menu.open = true;
+      document.body.click();
+      const menuKeptOpenAfterDispose = menu.open;
+      const beforeMut = surfaceCalls;
+      const cited = document.createElement('button');
+      cited.setAttribute('data-goal-cited', '');
+      cited.dataset.kind = 'risk';
+      cited.dataset.id = 'r-1';
+      pane.append(cited);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const surfaceCallsAfterDispose = surfaceCalls - beforeMut;
+
+      // Auto-dispose on detach without explicit dispose() call.
+      const pane2 = document.createElement('section');
+      pane2.innerHTML = '<article data-goal-event-document data-goal-view="V1"><details data-record-menu open><summary>Add</summary></details></article>';
+      document.body.append(pane2);
+      createEventClient({
+        documentPane: pane2,
+        route: path => path,
+        isAbortError: error => error instanceof DOMException && error.name === 'AbortError',
+        reloadDocument: async () => true,
+      });
+      const menu2 = pane2.querySelector('[data-record-menu]');
+      pane2.remove();
+      menu2.open = true;
+      document.body.click();
+      const menuKeptOpenAfterDetach = menu2.open;
+      pane.remove();
+      return {
+        observedVersions,
+        idempotencyKeys,
+        retriedVersion,
+        decisionSucceeded: reloaded,
+        menuClosedBeforeDispose,
+        menuKeptOpenAfterDispose,
+        menuKeptOpenAfterDetach,
+        surfaceCallsAfterDispose,
+      };
+    } finally {
+      client.dispose();
+      pane.remove();
+      globalThis.fetch = originalFetch;
+    }
+  })()`);
+  assert.deepEqual(result.observedVersions, ["stale-v1", "fresh-v2"]);
+  assert.equal(result.retriedVersion, "fresh-v2");
+  assert.notEqual(result.idempotencyKeys[0], result.idempotencyKeys[1], "retry must clear stale idempotencyKey");
+  assert.equal(result.decisionSucceeded, true);
+  assert.equal(result.menuClosedBeforeDispose, true);
+  assert.equal(result.menuKeptOpenAfterDispose, true);
+  assert.equal(result.menuKeptOpenAfterDetach, true);
+  assert.equal(result.surfaceCallsAfterDispose, 0);
 });

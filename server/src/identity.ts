@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ServerDatabase } from "./database.js";
 import { transaction } from "./database.js";
 import { ImError, textInput } from "./errors.js";
@@ -8,11 +9,17 @@ export interface Member { id: string; display_name: string }
 export interface Session { id: string; member_id: string | null; expires_at: number }
 export type Role = "owner" | "editor" | "viewer";
 const AGE = 30 * 24 * 3600;
+const ANONYMOUS_WINDOW_MS = 60_000;
+const ANONYMOUS_MAX_PER_WINDOW = 30;
+const ANONYMOUS_MAX_TRACKED_KEYS = 4096;
+const ANONYMOUS_PURGE_INTERVAL_MS = 60_000;
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
 export const memberClientId = (id: string): string => `runtime:cross-device:${id}`;
 
 export class Identity {
   private readonly cookieName: string;
+  private readonly anonymousWindows = new Map<string, number[]>();
+  private lastAnonymousPurgeAt = 0;
   constructor(readonly db: ServerDatabase, private readonly now = Date.now) {
     this.cookieName = "molis_work_session_" + (db.prepare("SELECT cookie_suffix FROM mw_server_identity WHERE singleton=1").get() as {cookie_suffix:string}).cookie_suffix;
   }
@@ -61,8 +68,49 @@ export class Identity {
     response.setHeader("set-cookie", `${this.cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${AGE}${secure ? "; Secure" : ""}`);
     return session;
   }
+  /** Removes expired or revoked anonymous sessions that hold no receipts or invitation codes. */
+  purgeExpiredAnonymousSessions(force = false): number {
+    const current = this.now();
+    if (!force && current - this.lastAnonymousPurgeAt < ANONYMOUS_PURGE_INTERVAL_MS) return 0;
+    this.lastAnonymousPurgeAt = current;
+    const result = this.db.prepare(
+      `DELETE FROM mw_sessions
+       WHERE member_id IS NULL
+         AND (expires_at <= ? OR revoked = 1)
+         AND NOT EXISTS (SELECT 1 FROM im_receipts r WHERE r.session_id = mw_sessions.id)
+         AND NOT EXISTS (SELECT 1 FROM mw_codes c WHERE c.creator_session = mw_sessions.id)`,
+    ).run(current);
+    return Number(result.changes);
+  }
+  private admitAnonymousSession(request: IncomingMessage): void {
+    const current = this.now();
+    const cutoff = current - ANONYMOUS_WINDOW_MS;
+    const key = request.socket?.remoteAddress || "unknown";
+    const existing = this.anonymousWindows.get(key);
+    const recent = existing ? existing.filter(timestamp => timestamp > cutoff) : [];
+    if (recent.length >= ANONYMOUS_MAX_PER_WINDOW) {
+      this.anonymousWindows.set(key, recent);
+      throw new ImError("im.server.rate_limited", tryUiText("common.error.rate-limited") ?? "Too many session requests; please retry later", 429);
+    }
+    recent.push(current);
+    if (this.anonymousWindows.has(key)) this.anonymousWindows.delete(key);
+    else if (this.anonymousWindows.size >= ANONYMOUS_MAX_TRACKED_KEYS) {
+      for (const [trackedKey, timestamps] of this.anonymousWindows) {
+        if (!timestamps.some(timestamp => timestamp > cutoff)) this.anonymousWindows.delete(trackedKey);
+      }
+      if (this.anonymousWindows.size >= ANONYMOUS_MAX_TRACKED_KEYS) {
+        const oldest = this.anonymousWindows.keys().next().value;
+        if (oldest !== undefined) this.anonymousWindows.delete(oldest);
+      }
+    }
+    this.anonymousWindows.set(key, recent);
+  }
   ensure(request: IncomingMessage, response: ServerResponse, secure: boolean): Session {
-    return this.session(request) ?? this.issue(null, "浏览器", response, secure);
+    const existing = this.session(request);
+    if (existing) return existing;
+    this.admitAnonymousSession(request);
+    this.purgeExpiredAnonymousSessions();
+    return this.issue(null, "浏览器", response, secure);
   }
   code(kind: "bootstrap" | "pair" | "invite", memberId: string, input: { projectId?: string; role?: Role; session?: Session } = {}): { code: string; expires_at: number } {
     if (input.session) this.requireMember(input.session);
@@ -71,9 +119,16 @@ export class Identity {
       .run(hash(code), kind, memberId, input.projectId ?? null, input.role ?? null, input.session?.id ?? null, expires_at);
     return { code, expires_at };
   }
-  connect(input: { code: unknown; display_name: unknown; device_label: unknown }, request: IncomingMessage, response: ServerResponse, secure: boolean): Session {
+  connect(
+    input: { code: unknown; display_name: unknown; device_label: unknown },
+    request: IncomingMessage,
+    response: ServerResponse,
+    secure: boolean,
+    onRevoked?: (sessionId: string) => void,
+  ): Session {
     const code = textInput(input.code, "代码", 80), label = textInput(input.device_label, "设备名称", 60), name = textInput(input.display_name, "名字", 40);
-    return transaction(this.db, () => {
+    let revokedSessionId: string | null = null;
+    const next = transaction(this.db, () => {
       const invitation = this.db.prepare("SELECT * FROM mw_codes WHERE hash=? AND consumed=0 AND expires_at>?").get(hash(code), this.now()) as {kind:string; member_id:string; project_id:string|null; role:Role; creator_session:string|null} | undefined;
       if (!invitation) throw new ImError("im.identity.code_invalid", "代码已使用或过期，请生成新代码", 401);
       if (invitation.creator_session && !this.db.prepare("SELECT 1 FROM mw_sessions WHERE id=? AND revoked=0 AND expires_at>?").get(invitation.creator_session, this.now())) throw new ImError("im.identity.code_invalid", "发起设备已断开，请生成新代码", 401);
@@ -87,9 +142,14 @@ export class Identity {
           .run(invitation.project_id, memberId, invitation.role);
       }
       this.db.prepare("UPDATE mw_codes SET consumed=1 WHERE hash=?").run(hash(code));
-      if (existing) this.db.prepare("UPDATE mw_sessions SET revoked=1 WHERE id=?").run(existing.id);
+      if (existing) {
+        this.db.prepare("UPDATE mw_sessions SET revoked=1 WHERE id=?").run(existing.id);
+        revokedSessionId = existing.id;
+      }
       return this.issue(memberId, label, response, secure);
     });
+    if (revokedSessionId) onRevoked?.(revokedSessionId);
+    return next;
   }
   access(session: Session, projectId: string, minimum: Role = "viewer"): Role {
     const member = this.requireMember(session);

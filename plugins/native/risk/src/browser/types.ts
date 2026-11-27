@@ -51,6 +51,11 @@ export interface RiskPageState {
   conflict: { current: RiskRecord; draft: RiskDraft } | null;
   pop: "" | "status" | "review" | "link" | "linked";
   busy: boolean;
+  /** Monotonic counters so late responses from superseded overview or record reads never overwrite the active view. */
+  overviewEpoch: number;
+  recordEpoch: number;
+  /** In-progress note text on the open record, kept across in-place re-renders (such as language switches). */
+  noteDraft: string;
 }
 
 /** What the edit form holds. */

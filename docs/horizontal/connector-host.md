@@ -10,4 +10,4 @@
 
 **当前实现与 Goal：** Connector Host 提供通用连接技术能力，Integration Plugin 拥有 Provider/OAuth/scope，Native Feed 组合账号与同步用例；FD1/FD3/Cutover 已退出旧连接目录。
 
-**FD1 当前实现：** `@molis-ai/molis-work-service-connector-host` 提供 Driver 注册、Connection handle、health、超时和标准 Receipt。现有 GitHub/Gmail port 由兼容 caller 注入；Host 源码不导入任何 provider 实现。
+**当前实现：** `@molis-ai/molis-work-service-connector-host` 提供 Driver 注册、Connection handle、health、超时和标准 Receipt。各官方集成包（GitHub、Gmail、目录连接器、RSS）通过各自的 `./drivers` 导出 `IntegrationDrivers` 驱动，经生成清单由宿主统一装配进连接器登记；宿主与本包源码不直接导入任何 provider 实现。

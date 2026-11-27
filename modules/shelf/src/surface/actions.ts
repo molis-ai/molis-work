@@ -130,9 +130,16 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
     ...(definition.capability_id === shelfActions.generate.capability_id && ports.aiAvailability ? { availability: () => ports.aiAvailability!() } : {}),
   });
+  const MAX_BASE64_LENGTH = 45_000_000;
+  const MAX_FOLDER_ENTRIES = 10_000;
   const bytes = (encoded: string) => {
+    if (encoded.length > MAX_BASE64_LENGTH) throw shelfErrors.too_large("文件超过 32 MB");
+    if (encoded.length === 0) return Buffer.alloc(0);
+    if (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) {
+      throw shelfErrors.invalid("文件内容无效");
+    }
     const decoded = Buffer.from(encoded, "base64");
-    if (!decoded.byteLength && encoded.length) throw shelfErrors.invalid("文件内容无效");
+    if (!decoded.byteLength || decoded.toString("base64") !== encoded) throw shelfErrors.invalid("文件内容无效");
     return decoded;
   };
   return [
@@ -158,8 +165,17 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
       if (!filename || !input.bytes_base64) throw shelfErrors.invalid("请选择要加入的文件");
       return { item: await ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined }, control) };
     }),
-    bind(shelfActions.admitFolder, async input => ({ item: await ports.admitFolder({ name: input.name.trim(),
-      entries: input.entries.map(entry => ({ relative: entry.relative, bytes: bytes(entry.bytes_base64), mime: entry.mime || undefined })) }) })),
+    bind(shelfActions.admitFolder, async input => {
+      if (input.entries.length > MAX_FOLDER_ENTRIES) throw shelfErrors.invalid("文件夹内文件数量超过上限");
+      let totalBytes = 0;
+      const entries = input.entries.map(entry => {
+        const decoded = bytes(entry.bytes_base64);
+        totalBytes += decoded.byteLength;
+        if (totalBytes > 32 * 1024 * 1024) throw shelfErrors.too_large("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来");
+        return { relative: entry.relative, bytes: decoded, mime: entry.mime || undefined };
+      });
+      return { item: await ports.admitFolder({ name: input.name.trim(), entries }) };
+    }),
     bind(shelfActions.capture, async (input, caller) => {
       if (!isHttpUrl(input.url.trim())) throw shelfErrors.invalid("请给出 http 或 https 网址");
       return { item: await ports.captureUrl(input.url.trim(), { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };

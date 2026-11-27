@@ -1,4 +1,4 @@
-import { format, renderTaskAttemptBudget, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, format, renderTaskAttemptBudget, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { AgentRunUsage, AgentSubagentBudgetView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el, errorMessage } from "./dom.js";
@@ -55,7 +55,7 @@ interface Panel {
   readonly region: HTMLElement;
   readonly compare: string[];
   readonly pending: Set<string>;
-  readonly states: Readonly<Record<string, string>>;
+  readonly stateText: (state: string) => string;
   /** Draws the panel again from the last groups. */
   readonly redraw: () => void;
   /** The next `update` draws even when nothing it shows changed. */
@@ -90,7 +90,7 @@ const button = (panel: Panel, label: string, action: () => unknown, disabled?: b
 const column = (panel: Panel, child: Child) => {
   const box = el("article");
   box.className = "coding-compare-column";
-  box.append(el("h4", heading(panel, child)), el("p", panel.states[child.state] || child.state));
+  box.append(el("h4", heading(panel, child)), el("p", panel.stateText(child.state)));
   const files = edits(child);
   box.append(el("p", files.length ? text("coding.sub.files", { files: files.join(text("common.list.separator")) }) : text("coding.sub.no-files")));
   const tokens = child.usage?.tokens;
@@ -230,7 +230,7 @@ function outcome(panel: Panel, row: HTMLElement, child: Child) {
       budget.exhausted ? text("coding.card.budget.exhausted") : "",
     ].filter(Boolean).join(" · ");
     const pastAttempts = budget.prior_attempts?.map(item => {
-      const stateWord = panel.states[item.state] || item.state;
+      const stateWord = panel.stateText(item.state);
       const detail = item.reason || item.error || (item.source ? sources[item.source] : "") || "";
       return {
         state: (item.state === "completed" ? "done" : item.state === "cancelled" ? "stopped" : "failed") as "done" | "stopped" | "failed",
@@ -259,7 +259,7 @@ function outcome(panel: Panel, row: HTMLElement, child: Child) {
 }
 
 function childRow(panel: Panel, id: string, group: SubagentGroup, child: Child, opened: ReadonlySet<string | undefined>) {
-  const resultState = child.state === "completed" && child.verdict ? (child.verdict.status === "accepted" ? text("coding.sub.state.accepted") : text("coding.sub.state.needs-work")) : panel.states[child.state];
+  const resultState = child.state === "completed" && child.verdict ? (child.verdict.status === "accepted" ? text("coding.sub.state.accepted") : text("coding.sub.state.needs-work")) : panel.stateText(child.state);
   const row = el("details"), summary = el("summary", heading(panel, child) + " · " + resultState);
   row.dataset.child = child.subagent_id;
   row.open = opened.has(child.subagent_id);
@@ -278,12 +278,13 @@ export function subagentGroups(ports: SubagentPorts): SubagentGroups {
   const { q } = ports, region = q("[data-coding-subagents]");
   let key = "", lastGroups: readonly SubagentGroup[] = [], lastId = "";
   const compare: string[] = [], pending = new Set<string>();
-  const states = { running: text("coding.state.running"), completed: text("coding.sub.state.completed"), failed: text("coding.phase.failed"), cancelled: text("coding.phase.stopped"), "reconcile-required": text("coding.plan.run.reconcile") };
-  const panel: Panel = { ports, region, compare, pending, states, redraw: () => update(lastId, lastGroups), stale: () => { key = ""; } };
+  const stateKeys: Readonly<Record<string, string>> = { running: "coding.state.running", completed: "coding.sub.state.completed", failed: "coding.phase.failed", cancelled: "coding.phase.stopped", "reconcile-required": "coding.plan.run.reconcile" };
+  const stateText = (state: string) => stateKeys[state] ? text(stateKeys[state]!) : state;
+  const panel: Panel = { ports, region, compare, pending, stateText, redraw: () => update(lastId, lastGroups), stale: () => { key = ""; } };
   const update = (id: string, groups: readonly SubagentGroup[]) => {
     lastGroups = groups;
     lastId = id;
-    const next = JSON.stringify([id, groups, [...pending], compare]);
+    const next = JSON.stringify([activeUiLocale(), id, groups, [...pending], compare]);
     if (key === next) return;
     key = next;
     const opened = new Set([...region.querySelectorAll<HTMLElement>("details[open]")].map(node => node.dataset.child));

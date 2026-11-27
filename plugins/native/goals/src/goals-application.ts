@@ -31,8 +31,14 @@ export interface GoalsApplicationPorts {
  */
 export function createGoalsApplication(ports: GoalsApplicationPorts) {
   const { goals, governance, clock } = ports;
+  // Preview savepoints roll back SQLite rows without rolling back the host's in-memory `hanging` queue; suppress external requirement
+  // hanging while any preview is active so `goals.tree.check` never leaks unapproved requirements to `modules/acceptance`.
+  let previewDepth = 0;
+  const requirementsHung: GoalEventApplicationPorts["requirementsHung"] = ports.requirementsHung
+    ? (goal, requirements) => { if (previewDepth === 0) ports.requirementsHung!(goal, requirements); }
+    : undefined;
   const goalEvents = new GoalEventApplication({ query: goals.query, commands: goals.commands, events: goals.events,
-    recordTrustedDecision: input => governance.eventDecisions.record(input), ...(ports.requirementsHung ? { requirementsHung: ports.requirementsHung } : {}) });
+    recordTrustedDecision: input => governance.eventDecisions.record(input), ...(requirementsHung ? { requirementsHung } : {}) });
   const goalTree = new GoalTreeQueryApplication({ goals: goals.query, governance });
   const goalDecisionAttention = new GoalDecisionAttentionSync({ attention: ports.attention, owner: GOALS_PLUGIN_ID,
     listProposals: projectId => goalTree.listGoalTreeProposals({ project_id: projectId }).proposals,
@@ -40,9 +46,17 @@ export function createGoalsApplication(ports: GoalsApplicationPorts) {
   const goalTreeSubmission = new GoalTreeSubmissionApplication({ goals: { query: goals.query, commands: goals.commands, planning: goals.planning },
     governance, query: goalTree, clock, attention: goalDecisionAttention });
   const inputs = new GoalTreeInputReader({ commands: goals.commands });
-  const facts = new GoalTreeFactMaterializer({ commands: goals.commands, query: goals.query }, inputs, input => goalEvents.createIntent(input));
+  const facts = new GoalTreeFactMaterializer({ commands: goals.commands, query: goals.query }, inputs, (input, options) => goalEvents.createIntent(input, options));
   const conflicts = new GoalTreeMaterializationConflicts({ query: goals.query, planning: goals.planning }, governance, inputs);
-  const materialization = new GoalTreeMaterializationApplication({ goals: goals.query, transactions: governance.decisions, facts, conflicts });
+  const transactions = {
+    previewMaterialization<T>(operation: () => T): T {
+      previewDepth += 1;
+      try { return governance.decisions.previewMaterialization(operation); }
+      finally { previewDepth -= 1; }
+    },
+    previewMaterializationItem: governance.decisions.previewMaterializationItem.bind(governance.decisions),
+  };
+  const materialization = new GoalTreeMaterializationApplication({ goals: goals.query, transactions, facts, conflicts });
   const followup = new GoalTreeDecisionFollowup({ goals: { query: goals.query, planning: goals.planning }, governance, query: goalTree, inputs });
   const goalQueries = new GoalReadApplication(goals.query, { now: () => clock(),
     goalTreeProposals: (projectId, rootGoalId) => goalTree.listGoalTreeProposals({ project_id: projectId, root_goal_id: rootGoalId }).proposals });

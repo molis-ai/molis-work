@@ -101,16 +101,24 @@ interface KnowledgePicked { readonly request_id?: string; readonly outcome?: str
 async function takeMaterials(page: Page, picked: KnowledgePicked) {
   const { input, lifetime, refs, s } = page, [owner, id, ticket] = String(picked.request_id || "").split(":");
   if (owner !== "coding" || id !== s.current || Number(ticket) !== s.materialTicket || picked.outcome !== "confirmed") return;
+  const previous = s.materialSelections.get(id);
   const selection = (picked.items || []).map(item => ({ ref: item.ref, title: item.hint ? item.title + " · " + item.hint : item.title }));
+  // Held before saving so an overlapping composer keystroke save cannot write the old materials back over this choice.
+  s.materialSelections.set(id, selection);
   try {
     await refs.draft.save(id, input.value, { materials: selection });
-    s.materialSelections.set(id, selection);
     if (s.current !== id) return;
     controls(page);
     input.focus();
     status(page, selection.length ? uiText.text("coding.material.chosen", { count: selection.length }) : uiText.text("coding.material.cleared"));
   } catch (error) {
-    if (lifetime.alive) status(page, errorMessage(error), true);
+    if (!lifetime.alive) return;
+    if (s.materialSelections.get(id) === selection) {
+      if (previous === undefined) s.materialSelections.delete(id);
+      else s.materialSelections.set(id, previous);
+      if (s.current === id) controls(page);
+    }
+    status(page, errorMessage(error), true);
   }
 }
 
@@ -165,6 +173,10 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
   const { host, lifetime, q, refs, s } = page, submit = submitOf(form), id = s.current;
   if (submit.disabled) return;
   submit.disabled = true;
+  let mutated = false;
+  let previousWorkspace = s.workspaceId;
+  let previousWorktree = s.worktree;
+  let previousConfig = s.configurations.get(id);
   try {
     const path = q<HTMLInputElement>("[data-coding-workspace-path]").value.trim();
     if (path && !q<HTMLInputElement>("[data-coding-workspace-confirm]").checked) throw new Error(uiText.text("coding.workspace.confirm-needed"));
@@ -174,10 +186,14 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
     if (s.current !== id) return;
     await useProjectWorkspace(page, chosen);
     if (s.current !== id) return;
+    previousWorkspace = s.workspaceId;
+    previousWorktree = s.worktree;
+    previousConfig = s.configurations.get(id);
     // Choosing a folder ends a worktree choice: the session's rounds run in the folder again.
     s.workspaceId = chosen;
     s.worktree = null;
     rememberConfiguration(page);
+    mutated = true;
     await refs.draft.flush();
     await refreshState(page);
     q("[data-coding-workspace-error]").textContent = "";
@@ -186,6 +202,15 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
     q<HTMLDialogElement>("[data-coding-workspace-dialog]").close();
   } catch (error) {
     if (!lifetime.alive) return;
+    if (mutated) {
+      if (previousConfig === undefined) s.configurations.delete(id);
+      else s.configurations.set(id, previousConfig);
+      if (s.current === id) {
+        s.workspaceId = previousWorkspace;
+        s.worktree = previousWorktree;
+        controls(page);
+      }
+    }
     q("[data-coding-workspace-error]").textContent = errorMessage(error);
   } finally {
     submit.disabled = false;

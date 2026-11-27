@@ -8,6 +8,7 @@ const ACTIVE = new Set(["open", "doing", "waiting"]);
 const STALE_DAYS = 14;
 
 const isActive = (item: TodoItem) => ACTIVE.has(item.status) && item.archived_at === null;
+const followUpDate = (item: TodoItem): string | null => item.status === "waiting" ? item.waiting?.follow_up_on ?? null : null;
 
 export function todoFlags(item: TodoItem, today: string): TodoFlag[] {
   if (!isActive(item)) return [];
@@ -23,10 +24,13 @@ export function todoFlags(item: TodoItem, today: string): TodoFlag[] {
 /** Whether an item answers the view's question. */
 export function inView(item: TodoItem, view: TodoView, today: string): boolean {
   switch (view) {
-    case "today":
+    case "today": {
+      const followUp = followUpDate(item);
       return isActive(item) && (item.status === "doing"
         || (item.planned_date !== null && item.planned_date <= today)
-        || (item.due_date !== null && item.due_date <= today));
+        || (item.due_date !== null && item.due_date <= today)
+        || (followUp !== null && followUp <= today));
+    }
     case "waiting":
       return isActive(item) && item.status === "waiting";
     case "unscheduled":
@@ -53,6 +57,7 @@ function compareTodos(view: TodoView, a: TodoItem, b: TodoItem): number {
   if (a.important !== b.important) return a.important ? -1 : 1;
   return order(a.due_date).localeCompare(order(b.due_date))
     || order(a.planned_date).localeCompare(order(b.planned_date))
+    || order(followUpDate(a)).localeCompare(order(followUpDate(b)))
     || a.created_at.localeCompare(b.created_at);
 }
 

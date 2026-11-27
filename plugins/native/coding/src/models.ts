@@ -1,4 +1,5 @@
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** A model the person can pick for a round, as the page lists it. */
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string;
@@ -9,6 +10,12 @@ export interface CodingModelChoice { provider_id: string; model_id: string; labe
 
 /** Why the chosen model cannot run now, in the words the page shows. */
 export const MODEL_UNAVAILABLE = "所选模型不可用，请在全局模型设置中检查配置";
+
+/** Localized model-unavailable message for the active UI language, with fallback outside a text context. */
+export function modelUnavailableMessage(reason?: string): string {
+  const base = tryUiText("coding.server.model-missing") ?? MODEL_UNAVAILABLE;
+  return reason ? tryUiText("coding.server.model-missing-reason", { reason }) ?? `${base}（${reason}）` : base;
+}
 
 /**
  * The models Coding offers, and whether one can run now: both come from `services.model` (PG-047), which holds the one list the
@@ -25,7 +32,7 @@ export function codingModels(context: PluginStartContext) {
     unavailable: (selection: { provider_id: string; model_id: string }): string | undefined => {
       const state = service()?.availability(selection);
       if (state?.available) return undefined;
-      return state && "reason" in state && state.reason ? `${MODEL_UNAVAILABLE}（${state.reason}）` : MODEL_UNAVAILABLE;
+      return modelUnavailableMessage(state && "reason" in state && state.reason ? state.reason : undefined);
     },
   };
 }

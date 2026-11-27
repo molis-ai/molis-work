@@ -10,7 +10,7 @@ import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { matchingActions } from "./local-host-types.js";
-import { artifactTypeDeclarations } from "./artifact-type-registry.js";
+import { artifactProducerSources, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
@@ -37,7 +37,7 @@ async function ownerPreview(subjectId: string, views: readonly ActionView[], inv
   const reference = parseArtifactSubjectId(subjectId);
   if (!reference) return null;
   const artifact = await ports.localHost.withProject(ports.reference, runtime => runtime.artifacts.query.getArtifactVersion(runtime.project_id, reference));
-  const declaration = artifact ? artifactTypeDeclarations().get(artifact.artifact_type_id) : undefined;
+  const declaration = artifact ? artifactTypeDeclarations(artifactProducerSources(ports.reference.project_id)).get(artifact.artifact_type_id) : undefined;
   // Only the declared owner previews its type, and only versions it produced.
   if (!artifact || artifact.availability !== "available" || !declaration?.preview || artifact.producer_plugin_id !== declaration.plugin_id) return null;
   const view = views.find(item => item.capability_id === declaration.preview!.capability_id && item.version === declaration.preview!.version && item.availability.available);

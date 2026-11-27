@@ -202,7 +202,7 @@ test("RAC-396 S-75 an installation's actions are registered under its install id
     await runtime.stop(installed.install_id);
   }
   const impostor = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
-  assert.throws(() => install(impostor, `plugin:${id}`, "label"), "no plugin id can be spelled as a package's provider");
+  assert.throws(() => install(impostor, `plugin:${id}`, "label"), code("plugin.manifest_invalid"), "no plugin id can be spelled as a package's provider");
 });
 
 test("RAC-395 RAC-399 S-75 normally loaded existing conflicts crash before activation in the same or a new Runtime", async () => {

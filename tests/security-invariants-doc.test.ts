@@ -122,3 +122,35 @@ test("B27G-03 an unquarantined entry of a valid product subset plan is CI eviden
   assert.ok(problems({ "tests/quarantine.json": JSON.stringify(held) }).some(problem => notRun.test(problem)), "quarantined");
   assert.ok(problems({ "tests/ci-product-subset.txt": `${list}\nnot a test path\n` }).some(problem => notRun.test(problem)), "a plan with a problem of its own counts for nothing");
 });
+
+test("F-btd-w3-02 every invariant row must have strictly 5 columns (unescaped '|' fails)", () => {
+  const shifted = row("contains unescaped `host | none` pipe | code | " + namedEntry + " |");
+  const problems = securityInvariantProblems(shifted);
+  assert.ok(problems.some((problem: string) => problem.includes("row must have exactly 5 columns")), JSON.stringify(problems));
+});
+
+test("F-TEST-01 darwin-only tests in the CI column require a blocking macOS job in ci.yml", () => {
+  const darwinHeaderFile = "tests/security-invariants-darwin-only-fixture.test.ts";
+  const darwinHeaderTitle = "darwin header only refusal";
+  const darwinSkipFile = "tests/security-invariants-darwin-skip-fixture.test.ts";
+  const darwinSkipTitle = "darwin inline skip refusal";
+  // Matched by test:security glob (`tests/security-invariants-*.test.ts`), NOT in test:security:macos -> must fail!
+  const headerSnap = altered({
+    [extra]: `| S-extra | x | code | \`${darwinHeaderFile}\`「${darwinHeaderTitle}」 | |\n`,
+    [darwinHeaderFile]: `// @requires-platform darwin\nimport test from "node:test";\ntest("${darwinHeaderTitle}", () => {});\n`,
+  }, [extra, darwinHeaderFile]);
+  assert.ok(securityInvariantProblems(headerSnap).some((problem: string) => problem.includes("darwin-only (skipped on Linux)")), "header-marked darwin test fails without macOS CI coverage");
+
+  const skipSnap = altered({
+    [extra]: `| S-extra | x | code | \`${darwinSkipFile}\`「${darwinSkipTitle}」 | |\n`,
+    [darwinSkipFile]: `import test from "node:test";\ntest("${darwinSkipTitle}", { skip: process.platform !== "darwin" }, () => {});\n`,
+  }, [extra, darwinSkipFile]);
+  assert.ok(securityInvariantProblems(skipSnap).some((problem: string) => problem.includes("darwin-only (skipped on Linux)")), "darwin-skipped test fails without macOS CI coverage");
+
+  // Removing a darwin-only file from test:security:macos causes existing macOS CI invariants to fail.
+  const withoutMacos = { ...packageJson, scripts: { ...packageJson.scripts, "test:security:macos": packageJson.scripts["test:security:macos"]!.replace(" tests/security-invariants-computer-gesture.test.ts", "") } };
+  assert.ok(
+    securityInvariantProblems(altered({ "package.json": JSON.stringify(withoutMacos) })).some((problem: string) => problem.includes("tests/security-invariants-computer-gesture.test.ts") && problem.includes("darwin-only (skipped on Linux)")),
+    "dropping a darwin-only invariant from test:security:macos fails the gate",
+  );
+});

@@ -13,37 +13,48 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `    const treeResizeBlocked = () =>
       workspace.classList.remove("is-tree-resizing");
       saveUiState();
     };
-    treeResizer?.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || treeResizeBlocked()) return;
-      beginTreeResize(event.clientX);
-      const pointerId = event.pointerId;
-      const move = (moveEvent) => {
-        if (moveEvent.pointerId !== pointerId) return;
-        setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
-      };
-      const end = (endEvent) => {
-        if (endEvent.pointerId !== pointerId) return;
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", end);
-        window.removeEventListener("pointercancel", end);
-        stopTreeResize();
-      };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", end);
-      window.addEventListener("pointercancel", end);
-    });
-    treeResizer?.addEventListener("mousedown", (event) => {
-      if (event.button !== 0 || treeResizeBlocked()) return;
-      if (!treeResizer.classList.contains("is-dragging")) beginTreeResize(event.clientX);
-      const move = (moveEvent) => setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
-      const end = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", end);
-        if (treeResizer.classList.contains("is-dragging")) stopTreeResize();
-      };
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", end);
-    });
+    if ("PointerEvent" in window) {
+      treeResizer?.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || treeResizeBlocked()) return;
+        event.preventDefault();
+        beginTreeResize(event.clientX);
+        const pointerId = event.pointerId;
+        let dragging = true;
+        try { treeResizer.setPointerCapture(pointerId); } catch { /* synthetic or non-capturable pointer */ }
+        const move = (moveEvent) => {
+          if (!dragging || moveEvent.pointerId !== pointerId) return;
+          setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
+        };
+        const end = (endEvent) => {
+          if (!dragging || (endEvent.pointerId !== undefined && endEvent.pointerId !== pointerId)) return;
+          dragging = false;
+          try { if (treeResizer.hasPointerCapture(pointerId)) treeResizer.releasePointerCapture(pointerId); } catch { /* already released */ }
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", end);
+          window.removeEventListener("pointercancel", end);
+          treeResizer.removeEventListener("lostpointercapture", end);
+          stopTreeResize();
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", end);
+        window.addEventListener("pointercancel", end);
+        treeResizer.addEventListener("lostpointercapture", end);
+      });
+    } else {
+      treeResizer?.addEventListener("mousedown", (event) => {
+        if (event.button !== 0 || treeResizeBlocked()) return;
+        event.preventDefault();
+        beginTreeResize(event.clientX);
+        const move = (moveEvent) => setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
+        const end = () => {
+          window.removeEventListener("mousemove", move);
+          window.removeEventListener("mouseup", end);
+          if (treeResizer.classList.contains("is-dragging")) stopTreeResize();
+        };
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", end);
+      });
+    }
     treeResizer?.addEventListener("dblclick", () => setTreeWidth(innerWidth <= 1050 ? 220 : 240));
     treeResizer?.addEventListener("keydown", (event) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;

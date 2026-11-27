@@ -6,6 +6,7 @@ import { goalRequirementRows, type GoalEventDocumentView, type GoalRequirementRo
 import type { GoalAcceptanceSummary } from "./acceptance-summary.js";
 import { createEventDocumentForms } from "./event-document-forms.js";
 import type { GoalHistoryIndexItem } from "./event-history-map.js";
+import { goalRelationLabel } from "./relation-presentation.js";
 
 export function renderGoalEventDocument(
   item: GoalsDocumentItem,
@@ -132,35 +133,35 @@ function currentJudgment(state: GoalEventStateView | undefined, acceptance: Goal
 }
 
 const HISTORY_TYPE_KEYS: Record<string, string> = {
-  "当前进展": "goals.history.type.progress-summary",
-  "补充说明": "goals.history.type.observation-note",
-  "提出问题": "goals.history.type.concern-opened",
-  "解决问题": "goals.history.type.concern-resolved",
-  "接受风险": "goals.history.type.concern-accepted",
-  "撤销问题": "goals.history.type.concern-overturned",
-  "请求决定": "goals.history.type.decision-requested",
-  "用户决定": "goals.history.type.user-decision",
-  "引用决定": "goals.history.type.decision-cited",
-  "调整约定": "goals.history.type.agreement-set",
-  "提交收尾": "goals.history.type.closure-submitted",
-  "继续推进": "goals.history.type.completion-reopened",
-  "重新继续": "goals.history.type.work-resumed",
-  "继续目标": "goals.history.type.event-owner-continued",
-  "回应笔记": "goals.history.type.input-acknowledged",
-  "工作汇报": "goals.history.type.report",
-  "记录配置": "goals.history.type.configuration",
-  "系统记录": "goals.history.type.system",
-  "建立目标": "goals.history.journal.created",
-  "更新目标": "goals.history.journal.updated",
-  "确认目标": "goals.history.journal.accepted",
-  "建立关系": "goals.history.journal.relation-added",
-  "解除关系": "goals.history.journal.relation-deactivated",
-  "记录": "goals.history.type.record",
+  progress_summary: "goals.history.type.progress-summary",
+  observation_note: "goals.history.type.observation-note",
+  concern_opened: "goals.history.type.concern-opened",
+  concern_resolved: "goals.history.type.concern-resolved",
+  concern_accepted: "goals.history.type.concern-accepted",
+  concern_overturned: "goals.history.type.concern-overturned",
+  decision_requested: "goals.history.type.decision-requested",
+  user_decision: "goals.history.type.user-decision",
+  decision_cited: "goals.history.type.decision-cited",
+  agreement_set: "goals.history.type.agreement-set",
+  closure_submitted: "goals.history.type.closure-submitted",
+  completion_reopened: "goals.history.type.completion-reopened",
+  work_resumed: "goals.history.type.work-resumed",
+  event_owner_continued: "goals.history.type.event-owner-continued",
+  input_acknowledged: "goals.history.type.input-acknowledged",
+  report: "goals.history.type.report",
+  configuration: "goals.history.type.configuration",
+  system: "goals.history.type.system",
+  "goal.created": "goals.history.journal.created",
+  "goal.updated": "goals.history.journal.updated",
+  "goal.accepted": "goals.history.journal.accepted",
+  "relation.added": "goals.history.journal.relation-added",
+  "relation.deactivated": "goals.history.journal.relation-deactivated",
+  record: "goals.history.type.record",
 };
 
 const HISTORY_STATUS_KEYS: Record<string, string> = {
-  "已建立": "goals.history.status.created",
-  "已解除": "goals.history.status.removed",
+  created: "goals.history.status.created",
+  removed: "goals.history.status.removed",
 };
 
 function renderTimeline(items: readonly GoalHistoryIndexItem[], _L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], state?: GoalEventStateView): string {
@@ -174,16 +175,20 @@ function renderTimeline(items: readonly GoalHistoryIndexItem[], _L: GoalsDocumen
     const current = false;
     const kind = item.lane && item.lane !== "other" ? item.lane : "";
     const time = formatClock(item.received_at);
-    const isDecisionRequest = item.type_label === "请求决定";
+    const isDecisionRequest = item.type_key === "decision_requested";
     const pending = isDecisionRequest ? state?.pending_decisions.find((request) => request.event_id === item.event_id) : undefined;
-    const typeLabel = HISTORY_TYPE_KEYS[item.type_label] ? uiText.text(HISTORY_TYPE_KEYS[item.type_label]!) : item.type_label;
+    const hasTypeKey = Boolean(item.type_key && Object.hasOwn(HISTORY_TYPE_KEYS, item.type_key));
+    const typeLabel = hasTypeKey ? uiText.text(HISTORY_TYPE_KEYS[item.type_key!]!) : item.type_label;
+    const title = item.relation
+      ? `${item.relation.from_title} → ${goalRelationLabel(item.relation.type, "out") ?? item.relation.label} → ${item.relation.to_title}`
+      : (item.source === "journal" && item.title === item.type_label && hasTypeKey ? typeLabel : item.title);
     const statusLabel = isDecisionRequest && state
       ? pending ? uiText.text("goals.event-document-ui.needs-decision") : uiText.text("goals.event-document-ui.handled")
-      : item.status_label && HISTORY_STATUS_KEYS[item.status_label] ? uiText.text(HISTORY_STATUS_KEYS[item.status_label]!) : item.status_label;
+      : item.status_key && Object.hasOwn(HISTORY_STATUS_KEYS, item.status_key) ? uiText.text(HISTORY_STATUS_KEYS[item.status_key]!) : item.status_label;
     return `<button type="button" class="timeline-entry${kind ? ` is-${kind}` : ""}" data-timeline-item="${escapeHtml(item.item_id)}" data-event-id="${escapeHtml(item.event_id ?? "")}" data-source="${escapeHtml(item.source)}" data-original-id="${escapeHtml(item.original_id)}" data-lane="${escapeHtml(item.lane)}" aria-current="${current ? "true" : "false"}" aria-expanded="${current ? "true" : "false"}">
       <time datetime="${escapeHtml(item.received_at)}">${escapeHtml(time)}</time>
       <span class="timeline-dot" aria-hidden="true"><span class="timeline-mark">${item.relation ? "↗" : kind === "result" ? "✓" : kind === "decision" ? "◇" : kind === "problem" ? "!" : "·"}</span></span>
-      <span class="timeline-copy"><strong>${escapeHtml(item.title)}</strong><small><b class="timeline-type">${escapeHtml(typeLabel)}</b> <span class="timeline-actor">${escapeHtml(item.actor_id)}</span></small>${statusLabel ? `<em class="history-state">${escapeHtml(statusLabel)}</em>` : ""}</span>
+      <span class="timeline-copy"><strong>${escapeHtml(title)}</strong><small><b class="timeline-type">${escapeHtml(typeLabel)}</b> <span class="timeline-actor">${escapeHtml(item.actor_id)}</span></small>${statusLabel ? `<em class="history-state">${escapeHtml(statusLabel)}</em>` : ""}</span>
     </button>`;
   }).join("")}`).join("");
 }

@@ -96,6 +96,90 @@ function writtenTo(source, names) {
   return written;
 }
 
+const hasModifier = (node, kind) =>
+  ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((modifier) => modifier.kind === kind);
+
+const isAmbient = (node) => hasModifier(node, ts.SyntaxKind.DeclareKeyword);
+
+function collectBindingNames(nameNode, target) {
+  if (ts.isIdentifier(nameNode)) {
+    target.add(nameNode.text);
+    return;
+  }
+  if (ts.isObjectBindingPattern(nameNode) || ts.isArrayBindingPattern(nameNode)) {
+    for (const element of nameNode.elements) {
+      if (ts.isBindingElement(element)) collectBindingNames(element.name, target);
+    }
+  }
+}
+
+function collectHoistedVars(rootNode, target) {
+  const walk = (node) => {
+    if (ts.isFunctionLike(node) || ts.isClassLike(node) || ts.isModuleDeclaration(node)) return;
+    if (ts.isVariableDeclarationList(node) && !(node.flags & (ts.NodeFlags.Const | ts.NodeFlags.Let))) {
+      for (const declaration of node.declarations) collectBindingNames(declaration.name, target);
+    }
+    ts.forEachChild(node, walk);
+  };
+  ts.forEachChild(rootNode, walk);
+}
+
+function collectStatementBindings(statements, target, includeImports) {
+  for (const statement of statements) {
+    if (isAmbient(statement)) continue;
+    if (includeImports && ts.isImportDeclaration(statement)) {
+      const clause = statement.importClause;
+      if (!clause || clause.isTypeOnly) continue;
+      if (clause.name) target.add(clause.name.text);
+      const bindings = clause.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) {
+        target.add(bindings.name.text);
+      } else if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          if (!element.isTypeOnly) target.add(element.name.text);
+        }
+      }
+      continue;
+    }
+    if (includeImports && ts.isImportEqualsDeclaration(statement) && !statement.isTypeOnly) {
+      target.add(statement.name.text);
+      continue;
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) collectBindingNames(declaration.name, target);
+    } else if (ts.isFunctionDeclaration(statement) && statement.body && statement.name) {
+      target.add(statement.name.text);
+    } else if ((ts.isClassDeclaration(statement) || ts.isEnumDeclaration(statement)) && statement.name) {
+      target.add(statement.name.text);
+    } else if (ts.isModuleDeclaration(statement) && statement.body && ts.isIdentifier(statement.name)) {
+      target.add(statement.name.text);
+    }
+  }
+}
+
+/** True only when the top-level declared container type itself prevents mutation (not an inner `Readonly<T>` element type). */
+function isReadonlyContainerType(typeNode, collectionName) {
+  if (!typeNode) return false;
+  let type = typeNode;
+  while (ts.isParenthesizedTypeNode(type)) type = type.type;
+  if (collectionName) {
+    if (!ts.isTypeReferenceNode(type) || !ts.isIdentifier(type.typeName)) return false;
+    return (collectionName === "Map" && type.typeName.text === "ReadonlyMap")
+      || (collectionName === "Set" && type.typeName.text === "ReadonlySet");
+  }
+  if (ts.isTypeOperatorNode(type) && type.operator === ts.SyntaxKind.ReadonlyKeyword) return true;
+  if (ts.isTypeReferenceNode(type) && ts.isIdentifier(type.typeName)) {
+    return type.typeName.text === "Readonly" || type.typeName.text === "ReadonlyArray";
+  }
+  if (ts.isTypeLiteralNode(type)) {
+    return type.members.length > 0 && type.members.every((member) =>
+      (ts.isPropertySignature(member) || ts.isIndexSignatureDeclaration(member))
+      && hasModifier(member, ts.SyntaxKind.ReadonlyKeyword),
+    );
+  }
+  return false;
+}
+
 /** Count the impure constructs of one source file. Exported for the gate's own test. */
 export function purityOf(file, text) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
@@ -107,10 +191,15 @@ export function purityOf(file, text) {
     const parent = node.parent;
     if (ts.isPropertyAccessExpression(parent)) return parent.expression === node;
     if (ts.isQualifiedName(parent)) return parent.left === node;
-    if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent)) return false;
+    if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent) || ts.isImportEqualsDeclaration(parent)) return false;
+    if (ts.isLabeledStatement(parent) || ts.isBreakOrContinueStatement(parent)) return false;
     if (ts.isBindingElement(parent)) return parent.propertyName !== node && parent.name !== node;
-    if (ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent) || ts.isMethodDeclaration(parent) || ts.isPropertyDeclaration(parent)
-      || ts.isParameter(parent) || ts.isVariableDeclaration(parent) || ts.isFunctionDeclaration(parent) || ts.isClassDeclaration(parent)) return parent.name !== node;
+    if (ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent) || ts.isMethodDeclaration(parent) || ts.isMethodSignature(parent) || ts.isPropertyDeclaration(parent)
+      || ts.isParameter(parent) || ts.isVariableDeclaration(parent) || ts.isFunctionDeclaration(parent) || ts.isFunctionExpression(parent)
+      || ts.isClassDeclaration(parent) || ts.isClassExpression(parent) || ts.isEnumDeclaration(parent) || ts.isEnumMember(parent)
+      || ts.isInterfaceDeclaration(parent) || ts.isTypeAliasDeclaration(parent) || ts.isTypeParameterDeclaration(parent)) {
+      return parent.name !== node;
+    }
     return true;
   };
   const containsStatusNumber = (node) => {
@@ -122,30 +211,88 @@ export function purityOf(file, text) {
     walk(node);
     return found;
   };
-  // A name the file declares itself (a parameter called `process`, an imported `fetch`) is not the global of that name.
-  const declared = new Set();
-  const collect = (node) => {
-    if ((ts.isParameter(node) || ts.isVariableDeclaration(node) || ts.isBindingElement(node)) && ts.isIdentifier(node.name)) declared.add(node.name.text);
-    if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) declared.add(node.name.text);
-    if (ts.isImportSpecifier(node) || ts.isImportClause(node) || ts.isNamespaceImport(node)) declared.add((node.name ?? node.propertyName)?.text);
-    ts.forEachChild(node, collect);
-  };
-  collect(source);
-  const visit = (node) => {
-    if (ts.isIdentifier(node) && EFFECT_GLOBALS.has(node.text) && !declared.has(node.text) && isUse(node)) counts.effects++;
+  const extendScope = (scope, names) => (names.size ? new Set([...scope, ...names]) : scope);
+  const visit = (node, scope) => {
+    if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isTypeParameterDeclaration(node) || ts.isTypeNode(node)) return;
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier) && isNodeBuiltin(node.moduleSpecifier.text)) {
+      counts["node-imports"]++;
+    }
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
+    if (ts.isIdentifier(node) && EFFECT_GLOBALS.has(node.text) && !scope.has(node.text) && isUse(node)) counts.effects++;
     if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && NON_DETERMINISTIC.has(node.expression.text)) {
       const names = NON_DETERMINISTIC.get(node.expression.text);
       if (names === null || names.has(node.name.text)) counts.effects++;
     }
     if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Date" && !node.arguments?.length) counts.effects++;
-    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier) && isNodeBuiltin(node.moduleSpecifier.text)) counts["node-imports"]++;
     if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression) && node.expression.text === "require")
-      && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) && isNodeBuiltin(node.arguments[0].text)) counts["node-imports"]++;
+      && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) && isNodeBuiltin(node.arguments[0].text)) {
+      counts["node-imports"]++;
+    }
     const named = (ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node)) && ts.isIdentifier(node.name) && STATUS_NAMES.has(node.name.text);
     if (named && node.initializer && containsStatusNumber(node.initializer)) counts["http-status"]++;
-    ts.forEachChild(node, visit);
+
+    if (ts.isSourceFile(node) || ts.isModuleBlock(node)) {
+      const own = new Set();
+      collectStatementBindings(node.statements, own, ts.isSourceFile(node));
+      collectHoistedVars(node, own);
+      const nextScope = extendScope(scope, own);
+      ts.forEachChild(node, (child) => visit(child, nextScope));
+      return;
+    }
+    if (ts.isBlock(node)) {
+      const own = new Set();
+      collectStatementBindings(node.statements, own, false);
+      const nextScope = extendScope(scope, own);
+      ts.forEachChild(node, (child) => visit(child, nextScope));
+      return;
+    }
+    if (ts.isCaseBlock(node)) {
+      const own = new Set();
+      for (const clause of node.clauses) collectStatementBindings(clause.statements, own, false);
+      const nextScope = extendScope(scope, own);
+      ts.forEachChild(node, (child) => visit(child, nextScope));
+      return;
+    }
+    if (ts.isFunctionLike(node)) {
+      if (!node.body) return;
+      if (node.name && ts.isComputedPropertyName(node.name)) visit(node.name, scope);
+      const own = new Set();
+      if (ts.isFunctionExpression(node) && node.name) own.add(node.name.text);
+      let paramScope = extendScope(scope, own);
+      for (const parameter of node.parameters) {
+        if (parameter.initializer) visit(parameter.initializer, paramScope);
+        const paramNames = new Set();
+        if (!(ts.isIdentifier(parameter.name) && parameter.name.text === "this")) collectBindingNames(parameter.name, paramNames);
+        paramScope = extendScope(paramScope, paramNames);
+      }
+      const hoisted = new Set();
+      collectHoistedVars(node.body, hoisted);
+      visit(node.body, extendScope(paramScope, hoisted));
+      return;
+    }
+    if (ts.isClassExpression(node) && node.name) {
+      const nextScope = extendScope(scope, new Set([node.name.text]));
+      ts.forEachChild(node, (child) => visit(child, nextScope));
+      return;
+    }
+    if (ts.isCatchClause(node)) {
+      const own = new Set();
+      if (node.variableDeclaration) collectBindingNames(node.variableDeclaration.name, own);
+      const nextScope = extendScope(scope, own);
+      ts.forEachChild(node, (child) => visit(child, nextScope));
+      return;
+    }
+    if ((ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node))
+      && node.initializer && ts.isVariableDeclarationList(node.initializer)) {
+      const own = new Set();
+      for (const declaration of node.initializer.declarations) collectBindingNames(declaration.name, own);
+      const nextScope = extendScope(scope, own);
+      ts.forEachChild(node, (child) => visit(child, nextScope));
+      return;
+    }
+    ts.forEachChild(node, (child) => visit(child, scope));
   };
-  visit(source);
+  visit(source, new Set());
   // ---- long functions: every function-like node with a body, once, under the name its context gives it ----------------------------
   // Two long functions that the context names alike (the callbacks of one call) are told apart by order: `name`, `name#2`.
   const seen = new Map();
@@ -198,11 +345,12 @@ export function purityOf(file, text) {
         if (mutable) counts["mutable-state"]++;
         const init = declaration.initializer;
         if (!init || mutable) continue;
-        const declaredReadonly = /Readonly/.test(declaration.type?.getText(source) ?? "");
-        if (declaredReadonly) continue;
         const value = unwrapAssertions(init);
-        if (ts.isNewExpression(value) && ts.isIdentifier(value.expression) && MUTABLE_COLLECTIONS.has(value.expression.text)) counts["mutable-state"]++;
-        else if (ts.isIdentifier(declaration.name) && (ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value))) stateCandidates.add(declaration.name.text);
+        if (ts.isNewExpression(value) && ts.isIdentifier(value.expression) && MUTABLE_COLLECTIONS.has(value.expression.text)) {
+          if (!isReadonlyContainerType(declaration.type, value.expression.text)) counts["mutable-state"]++;
+        } else if (ts.isIdentifier(declaration.name) && (ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value))) {
+          if (!isReadonlyContainerType(declaration.type, null)) stateCandidates.add(declaration.name.text);
+        }
       }
     }
   };

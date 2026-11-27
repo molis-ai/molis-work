@@ -13,22 +13,28 @@ export function skillActions(c: WritingContext, edit: DraftEditing) {
   const { project, view, draw, say } = c;
   /** The deleted Skill's fields and state for content restore; the version compared in a detail. */
   let removed: { source: SkillAuthoredSource; state: SkillCatalogEntry["state"] } | undefined, openVersion: { key: string; version: number } | undefined;
+  let undeleting = false;
 
   async function undelete(): Promise<void> {
-    if (!removed) return;
+    if (!removed || undeleting) return;
+    undeleting = true;
     const { source, state } = removed;
     // Keep the fields until adoption succeeds so the person can retry a failed restore.
     let skillId: string;
     try {
-      const draft = await createDraft(project, source.scope, { kind: "new" }, fieldsOfSource(source));
-      skillId = (await adoptDraft(project, draft, false)).skill_id;
-    } catch (cause) { say(written("restore-failed", { n: source.name, m: messageOf(cause) }), "danger", { label: readText("common.control.retry"), attrs: act("au-undelete") }); return; }
-    removed = undefined;
-    await c.reload();
-    const entry = c.showOwn(source.scope, skillId);
-    if (entry && state !== "off") { await setState(project, entry.skill, state); await c.reload(); c.showOwn(source.scope, skillId); }
-    draw("detail");
-    say(written("restored", { n: source.name }));
+      try {
+        const draft = await createDraft(project, source.scope, { kind: "new" }, fieldsOfSource(source));
+        skillId = (await adoptDraft(project, draft, false)).skill_id;
+      } catch (cause) { say(written("restore-failed", { n: source.name, m: messageOf(cause) }), "danger", { label: readText("common.control.retry"), attrs: act("au-undelete") }); return; }
+      removed = undefined;
+      await c.reload();
+      const entry = c.showOwn(source.scope, skillId);
+      if (entry && state !== "off") { await setState(project, entry.skill, state); await c.reload(); c.showOwn(source.scope, skillId); }
+      draw("detail");
+      say(written("restored", { n: source.name }));
+    } finally {
+      undeleting = false;
+    }
   }
   async function open(name: string, entry: SkillEntry): Promise<void> {
     if (name === "au-auto") { await setState(project, entry.skill, "auto"); await c.reload(); return say(written("now-auto", { n: entry.name })); }
@@ -51,7 +57,12 @@ export function skillActions(c: WritingContext, edit: DraftEditing) {
     if (name === "skill-new") { view.asking = { scope: c.pageScope, intent: "" }; view.workshop = undefined; view.detail = true; draw("au"); return true; }
     if (name === "sk-open" && value) { await edit.openDraft(value); return true; }
     if (name === "sk-undiscard" && value) { await discardDraft(project, value, true); c.drafts = await listDrafts(project, true).catch(() => c.drafts); await c.reload(); await edit.openDraft(value); return true; }
-    if (name === "au-undelete") { await undelete(); return true; }
+    if (name === "au-undelete") {
+      const button = origin as HTMLButtonElement;
+      button.disabled = true;
+      try { await undelete(); return true; }
+      finally { button.disabled = false; }
+    }
     if (name !== "skill-edit" && name !== "skill-copy" && name !== "skill-delete" && name !== "au-auto") return false;
     const entry = c.skillOf(value);
     if (!entry) return true;

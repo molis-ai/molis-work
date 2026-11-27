@@ -186,6 +186,7 @@ export type FrameDown =
   | { type: "skill-redo"; reply: string; named: Array<{ ref: import("@molis-ai/molis-work-contracts/services/agent-definitions").SkillRef; name: string }> }
   | { type: "knowledge-picked"; request_id: string; outcome: "confirmed" | "cancelled" | "unavailable"; items: Array<{ ref: MaterialRef; title: string; hint?: string }> }
   | { type: "model-ready" }
+  | { type: "shelf-event"; name: "molis:shelf-refresh" | "molis:shelf-send-tui" | "molis:shelf-notice"; detail: unknown }
   | { type: "terminal-event"; event: UiTerminalEvent } | { type: "terminal-sent"; id: number; error?: string }
   | { type: "page-message"; message: UiPageMessage }
   | { type: "select"; detail: unknown; itemTab: FrameConfig["itemTab"] } | { type: "collapse" } | { type: "dispose" };

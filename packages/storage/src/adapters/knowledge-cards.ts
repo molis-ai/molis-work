@@ -53,7 +53,7 @@ function cardPage(db: DatabaseSync, projectId: string, query: KnowledgeCardsRequ
 
 export function openKnowledgeCards(options: { homeDirectory: string }): KnowledgeCardStorePort {
   const db = openBaselineHomeSqlite(options.homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE);
-  db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+  db.exec("PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;");
   const transaction = <T>(run: () => T): T => {
     db.exec("BEGIN IMMEDIATE");
     try { const value = run(); db.exec("COMMIT"); return value; } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }

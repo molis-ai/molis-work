@@ -2,7 +2,7 @@
 // Every baseline here is a test baseline. The refusals themselves are in tests/security-invariants-home-upgrade.test.ts; the entries that
 // take the lock are in tests/home-upgrade-entries.test.ts.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statfsSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -336,6 +336,23 @@ const runChild = (home: string, scenario: string, mode: number | "trace") => {
   return { killed: result.signal === "SIGKILL", status: result.status, stdout: result.stdout, stderr: result.stderr };
 };
 
+const runChildAsync = (home: string, scenario: string, mode: number | "trace") =>
+  new Promise<{ killed: boolean; status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
+    const child = spawn(process.execPath, [CRASH, home, scenario, String(mode)], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", chunk => { stdout += chunk; });
+    child.stderr.on("data", chunk => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("close", (status, signal) => {
+      resolve({ killed: signal === "SIGKILL", status, stdout, stderr });
+    });
+  });
+
+const CRASH_CHILD_CONCURRENCY = 4;
+
 /** Each store is a whole old or a whole new one, and a stamp means every store is new. */
 function assertWhole(home: string, stores: readonly string[]): void {
   const versions = stores.map(versionOf);
@@ -358,11 +375,29 @@ for (const scenario of ["ok", "fail"] as const) {
     // restore has its own case in tests/upgrade-snapshot.test.ts.
     const worthKilling = (name: string) => /^(?:writeFileSync|renameSync|copyFileSync|rmSync):|^chmodSync:(?:ledger|state)\.json$/.test(name);
 
-    for (let kill = 1; kill <= operations.length; kill += 1) {
-      if (!worthKilling(operations[kill - 1]!)) continue;
-      await t.test(`at ${kill}: ${operations[kill - 1]}`, t => {
-        const { home, alpha, beta, betaBase } = crashHome(t);
-        const child = runChild(home, scenario, kill);
+    // Each kill point runs in an isolated child process on its own temp Home; run those independent crash children with bounded concurrency
+    // so the file stays well inside the CI per-file timeout, then run the parent-process recovery assertions sequentially.
+    const targets = operations
+      .map((op, index) => ({ kill: index + 1, op }))
+      .filter(({ op }) => worthKilling(op))
+      .map(entry => ({ ...entry, ...crashHome(t) }));
+    const children = new Array<Awaited<ReturnType<typeof runChildAsync>>>(targets.length);
+    let nextIndex = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(CRASH_CHILD_CONCURRENCY, targets.length) }, async () => {
+        while (nextIndex < targets.length) {
+          const current = nextIndex;
+          nextIndex += 1;
+          const target = targets[current]!;
+          children[current] = await runChildAsync(target.home, scenario, target.kill);
+        }
+      }),
+    );
+
+    for (let index = 0; index < targets.length; index += 1) {
+      const { kill, op, home, alpha, beta, betaBase } = targets[index]!;
+      const child = children[index]!;
+      await t.test(`at ${kill}: ${op}`, t => {
         assert.ok(child.killed, `the child reached call ${kill}: ${child.stderr}`);
         assertWhole(home, [alpha, beta]);
         const stop = useDescriptors(t, ...crashDescriptors(scenario));

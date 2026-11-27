@@ -3,10 +3,13 @@ import type { IncomingMessage } from "node:http";
 import type http from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { pageTerminalOwnership, type PageTerminalAccess } from "./pty-page-access.js";
+import { localizeWebErrorMessage, type CommonErrorKey } from "./ui-error-words.js";
+import { resolveWebLocale } from "./web-locale.js";
 
 type ClientMessage =
   | { type: "auth"; token: string }
@@ -29,9 +32,14 @@ function rawToString(raw: RawData): string {
 }
 
 function parseMessage(raw: RawData): ClientMessage {
-  const value = JSON.parse(rawToString(raw)) as ClientMessage;
+  let value: ClientMessage;
+  try {
+    value = JSON.parse(rawToString(raw)) as ClientMessage;
+  } catch {
+    throw new ActionError("actions.input_invalid", "终端请求无效");
+  }
   if (!value || typeof value !== "object" || typeof value.type !== "string") {
-    throw new Error("invalid pty message");
+    throw new ActionError("actions.input_invalid", "终端请求无效");
   }
   return value;
 }
@@ -90,12 +98,24 @@ export function attachMolisWorkPtySocket(
   const pageSockets = new Map<WebSocket, { access: PageTerminalAccess; panels: Set<string>; sending: Promise<void> }>();
   const ownership = pageTerminalOwnership(homeDirectory);
   const spawnHome = resolveConfiguredHome(homeDirectory);
-  const broadcast = (panelId: string, value: unknown) => {
+  const broadcast = (panelId: string, value: unknown, exit = false): Promise<void>[] => {
     for (const socket of sockets) send(socket, value);
+    const deliveries: Promise<void>[] = [];
     for (const [socket, page] of pageSockets) if (page.panels.has(panelId)) {
-      page.sending = page.sending.then(async () => { await page.access.assertPanel(panelId); send(socket, value); })
-        .catch(() => { pageSockets.delete(socket); socket.close(); });
+      const next = page.sending.then(async () => {
+        await page.access.assertPanel(panelId);
+        send(socket, value);
+        if (exit) page.panels.delete(panelId);
+      }).catch(() => { pageSockets.delete(socket); socket.close(); });
+      page.sending = next;
+      deliveries.push(next);
     }
+    return deliveries;
+  };
+  const releaseExitedOwner = (panelId: string, owner: ReturnType<typeof ownership.ownerOf>, deliveries: readonly Promise<void>[]) => {
+    const finish = () => { if (!host.alive(panelId)) ownership.release(panelId, owner); };
+    if (deliveries.length === 0) finish();
+    else void Promise.allSettled(deliveries).then(finish);
   };
   class RecordedPtyHost extends MolisWorkPtyHost {
     override spawn(request: PtySpawnRequest) {
@@ -106,21 +126,26 @@ export function attachMolisWorkPtySocket(
     }
     override kill(panelId: string) {
       const wasAlive = this.alive(panelId);
+      const ending = ownership.ownerOf(panelId);
       activePanels.delete(panelId);
       super.kill(panelId);
       // Runtime Host suppresses the later process exit after an explicit kill.
-      if (wasAlive) broadcast(panelId, { type: "exit", panelId, exitCode: -1, signal: 15 });
+      const deliveries = wasAlive ? broadcast(panelId, { type: "exit", panelId, exitCode: -1, signal: 15 }, true) : [];
+      releaseExitedOwner(panelId, ending, deliveries);
     }
     override killAll() {
       activePanels.clear();
+      ownership.clear();
       super.killAll();
     }
   }
   const host = new RecordedPtyHost({
-    onData: (panelId, data) => broadcast(panelId, { type: "data", panelId, data }),
+    onData: (panelId, data) => { void broadcast(panelId, { type: "data", panelId, data }); },
     onExit: (panelId, exit) => {
+      const ending = ownership.ownerOf(panelId);
       activePanels.delete(panelId);
-      broadcast(panelId, { type: "exit", panelId, exitCode: exit.exitCode, signal: exit.signal });
+      const deliveries = broadcast(panelId, { type: "exit", panelId, exitCode: exit.exitCode, signal: exit.signal }, true);
+      releaseExitedOwner(panelId, ending, deliveries);
     },
   });
   ptyActiveCounters.set(host, () => activePanels.size);
@@ -129,6 +154,14 @@ export function attachMolisWorkPtySocket(
   server.on("upgrade", (request, socket, head) => upgradeTerminal(wss, request, socket, head));
 
   wss.on("connection", (ws, request) => {
+    const socketLocale = resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+    const sendError = (error: unknown, fallbackKey: CommonErrorKey = "common.error.internal", panelId?: string) => {
+      send(ws, {
+        type: "error",
+        ...(panelId === undefined ? {} : { panelId }),
+        message: localizeWebErrorMessage(error, fallbackKey, socketLocale),
+      });
+    };
     let authed = false;
     let authority: ReturnType<typeof bindWebSocketAuthority>;
     const bindAuthority = (proof: unknown) => {
@@ -149,8 +182,8 @@ export function attachMolisWorkPtySocket(
             authed = true; send(ws, { type: "ready" }); return;
           }
           if (message.type !== "auth" || !bindAuthority(message.token)) {
-            send(ws, { type: "error", message: "本地终端通道校验失败" });
-            ws.close();
+            sendError(new ActionError("actions.forbidden", "本地终端通道校验失败"), "common.error.forbidden");
+            ws.close(1008, "Authentication failed");
             return;
           }
           authed = true;
@@ -159,13 +192,16 @@ export function attachMolisWorkPtySocket(
           return;
         }
         // Every connection, the control token's included, only attaches to, writes to, resizes and ends what the Host started.
-        if (!("panelId" in message) || typeof message.panelId !== "string" || !message.panelId) throw new Error("终端请求无效");
+        if (!("panelId" in message) || typeof message.panelId !== "string" || !message.panelId) {
+          throw new ActionError("actions.input_invalid", "终端请求无效");
+        }
         // A refusal names its panel, so the page can tell which terminal it was about.
-        const refuse = (text: string) => Object.assign(new Error(text), { panelId: message.panelId });
+        const refuse = (text: string) => Object.assign(new ActionError("actions.input_invalid", text), { panelId: message.panelId });
         if (message.type === "spawn" && (message.attachOnly !== true || Object.keys(message).some(key => !["type", "panelId", "attachOnly", "cols", "rows"].includes(key))))
           throw refuse("只能连接已经创建的终端");
         if (message.type === "write" && (typeof message.data !== "string" || message.data.length > 65536)) throw refuse("终端输入无效");
-        if ((message.type === "resize" || message.type === "spawn") && [message.cols, message.rows].some(value => value !== undefined && (!Number.isInteger(value) || value < 1 || value > 1000))) throw refuse("终端尺寸无效");
+        if (message.type === "spawn" && [message.cols, message.rows].some(value => value !== undefined && (!Number.isInteger(value) || value < 1 || value > 1000))) throw refuse("终端尺寸无效");
+        if (message.type === "resize" && [message.cols, message.rows].some(value => !Number.isInteger(value) || value < 1 || value > 1000)) throw refuse("终端尺寸无效");
         if (pageAccess) {
           await pageAccess.assertPanel(message.panelId);
           if (authority && !authority.valid()) { ws.close(); return; }
@@ -183,11 +219,7 @@ export function attachMolisWorkPtySocket(
               replay: result.replay,
             });
           } catch (error) {
-            send(ws, {
-              type: "error",
-              panelId: message.panelId,
-              message: error instanceof Error ? error.message : String(error),
-            });
+            sendError(error, "common.error.internal", message.panelId);
           }
           return;
         }
@@ -195,11 +227,7 @@ export function attachMolisWorkPtySocket(
           try {
             host.write(message.panelId, message.data ?? "");
           } catch (error) {
-            send(ws, {
-              type: "error",
-              panelId: message.panelId,
-              message: error instanceof Error ? error.message : String(error),
-            });
+            sendError(error, "common.error.internal", message.panelId);
           }
           return;
         }
@@ -211,13 +239,11 @@ export function attachMolisWorkPtySocket(
           host.kill(message.panelId);
         }
       } catch (error) {
-        send(ws, {
-          type: "error",
-          panelId: typeof (error as { panelId?: unknown })?.panelId === "string"
-            ? (error as { panelId: string }).panelId
-            : undefined,
-          message: error instanceof Error ? error.message : String(error),
-        });
+        const panelId = typeof (error as { panelId?: unknown })?.panelId === "string"
+          ? (error as { panelId: string }).panelId
+          : undefined;
+        sendError(error, authed ? "common.error.internal" : "common.error.forbidden", panelId);
+        if (!authed) ws.close(1008, "Authentication failed");
       }
     };
     ws.on("message", raw => { receiving = receiving.then(() => receive(raw)); });
@@ -226,8 +252,11 @@ export function attachMolisWorkPtySocket(
   server.on("close", () => {
     host.killAll();
     ownership.clear();
+    for (const socket of sockets) socket.close();
+    sockets.clear();
     for (const socket of pageSockets.keys()) socket.close();
     pageSockets.clear();
+    wss.close();
   });
   return host;
 }

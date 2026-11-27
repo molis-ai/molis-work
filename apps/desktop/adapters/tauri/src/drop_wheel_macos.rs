@@ -44,7 +44,7 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Rect, Size};
 
 const DRAG_BOARD: &str = "Apple CFPasteboard drag";
 const TRAY_ID: &str = "molis-work-status";
@@ -847,8 +847,12 @@ fn refresh_shelf(ids: &[String]) {
     let Some(window) = host.app.get_webview_window("main") else {
         return;
     };
+    let origin =
+        serde_json::to_string(&crate::host_port::origin()).unwrap_or_else(|_| "\"\"".into());
     let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
-    let _ = window.eval(format!(r#"window.dispatchEvent(new CustomEvent("molis:shelf-refresh", {{ detail: {{ item_ids: {ids} }} }}));"#));
+    let _ = window.eval(format!(
+        r#"if(location.origin==={origin}){{if(typeof globalThis.molisWorkShelfRefresh==="function")globalThis.molisWorkShelfRefresh({{item_ids:{ids}}});else window.dispatchEvent(new CustomEvent("molis:shelf-refresh",{{detail:{{item_ids:{ids}}}}}));}}"#
+    ));
 }
 
 /// Hand the copies to the terminal session without opening the panel.
@@ -861,11 +865,16 @@ fn send_terminal_text(items: &[String], text: Option<&str>) {
     let Some(window) = host.app.get_webview_window("main") else {
         return;
     };
+    let origin =
+        serde_json::to_string(&crate::host_port::origin()).unwrap_or_else(|_| "\"\"".into());
     let encoded = serde_json::to_string(items).unwrap_or_else(|_| "[]".into());
     let text = serde_json::to_string(&text).unwrap_or_else(|_| "null".into());
     let script = format!(
         r#"(() => {{
-          window.dispatchEvent(new CustomEvent("molis:shelf-send-tui", {{ detail: {{ item_ids: {encoded}, text: {text} }} }}));
+          if (location.origin !== {origin}) return;
+          const detail = {{ item_ids: {encoded}, text: {text} }};
+          if (typeof globalThis.molisWorkShelfSendTui === "function") globalThis.molisWorkShelfSendTui(detail);
+          else window.dispatchEvent(new CustomEvent("molis:shelf-send-tui", {{ detail }}));
         }})();"#
     );
     let _ = window.eval(&script);
@@ -1148,6 +1157,68 @@ fn over_shelf_panel(app: &AppHandle, mouse: Point) -> bool {
     )
 }
 
+fn screen_scale_and_primary_height(mouse: Point, fallback_height: f64) -> (f64, f64) {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return (1.0, fallback_height);
+    };
+    let screens = NSScreen::screens(mtm);
+    let primary = screens.iter().next();
+    let primary_height = primary
+        .as_ref()
+        .map(|screen| screen.frame().size.height)
+        .unwrap_or(fallback_height);
+    let scale = screens
+        .iter()
+        .find(|screen| {
+            let frame = screen.frame();
+            mouse.x >= frame.origin.x
+                && mouse.x < frame.origin.x + frame.size.width
+                && mouse.y >= frame.origin.y
+                && mouse.y <= frame.origin.y + frame.size.height
+        })
+        .or(primary)
+        .map(|screen| screen.backingScaleFactor())
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(1.0);
+    (scale, primary_height)
+}
+
+fn tray_rect_contains(
+    mouse: Point,
+    rect: Rect,
+    scale_factor: f64,
+    primary_screen_height: f64,
+) -> bool {
+    let scale = if scale_factor.is_finite() && scale_factor > 0.0 {
+        scale_factor
+    } else {
+        1.0
+    };
+    let LogicalPosition { x, y } = match rect.position {
+        Position::Logical(position) => position,
+        Position::Physical(position) => {
+            LogicalPosition::new(position.x as f64 / scale, position.y as f64 / scale)
+        }
+    };
+    let LogicalSize { width, height } = match rect.size {
+        Size::Logical(size) => size,
+        Size::Physical(size) => {
+            LogicalSize::new(size.width as f64 / scale, size.height as f64 / scale)
+        }
+    };
+    if !(x.is_finite()
+        && y.is_finite()
+        && width.is_finite()
+        && height.is_finite()
+        && width > 0.0
+        && height > 0.0)
+    {
+        return false;
+    }
+    let bottom = primary_screen_height - y - height;
+    mouse.x >= x && mouse.x < x + width && mouse.y >= bottom && mouse.y < bottom + height
+}
+
 fn tray_contains(app: &AppHandle, mouse: Point, screen_max_y: f64) -> bool {
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return false;
@@ -1155,17 +1226,8 @@ fn tray_contains(app: &AppHandle, mouse: Point, screen_max_y: f64) -> bool {
     let Ok(Some(rect)) = tray.rect() else {
         return false;
     };
-    let LogicalPosition { x, y } = match rect.position {
-        Position::Logical(position) => position,
-        Position::Physical(position) => LogicalPosition::new(position.x as f64, position.y as f64),
-    };
-    let LogicalSize { width, height } = match rect.size {
-        Size::Logical(size) => size,
-        Size::Physical(size) => LogicalSize::new(size.width as f64, size.height as f64),
-    };
-    let contains =
-        |y0: f64| mouse.x >= x && mouse.x < x + width && mouse.y >= y0 && mouse.y < y0 + height;
-    contains(y) || contains(screen_max_y - y - height)
+    let (scale_factor, primary_height) = screen_scale_and_primary_height(mouse, screen_max_y);
+    tray_rect_contains(mouse, rect, scale_factor, primary_height)
 }
 
 fn drag_board() -> Option<Retained<NSPasteboard>> {
@@ -1666,5 +1728,74 @@ mod tests {
             assert!(cargo.is_http_url());
             assert!(cargo.has_content());
         });
+    }
+
+    #[test]
+    fn tray_rect_contains_converts_retina_physical_rect_to_logical_points() {
+        use tauri::{PhysicalPosition, PhysicalSize};
+
+        // 1512x982 Retina screen (scale 2.0): tray icon at logical (1200, 0) size (28, 24)
+        // top-down -> AppKit y in [958, 982). tray-icon returns physical (2400, 0) size (56, 48).
+        let retina_rect = Rect {
+            position: Position::Physical(PhysicalPosition::new(2400, 0)),
+            size: Size::Physical(PhysicalSize::new(56, 48)),
+        };
+        assert!(tray_rect_contains(
+            Point::new(1214.0, 970.0),
+            retina_rect,
+            2.0,
+            982.0
+        ));
+        // Unscaled physical coordinates must not falsely hit on Retina.
+        assert!(!tray_rect_contains(
+            Point::new(2410.0, 970.0),
+            retina_rect,
+            2.0,
+            982.0
+        ));
+        // Bottom edge of the screen must not falsely hit the top menu bar tray.
+        assert!(!tray_rect_contains(
+            Point::new(1214.0, 10.0),
+            retina_rect,
+            2.0,
+            982.0
+        ));
+
+        // 1x non-Retina display: physical == logical.
+        let standard_rect = Rect {
+            position: Position::Physical(PhysicalPosition::new(1200, 0)),
+            size: Size::Physical(PhysicalSize::new(28, 24)),
+        };
+        assert!(tray_rect_contains(
+            Point::new(1214.0, 970.0),
+            standard_rect,
+            1.0,
+            982.0
+        ));
+
+        // Logical coordinates are used without dividing by scale_factor.
+        let logical_rect = Rect {
+            position: Position::Logical(LogicalPosition::new(1200.0, 0.0)),
+            size: Size::Logical(LogicalSize::new(28.0, 24.0)),
+        };
+        assert!(tray_rect_contains(
+            Point::new(1214.0, 970.0),
+            logical_rect,
+            2.0,
+            982.0
+        ));
+
+        // Secondary Retina screen above primary (AppKit y in [982, 2062), tray at [2038, 2062)):
+        // CG top-down y = 982 - 2038 - 24 = -1080 -> physical y = -2160.
+        let upper_screen_rect = Rect {
+            position: Position::Physical(PhysicalPosition::new(1600, -2160)),
+            size: Size::Physical(PhysicalSize::new(60, 48)),
+        };
+        assert!(tray_rect_contains(
+            Point::new(815.0, 2050.0),
+            upper_screen_rect,
+            2.0,
+            982.0
+        ));
     }
 }

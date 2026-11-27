@@ -1,4 +1,5 @@
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { oauthSettingValueFault } from "@molis-ai/molis-work-plugin-sdk/oauth";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { join } from "node:path";
@@ -34,6 +35,19 @@ test("RAC-405 the platform names what a platform permission lets a plugin do, a 
   assert.equal(platformPermissionMeaning("secret:weather-key"), "读取你存放的这项密钥：weather-key");
   assert.equal(platformPermissionMeaning("issues:write"), null, "a permission a plugin defines for itself has no platform meaning");
   assert.equal(platformPermissionMeaning("network"), null);
+  // F-cf-05: prototype keys and empty prefix targets return null; en/ja locales are supported without Chinese fallback.
+  for (const invalid of ["toString", "constructor", "__proto__", "valueOf", "network:", "secret:", "network:   ", "secret:\t"]) {
+    assert.equal(platformPermissionMeaning(invalid), null, invalid);
+    assert.equal(platformPermissionMeaning(invalid, "en"), null, `${invalid} (en)`);
+    assert.equal(platformPermissionMeaning(invalid, "ja"), null, `${invalid} (ja)`);
+  }
+  assert.doesNotMatch(platformPermissionMeaning("storage:private", "en")!, /[\u4e00-\u9fff]/u);
+  assert.equal(platformPermissionMeaning("network:api.example.com", "en-US"), "Connect to this site: api.example.com");
+  assert.equal(platformPermissionMeaning("secret:weather-key", "ja-JP"), "保存したシークレットを使用：weather-key");
+  // Q-cf2-04: catastrophic backtracking OAuth setting patterns fail fast as invalid patterns.
+  assert.equal(oauthSettingValueFault({ use: "path", pattern: "(a+)+$" }, `${"a".repeat(40)}!`, undefined), "pattern");
+  assert.equal(oauthSettingValueFault({ use: "path", pattern: "(a|aa)+" }, `${"a".repeat(40)}!`, undefined), "pattern");
+  assert.equal(oauthSettingValueFault({ use: "path", pattern: "[a-z0-9][a-z0-9-]{0,100}" }, "valid-slug", undefined), undefined);
 });
 
 test("RAC-405 an install preview lists each permission with the plugin's reason and the platform's meaning", async () => {

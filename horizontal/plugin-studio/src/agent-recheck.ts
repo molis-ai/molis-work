@@ -12,7 +12,10 @@ export async function recheckAgentBuild(ports: AgentBuilderPorts, read: () => Ag
   change(build => { build.checks.global = checked; build.checksScope = build.runtimeScope; });
   if (!checked.passed) throw failStudioBuild('build-target-checks-failed', checked.gates.find(gate => !gate.passed)?.detail ?? '');
   change(build => { build.connected = build.design!.contract.operations.map(item => item.id); });
-  const browser = await ports.browserAcceptance(read(), signal); current();
+  const rawBrowser = await ports.browserAcceptance(read(), signal); current();
+  const browser: typeof rawBrowser = rawBrowser.blocked === undefined ? rawBrowser
+    : rawBrowser.blocked.length === 0 ? (({ blocked: _blocked, ...rest }) => rest)(rawBrowser)
+    : rawBrowser.blocked.length > 4_000 ? { ...rawBrowser, blocked: rawBrowser.blocked.slice(0, 4_000) } : rawBrowser;
   change(build => { build.browserResult = browser; });
   if (!browser.passed) throw failStudioBuild('build-target-acceptance-failed', browser.blocked ?? browser.cases.find(item => !item.passed)?.detail ?? '');
   // Queries also traverse the real target's service identity. Commands keep the existing preview stand-ins.

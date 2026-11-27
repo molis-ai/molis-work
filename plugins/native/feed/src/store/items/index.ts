@@ -13,6 +13,7 @@ import type { FeedAttentionPort, FeedModuleOptions } from "./types.js";
 
 export type { FeedAttentionPort, FeedJournalEvent, FeedLedgerPort, FeedModuleOptions } from "./types.js";
 export { FEED_ITEMS_SCHEMA_SQL } from "./schema.js";
+export { feedContentReplicationDefinition } from "./replication.js";
 
 export class FeedModule implements FeedApi {
   readonly query: FeedApi["query"];

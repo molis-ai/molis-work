@@ -63,6 +63,53 @@ test("OCL-08: a failed wakeup is recorded as failed with its reason, and a job l
   assert.equal(outcomes["reminder-gone"], undefined);
 });
 
+test("F-horiz-runtime-10: a wakeup whose final commit is skipped due to lease expiry reports interrupted and records cancelled", async t => {
+  const home = mkdtempSync(join(tmpdir(), "observation-wakeups-lease-")), observation = createHostObservation(home);
+  const db = openTestSqlite(":memory:"); db.exec(SCHEDULER_SCHEMA_SQL);
+  const installation = wakeupInstallation("io.molis.work.test.owner");
+  const baseMs = Date.parse("2026-11-13T08:00:00.000Z");
+  let postReturnNowCalls = 0;
+  let returned = false;
+  const endedEvents: Array<{ interrupted: boolean; status: string }> = [];
+  const forwardEnded = scheduleWakeupRecords(home, "p1");
+  const schedule = installation.scheduler(db, {
+    now: () => {
+      if (!returned) return new Date(baseMs);
+      postReturnNowCalls += 1;
+      // First read occurs in control.beforeEffect() right after invoke() returns (still valid);
+      // subsequent reads occur at final commit after lease expiry.
+      return new Date(postReturnNowCalls === 1 ? baseMs + 1_000 : baseMs + 60_000);
+    },
+    leaseMs: 5_000,
+    eachWakeup: run => withCallId(newCallId(), run),
+    wakeupEnded: ended => {
+      endedEvents.push({ interrupted: ended.interrupted, status: ended.wakeup.status });
+      forwardEnded(ended);
+    },
+  });
+  t.after(async () => { await schedule.close(); db.close(); observation.close(); rmSync(home, { recursive: true, force: true }); });
+  installation.action("test.late-commit", async () => {
+    returned = true;
+    return { detail: "returned before commit lost lease" };
+  });
+  schedule.register({
+    plugin_id: "io.molis.work.test.owner",
+    capability_id: "test.late-commit",
+    object_ref: "reminder-lost-lease",
+    title: "reminder-lost-lease",
+    due_at: "2026-11-13T07:59:00.000Z",
+    recurrence: { kind: "once" },
+  });
+  await schedule.tick();
+  assert.equal(endedEvents.length, 1);
+  assert.equal(endedEvents[0]?.interrupted, true, "uncommitted wakeup must report interrupted=true");
+  observation.layer.flush();
+  const records = readRecords(observation.layer.writer.database()!.db, { fact: "scheduler.wakeup" });
+  assert.equal(records.length, 1);
+  assert.equal(records[0]?.outcome, "cancelled", "uncommitted wakeup must be observed as cancelled, not succeeded");
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM schedule_wakeups").get() as { n: number }).n, 0);
+});
+
 test("OCL-01 UPP-21 batch 108: each start and stop of a partition instance and each fallen-due entry it is handed is a work record, with codes and never messages", async t => {
   const home = mkdtempSync(join(tmpdir(), "observation-partitions-")), observation = createHostObservation(home);
   t.after(() => { observation.close(); rmSync(home, { recursive: true, force: true }); });

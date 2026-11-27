@@ -97,6 +97,69 @@ test('host resolver is bounded by request deadline and receives cancellation', a
   } finally { clearTimeout(keepAlive); }
 });
 
+test('F-cf2-02 R-05 https proxy distinguishes caller cancellation from timeout and marks post-dispatch failures outcome unknown', async t => {
+  const originalRequest = https.request;
+  const baseContext = { identity: { projectId: 'p', installationId: 'i', pluginId: 'test', namespace: 'preview' as const }, operationId: 'test' };
+  const approved = { domains: ['example.com'], secretRefs: [] as string[] };
+
+  // Pre-dispatch caller cancellation must surface sandbox.cancelled without unknown outcome.
+  const preAbort = new AbortController();
+  const preProxy = createHttpsProxy({
+    timeoutMs: 5_000,
+    resolveHostname: async (_hostname, signal) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      queueMicrotask(() => preAbort.abort());
+    }),
+  });
+  await assert.rejects(
+    preProxy.request({ ...baseContext, signal: preAbort.signal }, { url: 'https://example.com/' }, approved),
+    (error: unknown) => Boolean(error && typeof error === 'object' && (error as { code?: string }).code === 'sandbox.cancelled' && (error as { outcome?: string }).outcome === undefined),
+  );
+
+  // Post-dispatch timeout, caller cancel, and transport error must carry outcome: 'unknown'.
+  let mode: 'hang' | 'error' = 'hang';
+  t.mock.method(https, 'request', () => {
+    const req = new EventEmitter() as EventEmitter & { end(): void };
+    req.end = () => {
+      if (mode === 'error') queueMicrotask(() => req.emit('error', new Error('ECONNRESET')));
+    };
+    return req;
+  });
+  syncBuiltinESMExports();
+  try {
+    const resolveHostname = async () => [{ address: '93.184.216.34', family: 4 }];
+    const timeoutProxy = createHttpsProxy({ timeoutMs: 25, resolveHostname });
+    const keepAlive = setTimeout(() => {}, 1000);
+    try {
+      await assert.rejects(
+        timeoutProxy.request({ ...baseContext, signal: new AbortController().signal }, { url: 'https://example.com/submit', method: 'POST', body: '{}' }, approved),
+        { code: 'sandbox.network_timeout', outcome: 'unknown' },
+      );
+    } finally {
+      clearTimeout(keepAlive);
+    }
+
+    const postAbort = new AbortController();
+    const cancelProxy = createHttpsProxy({ timeoutMs: 5_000, resolveHostname });
+    setTimeout(() => postAbort.abort(), 10);
+    await assert.rejects(
+      cancelProxy.request({ ...baseContext, signal: postAbort.signal }, { url: 'https://example.com/submit', method: 'POST', body: '{}' }, approved),
+      { code: 'sandbox.cancelled', outcome: 'unknown' },
+    );
+
+    mode = 'error';
+    const errorProxy = createHttpsProxy({ timeoutMs: 5_000, resolveHostname });
+    await assert.rejects(
+      errorProxy.request({ ...baseContext, signal: new AbortController().signal }, { url: 'https://example.com/submit', method: 'POST', body: '{}' }, approved),
+      { code: 'sandbox.network_error', outcome: 'unknown' },
+    );
+  } finally {
+    t.mock.reset();
+    https.request = originalRequest;
+    syncBuiltinESMExports();
+  }
+});
+
 test('injected host resolver connects to real registry.npmjs.org over pinned HTTPS', { skip: process.env.MOLIS_SANDBOX_NETWORK_E2E !== '1', timeout: 35_000 }, async t => {
   // Integration-only dependency: the sandbox package itself never imports Agent Host.
   const { resolveModelHostname } = await import('@molis-ai/molis-work-service-agent-host');

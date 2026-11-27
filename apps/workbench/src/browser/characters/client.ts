@@ -1,4 +1,4 @@
-import type { CharacterRoleCatalog, CharacterRoleVersionEntry } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { CharacterRoleCatalog, CharacterRoleVersionEntry, SignedCharacterTemplate } from "@molis-ai/molis-work-contracts/modules/characters";
 import { characterActionClient, type ActionClient } from "./action-client.js";
 import { renderBuiltinRoles } from "./builtin.js";
 import { messageOf, pageRequest, partsOf, type CharacterRecord, type Method, type Part } from "./common.js";
@@ -23,6 +23,7 @@ class RolesPage {
   private readonly drawer: RoleDrawer;
   private readonly imports: ImportClient;
   private catalog: CharacterRoleCatalog | null = null;
+  private readonly adoptionRequests = new Map<string, string>();
   private ui: PageUi = { add: false, menu: null, stopAsk: null, diff: null, flash: null };
   private busy = false;
   private importing: CharacterRecord | null = null;
@@ -129,7 +130,26 @@ class RolesPage {
         else void this.drawer.open({ kind: kind === "member" ? "member" : "original", id }, control);
         return;
       case "import": this.imports.open(false); return;
-      case "add": ui.add = !ui.add; this.render(`[data-roles-act="add"]`); return;
+      case "add": void this.act(async () => {
+        ui.add = !ui.add;
+        if (ui.add) {
+          ui.templates = [];
+          ui.templates = (await this.request<{ templates: SignedCharacterTemplate[] }>("GET", "/roles/templates")).templates;
+        }
+      }, '[data-roles-act="add"]');
+      return;
+      case "adopt-template": void this.act(async () => {
+        const selected = ui.templates?.[Number(arg)];
+        if (!selected) return;
+        const { install_id, generation, role_id } = selected, key = JSON.stringify([install_id, generation, role_id]);
+        const request_id = this.adoptionRequests.get(key) ?? crypto.randomUUID();
+        this.adoptionRequests.set(key, request_id);
+        await this.request("POST", "/roles/templates/adopt", { install_id, generation, role_id, request_id });
+        await this.load();
+        this.adoptionRequests.delete(key);
+        ui.add = false;
+      }, '[data-roles-act="add"]');
+      return;
       case "more": ui.menu = ui.menu === arg ? null : arg; this.render(ui.menu ? `#roles-menu-${CSS.escape(arg)} [role=menuitem]` : undefined); return;
       case "stop-ask": ui.menu = null; ui.stopAsk = arg; this.render(`#roles-stop-${CSS.escape(arg)}`); return;
       case "stop-cancel": ui.stopAsk = null; this.render(`[data-roles-act="more"][data-roles-arg="${CSS.escape(arg)}"]`); return;

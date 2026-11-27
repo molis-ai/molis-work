@@ -7,6 +7,7 @@ import { authoredPartWords, authoredWord } from "./agent-ui-text.js";
 import type { SandboxDataOperation, SandboxEffects, SandboxJson, SandboxPluginContract, SandboxSchema, SandboxStateMachine } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_COMPONENT_WORD_KEYS, literalPluginWord, pluginTemplatePaths, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
+import { studioRoleTemplates } from './role-templates.js';
 import type { CatalogEntry } from './agent-catalog.js';
 import { STUDIO_CAPABILITIES, MODEL_STAND_IN_PREFIX } from './agent-capabilities.js';
 
@@ -867,8 +868,9 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
     if (helpProblems.length === 0) help = rawHelp as UiHelpDeclaration;
     else dropped.push(`按需帮助声明格式无效（${helpProblems[0]}），已改由宿主按页面与真实能力自动生成`);
   }
+  const roleTemplates = studioRoleTemplates(design.roleTemplates);
   const journey = steps(pick(design, 'journey', 'journal'));
-  return { id: base.id, ...(icon ? { icon } : {}), ...(connections ? { connections } : {}), title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
+  return { id: base.id, ...(roleTemplates?.length ? { roleTemplates } : {}), ...(icon ? { icon } : {}), ...(connections ? { connections } : {}), title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
     journey: journey.length ? journey.slice(0, 20) : base.journey,
     contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], state_machines: normalizeStates(design.states, pluginId, operations), pages, operations, acceptance: acceptance.contract, ...(help ? { help } : {}) }, parts, acceptance: acceptance.browser,
     ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}), ...(ui ? { ui } : {}) };

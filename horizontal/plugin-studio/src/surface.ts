@@ -16,6 +16,7 @@ export const studioSurface: HostSurfaceRegistration = {
   workbench: {
     pageRequests: [
       { method: "GET", path: "/api/plugin-builder/studio/state" },
+      { method: "GET", path: "/api/plugin-builder/studio/image-services" },
       { method: "POST", path: "/api/plugin-builder/studio/settings" },
       { method: "POST", path: "/api/plugin-builder/studio/builds" },
       { method: "GET", path: "/api/plugin-builder/studio/builds/:id" },

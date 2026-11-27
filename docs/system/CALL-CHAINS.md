@@ -122,8 +122,15 @@
 
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
-| Runtime 内置插件（Coding、Diff、Git、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
+| Runtime 内置插件（Coding、Diff、Git 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成与签名安装的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`）管安装记录与批准，插件跑在项目监督器（`project-plugins.ts`）那同一套平台上、在隔离沙箱进程里运行（第 47 批）；已安装的在同一时机恢复 | Molis Work 安装单或设置调用安装动作。设置负责启停、卸载与恢复已安装版，升级失败时由 Runtime 和宿主恢复原版 |
+
+平台另有两个固定入口。
+
+| 入口 | 归属与加载 | 打开或使用时 |
+| --- | --- | --- |
+| 平台置物架 | `modules/shelf` 提供 `system.shelf` 接收动作；工作台及桌面从平台登记打开 | 放置目标是 `system.shelf`，桌面与呈现键是 `shelf` |
+| 外部会话 | `horizontal/sessions` 拥有会话入口，`PLATFORM_SURFACES` 为工作台登记按需加载的页面程序 | 打开侧栏时按本人及项目许可读取 |
 
 下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。
 

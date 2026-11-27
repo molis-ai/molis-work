@@ -13,7 +13,7 @@ import {
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type SubjectArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { artifactTypeDeclarations, artifactContinuers, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
+import { artifactContinuers, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile, isImportedDocumentVersion, type ArtifactReference, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -42,6 +42,7 @@ export interface ArtifactHttpContext {
   readonly placementReader?: BoundActionClient;
   /** Optional override for whether an input-target plugin is available; when omitted, discovered from active `placement_relation` actions. */
   readonly inputTargetAvailable?: () => Promise<boolean>;
+  readonly typeFor: (version: ArtifactVersionRecord) => ArtifactTypeDeclaration | undefined;
   readonly readArtifactDisplay: ReadArtifactDisplay;
   readonly controlToken: string;
   readonly desktopShell: boolean;
@@ -88,20 +89,19 @@ async function movedElsewhere(context: ArtifactHttpContext, subject: { kind: str
  * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the
  * version into a file, rendered read-only, with a way back to the pinned work object in its owner.
  */
-async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations: ReadonlyMap<string, ArtifactTypeDeclaration>,
+async function ownerPreview(artifact: ArtifactVersionRecord | null, declaration: ArtifactTypeDeclaration | undefined,
   pluginTitle: string | undefined, context: ArtifactHttpContext, languagePreview: boolean) {
-  const declaration = artifact ? declarations.get(artifact.artifact_type_id) : undefined;
   // Only the type's declared owner previews it, and only versions that owner produced.
   if (!artifact || artifact.availability !== "available" || !declaration?.preview || !context.ownerActions
     || artifact.producer_plugin_id !== declaration.plugin_id) return undefined;
   let content: FileContent;
-  try { content = await context.ownerActions(declaration.preview.action.permissions).invoke(declaration.preview, { artifact }) as FileContent; }
+  try { content = await context.ownerActions(declaration.preview.action.permissions).invoke({ ...declaration.preview, provider_id: declaration.provider_id }, { artifact }) as FileContent; }
   catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return undefined; }
   const pinned = artifact.origin.kind === "pinned" ? artifact.origin.subject : null;
   // 「原文已改」 (A4b): the owner compares the version with its work object as it is now.
   let compared: ArtifactCompareResult["state"] | null = null;
   if (pinned && declaration.compare) {
-    try { compared = (await context.ownerActions(declaration.compare.action.permissions).invoke(declaration.compare, { artifact }) as ArtifactCompareResult).state; }
+    try { compared = (await context.ownerActions(declaration.compare.action.permissions).invoke({ ...declaration.compare, provider_id: declaration.provider_id }, { artifact }) as ArtifactCompareResult).state; }
     catch { compared = null; }
     // An object kept in its partition's own library is not there any more once it moved, so its owner cannot tell a move from a deletion;
     // the placement service, which carried it, can.
@@ -334,7 +334,7 @@ export function createLocalArtifactHttp() {
       }
       const words = await context.readArtifactDisplay(selected ? [...view.versions, selected] : view.versions);
       const languagePreview = fragment === "artifact-workbench" && inLanguagePreview();
-      const presentation = await ownerPreview(selected, artifactTypeDeclarations(), selected ? words(selected)?.pluginTitle : undefined, context, languagePreview);
+      const presentation = await ownerPreview(selected, selected ? context.typeFor(selected) : undefined, selected ? words(selected)?.pluginTitle : undefined, context, languagePreview);
       // 「从这一版继续」 (A4b): who declares it for this type; for an imported file, those whose `file` declaration reads it.
       const continuers = continuersFor(selected).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title }));
       const links = reference ? await readReferenceSources(context.actions, reference) : undefined;

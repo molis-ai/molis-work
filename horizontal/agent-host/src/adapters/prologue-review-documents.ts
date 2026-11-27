@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { WORKSPACE_COMMAND_KIND, isAfterWriteCheckOperationKey, type ExactRef, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { gatewayReview, isGatewayChange } from "./prologue-action-gateway.js";
+import { actionToolReview, gatewayReview, isGatewayChange } from "./prologue-action-gateway.js";
 import { agentActionToolName, MOLIS_ACTION_TOOL_PREFIX } from "./prologue-action-tools.js";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import { mcpConnectionId } from "./prologue-mcp.js";
@@ -104,6 +104,9 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
     const selected = attempt?.action_tool_scope && attempt.frozen.action_tools?.find(ref => agentActionToolName(ref, attempt.action_tool_scope!) === subject.name);
     if (!selected) throw new Error("Action is outside this run's frozen tools");
     const args = jsonObject(subject.input, "Invalid action arguments");
+    const held = deps.state.actionReviews.get(pending.origin!.session!)?.forEffect(effect);
+    if (held?.view.action.agent_scenario?.review && held.view.capability_id === selected.capability_id && held.view.version === selected.version && held.view.provider.provider_id === selected.provider_id)
+      return actionToolReview(held.view, subject.name, args);
     return presentToolReview({ kind: "tool-operation", tool: subject.name, summary: effect.proposal.summary }, [
       reviewField("Capability", selected.capability_id, "capability"), reviewField("Version", String(selected.version), "version"),
       reviewField("Provider", selected.provider_id, "provider"), reviewField("Arguments", JSON.stringify(args, null, 2), "arguments"),

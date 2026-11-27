@@ -30,9 +30,7 @@ export function validateSyncSections(manifest: PluginManifest, value: SyncSectio
   if(!value.business.length&&!value.platform.length)denied();
   for(const platform of value.platform){
     // The relations touching the plugin's own objects (batch 44 C6): it reads and writes them through the ledger like any other.
-    if(platform==='relation-edges'){if(!permissions.has('context-ledger:read')||!permissions.has('context-ledger:write'))denied();}
-    else if(platform==='attention'){if(!permissions.has('attention:read')||!permissions.has('attention:write'))denied();}
-    else denied();
+    if(platform!=='relation-edges'||!permissions.has('context-ledger:read')||!permissions.has('context-ledger:write'))denied();
   }
   if(value.business.length)validateSyncTracking(syncSectionsTracking(value),tables);
 }

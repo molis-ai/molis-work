@@ -96,6 +96,32 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   assert.equal(await child.evaluate<boolean>("document.querySelector('[data-characters]').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')"), false);
 });
 
+test("PSD-06 desktop file copy reaches the shell from the workbench side panel", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const side = '#side-panel [data-side-body="plugin:shelf/side"] iframe[data-side-frame]';
+  const child = await pluginFrameBrowser(t, browser, "shelf", side);
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `
+    if (window === top) {
+      globalThis.copiedFiles = [];
+      globalThis.__TAURI__ = { core: { invoke: async (name, input) => {
+        if (name === "files_copy") globalThis.copiedFiles.push(input);
+      } } };
+    }` }, browser.sessionId);
+  const base = `/projects/${browser.projectId}`;
+  const { item } = await browser.web.post<{ item: { item_id: string; relative_path: string } }>(base + "/api/platform/shelf/items",
+    { filename: "sidebar-copy.txt", bytes_base64: Buffer.from("sidebar file handoff").toString("base64") });
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + base + "/" }, browser.sessionId));
+  await browser.waitFor("typeof molisWorkOpenPlugin === 'function'");
+  await browser.evaluate("molisWorkOpenPlugin('shelf')");
+  await child.waitFor(`document.querySelector('[data-shelf-item="${item.item_id}"]')`);
+  assert.equal(await child.evaluate("typeof globalThis.__TAURI__"), "undefined");
+  await child.click(`[data-shelf-item="${item.item_id}"] [data-shelf-row-action=copy]`);
+  await browser.waitFor("copiedFiles.length === 1");
+  const [file] = await browser.evaluate<Array<{ paths: string[]; pageId: string }>>("copiedFiles");
+  assert.deepEqual(file.paths, [item.relative_path]);
+  assert.ok(file.pageId);
+});
+
 test("SYS-15-F2/F3 Shelf isolated page copies owned files through the shell and reopens its actual terminal", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "shelf"), bin = join(browser.homeDirectory, "shelf-test-bin"); await mkdir(bin);

@@ -336,7 +336,7 @@ export class PluginInstallService {
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     if (manifest.databases?.partition) await validateSandboxHomeSchema(manifest.databases.partition);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
-    if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
+    if (manifest.integrations?.length) assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
     assertNotHostId(manifest.plugin_id, 'bundled' in input);
     const homes = runtime_scope === 'home' ? await this.ports.homeInstalled?.(manifest.plugin_id) ?? [] : [];
@@ -387,7 +387,7 @@ export class PluginInstallService {
           sandboxProjectedPermissions(manifest, pkg.permissions, 'contract' in pkg ? pkg.contract.permission_reasons : undefined),
           resolve,
         ), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
-      ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
+      ...manifest.connection_services?.length ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
         ? [{ service_id: service.service_id, title: word(service.title), origins: [...service.origins] }] : []) } : {} };
     const now = Date.now();
     for (const [id, entry] of this.held) if (entry.expires <= now) this.held.delete(id);
@@ -413,7 +413,7 @@ export class PluginInstallService {
   }
 
   private async assertIntegrationsFree(manifest: KeptSandboxPackage['manifest']): Promise<void> {
-    if (manifest.kind !== 'integration') return;
+    if (!manifest.integrations?.length) return;
     if (!this.ports.assertIntegrationsFree) throw pluginErrors.home_scope_unavailable('这里装不了集成包：没有可登记它的 Home');
     await this.ports.assertIntegrationsFree(manifest);
   }

@@ -5076,7 +5076,7 @@
     "workbench.service-connection-specimens.docs-tasks": "文档与任务",
     "workbench.service-connection-specimens.fail": "出错",
     "workbench.service-connection-specimens.git-hub-sign-expired-stopped-after-page-2": "GitHub 的登录过期了，读到第 2 页停下了",
-    "workbench.service-connection-specimens.google-still-reviewing-moliss-sign-app-one-click": "Google 正在审核 Molis 登录应用。现可用自有 Google 应用连接，或转发邮件到 Inbox。",
+    "workbench.service-connection-specimens.google-still-reviewing-moliss-sign-app-one-click": "Google 正在审核 Molis 登录应用。现在可以连接自己的 Google 应用，也可以把邮件转发到收件地址。",
     "workbench.service-connection-specimens.just-one-key-carries-writing-once-connected-items": "只要一把密钥。连好就接着写，你选的那几条还在。",
     "workbench.service-connection-specimens.just-one-key-come-back-here-prompt-kept": "只要一把密钥。生成完就回到这里，提示词还在。",
     "workbench.service-connection-specimens.key-refused": "密钥被拒",
@@ -8710,7 +8710,7 @@
     "workbench.on-demand-help-specimens.fact-model-detail": "按服务商规则计费",
     "workbench.on-demand-help-specimens.fact-model-text": "用已连接的文字模型写周报",
     "workbench.on-demand-help-specimens.fact-read-detail": "只读这一份",
-    "workbench.on-demand-help-specimens.fact-read-text": "读取 Pages「周会纪要」",
+    "workbench.on-demand-help-specimens.fact-read-text": "读取 Notebook「周会纪要」",
     "workbench.on-demand-help-specimens.new-schedule": "新建定时任务",
     "workbench.on-demand-help-specimens.note": "第 03 批方案 A（就近卡片，长文转右栏）四项组件：展开/按下态、决策前事实、帮助内容与卡片。",
     "workbench.on-demand-help-specimens.open-help": "看帮助",
@@ -8759,7 +8759,7 @@
     "workbench.package-install-card.owner-cant-change-this-part": "这一块「{owner}」改不了",
     "workbench.package-install-card.checking-the-package": "正在检查安装包…",
     "workbench.package-install-card.cleanup-incomplete": "新版已安装，但部分旧数据未能删除。请检查磁盘剩余空间和文件夹权限。",
-  "workbench.package-install-card.cannot-read-kept-data": "这个版本读不了旧数据",
+    "workbench.package-install-card.cannot-read-kept-data": "这个版本读不了旧数据",
     "workbench.package-install-card.discard-consequence": "安装「{name}」{version} 会永久删除上次卸载时保留的数据。",
     "workbench.package-install-card.discard-and-install": "放弃旧数据并安装",
     "workbench.package-install-card.not-installed": "没装上",
@@ -8848,7 +8848,7 @@
     "common.package-install.install-confirmation-owner": "安装确认 · 来自 {owner}",
     "common.package-install.install-confirmation-is-on-the-page": "这里由 Molis Work 显示安装确认",
     "workbench.package-install-specimens.meeting-check-in": "会议签到",
-    "workbench.package-install-specimens.note-absences-in-goals": "在 Goals 里记缺席",
+    "workbench.package-install-specimens.note-absences-in-goals": "在 Waypoint 里记缺席",
     "workbench.package-install-specimens.monday-reminder-to-import-the-list": "每周一 9:00 提醒你导入名单",
     "workbench.package-install-specimens.plugin-studio": "插件创作台",
     "workbench.package-install-specimens.group-absence-reasons": "归类缺席原因",
@@ -9591,6 +9591,11 @@
     "common.error.secret-entry-unreadable": "保存的凭据暂时无法读取，请到「设置」里重新填写即可继续。",
     "workbench.capability-library.system-assistant-rules--assistant-works-related.title": "相关的助理工作",
     "workbench.capability-library.system-assistant-rules--assistant-works-related.description": "列出与一个对象相关的助理工作：状态与结果链接，不含对话与材料",
-    "workbench.capability-library.system-connectors--connectors-project_mcp-usages-v1.title": "项目外部工具使用的连接"
+    "workbench.capability-library.system-connectors--connectors-project_mcp-usages-v1.title": "项目外部工具使用的连接",
+    "workbench.settings.plugin-value-invalid": "值的格式不正确，请检查后重试。",
+    "workbench.settings.plugin-value-unavailable": "暂时无法读取保存结果。",
+    "workbench.roles.adopt-template": "采用",
+    "workbench.settings.plugin-value-saved": "已保存",
+    "workbench.roles.plugin-templates": "已安装插件提供的角色"
   }
 }

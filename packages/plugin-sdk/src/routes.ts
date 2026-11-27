@@ -70,7 +70,7 @@ export function bindOwnerPluginAction<Input, Output>(
       caller.signal?.throwIfAborted();
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
       // The plugin's own registration of this action: look up the single action instead of discovering the full project catalog on every write.
-      const reference = { capability_id: definition.capability_id, version: definition.version, ...(context.provider_id ? { provider_id: context.provider_id } : {}) };
+      const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: context.provider_id };
       const candidate = await context.services.actions.discoverOne(reference);
       const current = candidate && candidate.provider.plugin_install_id === context.install_id ? candidate : undefined;
       if (!current) throw new ActionError("actions.missing", "原插件动作已撤下，不能继续保存");

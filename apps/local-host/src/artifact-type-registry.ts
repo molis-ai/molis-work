@@ -3,7 +3,7 @@ import type { ArtifactConsumerType } from "@molis-ai/molis-work-contracts/module
 import { intakeMaterial, isArtifactLinkSubjectsAction, isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
+import { resolveActionProviderId, type PluginRuntime, type PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
 import { shippedParts } from "./plugin-registry.js";
 
 // The platform's table of 成果 types, read from what each producer's Manifest declares (PG-079, PG-064 in
@@ -15,6 +15,7 @@ export interface ArtifactTypeDeclaration {
   readonly title: string;
   readonly plugin_id: string;
   readonly plugin_title: string;
+  readonly provider_id?: string;
   /** The owner's surface in the workbench, where its work objects open. */
   readonly surface: string;
   readonly preview: ActionDefinition | null;
@@ -76,6 +77,7 @@ export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
 /** What one Plugin supervisor says is in effect: the Manifests of the installs that are enabled, and every Plugin it has held. */
 export interface InstalledArtifactView {
   effectiveManifests(): readonly PluginManifest[];
+  providerId?(pluginId: string): string | undefined;
   knownPluginIds(): readonly string[];
   /** False once the project the supervisor belongs to has closed; a closed view has no installs in effect. */
   alive(): boolean;
@@ -118,6 +120,10 @@ export const installedArtifacts = new InstalledArtifactDirectory();
 export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: PluginRuntime, alive: () => boolean): InstalledArtifactView {
   return {
     alive,
+    providerId: pluginId => {
+      const install = supervisor.installation(pluginId);
+      return install ? resolveActionProviderId(runtime.get(install.install_id)) : undefined;
+    },
     effectiveManifests: () => supervisor.enabledPluginIds().flatMap(pluginId => {
       const manifest = supervisor.manifest(pluginId);
       return manifest && supervisor.installation(pluginId) && (supervisor.state(pluginId)?.status ?? "running") === "running" ? [manifest] : [];
@@ -126,7 +132,7 @@ export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: Plugi
   };
 }
 
-const sourceOf = (manifest: PluginManifest, surface: string): ArtifactProducerSource => ({ plugin_id: manifest.plugin_id, name: manifest.name, surface,
+export const artifactManifestSource = (manifest: PluginManifest, surface: string): ArtifactProducerSource => ({ plugin_id: manifest.plugin_id, name: manifest.name, surface,
   artifacts: manifest.artifacts, ...manifest.process_items ? { process_items: manifest.process_items } : {}, actions: manifest.actions ?? [] });
 
 /**
@@ -138,14 +144,14 @@ export function artifactProducerSources(): readonly ArtifactProducerSource[] {
   const effective = installedArtifacts.effective(), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known();
   const shipped = shippedParts().flatMap(entry => {
     const installed = byId.get(entry.manifest.plugin_id);
-    if (installed) return [sourceOf(installed, entry.project_plugin_id)];
-    return known.has(entry.manifest.plugin_id) ? [] : [sourceOf(entry.manifest, entry.project_plugin_id)];
+    if (installed) return [artifactManifestSource(installed, entry.project_plugin_id)];
+    return known.has(entry.manifest.plugin_id) ? [] : [artifactManifestSource(entry.manifest, entry.project_plugin_id)];
   });
   const shippedIds = new Set(shippedParts().map(entry => entry.manifest.plugin_id));
   return [
     ...shipped,
     ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, name: host.name, surface: host.surface, artifacts: { produces: host.produces, consumes: [] }, actions: host.actions })),
-    ...effective.filter(manifest => !shippedIds.has(manifest.plugin_id)).map(manifest => sourceOf(manifest, manifest.plugin_id)),
+    ...effective.filter(manifest => !shippedIds.has(manifest.plugin_id)).map(manifest => artifactManifestSource(manifest, manifest.plugin_id)),
   ];
 }
 

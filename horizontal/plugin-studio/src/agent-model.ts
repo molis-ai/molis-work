@@ -27,6 +27,7 @@ export interface BrowserAcceptance {
   >;
 }
 export interface AgentDesign {
+  roleTemplates?: readonly import("./role-templates.js").StudioRoleTemplate[];
   connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
   icon?: import("@molis-ai/molis-work-plugin-sdk/ui").PluginIconName;
   /** The capability catalog version the design was made against (see the host). */
@@ -46,6 +47,12 @@ export interface AgentDesign {
   experience?: { summary: string; scenarios: Array<{ task: string; content: SandboxJson; expected: string }> };
 }
 /** Stage one of design: a product-level proposal the person compares; only the chosen one is designed in full. */
+/** Local custody of the proposal image. A different Home cannot inherit an installed service or its connection. */
+export type StudioImageBinding = import('@molis-ai/molis-work-contracts/services/surface-composition').SurfaceInstallationRef & {
+  readonly provider_id: string;
+  readonly project_id: string;
+  readonly connection_id: string;
+}
 export interface AgentProposal {
   id: string;
   title: string;
@@ -56,7 +63,7 @@ export interface AgentProposal {
   /** Enough contract and parts to render the proposal on the canvas; never built or validated as a plugin. */
   preview: { contract: SandboxPluginContract; parts: PluginComponentPlan[]; presentation?: PluginPresentation };
   /** A picture of the proposal, when an image service is configured (W7): drawn once, never retried. */
-  mockup?: { status: 'drawing' | 'ready' | 'failed'; jobId?: string; imageId?: string; reason?: string };
+  mockup?: { status: 'drawing' | 'ready' | 'failed'; requestId?: string; prompt?: string; jobId?: string; imageId?: string; reason?: string; binding?: StudioImageBinding; regenerate?: true };
 }
 export interface AgentBuildStep {
   id: string; agent: 'design' | 'ui' | 'code' | 'host'; action: string;

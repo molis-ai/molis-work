@@ -38,6 +38,8 @@ export const platformDomEventsContract = {
  * packages, must be split. The longest complete owner prefix wins. Every plugin gets the same treatment and this table
  * names none of them (ac-artifacts A4, PG-096). Platform owners use only the prefixes below.
  */
+// A signed component command can also declare a local ui_event. Only its installation's stage receives
+// plugin:<plugin_id>/<ui_event> after the Host accepts the submit. The event carries no payload and does not bubble.
 export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:"] as const;
 
 /**

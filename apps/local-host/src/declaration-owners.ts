@@ -64,7 +64,8 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
           && record.publisher_signature === entry.manifest.publisher.signature)
       ),
     );
-    if (!ref || !sameDualHostBuild) return true;
+    const dualSandbox = manifest.runtime?.scope === "home" && manifest.runtime.dual_instance === true;
+    if (!ref || (!sameDualHostBuild && !dualSandbox)) return true;
     const action = manifest.actions?.find(item => item.capability_id === ref.capability_id && item.version === ref.version);
     return action?.action.scope === scope.kind;
   }

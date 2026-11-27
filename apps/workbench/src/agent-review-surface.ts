@@ -148,7 +148,10 @@ export function isReviewDocumentReadable(document: AgentReviewDocument): boolean
       && (document.after_write_check === undefined || typeof document.after_write_check?.display_name === "string" && Number.isSafeInteger(document.after_write_check.version))
       && (document.grants === undefined || typeof document.grants.network === "boolean" && Array.isArray(document.grants.paths)
         && document.grants.paths.every(grant => typeof grant.path === "string" && (grant.access === "read" || grant.access === "write")));
-    case "tool-operation": return typeof document.summary === "string" && Array.isArray(document.fields);
+    case "tool-operation": return typeof document.summary === "string" && Array.isArray(document.fields)
+      && (document.plugin_review === undefined || Boolean(document.plugin_review && typeof document.plugin_review.kind === "string"
+        && typeof document.plugin_review.title === "string" && Array.isArray(document.plugin_review.fields)
+        && document.plugin_review.fields.every(field => field && typeof field.label === "string" && typeof field.value === "string")));
     case "mcp": return typeof document.server === "string" && typeof document.tool === "string" && typeof document.arguments_json === "string";
     case "rewind": return typeof document.checkpoint_id === "string" && Array.isArray(document.files) && document.files.length > 0
       && document.files.every(file => typeof file.path === "string" && (file.before_text === null || typeof file.before_text === "string")
@@ -345,10 +348,12 @@ export function renderAgentReviewDocument(document: AgentReviewDocument, p: Pick
       </div>`;
     case "tool-operation": {
       // Exact arguments stay reviewable, folded under the readable fields rather than in front of them.
+      const registered = document.plugin_review;
+      const ownerCard = registered ? `<section data-plugin-review-kind="${p.escape(registered.kind)}"><h4>${p.escape(registered.title)}</h4><dl class="agent-review-fields">${registered.fields.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl></section>` : "";
       const exactLabel = uiText.text("workbench.assistant-review.field.exact-arguments");
       const isExact = (field: { key?: string; label: string }) => isReviewFieldNamed(field, "exact-arguments", exactLabel, ["本次完整参数", "完整参数", "Full parameters", "Exact arguments", "今回の全パラメーター", "詳細な引数"]);
       const exact = document.fields.filter(isExact), readable = document.fields.filter(field => !isExact(field));
-      return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p class="agent-review-meta">${p.escape(document.summary)}</p>${readable.length ? `<dl class="agent-review-fields">${readable.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl>` : ""}${exact.map(field => `<details class="agent-review-bounds" data-review-detail="arguments"><summary>${p.escape(uiText.text("workbench.agent-review.arguments"))}</summary><pre>${p.escape(field.value)}</pre></details>`).join("")}</div>`;
+      return `<div class="agent-review-doc" data-agent-review-kind="tool-operation">${ownerCard}<p class="agent-review-meta">${p.escape(document.summary)}</p>${readable.length ? `<dl class="agent-review-fields">${readable.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl>` : ""}${exact.map(field => `<details class="agent-review-bounds" data-review-detail="arguments"><summary>${p.escape(uiText.text("workbench.agent-review.arguments"))}</summary><pre>${p.escape(field.value)}</pre></details>`).join("")}</div>`;
     }
     case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre translate="no">${p.escape(document.arguments_json)}</pre></div>`;
     case "rewind": return `<div class="agent-review-doc" data-agent-review-kind="rewind">

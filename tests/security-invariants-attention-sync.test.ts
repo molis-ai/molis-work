@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parsePluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS } from '@molis-ai/molis-work-app-local-host';
+import { syncOwnerPair } from './fixtures/runtime-personal-sync.js';
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {ATTENTION_SCHEMA_SQL,AttentionModule,attentionContentReplicationDefinition} from '@molis-ai/molis-work-module-attention-resumption';
 import {bindDatabaseSpace,personalStorageSpace,createProjectContentReplicaFactory,installProjectReplicaJournal,replicaSchemaSql,type ReplicaDatabase,type ReplicaInputValue,type ReplicaOutputValue} from '@molis-ai/molis-work-storage';
@@ -32,4 +35,34 @@ test('S-132 PCSYNC-15/17 equal numeric revisions cannot let a stale editor overw
  const shown=b.owner.query.get('project','entry');assert.equal(shown.revision,2);const mutation=a.replica.next()!;b.replica.receive({...mutation,revision:1});assert.equal(b.replica.counts().conflicts,1);
  b.replica.resolve(mutation.key,'remote',1);const adopted=b.owner.query.get('project','entry');assert.equal(adopted.status,'done');assert.ok(adopted.revision>shown.revision);
  const before=b.owner.events.list('project');assert.throws(()=>b.owner.commands.setStatus('project','entry','open',shown.revision),{code:'attention.revision_conflict'});assert.deepEqual(b.owner.query.get('project','entry'),adopted);assert.deepEqual(b.owner.events.list('project'),before);
+});
+
+test('PSD-01 S-132 two retired plugin declarations are rejected and the platform still transfers an Attention item', async t => {
+  const declarers = PLATFORM_PLUGIN_REGISTRATIONS.filter(row => row.manifest.sync?.collections.some(c => c.sections)).slice(0, 2);
+  assert.equal(new Set(declarers.map(row => row.manifest.plugin_id)).size, 2);
+  for (const { manifest } of declarers) {
+    assert.doesNotThrow(() => parsePluginManifest(manifest));
+    const retired = structuredClone(manifest);
+    const collection = retired.sync!.collections.find(row => row.sections)!;
+    Object.assign(collection, { sections: { ...collection.sections, platform: ['attention'] } });
+    assert.throws(() => parsePluginManifest(retired), /同步分区声明不合法/);
+  }
+  const { source, target } = await syncOwnerPair(t, []);
+  await source.sync.run(); await target.sync.run();
+  const selection = source.sync.status().collections.find(row => row.group === 'platform' && row.selection.collection_id === 'attention')?.selection;
+  assert.ok(selection);
+  assert.equal(selection.plugin_id, 'system.attention');
+  await source.sync.save({ ...source.sync.policy(), selections: [selection] });
+  const entryId = '44c-current-attention';
+  function withAttention<T>(side: typeof source, use: (owner: AttentionModule, projectId: string) => T): T {
+    const project = side.project(), db = new LocalProjectDatabase(project.database_path);
+    try { return use(new AttentionModule(db.db, { exists: () => true }), project.project_id); }
+    finally { db.close(); }
+  }
+  const original = withAttention(source, (owner, project_id) => owner.commands.create({ project_id, entry_id: entryId, reason: 'manual', subject_type: 'goal', subject_id: '44c-review' }).entry);
+  await source.sync.run(); await target.sync.run();
+  assert.equal(source.sync.status().error, null); assert.equal(target.sync.status().error, null);
+  const copy = withAttention(target, (owner, projectId) => owner.query.get(projectId, entryId));
+  assert.equal(copy?.subject_id, original.subject_id);
+  assert.equal(copy?.revision, original.revision);
 });

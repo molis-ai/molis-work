@@ -82,7 +82,18 @@ export function frameRequestPayload(
 
 interface Active { controller: AbortController; reader?: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>; reading: boolean }
 /** The owner uses its existing request helper; the child's idempotency keys are namespaced to this page. */
-export function frameRequests(port: MessagePort, pageId: string, scope: FrameScope) {
+type PresentationStage = { root: HTMLElement; pluginId: string; actionPath: string };
+
+/** Only the Host's accepted command can name an announcement for this installation's mounted stage. */
+function dispatchPluginAnnouncement(stage: PresentationStage, method: string, url: URL, response: Response): void {
+  const announcement = response.headers.get("x-molis-plugin-event");
+  if (response.ok && method === "POST" && url.pathname === stage.actionPath && announcement && /^[a-z][a-z0-9-]{0,63}$/.test(announcement)) {
+    stage.root.dispatchEvent(new CustomEvent("plugin:" + stage.pluginId + "/" + announcement));
+  }
+}
+
+export function frameRequests(port: MessagePort, pageId: string, scope: FrameScope,
+  stage: PresentationStage) {
   const active = new Map<number, Active>();
   const send = (message: FrameAnswer, transfer: Transferable[] = []) => port.postMessage(message, transfer);
   const fail = (id: number, error: unknown) => { stop(id); if (scope.alive) send({ type: "fetch-error", id, message: error instanceof Error ? error.message : "Request failed" }); };
@@ -129,6 +140,7 @@ export function frameRequests(port: MessagePort, pageId: string, scope: FrameSco
         ...payload, key, as: "response", signal: AbortSignal.any([scope.signal, entry.controller.signal]) });
       scope.assertCurrent();
       if (!active.has(id)) return;
+      dispatchPluginAnnouncement(stage, method, url, response);
       entry.reader = response.body?.getReader();
       send({ type: "response", id, status: response.status, statusText: response.statusText, headers: [...response.headers] });
       if (!entry.reader) { active.delete(id); send({ type: "end", id }); }

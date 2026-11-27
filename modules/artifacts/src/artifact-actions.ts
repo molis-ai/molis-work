@@ -137,9 +137,9 @@ export interface ArtifactActionPorts {
    */
   linkSubjects?(pluginId: string, ids: readonly string[], caller: ActionExecutionContext): Promise<ReadonlyMap<string, ArtifactLinkSubjectView>>;
   /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
-  typeTitle?(artifactTypeId: string): string | null;
+  typeTitle?(artifactTypeId: string, record: ArtifactVersionRecord): string | null;
   /** The payload keys the type's producer declares as reading text (`searchable_fields`, M12). */
-  searchableFields?(artifactTypeId: string): readonly string[] | undefined;
+  searchableFields?(artifactTypeId: string, record: ArtifactVersionRecord): readonly string[] | undefined;
   /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
   previewText?(artifact: ArtifactVersionRecord, caller: ActionExecutionContext): Promise<string | null>;
   /** Plugin input ports that take the version's type, read from the host's plugin wiring; absent where no plugins run. */
@@ -228,7 +228,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map((record): SearchEntry => {
-        const summary = cutHead(payloadText(record.payload, searchText(record.title), searchableFields(ports.searchableFields?.(record.artifact_type_id))).join("\n"), 4000);
+        const summary = cutHead(payloadText(record.payload, searchText(record.title), searchableFields(ports.searchableFields?.(record.artifact_type_id, record))).join("\n"), 4000);
         // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
         // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
         return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
@@ -245,7 +245,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map(record => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id],
+        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [ports.typeTitle?.(record.artifact_type_id, record) ?? record.artifact_type_id],
         media_type: record.media_type, size: record.size_bytes ?? null, updated_at: record.created_at, open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
     bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.projectId, input.reference ?? null, input.supported_types)),
@@ -271,7 +271,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     ...bindWorkflowContentHandlers(artifactsContentActions, {
       list: () => ports.artifacts.query.listArtifacts(ports.projectId, { availability: "available", lifecycle_state: "active" })
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .map(record => ({ item_id: artifactSubjectId(record), title: `${record.title} · v${record.version}`, caption: ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id, at: record.created_at })),
+        .map(record => ({ item_id: artifactSubjectId(record), title: `${record.title} · v${record.version}`, caption: ports.typeTitle?.(record.artifact_type_id, record) ?? record.artifact_type_id, at: record.created_at })),
       read: async ({ item_id }, caller) => {
         const reference = parseArtifactSubjectId(item_id);
         const record = reference ? ports.artifacts.query.getArtifactVersion(ports.projectId, reference) : null;

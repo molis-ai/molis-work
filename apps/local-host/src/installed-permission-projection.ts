@@ -37,7 +37,7 @@ export const projectedPermissionsOf = (record: Pick<PluginInstanceRecord, 'execu
  * connection is refused where the Host hands it out (`sandbox-integration.ts`).
  */
 const SWITCHED: ReadonlyArray<readonly [keyof SandboxEffects, string]> = [
-  ['networkDomains', 'network:request'], ['secretRefs', 'secret:use'], ['capabilities', 'capabilities:call'], ['background', 'background:start'],
+  ['scenes', 'scenes:use'], ['networkDomains', 'network:request'], ['secretRefs', 'secret:use'], ['capabilities', 'capabilities:call'], ['background', 'background:start'],
 ];
 
 /**

@@ -27,6 +27,8 @@
 
 开发前阶段（2026-11-26 定）：所有持久化 SQLite 库与带版本 JSON 文件一律固定为干净版本 `1`，零 `upgrades` 升级步骤、零读时兼容、零开发金样。自有版本统一由 `tooling/versions.json` 维护，并由 `scripts/gates/initial-versions.mjs` 与 `scripts/verify-release-versions.mjs` 核对代码与版本表一致；本表作各库与带版本文件的现行参考清单（不再作为门禁自动解析表）。每个库的 owner、表、备份与卸载规则见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 
+创作台在空 Home 新建 v1 草稿后，重启须保留配图使用的安装及连接。角色模板发布、安装并由用户采用后，从 Characters 读回作者的正文。
+
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本或结构不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 开发前阶段固定 v1，不兼容旧开发库直接拒绝并清空重建（高版本在修改前拒绝并保留文件） |

@@ -410,9 +410,14 @@ test("SRB-01 SRB-02 SRB-08 SRB-12: Sessions surface empty-scope -> Read Scope Sh
   if (!ctx) return;
   const { alpha, harness, sessionId, evaluate, waitFor, goto } = ctx;
 
+  // 44C M15: the trusted platform program loads on first use, from its registered URL.
+  const sessionPrograms = "performance.getEntriesByType('resource').map(row => new URL(row.name).pathname).filter(path => path.endsWith('/sessions.js'))";
+  await goto(`/projects/${alpha.project_id}/`, 1440, 900, "zh");
+  assert.deepEqual(await evaluate(sessionPrograms), []);
   await goto(`/projects/${alpha.project_id}/?openPlugin=sessions`, 1440, 900, "zh");
   await waitFor("Boolean(document.querySelector('[data-work-surface=\"sessions\"]:not([hidden]) [data-sessions-body] .sessions-empty-card'))");
 
+  assert.deepEqual(await evaluate(sessionPrograms), ["/assets/platform/sessions.js"]);
   // Open Read Scope Sheet, inspect 3 groups (10 / 2 / 38), enable claude-code & droid across all directories, save.
   await evaluate("document.querySelector('[data-work-surface=\"sessions\"] [data-sessions-open-scope=\"tools\"]').click()");
   await waitFor("Boolean(document.querySelector('[data-sessions-scope-sheet][open] [data-scope-allow=\"claude-code\"]'))");

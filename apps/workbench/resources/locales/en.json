@@ -5473,7 +5473,7 @@
     "workbench.service-connection-specimens.docs-tasks": "Docs and tasks",
     "workbench.service-connection-specimens.fail": "Fail",
     "workbench.service-connection-specimens.git-hub-sign-expired-stopped-after-page-2": "GitHub sign-in expired; stopped after page 2",
-    "workbench.service-connection-specimens.google-still-reviewing-moliss-sign-app-one-click": "Google is reviewing Molis’s sign-in app; meanwhile use your own Google app or forward mail to Inbox.",
+    "workbench.service-connection-specimens.google-still-reviewing-moliss-sign-app-one-click": "While Google reviews the Molis sign-in app, you can connect your own Google app or forward mail to your intake address.",
     "workbench.service-connection-specimens.just-one-key-carries-writing-once-connected-items": "Just one key. It carries on writing once connected; the items you picked are kept.",
     "workbench.service-connection-specimens.just-one-key-come-back-here-prompt-kept": "Just one key. You come back here with your prompt kept.",
     "workbench.service-connection-specimens.key-refused": "Key refused",
@@ -9491,7 +9491,7 @@
     "workbench.on-demand-help-specimens.fact-model-detail": "Billed by the provider",
     "workbench.on-demand-help-specimens.fact-model-text": "Write the report with your connected text model",
     "workbench.on-demand-help-specimens.fact-read-detail": "Only this document",
-    "workbench.on-demand-help-specimens.fact-read-text": "Read Pages “Meeting notes”",
+    "workbench.on-demand-help-specimens.fact-read-text": "Read Notebook “Meeting notes”",
     "workbench.on-demand-help-specimens.new-schedule": "New scheduled task",
     "workbench.on-demand-help-specimens.note": "Four Batch 03 Scheme A parts: expanded/pressed buttons, pre-action facts, help content, and anchored card.",
     "workbench.on-demand-help-specimens.open-help": "Open help",
@@ -9541,7 +9541,7 @@
     "workbench.package-install-card.owner-cant-change-this-part": "“{owner}” can’t change this part",
     "workbench.package-install-card.checking-the-package": "Checking the package…",
     "workbench.package-install-card.cleanup-incomplete": "The new version is installed, but some old data could not be removed. Check your free disk space and folder permissions.",
-  "workbench.package-install-card.cannot-read-kept-data": "This version can’t read your old data",
+    "workbench.package-install-card.cannot-read-kept-data": "This version can’t read your old data",
     "workbench.package-install-card.discard-consequence": "Installing {name} {version} will permanently delete the data you kept when you uninstalled it.",
     "workbench.package-install-card.discard-and-install": "Discard old data and install",
     "workbench.package-install-card.not-installed": "Not installed",
@@ -9635,7 +9635,7 @@
     "common.package-install.install-confirmation-owner": "Install confirmation · from {owner}",
     "common.package-install.install-confirmation-is-on-the-page": "Molis Work shows the install confirmation here",
     "workbench.package-install-specimens.meeting-check-in": "Meeting check-in",
-    "workbench.package-install-specimens.note-absences-in-goals": "Note absences in Goals",
+    "workbench.package-install-specimens.note-absences-in-goals": "Note absences in Waypoint",
     "workbench.package-install-specimens.monday-reminder-to-import-the-list": "A Monday 9:00 reminder to import the list",
     "workbench.package-install-specimens.plugin-studio": "Plugin studio",
     "workbench.package-install-specimens.group-absence-reasons": "Group absence reasons",
@@ -10396,6 +10396,11 @@
     "workbench.home-pages.action-denied": "This action wasn’t allowed",
     "workbench.home-pages.action-request-failed": "Action request failed",
     "common.appearance.font-sample": "Work Aa 123",
-    "common.error.secret-entry-unreadable": "Your saved credential couldn’t be read. Re-enter it in Settings to continue."
+    "common.error.secret-entry-unreadable": "Your saved credential couldn’t be read. Re-enter it in Settings to continue.",
+    "workbench.settings.plugin-value-invalid": "Check the value and try again.",
+    "workbench.settings.plugin-value-unavailable": "The saved value is unavailable.",
+    "workbench.roles.adopt-template": "Adopt",
+    "workbench.settings.plugin-value-saved": "Saved",
+    "workbench.roles.plugin-templates": "Characters from installed plugins"
   }
 }

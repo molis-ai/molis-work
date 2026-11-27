@@ -5,7 +5,7 @@
  * installing one is the same preview and confirmation, its publisher is not pinned in advance, and none goes through a built-in
  * `registration` or gets the build's trust. Reading them installs nothing, registers no Skill and keeps no setting.
  */
-import { constants, lstatSync, readdirSync, readFileSync } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readdirSync, readFileSync } from 'node:fs';
 import { lstat, open, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,34 +43,44 @@ export function releasePackageIds(directory: string): ReadonlySet<string> {
 /**
  * The release's packages under the Host's prefix as the Runtime checks them at install and at every start (S-reserved-host-prefix, 44C
  * P-13): an id the folder carries, signed as the folder's package is. A package the folder ships signed (`<plugin_id>.json`) installs
- * only under the key that signed it there, verified once; one it ships unsigned (`<plugin_id>.draft.json`) only under this Home's own
+ * only under the key that signed it there, verified for the current release; one it ships unsigned (`<plugin_id>.draft.json`) only under this Home's own
  * publisher key (`localKey`), the one that signs it when the person installs it. A version older than the folder's still passes, since
  * the signer is what is bound; a package with the same id signed by anyone else does not.
  */
 export function releasePackages(directory: string, ids: ReadonlySet<string>, localKey: () => string | null): ReleasePackages {
-  const signers = new Map<string, string | null>();
-  const signerOf = (pluginId: string): string | null => {
-    if (!signers.has(pluginId)) signers.set(pluginId, signedKeyOf(path.join(directory, `${pluginId}.json`), pluginId));
-    return signers.get(pluginId) ?? null;
-  };
   return {
     has: pluginId => ids.has(pluginId),
     signedBy(pluginId, signature) {
       if (!ids.has(pluginId)) return false;
-      const signed = signerOf(pluginId);
-      return signature === (signed ?? localKey());
+      try {
+        const raw = readReleaseFile(path.join(directory, pluginId + '.json'));
+        if (raw !== undefined) {
+          const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(raw));
+          const { manifest } = readKeptPackage(bundle.payload);
+          return manifest.kind === 'content' && manifest.plugin_id === pluginId && key_id === signature;
+        }
+        const draft = readReleaseFile(path.join(directory, pluginId + DRAFT_SUFFIX));
+        if (draft === undefined) return false;
+        const { manifest } = readKeptPackage(completeContentPackagePayload(draftOf(JSON.parse(draft)), UNSIGNED));
+        return manifest.plugin_id === pluginId && manifest.kind === 'content' && localKey() === signature;
+      } catch { return false; }
     },
   };
 }
 
-/** The key that signed the release's package at `file` if it lies there as a regular file, verifies and is the package for `pluginId`; otherwise none. */
-function signedKeyOf(file: string, pluginId: string): string | null {
+/** Only an absent signed release can defer to a verified Home-signable draft. */
+function readReleaseFile(file: string): string | undefined {
+  let fd: number;
+  try { fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
   try {
-    const stat = lstatSync(file, { throwIfNoEntry: false });
-    if (!stat?.isFile() || stat.size > MAX_PACKAGE_BYTES) return null;
-    const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(readFileSync(file, 'utf8')) as unknown);
-    return readKeptPackage(bundle.payload).manifest.plugin_id === pluginId ? key_id : null;
-  } catch { return null; }
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size > MAX_PACKAGE_BYTES) throw pluginErrors.package_invalid('随包文件无效');
+    return readFileSync(fd, 'utf8');
+  } finally { closeSync(fd); }
 }
 
 /** One bundled package that verified: its file in the folder, the signed bundle as it lies there, its Manifest as read, and the key that signed it. */
@@ -127,7 +137,7 @@ export async function readBundledPackages(directory: string): Promise<{ packages
         const { manifest, localePacks } = readKeptPackage(completeContentPackagePayload(draft, UNSIGNED));
         if (manifest.kind !== 'content') throw pluginErrors.declaration_invalid('随安装包带上的只能是只有声明的插件（kind: "content"）');
         if (file !== `${manifest.plugin_id}${DRAFT_SUFFIX}`) throw pluginErrors.package_invalid(`随包插件的待签文件要叫 ${manifest.plugin_id}${DRAFT_SUFFIX}`);
-        if (packages.some(item => item.manifest.plugin_id === manifest.plugin_id)) throw pluginErrors.package_invalid(`${manifest.plugin_id} 已经有签名的随包插件，不再认它的待签文件`);
+        if (files.includes(manifest.plugin_id + '.json')) throw pluginErrors.package_invalid(`${manifest.plugin_id} 已经有签名的随包插件，不再认它的待签文件`);
         drafts.push({ file, draft, manifest, localePacks });
         continue;
       }

@@ -12,6 +12,7 @@ import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js"
 
 /** What a provider's Manifest says about itself (its `summary`) and its read groups; `{}` for a provider the Host registers itself, which offers a task nothing unless it declares `task_readable` (`readableByTask`). */
 export interface ProviderDeclaration {
+  readonly installation?: string;
   readonly description?: string;
   readonly read_groups?: readonly PluginReadGroupDeclaration[];
   display?(group?: PluginReadGroupDeclaration): { title?: string; description?: string };
@@ -22,7 +23,7 @@ export interface ProviderDeclaration {
  * A provider's declaration now. `null`: it is a plugin whose Manifest cannot be read, so whether it declares groups is not known and it
  * offers a task nothing (read as a whole provider, it might give a task what its groups keep back).
  */
-export type DeclarationOf = (provider: Pick<ActionProvider, "provider_id"> & Partial<Pick<ActionProvider, "kind">>) => ProviderDeclaration | null;
+export type DeclarationOf = (provider: Pick<ActionProvider, "provider_id"> & Partial<Pick<ActionProvider, "kind" | "plugin_install_id" | "project_id">> & { readonly grant?: McpActionGrant }) => ProviderDeclaration | null;
 
 /** A category this project offers now and the actions turning it on records. */
 export interface OfferedCategory {
@@ -61,9 +62,18 @@ export function taskReadableCatalog(views: readonly ActionView[], declarationOf:
   });
 }
 
-function byProvider(views: readonly ActionView[]): Map<string, ActionView[]> {
+function ownerKey(providerId: string, declaration: ProviderDeclaration | null): string {
+  return JSON.stringify([providerId, declaration?.installation]);
+}
+
+function byProvider(views: readonly ActionView[], declarationOf: DeclarationOf): Map<string, ActionView[]> {
   const providers = new Map<string, ActionView[]>();
-  for (const view of views) providers.set(view.provider.provider_id, [...providers.get(view.provider.provider_id) ?? [], view]);
+  for (const view of views) {
+    const key = ownerKey(view.provider.provider_id, declarationOf(view.provider));
+    const members = providers.get(key);
+    if (members) members.push(view);
+    else providers.set(key, [view]);
+  }
   return providers;
 }
 
@@ -73,19 +83,20 @@ function providerCategory(providerId: string, views: readonly ActionView[], decl
   const display = declaration?.display?.();
   const titles = [...new Set(views.filter(readableByTask).map(view => declaration?.actionTitle?.(view) ?? view.action.title))];
   const description = display?.description ?? declaration?.description ?? titles.join(declaration?.separator ?? "、");
-  return { provider_id: providerId, ...(provider?.plugin_id ? { plugin_id: provider.plugin_id } : {}), title: words(display?.title ?? provider?.title ?? providerId), description: words(description) };
+  return { provider_id: providerId, ...(declaration?.installation ? { installation: declaration.installation } : {}), ...(provider?.plugin_id ? { plugin_id: provider.plugin_id } : {}), title: words(display?.title ?? provider?.title ?? providerId), description: words(description) };
 }
 
 function groupCategory(whole: TaskGrantCategory, group: PluginReadGroupDeclaration, declaration: ProviderDeclaration | null): TaskGrantCategory {
   const display = declaration?.display?.(group);
-  return { provider_id: whole.provider_id, group_id: group.group_id, ...(whole.plugin_id ? { plugin_id: whole.plugin_id } : {}), title: words(display?.title ?? group.title), description: words(display?.description ?? group.description) };
+  return { ...whole, group_id: group.group_id, title: words(display?.title ?? group.title), description: words(display?.description ?? group.description) };
 }
 
 /** The categories this project offers now, each with its readable actions; a group none of whose actions is registered now is not offered. */
 export function offeredCategories(views: readonly ActionView[], declarationOf: DeclarationOf): OfferedCategory[] {
   const offered: OfferedCategory[] = [];
-  for (const [providerId, all] of byProvider(views)) {
-    const declaration = declarationOf(all[0]?.provider ?? { provider_id: providerId }), readable = taskReadableCatalog(all, () => declaration);
+  for (const all of byProvider(views, declarationOf).values()) {
+    const provider = all[0]!.provider, providerId = provider.provider_id;
+    const declaration = declarationOf(provider), readable = taskReadableCatalog(all, () => declaration);
     if (!readable.length) continue;
     const whole = providerCategory(providerId, all, declaration), groups = declaration?.read_groups;
     if (!groups?.length) { offered.push({ category: whole, members: readable }); continue; }
@@ -99,11 +110,11 @@ export function offeredCategories(views: readonly ActionView[], declarationOf: D
 
 /** The one category a reference names now, or undefined: an unknown provider or group, a removed one, or no group for a provider that declares some (C3). */
 export function namedCategory(offered: readonly OfferedCategory[], reference: TaskGrantCategoryReference): OfferedCategory | undefined {
-  return offered.find(entry => entry.category.provider_id === reference.provider_id && entry.category.group_id === reference.group_id);
+  return offered.find(entry => entry.category.provider_id === reference.provider_id && entry.category.group_id === reference.group_id && entry.category.installation === reference.installation);
 }
 
 /** Which category a reference names, as one key: its provider, and its group or `""` for a whole provider. */
-export const categoryKey = (reference: TaskGrantCategoryReference): string => JSON.stringify([reference.provider_id, reference.group_id ?? ""]);
+export const categoryKey = (reference: TaskGrantCategoryReference): string => JSON.stringify([reference.provider_id, reference.group_id ?? "", reference.installation]);
 
 /**
  * A subject's records by the category they stand for now (`categoryKey`), bucketed as `subjectCategories` reads them: a provider's
@@ -121,11 +132,18 @@ export function recordedCategories(records: readonly McpActionGrant[], views: re
 
 /** The category key (`categoryKey`) a record stands for now, under its provider's declaration as it is at this moment. */
 function recordCategoryKey(views: readonly ActionView[], declarationOf: DeclarationOf): (grant: McpActionGrant) => string {
-  const providers = byProvider(views);
   return grant => {
-    const group = groupOf(grant.capability_id, declarationOf(providers.get(grant.provider_id)?.[0]?.provider ?? { provider_id: grant.provider_id }));
-    return categoryKey({ provider_id: grant.provider_id, group_id: group || undefined });
+    const declaration = grantDeclaration(grant, views, declarationOf);
+    const group = groupOf(grant.capability_id, declaration);
+    return categoryKey({ provider_id: grant.provider_id, group_id: group || undefined, installation: declaration?.installation });
   };
+}
+
+/** Grants persist the publisher-derived capability id and its scope. They also identify a stopped package without a live action. */
+function grantDeclaration(grant: McpActionGrant, views: readonly ActionView[], declarationOf: DeclarationOf) {
+  const live = views.find(view => view.provider.provider_id === grant.provider_id && view.capability_id === grant.capability_id
+    && (view.action.scope === "home") === (grant.project_id === null));
+  return declarationOf(live?.provider ?? { provider_id: grant.provider_id, grant });
 }
 
 const samePermissions = (grant: McpActionGrant, view: ActionView) => grant.permissions.length === new Set(view.action.permissions).size
@@ -145,11 +163,15 @@ function recordMatches(grant: McpActionGrant, view: ActionView, projectId: strin
  * no task any more; the row names the provider.
  */
 export function subjectCategories(records: readonly McpActionGrant[], views: readonly ActionView[], declarationOf: DeclarationOf, projectId: string): TaskGrantCategoryState[] {
-  const providers = byProvider(views), states: TaskGrantCategoryState[] = [];
+  const providers = byProvider(views, declarationOf), states: TaskGrantCategoryState[] = [];
   const recorded = new Map<string, McpActionGrant[]>();
-  for (const grant of records) if (grant.enabled) recorded.set(grant.provider_id, [...recorded.get(grant.provider_id) ?? [], grant]);
-  for (const [providerId, grants] of recorded) {
-    const present = providers.get(providerId) ?? [], declaration = declarationOf(present[0]?.provider ?? { provider_id: providerId });
+  for (const grant of records) if (grant.enabled) {
+    const key = ownerKey(grant.provider_id, grantDeclaration(grant, views, declarationOf));
+    recorded.set(key, [...recorded.get(key) ?? [], grant]);
+  }
+  for (const [key, grants] of recorded) {
+    const first = grants[0]!, providerId = first.provider_id;
+    const present = providers.get(key) ?? [], declaration = grantDeclaration(first, views, declarationOf);
     const whole = providerCategory(providerId, present, declaration), readable = taskReadableCatalog(present, () => declaration);
     const buckets = new Map<string | undefined, McpActionGrant[]>();
     for (const grant of grants) { const group = groupOf(grant.capability_id, declaration); buckets.set(group, [...buckets.get(group) ?? [], grant]); }

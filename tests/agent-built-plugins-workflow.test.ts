@@ -1,3 +1,4 @@
+import { studioImageInstallation } from './fixtures/builder-workflow-design.js';
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -21,8 +22,10 @@ import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
-import { handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
+import { pluginControlActions, pluginInstallActions, handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { signedImageService } from './fixtures/signed-image-service.js';
+import { person as installPerson, ref as actionRef } from './fixtures/home-sandbox.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkills } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../horizontal/plugin-studio/dist/agent-experience.js';
@@ -88,14 +91,14 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 // T405-FULL-04: real G1–G6 include the Seatbelt typecheck and sandbox workers.
 const nativeBuildChecks = { skip: process.platform !== 'darwin' && 'Real G1–G6 require macOS Seatbelt (/usr/bin/sandbox-exec)' };
 
-async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
+async function startStudioFixture(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
   let closeStudio: (() => Promise<void>) | undefined, server: ReturnType<typeof createServer> | undefined;
   t.after(async () => {
     try { await closeStudio?.(); }
     finally { if (server?.listening) await new Promise<void>(resolve => { server!.close(() => resolve()); server!.closeAllConnections(); }); }
   });
   const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Shared revision sources');
-  const store = await f.host.withProject(project.reference, runtime => runtime.store);
+  const store = await f.host.withProject(project.reference, runtime => runtime.store, { activatePlugins: true });
   closeStudio = async () => { try { await releaseAgentStudio(store, project.project_id); } finally { await releaseInstalledPlugins(store, project.project_id); } };
   const answer = JSON.parse(detail('共享清单'));
   answer.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };
@@ -116,13 +119,14 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   const coded: Array<{ id: string; before: string }> = [];
   let firstRoot = '';
   const actions = f.host.actionRegistry(project.reference);
+  let reverseDirectory = false;
   const options: Parameters<typeof handleAgentStudioHttp>[3] = {
     store, projectId: project.project_id, homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID,
     routePrefix: '/projects/' + project.project_id, parallel: 1,
     models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
     // This existing executable rejects Chrome flags; BuilderBrowser cannot fall back to a personal browser.
     browserExecutable: setup.browserExecutable ?? process.execPath,
-    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: caller => f.host.inspectActions(caller, project.reference), project_id: project.project_id },
+    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: async caller => { const rows = await f.host.inspectActions(caller, project.reference); return reverseDirectory ? [...rows].reverse() : rows; }, project_id: project.project_id },
     choice: { selectionAvailable: () => false, choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }) },
     agents: async build => ({ close: async () => {}, records: async () => [], async run(request) {
       const task = JSON.parse(request.task);
@@ -154,7 +158,11 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   const trialKeys: string[] = [], trialProbes: Promise<void>[] = [], trialProbeErrors: unknown[] = [];
   server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    web.handle(request, response, url, options.routePrefix!, (local, proof) => {
+    web.handle(request, response, url, options.routePrefix!, (local, proof, locale) => {
+      if (url.pathname === '/studio-preview') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(isolatedStudioHarness(f.home, project.project_id, proof, locale)); return;
+      }
       if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
       const key = url.searchParams.get('acceptance');
       if (key && !trialKeys.includes(key)) {
@@ -186,6 +194,16 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
     }
     throw new Error('revision fixture did not settle');
   };
+  return { f, project, answer, words, coded, helper, nested, send, wait, trialKeys, origin,
+    reverseDirectory() { reverseDirectory = !reverseDirectory; }, restartStudio: () => releaseAgentStudio(store, project.project_id),
+    image: (build: string, candidate: string) => fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + build + '/mockups/' + candidate),
+    rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
+    async checkTrials() { await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []); },
+  };
+}
+
+async function revisionHelperStudio(t: TestContext, setup?: Parameters<typeof startStudioFixture>[1]) {
+  const studio = await startStudioFixture(t, setup), { send, wait } = studio;
   const created = await send<{ build: AgentBuild }>('/builds', { brief: '共享清单' });
   let current = await wait(created.build.id);
   await send('/builds/' + current.id + '/action', { action: 'choose', revision: current.revision, candidateId: 'quick' });
@@ -193,13 +211,12 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   const passed = (build: AgentBuild) => {
     assert.equal(build.checks.global?.passed, true, studioBuildDiagnostic(build.error) || JSON.stringify(build.checks.global));
     assert.deepEqual(build.checks.global!.gates.map(gate => [gate.id, gate.passed]), ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'].map(id => [id, true]));
-    assert.equal(build.browserResult?.passed, setup.browserExecutable ? setup.browserPassed ?? true : false, JSON.stringify(build.browserResult));
-    if (!setup.browserExecutable) assert.match(build.browserResult!.cases[0]!.detail, /验收浏览器未能启动/);
+    assert.equal(build.browserResult?.passed, setup?.browserExecutable ? setup?.browserPassed ?? true : false, JSON.stringify(build.browserResult));
+    if (!setup?.browserExecutable) assert.match(build.browserResult!.cases[0]!.detail, /验收浏览器未能启动/);
   };
   passed(current);
-  await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []);
-  return { f, answer, words, coded, helper, nested, send, wait, passed, current, trialKeys,
-    rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
+  await studio.checkTrials();
+  return { ...studio, passed, current,
     async revise() { await send('/builds/' + current.id + '/action', { action: 'revise', revision: current.revision, message: '只调整界面' }); current = await wait(current.id); return current; },
   };
 }
@@ -753,11 +770,93 @@ test('after the host restarts mid-build, continuing writes only what was not con
   } finally { await workflow.close(); }
 });
 
+test('44C-06 Studio polls the original installed signed service across restart, directory reordering and withdrawal', { timeout: 120_000 }, async t => {
+  const studio = await startStudioFixture(t), { f, project } = studio;
+  const client = f.host.actionClient(project.reference), who = installPerson(project.project_id);
+  const install = async (key: string, version = '1.0.0', incomplete = false) => {
+    const fixture = signedImageService(key, version, incomplete);
+    const preview = await client.invoke(who, actionRef(pluginInstallActions.preview), { bundle: fixture.bundle }) as { preview_id: string };
+    await client.invoke(who, actionRef(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: key });
+    return fixture;
+  };
+  const createDraft = () => studio.send<{ build: AgentBuild }>('/builds', { brief: '为签名样例画草图' });
+  if (process.platform !== 'darwin') {
+    // Confirmation starts the signed worker before publishing its actions. An unsupported OS rolls back the install.
+    for (const key of ['quartz', 'cobalt']) {
+      await assert.rejects(install(key), { code: 'actions.execution_failed', details: { install_phase: 'start' } });
+    }
+    const catalog = await f.host.inspectActions(who, project.reference);
+    const providers = new Set(['com.example.image-quartz', 'com.example.image-cobalt']);
+    assert.deepEqual(catalog.filter(view => view.provider.plugin_id && providers.has(view.provider.plugin_id) && view.availability.available), []);
+    assert.deepEqual((await studio.send<{ choices: unknown[] }>('/image-services')).choices, []);
+    const created = await createDraft();
+    const build = await studio.wait(created.build.id);
+    assert.equal(build.phase, 'choosing');
+    assert.ok(build.candidates.length && build.candidates.every(candidate => !candidate.mockup?.jobId));
+    t.diagnostic('Both signed providers were refused at startup; neither offered an action and Studio kept the proposals without an image job.');
+    return;
+  }
+  const incomplete = await install('partial', '1.0.0', true);
+  const first = await install('quartz'), second = await install('cobalt');
+  const created = await createDraft();
+  async function picture(phase: 'drawing' | 'ready') {
+    const deadline = Date.now() + 25000;
+    while (Date.now() < deadline) {
+      const { build } = await studio.send<{ build: AgentBuild }>('/builds/' + created.build.id);
+      const found = build.candidates.find(item => item.mockup?.status === phase && item.mockup?.jobId);
+      if (found) return found;
+      if (build.candidates.length && build.candidates.every(item => item.mockup?.status === 'failed')) assert.fail(JSON.stringify(build.candidates.map(item => item.mockup)));
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    throw new Error('Studio did not reach ' + phase);
+  }
+  const pending = await picture('drawing'), owner = pending.mockup!.binding!;
+  assert.notEqual(owner.connection_id, incomplete.connection);
+  const selected = [first, second].find(item => item.connection === owner.connection_id)!;
+  assert.ok(selected);
+  studio.reverseDirectory();
+  await studio.restartStudio();
+  const ready = await picture('ready');
+  assert.deepEqual(ready.mockup!.binding, owner);
+  const file = await studio.image(created.build.id, ready.id);
+  assert.equal(file.status, 200); assert.equal(file.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await file.arrayBuffer()), Buffer.from(selected.png, 'base64'));
+  await install(selected.key, '1.0.1');
+  assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'a later release cannot read the previous job through Studio');
+  assert.equal((await f.request('/api/settings/plugin-publishers/revoke', { method: 'POST', body: { key_id: selected.publisher } })).status, 200);
+  assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'the remaining service cannot replace a withdrawn installation');
+  const remaining = selected === first ? second : first;
+  const browser = await openStudioChrome(f.home); assert.ok(browser);
+  try {
+    const outer = await browser.page(), page = await framedStudioPage(t, browser, outer, 'plugin-builder');
+    await outer.command('Page.navigate', { url: studio.origin + '/studio-preview' });
+    await page.wait('Array.from(document.querySelector("[data-as-builds]")?.options ?? []).some(option => option.value === ' + JSON.stringify(created.build.id) + ')');
+    await page.evaluate('(()=>{ const builds = document.querySelector("[data-as-builds]"); builds.value = ' + JSON.stringify(created.build.id) + '; builds.dispatchEvent(new Event("change", {bubbles: true})); })()');
+    await page.wait('!!document.querySelector("[data-as-candidate]")');
+    await page.click('[data-as-candidate="' + ready.id + '"]');
+    const choose = '[data-as-image-services="' + ready.id + '"]';
+    await page.wait('document.querySelector(' + JSON.stringify(choose) + ')?.getClientRects().length > 0');
+    await page.click(choose);
+    const pick = '[data-as-new-image="' + ready.id + '"]';
+    await page.wait('!!document.querySelector(' + JSON.stringify(pick) + ')');
+    assert.deepEqual(await page.evaluate('Array.from(document.querySelectorAll(' + JSON.stringify(pick) + '), el=>el.textContent)'), [remaining.key + ' · ' + remaining.connection]);
+    await page.click(pick);
+    await page.wait('document.querySelector(".as-mockup-large")?.naturalWidth > 0');
+    const refreshed = (await studio.send<{build: AgentBuild}>('/builds/' + created.build.id)).build.candidates.find(item => item.id === ready.id)!.mockup!;
+    assert.equal(refreshed.binding?.connection_id, remaining.connection);
+    assert.notEqual(refreshed.requestId, ready.mockup!.requestId);
+    const newFile = await studio.image(created.build.id, ready.id);
+    assert.deepEqual(Buffer.from(await newFile.arrayBuffer()), Buffer.from(remaining.png, 'base64'));
+    await client.invoke(who, actionRef(pluginControlActions.disable), { plugin_id: remaining.pluginId });
+    assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'a stopped installation no longer supplies its picture');
+  } finally { await browser.close(); }
+});
+
 test('with an image service each proposal gets one picture (never a second try); choosing does not wait for them; without one nothing changes', async () => {
   const h = harness([PROPOSALS, detail('快记')]);
   const draws: Array<{ key: string; prompt: string }> = [];
   let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
-  h.ports.mockups = { available: async () => true, async draw(request) { draws.push(request); await gate; return request.key.endsWith(':quick') ? { jobId: 'job-1', imageId: 'img-1' } : { reason: '服务返回 429' }; } };
+  h.ports.mockups = { available: async () => true, async draw(request) { draws.push(request); await gate; return request.key.endsWith(':quick') ? { jobId: 'job-1', imageId: 'img-1', binding: studioImageInstallation } : { reason: '服务返回 429' }; } };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
   try {
     const created = workflow.create('做一个笔记插件');
@@ -766,7 +865,7 @@ test('with an image service each proposal gets one picture (never a second try);
     const seen = build.revision;
     release();
     build = await until(workflow, created.id, value => value.candidates.every(item => item.mockup?.status !== 'drawing'));
-    assert.deepEqual(build.candidates.map(item => item.mockup), [{ status: 'ready', jobId: 'job-1', imageId: 'img-1' }, { status: 'failed', reason: '服务返回 429' }]);
+    assert.deepEqual(build.candidates.map(item => item.mockup), [{ status: 'ready', requestId: draws[0]!.key, jobId: 'job-1', imageId: 'img-1', binding: studioImageInstallation }, { status: 'failed', requestId: draws[1]!.key, reason: '服务返回 429' }]);
     assert.equal(draws.length, 2, 'a failed picture is not asked for again');
     // The person chose from the page they saw before the pictures arrived.
     await workflow.action(created.id, { action: 'choose', revision: seen, candidateId: 'quick' });
@@ -790,7 +889,7 @@ test('with an image service each proposal gets one picture (never a second try);
   const enDraws: string[] = [];
   enHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
   enHarness.ports.instruction = prompt => prompt.prompt_id === 'mockup.generate' ? 'CUSTOM EN UI mockup instructions.' : prompt.body;
-  enHarness.ports.mockups = { available: async () => true, async draw(request) { enDraws.push(request.prompt); return { jobId: 'j-en', imageId: 'img-en' }; } };
+  enHarness.ports.mockups = { available: async () => true, async draw(request) { enDraws.push(request.prompt); return { jobId: 'j-en', imageId: 'img-en', binding: studioImageInstallation }; } };
   const enWorkflow = new AgentBuilderWorkflow(memoryStorage(), enHarness.ports);
   try {
     const created = enWorkflow.create('Build a note plugin');
@@ -804,7 +903,7 @@ test('with an image service each proposal gets one picture (never a second try);
   const defaultEnHarness = harness([PROPOSALS]);
   const defaultEnDraws: string[] = [];
   defaultEnHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
-  defaultEnHarness.ports.mockups = { available: async () => true, async draw(request) { defaultEnDraws.push(request.prompt); return { jobId: 'j-en-2', imageId: 'img-en-2' }; } };
+  defaultEnHarness.ports.mockups = { available: async () => true, async draw(request) { defaultEnDraws.push(request.prompt); return { jobId: 'j-en-2', imageId: 'img-en-2', binding: studioImageInstallation }; } };
   const defaultEnWorkflow = new AgentBuilderWorkflow(memoryStorage(), defaultEnHarness.ports);
   try {
     const created = defaultEnWorkflow.create('Build a note plugin');

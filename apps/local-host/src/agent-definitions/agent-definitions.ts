@@ -213,14 +213,14 @@ export class AgentDefinitions {
   }
 
   /** Read the selected installation's role, never the settings aggregation or a newer default. No use is recorded here. */
-  signedMaterial(installId: string, ref: SignedAgentReference, locale?: string): SignedAgentMaterial {
+  signedMaterial(installId: string, ref: SignedAgentReference, locale?: string, edition: "effective" | "package" = "effective"): SignedAgentMaterial {
     const owner = this.scopes.get(ref.source.plugin_id)?.get(installId), source = owner?.source;
     if (!owner || !offering(owner) || source?.kind !== "plugin" || source.plugin_version !== ref.source.plugin_version
       || source.publisher_signature !== ref.source.publisher_signature) throw agentDefinitionsErrors.not_found("签名正文来源已变化，请重新选择");
     const role = owner.roles.find(item => item.role_id === ref.entry_id);
     const prompt = role && owner.prompts.find(item => role.prompt_ids.includes(item.prompt_id) && sameRef(item.default_ref, ref));
     if (!prompt) throw agentDefinitionsErrors.not_found("没有登记这个角色资料版本");
-    const edited = isProtectedPrompt(prompt) ? null : this.override(keyOf(owner.owner_id, prompt.prompt_id));
+    const edited = edition === "package" || isProtectedPrompt(prompt) ? null : this.override(keyOf(owner.owner_id, prompt.prompt_id));
     return { default_ref: structuredClone(ref), effective: edited ? "user" : "default", user_revision: edited?.revision ?? null, body: edited?.body ?? agentBodyIn(prompt, locale) };
   }
 

@@ -6,13 +6,5 @@
     "to": "e887a7ecc3f08e62",
     "approved": "user 2026-11-26 (Batch 108 V17「108 做主库摘要表」; goal prompt: goldens and same-version registration; U13/V7 Clean v1, no migration)",
     "reason": "Batch 108 adds the platform's plugin_overview_rows summary table to the clean pre-release v1 partition main database (specs/unified-partition-plugins §6.1 主库摘要表); the goldens are rewritten in place, and the entry goes in the next PR that touches this file."
-  },
-  {
-    "store": "jelly/jelly.db",
-    "version": 1,
-    "from": "f8ed975502abc63b",
-    "to": "07e620872874959d",
-    "approved": "user 2026-11-26 (batch 112-2: Clean v1; database.jelly_database stays at 1, no migration; an existing Home's old jelly/jelly.db is not read and is deleted by hand after updating, so Jelly starts empty)",
-    "reason": "Batch 112-2 replaces the singleton jelly_workspace JSON row (with jelly_history, jelly_previews, jelly_note_versions) by four row tables jelly_categories, jelly_items, jelly_series and jelly_notes in the clean pre-release v1 library; the goldens' Jelly dumps are rewritten in place, and the entry goes in the next PR that touches this file."
   }
 ]

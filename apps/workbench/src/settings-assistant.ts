@@ -1,3 +1,5 @@
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_SUMMARY_FIELDS } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { renderAssistantPreferenceForms } from "./settings-assistant-preference-forms.js";
 import { t as uiText, renderButton, renderListToolbar, renderObjectRow, renderPreActionFacts, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -467,15 +469,14 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   // 跨项目总览: per project, whether the assistant may read its overview and which summary fields (none by default, overview-readers).
   const overviewForm = root.querySelector("[data-assistant-overview]"), overviewError = root.querySelector("[data-overview-error]");
   const overviewPlaces = overviewForm.querySelector("[data-overview-places]");
-  const OVERVIEW_FIELDS = ["title", "status", "due_at", "remind_at", "priority", "tags", "starts_at", "ends_at", "all_day", "time_zone", "level", "source",
-    "occurred_at", "summary", "state", "waiting", "started_at", "reports_to", "missed_at", "needs", "open", "updated_at"];
+  const OVERVIEW_FIELDS = ${JSON.stringify(OVERVIEW_SUMMARY_FIELDS)}, PERSONAL_SPACE = ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)};
   const OVERVIEW_DEFAULT_FIELDS = ["title", "status", "due_at", "starts_at", "ends_at", "level", "occurred_at", "state", "waiting", "updated_at"];
   let overviewPlaceList = null, overviewGranted = new Map();
   const drawOverviewPlaces = () => {
     if (!overviewPlaceList) return;
     if (!overviewPlaceList.length) { overviewPlaces.replaceChildren(note(globalThis.t.text("workbench.settings-assistant.overview-no-places"))); return; }
     overviewPlaces.replaceChildren(...overviewPlaceList.map((place) => {
-      const name = place.project_id === "personal" ? globalThis.t.text("workbench.settings-assistant.personal") : place.display_name;
+      const name = place.project_id === PERSONAL_SPACE ? globalThis.t.text("workbench.settings-assistant.personal") : place.display_name;
       const fields = overviewGranted.get(place.project_id);
       const { control, toggle } = switchOf(Boolean(fields), name);
       toggle.dataset.overviewPlace = place.project_id;

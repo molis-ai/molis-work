@@ -25,18 +25,24 @@ function policyOf(view: Metadata, policies: ReturnType<AssistantStore["policies"
  * What the Assistant may use here. A plugin this project does not reach (taken out of it, BL-088) keeps its actions registered so a call
  * is refused as off here; they are not offered (S-72): the same judgement actions use (`projectPluginReach`).
  */
+async function reachable(host: MolisWorkLocalHost, reference?: LocalHostProjectReference): Promise<(view: Metadata) => boolean> {
+  const reaches = reference ? await host.projectPluginReach(reference.project_id) : undefined;
+  return view => !reaches || !view.provider.plugin_id || reaches(view.provider.plugin_id) !== false;
+}
+
 export async function assistantActionPolicies(host: MolisWorkLocalHost, store: AssistantStore, reference?: LocalHostProjectReference) {
   const catalog = await host.inspectPreparedActionMetadata(metadataCaller(reference), reference);
-  const reaches = reference ? await host.projectPluginReach(reference.project_id) : undefined;
+  const listed = await reachable(host, reference);
   const policies = store.policies.read(LOCAL_PERSON_ACTOR_ID);
-  return catalog.filter(view => !reaches || !view.provider.plugin_id || reaches(view.provider.plugin_id) !== false).map(view => policyOf(view, policies));
+  return catalog.filter(listed).map(view => policyOf(view, policies));
 }
 
 export async function assistantActionPolicyView(host: MolisWorkLocalHost, store: AssistantStore, reference: LocalHostProjectReference | undefined,
   action: ExactActionReference) {
   const caller = metadataCaller(reference), matches = (view: Metadata) => matchesAction(view, action);
   const selected = (await host.inspectPreparedActionMetadata(caller, reference)).find(matches);
-  if (!selected) return undefined;
+  // Read and switched the way it is listed: a plugin this project does not reach has none of its actions here.
+  if (!selected || !(await reachable(host, reference))(selected)) return undefined;
   const assertCurrent = () => {
     const current = host.inspectActionMetadata(caller, reference).find(matches);
     if (!current || current.action !== selected.action || current.provider !== selected.provider) throw assistantErrors.conflict("能力或提供方已经变化，请刷新后再决定");

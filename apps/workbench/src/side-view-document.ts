@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
@@ -67,8 +68,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const surface = uiHost.list().find(descriptor => descriptor.contribution_id === view.contribution_id)?.surfaces
     ?.find(candidate => candidate.target_slot_id === WORKBENCH_UI_SLOTS.side.slot_id);
   if (!surface) return null;
-  const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
-  const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id, primitives: { escape, text: input.translate } };
+  const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id, primitives: { escape: escapeHtml, text: input.translate } };
   const html = uiHost.mount({ slot: WORKBENCH_UI_SLOTS.side, contribution: { contribution_id: view.contribution_id, surface: surface.surface_id, model } }).html;
   const route = JSON.stringify(input.routePrefix);
   const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
@@ -120,15 +120,14 @@ function renderSideEnableDocument(input: SideViewDocumentInput): string | null {
   const entry = SHIPPED_WORKBENCH_PARTS.find(part => part.project_plugin_id === input.projectPluginId && part.project_runtime?.keys);
   const view = entry && sideEntries([entry.project_plugin_id as ProjectPluginId]).find(side => side.view_id === input.viewId);
   if (!entry || !view) return null;
-  const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
   const id = JSON.stringify(entry.project_plugin_id), space = JSON.stringify(PERSONAL_SPACE_PROJECT_ID);
   return renderWorkbenchDocument({
     lang: input.lang,
     title: `${view.title} · Molis Work`,
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css">${appearanceHead(input.appearance)}<style>${SIDE_VIEW_STYLES}${SIDE_ENABLE_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${input.viewId}`, "data-side-enable": entry.project_plugin_id },
-    body_html: `${renderIconSprite()}<main class="side-view side-enable" data-side-view-root><p>${escape(input.translate("workbench.side-view.enable-personal", { name: view.title }))}</p>
-      <div class="side-enable-actions"><button class="mw-btn mw-btn--primary" type="button" data-side-enable-confirm>${escape(input.translate("workbench.side-view.enable-confirm"))}</button></div>
+    body_html: `${renderIconSprite()}<main class="side-view side-enable" data-side-view-root><p>${escapeHtml(input.translate("workbench.side-view.enable-personal", { name: view.title }))}</p>
+      <div class="side-enable-actions"><button class="mw-btn mw-btn--primary" type="button" data-side-enable-confirm>${escapeHtml(input.translate("workbench.side-view.enable-confirm"))}</button></div>
       <p class="side-enable-error" role="alert" data-side-enable-error hidden></p></main>
     <script>${UI_REQUEST_CLIENT_SCRIPT}</script>
     <script>${homeToolKeysScript()}

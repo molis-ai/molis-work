@@ -281,7 +281,7 @@
 |  | [新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段](reference/batches/106.md#batch-106-item-3)（已合入） |
 | [107](reference/batches/107.md) | [宿主全链路接通新每分区装配；6 个独立库插件迁 `databases.partition`、删业务表 `project_id` 并摘除各自 `personal:true`](reference/batches/107.md#batch-107-item-1)（2026-11-22 加，UPP 批 B1，前置 `106`，已合入 [#2325](https://github.com/molis-ai/molis-work/pull/2325) 及复核修复 [#2329](https://github.com/molis-ai/molis-work/pull/2329)，[决定 66](reference/decisions.md#decision-66)） |
 |  | [当波删除 `databases.home.partition` 复用器、清理 6 个顶层旧库登记与清退 `106` 一次性白名单（`project_rows` 与 `artifact_join` 机制留 `109-3` 删除）](reference/batches/107.md#batch-107-item-2)（已合入 [#2325](https://github.com/molis-ai/molis-work/pull/2325)） |
-| [108](reference/batches/108.md) | [插件侧接通 `personSettings`／到期回调；Todo、瘦身分表后的 Jelly、Cognia、Images、Issues 迁分区与 `databases.partition`](reference/batches/108.md#batch-108-item-1)（2026-11-22 加，UPP 批 B2，前置 `107`［已合］与 `112`，[决定 66](reference/decisions.md#decision-66)） |
+| [108](reference/batches/108.md) | [插件侧接通 `personSettings`／到期回调；Todo、瘦身分表后的 Jelly、Cognia、Images、Issues 迁分区与 `databases.partition`](reference/batches/108.md#batch-108-item-1)（2026-11-22 加，UPP 批 B2，前置 `107`［已合］与 `112`［已合］，[决定 66](reference/decisions.md#decision-66)） |
 |  | [个人空间总览上线（承接原 `64-3`，含主库 `attention_entries` 只读投影与助理跨项目授权开关）与门禁 G4](reference/batches/108.md#batch-108-item-2) |
 |  | [当波删除 `personal:true` 与 `hidden`，补齐 `person-settings`/`due-registry` 金样覆盖（普通插件 `runtime.scope:"home"` 与 `projects:reach` 机制留 `109-3` 删除）](reference/batches/108.md#batch-108-item-3) |
 | [109](reference/batches/109.md) | [`109-1` · 主库插件删 `project_id` 列，Feed 证据迁 `horizontal/evidence`、Work Brief 迁独立库并接个人空间总览](reference/batches/109.md#batch-109-item-1)（2026-11-22 加，UPP 批 B3，允许拆 3 个串行 PR，前置 `108`，[决定 66](reference/decisions.md#decision-66)） |
@@ -293,8 +293,8 @@
 | [111](reference/batches/111.md) | [`111-1` · 存储三库原子事务升级、星型单向版本化推送引擎、不预记补账、大快照分片与 CAS GC 保护](reference/batches/111.md#batch-111-item-1)（2026-11-22 加，UPP 批 C，允许拆 3 个串行 PR，前置 `110`，[决定 66](reference/decisions.md#decision-66)） |
 |  | [`111-2` · 14 个有业务对象内置插件一次完成 `push` 声明（U8）与第三方沙箱同路支持](reference/batches/111.md#batch-111-item-2) |
 |  | [`111-3` · 工作台界面定样落地（推送弹窗与占用页按需懒加载）、G1～G5 全量焊死、清空临时白名单与文档收尾](reference/batches/111.md#batch-111-item-3) |
-| [112](reference/batches/112.md) | [`112-1` · 彻底删除 `jelly-whisper` 音视频转写与 626 MB 模型下载链（结清 `BL-122`/`BL-398`），图文提取器改名 `molis-material` 并补日文 OCR](reference/batches/112.md#batch-112-item-1)（已合入 [#2337](https://github.com/molis-ai/molis-work/pull/2337)） |
-|  | [`112-2` · Jelly 彻底瘦身（日历日程＋纯文本/Markdown 极简随手记，砍除私有 AI 拆解/独立模型台/进展页/块级复杂结构）与标准 SQLite 关系分表重构](reference/batches/112.md#batch-112-item-2)（已合入 [#2338](https://github.com/molis-ai/molis-work/pull/2338)，平台清理 [#2342](https://github.com/molis-ai/molis-work/pull/2342)。验收见[收尾记录](reference/batches/112.md#收尾检查)） |
+| [112](reference/batches/112.md) | [`112-1` · 彻底删除 `jelly-whisper` 音视频转写与 626 MB 模型下载链（结清 `BL-122`/`BL-398`），图文提取器改名 `molis-material` 并补日文 OCR](reference/batches/112.md#batch-112-item-1)（2026-11-25 用户专项新增，拆 2 个正交并行 PR；已随 [#2337](https://github.com/molis-ai/molis-work/pull/2337) `d866aa2b57` 合入，2026-11-26） |
+|  | [`112-2` · Jelly 彻底瘦身（日历日程＋纯文本/Markdown 极简随手记，砍除私有 AI 拆解/独立模型台/进展页/块级复杂结构）与标准 SQLite 关系分表重构](reference/batches/112.md#batch-112-item-2)（已随 [#2338](https://github.com/molis-ai/molis-work/pull/2338) `17face2867` 合入，2026-11-26；平台模型退役见 [#2342](https://github.com/molis-ai/molis-work/pull/2342)，本人验收见 [BL-b112-acceptance](../backlog/BL-b112-acceptance.md)） |
 
 <a id="server-batch"></a>
 

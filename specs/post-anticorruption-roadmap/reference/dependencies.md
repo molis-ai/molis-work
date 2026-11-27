@@ -631,7 +631,7 @@ flowchart LR
 
 ### 11-25 全量剩余批次逐批方案优化、PR 解耦与新增第 112 批依赖校准（[决定 68](decisions.md#decision-68)）
 
-1. **新增第 [`112`](batches/112.md) 批并入前置链**：拆为正交并行两 PR——`112-1`（删除 `jelly-whisper` 与 626 MB WhisperKit 链、更名 `molis-material` 补 `ja-JP` OCR）与 `112-2`（`Jelly` 瘦身为 4 张关系表：日历＋极简笔记，砍除私有 AI 与 `JellyCommand`），与 `44C` 并行推进（`106`、`107` 已合入 `main`），在 [`108`](batches/108.md)（Jelly 迁分区）与 [`54`](batches/54.md)（轻量语音双通道）之前合入。
+1. **新增第 [`112`](batches/112.md) 批并入前置链**：拆为正交并行两 PR——`112-1`（删除 `jelly-whisper` 与 626 MB WhisperKit 链、更名 `molis-material` 补 `ja-JP` OCR）与 `112-2`（`Jelly` 瘦身为 4 张关系表：日历＋极简笔记，砍除私有 AI 与 `JellyCommand`），与 `44C` 并行推进（`106`、`107` 已合入 `main`），在 [`108`](batches/108.md)（Jelly 迁分区）与 [`54`](batches/54.md)（轻量语音双通道）之前合入。两 PR 均已合入（`112-1` [#2337](https://github.com/molis-ai/molis-work/pull/2337) `d866aa2b57`、`112-2` [#2338](https://github.com/molis-ai/molis-work/pull/2338) `17face2867`，2026-11-26），`108` 与 `54` 的这条前置已满足。
 2. **关键批次内部 PR 拆分与解耦提速**：
    - `91`：`111 → 91-0c → 91A` 串行；`91B`：`91B-1 → (91B-2 ∥ 91B-3) → 91B-4` 四 PR；
    - `62`：`62-0`（窗口 B 换包）→ `62-1A`（Agent Host 与四策略，联动 `105-1` 波次审批）→ `62-2/3`（结清 `BL-128`）→ `62-1B`；

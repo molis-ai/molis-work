@@ -15,8 +15,11 @@ export interface OnboardingTaker {
   readonly name: string;
   /** Its own declared action, with its own permissions; the platform calls this one only. */
   readonly take: ActionDefinition;
-  /** A `drafts` taker's two other actions, named by its intake: reading batches again and keeping the chosen drafts. */
-  readonly drafts?: { readonly get: ActionDefinition; readonly keep: ActionDefinition };
+  /**
+   * A `drafts` taker's two other actions, named by its intake: reading batches again and keeping the chosen drafts; and the kind of a
+   * batch (the intake's `item_kind`), which the platform moves from the personal space to the new project before both (batch 108).
+   */
+  readonly drafts?: { readonly get: ActionDefinition; readonly keep: ActionDefinition; readonly item_kind: string };
 }
 
 /**
@@ -42,6 +45,6 @@ export function onboardingTakers(kind: OnboardingMaterialKind): OnboardingTaker[
     const material = intakeMaterial(action.action.intake, "drafts"), get = material && own(material.get), keep = material && own(material.keep);
     if (material && !(get && keep)) return [];
     return [{ plugin_id: manifest.plugin_id, project_plugin_id, name: manifest.name, take: { ...action, provider_id: manifest.plugin_id } as ActionDefinition,
-      ...(get && keep ? { drafts: { get, keep } } : {}) }];
+      ...(get && keep ? { drafts: { get, keep, item_kind: (action.action.intake as { item_kind: string }).item_kind } } : {}) }];
   });
 }

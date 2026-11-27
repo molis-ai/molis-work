@@ -1,9 +1,14 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_KINDS, OVERVIEW_NOTIFICATION_LEVELS, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TASK_STATUSES, OVERVIEW_TEXT_LIMITS,
+  OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_KINDS, OVERVIEW_NOTIFICATION_LEVELS, OVERVIEW_ROW_LIMIT, OVERVIEW_RUN_NEEDS, OVERVIEW_TABLE, OVERVIEW_TASK_STATUSES, OVERVIEW_TEXT_LIMITS,
   type OverviewKind, type OverviewRowByKind, type PluginDatabaseTransaction, type PluginSqlValue,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { STATE_RING_FAMILIES } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isTimeZone } from "./card-values.js";
+import { exceedsCharacters } from "./whole-units.js";
+
+const RING_STATES: ReadonlySet<string> = new Set(STATE_RING_FAMILIES.flatMap(family => [...family.states]));
+const OPEN_PART = /^[A-Za-z0-9._:-]{1,200}$/u;
 
 /**
  * Keeps the platform's overview table (`OVERVIEW_TABLE_SQL`, which the plugin writes into its partition library schema) in the same
@@ -18,7 +23,16 @@ import { isTimeZone } from "./card-values.js";
  * });
  * ```
  */
-export function overviewRows(tx: PluginDatabaseTransaction) {
+/**
+ * What `overviewRows` writes through: a write transaction of the plugin's library (`services.database.transaction`), or any connection
+ * the plugin writes the same library with inside one transaction (its sync apply, its own store in a test).
+ */
+export interface OverviewRowsWriter {
+  get(sql: string, parameters?: readonly PluginSqlValue[]): unknown;
+  run(sql: string, parameters?: readonly PluginSqlValue[]): unknown;
+}
+
+export function overviewRows(tx: OverviewRowsWriter | PluginDatabaseTransaction) {
   return {
     upsert<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): void {
       const values = overviewColumns(kind, row);
@@ -84,7 +98,8 @@ export function checkOverviewRow(kind: unknown, row: unknown): OverviewRowCheck 
   const fields: Readonly<Record<string, unknown>> = typeof row === "object" && row !== null ? { ...row } : {};
   const text = (value: unknown, limit: number, field: string, required = false): string | null => {
     if (value === undefined || value === null) return required ? fail(`总览行缺少 ${field}`) : null;
-    if (typeof value !== "string" || value.length === 0 || value.length > limit) return fail(`总览行的 ${field} 要是 1 到 ${limit} 字的文字`);
+    // Counted in characters, as the table's own CHECK counts them: a title of emoji or rare CJK is as long as it reads.
+    if (typeof value !== "string" || value.length === 0 || exceedsCharacters(value, limit)) return fail(`总览行的 ${field} 要是 1 到 ${limit} 字的文字`);
     return value;
   };
   const instant = (value: unknown, field: string, required = false): string | null => {
@@ -118,8 +133,32 @@ export function checkOverviewRow(kind: unknown, row: unknown): OverviewRowCheck 
     if (!(OVERVIEW_NOTIFICATION_LEVELS as readonly unknown[]).includes(fields.level)) fail("通知的 level 只能是 info、warning 或 urgent");
     columns = { ...base, level: fields.level as string, source: text(fields.source, OVERVIEW_TEXT_LIMITS.source, "source"),
       occurred_at: instant(fields.occurred_at, "occurred_at", true) };
+  } else if (kind === "background_task") {
+    if (typeof fields.state !== "string" || !RING_STATES.has(fields.state)) fail("后台任务的 state 要是平台状态环词表里的值");
+    if (typeof fields.waiting !== "boolean") fail("后台任务的 waiting 只能是 true 或 false");
+    const reportsTo = fields.reports_to ?? null;
+    if (reportsTo !== null && reportsTo !== "assistant") fail("后台任务的 reports_to 只能是 assistant");
+    columns = { ...base, state: fields.state as string, waiting: fields.waiting === true ? 1 : 0, started_at: instant(fields.started_at, "started_at"),
+      reports_to: reportsTo as string | null, ...open(fields.open) };
+  } else if (kind === "scheduled_run") {
+    const needs = fields.needs ?? [];
+    const needsValid = Array.isArray(needs) && needs.length <= OVERVIEW_RUN_NEEDS.length && new Set(needs).size === needs.length
+      && needs.every(need => (OVERVIEW_RUN_NEEDS as readonly unknown[]).includes(need));
+    if (!needsValid) fail("定时运行的 needs 只能是 network、model，不重复");
+    const dueAt = instant(fields.due_at, "due_at", true), missedAt = instant(fields.missed_at, "missed_at");
+    columns = { ...base, due_at: dueAt, missed_at: missedAt, needs_json: needsValid && (needs as unknown[]).length ? JSON.stringify(needs) : null, ...open(fields.open) };
   } else {
     columns = { ...base, summary: text(fields.summary, OVERVIEW_TEXT_LIMITS.summary, "summary") };
   }
   return problem === null ? { columns } : { problem };
+
+  function open(value: unknown): { open_surface: string | null; open_id: string | null } {
+    if (value === undefined || value === null) return { open_surface: null, open_id: null };
+    const target = value as { surface?: unknown; id?: unknown };
+    if (typeof value !== "object" || typeof target.surface !== "string" || typeof target.id !== "string" || !OPEN_PART.test(target.surface) || !OPEN_PART.test(target.id)) {
+      fail("总览行的 open 要是 { surface, id }，各 1 到 200 个字母、数字或 ._:-");
+      return { open_surface: null, open_id: null };
+    }
+    return { open_surface: target.surface, open_id: target.id };
+  }
 }

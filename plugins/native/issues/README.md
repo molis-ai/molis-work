@@ -1,12 +1,12 @@
 # Issue
 
-在个人 Home 随手记下使用中遇到的问题，并看到自己记过的全部 Issue。项目切换不改变数据，没有项目也能用。页面、Work 助理与外部 MCP 调用同一组 `issues.*` 动作；外部 MCP 仍需在能力设置逐客户端授权。
+随手记下使用中遇到的问题，并看到自己记过的 Issue。和别的项目插件一样，Issues 在启用它的每个分区（个人空间或项目）各有一份数据（第 108 批）；全局快捷键打开的是个人空间里的 Issues，所以在哪个项目里按都记到同一处。页面、Work 助理与外部 MCP 调用同一组 `issues.*` 动作；外部 MCP 仍需在能力设置逐客户端授权。
 
 包名：`@molis-ai/molis-work-plugin-issues`。本地开发中的内置 Runtime 插件，不代表已经发布或完成用户验收。试用路径见 [试用说明](../../../specs/archive/issue-home-v0/试用说明.md)，需求与验收见 [规格](../../../specs/archive/issue-home-v0/spec.md)（首期体验为 ISSUE-35 至 ISSUE-41，页面自己起标题为 ISSUE-50 至 ISSUE-53）。
 
 ## 怎么用
 
-- **唤起**：任何地方按 ⌘⇧I（其他系统 Ctrl+Shift+I），或点首页与项目右上角的「Issue」。侧栏打开，键盘直接落在输入框；从 Issue 里再按一次收起。按钮也是开关。键盘在侧栏的其他视图、讨论或嵌入窗格里时同样有效。
+- **唤起**：任何地方按 ⌘⇧I（其他系统 Ctrl+Shift+I），或点首页与项目右上角的「Issue」。侧栏打开个人空间里的 Issues，键盘直接落在输入框；个人空间还没启用 Issues 时，侧栏先请人一键启用，启用后再显示（空白开始不默认启用它）。从 Issue 里再按一次收起。按钮也是开关。键盘在侧栏的其他视图、讨论或嵌入窗格里时同样有效。
 - **记录**：写一句话，截图直接粘贴或拖进来（也可以点图片按钮选），⌘↵。输入框马上清空、可以接着写下一条；这条以「整理中」出现在列表顶部，Issue 在后台调一次模型起标题、判类型并直接保存，保存后提示「已记录：标题」，可以撤销。关掉侧栏不影响，侧栏收起后，右上角按钮会用状态点区分「整理中」和「需要你处理」。
 - **需要你处理**：依据不足要补充、模型不可用、模型的回答用不了、整理超时，这条留在列表顶部并写明原因。点开就是编辑器，原文原图都在：补充后「重新整理」，或写标题、选类型直接「保存」，或「放弃」。
 - **查看**：列表按记录时间倒序，每行是标题、类型、时间、记录时的地点和截图数。点开是只读详情，写明记录于哪个页面、由谁整理；「编辑」改标题、类型、描述和截图，「重新整理」按当前编辑的图文建议标题和类型，核对后点「保存」更新同一条记录；失败或整理期间内容变化时保留编辑稿。「删除」要再确认一次。Esc 从详情回到列表，再按收起侧栏。
@@ -15,8 +15,9 @@
 
 ## 归属与接入
 
-- 插件 ID `io.molis.work.issues`，Home provider 同名，安装 ID 另行保存。业务 SQL、数据校验、动作、方法与页面归本包；数据库打开、安装、授权、执行和关闭归 Host。数据在 `{home}/issues/issues.db` 的 `issues` 表，基线 1；错版拒绝，不自动迁移。
+- 插件 ID `io.molis.work.issues`，按分区运行（`src/registration.ts` 的 `project_runtime`，Manifest 的 `databases.partition` 是 `ISSUES_DATABASE`），安装 ID 另行保存。业务 SQL、数据校验、动作、方法与页面归本包；数据库打开、安装、授权、执行和关闭归 Host。数据在每个分区自己的库 `<分区>/libraries/issues.db` 的 `issues` 表；错版拒绝，不自动迁移。快捷键登记在 `project_runtime.keys`，由工作台在每个分区挂出指向个人空间的侧栏页。
 - 原始描述不 trim、不改写；标题与类型必需，类型不替用户默认。图片随记录保存在同一数据库。
+- 录入、起名、新建与修改的路由声明 `max_body_bytes`（`ISSUE_BODY_BYTES`，按图片上限折算 base64 再加余量），分区路由默认的 256 KB 不够放截图。
 - 页面录入走草稿：`issues.prepare@1`（只给页面）保存原文、原图和页面报告的所在位置（`page`，记为 `client_reported`）。`issues.name_draft@1`（只给页面，`concurrent`，权限 `issues:write` 加 `model:invoke`）读草稿，经 Host 的文字模型调一次（`services.model.complete`，`output: "json"`，90 秒、4000 token 上限），只要标题和类型：截图只在所用模型声明读图（`availability().vision`）时作为图片附上；只有截图、没有文字，而模型没有声明读图时，不调模型，返回固定的一句追问（写一句话说明问题，再整理），不写入；回答由插件检查（单行标题 1 到 200 字、类型三选一），用不了就报 `issues.model_reply_invalid`，不修补成记录；依据不足时返回那一句追问、不写入。能用就走 `issues.capture@1` 的写入路径一次写好，提交前在同一事务里复查回答（`validateResult`），写入人取调用上下文里的 actor。`issues.capture@1` 只带草稿 ID、标题和类型，总是新建 ID 等于草稿 ID 的记录，现在只给页面（手动保存）。模型只决定标题和类型，不复制原话和图片字节。草稿存在当前插件 Runtime 内，2 小时有效，停止或重启后需重新记录；未完成的最多 8 份，满了由最早的空闲草稿让位（它的页面可能已经不在，比如换了浏览器或清了本机数据），新的记录永远不会被挡住，让位的那条在原页面上可以手动保存。
 - `issues.capture@1` 与 `issues.create@1` 声明撤销：`issues.discard@1` 只删除记录后没改过（版本 1）的记录，改过就拒绝并说明。页面录入是人按下「记录」发起的，所以不再确认，保存后可以撤销；普通对话里被要求记录时，助理调 `issues.create`，工作里同样留「撤销」。
 - 页面录入不经 Work 助理，不留助理工作和通知；Issue 列表里的那一行是继续的唯一地方。页面另有两分钟的兜底：还在整理就先撤掉草稿，迟到的回答存不进来。
@@ -24,7 +25,7 @@
 - update / delete 要求读取时的 `expected_version`，beforeEffect 后同步事务提交；冲突不覆盖，结果未知不自动重试。页面遇到冲突时读回最新内容，把自己改过的字段放在上面继续编辑，提示核对后再保存。
 - 十一个动作显式声明读、写和不可撤销删除。客户端构建直接声明 esbuild 开发依赖，源码保持可读，不增加运行时依赖；资源预算见 `tooling/gates/page-assets.json`；必要增长按仓库单次评审规则放行。
 - 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/issues-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，样式表由 `tooling/minify-styles.mjs` 压缩后 `--define:ISSUES_CSS` 放进去）；`src/client.ts` 的 `ISSUES_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `IssuesPage` 对象里（`page.ts`），列表、详情、截图、录入、重新整理各是一个部件；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`；公开 Host/Scope 合同来自 contracts，全局请求类型只从 SDK 引入，插件路由来自 `host.pluginRoute`。界面文字用 `issues.*` 稳定键，在 Manifest 的 `ui.locales` 声明 [中文](locales/zh.json)和[英文](locales/en.json)词包，服务端和浏览器共用。 命名动作的追问由平台选词；持久的 Issue 标题仍依原描述确定语言。
-- Home Runtime 不提供项目成果、事件和端口，不得虚构项目满足服务。无团队共享、状态流转、被动采集或旧 Casebook 数据导入。
+- 不声明项目成果、事件和端口。无团队共享、状态流转、被动采集或旧 Casebook 数据导入。
 
 ## 起标题的规则与助理方法
 
@@ -50,14 +51,14 @@
 - 公开入口：`@molis-ai/molis-work-plugin-issues`；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（动作声明与路由绑定、同步内容、页面部件和 `messageOf`）。
 - 不变量：
-  - 一个 Home 一份个人数据；没有项目也可用。
+  - 每个分区一份数据，彼此不读；快捷键只打开个人空间那一份。
   - 原话不改写，类型不默认；可信元数据不从业务输入读取，也不从模型回答读取，页面位置只作为页面的报告保存。
   - 提交前复查授权，更新和删除要求版本，冲突不覆盖；撤销只删除没改过的新记录。
 - 改动后必跑：`node scripts/run-tests.mjs tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/issue-capture.test.ts tests/issue-naming.test.ts tests/issue-assistant.test.ts tests/issues-client-bundle.test.ts tests/issue-capture-page.e2e.test.ts tests/issue-page.e2e.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/issue-manual-save.e2e.test.ts tests/issue-global-navigation.e2e.test.ts tests/issue-clarification-page.e2e.test.ts tests/issue-draft-preview.e2e.test.ts tests/issue-reorganize.e2e.test.ts`
-- Home 语言接线加跑：`node scripts/run-tests.mjs tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01：中英控件、原文保持、无模型设置往返与真实启动失败）。
+- 语言接线加跑：`node scripts/run-tests.mjs tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01：中英控件、原文保持、无模型设置往返与真实启动失败）。
 - 相关手册：[插件开发](../../../skills/molis-plugin-dev/SKILL.md)、[Home 数据归属](../../../docs/system/HOME-DATA.md)、[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 模型回复替身（`tests/fixtures/issue-model.ts`）只证明数据流、撤销与写入边界；真实模型的标题与分类质量、中文输入法和跨应用粘贴手感由用户验收。
 
-项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。
+项目回收检查：项目里的 Issue 在该项目的分区库里，随项目删除；个人空间里的不受影响。材料或成果来源引用不改变所有权。

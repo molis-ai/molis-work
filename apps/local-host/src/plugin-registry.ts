@@ -1,4 +1,4 @@
-import { PERSONAL_SPACE_PROJECT_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostSurfaceRegistration, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -112,36 +112,15 @@ export function builtinPluginByProjectKey(projectKey: ProjectPluginId): PluginRe
   return byProjectKey.get(projectKey);
 }
 
-/** Plugins a project can enable. Personal Plugins are always on and not listed. */
-export const PROJECT_SCOPED_PLUGIN_IDS: readonly ProjectPluginId[] = PLATFORM_PLUGIN_REGISTRATIONS
-  .filter(entry => entry.personal !== true)
-  .map(entry => entry.project_plugin_id);
-
-/** Personal Plugins are enabled for every project without being stored per project. */
-export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = PLATFORM_PLUGIN_REGISTRATIONS
-  .filter(entry => entry.personal === true)
-  .map(entry => entry.project_plugin_id);
-
 /**
- * The plugins a project shows: those enabled there, and the personal ones unless the person hid them from it. The page,
- * its side panel tabs and the side panel's file sources all use this one list. A hidden mark on a 常开 plugin changes nothing: the
- * project's list of hidden plugins (`listHiddenPlugins`) leaves it out.
+ * Every built-in plugin, in catalog order. Each is enabled per partition like any other (batch 108 removed the personal plugins that were
+ * on everywhere); a partition shows what it enabled.
  */
-export function shownProjectPlugins(enabled: readonly string[], hidden: readonly string[] = []): string[] {
-  const excluded = new Set(hidden);
-  const next = [...enabled];
-  for (const personal of PERSONAL_PLUGIN_IDS) {
-    if (excluded.has(personal) || next.includes(personal)) continue;
-    next.push(personal);
-  }
-  return next;
-}
+export const BUILTIN_PLUGIN_IDS: readonly ProjectPluginId[] = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.project_plugin_id);
 
 /**
- * The plugins whose actions and routes a project may reach: what it shows (`shownProjectPlugins`: enabled ones, and personal ones
- * the person did not hide there) and the plugins those declare embedded. No installation or grant mutation. A personal plugin the
- * project hides is not reached even when a shown plugin embeds it: hiding is final for actions (PG-013), embedding only brings in
- * plugins the project has not hidden.
+ * The plugins whose actions and routes a project may reach: what it enabled and the plugins those declare embedded. No installation or
+ * grant mutation.
  */
 export function availableProjectPluginIds(
   shown: readonly string[], catalog: readonly PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS,
@@ -161,8 +140,6 @@ export function availableProjectPluginIds(
       if (embedded) pending.push(embedded.project_plugin_id);
     }
   }
-  const listed = new Set(shown);
-  for (const entry of catalog) if (entry.personal && !listed.has(entry.project_plugin_id)) available.delete(entry.project_plugin_id);
   return available;
 }
 
@@ -247,14 +224,12 @@ export function registeredHostAction<I = unknown, O = unknown>(capabilityId: str
 }
 
 /**
- * The registry Projects validates against, derived from what this build ships. A new project starts with the plugins marked
- * `default_enabled`; the personal space also with every plugin that keeps a library in each partition (`databases.partition`): it is
- * where the person's own documents, decks, forms, tables, sparks and workflows are kept, and where they are moved to (batch 107).
+ * The registry Projects validates against, derived from what this build ships. Every partition, the personal space included, starts
+ * with the plugins marked `default_enabled` (Schedule) and nothing else: there is no personal-space list of its own (decision 66, user
+ * 2026-11-25, batch 108). The person enables the rest; a quick entry that needs one offers to enable it in one step.
  */
 export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
-  has: pluginId => PROJECT_SCOPED_PLUGIN_IDS.includes(pluginId),
-  initial: projectId => PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.default_enabled || projectId === PERSONAL_SPACE_PROJECT_ID && entry.manifest.databases?.partition)
-    .map(entry => entry.project_plugin_id),
+  has: pluginId => BUILTIN_PLUGIN_IDS.includes(pluginId),
+  initial: () => PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.default_enabled).map(entry => entry.project_plugin_id),
   companions: pluginId => [...(builtinPluginByProjectKey(pluginId)?.companions ?? []), ...requiredCompanions(pluginId)],
-  isPersonal: pluginId => PERSONAL_PLUGIN_IDS.includes(pluginId),
 };

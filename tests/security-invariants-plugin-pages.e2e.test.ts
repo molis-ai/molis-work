@@ -4,6 +4,7 @@ import test from "node:test";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import { homePagePlugin, serveHomePageBundle } from "./fixtures/home-page-plugin.js";
 
 // SYS-15-V2: local media is allowed while independent network, socket and owner-credential access is refused.
 
@@ -220,9 +221,10 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
 // W2-18-HOME-LOCALE-01: the standalone Home settings host consumes the same restricted request.
 test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept the existing connection pages", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const child = await pluginFrameBrowser(t, b, "issues");
-  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fissues` }, b.sessionId));
-  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  // Work Brief's is the built-in standalone Home page left after Issues and Jelly moved to the partitions (batch 108). Its Home half draws no
+  // view of its own, so the page's settings host is all there is to wait for.
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fwork-brief` }, b.sessionId));
+  await b.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-home-model-settings]')", 20_000);
   const address = await b.evaluate("location.href");
   const refuse = () => b.evaluate(`(async () => {
     const fetch = window.fetch, requests = [], field = document.querySelector('[data-model-base-url]');
@@ -323,12 +325,15 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
 });
 
 test("S-ui-text-page FSS-08 a replacement document before first connection never receives the frame port", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, "empty", undefined, null); if (!browser) return;
+  const probe = homePagePlugin();
+  const browser = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined, {}, { home: [probe.definition] }); if (!browser) return;
+  serveHomePageBundle(browser.server);
   const { command, sessionId, origin, waitFor, evaluate, navigate } = browser;
-  const child = await pluginFrameBrowser(t, browser, "issues");
-  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues${search}` }, sessionId));
+  // A standalone Home page with a plugin frame: the test Home plugin's, since no built-in Home plugin draws one after batch 108.
+  const child = await pluginFrameBrowser(t, browser, probe.key);
+  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/${probe.key}${search}` }, sessionId));
   await open();
-  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await child.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
   const forged = `<!doctype html><title>Replacement frame</title><script>
     const report = detail => parent.postMessage({ type: 'frame-handshake-test', detail }, ${JSON.stringify(origin)});
     const attacker = new MessageChannel(); attacker.port1.onmessage = () => report('forged-port-received-config');
@@ -339,18 +344,18 @@ test("S-ui-text-page FSS-08 a replacement document before first connection never
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `if (window===top) {
     window.frameHandshakeTrace=[];
     addEventListener('message', event => {
-      const frame = document.querySelector('iframe[data-plugin-frame=issues]');
+      const frame = document.querySelector(${JSON.stringify(probe.frame)});
       if (event.source===frame?.contentWindow && event.origin==='null' && event.data?.type==='frame-handshake-test') frameHandshakeTrace.push(event.data.detail);
     });
     const actual = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc');
     Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...actual, set(source) {
-      if (this.dataset.pluginFrame !== 'issues') { actual.set.call(this, source); return; }
+      if (this.dataset.pluginFrame !== ${JSON.stringify(probe.key)}) { actual.set.call(this, source); return; }
       this.src = URL.createObjectURL(new Blob([${JSON.stringify(forged)}], {type:'text/html'}));
     } });
   }` }, sessionId);
   await open("?frame-handshake=replaced");
   await waitFor("frameHandshakeTrace.includes('replacement-loaded')", 12_000);
-  await waitFor("!document.querySelector('iframe[data-plugin-frame=issues]')", 15_000);
+  await waitFor(`!document.querySelector(${JSON.stringify(probe.frame)})`, 15_000);
   assert.deepEqual(await evaluate("frameHandshakeTrace"), ["replacement-loaded"], "loading at the current frame window is insufficient to receive any config or port");
 });
 

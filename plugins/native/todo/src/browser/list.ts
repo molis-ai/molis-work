@@ -70,9 +70,6 @@ export function installList(page: TodoPage): void {
       button.textContent = label + (count && !["all", "closed"].includes(view) ? ` ${count}` : "");
       mark(button);
     });
-    el.scopeButton.setAttribute("aria-pressed", String(state.everything));
-    el.scopeButton.classList.toggle("is-current", state.everything);
-    el.scopeButton.hidden = !page.projectId();
     page.renderBatch();
     el.list.scrollTop = top;
   };
@@ -95,7 +92,6 @@ export function installList(page: TodoPage): void {
     }
     const params = new URLSearchParams({ view: state.query ? "all" : state.view });
     if (state.query) params.set("q", state.query);
-    if (state.everything) params.set("all", "1");
     const payload = await page.request<ListPayload>("GET", `/items?${params}`);
     if (seq !== state.listSeq) return;
     let items = payload.items || [];

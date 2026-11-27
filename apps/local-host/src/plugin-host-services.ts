@@ -1,4 +1,6 @@
 import { realpathSync } from "node:fs";
+import { pluginOverviewFor } from "./plugin-overview-service.js";
+import { mainOverviewLibrary, runningPartitionPlatformServices } from "./partition-platform-services.js";
 import { installHostUiText } from "./ui-text-provider.js";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
 import { savedHistoryFor } from "./saved-history-host.js";
@@ -44,7 +46,9 @@ import { pluginJudgmentsFor } from "./plugin-judgments-service.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
-import { sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
+import { pluginDueFor, pluginPersonSettingsFor } from "./plugin-partition-services.js";
+import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+import { partitionOwnerFilesFor, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
@@ -129,13 +133,14 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
     projectLibrary = openProjectTables(options, definition, context, assertActive);
-    const ownerFiles = sandboxOwnerFilesFor(options, definition, context, assertActive);
+    const ownerFiles = sandboxOwnerFilesFor(options, definition, context, assertActive) ?? partitionOwnerFilesFor(options, definition, context, assertActive);
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id, readRecord());
     background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, home: options.home?.directory, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
     directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
       ? directoryForHome(options.home.directory).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
-        project_id: options.project_id, actor_id: options.actor_id, assertCurrent: () => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); } }) : undefined;
+        project_id: options.project_id, actor_id: options.actor_id, person_level: manifest.databases?.partition !== undefined,
+        assertCurrent: () => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); } }) : undefined;
     scheduler = pluginSchedulerFor(manifest, context, projectLibrary?.client, options.scheduler, assertActive, {
       client: options.actions.client, plugin_caller: pluginCaller, provider_id: providerId, record: () => options.record?.(context.install_id) ?? null });
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
@@ -144,6 +149,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     const hosted = hostedContext(options, manifest, context, { pluginCaller, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client, sync: combinePluginSyncLibraries(manifest, library?.sync, projectLibrary?.sync),
       database: library?.client, artifactRows: library?.artifactRows, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
+      imageGeneration: partitionImageGenerationFor(options, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db,
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
@@ -267,7 +273,11 @@ function projectServices(options: PluginHostExecutorOptions, manifest: PluginMan
   const record = () => options.record?.(context.install_id) ?? null;
   const attention = pluginAttentionFor(manifest, context, database, ports, assertActive, record);
   const contextLedger = pluginContextLedgerFor(manifest, context, database, ports, assertActive, record);
-  return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}) };
+  const home = options.home?.directory;
+  const overview = pluginOverviewFor(manifest, context, database, ports.connection, assertActive, record, installId => {
+    if (home) runningPartitionPlatformServices(home)?.partitionChanged(options.project_id, installId, [mainOverviewLibrary(home, options.project_id, installId, manifest)]);
+  });
+  return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}), ...(overview ? { overview } : {}) };
 }
 
 /** `services.scenes` (PG-032 P1, S-89) and `services.judgments` (P2, S-90): the plugin's own consumption scenes and their judgment ledger, in the project the activation runs in. */
@@ -301,7 +311,7 @@ interface SessionParts {
   readonly database: PluginDatabase | undefined;
   readonly artifactRows: NonNullable<ReturnType<typeof openPluginDatabase>>["artifactRows"];
   readonly sync: import('@molis-ai/molis-work-contracts/platform/plugin-sync').PluginSyncClient | undefined;
-  /** A sandboxed plugin's declared files, in the project's directory (`sandboxOwnerFilesFor`, S-64); none for any other plugin. */
+  /** A sandboxed plugin's declared files, or a per-partition instance's, in the partition's directory (`sandboxOwnerFilesFor`, `partitionOwnerFilesFor`, S-64). */
   readonly ownerFiles: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesClient | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectDatabase | undefined;
@@ -311,6 +321,8 @@ interface SessionParts {
   readonly scheduler: import("@molis-ai/molis-work-contracts/platform/plugin").PluginScheduleClient | undefined;
   /** The Host's text model, when the Manifest declares `model:read` or `model:invoke` and the Host runs the plugin itself (`pluginModelFor`); only `model:invoke` sends requests. */
   readonly model: PluginModelClient | undefined;
+  /** A per-partition instance's image connections, when its Manifest declares `image_generation` (batch 108, §4.2③). */
+  readonly imageGeneration: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
   /** Requests through the accounts the person bound to the Manifest's slots, only when it declares `connections:use` (`pluginConnectionsFor`). */
   readonly connections: ReturnType<typeof pluginConnectionsFor>;
@@ -388,6 +400,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),
       ...(parts.agents === undefined ? {} : { agents: parts.agents }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
+      ...(parts.imageGeneration === undefined ? {} : { imageGeneration: parts.imageGeneration }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...(parts.connections === undefined ? {} : { connections: parts.connections }),
       ...(parts.sourcePull === undefined ? {} : { sourcePull: parts.sourcePull }),
@@ -395,8 +408,25 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
       ...(parts.terminal === undefined ? {} : { terminal: parts.terminal }),
       ...(parts.projects === undefined ? {} : { projects: parts.projects }),
+      ...partitionServices(options, manifest, context, parts.assertActive),
       ...coordinationServices(options, manifest, context, parts),
     }) });
+}
+
+/**
+ * A per-partition instance of the Host's own code that declares `image_generation` binds and generates through the Home's image connections
+ * under its declared namespace, as its Home instance did (the connections follow the person, §5.1); a sandboxed one has its own derived port.
+ */
+function partitionImageGenerationFor(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
+  if (!options.partitionScope || !definition.manifest.databases?.partition || definition.execution === "sandbox") return undefined;
+  return pluginImageGenerationFor(options.home, definition, context, definition.manifest.image_generation, assertActive);
+}
+
+/** `services.personSettings` when the Manifest declares keys, and `services.due` for a per-partition instance (batch 108). */
+function partitionServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void) {
+  const personSettings = pluginPersonSettingsFor(options.home?.directory, manifest, context, assertActive);
+  const due = pluginDueFor(options.home?.directory, options.partitionScope, manifest, context, assertActive);
+  return { ...(personSettings ? { personSettings } : {}), ...(due ? { due } : {}) };
 }
 
 // Each coordination service appears only when the Manifest declared it, so the Manifest stays a complete account of what

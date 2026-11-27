@@ -560,13 +560,21 @@ export const CARRY_RETRY_MS = 5 * 60_000;
  * partitions of every carry, so one that is left unsettled (changed in both, or an owner not reachable) is tried again only once a new carry
  * is recorded or `retryMs` has passed, never on every call.
  */
+/** One settle pass, as the Host records it: how many half-done carries it found, how many are still left, and whether it stopped on an error. */
+export interface CarrySettlePass {
+  readonly started_at: string;
+  readonly pending: number;
+  readonly left: number;
+  readonly failed: boolean;
+}
+
 export class CarrySettling {
   private running: Promise<void> | null = null;
   private lastAt = Number.NEGATIVE_INFINITY;
   private left = new Set<string>();
 
   constructor(private readonly service: Pick<PlacementService, "pendingCarryRecords" | "settleCarries">,
-    private readonly options: { readonly now?: () => number; readonly retryMs?: number } = {}) {}
+    private readonly options: { readonly now?: () => number; readonly retryMs?: number; readonly settled?: (pass: CarrySettlePass) => void } = {}) {}
 
   /** Starts a pass when one is due; returns at once. */
   kick(): void {
@@ -576,9 +584,13 @@ export class CarrySettling {
     const now = (this.options.now ?? Date.now)();
     if (records.every(record => this.left.has(record)) && now - this.lastAt < (this.options.retryMs ?? CARRY_RETRY_MS)) return;
     this.lastAt = now;
-    this.running = this.service.settleCarries().then(() => undefined, () => undefined).finally(() => {
+    let failed = false;
+    this.running = this.service.settleCarries().then(() => undefined, () => { failed = true; }).finally(() => {
       this.left = new Set(this.service.pendingCarryRecords());
       this.running = null;
+      try {
+        this.options.settled?.({ started_at: new Date(now).toISOString(), pending: records.length, left: this.left.size, failed });
+      } catch { /* A pass that could not be told about is still settled. */ }
     });
   }
 

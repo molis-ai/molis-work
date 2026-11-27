@@ -14,7 +14,12 @@ import { directoryGrant, forgetInstallationDirectoryGrants, forgetProjectDirecto
 
 export const DIRECTORY_READ_PERMISSION = "directory:read";
 type Selection = { plugin_id: string; project_id: string | null; actor_id: string };
-type Binding = Selection & { install_id: string; installation_generation: string; name: string; assertCurrent(): void };
+/**
+ * `person_level`: a plugin that runs once in each partition (`databases.partition`, batch 108). Its grants are the person's, like its person
+ * settings (specs/unified-partition-plugins §4.2 第 4 条): kept at the Home with no project, read by its instance in every partition it is
+ * added to, never synced (§5.1).
+ */
+type Binding = Selection & { install_id: string; installation_generation: string; name: string; person_level?: boolean; assertCurrent(): void };
 export type DirectorySelection = typeof pickLocalDirectory;
 export type DirectoryGrantListing = (ReturnType<typeof listDirectoryGrants>[number] & { directory_status: "current" | "changed" })[];
 
@@ -27,7 +32,7 @@ export interface DirectoryGrantService {
   list(): Promise<DirectoryGrantListing>;
   /** The person takes back one grant, or all of one plugin's; a read under way fails at its next check and delivers nothing. `by` is their call. */
   revoke(target: { grant_id: string } | { plugin_id: string }, by: ActionCallContext): number;
-  /** An uninstall takes its grants: a project's installation those of that project, a Home-level one all of its own. */
+  /** An uninstall takes its grants: a project's installation those of that project, a Home-level one (or a per-partition plugin's last place) all of its own. */
   forgetInstallation(install_id: string, project_id: string | null): void;
 }
 
@@ -50,12 +55,14 @@ function originOf(invocation: NonNullable<ReturnType<typeof currentPluginInvocat
 }
 
 /**
- * The grant serves its installation (upgrades included) in its project. Background callers acting for the person (an Agent, a
- * workflow, an MCP client, a scheduled job) may read with it (user 2026-10-25, B); another person may not.
+ * The grant serves its installation (upgrades included) in its project; a per-partition plugin's, in every partition (it holds none of
+ * one project). Background callers acting for the person (an Agent, a workflow, an MCP client, a scheduled job) may read with it
+ * (user 2026-10-25, B); another person may not.
  */
 function holds(grant: StoredDirectoryGrant, binding: Binding, caller: ActionCallContext): boolean {
-  return grant.plugin_id === binding.plugin_id && grant.install_id === binding.install_id && grant.project_id === caller.project_id
-    && (binding.project_id === null || binding.project_id === grant.project_id) && (caller.actor_id === grant.actor_id || caller.audience !== "user");
+  const place = binding.person_level ? grant.project_id === null
+    : grant.project_id === caller.project_id && (binding.project_id === null || binding.project_id === grant.project_id);
+  return grant.plugin_id === binding.plugin_id && grant.install_id === binding.install_id && place && (caller.actor_id === grant.actor_id || caller.audience !== "user");
 }
 
 /** The folder is still the one chosen: same real path, same device and inode, not a link. */
@@ -138,7 +145,7 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
       if (!info.isDirectory() || info.isSymbolicLink()) throw new ActionError("actions.input_invalid", "请选择一个实际目录，不能是文件或符号链接");
       const root = await realpath(picked.path); check();
       const actual = await lstat(root); check();
-      const identity = { plugin_id: binding.plugin_id, install_id: binding.install_id, project_id: owner.project_id, actor_id: owner.actor_id,
+      const identity = { plugin_id: binding.plugin_id, install_id: binding.install_id, project_id: binding.person_level ? null : owner.project_id, actor_id: owner.actor_id,
         device: String(actual.dev), inode: String(actual.ino) };
       const earlier = matchingDirectoryGrant(key, identity);
       if (earlier && earlier.root === root) return { grant_id: earlier.grant_id, root, granted_at: earlier.granted_at };

@@ -11,14 +11,17 @@ import { shelfActions } from "@molis-ai/molis-work-module-shelf/surface";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { IMAGE_PNG, imageReply } from "./fixtures/images-runtime.js";
 import type { ImageJob } from "@molis-ai/molis-work-plugin-images/contract";
-import { PERSONAL_PLUGIN_IDS, builtinMarketDirectory, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { builtinMarketDirectory, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 
-test("图片插件通过Manifest进入个人导航和市场，客户端可解析", () => {
+// Since batch 108 Images is a partition plugin like any other: added to the personal space or a project, not marked personal.
+test("图片插件通过Manifest进入导航和市场（分区插件），客户端可解析", () => {
   assert.equal(parsePluginManifest(imagesManifest).plugin_id, "io.molis.work.images");
-  assert.ok(PERSONAL_PLUGIN_IDS.includes("images"));
+  assert.equal(imagesManifest.databases?.partition?.store_name, "images");
   installHostUiText();
   runWithLocale("zh", () => {
-    assert.equal(pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "images")?.personal, true);
+    assert.notEqual(pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "images")?.personal, true);
     assert.equal(railEntries(["images"]).find(entry => entry.id === "images")?.label, "图片");
   });
   assert.equal(imagesUiContribution.descriptor.navigation_id, "images");
@@ -27,14 +30,15 @@ test("图片插件通过Manifest进入个人导航和市场，客户端可解析
 
 
 test("W5-01-IMGPORT-02 HTTP Runtime binds project identity, reads bytes and saves the same image to Shelf", async t => {
-  const f = await serveHomeRuntime(t), one = await f.project("Images one"), two = await f.project("Images two");
+  const f = await serveHomeRuntime(t), one = await f.project("Images one", ["images"]), two = await f.project("Images two", ["images"]);
   const server = createServer(async (request, response) => { for await (const _chunk of request) { /* drain input */ } imageReply(response); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   t.after(() => { server.closeAllConnections(); return new Promise<void>(resolve => server.close(() => resolve())); });
   const address = server.address(); assert.ok(address && typeof address === "object");
   const root = "/api/plugins/io.molis.work.images", first = `/projects/${one.project_id}${root}`, second = `/projects/${two.project_id}${root}`;
   const post = (path: string, body: object) => f.request(path, { method: "POST", body });
-  const saved = await post(root + "/connections", { name: "Runtime HTTP", api_format: "openai-images", base_url: `http://127.0.0.1:${address.port}/v1`, model: "fixture" });
+  // The services follow the person (batch 108): saved from either project, both see them.
+  const saved = await post(first + "/connections", { name: "Runtime HTTP", api_format: "openai-images", base_url: `http://127.0.0.1:${address.port}/v1`, model: "fixture" });
   assert.equal(saved.status, 200, await saved.clone().text());
   const { connection } = await saved.json();
   const forged = await post(first + "/jobs", { request_id: "forged", connection_id: connection.id, prompt: "forged", project_id: two.project_id });
@@ -78,6 +82,6 @@ test("W5-01-IMGPORT-02 HTTP Runtime binds project identity, reads bytes and save
   assert.equal((await post(second + imagePath + "/shelf", {})).status, 404);
   assert.equal((await f.request(second + `/jobs/${job.id}`, { method: "DELETE" })).status, 404);
   assert.equal((await f.request(first + `/jobs/${job.id}`, { method: "DELETE" })).status, 200);
-  assert.equal(existsSync(join(f.home, "images", "assets", job.images[0]!.filename)), false);
+  assert.equal(existsSync(join(partitionRoot(f.home, one.project_id), "plugin-files", installIdentity(imagesManifest), "images", "assets", job.images[0]!.filename)), false);
   assert.equal((await f.request(first + `/jobs/${job.id}`)).status, 404);
 });

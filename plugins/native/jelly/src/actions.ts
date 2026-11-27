@@ -16,7 +16,7 @@ const JELLY_CATEGORY_SUBJECT_KIND = "jelly_category";
 type Extra = Partial<Pick<ActionMetadata, "result_subject" | "undo" | "effect">>;
 /** `define<Output>()("name", …)`: the input type comes from the schema. Curried because TypeScript cannot infer `S` while `Output` is written. */
 const define = <O>() => <const S extends ActionSchema>(name: string, version: number, title: string, description: string, operation: "query" | "command", subject: string, input: S, output: ActionSchema, extra: Extra = {}) =>
-  createActionDefinition<InferActionInput<S>, O>(`jelly.${name}`, operation, { title, description, scope: "home", audiences: ["user", "workflow", "agent", "mcp"],
+  createActionDefinition<InferActionInput<S>, O>(`jelly.${name}`, operation, { title, description, scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
     permissions: operation === "query" ? JELLY_READ : JELLY_WRITE, subject_kinds: [subject], input_schema: input, output_schema: output, ...extra }, version);
 const restoreUndo = { capability_id: "jelly.restore", version: /* @version action.jelly.restore */ 1, input: { rows: "restore" } } as const;
 const changed = (key: "item" | "series" | "note") => ({ result_subject: { id: `${key}.id`, revision: `${key}.revision` } });

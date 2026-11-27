@@ -22,7 +22,6 @@ import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { AssistantCharacterRef, AssistantContextSnapshot, AssistantControl, AssistantRecovery, AssistantScope, AssistantSendInput, AssistantSendResult, AssistantWork, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { withinTime } from "./assistant-material-scan.js";
 import { adoptSession } from "./assistant-executor-session.js";
 import { linkSent } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
@@ -126,9 +125,6 @@ export class AssistantService {
       },
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
       rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), pages: () => ports.pages(),
-      // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
-      ...(ports.homeActions ? { homeActions: async () => { const actions = await withinTime(ports.homeActions!());
-        return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
       host: () => ports.host(), state: (host, work) => this.reads.stateFor(host, work), executorGone: work => this.reads.executorGone(work), schedule: () => this.notices.schedule(),
       send: (work, words, request_id, stillCurrent) => this.hostStarted(() => this.send({ work_id: work.work_id, text: say.text(words), request_id }, {}, "host", stillCurrent)) });
     this.delegations = new AssistantDelegations({ store, actorId, subtaskReports: { kick: id => this.subtaskReports.kick(id), attach: () => this.subtaskReports.attach() }, stepGate: this.continuations.stepGate, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),

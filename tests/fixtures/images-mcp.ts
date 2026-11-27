@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -60,12 +61,10 @@ export async function openImagesMcp(t: TestContext) {
     }
     return client;
   };
-  const saveConnection = async (client: Client) => {
-    const { connection } = await callImageTool<{ connection: { id: string } }>(client, "connections.save", {
-      name: "MCP provider", api_format: "openai-images", base_url: `http://127.0.0.1:${address.port}/v1`, model: "fixture-image",
-    });
-    return connection;
-  };
+  // The person saves the image service (an MCP client may use the person's services, not write them: UPP-15). Run while no client is
+  // connected: the seed opens the same Home.
+  const saveConnection = async (project = "a") => JSON.parse(execFileSync(process.execPath,
+    [fileURLToPath(new URL("./images-mcp-seed.ts", import.meta.url)), home, project, `http://127.0.0.1:${address.port}/v1`], { encoding: "utf8" })) as { id: string };
   const generate = async (client: Client, connectionId: string) => {
     const input = { request_id: "same-click", connection_id: connectionId, prompt: "MCP image" };
     const { job } = await callImageTool<{ job: ImageJob }>(client, "jobs.start", input);

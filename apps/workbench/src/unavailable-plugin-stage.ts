@@ -11,16 +11,16 @@ export interface UnavailablePluginStage {
   label: string;
   reason: string;
   scope: "home" | "project";
-  /** The plugin's Manifest id, which the restart button names. */
+  /** Project scope: the plugin's Manifest id, which the restart button names. */
   plugin_id?: string;
   /** Project scope: what the Runtime's supervisor says is wrong with the plugin, and the stable code it gave; absent when it says none. */
   status?: "starting" | "failed" | "blocked";
   code?: string | null;
-  /** Set by the Host only for an instance that failed or was quarantined (never one switched off, blocked or uninstalled). */
+  /** Project scope: set by the Host only for an instance that failed or was quarantined (never one switched off, blocked or uninstalled). */
   restart?: PluginRestartOffer | null;
   /**
    * Set by the Host when an upgrade is why the plugin's data was refused (upgrade-continuity U3 §2.4): the stage then draws that card, with
-   * a restart only after the person has moved an incompatible store out of the way.
+   * no restart (starting again cannot upgrade a store).
    */
   upgrade?: OwnerUnavailableCard | null;
   /** Same release of a signed package, recoverable under the existing approval. */
@@ -34,10 +34,7 @@ export const UNAVAILABLE_STAGE = ":is([data-home-plugin-unavailable], [data-proj
 export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
   readText: (text: string, values?: Record<string, string | number>) => string, announce = true): string {
   if (stage.packageRepair) return renderPackageRepair(stage, stage.packageRepair, announce);
-  if (stage.upgrade) {
-    const card = renderOwnerUnavailableCard(stage.upgrade, announce);
-    return stage.restart ? `<div class="mw-empty">${card}${restartControl(stage)}</div>` : card;
-  }
+  if (stage.upgrade) return renderOwnerUnavailableCard(stage.upgrade, announce);
   if (stage.status === "starting") return `<div class="mw-empty" role="status" aria-busy="true"><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-starting", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p></div>`;
   return `<div class="mw-empty"${announce ? ' role="alert"' : ""}><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-unavailable", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p>${stage.scope === "home" ? homeHint(stage, readText) : projectHint(stage, readText)}</div>`;
 }
@@ -54,13 +51,10 @@ function homeHint(stage: UnavailablePluginStage, _L: (text: string) => string): 
 
 function projectHint(stage: UnavailablePluginStage, _L: (text: string, values?: Record<string, string | number>) => string): string {
   const status = stage.status ? `<p data-project-plugin-status>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.status-status", { status: stage.status === "failed" ? uiText.text("workbench.unavailable-plugin-stage.failed-start") : uiText.text("workbench.unavailable-plugin-stage.blocked") }))}${stage.code ? ` <code>${escapeHtml(stage.code)}</code>` : ""}</p>` : "";
-  return `<p>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.check-plugin-status-then-reopen"))}</p>${status}${restartControl(stage)}`;
-}
-
-function restartControl(stage: UnavailablePluginStage): string {
-  return stage.restart && stage.plugin_id
+  const restart = stage.restart && stage.plugin_id
     ? `<button class="mw-btn mw-btn--secondary" type="button" data-project-plugin-restart="${stage.restart}" data-restart-plugin="${escapeHtml(stage.plugin_id)}">${escapeHtml(stage.restart === "restart" ? uiText.text("workbench.unavailable-plugin-stage.restart") : uiText.text("workbench.unavailable-plugin-stage.release-quarantine-restart"))}</button><p role="status" data-project-plugin-restart-status hidden></p>`
     : "";
+  return `<p>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.check-plugin-status-then-reopen"))}</p>${status}${restart}`;
 }
 
 function renderPackageRepair(stage: UnavailablePluginStage, repair: NonNullable<UnavailablePluginStage["packageRepair"]>, announce: boolean): string {

@@ -1,5 +1,6 @@
 import type { UiAppearanceApplyInput, UiAppearanceChoice, UiAppearanceReceipt, UiAppearanceRecovery, UiAppearanceUndoInput, UiRequestCall, UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchAppearance } from "../appearance-document.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readEventStream } from "./event-stream.js";
 
 const path = "/api/ui/appearance";
@@ -90,6 +91,10 @@ function appearanceOwner(page: Document): AppearanceDocument | null {
     if (pane && (!route.searchParams.get("workbenchPane") || route.pathname !== `${parent.routePrefix ?? ""}/`)) return null;
     // The chooser's project is its preview selection. Its registered Home side has no project route.
     if (side && location.pathname === "/" && parent.arrival === "chooser" && child.homeSide === "true" && !child.projectId && !child.routePrefix) return owner;
+    // A personal-space side view (Issues' capture, R14, batch 108) sits beside every partition and the chooser. The stream it would share
+    // is the person's and names no project; its reads stay its own.
+    if (side && child.projectId === PERSONAL_SPACE_PROJECT_ID && child.routePrefix === `/projects/${PERSONAL_SPACE_PROJECT_ID}`
+      && route.pathname.startsWith(`/projects/${PERSONAL_SPACE_PROJECT_ID}/side/`)) return owner;
     return (parent.projectId ?? "") === (child.projectId ?? "") && (parent.routePrefix ?? "") === (child.routePrefix ?? "") ? owner : null;
   } catch { return null; }
 }

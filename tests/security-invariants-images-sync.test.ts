@@ -4,12 +4,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, rmSync, readFileSync, mkdirSync, symlinkSync, writeFileSync,utimesSync,existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {createImagesSyncBindings,imagesActions,imagesManifest} from '@molis-ai/molis-work-plugin-images';
 import {ownerSyncFixture} from './fixtures/plugin-sync-stores.js';
 import {bindPersonalSpaceAuthority} from '@molis-ai/molis-work-app-local-host';
-import { ensureStorageSpace, personalStorageSpace, openBaselineHomeSqlite } from '@molis-ai/molis-work-storage';
+import { ensureStorageSpace, personalStorageSpace, bindDatabaseSpace } from '@molis-ai/molis-work-storage';
+import { partitionLibraryFile } from './fixtures/plugin-home-stores.js';
 
 test('S-128 PCSYNC-IMG-READ-01/02 restored images are readable without a local service, never authority to generate',async t=>{
  const root=mkdtempSync(join(tmpdir(),'images-read-sync-'));
@@ -19,7 +20,7 @@ test('S-128 PCSYNC-IMG-READ-01/02 restored images are readable without a local s
  const left=source.client('project'),right=target.client('project'),{connection}=await source.connection();
  const {job:started}=await left.invoke(imagesActions.start,{request_id:'saved-picture',connection_id:connection.id,prompt:'A saved cat'});
  const saved=await imageTerminal(left,started.id);assert.equal(saved.status,'succeeded');assert.equal(source.calls.length,1);
- const stores=[source,target].map(runtime=>imageSyncFixture(runtime));t.after(()=>stores.forEach(store=>store.close()));
+ const stores=await Promise.all([source,target].map(runtime=>imageSyncFixture(runtime)));t.after(()=>stores.forEach(store=>store.close()));
  const context={spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'Pictures'}),hasArtifact:()=>false};
  const [x,y]=stores.map(store=>store.replica(context)),message=x!.next()!;assert.ok(message);await stores[1]!.prepare(message.key,message.value);y!.receive({...message,revision:1});assert.deepEqual(y!.conflicts(),[]);
  assert.deepEqual((await target.client(null).invoke(imagesActions.connections,{})).connections,[]);
@@ -45,7 +46,7 @@ test('S-128 PCSYNC-IMG-READ-01/02 restored images are readable without a local s
 test('S-128 PCSYNC-01/23 image restoration refuses foreign identities, execution state and filesystem paths without effects',async t=>{
  const home=mkdtempSync(join(tmpdir(),'image-sync-boundary-'));
  const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
- const runtime=await imageRuntimeFixture(t,{home});const store=imageSyncFixture(runtime);t.after(()=>store.close());
+ const runtime=await imageRuntimeFixture(t,{home});const store=await imageSyncFixture(runtime);t.after(()=>store.close());
  assert.throws(()=>store.replica({spaceId:'other',authorize(){},canUploadProject:()=>true,project:()=>({title:'P'}),hasArtifact:()=>false}),/空间不匹配/);
  const replica=store.replica({spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'P'}),hasArtifact:()=>false});
  const record={id:'image',project_id:'project',connection_name:'',api_format:'openai-images',model:'saved',prompt:'text',size:'',aspect_ratio:'',status:'succeeded',error:'',created_at:'2026-10-18T00:00:00Z',finished_at:null};
@@ -57,24 +58,26 @@ test('S-128 PCSYNC-01/23 image restoration refuses foreign identities, execution
   assert.equal(replica.conflicts().length,1,'owner rejection retains the original event without a business write');
   assert.equal(replica.hasProjectChanges!('project'),true);assert.equal(replica.hasProjectChanges!('unrelated'),false);
   assert.throws(()=>replica.resolve(key,'remote',revision));assert.equal(replica.counts().pending,0);
-  const db=new DatabaseSync(join(home,'images','images.db'),{readOnly:true});try{assert.equal(db.prepare('SELECT COUNT(*) AS n FROM jobs').get()!.n,0);}finally{db.close();}
+  const db=new DatabaseSync(runtime.library('project'),{readOnly:true});try{assert.equal(db.prepare('SELECT COUNT(*) AS n FROM jobs').get()!.n,0);}finally{db.close();}
  }
  replica.receive({key,operationId:'good',base:0,revision:++revision,value});replica.resolve(key,'remote',revision);assert.equal(replica.cursor(),revision);assert.equal(replica.counts().pending,0);
 });
 test('S-128 PCSYNC-12 Images refuses the old structure and a wrong version with original bytes unchanged',async t=>{
  const currentSql=readFileSync(new URL('./fixtures/home-store-schemas/images.sql',import.meta.url),'utf8');
- for(const [version,schema,code] of [[1,currentSql+'; DROP TABLE connection_changes;','storage.schema_structure_mismatch'],[2,currentSql,'storage.store_too_new']] as const){
+ for(const [version,schema,code] of [[1,currentSql+'; DROP INDEX jobs_created;','storage.schema_structure_mismatch'],[2,currentSql,'storage.store_too_new']] as const){
   const root=mkdtempSync(join(tmpdir(),'sync-old-schema-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
   const home=join(root,'images'),space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
-  const db=openBaselineHomeSqlite(home,'images',{version,schema});db.close();const file=join(home,'images','images.db'),before=readFileSync(file);
-  assert.throws(()=>ownerSyncFixture(home,imagesManifest,createImagesSyncBindings),{code});assert.deepEqual(readFileSync(file),before);
+  // The personal space's library (batch 108: each partition keeps its own), written by hand at the old structure or a newer version.
+  const stored=ensureStorageSpace(home,space),file=partitionLibraryFile(home,'personal','images');mkdirSync(dirname(file),{recursive:true,mode:0o700});
+  const db=new DatabaseSync(file);db.exec(schema);bindDatabaseSpace(db,stored);db.exec(`PRAGMA user_version = ${version}`);db.close();const before=readFileSync(file);
+  assert.throws(()=>ownerSyncFixture(home,imagesManifest,createImagesSyncBindings,'personal'),{code});assert.deepEqual(readFileSync(file),before);
  }
 });
 
 test('S-128 PCSYNC-11 the Images owner refuses a symlinked assets directory before exporting bytes',async t=>{
  const home=mkdtempSync(join(tmpdir(),'images-symlink-refusal'));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
- const runtime=await imageRuntimeFixture(t,{home});const sync=imageSyncFixture(runtime);t.after(()=>sync.close());const external=join(home,'external');mkdirSync(external);const secret=Buffer.from('not-an-authorized-saved-image');writeFileSync(join(external,'aa.png'),secret);symlinkSync(external,join(home,'images','assets'));
- const db=new DatabaseSync(join(home,'images','images.db'));try{db.prepare("INSERT INTO jobs VALUES ('image','project','request','hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(JSON.stringify([{id:'picture',mime_type:'image/png',byte_length:secret.length,filename:'aa.png'}]));}finally{db.close();}
+ const runtime=await imageRuntimeFixture(t,{home});const sync=await imageSyncFixture(runtime);t.after(()=>sync.close());const external=join(home,'external');mkdirSync(external);const secret=Buffer.from('not-an-authorized-saved-image');writeFileSync(join(external,'aa.png'),secret);const assets=runtime.assetsDirectory('project');rmSync(assets,{recursive:true,force:true});mkdirSync(dirname(assets),{recursive:true});symlinkSync(external,assets);
+ const db=new DatabaseSync(runtime.library('project'));try{db.prepare("INSERT INTO jobs VALUES ('image','request','hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(JSON.stringify([{id:'picture',mime_type:'image/png',byte_length:secret.length,filename:'aa.png'}]));}finally{db.close();}
  const r=sync.replica({spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'P'}),hasArtifact:()=>false});assert.throws(()=>r.next(),/不能使用链接/);assert.equal(r.counts().pending,1);assert.deepEqual(readFileSync(join(external,'aa.png')),secret);
 });
 
@@ -83,10 +86,10 @@ test('Images deletion preserves an unfrozen original and bounded GC keeps shared
  const home=mkdtempSync(join(tmpdir(),'images-local-retention-'));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
  const release=bindPersonalSpaceAuthority(home,space.spaceId,()=>{});t.after(release);
  const runtime=await imageRuntimeFixture(t,{home}),client=runtime.client('project');t.after(()=>rmSync(home,{recursive:true,force:true}));
- const sync=imageSyncFixture(runtime);t.after(()=>sync.close());const context={spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'P'}),hasArtifact:()=>false},replica=sync.replica(context);
- const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6L8UAAAAASUVORK5CYII=','base64'),directory=join(home,'images','assets'),filename='aaaaaaaa.png';mkdirSync(directory,{recursive:true});writeFileSync(join(directory,filename),png);
- const db=new DatabaseSync(join(home,'images','images.db'));t.after(()=>db.close());const image={id:'picture',filename,mime_type:'image/png',byte_length:png.length};
- for(const id of ['first','shared'])db.prepare("INSERT INTO jobs VALUES (?,'project',?,'hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(id,'request-'+id,JSON.stringify([image]));
+ const sync=await imageSyncFixture(runtime);t.after(()=>sync.close());const context={spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'P'}),hasArtifact:()=>false},replica=sync.replica(context);
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6L8UAAAAASUVORK5CYII=','base64'),directory=runtime.assetsDirectory('project'),filename='aaaaaaaa.png';mkdirSync(directory,{recursive:true});writeFileSync(join(directory,filename),png);
+ const db=new DatabaseSync(runtime.library('project'));t.after(()=>db.close());const image={id:'picture',filename,mime_type:'image/png',byte_length:png.length};
+ for(const id of ['first','shared'])db.prepare("INSERT INTO jobs VALUES (?,?,'hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(id,'request-'+id,JSON.stringify([image]));
  const old=new Date(Date.now()-172800000);utimesSync(join(directory,filename),old,old);await client.invoke(imagesActions.delete,{id:'first'});assert.equal(existsSync(join(directory,filename)),true,'another live job protects shared bytes');
  await client.invoke(imagesActions.delete,{id:'shared'});assert.equal(existsSync(join(directory,filename)),false,'only old unreferenced bytes are collected after durable preimages');
  const records=replica.recoveries!().filter(row=>row.choice==='local_delete');assert.equal(records.length,2);assert.ok(replica.counts().pending>0);

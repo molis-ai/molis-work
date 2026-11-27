@@ -6,12 +6,12 @@ import { issueModel } from "./issue-model.js";
 import { CURRENT_WORK, OPEN_DETAILS } from "./assistant-current-work.js";
 
 export type SendBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
-export async function sendBrowser(t: TestContext, modelAvailable = true) {
+export async function sendBrowser(t: TestContext, modelAvailable = true, projectPlugins: readonly string[] = ["pages"]) {
   let model!: Awaited<ReturnType<typeof issueModel>> | null;
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { model = modelAvailable ? await issueModel(t, homeDirectory, { replyText: "收到本次发送。" }) : null; },
-    // Results here are Pages documents; since batch 107 a project shows Pages only when it turned it on.
-    projectPlugins: ["pages"],
+    // Results here are Pages documents; since batch 107 a project shows Pages only when it turned it on (and Todo, since batch 108).
+    projectPlugins,
   });
   if (!browser) return null;
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, browser.sessionId);

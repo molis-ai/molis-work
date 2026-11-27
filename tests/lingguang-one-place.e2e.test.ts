@@ -37,7 +37,7 @@ test("a file read into 灵光 becomes a spark, and the spark becomes a Jelly not
 
   await click("[data-lingguang-to-jelly]");
   await browser.waitFor("[...document.querySelectorAll('.placement-toast')].some(toast => toast.textContent.includes('已转成') && toast.textContent.includes('发布会预热'))", 15_000);
-  const notes = (() => { const store = openJellyStore(homeDirectory); try { return store.read(rows => rows.notes()); } finally { store.close(); } })();
+  const notes = (() => { const store = openJellyStore(homeDirectory, projectId!); try { return store.read(rows => rows.notes()); } finally { store.close(); } })();
   assert.equal(notes.length, 1);
   assert.equal(notes[0]!.title, "发布会预热");
   assert.match(notes[0]!.body, /倒计时海报提前一周放出[\s\S]*来自：灵光 · 发布会预热/);

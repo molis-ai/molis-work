@@ -11,10 +11,10 @@ const kinds = [
   { kind: JELLY_ITEM_SUBJECT_KIND, title: "日程", surface: JELLY_PROJECT_PLUGIN_ID },
   { kind: JELLY_NOTE_SUBJECT_KIND, title: "随手记", surface: JELLY_PROJECT_PLUGIN_ID, glyph: "note" },
 ];
-const itemReader = defineSubjectContextAction("jelly.item.subject.read", /* @version action.jelly.item.subject.read */ 1, JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home");
-const noteReader = defineSubjectContextAction("jelly.note.subject.read", /* @version action.jelly.note.subject.read */ 1, JELLY_NOTE_SUBJECT_KIND, "Jelly 随手记", ["jelly:read"], "home");
+const itemReader = defineSubjectContextAction("jelly.item.subject.read", /* @version action.jelly.item.subject.read */ 1, JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"]);
+const noteReader = defineSubjectContextAction("jelly.note.subject.read", /* @version action.jelly.note.subject.read */ 1, JELLY_NOTE_SUBJECT_KIND, "Jelly 随手记", ["jelly:read"]);
 export const jellySearchActions = {
-  entries: defineSearchEntriesAction("jelly.search.entries", /* @version action.jelly.search.entries */ 1, kinds, "Jelly 日程与随手记", ["jelly:read"], "home"),
+  entries: defineSearchEntriesAction("jelly.search.entries", /* @version action.jelly.search.entries */ 1, kinds, "Jelly 日程与随手记", ["jelly:read"]),
   item: { ...itemReader, action: { ...itemReader.action, execution: { cost: "none" as const } } },
   note: { ...noteReader, action: { ...noteReader.action, execution: { cost: "none" as const } } },
 };

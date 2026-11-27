@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { syncBuiltinESMExports } from "node:module";
 import { promises as fs } from "node:fs";
-import { existsSync, lstatSync, mkdirSync, realpathSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
-import { directoryForHome, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, directoryForHome, molisWorkHostProjectReference, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { PluginDirectoryReadRequest, PluginDirectoryReadResult } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -179,6 +182,8 @@ test("S-83 PG049-STATUS-01 settings observes current identity and keeps prior re
   const fresh = await (await f.request("/api/host/directory-grants")).json();
   assert.equal(fresh.grants[0].directory_status, "current");
   assert.equal(fresh.grants[0].read_count, 0);
+  // A Home-level plugin's grant holds no project but is not one for every space: only a per-partition plugin's is (batch 108).
+  assert.equal(fresh.grants[0].every_space, false);
   assert.deepEqual(notices(f.home), []);
   assert.equal((await f.read()).outcome, "directory");
   const before = directoryRows(f.home), told = notices(f.home), [recorded] = await f.listed();
@@ -334,4 +339,29 @@ test("S-83 RAC-664 a disabled installation reads nothing, an uninstall takes its
   assert.equal((await f.read()).outcome, "directory");
   await platform.runtime.uninstall(f.host.homePlugins!.installation(f.a.id)!.install_id, { retain_private_data: true });
   assert.deepEqual(await f.listed(), [], "kept data does not keep a directory grant");
+});
+
+// S-83, UPP-15 (batch 108, user 2026-11-26「照规格迁进本人设置」): Cognia runs in each partition, and the folders the person lets it read are
+// the person's, like their settings (spec §4.2 第 4 条): kept at the Home in no project, read by its instance in every space it is added
+// to, kept when the space it was chosen in goes; never another person's, and gone at once when the person takes it back.
+test("S-83 UPP-15 a per-partition plugin's folder grant is the person's: chosen in one space, read in another, kept when that space goes, refused to another person", async t => {
+  const home = mkdtempSync(join(tmpdir(), "directory-person-level-")), host = new MolisWorkLocalHost({ homeDirectory: home }), directories = directoryForHome(home);
+  t.after(async () => { await host.close(); rmSync(home, { recursive: true, force: true }); });
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", audience: "user", permissions: COGNIA_ACTION_PERMISSIONS };
+  const inA = bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), projectId: "a" })), () => caller);
+  const vault = join(home, "shared-vault"); mkdirSync(vault); writeFileSync(join(vault, "note.md"), "Shared evidence");
+  await inA.invoke(cogniaActions.workspace, {}); // the person has Cognia open in a: its instance there asks for the folder
+  const grant = await directories.select({ plugin_id: "io.molis.work.cognia", project_id: "a", actor_id: caller.actor_id }, async () => ({ status: "picked", path: vault }));
+  assert.ok(grant);
+  assert.equal((await directories.list()).find(row => row.grant_id === grant.grant_id)?.project_id, null, "kept at the Home, in no project");
+  const elsewhere = molisWorkHostProjectReference({ databasePath: join(home, "b.sqlite"), projectId: "b" });
+  const inB = bindActionClient(host.actionClient(elsewhere), () => ({ ...caller, project_id: "b" }));
+  const note = async () => Buffer.from((await inB.invoke(cogniaActions.scan, { grant_id: grant.grant_id, path: "." })).files.find(row => row.path === "note.md")!.data!, "base64").toString();
+  assert.equal(await note(), "Shared evidence", "chosen in a, read by Cognia in b");
+  await projectDeletedHooksFor(home).clear("directory-grants", "a");
+  assert.equal(await note(), "Shared evidence", "the space it was chosen in going does not take the person's grant");
+  const another = bindActionClient(host.actionClient(elsewhere), () => ({ ...caller, actor_id: "another-person", project_id: "b" }));
+  await assert.rejects(another.invoke(cogniaActions.scan, { grant_id: grant.grant_id, path: "." }), { code: "cognia.directory_unavailable" }, "another person reads nothing with it");
+  directories.revoke({ grant_id: grant.grant_id }, caller);
+  await assert.rejects(inB.invoke(cogniaActions.scan, { grant_id: grant.grant_id, path: "." }), { code: "cognia.directory_unavailable" }, "taken back: refused in every space");
 });

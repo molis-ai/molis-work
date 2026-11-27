@@ -94,7 +94,8 @@ test("SYS-15 S-47 page authority allows declared routes and refuses other plugin
 });
 
 test("SYS-15 S-47 project page cannot switch project or Home and deletion invalidates its authority", async t => {
-  const f = await serveHomeRuntime(t), p = await f.project("Page owner", ["pages"]), q = await f.project("Other page", ["pages"]);
+  // Cognia and Todo run in each project they are added to (batch 108): both projects have them, so a refusal is the page binding's.
+  const f = await serveHomeRuntime(t), p = await f.project("Page owner", ["pages", "cognia", "todo"]), q = await f.project("Other page", ["pages", "cognia", "todo"]);
   const prefix = `/projects/${p.project_id}`;
   const response = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.cognia" } });
   assert.equal(response.status, 200, await response.clone().text());
@@ -125,7 +126,7 @@ test("SYS-15 S-47 closing a page cancels a running command without revoking the 
 });
 
 test("SYS-15 S-47 toolbar callbacks retain the exact page, project and lifetime; an ordinary page cannot call them", async t => {
-  const f = await serveHomeRuntime(t), p = await f.project("Toolbar owner", ["pages"]), q = await f.project("Other toolbar", ["pages"]);
+  const f = await serveHomeRuntime(t), p = await f.project("Toolbar owner", ["pages", "cognia", "todo"]), q = await f.project("Other toolbar", ["pages", "cognia", "todo"]);
   const prefix = `/projects/${p.project_id}`;
   const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.cognia" } });
   assert.equal(opened.status, 200);

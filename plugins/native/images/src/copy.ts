@@ -16,7 +16,8 @@ const comparable=(value:ReturnType<typeof validateImageValue>)=>JSON.stringify([
 export const imagesCopy = {
  kind,
  keys(db:PluginSyncBusinessReader,projectId:string):readonly string[] {
-  return db.prepare('SELECT id FROM jobs WHERE project_id=? ORDER BY id').all(projectId).map(row=>JSON.stringify([projectId,'image',row.id]));
+  // The reader is the partition's own library: every job in it is that partition's.
+  return db.prepare('SELECT id FROM jobs ORDER BY id').all().map(row=>JSON.stringify([projectId,'image',row.id]));
  },
  key(reference:ProjectCopyReference):string {
   if(reference.kind!==kind||typeof reference.projectId!=='string')throw imagesErrors.invalid('图片复制引用不匹配');

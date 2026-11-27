@@ -70,7 +70,7 @@ export interface ProjectPartitionPlugins {
   runs(pluginId: string): boolean;
   platform(pluginId: string): PluginPlatform | undefined;
   platforms(): PluginPlatform[];
-  failure(pluginId: string): string | undefined;
+  failure(pluginId: string): { reason: string; code: string | null } | undefined;
 }
 
 /**
@@ -80,7 +80,7 @@ export interface ProjectPartitionPlugins {
 export function projectPluginProblem(state: ProjectPluginState, store: LocalProjectDatabase, pluginId: string): { readonly reason: string | null } | null {
   const active = projectPluginPlatform(state, pluginId)?.supervisor.state(pluginId);
   if (active?.status === "running") return null;
-  return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.partitions?.failure(pluginId) ?? state.error ?? null };
+  return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.partitions?.failure(pluginId)?.reason ?? state.error ?? null };
 }
 
 /**

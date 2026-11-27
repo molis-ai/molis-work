@@ -17,7 +17,7 @@ test("Jelly shows what the Assistant changed and opens an entry or a note by id"
   const child = await pluginFrameBrowser(t, browser, "jelly");
   const { evaluate, waitFor, click } = child;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const write = <T>(change: (store: JellyStore) => T) => { const store = openJellyStore(homeDirectory); try { return store.write(change); } finally { store.close(); } };
+  const write = <T>(change: (store: JellyStore) => T) => { const store = openJellyStore(homeDirectory, projectId!); try { return store.write(change); } finally { store.close(); } };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
   await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
@@ -102,7 +102,7 @@ test("B27-AC02 BL-092: an Assistant result without a preview keeps its Jelly eve
   assert.ok(result);
   assert.deepEqual(result.open, { surface: "jelly", id: result.subject.id });
   assert.equal(result.subject.kind, "jelly_item");
-  const store = openJellyStore(browser.homeDirectory);
+  const store = openJellyStore(browser.homeDirectory, browser.projectId!);
   try { assert.equal(store.read(rows => rows.get("item", result.subject.id))?.title, title); }
   finally { store.close(); }
 

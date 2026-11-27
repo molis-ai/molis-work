@@ -29,6 +29,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { handleConnectorApiMethodsHttp, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { handleLocalConnectorsSettingsHttp } from "../apps/local-host/dist/web-connectors-settings.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { recordingTextModel, wireText } from "./fixtures/recording-text-model.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 
@@ -36,7 +37,10 @@ const withCatalog = withMolisWorkProjectCatalog;
 const hosts = new Map<string, MolisWorkLocalHost>();
 async function home(t: Parameters<Parameters<typeof test>[1]>[0]) {
   const dir = await mkdtemp(join(tmpdir(), 'molis-context-'));
-  t.after(async () => { await hosts.get(dir)?.close(); hosts.delete(dir); await rm(dir, {recursive:true,force:true}); }); return dir;
+  t.after(async () => { await hosts.get(dir)?.close(); hosts.delete(dir); await rm(dir, {recursive:true,force:true}); });
+  // A Home as a real one is before any journey: its catalog made first, so the drafting step can ask which plugins the personal space has (batch 108).
+  await withCatalog({ homeDirectory: dir }, async () => {});
+  return dir;
 }
 function pagesPorts(dir: string) {
   // This fixture owns these Hosts; keep its lazy first Host creation and all failure/retry timing.
@@ -462,6 +466,8 @@ test("QEA-130 a finished onboarding summary cannot become reviewable after its m
   const read = () => served.web.get<ContextJourney>(journey);
   const projects = async () => (await served.web.get<{ projects: Array<{ project_id: string }> }>("/api/settings/projects")).projects;
   const materials = "本周跟进项目进度，记录待决定的日期与负责人。";
+  // Todo drafts only where the drafting partition has it (batch 108): the personal space starts with Schedule alone.
+  await addProjectPlugin(served.web, "personal", "todo");
   try {
     await served.web.post(route, { id });
     await served.web.post(`${journey}/selection`, { sources: [{ kind: "browser", selected: true, text: materials }] });

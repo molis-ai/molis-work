@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -410,7 +410,7 @@ test("AC-05: a reference question in one project finds and keeps only that proje
   const opened = await openCoding(t, [OURS, THEIRS]); if (!opened) return;
   const { click, evaluate, waitFor, coding, heard, enter, ask, show, projectId, homeDirectory, waitObserved } = opened;
   const otherProject = await createProject(opened.web, "另一项目");
-  for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) await addProjectPlugin(opened.web, otherProject.project_id, plugin_id);
+  for (const plugin_id of BUILTIN_PLUGIN_IDS) await addProjectPlugin(opened.web, otherProject.project_id, plugin_id);
   const other = otherProject.project_id;
   /** A Goal created through the project's own Goals route, from the page, in the project the page is in. */
   const goal = (goalId: string, title: string) => opened.ownerEvaluate(`fetch(document.body.dataset.routePrefix + '/api/plugins/io.molis.work.goals/goals', { method: 'POST',

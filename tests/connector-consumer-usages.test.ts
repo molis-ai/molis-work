@@ -3,7 +3,7 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ensureSystemAgentService, connectorPluginSlotUsages, connectorUsagesAction, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
-import type { ActionCallContext, ActionClient, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorUsage } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { imagesActions } from "@molis-ai/molis-work-plugin-images";
@@ -62,14 +62,20 @@ test("ASC-10 ASC-21: real model and image bindings are reported without keys, an
   assert.equal(modelUses.usages.length, 1); assert.equal(modelUses.usages[0]?.usage_id, "usage-model");
   assert.equal(modelUses.usages[0]?.enabled, true); assert.deepEqual(modelUses.usages[0]?.actions, [], "no claim that an arbitrary text action is bound to this model");
   const input = { name: "My image service", api_format: "openai-images" as const, base_url: "https://images.example/v1", model: "image-1", auth_connection_id: first!.connection_id };
-  const { connection } = await client.invoke(caller, imagesActions.saveConnection, input);
-  const result = await read(client, first!.connection_id), image = result.usages.find(usage => usage.usage_id === connection.id)!;
+  // Images runs in each partition it is added to (batch 108): its service is the person's, and the project it is in reports the use.
+  const project = await home.createProject("Image usages", ["images"]);
+  // The image services are the person's own settings: the person's connections page reads where they are used; an Agent is given none.
+  const scoped: ActionCallContext = { ...caller, actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id }, projectClient = home.host.actionClient(project.reference);
+  const { connection } = await projectClient.invoke(scoped, imagesActions.saveConnection, input);
+  // Images' own reporter, read as the person: an image service names an account; its own id is not one, so no use is reported for it.
+  assert.deepEqual(await projectClient.invoke(scoped, imagesActions.connectionUsages, { connection_id: connection.id }), { usages: [] });
+  const agent = await read(projectClient, first!.connection_id, { ...caller, project_id: project.project_id });
+  assert.deepEqual(agent.usages, []); assert.equal(agent.issues.length, 1, "an Agent learns only that the use could not be read, not the person's services");
+  const result = await read(projectClient, first!.connection_id, scoped), image = result.usages.find(usage => usage.usage_id === connection.id)!;
   assert.deepEqual(image.actions[0]?.input, { connection_id: connection.id });
   assert.equal(image.actions[0]?.action.capability_id, imagesActions.start.capability_id);
-  assert.equal(image.actions[0]?.available, false, "Home has no project generation action");
-  const project = await home.createProject("Image usages");
-  const scoped = { ...caller, project_id: project.project_id }, projectClient = home.host.actionClient(project.reference);
-  assert.equal((await read(projectClient, first!.connection_id, scoped)).usages[0]?.actions[0]?.available, true);
+  assert.equal(image.actions[0]?.available, true);
+  assert.ok(!(await read(client, first!.connection_id)).usages.some(usage => usage.usage_id === connection.id), "the Home runs no Images, so it reports none");
   const noGenerate = await read(projectClient, first!.connection_id, { ...scoped, permissions: scoped.permissions.filter(permission => permission !== "images:generate") });
   assert.equal(noGenerate.usages[0]?.actions[0]?.available, false);
   assert.match(noGenerate.usages[0]?.actions[0]?.reason ?? "", /作用域/);
@@ -79,8 +85,8 @@ test("ASC-10 ASC-21: real model and image bindings are reported without keys, an
   const noRead = await read(projectClient, first!.connection_id, { ...scoped, permissions: ["connectors:management:read"] });
   assert.equal(noRead.usages.length, 0); assert.deepEqual(noRead.issues, [], "a reporter outside the caller's visible directory is not disclosed as an error");
   await assert.rejects(projectClient.invoke({ ...scoped, permissions: ["connectors:management:read"] }, imagesActions.connectionUsages, { connection_id: first!.connection_id }), { code: "actions.forbidden" });
-  await client.invoke(caller, imagesActions.saveConnection, { ...input, id: connection.id, auth_connection_id: second!.connection_id });
-  assert.deepEqual((await read(client, first!.connection_id)).usages, []);
+  await projectClient.invoke(scoped, imagesActions.saveConnection, { ...input, id: connection.id, auth_connection_id: second!.connection_id });
+  assert.deepEqual((await read(projectClient, first!.connection_id, scoped)).usages, []);
   assert.equal((await read(projectClient, second!.connection_id, scoped)).usages[0]?.actions[0]?.available, true);
   withConnectorConnections(home.home, store => { store.setEnabled(second!.connection_id, false); store.setEnabled(model!.connection_id, false); });
   assert.equal((await read(projectClient, second!.connection_id, scoped)).usages[0]?.actions[0]?.available, false);

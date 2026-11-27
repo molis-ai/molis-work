@@ -1,4 +1,5 @@
 import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
+import { OVERVIEW_MAIN_TABLE_SQL } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, personalConfigJournal, replicaMarkSql, replicaSchemaSql, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL, SINGLE_PROJECT_ROOT_SQL } from "@molis-ai/molis-work-module-projects";
@@ -74,6 +75,8 @@ const PROJECT_DATABASE_SCHEMA = [
   PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL,
   PROJECT_GUIDANCE_SCHEMA_SQL,
   ACCEPTANCE_SCHEMA_SQL,
+  // The overview rows of the plugins that keep their data in this main database, by installation (V17, batch 108).
+  OVERVIEW_MAIN_TABLE_SQL,
 ].join("\n");
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {

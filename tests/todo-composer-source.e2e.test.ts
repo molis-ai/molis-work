@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { addProjectPlugin, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // specs/unified-input-voice K5 (UIV-13, BL-composer-source-refresh): Todo is the first real plugin to register a `composer_source`
@@ -13,14 +14,16 @@ test("UIV-13 K5: Todo's todos are a source in the composer's ＋, and a Todo tur
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // The page acts as the focused window, so focusing the input is what a person coming to it does (the `/` list is read then).
   await command("Emulation.setFocusEmulationEnabled", { enabled: true }, sessionId);
+  // Todo is a project plugin since batch 108: the person adds it to the project, and turning it off there is taking it out.
+  await addProjectPlugin(browser.web, projectId!, "todo");
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);
   await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
   const post = (path: string, body: unknown) => evaluate<number>(`fetch(${JSON.stringify(path)}, { method: 'POST', headers: molisWorkControlHeaders(),
     body: ${JSON.stringify(JSON.stringify(body))} }).then((r) => r.status)`);
   const todos = `/projects/${projectId}/api/plugins/io.molis.work.todo/items`;
-  assert.equal(await post(todos, { title: "整理季度复盘材料", placement: "project" }), 200);
-  assert.equal(await post(todos, { title: "订周五的会议室", placement: "project" }), 200);
+  assert.equal(await post(todos, { title: "整理季度复盘材料" }), 200);
+  assert.equal(await post(todos, { title: "订周五的会议室" }), 200);
 
   const composer = "[data-assistant-composer]";
   const sources = () => evaluate<string[]>(`[...document.querySelectorAll('${composer} [data-composer-source]')].map((node) => node.textContent.trim())`);
@@ -61,14 +64,14 @@ test("UIV-13 K5: Todo's todos are a source in the composer's ＋, and a Todo tur
   assert.ok(todoCommands(await slash()).length > 0, "Todo's actions are in `/` while it is on");
 
   // Turned off, Todo leaves ＋ at its next opening and `/` the next time the input is come to; the other sources stay.
-  assert.equal(await post("/api/plugins/io.molis.work.todo/disable", {}), 200);
+  await browser.web.delete(`/api/settings/projects/${encodeURIComponent(projectId!)}/plugins`, { plugin_id: "todo", expected_revision: await projectPluginRevision(browser.web, projectId!) });
   assert.deepEqual(todoCommands(await slash()), [], "a Todo turned off is not in `/`");
   await openAdd();
   await waitFor(`![...document.querySelectorAll('${composer} [data-composer-source]')].some((node) => node.textContent.includes('待办'))`, 15_000);
   assert.ok(!(await sources()).some((label) => label.includes("待办")), "a Todo turned off is not offered");
   await closeMenu();
   // On again, it is back at the next opening.
-  assert.equal(await post("/api/plugins/io.molis.work.todo/enable", {}), 200);
+  await addProjectPlugin(browser.web, projectId!, "todo");
   await openAdd();
   await waitFor(`[...document.querySelectorAll('${composer} [data-composer-source]')].some((node) => node.textContent.includes('待办'))`, 20_000);
 });
@@ -78,7 +81,8 @@ test("UIV-13 K5: Todo's todos are a source in the composer's ＋, and a Todo tur
 // implementation-plan §3.3: the name is "translated as SearchSourceKind.title is").
 test("UIV-13 K5: an English page names the Todo source in English from the plugin's own translations", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "user"); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin } = browser;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
+  await addProjectPlugin(browser.web, projectId!, "todo");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setFocusEmulationEnabled", { enabled: true }, sessionId);
   await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);

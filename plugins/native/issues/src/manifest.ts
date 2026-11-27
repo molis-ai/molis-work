@@ -3,6 +3,7 @@ import { ISSUES_ACTIONS } from "./actions.js";
 import { localizeManifestActions } from "./manifest-action-text.js";
 import { issuesSkills } from "./skills.js";
 import { ISSUES_DATABASE } from "./database.js";
+import { ISSUE_BODY_BYTES } from "./images.js";
 import { issuesSync } from './replication.js';
 
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
@@ -18,20 +19,20 @@ export const issuesManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: localizeManifestActions(ISSUES_ACTIONS),
   methods: issuesSkills.map(({ body: _body, body_by_locale: _localized, ...method }) => ({ ...method, tools: [...method.tools] })),
-  runtime: { scope: "home" },
-  databases: { home: ISSUES_DATABASE },
+  // Each partition's own library (specs/unified-partition-plugins §4.2, batch 108): the personal space's, or a project's where it is enabled.
+  databases: { partition: ISSUES_DATABASE },
   sync: issuesSync,
   routes: [
-    { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },
+    { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write", max_body_bytes: ISSUE_BODY_BYTES },
     { route_id: "issues.cancel_capture", method: "POST", path: "/cancel-capture", permission: "issues:write" },
-    { route_id: "issues.name_draft", method: "POST", path: "/name-draft", permission: "issues:write" },
-    { route_id: "issues.suggest_name", method: "POST", path: "/suggest-name", permission: "issues:read" },
-    { route_id: "issues.capture", method: "POST", path: "/capture", permission: "issues:write" },
+    { route_id: "issues.name_draft", method: "POST", path: "/name-draft", permission: "issues:write", max_body_bytes: ISSUE_BODY_BYTES },
+    { route_id: "issues.suggest_name", method: "POST", path: "/suggest-name", permission: "issues:read", max_body_bytes: ISSUE_BODY_BYTES },
+    { route_id: "issues.capture", method: "POST", path: "/capture", permission: "issues:write", max_body_bytes: ISSUE_BODY_BYTES },
     { route_id: "issues.discard", method: "POST", path: "/discard", permission: "issues:write" },
     { route_id: "issues.list", method: "GET", path: "/list", permission: "issues:read" },
     { route_id: "issues.read", method: "GET", path: "/read", permission: "issues:read" },
-    { route_id: "issues.create", method: "POST", path: "/create", permission: "issues:write" },
-    { route_id: "issues.update", method: "POST", path: "/update", permission: "issues:write" },
+    { route_id: "issues.create", method: "POST", path: "/create", permission: "issues:write", max_body_bytes: ISSUE_BODY_BYTES },
+    { route_id: "issues.update", method: "POST", path: "/update", permission: "issues:write", max_body_bytes: ISSUE_BODY_BYTES },
     { route_id: "issues.delete", method: "POST", path: "/delete", permission: "issues:write" },
   ],
   ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },

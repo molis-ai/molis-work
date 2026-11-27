@@ -14,6 +14,7 @@ import type { ArtifactHomeLibrary } from "./plugin-artifact-row-library.js";
 import { artifactRowReplication } from "./plugin-artifact-row-sql.js";
 import { openHomePluginDatabaseConnection } from "./plugin-database.js";
 import { openPartitionPluginLibrary, type PartitionPluginScope } from "./partition-plugin-assembly.js";
+import { partitionOverviewLibraries, runningPartitionPlatformServices } from "./partition-platform-services.js";
 
 /** A plugin library the Host opened, with the services it gives: the client every call goes through, its sync and its pins, if any. */
 export interface OpenedPluginDatabase {
@@ -62,8 +63,12 @@ export function openPartitionPluginDatabase(scope: PartitionPluginScope, home: s
     if (root) pinnedJournal(connections.writer, path);
     else connections.writer.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1000;");
   } catch (error) { connections.close(); throw error; }
+  // A committed write of a plugin with an overview table, whatever made it (a command, a due handler, its own background work), marks that
+  // partition's overview changed and reads it again at once, read-only and waking nothing, so a reminder time it just wrote arms the timer.
+  const overviewWritten = manifest.overview_projection?.kinds.length ? () => runningPartitionPlatformServices(realHome)?.partitionChanged(scope.partition_id,
+    scope.install_id, partitionOverviewLibraries(realHome, [{ partition_id: scope.partition_id, plugins: [{ install_id: scope.install_id, manifest }] }])) : undefined;
   return libraryServices({ home: realHome, declaration, business, writer: connections.writer, reader: connections.reader, root, path,
-    partitionId: scope.partition_id, manifest, authorize, instance, close: connections.close });
+    partitionId: scope.partition_id, manifest, authorize, instance, close: connections.close, ...(overviewWritten ? { committed: overviewWritten } : {}) });
 }
 
 /** A library whose rows record pins joins the partition's main database in one commit: SQLite does that only in rollback-journal mode. */
@@ -79,6 +84,8 @@ function libraryServices(options: {
   writer: ReturnType<typeof openReadOnlyHomeSqlite>; reader: ReturnType<typeof openReadOnlyHomeSqlite>;
   root: ProjectArtifactRoot | undefined; path: string; partitionId?: string; manifest: PluginManifest | undefined;
   authorize: (permission: string) => void; instance: PluginInstance; close(): void;
+  /** Told after a transaction that changed rows committed; never fails the write. */
+  committed?(): void;
 }): OpenedPluginDatabase {
   const { home, declaration, business, writer, reader, root, manifest, authorize, instance } = options;
   let closed = false;
@@ -89,7 +96,7 @@ function libraryServices(options: {
     const businessTriggers = business ? sqliteBaselineTriggers(business.schema) : new Map<string,string>();
     const reads = record ? nativeSqliteOwnerBoundary(reader, new Set(record.objects), triggers, businessTriggers) : undefined;
     const writes = record ? nativeSqliteOwnerBoundary(writer, new Set(record.objects), triggers, businessTriggers) : undefined;
-    const client = pluginDatabaseClient({ reader, writer, inTransaction: () => writer.isTransaction,
+    const client = pluginDatabaseClient({ reader, writer, inTransaction: () => writer.isTransaction, ...(options.committed ? { committed: options.committed } : {}),
       ...(reads && writes ? {perform: <T>(connection: typeof writer, sql: string, parameters: readonly import("@molis-ai/molis-work-contracts/platform/plugin").PluginSqlValue[], mode: 'read' | 'write', run: () => T) => (connection === reader ? reads : writes)(sql, parameters, mode, run)} : {}),
     }, declaration, authorize, instance, () => closed);
     const assertActive = () => { if (closed) throw new Error('PLUGIN_LIBRARY_CLOSED'); authorize('storage:private'); };

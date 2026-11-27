@@ -19,7 +19,7 @@ const home = await mkdtemp(join(tmpdir(), "molis-long-session-"));
 process.env.MOLIS_WORK_HOME = home;
 process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
-const { PROJECT_SCOPED_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
+const { BUILTIN_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
 // The single-Home web core without the account gate: the benchmark measures the runtime, not sign-in.
 const { createSingleHomeTestWebServer: createMolisWorkWebServer } = await import("../tests/fixtures/local-web-core.js");
 const { openStudioChrome } = await import("../tests/fixtures/plugin-builder-browser.js");
@@ -78,7 +78,7 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
 
 const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
 const project = await catalog.createProject({ display_name: "长会话基准", actor_id: "bench" });
-for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "bench" });
+for (const plugin_id of BUILTIN_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "bench" });
 catalog.close();
 const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
 await new Promise<void>(resolve => server.listen(PORT, "127.0.0.1", resolve));

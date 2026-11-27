@@ -249,15 +249,18 @@ test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace G
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-// RAC-44 (Cognia moved to a Home Runtime, specs/archive/repository-anti-corruption): Cognia reaches the product only through its
-// catalog entry's Home Runtime declaration and the public plugin contract; the old Host wiring is gone and none comes back.
+// RAC-44 (Cognia moved to a Home Runtime, specs/archive/repository-anti-corruption; since batch 108 one instance per partition,
+// specs/unified-partition-plugins §4.2): Cognia reaches the product only through its catalog entry's project_runtime declaration and
+// the public plugin contract; the old Host wiring is gone and none comes back.
 // The hybrid check above reads the project supervisor's list only, so the Host side is asserted here for Cognia: no Host
 // file named after it, no provider registered for it, no Host source that imports its package. That it really starts
 // from the declaration is the next test.
-test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled only from its Home Runtime declaration", async () => {
-  const cognia = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia"), runtime = cognia?.runtime;
-  assert.ok(runtime, "Cognia's catalog entry declares a Home Runtime");
-  assert.equal(cognia?.manifest.runtime?.scope, "home", "where it runs is its Manifest's");
+test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled only from its partition Runtime declaration", async () => {
+  const cognia = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia"), runtime = cognia?.project_runtime;
+  assert.ok(runtime, "Cognia's catalog entry declares the Runtime each partition starts");
+  assert.equal(cognia?.runtime, undefined, "no Home Runtime");
+  assert.equal(cognia?.manifest.runtime?.scope, undefined, "where it runs is its Manifest's: no Home scope");
+  assert.ok(cognia?.manifest.databases?.partition, "a library in each partition");
   assert.equal(runtime.package_name, "@molis-ai/molis-work-plugin-cognia");
   assert.ok(!APPROVED_BUILD_TIME_EXCEPTIONS.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
   const sources = await hostSourceFiles();

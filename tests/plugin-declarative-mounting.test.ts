@@ -259,7 +259,7 @@ test("route parameters reach the handler as declared", async () => {
 
 test("the bundled catalog reproduces the shell's navigation exactly", async () => {
   const { railEntries, islandEntries, settingsEntries } = await import("@molis-ai/molis-work-app-workbench");
-  const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-local-host");
+  const { BUILTIN_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-local-host");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
   const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"];
@@ -300,23 +300,24 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   );
 
   // Coding and the workspace family joined the catalog; all of them are project
-  // scoped like the rest, and Shelf stays personal. The six migrated Plugins
+  // scoped like the rest, and Shelf is a platform part. The six migrated Plugins
   // above still derive unchanged. The roster is asserted rather than derived on
   // purpose: adding a Plugin gives every project a new navigation entry, which
   // should be a decision somebody made, not something that arrives with a merge.
-  assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
+  assert.deepEqual([...BUILTIN_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
     // Files retired in batch 06: a project's folders are the platform's materials now, not a plugin a project enables.
-    // Batch 107: the six partition-library plugins stopped being personal and are project plugins like the rest.
-    ["coding", "dataset", "diff", "feed", "form", "git", "goals", "inbox", "lingguang", "pages", "ppt", "risk", "schedule",
-      "work-brief", "workflows"]);
+    // Batch 107: the six partition-library plugins stopped being personal and are project plugins like the rest; batch 108 did the
+    // same for Todo, Cognia, Issues, Images and Jelly.
+    ["coding", "cognia", "dataset", "diff", "feed", "form", "git", "goals", "images", "inbox", "issues", "jelly", "lingguang", "pages", "ppt", "risk",
+      "schedule", "todo", "work-brief", "workflows"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
     [["coding", "Coding", "code"], ["artifacts", "成果", "package"], ["sessions", "外部会话", "history"]],
     "新插件的导航同样只由它自己的 Manifest 推导",
   );
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("shelf"), false, "个人插件不是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("functions"), false, "个人插件不是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("shelf"), false, "平台部件不是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("functions"), false, "已退役的入口不是项目可启用项");
   // Batch 107: the partition-library plugins are project plugins a project adds.
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("pages"), true, "分区资料库插件是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("form"), true, "分区资料库插件是项目可启用项");
@@ -324,16 +325,15 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("ppt"), true, "分区资料库插件是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("lingguang"), true, "分区资料库插件是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("workflows"), true, "分区资料库插件是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("todo"), false, "个人插件不是项目可启用项");
+  // Batch 108: Todo, Cognia, Issues, Images and Jelly too.
+  for (const id of ["todo", "cognia", "issues", "images", "jelly"]) assert.equal(BUILTIN_PLUGIN_REGISTRY.has(id), true, `${id}：分区资料库插件是项目可启用项`);
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
 });
 
-test("Shelf is a platform part, not a project plugin: no project lists it and nobody adds it; a hidden personal plugin stays hidden", async () => {
+test("Shelf is a platform part, not a project plugin: no project lists it and nobody adds it", async () => {
   const { pluginMarketCards } = await import("@molis-ai/molis-work-app-workbench");
-  const { shownProjectPlugins } = await import("@molis-ai/molis-work-app-local-host");
-  const shown = shownProjectPlugins(["goals"], ["lingguang"]);
-  assert.equal(shown.includes("shelf"), false);
-  assert.equal(shown.includes("lingguang"), false);
+  const { BUILTIN_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
+  assert.equal(BUILTIN_PLUGIN_IDS.includes("shelf"), false);
   assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds a platform part");
 });
 

@@ -60,7 +60,24 @@ export interface PartitionPluginAssemblyOptions<Handle extends PartitionPluginHa
   start(scope: PartitionPluginScope, reason: PartitionWakeReason): Promise<Handle>;
   /** How long an instance with no lease stays up after its last use; the platform's policy, the same for every plugin. */
   readonly idleMs?: number;
+  /** Told of every start and stop, after it settled (the Host's work records); never awaited, and what it throws is not the caller's. */
+  readonly lifecycle?: (event: PartitionPluginLifecycleEvent) => void;
   readonly now?: () => number;
+}
+
+/** Why an instance stopped: idle, switched off or uninstalled there (`plugin`), its partition going, or the Host closing. */
+export type PartitionStopReason = "idle" | "plugin" | "partition" | "close";
+
+/** One start or stop of a (plugin, partition) instance, as the assembly saw it settle. */
+export interface PartitionPluginLifecycleEvent {
+  readonly scope: PartitionPluginScope;
+  readonly stage: "start" | "stop";
+  readonly reason: PartitionWakeReason | PartitionStopReason;
+  readonly outcome: "succeeded" | "failed";
+  readonly started_at: string;
+  readonly duration_ms: number;
+  /** The error's code, when it has one; never its message. */
+  readonly code?: string;
 }
 
 /** One use of an instance; the instance may stop once every lease is released and the idle time has passed. */
@@ -133,12 +150,17 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
     let entry = this.running.get(key);
     if (!entry) {
       const scope = partitionPluginScope(this.options.home, partitionId, pluginId, record.install_id);
+      const began = this.now();
       const ready = this.options.start(scope, reason);
-      const created: Running<Handle> = { key, scope, ready, leases: 0, pending: 0, lastUsed: this.now() };
+      const created: Running<Handle> = { key, scope, ready, leases: 0, pending: 0, lastUsed: began };
       entry = created;
       this.running.set(key, created);
-      ready.then(handle => { created.handle = handle; }, () => {
+      ready.then(handle => {
+        created.handle = handle;
+        this.tell(scope, "start", reason, began);
+      }, error => {
         if (this.running.get(key) === created) this.running.delete(key);
+        this.tell(scope, "start", reason, began, error);
       });
     }
     entry.pending += 1;
@@ -175,26 +197,26 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
   /** Stops every instance with no lease or pending waiter whose last use is older than the idle time; returns how many stopped. */
   async sweep(): Promise<number> {
     const due = [...this.running.values()].filter(entry => entry.leases === 0 && entry.pending === 0 && this.now() - entry.lastUsed >= this.idleMs);
-    return this.stopEntries(due);
+    return this.stopEntries(due, "idle");
   }
 
   /** Stops this plugin's instances (it was disabled there, or uninstalled), in one partition or in all of them. */
   async stopPlugin(pluginId: string, partitionId?: string): Promise<void> {
-    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.plugin_id === pluginId && (partitionId === undefined || entry.scope.partition_id === partitionId)));
+    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.plugin_id === pluginId && (partitionId === undefined || entry.scope.partition_id === partitionId)), "plugin");
   }
 
   /** Stops every instance in a partition, before the partition is deleted or recycled. */
   async stopPartition(partitionId: string): Promise<void> {
-    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.partition_id === partitionId));
+    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.partition_id === partitionId), "partition");
   }
 
   async close(): Promise<void> {
     this.closed = true;
-    await this.stopEntries([...this.running.values()]);
+    await this.stopEntries([...this.running.values()], "close");
     await Promise.all([...this.stopping.values()].map(stop => stop.catch(() => {})));
   }
 
-  private async stopEntries(entries: readonly Running<Handle>[]): Promise<number> {
+  private async stopEntries(entries: readonly Running<Handle>[], reason: PartitionStopReason): Promise<number> {
     this.stops += 1;
     const failures: unknown[] = [];
     const stops: Promise<void>[] = [];
@@ -212,7 +234,14 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
           return;
         }
         stopped += 1;
-        await handle.stop();
+        const began = this.now();
+        try {
+          await handle.stop();
+        } catch (error) {
+          this.tell(entry.scope, "stop", reason, began, error);
+          throw error;
+        }
+        this.tell(entry.scope, "stop", reason, began);
       })();
       const tracked = stop.finally(() => { if (this.stopping.get(entry.key) === tracked) this.stopping.delete(entry.key); });
       this.stopping.set(entry.key, tracked);
@@ -221,6 +250,14 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
     await Promise.all(stops);
     if (failures.length) throw new AggregateError(failures, "分区插件实例停止失败");
     return stopped;
+  }
+
+  private tell(scope: PartitionPluginScope, stage: "start" | "stop", reason: PartitionWakeReason | PartitionStopReason, began: number, error?: unknown): void {
+    const code = error instanceof ActionError ? error.code : undefined;
+    try {
+      this.options.lifecycle?.({ scope, stage, reason, outcome: error === undefined ? "succeeded" : "failed", started_at: new Date(began).toISOString(),
+        duration_ms: Math.max(0, this.now() - began), ...(code ? { code } : {}) });
+    } catch { /* A record that could not be made does not change the instance. */ }
   }
 }
 

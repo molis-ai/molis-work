@@ -16,7 +16,7 @@ import { ActionError, type ActionDefinition, type BoundActionClient } from "@mol
 import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
 import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
-import { todoActions } from "@molis-ai/molis-work-plugin-todo";
+import { workBriefPersonalActions } from "@molis-ai/molis-work-plugin-work-brief";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { serveNativeHttp } from "./fixtures/native-http.js";
@@ -212,14 +212,15 @@ for (const leavesRow of [false, true]) {
     const failure = new ActionError("storage.store_too_new", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
-    // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and Todo's `get` reads the catalog
-    // through it for the person's project list (PG-014): that nested read goes to the real catalog, or the failing read would call itself.
+    // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and a Home read may reach the catalog
+    // through it: that nested read goes to the real catalog, or the failing read would call itself. (Todo was the Home read until batch 108
+    // moved it into the partitions; Work Brief's Home half refuses an input it does not know, a refusal the Host records.)
     let entered = false;
     const mcp = new hostModule.LocalMcpServer(async (options, operation) => {
       if (entered) return withMolisWorkProjectCatalog(options, operation);
       entered = true;
       if (leavesRow) await assert.rejects(host.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", audience: "user",
-        project_id: null, permissions: ["todo:read"] }, todoActions.get, { id: "no-such-todo" }), { code: "todo.not_found" });
+        project_id: null, permissions: ["work-brief:read"] }, workBriefPersonalActions.get, { unexpected: true } as never), { code: "actions.input_invalid" });
       throw failure;
     }, "runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "details-reader", stable_work_context_id: null, host_declares_stable: false } }, host);
     t.after(async () => { await mcp.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
@@ -232,7 +233,7 @@ for (const leavesRow of [false, true]) {
     if (leavesRow) {
       assert.equal(typeof id, "string");
       assert.notEqual(id, forgedId);
-      assert.equal(host.callLog!.find(String(id))[0]?.code, "todo.not_found", "only the Host's recorded operation number is displayed");
+      assert.equal(host.callLog!.find(String(id))[0]?.code, "actions.input_invalid", "only the Host's recorded operation number is displayed");
     } else assert.equal(Object.hasOwn(line, "call_id"), false, "details cannot name an operation that left no row");
   });
 }

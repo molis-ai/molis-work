@@ -8,7 +8,7 @@ import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { acquireUpgradedHomeOwner, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer } from "./local-web-core.js";
 import { boardSnapshot } from "./goal-application.js";
@@ -71,7 +71,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         if (catalogMode === "seeded") {
           // Work Brief fills the project's home with its brief (WBR-22), so the seeded project keeps the basic home the journeys
           // here walk; the tests of Work Brief add it themselves (tests/work-brief-page.e2e.test.ts), as the demo project does.
-          for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS.filter(id => id !== "work-brief")) {
+          for (const plugin_id of BUILTIN_PLUGIN_IDS.filter(id => id !== "work-brief")) {
             catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
           }
         }

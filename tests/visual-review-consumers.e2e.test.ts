@@ -8,12 +8,13 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // overflow fade's sensor (VUX-27); a strip a page draws after load is found without a click; the workspace and terminal tab
 // strips are marked; and Pages' code block copy answers through the one copy feedback (VUX-19).
 
-test("VUX-27: a Home plugin's page fades its strip, and a strip drawn after load is found on its own", { timeout: 90_000 }, async (t) => {
+// Todo's page is in the project's workbench since batch 108 (Todo is a partition plugin; its standalone Home page is gone).
+test("VUX-27: a plugin's page fades its strip, and a strip drawn after load is found on its own", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor } = await pluginFrameBrowser(t,browser,"todo");
-  const { command, sessionId, navigate, origin } = browser;
+  const { command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 360, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/todo` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
   await waitFor("document.querySelector('.todo-views[data-overflow-fade]')", 20_000);
   // The opaque document exists before its bridge reveals the plugin; a hidden strip has two zero widths.
   await waitFor("document.querySelector('.todo-views').clientWidth > 0", 20_000);

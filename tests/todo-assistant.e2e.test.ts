@@ -14,9 +14,9 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const store = openTodoStore(homeDirectory);
+  const store = openTodoStore(homeDirectory, undefined, projectId!);
   const scope = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
-  const made = store.create({ title: "给王总回电话", placement: "project", notes: "问预算" }, scope).item;
+  const made = store.create({ title: "给王总回电话", notes: "问预算" }, scope).item;
   // A draft the Assistant made and linked back, with where it opens.
   const item = store.link(made.id, { add: { kind: "outcome", subject: { kind: "pages_document", id: "doc-reply" }, title: "给王总的回电要点", outcome: "draft", open: { surface: "pages", id: "doc-reply" } } }, made.revision, scope).item;
   store.close();

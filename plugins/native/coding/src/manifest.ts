@@ -159,6 +159,8 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
+  // Its sessions in the list of background work, as rows of the platform's summary table in the partition's main database (V17).
+  overview_projection: { kinds: ["background_task"] },
   // What runs on after the call that set it off, each stopping with the activation. PG-038: an accepted round is followed until it
   // settles, and a step's wait, once over, starts the session's next round (start-round.ts, wake-loop.ts). The session state and goal
   // titles are read and saved apart from the page's read-only queries (observation-job.ts).

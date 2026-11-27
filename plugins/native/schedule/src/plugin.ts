@@ -22,7 +22,8 @@ export function createSchedulePlugin(): PluginDefinition {
     if (!projectId || !actions?.dependencies || !services?.project_database || !services.scheduler || !services.installations || !services.notifications || !services.background) {
       throw new ActionError("actions.unredeemed", "定时任务需要公共项目库、调度、安装目录、通知与后台服务");
     }
-    const runtime = scheduleRuntimeDatabase(services.project_database, services.scheduler, services.notifications), grants = createScheduleTaskGrants(actions);
+    const runtime = scheduleRuntimeDatabase(services.project_database, services.scheduler, services.notifications,
+      services.overview ? { client: services.overview } : undefined), grants = createScheduleTaskGrants(actions);
     services.background.keep(SCHEDULE_RECONCILE_JOB, control => reconcileSchedule(runtime, projectId, services.installations!, grants, control, value => { problem = value; },
       () => services.ui.invalidate()));
     const wakeups = new Set(Object.values(scheduleWakeupActions).map(item => item.capability_id));

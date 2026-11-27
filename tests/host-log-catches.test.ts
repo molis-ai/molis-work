@@ -3,8 +3,7 @@ import http from "node:http";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
-import { captureHostLog, homeAggregatePorts, homeBackgroundTasks, createProjectArrivalHttp, handleBrowserHttp, installHostUiText, logPreviewFailure, projectOrNull, repeatingFailure, runWithLocale, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
-import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
+import { captureHostLog, createProjectArrivalHttp, handleBrowserHttp, installHostUiText, logPreviewFailure, projectOrNull, repeatingFailure, runWithLocale, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * W5-13 second slice: a catch in the Host that answered every failure as "absent" now tells the answer it means (the project
@@ -15,12 +14,6 @@ function captured<T>(run: () => T): { value: T; entries: HostLogEntry[] } {
   const entries: HostLogEntry[] = [];
   const restore = captureHostLog(entries);
   try { return { value: run(), entries }; } finally { restore(); }
-}
-
-async function capturedAsync<T>(run: () => Promise<T>): Promise<{ value: T; entries: HostLogEntry[] }> {
-  const entries: HostLogEntry[] = [];
-  const restore = captureHostLog(entries);
-  try { return { value: await run(), entries }; } finally { restore(); }
 }
 
 test("W5-13-04 a project looked up by id is null only when the catalog says it is not there; a catalog that fails says so", () => {
@@ -55,30 +48,6 @@ test("RAC-2494 an owner's preview refused to an MCP client is an answer, told by
   assert.deepEqual(entries.map(({ at: _at, ...rest }) => rest), [
     { level: "warn", area: "artifacts", event: "preview_failed", error: { name: "ActionError", code: "mcp.action_revoked" }, fields: { artifact_type_id: "pages.document.v1" } },
   ]);
-});
-
-test("W5-13-06 W5-01-CODING-49 the Home's background list: a project where the plugin is off lists nothing quietly; one whose answer cannot be read is written once until it reads again", async t => {
-  const empty = { source: { surface: "example", title: "示例", icon: "list" }, tasks: [] };
-  const plugin = backgroundPlugin(() => empty);
-  const rig = await backgroundRig(t, plugin, ["Fine", "Off", "Broken"], { off: ["Off"] });
-  const broken = rig.project("Broken").project_id;
-  // Read as a page reads it, in its language: a provider says its words in the reader's language (Images' title among them).
-  const ask = () => capturedAsync(() => runWithLocale("zh", () => homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog)));
-  plugin.state.answer = project => { if (project === broken) throw new Error("读不了"); return empty; };
-  const first = await ask();
-  assert.deepEqual(first.value.tasks, []);
-  assert.equal(first.value.issues.length, 1);
-  assert.deepEqual(first.entries.map(entry => [entry.area, entry.event, entry.fields]), [["home", "background_tasks_unreadable", { project_id: broken }]]);
-  // Read on every attention poll: the same failure is not written again ...
-  assert.deepEqual((await ask()).entries, []);
-  // ... until the project has been read since.
-  plugin.state.answer = () => empty;
-  assert.deepEqual((await ask()).entries, []);
-  plugin.state.answer = project => { if (project === broken) throw new Error("读不了"); return empty; };
-  assert.equal((await ask()).entries.length, 1);
-  // An answer the page cannot draw is a failure of the same kind, written the same way.
-  plugin.state.answer = project => project === broken ? { source: { ...empty.source, surface: "../x" }, tasks: [] } : empty;
-  assert.deepEqual((await ask()).entries, [], "the project is still unread, so it is not written again");
 });
 
 test("W5-13-08 a failure that repeats every round (the schedules' 30-second round, an attention poll) is written when it starts, and again only after it worked", () => {

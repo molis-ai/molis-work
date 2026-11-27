@@ -1,4 +1,4 @@
-import { PROJECT_SCOPED_PLUGIN_IDS } from "./plugin-registry.js";
+import { BUILTIN_PLUGIN_IDS } from "./plugin-registry.js";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
@@ -30,7 +30,7 @@ export function enableDemoProjectPlugins(
   projectId: string,
   actorId: string,
 ): void {
-  for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) {
+  for (const plugin_id of BUILTIN_PLUGIN_IDS) {
     if (DEMO_WITHHELD_PLUGIN_IDS.includes(plugin_id)) continue;
     if (projects.query.listProjectPlugins(projectId).includes(plugin_id)) continue;
     projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: actorId });

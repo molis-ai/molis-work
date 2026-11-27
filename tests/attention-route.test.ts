@@ -14,6 +14,8 @@ import { CODING_FILE_CHANGED_EVENT, CodingSessionStore, codingManifest } from "@
 import { LOCAL_JOURNAL_SCHEMA_SQL, LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { openTestHome } from "./fixtures/test-home.js";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * W4-10: what waits on the person is one read, `GET /api/attention`, on the Home page and on each project page. It answers
@@ -62,7 +64,9 @@ test("W4-10-01 QA-022 a real Todo reminder that came due is in the Home page's a
   const title = "QA-022 回电话";
   // The first sweep only reaches back a few minutes; the reminder is set after it, a moment ahead.
   t.mock.timers.tick(60_000); await pause(25);
-  await home.web.post("/api/plugins/io.molis.work.todo/items", { title, placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() });
+  // Todo is a partition plugin since batch 108: the person's todo lives in the personal space, and its reminder falls due there.
+  await addProjectPlugin(home.web, PERSONAL_SPACE_PROJECT_ID, "todo");
+  await home.web.post(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/plugins/io.molis.work.todo/items`, { title, remind_at: new Date(Date.now() + 10).toISOString() });
   await pause(25); t.mock.timers.tick(60_000);
   const deadline = Date.now() + 10_000;
   let told: Notice[] = [];

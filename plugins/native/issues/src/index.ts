@@ -11,5 +11,6 @@ export * from "./prompts.js";
 export { issueNaming, issueNamingErrors, titleLanguage, type IssueNaming, type IssueNamingInput } from "./naming.js";
 
 export { IssueCaptures, type IssueDraft, type IssueCapture, type IssueNamed } from "./capture.js";
+export { ISSUE_BODY_BYTES } from "./images.js";
 
 export { syncBindings as createIssuesSyncBindings } from "./sync-binding.js";

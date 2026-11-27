@@ -20,7 +20,7 @@ export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id">
 
 export function partitionDeclarationProblems(manifest: PartitionDeclarationFields): string[] {
   return [
-    ...overviewProblems(manifest.overview_projection, manifest.databases?.partition?.schema, manifest.plugin_id, Boolean(manifest.ui?.locales)),
+    ...overviewProblems(manifest.overview_projection, manifest.databases?.partition?.schema, manifest.databases?.project !== undefined, manifest.plugin_id, Boolean(manifest.ui?.locales)),
     ...marketProblems(manifest.market),
     ...dependencyProblems(manifest.dependencies, manifest.plugin_id),
     ...personSettingProblems(manifest.person_settings),
@@ -30,16 +30,18 @@ export function partitionDeclarationProblems(manifest: PartitionDeclarationField
 
 const only = (value: Record<string, unknown>, fields: readonly string[]) => Object.keys(value).filter(field => !fields.includes(field));
 
-function overviewProblems(value: unknown, partitionSchema: unknown, pluginId: string, hasLocales: boolean): string[] {
+function overviewProblems(value: unknown, partitionSchema: unknown, mainDatabase: boolean, pluginId: string, hasLocales: boolean): string[] {
   if (value === undefined) return [];
-  // The table lives in the plugin's own partition library, written exactly as the platform gives it, so the platform can read it.
-  if (typeof partitionSchema !== "string" || !partitionSchema.includes(OVERVIEW_TABLE_SQL)) {
-    return ["overview_projection 要求 databases.partition，且它的 schema 原样写入平台的 OVERVIEW_TABLE_SQL"];
+  // The table lives in the plugin's own partition library, written exactly as the platform gives it, so the platform can read it; a plugin
+  // that keeps its data in the partition's main database (`databases.project`) writes the platform's table there through `services.overview` (V17).
+  if (partitionSchema === undefined && mainDatabase) { /* the platform's table in the main database */ }
+  else if (typeof partitionSchema !== "string" || !partitionSchema.includes(OVERVIEW_TABLE_SQL)) {
+    return ["overview_projection 要求 databases.partition（schema 原样写入平台的 OVERVIEW_TABLE_SQL），或 databases.project（经 services.overview 写平台在主库的表）"];
   }
   if (!isRecord(value)) return ["overview_projection 必须为对象"];
   const extra = only(value, ["kinds", "title_text"]);
   if (extra.length) return [`overview_projection 不认这些字段：${extra.join(", ")}（只声明种类，不写列名与 SQL）`];
-  if (!Array.isArray(value.kinds) || value.kinds.length === 0) return ["overview_projection.kinds 至少要声明一种：task, event, notification 或 brief"];
+  if (!Array.isArray(value.kinds) || value.kinds.length === 0) return [`overview_projection.kinds 至少要声明一种：${OVERVIEW_KINDS.join(", ")}`];
   const problems: string[] = [], seen = new Set<string>();
   for (const kind of value.kinds) {
     if (!(OVERVIEW_KINDS as readonly unknown[]).includes(kind)) problems.push(`overview_projection.kinds 里的 ${String(kind)} 不是平台的总览种类（${OVERVIEW_KINDS.join(", ")}）`);

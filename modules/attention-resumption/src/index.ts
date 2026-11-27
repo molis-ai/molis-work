@@ -69,6 +69,27 @@ const INBOX_ENTRIES_COLUMNS = `
       PRIMARY KEY (project_id, entry_id)
 `;
 
+/** The most entries one partition contributes to the overview: the platform's per-kind row limit. */
+const OVERVIEW_ATTENTION_LIMIT = 500;
+
+/**
+ * The partition's open "waiting on you" entries as overview `notification` rows (specs/unified-partition-plugins §6.1, R13, batch 108),
+ * read on a read-only connection the caller opened: no title of the referenced object (the entry holds a reference and a reason, never a
+ * copy), so the row's title is the owner's declared reason word, its source the owner plugin, and it opens on the owner's surface.
+ */
+export function attentionOverviewRows(db: Pick<AttentionSqliteDatabase, 'prepare'>): Array<Readonly<Record<string, string | number | null>>> {
+  const table = db.prepare("SELECT 1 AS found FROM sqlite_schema WHERE type = 'table' AND name = 'attention_entries'").get();
+  if (!table) return [];
+  const rows = db.prepare(`SELECT entry_id, owner_plugin_id, subject_id, reason, updated_at FROM attention_entries
+    WHERE status IN ('open', 'in_progress') ORDER BY updated_at DESC, entry_id LIMIT ?`).all(OVERVIEW_ATTENTION_LIMIT) as Array<Record<string, unknown>>;
+  return rows.flatMap(row => {
+    const owner = typeof row.owner_plugin_id === 'string' ? row.owner_plugin_id : null;
+    if (typeof row.entry_id !== 'string' || typeof row.reason !== 'string' || typeof row.updated_at !== 'string') return [];
+    return [{ kind: 'notification', row_id: row.entry_id, title: row.reason, level: 'info', source: owner, occurred_at: row.updated_at,
+      updated_at: row.updated_at, open_surface: owner, open_id: owner && typeof row.subject_id === 'string' ? row.subject_id : null }];
+  });
+}
+
 /** The Inbox tables, as one current schema; the host composes them into the project database baseline. */
 export const ATTENTION_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS attention_entries (${INBOX_ENTRIES_COLUMNS});

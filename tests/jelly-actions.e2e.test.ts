@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { jellyActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -11,7 +12,7 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "jelly");
-  const rows = () => { const store = openJellyStore(homeDirectory); try { return store.read(s => ({ items: s.items("2000-01-01", "2100-12-31"), notes: s.notes() })); } finally { store.close(); } };
+  const rows = () => { const store = openJellyStore(homeDirectory, projectId!); try { return store.read(s => ({ items: s.items("2000-01-01", "2100-12-31"), notes: s.notes() })); } finally { store.close(); } };
   const open = async () => {
     await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
     if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") await browser.click("[data-plugin-strip] [data-plugin-id=jelly]");
@@ -73,9 +74,11 @@ test("B112-01 editing a series from an exception only propagates fields changed 
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const frame = await pluginFrameBrowser(t, browser, "jelly");
-  const caller = { actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS } as const;
+  const projectId = browser.projectId!;
+  const caller = { actor_id: "owner", project_id: projectId, audience: "user", permissions: JELLY_ACTION_PERMISSIONS } as const;
   assert.ok(browser.localHost);
-  const client = bindActionClient(browser.localHost.homeActionClient(), () => caller);
+  const reference = molisWorkHostProjectReference({ projectId, databasePath: browser.databasePath });
+  const client = bindActionClient(browser.localHost.actionClient(reference), () => caller);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=jelly" }, browser.sessionId));
   await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
   if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") await browser.click("[data-plugin-strip] [data-plugin-id=jelly]");

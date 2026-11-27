@@ -4,9 +4,10 @@ import type { JellyCategory, JellyItem, JellyNote, JellySeries } from "./contrac
 import { JELLY_UNCATEGORIZED_ID, jellyDate, validateJellyEntry, validateJellySeries, type JellyCategoryIds } from "./calendar.js";
 import { jellyAssert, jellyErrors } from "./error.js";
 import { JELLY_DATABASE } from "./database.js";
+import { removeJellyOverview, writeJellyOverview } from "./overview.js";
 export { JELLY_DATABASE };
 
-/** The one category every Home has. It is a row only once someone changes its colour; until then it is this. */
+/** The one category every calendar has. It is a row only once someone changes its colour; until then it is this. */
 export const JELLY_UNCATEGORIZED: JellyCategory = { id: JELLY_UNCATEGORIZED_ID, name: "未分类", color: "#8E8E93", sort_index: 0, revision: 0 };
 export const JELLY_TABLES = { category: "jelly_categories", item: "jelly_items", series: "jelly_series", note: "jelly_notes" } as const;
 export type JellyRowKind = keyof typeof JELLY_TABLES;
@@ -120,7 +121,12 @@ export class JellyStore {
     jellyAssert(!this.db.get(`SELECT 1 FROM ${JELLY_TABLES[kind]} WHERE id = ?`, [row.id]), "这个 ID 已经有一条记录");
     const columns = COLUMNS[kind];
     this.db.run(`INSERT INTO ${JELLY_TABLES[kind]} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`, encodeJellyRow(kind, row));
+    this.overview(kind, row);
     return row;
+  }
+  /** Every write of an entry also writes its overview row, in the same transaction (`overview.ts`). */
+  private overview<K extends JellyRowKind>(kind: K, row: JellyRows[K]): void {
+    if (kind === "item") writeJellyOverview(this.db, row as JellyItem);
   }
   /** Writes `row` over the stored one only if that is still at `expected`; `row.revision` is the new revision. */
   replace<K extends JellyRowKind>(kind: K, row: JellyRows[K], expected: number): JellyRows[K] {
@@ -130,6 +136,7 @@ export class JellyStore {
     const changed = this.db.run(`UPDATE ${JELLY_TABLES[kind]} SET ${columns.map(column => `${column} = ?`).join(", ")} WHERE id = ? AND revision = ?`,
       [...encodeJellyRow(kind, row).slice(1), row.id, expected]);
     if (changed.changes !== 1) this.conflict(kind, row.id);
+    this.overview(kind, row);
     return row;
   }
   /**
@@ -146,6 +153,7 @@ export class JellyStore {
   delete(kind: JellyRowKind, id: string, expected: number): void {
     const changed = this.db.run(`DELETE FROM ${JELLY_TABLES[kind]} WHERE id = ? AND revision = ?`, [id, expected]);
     if (changed.changes !== 1) this.conflict(kind, id);
+    if (kind === "item") removeJellyOverview(this.db, id);
   }
   /** The row is gone or moved on: say which, and its revision now, so the page can reload that one row. */
   conflict(kind: JellyRowKind, id: string): never {

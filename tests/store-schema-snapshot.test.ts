@@ -23,7 +23,7 @@ test("UPG-01 the committed snapshot is what the built product creates; `pnpm sch
 
 test("UPG-01 the snapshot holds the catalog, the partition database, every Home library and each built-in plugin's partition tables and libraries", () => {
   const stores = rows.map(row => row.store);
-  for (const store of ["projects/catalog.db", "<partition>/molis-work.db", "blueprints/blueprints.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
+  for (const store of ["projects/catalog.db", "<partition>/molis-work.db", "blueprints/blueprints.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "<partition>/libraries/todo.db",
     "<partition>/molis-work.db#io.molis.work.goals"]) assert.ok(stores.includes(store), store);
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 

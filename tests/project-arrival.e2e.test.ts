@@ -5,6 +5,7 @@ import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/dist/project-arrival.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
@@ -318,6 +319,8 @@ test("BCS-01 BCS-02 BCS-03: the chooser searches the person's own content in the
   const chooser = await openChooser(t);
   if (!chooser) return;
   const { evaluate, waitFor, navigate, click, press, view, open, settled, command, sessionId, homeDirectory, others } = chooser;
+  // The personal space starts with Schedule only (decision 66): the person adds Knowledge there before it holds anything to find.
+  await addProjectPlugin(chooser.web, PERSONAL_SPACE_PROJECT_ID, "cognia");
   const store = openCogniaStore(homeDirectory);
   try { store.createMaterial({ title: "个人知识：鲸落", body: "鲸落是深海生态的重要养分来源" }); } finally { store.close(); }
   await view(1440);

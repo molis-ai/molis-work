@@ -52,7 +52,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       if (!database) throw new Error("宿主没有提供项目库（services.project_database），Coding 无法保存会话，不能启动");
       // The directory draws at once and cannot wait for an action, so the titles it shows are the ones the routes last read from Goals
       // (goal-titles.ts); the routes and the directory share this one cache.
-      const sessions = new CodingSessionStore(database), goalTitles = codingGoalTitles(context);
+      const sessions = new CodingSessionStore(database, context.services?.overview), goalTitles = codingGoalTitles(context);
       const surface = codingSurface(context, sessions, goalTitles);
       // No round survives the Home process: what the Home lists as under way from before this Home Host started was cut off
       // (home-background.ts). Stopping and starting Coding again is not a restart: it stops only this activation's background jobs

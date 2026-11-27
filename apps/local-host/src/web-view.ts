@@ -3,7 +3,7 @@ import { expectingRefusal } from "@molis-ai/molis-work-kernel";
 import { type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkWebView };
 import { inLanguagePreview, currentLocale } from "./web-locale.js";
-import { PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "./plugin-registry.js";
+import { BUILTIN_PLUGIN_IDS } from "./plugin-registry.js";
 
 export interface WebViewOptions {
   databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
@@ -42,8 +42,8 @@ export function buildMolisWorkWebView(options: WebViewOptions, projection: Plugi
     route_prefix: options.routePrefix ?? "",
     demo: Boolean(options.demo),
     // Which plugins the page shows is the Host's fact (W5-02 PR-B). Without a project's Catalog selection (standalone single-DB fixture):
-    // all registered project-scoped plugins plus personal plugins. Real projects always receive their Catalog selection per request.
-    ...(options.project ? {} : { shown_plugins: shownProjectPlugins(PROJECT_SCOPED_PLUGIN_IDS) }),
+    // every built-in plugin. Real projects always receive their Catalog selection per request.
+    ...(options.project ? {} : { shown_plugins: [...BUILTIN_PLUGIN_IDS] }),
     ...projection,
   };
 }

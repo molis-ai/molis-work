@@ -40,12 +40,12 @@ test("S-12 RAC-104-S-04 RAC-109-S-05: links and special source paths never escap
   for (const kind of ["file-symlink", "directory-symlink", "hardlink", "fifo"] as const) await t.test(kind, async t => {
     const f = await smallSnapshotHome(t), outside = join(f.area, "outside");
     await mkdir(outside); await writeFile(join(outside, "value"), "A different owner's bytes");
-    if (kind === "directory-symlink") await symlink(outside, join(f.home, "images"));
+    if (kind === "directory-symlink") await symlink(outside, join(f.home, "plugin-files"));
     else {
-      await mkdir(join(f.home, "images"));
-      if (kind === "file-symlink") await symlink(join(outside, "value"), join(f.home, "images", "value"));
-      else if (kind === "fifo") assert.equal(spawnSync("mkfifo", [join(f.home, "images", "value")]).status, 0);
-      else await link(join(outside, "value"), join(f.home, "images", "value"));
+      await mkdir(join(f.home, "plugin-files"));
+      if (kind === "file-symlink") await symlink(join(outside, "value"), join(f.home, "plugin-files", "value"));
+      else if (kind === "fifo") assert.equal(spawnSync("mkfifo", [join(f.home, "plugin-files", "value")]).status, 0);
+      else await link(join(outside, "value"), join(f.home, "plugin-files", "value"));
     }
     await assertSnapshotRefused(f, "host.home_snapshot.invalid");
     assert.equal(await readFile(join(outside, "value"), "utf8"), "A different owner's bytes");

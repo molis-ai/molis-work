@@ -3,6 +3,7 @@ import test from "node:test";
 import { ASSISTANT_LINE_ACTIONS, ASSISTANT_TASK_TABLE_ACTION, ASSISTANT_WORK_KIND, assistantLineRegistration, installHostUiText, runWithLocale, type AssistantLineSource } from "@molis-ai/molis-work-app-local-host";
 import { BACKGROUND_TASKS_OUTPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, TASK_SERVES_RELATION, type ActionCallContext, type BackgroundTaskCollection, type TaskServesResult, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isWorkEventSource } from "@molis-ai/molis-work-service-mainline";
+import { isProjectReadQuery } from "@molis-ai/molis-work-plugin-sdk";
 
 // specs/work-line §5, §6 (WLN-37, WLN-38, WLN-39): the Assistant reports its works on the line like any registrant and any
 // task provider, through actions found by their types; which event a background task is done for is kept on the task.
@@ -86,7 +87,7 @@ test("WLN-37: the Assistant registers its events and tasks by the same typed act
   assert.equal(A.events.action.output_type, WORK_EVENTS_OUTPUT_TYPE);
   assert.ok(isWorkEventSource({ ...A.events, provider: { provider_id: A.events.provider_id!, title: "助理", kind: "system" } } as Parameters<typeof isWorkEventSource>[0]), "found by the event registry's two types");
   assert.equal(A.tasks.action.output_type, BACKGROUND_TASKS_OUTPUT_TYPE);
-  assert.equal(A.tasks.action.home_aggregate, true);
+  assert.ok(isProjectReadQuery(A.tasks), "the project's panel may read it: a read-only project query (S-49)");
   assert.deepEqual(A.tasks.action.audiences, ["user"], "S-49: a task table answers the person only");
   assert.deepEqual([A.servesList, A.servesBind, A.servesRelease, A.servesCreate].map(one => [one.action.placement_relation?.relation, one.action.placement_relation?.role]),
     [[TASK_SERVES_RELATION, "list"], [TASK_SERVES_RELATION, "bind"], [TASK_SERVES_RELATION, "release"], [TASK_SERVES_RELATION, "create"]]);

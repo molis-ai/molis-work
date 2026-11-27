@@ -122,7 +122,7 @@ async function failingMigratedRuntime(_owner: "images", t: TestContext) {
   let failure: unknown;
   const method = t.mock.method(imagesPlugin.ImagesService.prototype, "start", async () => { throw failure; });
   const f = await serveHomeRuntime(t, { completeText: async () => { throw failure; } });
-  const root = `/projects/${(await f.project("图片错误回归")).project_id}/api/plugins/io.molis.work.images/jobs`;
+  const root = `/projects/${(await f.project("图片错误回归", ["images"])).project_id}/api/plugins/io.molis.work.images/jobs`;
   const input = { request_id: "error-parity", connection_id: "chosen", prompt: "画" };
   const send = async (verb: string, path: string, payload?: string): Promise<Answer> => {
     const response = await f.request(path, { method: verb, raw: payload });
@@ -139,9 +139,9 @@ async function failingMigratedRuntime(_owner: "images", t: TestContext) {
   };
 }
 
-/** RAC-40: error parity now traverses Cognia's actual Home Runtime and SDK route binding. */
+/** RAC-40: error parity traverses Cognia's actual Runtime and SDK route binding, in the personal space it is added to (batch 108). */
 async function failingCogniaRuntime(t: TestContext) {
-  const f = await serveHomeRuntime(t), root = "/api/plugins/io.molis.work.cognia/library/domains";
+  const f = await serveHomeRuntime(t), space = await f.personal(["cognia"]), root = `/projects/${space.project_id}/api/plugins/io.molis.work.cognia/library/domains`;
   let failure: unknown;
   const method = t.mock.method(cogniaPlugin.CogniaStore.prototype, "createDomain", () => { throw failure; });
   const send = async (method: string, path: string, payload?: string): Promise<Answer> => {

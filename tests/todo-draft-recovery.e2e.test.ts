@@ -12,8 +12,8 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
   const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, projectIds: [] };
-  const setup = openTodoStore(homeDirectory);
-  const [first, second] = (() => { try { return [setup.create({ title: "保存原件", notes: "原说明", placement: "project" }, access).item, setup.create({ title: "另一件", placement: "project" }, access).item]; } finally { setup.close(); } })();
+  const setup = openTodoStore(homeDirectory, undefined, projectId!);
+  const [first, second] = (() => { try { return [setup.create({ title: "保存原件", notes: "原说明" }, access).item, setup.create({ title: "另一件" }, access).item]; } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
   await waitFor("document.querySelector('[data-todo=workbench]') && document.querySelector('[data-todo-loading]').hidden", 10_000);
   await click('[data-todo-view="all"]');
@@ -41,7 +41,8 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   await waitFor("document.querySelector('[data-todo-detail-note]')?.textContent.includes('fixture save refused')", 10_000);
   const fields = () => evaluate(`['title','notes','due_date','due_time'].map(key => document.querySelector('[data-todo-field="' + key + '"]').value)`);
   const retained = ["保留输入", "尚未保存的说明", "2026-10-30", "11:00"];
-  for (const mode of ["500", "network"]) for (const operation of ["back", "other", "placement", "complete", "link", "search", "batch", "quick"]) {
+  // Todo's own placement buttons left with the placement field (batch 108); a move between partitions is the platform's placement.
+  for (const mode of ["500", "network"]) for (const operation of ["back", "other", "complete", "link", "search", "batch", "quick"]) {
     await evaluate(`window.todoMode = ${JSON.stringify(mode)}`);
     const before = await evaluate<number>("window.todoWrites.length");
     await evaluate(`(() => {
@@ -50,7 +51,7 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
         document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(operation === "batch" ? "batch:unrelated" : second!.id)} } })); return;
       }
       if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-pop-open="link"]').click();
-      const selector = ${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : operation === "link" ? `[data-todo-link-pick="${second!.id}"]` : '[data-todo-status="done"]')};
+      const selector = ${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "link" ? `[data-todo-link-pick="${second!.id}"]` : '[data-todo-status="done"]')};
       const button = document.querySelector(selector); if (!button) throw new Error('Missing Todo target: ' + selector); button.click();
     })()`);
     await waitFor(`window.todoWrites.length > ${before} && !document.querySelector('[data-todo-save-status]').textContent.includes('保存中')`);
@@ -58,32 +59,32 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
     assert.equal(await evaluate("document.querySelector('[data-todo-stage-workspace]').hidden"), false, operation);
     assert.equal(await evaluate(`window.todoWrites.every(row => row.url.endsWith('/items/' + ${JSON.stringify(first!.id)}))`), true, operation);
   }
-  const failed = openTodoStore(homeDirectory);
+  const failed = openTodoStore(homeDirectory, undefined, projectId!);
   try { assert.deepEqual([failed.get(first!.id, access).title, failed.get(first!.id, access).notes, failed.get(first!.id, access).revision], [first!.title, first!.notes, first!.revision]); } finally { failed.close(); }
   await evaluate("window.todoMode = 'normal'; document.querySelector('[data-todo-back]').click()");
   await waitFor("document.querySelector('[data-todo-stage-workspace]').hidden", 10_000);
-  const saved = openTodoStore(homeDirectory);
+  const saved = openTodoStore(homeDirectory, undefined, projectId!);
   try { const item = saved.get(first!.id, access); assert.deepEqual([item.title,item.notes,item.due_date,item.due_time], retained); } finally { saved.close(); }
   await evaluate(`document.querySelector('[data-todo-id="${first!.id}"]').click()`);
   // Closing the detail only hides it and leaves the old values in the fields: wait until the reopen has read the item again.
   await waitFor("!document.querySelector('[data-todo-stage-workspace]').hidden && document.querySelector('[data-todo-field=title]').value === '保留输入'");
-  const concurrent = openTodoStore(homeDirectory);
+  const concurrent = openTodoStore(homeDirectory, undefined, projectId!);
   try { concurrent.update(first!.id, { notes: "另一入口保存的说明" }, undefined, access); } finally { concurrent.close(); }
   await evaluate("const notes = document.querySelector('[data-todo-field=notes]'); notes.value = '冲突时保留的输入'; notes.dispatchEvent(new Event('input', { bubbles: true }));");
   await waitFor("window.todoFailures.includes('409') && document.querySelector('[data-todo-detail-note]').textContent.length > 0", 10_000);
-  for (const operation of ["back", "other", "placement", "link", "search"]) {
+  for (const operation of ["back", "other", "link", "search"]) {
     const before = await evaluate<number>("window.todoWrites.length");
     await evaluate(`(() => {
       if (${JSON.stringify(operation)} === 'search') { document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(second!.id)} } })); return; }
       if (${JSON.stringify(operation)} === 'link') document.querySelector('[data-todo-pop-open="link"]').click();
-      document.querySelector(${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : operation === "placement" ? '[data-todo-placement="personal"]' : `[data-todo-link-pick="${second!.id}"]`)}).click();
+      document.querySelector(${JSON.stringify(operation === "back" ? "[data-todo-back]" : operation === "other" ? `[data-todo-id="${second!.id}"]` : `[data-todo-link-pick="${second!.id}"]`)}).click();
     })()`);
     await waitFor(`window.todoWrites.length > ${before} && !document.querySelector('[data-todo-save-status]').textContent.includes('保存中')`);
     assert.deepEqual(await fields(), ["保留输入", "冲突时保留的输入", "2026-10-30", "11:00"]);
     if (operation === "link") assert.equal(await evaluate("document.querySelector('[data-todo-pop=link]').hidden"), true, "a refused pick closes the popover, so it does not sit on the recovery message");
   }
-  const protectedOwner = openTodoStore(homeDirectory);
-  try { const item = protectedOwner.get(first!.id, access); assert.equal(item.notes, "另一入口保存的说明"); assert.deepEqual(item.links, []); assert.equal(item.placement, "project"); } finally { protectedOwner.close(); }
+  const protectedOwner = openTodoStore(homeDirectory, undefined, projectId!);
+  try { const item = protectedOwner.get(first!.id, access); assert.equal(item.notes, "另一入口保存的说明"); assert.deepEqual(item.links, []); } finally { protectedOwner.close(); }
   await evaluate("document.querySelector('[data-todo-reload]').closest('details').open = true");
   await click("[data-todo-reload]"); await waitFor("document.querySelector('[data-todo-confirm]').open");
   await click("[data-todo-confirm] [data-confirm-ok]");
@@ -123,7 +124,7 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   await evaluate("window.deleteSaveRelease()");
   await waitFor("document.querySelector('[data-todo-stage-workspace]').hidden", 10_000);
   assert.deepEqual(await evaluate("window.deleteOrder"), ["save-start", "save-end", "delete"]);
-  const deletedOwner = openTodoStore(homeDirectory);
+  const deletedOwner = openTodoStore(homeDirectory, undefined, projectId!);
   try { assert.throws(() => deletedOwner.get(first!.id, access), { code: "todo.not_found" }); assert.equal(deletedOwner.get(second!.id, access).status, "open"); } finally { deletedOwner.close(); }
   assert.deepEqual(await evaluate("window.todoErrors"), []);
   await evaluate("window.molisWorkRequest = window.todoRequest");
@@ -139,15 +140,15 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
   await other.viewport(1440, 900);
   await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, b.sessionId);
   const access = { actor: "user" as const, actorId: "web-user", projectId, projectIds: [] };
-  const store = openTodoStore(b.homeDirectory);
+  const store = openTodoStore(b.homeDirectory, undefined, b.projectId!);
   const [id, neighbourId] = (() => {
     try {
-      return [store.create({ title: "Two-tab Todo", notes: "Original notes", placement: "project" }, access).item.id,
-        store.create({ title: "Another Todo", placement: "project" }, access).item.id];
+      return [store.create({ title: "Two-tab Todo", notes: "Original notes" }, access).item.id,
+        store.create({ title: "Another Todo" }, access).item.id];
     } finally { store.close(); }
   })();
   const read = () => {
-    const owner = openTodoStore(b.homeDirectory);
+    const owner = openTodoStore(b.homeDirectory, undefined, b.projectId!);
     try { return owner.get(id!, access); } finally { owner.close(); }
   };
   const url = `${b.origin}/projects/${projectId}/?openPlugin=todo`;
@@ -377,7 +378,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
             await primary.click("[data-todo-quick-submit]");
             await primary.waitFor(`document.querySelector('${listNote}').textContent.includes(${JSON.stringify(quickDraft)}) && !document.querySelector('${listNote}').classList.contains('is-error')`);
             assert.deepEqual(postsAfter(recoveredCreate), ["/items"]);
-            const owner = openTodoStore(b.homeDirectory);
+            const owner = openTodoStore(b.homeDirectory, undefined, b.projectId!);
             try { assert.equal(owner.list(access).filter(item => item.title === quickDraft).length, 1); } finally { owner.close(); }
             const missing = crypto.randomUUID();
             await selectFromHost(missing);

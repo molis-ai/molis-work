@@ -57,14 +57,14 @@ const same = (left: unknown, right: unknown): boolean => canonicalJsonText(left)
  * What the platform delivers, the action that takes it (contract-design §2.1, §2.5): its exact input and output, its operation, where it
  * runs and who may call it. `drafts` names two more actions (`get`, `keep`), checked across the Manifest in `inspectContextDeclarations`.
  */
-export const DELIVERED_INTAKE_SHAPES: Readonly<Record<DeliveredMaterialKind, { readonly input: unknown; readonly output: unknown; readonly scope: "project" | "home"; readonly audiences?: readonly string[] }>> = {
+export const DELIVERED_INTAKE_SHAPES: Readonly<Record<DeliveredMaterialKind, { readonly input: unknown; readonly output: unknown; readonly scope: "project"; readonly audiences?: readonly string[] }>> = {
   handoff: { input: WORKFLOW_CONTENT_SCHEMAS.receive.input, output: WORKFLOW_CONTENT_SCHEMAS.receive.output, scope: "project" },
   notification: { input: PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA, output: PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA, scope: "project", audiences: ["workflow"] },
   code_root: { input: ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, output: ONBOARDING_TAKE_RESULT_SCHEMA, scope: "project", audiences: ["user"] },
   documents: { input: ONBOARDING_DOCUMENTS_INPUT_SCHEMA, output: ONBOARDING_DOCUMENTS_RESULT_SCHEMA, scope: "project", audiences: ["user"] },
-  drafts: { input: ONBOARDING_DRAFT_INPUT_SCHEMA, output: ONBOARDING_DRAFT_RESULT_SCHEMA, scope: "home", audiences: ["user"] },
+  drafts: { input: ONBOARDING_DRAFT_INPUT_SCHEMA, output: ONBOARDING_DRAFT_RESULT_SCHEMA, scope: "project", audiences: ["user"] },
 };
-/** The two parts a `drafts` intake names, each a Home action of the same Manifest in this shape. */
+/** The two parts a `drafts` intake names, each an action of the same Manifest in this shape, run in a partition as the take is. */
 export const DRAFT_PART_SHAPES = {
   get: { operation: "query", input: ONBOARDING_DRAFT_GET_INPUT_SCHEMA, output: ONBOARDING_DRAFT_GET_RESULT_SCHEMA },
   keep: { operation: "command", input: ONBOARDING_DRAFT_KEEP_INPUT_SCHEMA, output: ONBOARDING_DRAFT_KEEP_RESULT_SCHEMA },
@@ -146,7 +146,7 @@ function deliveredIntakeProblems(key: string, operation: unknown, action: Record
   const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
   if (operation !== "command" || action.scope !== shape.scope || (shape.audiences && (audiences.length !== shape.audiences.length || shape.audiences.some(audience => !audiences.includes(audience))))
     || (kind === "handoff" && !(isRecord(action.workflow_content) && action.workflow_content.role === "receive"))) {
-    problems.push(`能力 ${key} 收 ${kind}：需要${shape.scope === "home" ? " Home 级" : "项目里"}的写动作${shape.audiences ? `，受众只有 ${shape.audiences.join("、")}` : ""}${kind === "handoff" ? "，并且是内容站的 receive" : ""}`);
+    problems.push(`能力 ${key} 收 ${kind}：需要在分区里运行的写动作${shape.audiences ? `，受众只有 ${shape.audiences.join("、")}` : ""}${kind === "handoff" ? "，并且是内容站的 receive" : ""}`);
   }
   if (!same(action.input_schema, shape.input) || !same(action.output_schema, shape.output)) problems.push(`能力 ${key} 收 ${kind}，输入输出必须正好是平台给这种材料的形状`);
   return problems;
@@ -192,7 +192,11 @@ export function readerKinds(definitions: unknown): ReadonlySet<string> {
   return kinds;
 }
 
-/** A `drafts` intake's `get` and `keep`: Home actions of the same Manifest, reachable in projects, in the platform's shape. */
+/**
+ * A `drafts` intake's `get` and `keep`: actions of the same Manifest in the platform's shape, run in a partition like the take (batch 108).
+ * Onboarding drafts in the personal space and, once the project is made, the platform moves each batch there (`placement.move` of the
+ * intake's `item_kind`) before reading and keeping it.
+ */
 function draftPartProblems(key: string, intake: unknown, definitions: readonly unknown[]): string[] {
   const material = isRecord(intake) && Array.isArray(intake.accepts) && intake.accepts.length === 1 && isRecord(intake.accepts[0]) && intake.accepts[0].kind === "drafts" ? intake.accepts[0] : undefined;
   if (!material) return [];
@@ -201,8 +205,8 @@ function draftPartProblems(key: string, intake: unknown, definitions: readonly u
     const ref = material[part], shape = DRAFT_PART_SHAPES[part];
     const target = reference(ref) ? definitions.find(definition => isRecord(definition) && definition.capability_id === ref.capability_id && definition.version === ref.version) as Record<string, unknown> | undefined : undefined;
     const body = target && isRecord(target.action) ? target.action : undefined;
-    if (!body || target!.operation !== shape.operation || body.scope !== "home" || !same(body.input_schema, shape.input) || !same(body.output_schema, shape.output)) {
-      problems.push(`能力 ${key} 的草稿 ${part} 必须是本插件的 Home 级${shape.operation === "query" ? "查询" : "写动作"}，输入输出正好是平台给草稿 ${part} 的形状`);
+    if (!body || target!.operation !== shape.operation || body.scope !== "project" || !same(body.input_schema, shape.input) || !same(body.output_schema, shape.output)) {
+      problems.push(`能力 ${key} 的草稿 ${part} 必须是本插件在分区里运行的${shape.operation === "query" ? "查询" : "写动作"}，输入输出正好是平台给草稿 ${part} 的形状`);
     }
   }
   return problems;

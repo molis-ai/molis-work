@@ -697,7 +697,6 @@ test("Host composition: MolisWorkLocalHost lazily opens evaluation.db, evaluates
 
   const createdTodo = await projectClient.invoke(projectCaller, todoActions.create, {
     title: "完成第 30 批宿主端到端评测",
-    placement: "project",
   });
   assert.ok(createdTodo.item.id);
 
@@ -1760,7 +1759,7 @@ test("QRF-01: a same-action retry is attributed to the frozen target and its own
   const caller = person({ project_id, permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: [project_id] });
   const client = fixture.host.actionClient(project.reference);
   const author = bindActionClient(client, () => caller);
-  const create = (title: string) => author.invoke(todoActions.create, { title, placement: "project" });
+  const create = (title: string) => author.invoke(todoActions.create, { title });
   const a = (await create("目标 A")).item;
   const b = (await create("另一个 B")).item;
   for (const [label, actualTarget, expected] of [["different", b, "failed"], ["same", a, "passed"]] as const) {

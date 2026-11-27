@@ -55,7 +55,7 @@ export const collectHost = async (home) => {
   const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
   const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   const { BUILTIN_PLUGIN_CATALOG } = await import("@molis-ai/molis-work-app-workbench");
-  const { PROJECT_SCOPED_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
+  const { BUILTIN_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
   const { projectActionAvailability } = await import(new URL("../../apps/local-host/dist/project-action-availability.js", import.meta.url).href);
   // A scene is listed only to a caller who holds the permissions it asks for (`sceneVisible` in the kernel), so the scene caller holds
   // every permission the product names: what the person at this computer holds, what any action the Host lists asks for, and what a
@@ -70,7 +70,7 @@ export const collectHost = async (home) => {
   try {
     const project = await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "Action contract snapshot", actor_id: "owner" });
-      for (const pluginId of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: pluginId, actor_id: "owner" });
+      for (const pluginId of BUILTIN_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: pluginId, actor_id: "owner" });
       return project;
     });
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });

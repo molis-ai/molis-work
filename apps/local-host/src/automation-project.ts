@@ -6,14 +6,13 @@ import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { assertPassiveProjectAvailable } from "./passive-sync-execution.js";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { onboardingTakers, type OnboardingTaker } from "./onboarding-takers.js";
-import { shownProjectPlugins } from "./plugin-registry.js";
 
 /**
- * The plugins the project shows (enabled there, or a personal one it does not hide) that keep a text the platform hands them as a document (the `documents` material,
+ * The plugins the project enabled that keep a text the platform hands them as a document (the `documents` material,
  * contract-design §2.5), by their own declaration: the report is saved by whichever one it is, and no plugin is named here.
  */
 export function projectDocumentTakers(membership: ProjectPluginMembership): OnboardingTaker[] {
-  const here = new Set(shownProjectPlugins(membership.plugins, membership.hidden));
+  const here = new Set(membership.plugins);
   return onboardingTakers("documents").filter(taker => here.has(taker.project_plugin_id));
 }
 

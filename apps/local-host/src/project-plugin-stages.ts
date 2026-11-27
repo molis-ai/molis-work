@@ -149,10 +149,13 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
     const running = active?.status === "running" && active.install_id && platform?.runtime.get(active.install_id).state === "running";
     const refusal = homeDirectory ? projectPluginDatabaseRefusal(store.db, pluginId) : null;
     const record = active?.install_id ? platform?.runtime.get(active.install_id) : undefined;
-    const upgradeRefusal = refusal instanceof ActionError ? refusal : record?.last_error_code ? { code: record.last_error_code } : undefined;
+    const partitionCode = state.partitions?.failure(pluginId)?.code;
+    const code = partitionCode ?? record?.last_error_code;
+    const upgradeRefusal = refusal instanceof ActionError ? refusal : code ? { code } : undefined;
     const upgrade = homeDirectory && upgradeRefusal ? describePluginTablesRefusal(homeDirectory, pluginId, store.path, upgradeRefusal) : undefined;
     if (upgrade) return { ...unavailableStage(state, entry, refusal?.message ?? ""), restart: null,
-      upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: homeDirectory ? rollbackHrefFor(homeDirectory, upgrade.reason) : null, reload_href: null } };
+      upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: homeDirectory ? rollbackHrefFor(homeDirectory, upgrade.reason) : null,
+        reload_href: partitionCode && upgrade.reason === "structure_mismatch" ? `?openPlugin=${encodeURIComponent(entry.project_plugin_id)}` : null } };
     return unavailableStage(state, entry, projectPluginProblem(state, store, pluginId)?.reason
       ?? uiText.text(active?.status === "starting" ? "workbench.project-plugin-stages.starting" : running
         ? "workbench.project-plugin-stages.plugin-running-but-has-not-provided-page" : "workbench.project-plugin-stages.plugin-not-running"));

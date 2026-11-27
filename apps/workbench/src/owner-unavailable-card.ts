@@ -20,7 +20,7 @@ export interface OwnerUnavailableCard {
 }
 
 /** A store from a newer version stays refused however often the page reloads, and its backup is no way back either. */
-const RELOADS: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: true, store_too_new: false, structure_mismatch: false, upgrade_no_space: true, snapshot_invalid: true, unreadable: true };
+const RELOADS: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: true, store_too_new: false, structure_mismatch: true, upgrade_no_space: true, snapshot_invalid: true, unreadable: true };
 const REASON_TEXT: Readonly<Record<OwnerUnavailableReason, string>> = {
   upgrade_failed: "workbench.owner-unavailable.upgrade-failed", store_too_new: "workbench.owner-unavailable.store-too-new",
   upgrade_activation_failed: "workbench.settings-plugins.retry-start",

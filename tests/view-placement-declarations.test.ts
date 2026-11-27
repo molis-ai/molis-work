@@ -12,7 +12,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineWorkflowContentActions, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 
 type Part = Record<string, unknown>;
 
@@ -252,7 +252,7 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   // 07-1 S4b (口径 9): 个人 is the person's own plugins by the one rule (isPersonalPlugin: the Host's personal and home marks), not
   // a view naming it. Drawn without the Host's directory, nothing carries those marks: there is no 个人, and a view that names it
   // is under 更多 with the plugins that name no group. Every other group is the one its view names, in the Host's order.
-  const bare = railSections(renderMolisWorkWeb(projectView([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])));
+  const bare = railSections(renderMolisWorkWeb(projectView([...BUILTIN_PLUGIN_IDS])));
   assert.deepEqual(bare.map(section => section.heading), [...UI_VIEW_GROUPS.filter(group => group !== "personal").map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
   for (const { heading, tiles } of bare) {
     for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
@@ -274,11 +274,12 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   assert.equal(declaredGroups.get("diff"), null, "Diff's rail view names no group");
   assert.ok(members(bare, "更多").includes("diff"), "a plugin whose view names no group is under 更多");
 
-  // With the Host's directory, the plugins it marks personal and home (registered personal, Manifest runtime scope home) are 个人,
-  // in its declared place, whatever group their view names; one that names 个人 without the marks stays under 更多.
-  const own = new Set(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal && entry.manifest.runtime?.scope === "home").map(entry => entry.project_plugin_id));
+  // With the Host's directory, the plugins it marks personal and home are 个人, in its declared place, whatever group their view names;
+  // one that names 个人 without the marks stays under 更多. Since batch 108 no built-in carries the marks: only a Home plugin outside the
+  // build does (until batch 109-3), so the Host's marking is drawn here on Jelly as it would be on such a plugin.
+  const own = new Set(["jelly"]);
   const marked = pluginDirectoryFor().map(entry => own.has(entry.id) ? { ...entry, personal: true as const, home: true as const } : entry);
-  const hosted = railSections(renderMolisWorkWeb({ ...projectView([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS]), plugin_directory: marked } as MolisWorkWebView));
+  const hosted = railSections(renderMolisWorkWeb({ ...projectView([...BUILTIN_PLUGIN_IDS]), plugin_directory: marked } as MolisWorkWebView));
   assert.deepEqual(hosted.map(section => section.heading), [...UI_VIEW_GROUPS.map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
   for (const { heading, tiles } of hosted) {
     for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
@@ -287,15 +288,15 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
       assert.equal(heading, own.has(tile) ? "个人" : group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under 个人 when it is the person's own, else the group its view names`);
     }
   }
-  assert.deepEqual(members(hosted, "个人"), ["todo", "jelly", "cognia", "issues", "images"]);
-  assert.deepEqual(members(hosted, "写与做"), ["pages", "form", "dataset", "ppt", "artifacts"]);
-  assert.ok(members(hosted, "更多").includes("lingguang"), "灵光 names 个人 without the Host's marks: under 更多");
+  assert.deepEqual(members(hosted, "个人"), ["jelly"]);
+  assert.deepEqual(members(hosted, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
+  for (const id of ["lingguang", "todo", "cognia"]) assert.ok(members(hosted, "更多").includes(id), `${id} names 个人 without the Host's marks: under 更多`);
 });
 
 // ---- settings icons -----------------------------------------------------------------------------------------------------
 
 test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when found by its own URL", () => {
-  const icons = Object.fromEntries(listPluginSettingsNavItems(shownProjectPlugins(["goals", "coding"])).map(item => [item.section_id, item.icon]));
+  const icons = Object.fromEntries(listPluginSettingsNavItems(["goals", "coding"]).map(item => [item.section_id, item.icon]));
   assert.deepEqual(icons, { shelf: "library", "coding-settings": "code" });
   assert.equal(findPluginSettingsNavItem("coding-settings")?.icon, "code", "a project that does not show Coding still finds its page with its icon");
   assert.equal(findPluginSettingsNavItem("shelf")?.icon, "library");
@@ -310,7 +311,7 @@ test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when foun
 // ---- making new and starting --------------------------------------------------------------------------------------------
 
 test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the stations whose create has words, directory views by order, then islands", () => {
-  const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
+  const all = [...BUILTIN_PLUGIN_IDS];
   assert.deepEqual(creatableKinds(all), [
     { id: "pages", plugin_id: pluginIdOf("pages"), station: "pages", title: "文档", label: "文档" },
     { id: "form", plugin_id: pluginIdOf("form"), station: "form", title: "问卷", label: "问卷" },
@@ -322,7 +323,7 @@ test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the stations 
 });
 
 test("RAC-78 W5-06-PLACE-04 the project home's ways to start come from the intakes that declare a start, in the same order", () => {
-  const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
+  const all = [...BUILTIN_PLUGIN_IDS];
   assert.deepEqual(homeStarts(all), [
     { id: "goals", plugin_id: pluginIdOf("goals"), title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
     // Coding's blank session intake declares a start (contract-design §2.4); homeStarts has no product caller, so nothing visible changes.

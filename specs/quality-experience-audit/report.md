@@ -346,7 +346,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-107](../backlog/BL-107.md) | 引导已经 Host 后台执行，缺后台任务登记 | 收窄为登记/进度/返回入口，复用现有任务贡献，不新做执行引擎；新main已注明45/57批排期，保留该归属 |
 | [BL-177](../backlog/BL-177.md) | 第 34 批已合入，原 BL 已标部分实现。索引中的「尚未实现」已按现行 spec 更新 | 保留已安排的场景与来源缺口，实际整合随后续，原本人验收继续 |
 | [BL-b42-followups](../archive/bl-b42-followups/spec.md) | ③ 地址消费与 Home 草稿回执以及 ④ 共用导航控件均有本地实操和最终候选验收。① 本轮修复了文字调用的结果有效性 | ③④随 #2101 合入归档。① 用量采集归 Observation，②、⑤–⑧由 #2271 完成 |
-| [第 36 批角色与主线遗留](../backlog/BL-b36-review-followups.md) | 主干已补角色过期选择恢复、撤销及事项归属事务。本轮核对主线与任务的写入仍归不同服务，现有任务面板只提交事件去处 | 保留 [ROLE-14 本人体验](../backlog/BL-b36-roles-acceptance.md)、[角色细节](../backlog/BL-b36-review-followups-roles.md) 和第 37 批项。事项页面若同时提交两种去处，应明确分别结算的结果；另跟进独立的事项修订与两份下一步 schema |
+| [第 36 批主线遗留结清记录](../../docs/backlog-removed.md) | 主干已补角色过期选择恢复、撤销及事项归属事务。本轮核对主线与任务的写入仍归不同服务，现有任务面板只提交事件去处 | 保留 [ROLE-14 本人体验](../backlog/BL-b36-roles-acceptance.md)、[角色细节](../backlog/BL-b36-review-followups-roles.md) 和第 37 批项。事项页面若同时提交两种去处，应明确分别结算的结果；独立事项修订与下一步 schema 已由 BL-b36-review-followups 结清 |
 | [BL-state-machine-migration](../backlog/BL-state-machine-migration.md) | 144/89/55/32是旧盘点口径；SDK 已有，但所有布尔组合不都是真状态机 | 按实际 owner/合法迁移/取消恢复复核，剔除纯派生与资源句柄；保留逐批迁移，不宣称本轮确认了全部144条 |
 | [BL-acceptance-first-slice-limits](../backlog/BL-acceptance-first-slice-limits.md) | modules/acceptance 已有项目范围事实；个人范围及可信决定接线未齐 | 保留对39/44批的依赖，别再开第二套“要求—证据—认可”存储 |
 | [BL-1064](../archive/bl-1064-node-sandbox/spec.md) | 锁定 Node 已有；本轮也发现默认24.14与要求24.15不符，切换后相关初始化恢复 | 2026-11-23 已补 Homebrew 动态库启动、拒绝诊断与 CLI 安装验证，见规格书 |

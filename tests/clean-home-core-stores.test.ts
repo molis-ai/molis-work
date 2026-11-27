@@ -4,11 +4,11 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { describeSqliteSchema, openBaselineHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, openBaselineHomeSqlite, runSqliteUpgrade, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { AssistantStore, ASSISTANT_STORE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
-import { openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
+import { MAINLINE_BASELINE, MainlineStore, openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
 
 const cases = [
   // V7 (batch 106, user 2026-11-24): functions.db was reset to its v1 baseline.
@@ -21,8 +21,8 @@ const cases = [
   { name: "characters", version: 1, file: "characters/characters.sqlite", table: "character_drafts",
     seed: "INSERT INTO character_drafts VALUES ('draft', 'owner', 1, 'time', '{}')",
     open: (home: string) => { const store = openCharacters(home, "owner"); return () => store.close(); } },
-  { name: "mainline", version: 1, file: "mainline/mainline.db", table: "mainline_items",
-    seed: "INSERT INTO mainline_items VALUES ('owner', 'project', 'item', 'name', NULL, NULL, 'time')",
+  { name: "mainline", version: 2, file: "mainline/mainline.db", table: "mainline_items",
+    seed: "INSERT INTO mainline_items VALUES ('owner', 'project', 'item', 'name', NULL, NULL, 'time', 1)",
     open: (home: string) => { const db = openMainlineDatabase(home); return () => db.close(); } },
 ];
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
@@ -60,3 +60,28 @@ for (const item of cases) {
     } finally { rmSync(home, { recursive: true, force: true }); }
   });
 }
+
+test("BL-b36-review-followups the v1 golden item keeps its data through upgrade, rename and reopen", t => {
+  const home = mkdtempSync(join(tmpdir(), "mainline-v1-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const file = join(home, "mainline.db");
+  const db = new DatabaseSync(file);
+  try {
+    db.exec(readFileSync(new URL("./fixtures/golden-homes/0.1.0/stores/mainline/mainline.db.sql", import.meta.url), "utf8"));
+    const { owner_actor_id, project_id, item_id, name } = db.prepare("SELECT owner_actor_id, project_id, item_id, name FROM mainline_items").get() as { owner_actor_id: string; project_id: string; item_id: string; name: string };
+    assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 1);
+    runSqliteUpgrade(db, file, MAINLINE_BASELINE);
+    const store = new MainlineStore(db, owner_actor_id, project_id);
+    const before = store.itemWithRevision(item_id)!;
+    assert.equal(before.item.name, name);
+    assert.equal(before.revision, "1");
+    store.rename(store.read().revision, item_id, "改名后的金样事项");
+    assert.equal(store.itemWithRevision(item_id)?.revision, "2");
+    runSqliteUpgrade(db, file, MAINLINE_BASELINE);
+  } finally { db.close(); }
+  const reopened = new DatabaseSync(file, { readOnly: true });
+  try {
+    assert.equal(reopened.prepare("PRAGMA user_version").get()?.user_version, 2);
+    assert.deepEqual({ ...reopened.prepare("SELECT name, revision FROM mainline_items").get() }, { name: "改名后的金样事项", revision: 2 });
+  } finally { reopened.close(); }
+});

@@ -9,8 +9,9 @@ import test, { type TestContext } from "node:test";
 import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { mac } from "./fixtures/home-sandbox.js";
-import { SHEET_KEY_VALUE, SHEET_PLUGIN_ID, pinSheetPublisher, sheetPackage } from "./fixtures/install-sheet.js";
+import { SHEET_KEY_VALUE, SHEET_PLUGIN_ID, checkDiscardChoice, chooseWithKeyboard, pinSheetPublisher, retainedSheetNotes, sheetPackage } from "./fixtures/install-sheet.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
@@ -225,6 +226,34 @@ test("B47-F6 PBU-47-5 the sheet localizes a bad signature and an actual startup 
       await p.ready();
       await p.press(p.control("dismiss"));
       await browser.waitFor(`!document.querySelector('${SHEET}') || document.querySelector('${SHEET}').dataset.stage === 'line'`, WAIT_MS);
+    }
+  }
+});
+
+test("B47-K2 B47-K3 a signed package sheet keeps or discards real saved notes at each width and language", { ...mac, timeout: 360_000 }, async t => {
+  const p = await open(t); if (!p) return;
+  const { browser } = p;
+  const ref = molisWorkHostProjectReference({ projectId: browser.projectId!, databasePath: browser.databasePath });
+  const rig = await retainedSheetNotes(browser.localHost!, ref, p.client);
+  for (const width of [1440, 1024, 390]) for (const lang of ["zh", "en", "ja"] as const) {
+    await browser.setViewport(width, 960);
+    const { next, saved, before } = await rig.uninstallKeepingNote();
+    for (const action of ["later", "discard"] as const) {
+      await p.ask("kept", "left:4px;top:4px;width:min(660px,calc(100% - 8px))", next);
+      await p.staged("review"); await p.ready(); await p.press(p.control("confirm")); await p.staged("discard");
+      if (action === "later") await checkDiscardChoice(browser, lang, width, p.control("discard"), "sheet", next);
+      await p.ready();
+      if (width === 1024 && lang === "en") await chooseWithKeyboard(browser, p.control(action));
+      else await p.press(p.control(action));
+      if (action === "later") {
+        assert.equal(await p.answer("kept"), JSON.stringify({ status: "cancelled" }));
+        assert.deepEqual(await saved(), before);
+        assert.equal(await p.installed(), undefined);
+      } else {
+        await p.staged("done");
+        assert.equal((await p.installed())?.version, next.payload.manifest.version);
+        assert.deepEqual(await rig.notes("notes.list"), []);
+      }
     }
   }
 });

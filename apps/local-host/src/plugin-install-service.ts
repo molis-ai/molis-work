@@ -16,11 +16,13 @@ import { activeLocale } from './web-locale.js';
 import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { HOST_PLUGIN_ID_PREFIX, PLATFORM_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { hostLog } from "./host-log.js";
+import { assertPackageDiscardEntry } from "./plugin-consent-settings-entry.js";
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SkillInstallPreview, SkillSceneChoice } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin, PluginUninstallTarget, ProjectPluginInstalledView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
-import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
+import { declarationsNeedingConsent, keptDataRefusal, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease, PackageInstallChoices, PackageInstallSecret } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
 import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
@@ -76,7 +78,7 @@ export interface PluginInstallPorts {
    */
   assertIntegrationsFree?(manifest: KeptSandboxPackage['manifest']): Promise<void>;
   /** The plugins installed in the project, each with the Manifest it was installed with. */
-  installed(projectId: string): Promise<InstalledPluginEntry[]>;
+  installed(projectId: string, keptFor?: string): Promise<InstalledPluginEntry[]>;
   /** Whether some provider offers this action in the project now: what the preview says of each of a package's `requires`. A Host without it previews no package that requires any. */
   offers?(projectId: string, reference: { capability_id: string; version: number }): boolean;
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
@@ -86,7 +88,7 @@ export interface PluginInstallPorts {
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
-  homeInstalled?(): Promise<InstalledPluginEntry[]>;
+  homeInstalled?(keptFor?: string): Promise<InstalledPluginEntry[]>;
   homeRegrant?(installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
   homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget }, caller?: InstallAuthority): Promise<PackageControlOutcome>;
@@ -123,6 +125,7 @@ export interface BundledPluginList {
 export type PluginInstallPreviewInput = { bundle: unknown } | { bundled: { plugin_id: string; version: string } };
 
 export interface PluginInstallPreviewResult {
+  kept_data_incompatible: boolean;
   preview_id: string;
   name: string;
   /** Where confirming installs it: the Home (one instance for every project, which reads no project's content) or the project the person is in. */
@@ -159,7 +162,14 @@ export interface PluginRequirementPreview { capability_id: string; version: numb
 type PreviewOwner = { project_id: string; actor_id: string };
 type InstallAuthority = Pick<ActionExecutionContext, 'beforeEffect' | 'signal' | 'assert_authority_current'> & { locale?: string };
 
+function incompatibleGeneration(rows: readonly InstalledPluginEntry[], manifest: PluginManifest): string | undefined {
+  const old = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature
+    && record.state === 'uninstalled' && !isPendingUninstall(record))?.record;
+  return old && keptDataRefusal(old, manifest, false, false) ? old.installation_generation : undefined;
+}
+
 interface Held extends PreviewOwner {
+  kept: { project?: string; home?: string };
   bundle: PluginPackageBundle;
   pkg: KeptPackage;
   view: PluginInstallPreviewResult;
@@ -168,8 +178,9 @@ interface Held extends PreviewOwner {
 }
 
 /** What confirming answers: the installed plugin, and the optional switches of an upgrade that could not be moved (the upgrade itself stands). */
-export interface PluginInstallConfirmResult { plugin_id: string; version: string; publisher_key_id: string; permission_changes_failed?: string[] }
+export interface PluginInstallConfirmResult { plugin_id: string; version: string; publisher_key_id: string; permission_changes_failed?: string[]; retained_cleanup_incomplete?: boolean }
 export interface PluginInstallConfirmInput {
+  discard_kept_data?: boolean;
   preview_id: string;
   consent: boolean;
   pin_label?: string;
@@ -328,7 +339,10 @@ export class PluginInstallService {
     if (manifest.integrations?.length) assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
     assertNotHostId(manifest.plugin_id, 'bundled' in input);
-    const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
+    const homes = runtime_scope === 'home' ? await this.ports.homeInstalled?.(manifest.plugin_id) ?? [] : [];
+    const projects = runtime_scope === 'project' || dual ? await this.ports.installed(who.project_id, manifest.plugin_id) : [];
+    const rows = runtime_scope === 'home' ? homes : projects;
+    const kept = { home: incompatibleGeneration(homes, manifest), project: incompatibleGeneration(projects, manifest) };
     if (manifest.presentation !== undefined) assertSurfacePresentation(manifest, await this.presentationCatalog(runtime_scope === 'home' ? null : who.project_id));
     const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');
     // Only an upgrade has bodies to compare: any other package is refused at the confirmation (S-84), even when the kept one is gone.
@@ -362,7 +376,7 @@ export class PluginInstallService {
     const word = connectorWords(manifest.plugin_id, pkg.localePacks);
     const preview_id = randomUUID();
     const refs = pkg.permissions.secretRefs ?? [], saved = refs.length && current ? await this.ports.savedSecrets?.(runtime_scope === 'home' ? null : who.project_id, manifest.plugin_id) ?? [] : [];
-    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(dual ? { dual_instance: true as const } : {}), ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(skill_scenes ? { skill_scenes } : {}), ...(requires.length ? { requires } : {}),
+    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, kept_data_incompatible: Boolean(kept.home || kept.project), ...(dual ? { dual_instance: true as const } : {}), ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(skill_scenes ? { skill_scenes } : {}), ...(requires.length ? { requires } : {}),
       ...(this.ports.sceneAfterRestart?.(manifest.memory_scene) ? { memory_scene_after_restart: true as const } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null, ...(this.ports.localSigner?.keyId() === key_id ? { local: true as const } : {}) },
       ...(refs.length ? { secrets: refs.map(name => ({ name, saved: saved.includes(name) })) } : {}),
@@ -378,7 +392,7 @@ export class PluginInstallService {
     const now = Date.now();
     for (const [id, entry] of this.held) if (entry.expires <= now) this.held.delete(id);
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value!);
-    this.held.set(preview_id, { bundle, pkg, view, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: now + PREVIEW_TTL_MS });
+    this.held.set(preview_id, { bundle, pkg, view, kept, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: now + PREVIEW_TTL_MS });
     return structuredClone(view);
   }
 
@@ -444,10 +458,14 @@ export class PluginInstallService {
    * here only when they said so (`pin_label`); the install then runs under that pin.
    */
   async confirm(input: PluginInstallConfirmInput, who: PreviewOwner, caller?: ActionExecutionContext, complete?: () => void): Promise<PluginInstallConfirmResult> {
-    const entry = this.held.get(input.preview_id), secrets = takeInstallSecrets(input.preview_id);
+    if (input.discard_kept_data === true) assertPackageDiscardEntry(caller, input.preview_id);
+    const held = requireHeldPreview(this.held.get(input.preview_id), who);
+    const secrets = takeInstallSecrets(input.preview_id);
     this.held.delete(input.preview_id);
-    const held = requireHeldPreview(entry, who);
     if (input.consent !== true) throw pluginErrors.consent_required('安装前请确认插件要使用的权限');
+    if (input.discard_kept_data === true) {
+      if (!held.view.kept_data_incompatible) throw pluginErrors.preview_unknown('请重新查看要安装的版本');
+    } else if (held.view.kept_data_incompatible) throw pluginErrors.kept_data_incompatible('这个版本无法读取上次卸载时保留的数据');
     const chosen = this.chosen(held, input.optional_permissions, secrets);
     const { runHomeInstallation } = this.ports;
     if (held.view.runtime_scope === 'home' && runHomeInstallation) {
@@ -487,6 +505,8 @@ export class PluginInstallService {
     const projectEntries = (!inHome || dual) ? await this.ports.installed(held.project_id) : [];
     const homePresent = inHome ? checkExistingInstall(homeEntries, held.pkg.manifest, key_id, true, dual) : undefined;
     const projectPresent = (!inHome || dual) ? checkExistingInstall(projectEntries, held.pkg.manifest, key_id, false, false) : undefined;
+    if ((held.kept.home && homePresent) || (held.kept.project && projectPresent))
+      throw pluginErrors.preview_unknown('原来的安装已经变化，请重新查看安装包');
     const upgraded = homePresent && homePresent.record.version !== held.pkg.manifest.version ? homePresent : projectPresent;
     const currentInstalled = upgraded
       ? this.ports.packages.load(upgraded.record.plugin_id, upgraded.record.publisher_signature, upgraded.record.version).packaged
@@ -521,20 +541,32 @@ export class PluginInstallService {
       // The installation owner checks authority and commits the dependent owner's state inside its compensation window.
       const present = inHome ? homePresent : projectPresent;
       // A first installation starts with the switches the person chose; an upgrade keeps its own and moves the ones that differ afterwards.
-      const choices: PackageInstallChoices = { ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
+      const cleanup: Array<() => Promise<void>> = [];
+      const afterInstall = (clear: () => Promise<void>) => { cleanup.push(clear); };
+      const choices: PackageInstallChoices = { afterInstall, expectedKeptGeneration: inHome ? held.kept.home : held.kept.project, ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
       if (dual) {
-        const homeAlreadySame = homePresent?.record.version === held.pkg.manifest.version;
-        if (!homeAlreadySame) await this.ports.installInHome(release, assertCurrent);
-        try { await this.ports.installInProject(held.project_id, release, assertCurrent, complete); }
-        catch (error) {
-          if (!homePresent && this.ports.homeControl) {
-            await this.ports.homeControl(held.pkg.manifest.plugin_id, 'uninstall', { keep_data: false }).catch(() => undefined);
-          }
-          throw error;
+        const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, { afterInstall, expectedKeptGeneration: held.kept.project });
+        if (!homePresent) await this.ports.installInHome(release, assertCurrent, complete, { afterInstall, expectedKeptGeneration: held.kept.home, installOtherHalf: installProjectHalf });
+        else if (held.kept.project && homePresent.record.version !== held.pkg.manifest.version) {
+          // Prove the replacement project works before moving an existing, possibly shared Home database.
+          await this.ports.installInProject(held.project_id, release, assertCurrent, complete, {
+            afterInstall, expectedKeptGeneration: held.kept.project,
+            installOtherHalf: commitProject => this.ports.installInHome(release, assertCurrent, commitProject),
+          });
+        } else {
+          if (homePresent.record.version !== held.pkg.manifest.version) await this.ports.installInHome(release, assertCurrent);
+          await installProjectHalf(complete);
         }
       } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete, choices);
       else await this.ports.installInProject(held.project_id, release, assertCurrent, complete, choices);
-      const installed = { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
+      const installed: PluginInstallConfirmResult = { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
+      for (const clear of cleanup) {
+        try { await clear(); }
+        catch (error) {
+          hostLog.warn("plugins", "retained_cleanup_incomplete", error);
+          installed.retained_cleanup_incomplete = true;
+        }
+      }
       if (!present || !chosen.optional) return installed;
       // The upgrade stands whatever happens to a switch: each one that differs is moved as the settings move it, and one that fails is named.
       const failed: string[] = [], held_now = new Set(present.record.grants), wanted = new Set(chosen.optional);

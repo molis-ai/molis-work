@@ -69,8 +69,8 @@ export const pluginInstallActions = {
     input_schema: { type: "object", properties: { bundle: { type: "object" },
       bundled: { type: "object", properties: { plugin_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "string", minLength: 1, maxLength: 64 } }, required: ["plugin_id", "version"], additionalProperties: false } },
     oneOf: [{ required: ["bundle"] }, { required: ["bundled"] }], additionalProperties: false },
-    output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
-      preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, dual_instance: { const: true }, effects,
+    output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher", "kept_data_incompatible"], properties: {
+      preview_id: text, name: text, kept_data_incompatible: { type: "boolean" }, runtime_scope: { enum: ["home", "project"] }, dual_instance: { const: true }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] }, local: { const: true } } },
       secrets: { type: "array", maxItems: 64, items: { type: "object", additionalProperties: false, required: ["name", "saved"], properties: { name: text, saved: { type: "boolean" } } } },
       // The package declares a memory scene this running Molis Work lists only after a restart (BL-b44-coding-scene-enum).
@@ -100,13 +100,13 @@ export const pluginInstallActions = {
         signed_here: { const: true } } } },
       refused: { type: "array", items: { type: "object", additionalProperties: false, required: ["file", "code", "message"], properties: { file: text, code: text, message: text } } } } } } } as ActionDefinition<Record<string, never>, BundledPluginList>,
   confirm: { capability_id: "plugins.install.confirm", version: /* @version action.plugins.install.confirm */ 1, operation: "command", action: { ...metadata, scope: "project",
-    title: "确认安装插件包", description: "安装一次预览里看过的包：确认它要的权限；这个发布者还没被固定时，给出名称才会固定它（固定是本人对这个发布者的信任，之后它签的包都按这个信任安装）。可以同时给出装好后要开着的可选权限（`optional_permissions`，只能是预览里列为可选且请求了的）：第一次安装就带着它们启动，升级则把和现在不一样的开关改过去，没改成的在结果里列出，升级本身不受影响。预览用过一次就作废。",
+    title: "确认安装插件包", description: "安装一次预览里看过的包：确认它要的权限；这个发布者还没被固定时，给出名称才会固定它（固定是本人对这个发布者的信任，之后它签的包都按这个信任安装）。可以同时给出装好后要开着的可选权限（`optional_permissions`，只能是预览里列为可选且请求了的）：第一次安装就带着它们启动，升级则把和现在不一样的开关改过去，没改成的在结果里列出，升级本身不受影响。预览提示无法读取旧数据时，只有本人明确选择放弃旧数据才能安装。预览用过一次就作废。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
-    input_schema: { type: "object", properties: { preview_id: { type: "string", minLength: 1, maxLength: 80 }, consent: { type: "boolean" }, pin_label: { type: "string", minLength: 1, maxLength: 80 },
+    input_schema: { type: "object", properties: { preview_id: { type: "string", minLength: 1, maxLength: 80 }, consent: { type: "boolean" }, discard_kept_data: { type: "boolean" }, pin_label: { type: "string", minLength: 1, maxLength: 80 },
       optional_permissions: { type: "array", maxItems: 64, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } } },
       required: ["preview_id", "consent"], additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "publisher_key_id"], properties: { plugin_id: text, version: text, publisher_key_id: text,
-      permission_changes_failed: { type: "array", minItems: 1, items: text } } } } } as ActionDefinition<PluginInstallConfirmInput, PluginInstallConfirmResult>,
+      retained_cleanup_incomplete: { type: "boolean" }, permission_changes_failed: { type: "array", minItems: 1, items: text } } } } } as ActionDefinition<PluginInstallConfirmInput, PluginInstallConfirmResult>,
   publishers: { capability_id: "plugins.publishers.list", version: /* @version action.plugins.publishers.list */ 1, operation: "query", action: { ...metadata, scope: "home",
     title: "查看已固定的发布者", description: "列出本人固定过的插件发布者（含已撤销的）：公钥指纹、名称、固定与撤销的时间。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],

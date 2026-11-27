@@ -220,7 +220,7 @@ export function projectActionInstallationsIn({ store, project_id }: MolisWorkPro
 }
 
 /** The plugins installed in a project, each with the Manifest it was installed with; the project's built-in plugins are started first so they are listed too. */
-export async function installedPluginsInProject(source: ProjectPluginHost, projectId: string): Promise<InstalledPluginEntry[]> {
+export async function installedPluginsInProject(source: ProjectPluginHost, projectId: string, keptFor?: string): Promise<InstalledPluginEntry[]> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   await ensureProjectPluginActions(source, reference);
@@ -231,7 +231,7 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
     // Why a package of this project is not running, when its plugin host knows; a plugin of the Host's build has none here.
     // An uninstall whose clean-up did not finish stays listed, stopped, so the person can retry it with the same choice (BL-915).
     const pending = (installed?.pendingUninstalls() ?? []).map(record => ({ record, manifest: undefined }));
-    return [...installedPluginEntries(runtime.store.db), ...pending].map(entry => ({ ...entry, recoveryCode: installed?.recoveryErrors.code(entry.record.plugin_id) }));
+    return [...installedPluginEntries(runtime.store.db, keptFor).filter(entry => !isPendingUninstall(entry.record)), ...pending].map(entry => ({ ...entry, recoveryCode: installed?.recoveryErrors.code(entry.record.plugin_id) }));
   });
   // The Home's own packages of that publisher stop the same way.
   await source.homePlugins()?.reconcilePublishers();
@@ -290,15 +290,15 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
  * The plugins that run as the Home's own instance, each with the Manifest the Home runs it by (BL-700) and why it is not running when the Home
  * knows (BL-715). A publisher the person took back is reconciled first, as a project's list does, so the state listed is the one after it.
  */
-export async function installedHomePlugins(homePlugins: HomePluginHost | undefined): Promise<InstalledPluginEntry[]> {
+export async function installedHomePlugins(homePlugins: HomePluginHost | undefined, keptFor?: string): Promise<InstalledPluginEntry[]> {
   if (!homePlugins) return [];
   await homePlugins.ready();
   await homePlugins.reconcilePublishers();
-  return observedHomePlugins(homePlugins);
+  return observedHomePlugins(homePlugins, keptFor);
 }
 
-export function observedHomePlugins(homePlugins: HomePluginHost): InstalledPluginEntry[] {
-  return homePlugins.installations().filter(record => record.state !== "uninstalled" || isPendingUninstall(record))
+export function observedHomePlugins(homePlugins: HomePluginHost, keptFor?: string): InstalledPluginEntry[] {
+  return homePlugins.installations().filter(record => record.state !== "uninstalled" || isPendingUninstall(record) || (record.plugin_id === keptFor && record.retain_private_data))
     .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryCode: homePlugins.packageError(record.plugin_id, "code") }));
 }
 

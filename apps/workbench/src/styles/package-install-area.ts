@@ -66,7 +66,7 @@ export const PACKAGE_INSTALL_AREA_STYLES = `
 .install-sheet .mw-btn{flex:none;height:36px;min-height:0;margin-block:0}
 .install-steps{display:flex;align-items:center;max-width:100%;margin:0 auto;padding:0;overflow:hidden;list-style:none}
 .install-steps li{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:12px;font-weight:var(--weight-control,560);transition:color var(--dur-move) var(--ease-quint)}
-.install-steps li>span{min-width:0;overflow-wrap:anywhere}
+.install-steps li>span{white-space:nowrap}
 .install-steps li+li::before{content:"";flex:none;width:28px;height:1px;margin:0 10px;background:var(--line-strong)}
 .install-steps li:is([data-state=doing],[data-state=done]){color:var(--ink)}.install-steps li[data-state=failed]{color:var(--red)}
 .install-steps .mw-state-ring{flex:none;margin:0}
@@ -97,7 +97,8 @@ export const PACKAGE_INSTALL_AREA_STYLES = `
 .install-sheet__sum{text-align:center}
 .install-sheet__foot .install-sheet__acts{display:grid;grid-template-columns:auto minmax(0,1fr)}
 .install-sheet .mw-btn{height:44px}
-.install-steps li+li::before{width:12px;margin:0 6px}
+.install-steps li{gap:4px}
+.install-steps li+li::before{width:8px;margin:0 2px}
 .install-sheet__keys{padding:4px 12px 8px}.install-key__fields{grid-template-columns:minmax(0,1fr);gap:8px}
 .install-sheet__result{padding:12px 16px 16px}
 }

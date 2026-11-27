@@ -126,7 +126,8 @@ test("SPC-C08 picker and market save from their own observations, report committ
   await browser.click("[data-market-project-trigger]");
   await browser.click(`[data-market-project-option="${other.project_id}"]`);
   await browser.waitFor(`${ready("diff")} && ${marketState("diff")} === 'available'`);
-  // Another writer adds Todo there (no plugin is personal since batch 108, so there is none to hide), so the revision moves on.
+  // Another writer adds Todo to this project after the market observed its membership.
+  assert.ok(!before.plugins.includes("todo"));
   await browser.web.post(settings(other.project_id), { plugin_id: "todo", expected_revision: before.revision });
   const changed = await membership(browser, other.project_id);
   assert.notEqual(changed.revision, before.revision);

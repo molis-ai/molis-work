@@ -17,18 +17,7 @@ export const SANDBOX_MODEL_SETTINGS_FOLDER = ".model-settings";
 
 export function sandboxModelDeclaration(installId: string): ConsumerModelConfigurationDeclaration {
   return { preference: { store_name: join("plugin-files", installId, SANDBOX_MODEL_SETTINGS_FOLDER), file_name: "preference.json" },
-    custom_provider: { provider_id: sandboxProviderId(installId), display_name: "沙箱插件专用" } };
-}
-
-/** The two names of a choice, and nothing else: an address, a connection, an API format, an unknown member or the reserved provider id is refused before anything is read or written. */
-export function assertSandboxModelChoice(input: unknown, reservedProviderId: string): { provider_id: string; model_id: string } {
-  if (!input || typeof input !== "object" || Array.isArray(input)) throw modelConfigurationInvalid("模型设置必须是对象");
-  const keys = Object.keys(input);
-  if (keys.some(key => key !== "provider_id" && key !== "model_id")) throw modelConfigurationInvalid("沙箱插件只能在你已启用的模型里选择，不能设置服务地址、连接或接口格式");
-  const { provider_id, model_id } = input as { provider_id?: unknown; model_id?: unknown };
-  if (typeof provider_id !== "string" || typeof model_id !== "string" || !provider_id.trim() || !model_id.trim()) throw modelConfigurationInvalid("请选择供应商和模型");
-  if (provider_id.trim() === reservedProviderId) throw modelConfigurationInvalid("这个供应商名保留给平台，不能选择");
-  return { provider_id, model_id };
+    reserved_provider_id: sandboxProviderId(installId) };
 }
 
 /**
@@ -49,8 +38,7 @@ export function withSandboxModelSettings(model: PluginModelClient | undefined, h
     read: async () => { permit(MODEL_READ); return port.read(); },
     save: async (input: PluginModelConfigurationInput) => {
       permit(MODEL_INVOKE);
-      const choice = assertSandboxModelChoice(input, declaration.custom_provider.provider_id);
-      return port.save(choice);
+      return port.save(input);
     },
   });
   return Object.freeze({ ...model, configuration });

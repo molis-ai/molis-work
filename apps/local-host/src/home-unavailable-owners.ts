@@ -9,7 +9,7 @@ import { hostLog } from "./host-log.js";
 import { matchesPartitionPattern, partitionOfRelativePath } from "@molis-ai/molis-work-module-projects";
 
 /** Why a part of the product cannot be used after an upgrade (U3 design §2.4). Each has its own sentence and its own ways out. */
-export type UnavailableReason = "upgrade_failed" | "upgrade_activation_failed" | "store_too_new" | "upgrade_no_space" | "snapshot_invalid";
+export type UnavailableReason = "upgrade_failed" | "upgrade_activation_failed" | "store_too_new" | "structure_mismatch" | "upgrade_no_space" | "snapshot_invalid";
 
 /** What the page says about a store an open refused: the part that stops, why, and the number to quote. */
 export interface UnavailableOwner {
@@ -24,7 +24,7 @@ const REASON_OF_CODE: Readonly<Record<string, UnavailableReason>> = {
   "storage.upgrade_failed": "upgrade_failed",
   "storage.upgrade_pending": "upgrade_failed",
   "storage.schema_version_mismatch": "upgrade_failed",
-  "storage.schema_structure_mismatch": "upgrade_failed",
+  "storage.schema_structure_mismatch": "structure_mismatch",
   "storage.store_too_new": "store_too_new",
   "storage.upgrade_no_space": "upgrade_no_space",
 };

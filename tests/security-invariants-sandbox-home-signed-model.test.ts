@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { generatedPluginManifest, sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, generatedPluginManifest, sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -100,10 +100,10 @@ async function rig(t: test.TestContext, completeText: HostCompleteText = complet
     installation = record.install_id;
     return record.install_id;
   };
-  const ask = async (command: Record<string, unknown>) => {
-    const views = await operationsOf(client, caller);
-    await operate(client, caller, views, "notes.add", { text: JSON.stringify(command) });
-    const [row] = await operate(client, caller, views, "notes.list", {}) as Array<{ text: string }>;
+  const ask = async (command: Record<string, unknown>, activeClient = client) => {
+    const views = await operationsOf(activeClient, caller);
+    await operate(activeClient, caller, views, "notes.add", { text: JSON.stringify(command) });
+    const [row] = await operate(activeClient, caller, views, "notes.list", {}) as Array<{ text: string }>;
     return JSON.parse(row!.text) as unknown;
   };
   let installation = "";
@@ -154,6 +154,15 @@ test("BL-491 RAC-2629 an installed package chooses among the enabled models insi
   assert.deepEqual(await r.ask({ op: "settings.save", choice: { provider_id: "fixture", model_id: "model" } }), { provider_id: "fixture", model_id: "model" });
   const preference = join(r.h.home, "plugin-files", installId, ".model-settings", "preference.json");
   assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 1, selection: { provider_id: "fixture", model_id: "model" }, revision: 1, receipts: {} });
+  // B112-09: a fresh Host reconstructs the approved signed installation and reads its saved selection.
+  await r.h.close();
+  await r.h.host.close();
+  const restarted = new MolisWorkLocalHost({ homeDirectory: r.h.home, completeText: complete });
+  try {
+    await restarted.homePlugins!.ready();
+    const reread = await r.ask({ op: "settings.read" }, restarted.homeActionClient()) as { selection?: unknown };
+    assert.deepEqual(reread.selection, { provider_id: "fixture", model_id: "model" });
+  } finally { await restarted.close(); }
 });
 
 test("BL-491 RAC-2630 a package cannot save an address, a connection, a format, the reserved provider or anything unknown; nothing is written and no provider is made", mac, async t => {

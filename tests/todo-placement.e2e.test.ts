@@ -12,8 +12,9 @@ test("a todo moved away from the placement panel leaves this page: the open deta
   const { evaluate, waitFor, click } = child;
   const store = openTodoStore(homeDirectory, undefined, projectId!);
   const scope = { actor: "user" as const, actorId: "test" };
-  const away = store.create({ title: "整理 Beta 用户回访记录" }, scope).item;
-  const stay = store.create({ title: "准备周会材料" }, scope).item;
+  // Planned for a day already past, both are on the default 今天 list whatever the clock, so the rows show whether the todo is still here.
+  const away = store.create({ title: "整理 Beta 用户回访记录", planned_date: "2020-01-01" }, scope).item;
+  const stay = store.create({ title: "准备周会材料", planned_date: "2020-01-01" }, scope).item;
   store.close();
   // What the placement panel does (batch 108: every partition has its own Todo library): the platform carries the todo to the other
   // partition and lets it go here, then tells the page.
@@ -22,7 +23,7 @@ test("a todo moved away from the placement panel leaves this page: the open deta
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openItem=${away.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '整理 Beta 用户回访记录'`);
+  await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '整理 Beta 用户回访记录' && !!document.querySelector('[data-todo-row="${away.id}"]')`);
   const here = openTodoStore(homeDirectory, undefined, projectId!);
   try { here.removeCarried(away.id, here.exportRecord(away.id).revision); } finally { here.close(); }
   await changed(away.id, projectId!, "project-q4");

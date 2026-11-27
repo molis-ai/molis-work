@@ -400,6 +400,9 @@ const pages: Record<string, Draw> = {
 // Trilingual copy & i18n governance (PR #2307): updated zh/en copy in workbench & Goals locale packs and trilingual language catalog
 // (zh/en/ja) after merging #2301/#2305; re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset (40 records moved,
 // 12 unchanged including document-missing and unaffected settings records).
+// Batch 108 (#2348): the Issues side capture lives in the personal space, so the 16 page-* records' side tab names
+// `/projects/personal/side/issues/capture` instead of the project's (+2 each). Token-diffed against a draw of the code before batch 108:
+// that address is the only batch 108 change; re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

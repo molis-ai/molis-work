@@ -12,6 +12,7 @@ import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale, webLanguage } from "./web
 // and replaces them cleanly while preserving `code`, `details`, and `call_id` / `diagnostic_id`.
 
 const COMMON_ERROR_KEYS = [
+  "common.error.subtitles-missing",
   "common.error.invalid",
   "common.error.forbidden",
   "common.error.not-found",
@@ -87,6 +88,7 @@ const KIND_KEYS: Readonly<Record<ActionErrorKind, CommonErrorKey>> = {
 };
 
 const CODE_KEYS: Readonly<Record<string, CommonErrorKey>> = {
+  "material.source.subtitles_missing": "common.error.subtitles-missing",
   // Platform codes (strictly validated against ACTION_ERROR_KINDS)
   "actions.input_invalid": "common.error.invalid",
   "actions.input_too_large": "common.error.too-large",
@@ -154,6 +156,7 @@ const CODE_KEYS: Readonly<Record<string, CommonErrorKey>> = {
 };
 
 const ALWAYS_LOCALIZE_CODES = new Set<string>([
+  "material.source.subtitles_missing",
   "space.changed",
   "space.unavailable",
   "storage.upgrade_in_progress",

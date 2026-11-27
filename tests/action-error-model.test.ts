@@ -280,6 +280,7 @@ test("a Runtime route answers a failure with the status of its kind: the platfor
 
 test("Host error edge localizes account.*, technical leaks, and opposite-language strings in zh/en/ja while preserving code and details", async () => {
   const cases: Record<string, (response: import("node:http").ServerResponse, request: import("node:http").IncomingMessage) => void> = {
+    "/bilibili-subtitles": (response, request) => sendUnhandledWebError(response, new ActionError("material.source.subtitles_missing", "请粘贴字幕。"), request),
     "/account-expired": (response, request) => sendUnhandledWebError(response, new ActionError("account.login_required", "Account session has expired", { kind: "forbidden", details: { step: "me" } }), request),
     "/leak-model": (response) => sendLocalWebJson(response, 500, { error: "MODEL_HTTP_ERROR: 503 Service Unavailable", code: "actions.execution_failed", details: { trace: "t-1" } }),
     "/leak-sync": (response) => sendLocalWebJson(response, 429, { error: "SYNC_RATE_LIMITED: retry after 60s", code: "actions.rate_limited", details: { trace: "t-1" } }),
@@ -306,6 +307,13 @@ test("Host error edge localizes account.*, technical leaks, and opposite-languag
     assert.match(String(expiredEn.body.error), /session expired/i);
     const expiredJa = await server.post("/account-expired?locale=ja", "{}");
     assert.match(String(expiredJa.body.error), /有効期限が切れました/u);
+
+    // B112-07: the HTTP edge preserves the next step in every supported language.
+    for (const [locale, words] of [["zh", /粘贴字幕/], ["en", /Paste the subtitles/], ["ja", /字幕を貼り付け/]] as const) {
+      const answer = await server.post(`/bilibili-subtitles?locale=${locale}`, "{}");
+      assert.equal(answer.body.code, "material.source.subtitles_missing");
+      assert.match(String(answer.body.error), words);
+    }
 
     // Technical leaks (Prologue codes, SYNC_*, AJV pointers, OS paths, fetch failed) never pass through.
     for (const path of ["/leak-model", "/leak-sync", "/leak-ajv", "/leak-path", "/leak-fetch"]) {

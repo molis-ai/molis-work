@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PluginImageGenerationClient, PluginModelClient, PluginModelConfigurationInput, PluginModelConfigurationView } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginImageGenerationClient, PluginModelClient, PluginModelConfigurationInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SANDBOX_IMAGE_LIMITS, type SandboxEffects, type SandboxJson, type SandboxOperationContract, type SandboxPluginContract, type SandboxSdkMethod } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from "@molis-ai/molis-work-app-local-host";
@@ -20,7 +20,8 @@ const storage = { get: () => null, set: () => {}, delete: () => false, compareAn
 const SETTINGS: SandboxEffects = { modelSettings: ["read", "save"] };
 const IMAGES: SandboxEffects = { imageGeneration: ["read", "bind", "generate"], networkDomains: [HOST] };
 
-const fullView: PluginModelConfigurationView = { configured: true, source: "selection", selection: { provider_id: "p1", model_id: "m1" }, effective_selection: { provider_id: "p1", model_id: "m1" },
+// An overcomplete runtime value must still be projected at the worker boundary.
+const fullView = { configured: true, source: "selection" as const, selection: { provider_id: "p1", model_id: "m1" }, effective_selection: { provider_id: "p1", model_id: "m1" },
   providers: [{ id: "p1", provider_id: "p1", name: "供应商一", base_url: "https://api.secret-gateway.example/v1", api_format: "openai-chat-completions", enabled: true, has_credential: true,
     models: [{ model_id: "m1", display_name: "模型一", enabled: true }] }],
   connections: [{ connection_id: "conn-1", display_name: "我的账号", state: "connected" }], custom_connection_id: "conn-1" };
@@ -51,7 +52,7 @@ const request = { ...target, expected_revision: "r1", protocol: "openai-images",
 test("BL-491 RAC-2629 a package reads its model settings without the endpoint, the format or the connections, and saves only the two names of a choice", async () => {
   const { saved, services } = settingsRig(), b = broker(SETTINGS, services), op = operation("command", SETTINGS);
   const view = await call(b, op, "model.settings.read", []);
-  assert.deepEqual(view, { configured: true, source: "selection", selection: { provider_id: "p1", model_id: "m1" }, effective_selection: { provider_id: "p1", model_id: "m1" },
+  assert.deepEqual(view, { configured: true, source: "selection" as const, selection: { provider_id: "p1", model_id: "m1" }, effective_selection: { provider_id: "p1", model_id: "m1" },
     providers: [{ provider_id: "p1", name: "供应商一", enabled: true, has_credential: true, models: [{ model_id: "m1", display_name: "模型一", enabled: true }] }] });
   assert.doesNotMatch(JSON.stringify(view), /base_url|api_format|connection|secret-gateway/u);
   await call(b, op, "model.settings.save", [{ provider_id: "p1", model_id: "m1" }]);

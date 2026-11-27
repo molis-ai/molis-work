@@ -33,7 +33,7 @@ export const jellyManifest: PluginManifest = {
       title_text: { key: "jelly.read-group.notes.title" },
       description: "随手记全文与搜索",
       description_text: { key: "jelly.read-group.notes.description" },
-      actions: ["jelly.note.list", "jelly.note.get", "jelly.note.subject.read", "jelly.content.list", "jelly.content.read"],
+      actions: ["jelly.note.days", "jelly.note.list", "jelly.note.get", "jelly.note.subject.read", "jelly.content.list", "jelly.content.read"],
     },
   ],
   // Each partition's own calendar and notes (specs/unified-partition-plugins §4.2, batch 108); its open entries are the overview's events.

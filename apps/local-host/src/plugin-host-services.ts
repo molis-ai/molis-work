@@ -146,10 +146,11 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
     // A project instance has no owner files of its own: only a sandboxed package has them here, and the sandbox is refused the terminal at start.
     terminal = options.home ? pluginTerminalFor({ home: options.home.directory, manifest, context, ownerFiles: undefined, assertActive }) : undefined;
+    const imageGeneration = partitionImageGenerationFor(options, definition, context, assertActive);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client, sync: combinePluginSyncLibraries(manifest, library?.sync, projectLibrary?.sync),
       database: library?.client, artifactRows: library?.artifactRows, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
-      imageGeneration: partitionImageGenerationFor(options, definition, context, assertActive),
+      imageGeneration,
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db,
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
@@ -157,7 +158,9 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
     const submit = installedComponentSubmit(definition, options.actions, readRecord);
     const record = submit && readRecord();
+    // The page's connection card keys this instance's image connections (ASC-70, §13.5), as a Home instance's page did before batch 108.
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, instance: context, project_id: options.project_id, actor_id: options.actor_id,
+      ...(imageGeneration && manifest.image_generation ? { image_generation: manifest.image_generation } : {}),
       release: record ? installedPageRelease(record) : undefined, componentForm: submit?.form,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;

@@ -162,7 +162,7 @@
 
 同步的技术口径（复查补）：
 - **种类清单。** 收敛后的范围不能丢现有的 `project-sections`、`project-private-values`（创作台草稿在用，`plugins/native/plugin-builder/src/registration.ts:12`）：二者并入按分区的范围；`home-with-projects` 在接收时也会自动建项目（`personal-plugin-sync.ts:33-39`），与 `projects` 范围一起删。平台自己的集合（成果、审批、指导、认可、Attention、Characters、外观、呈现、提示词覆盖、Blueprints、判断规则，`platform-sync-catalog.ts`）逐个标明按分区或本人级。新表各有同步身份：推送账本（随个人空间）、`push_upstream` 与最近一版 `push_superseded`（随目标分区）、分区启用清单（单独种类）、`personSettings` 的 `portable` 键（本人级 Home 流）。
-- **线格式。** 今天同步键是 `[projectId|null, key]`（`runtime-sync-registration.ts`、`runtime-sync-scope.ts`），`null` 改 `"personal"`、删 `project_id` 列都改变线格式：受影响集合的格式版本一律升一，旧格式不读。
+- **线格式。** 今天同步键是 `[projectId|null, key]`（`runtime-sync-registration.ts`、`runtime-sync-scope.ts`），`null` 改 `"personal"`、删 `project_id` 列都改变线格式：开发前阶段按[决定 68](../post-anticorruption-roadmap/reference/decisions.md#decision-68)统一原地更新 v1 线格式、不升版本、不读旧格式。
 - **发现。** 同步发现今天会唤醒每个项目（`runtime-sync-discovery.ts:63-74`）；改为平台按分区直接读各分区库的同步出站表，不起监督器。
 - **云端开发测试数据。** 账号空间 id 由账号确定性派生（`packages/storage/src/space.ts:34`），开发阶段重建本机 Home 若连向带旧开发事件的测试同步空间，一并清空测试同步空间即可（V5；操作线上账号前先向用户确认）。
 

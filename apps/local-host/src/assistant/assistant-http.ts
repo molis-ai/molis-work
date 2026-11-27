@@ -258,7 +258,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     client: project => ports.localHost.actionClient(project), caller: project => localWebActionContext(ports.localHost, project, LOCAL_OWNER_PERMISSIONS),
     alive: () => ports.localHost.lifecycle() === "running",
   });
-  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports: watchTaskReports(ports, personTaskTable(ports.projectReference, personClient), service.reports) };
+  // A plugin can join after the conversation started. Read the task providers with the person's current grants on each table read.
+  const taskTable = personTaskTable(ports.projectReference, reference => ({
+    invoke: async (action, input) => ports.localHost.actionClient(reference).invoke(await ports.localHost.localPersonContext(reference), action, input),
+  }));
+  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports: watchTaskReports(ports, taskTable, service.reports) };
   services.set(ports.localHost, entry);
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
@@ -266,7 +270,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: { key: "workbench.project-deletion.assistant" }, alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: id => service.closeForProjectDeletion(id) }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, personTaskTable(ports.projectReference, personClient), service, WEB_ACTOR,
+  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, taskTable, service, WEB_ACTOR,
     review => assertHumanReview(computerHolderFor(ports.localHost)?.(), review.run?.session_id), assistantLineAcceptance(ports)));
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory,
     { definitions: [...threadActions.definitions, ...relatedActions.definitions, ...lineActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers, ...lineActions.handlers] }); }

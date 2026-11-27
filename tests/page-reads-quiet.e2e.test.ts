@@ -177,10 +177,11 @@ test("07-2a N54 WLN-27: a stream of what waits on the person that never answers 
 test("07-2a N53 request counts: loading the chooser and a project page, switching a tab and opening the side", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, click, origin, projectId } = browser;
-  // Every Home has the personal space (batch 106). b51cb696d1 measured a Home whose places had all been read; reading the personal
-  // space once first keeps it so, instead of the chooser's first load also waiting for the personal space's background read.
-  await browser.web.get(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/attention`);
-  await new Promise(resolve => setTimeout(resolve, 1_000));
+  // N53 measures an already-read Home. Wait for the chooser's cross-project index to finish its first refresh (G4).
+  await t.waitFor(async () => {
+    const { background_tasks } = await browser.web.get<{ background_tasks: { updating?: boolean } }>(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/attention?view=home`);
+    assert.notEqual(background_tasks.updating, true);
+  }, { timeout: 20_000, interval: 100 });
   await command("Network.enable", {}, sessionId);
   const seen: Array<{ phase: string; method: string; path: string; status?: number; id: string; frame: string; type: string }> = [];
   let phase = "chooser";

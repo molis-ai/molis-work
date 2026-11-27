@@ -11,7 +11,8 @@ import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallCo
 import { BUILTIN_PLUGIN_CATALOG, stageDataAction, renderStagePage } from "@molis-ai/molis-work-app-workbench";
 import { scheduleActions, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { MolisWorkLocalHost, declaredStageData, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, declaredStageData, molisWorkHostProjectReference, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { addProjectPlugin, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -117,8 +118,10 @@ async function servedHome(t: TestContext, options: NonNullable<ConstructorParame
     await host.close(); await rm(home, { recursive: true, force: true });
   });
   const address = server.address(); assert.ok(address && typeof address === "object");
-  const base = (projectId: string) => `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}`;
-  return { host, scheduled, bare, actions, base };
+  const origin = `http://127.0.0.1:${address.port}`;
+  const base = (projectId: string) => `${origin}/projects/${encodeURIComponent(projectId)}`;
+  const web = new LocalHostHttpClient({ origin, controlToken: resolveWebControlToken({ homeDirectory: home }) });
+  return { host, scheduled, bare, actions, base, web };
 }
 
 test("RAC-2501 RAC-2502 RAC-2503 the page and its redraw take Schedule's stage from its own read; a plugin the project does not show, or one without a stage read, has no redraw", { timeout: 60_000 }, async t => {
@@ -192,7 +195,8 @@ test("QEA-94 a Goal refresh reads its owner without rereading another shown plug
     creates: { station: "fragment-notes", title: "Fragment note" } }] } };
   probe.definition.start = async context => ({ ...await start(context), views: [{ descriptor: { contribution_id, kind: "embedded", label: "Fragment notes", slots: [],
     surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }] }, render: () => "<section>Fragment notes</section>" }] });
-  const { host, scheduled, actions, base } = await servedHome(t, { pluginFixtures: { home: [probe.definition] } });
+  const { host, scheduled, actions, base, web } = await servedHome(t, { pluginFixtures: { home: [probe.definition] } });
+  await addProjectPlugin(web, scheduled.project_id, probe.id);
   await actions.invoke(scheduleActions.createTask, { title: "Unrelated stage", instructions: "Keep the actual Schedule consumer", time: "08:00" });
   const calls: string[] = [], actionClient = host.actionClient.bind(host);
   t.mock.method(host, "actionClient", (reference: Parameters<typeof actionClient>[0]) => {

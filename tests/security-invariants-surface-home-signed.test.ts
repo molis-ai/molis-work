@@ -1,10 +1,10 @@
-import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 // @requires-platform darwin
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { pluginInstallActions, type MolisWorkProjectRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";

@@ -16,16 +16,11 @@ export interface PluginDirectoryEntry {
   readonly plugin_id: string;
   readonly name: string;
   readonly summary?: string;
-  /** Whether the project's plugin list chooses it (a built-in). Otherwise it is in the project because it runs there. */
+  /** Whether this entry comes from the built-in catalog. External Home stages also use partition membership. */
   readonly chosen: boolean;
-  /**
-   * Trusted marks the Host sets from its own registry of built-ins (W5-02 B1), never from a Manifest a package brings: the plugin
-   * holds the person's data across projects (`personal`), runs in the Home's Runtime (`home`, from the registration's own Manifest),
-   * and the project keys it is shown and chosen together with (`companions`). Absent means not marked. Only a `chosen` entry carries them, except `personal` and `home`, which the Host also
-   * sets on a package installed in the Home (07-1 S4b, 口径 9); the page uses them to draw and to pre-tick, and the Host's own
-   * registry decides what a submitted list means.
-   */
+  /** The Host marks a Home installation so projects offer its stage only when enabled. */
   readonly home?: true;
+  /** Built-in project keys enabled together by the catalog. */
   readonly companions?: readonly string[];
   /** What its Manifest says it does with the platform's services, for a page that points at "the plugin that does this" without naming one. */
   readonly offers?: readonly PluginOffer[];

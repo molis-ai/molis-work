@@ -350,6 +350,8 @@ test("BL-586 a Home plugin and a project plugin by two publishers under one id b
   const membership = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
   await home.web.delete(membership, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, project.project_id) });
   await assert.rejects(operate(client, caller, byScope(await operationsOf(client, caller), "home"), "notes.list", {}), refused("actions.plugin_disabled"));
+  const afterRemoval = await page("zh-CN");
+  assert.deepEqual([framesIn(afterRemoval, "home"), framesIn(afterRemoval, "project")], [0, 1]);
   assert.deepEqual(await operate(client, caller, byScope(await operationsOf(client, caller), "project"), "notes.list", {}), [{ id: "1", text: "Li's" }]);
   await home.web.post(membership, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, project.project_id) });
 

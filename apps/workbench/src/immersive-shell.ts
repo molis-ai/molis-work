@@ -122,7 +122,8 @@ export function renderPluginRail(
   const have = new Set(enabled);
   const extendIds = extendPluginIds(directory);
   const cards = pluginMarketCards(directory);
-  const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
+  const externalHome = directory.filter(entry => entry.home && !entry.chosen).map(entry => entry.id);
+  const addable = [...cards.map(card => card.id), ...externalHome].filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
   const entries = directoryPlugins(directory, everyone);
   const islands = islandPlugins(directory, everyone);
@@ -163,15 +164,15 @@ export function renderPluginRail(
   // The second line a removal asks in (navigation-presentation.ts).
   const mark = `<small class="plugin-rail-confirm" aria-hidden="true"></small>`;
   const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; chosen?: boolean; group?: string | null }, zone: string) => {
-    // A plugin installed at run time is in the project because it runs there; taking it out is whoever installed it, not this list.
-    const installed = plugin.chosen === false;
+    // A project installation supplies its own stage. A Home installation uses the partition's membership control.
+    const installed = plugin.chosen === false && !marks.get(plugin.id)?.home;
     const owned = installed || have.has(plugin.id);
     const label = escapeHtml(plugin.label);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
     const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${escapeHtml(hints[plugin.id])}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
       : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${uiText("workbench.immersive-shell.name-not-added", { name: plugin.label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
-    // The tile carries its group, the person's own (个人) among them.
+    // The tile carries the group its view declares.
     return `<div class="plugin-rail-tile${owned ? "" : " is-available"}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${besideButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";

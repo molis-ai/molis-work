@@ -14,7 +14,7 @@ import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import type { ContextualHttpPorts } from "./contextual/contextual-http.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
 import type { WebRequestContext } from "./web-route-table.js";
-import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
+import { currentHomeStageHalves, type HomeRouteProjectPlugins } from "./home-plugin-http.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { isHostedPlatformPart } from "./platform-part-routes.js";
@@ -65,18 +65,21 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const selection = async (projectId: string, versioned: boolean, fresh = false): Promise<{ shown: string[]; revision?: string }> => {
     const home = localHost.homePlugins;
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
+    // The Host can directly supply a project half in addition to the catalog's installations (until 109-3).
+    const halves = currentHomeStageHalves(home);
+    const provided = halves?.outsideCatalog.filter(entry => !halves.hasPackage(entry.manifest.plugin_id)).map(entry => entry.project_plugin_id) ?? [];
     // A standalone database fixture has no catalog record.
-    if (!options.project) return { shown: [...BUILTIN_PLUGIN_IDS, ...homePluginsOutsideBuild(homeDirectory)] };
+    if (!options.project) return { shown: [...BUILTIN_PLUGIN_IDS, ...homePluginsOutsideBuild(homeDirectory), ...provided] };
     // A versioned read needs the revision of exactly the membership it shows, so it reads on its own; the others share one reading (N44).
     if (versioned) return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
       const { plugins, revision } = catalog.projectPluginMembershipWithRevision(projectId);
-      return { shown: plugins, revision };
+      return { shown: [...plugins, ...provided], revision };
     });
     // The protected page projection asks for the live membership even when a display read was cached inside the short window.
     const { plugins } = fresh
       ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.projectPluginMembership(projectId))
       : await observeProjectPluginMembership(composition, homeDirectory, projectId);
-    return { shown: plugins };
+    return { shown: [...plugins, ...provided] };
   };
   return { ...context, options, hostReference, userActions,
     shownPlugins: async projectId => (await selection(projectId, false)).shown,

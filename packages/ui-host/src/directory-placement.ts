@@ -11,12 +11,11 @@ export interface PlacedDirectoryView {
 export type DirectoryRegistry = UiViewRegistry<PluginDirectoryEntry>;
 
 /**
- * One registry over the whole directory, built once per question and read by slot: a plugin the project chooses counts only when
- * `enabled` names it; one in the project because it runs there always counts.
+ * Project-installed views follow their running instance. Catalog plugins and external Home views follow partition membership.
  */
 export function directoryRegistry(directory: PluginDirectory, enabled: readonly string[]): DirectoryRegistry {
   const active = new Set(enabled);
-  return new UiViewRegistry(directory.map(entry => ({ manifest: entry, enabled: !entry.chosen || active.has(entry.id) })));
+  return new UiViewRegistry(directory.map(entry => ({ manifest: entry, enabled: active.has(entry.id) || (!entry.chosen && !entry.home) })));
 }
 
 /**

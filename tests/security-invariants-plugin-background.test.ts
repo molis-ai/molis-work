@@ -164,7 +164,7 @@ for (const hidden of [false, true]) {
     // project-path admission and controls.
     const pluginId = probe.definition.manifest.plugin_id;
     probe.behavior.work = async () => { entered.resolve(); await release.promise; return "in original project"; };
-    const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Background in this project");
+    const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Background in this project", [pluginId]);
     try {
       const response = await f.request(`/projects/${project.project_id}/api/plugins/${pluginId}/background`, { method: "POST", body: { id: "project" } });
       assert.equal(response.status, 200, await response.clone().text()); await entered.promise;

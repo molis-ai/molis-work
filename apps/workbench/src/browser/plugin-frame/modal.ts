@@ -35,6 +35,8 @@ export function childModal(port: MessagePort, scope: FrameScope): void {
   };
   const onClose = () => queueMicrotask(report);
   document.addEventListener("close", onClose, true);
+  // A page can open its dialog while the frame is still loading its scripts.
+  report();
   scope.own(() => {
     proto.showModal = nativeShowModal;
     proto.close = nativeClose;

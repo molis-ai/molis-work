@@ -113,6 +113,19 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   await b.waitFor("document.querySelector('[data-side-tab=\"plugin:issues/capture\"]').getAttribute('aria-selected') === 'true'");
   await composerFocused(t, b, v);
   for (const width of [1024, 390, 320]) await beside(b, v, width, "project");
+
+  // D-2: a target sent on the first open reaches the actual Issue detail inside the plugin frame.
+  await v.viewport(1440);
+  await b.click("[data-layout-open]"); await b.click("[data-layout-action=side]"); await b.waitFor(closed);
+  const title = "Cold-open destination", description = "Issue selected before the panel document loads";
+  const record = await v.api<{ id: string }>("/api/plugins/io.molis.work.issues/create", { title, description, type: "bug" });
+  await v.go(`/projects/${b.projectId}/?desktop=1`);
+  await b.waitFor(closed);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).getAttribute('src')`), null);
+  await b.evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: {
+    tab: 'plugin', view: 'issues/capture', target: {item: ${JSON.stringify(record.id)}} }, cancelable: true }))`);
+  await v.until(`!$('[data-issue-detail]').hidden && $('[data-issue-title]').textContent === ${JSON.stringify(title)}`, 15_000);
+  assert.equal(await v.ask("$('[data-issue-text]').textContent"), description);
 });
 
 test("ISSUE-31 ISSUE-35 on Home the draft survives closing and a full navigation, and Escape closes from the composer", { timeout: 90_000 }, async t => {

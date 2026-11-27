@@ -10,6 +10,7 @@ import { isMainScript } from "./script-paths.mjs";
 
 const CATALOG_SPECIMEN_KEY = /(?:^workbench\.env\.|\b(?:catalog|specimens?|board-frame|style-probe)\b)/u;
 const LOCALE_JSON_FILE = /(?:^|\/)locales\/(?:[^/]+\/)*[^/]+\.json$/u;
+const WORKBENCH_MAIN_PACK = /^apps\/workbench\/resources\/locales\/[^/]+\.json$/u;
 const CATALOG_SUBPACK_FILE = /\/locales\/catalog\/[^/]+\.json$/u;
 
 // Developer-focused surfaces (Tier B in text-and-appearance.md): retain standard developer nouns (Git, MCP, CLI, API Key) while banning internal/retired jargon.
@@ -315,10 +316,10 @@ export function auditRepositoryCopy(root, options = {}) {
     if (ownerFilter && !file.includes(ownerFilter)) continue;
     const parsed = JSON.parse(fs.readFileSync(path.join(root, file), "utf8"));
     const locale = typeof parsed.locale === "string" ? parsed.locale : path.basename(file, ".json");
-    const isCatalogSubpack = CATALOG_SUBPACK_FILE.test(file);
+    const checkEveryKey = includeCatalog || WORKBENCH_MAIN_PACK.test(file) || CATALOG_SUBPACK_FILE.test(file);
     const messages = parsed.messages ?? {};
     for (const [key, entry] of Object.entries(messages)) {
-      if (!includeCatalog && !isCatalogSubpack && !/^workbench\.catalog[.-]/u.test(key) && CATALOG_SPECIMEN_KEY.test(key)) continue;
+      if (!checkEveryKey && CATALOG_SPECIMEN_KEY.test(key)) continue;
       const texts = typeof entry === "string" ? [entry] : Object.values(entry?.forms ?? {});
       for (const text of texts) {
         if (typeof text !== "string") continue;

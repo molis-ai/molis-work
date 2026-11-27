@@ -7965,7 +7965,7 @@
     "workbench.subtask-conversation.continue": "Continue sub-task",
     "workbench.subtask-conversation.input": "Add instructions to this step",
     "workbench.subtask-conversation.title": "Sub-task conversation",
-    "workbench.subtask-conversation.specimen-note": "New component: subtask messages and input stay inside the right task float; the main assistant remains independent. The task owner supplies the state. These are examples; no tasks run here.",
+    "workbench.subtask-conversation.specimen-note": "The task’s messages and input stay in the panel on the right. The main assistant has its own conversation. The status comes from the original task. This example does not run any tasks.",
     "workbench.subtask-conversation.demo-history": "Add long history",
     "workbench.subtask-conversation.demo-read-error": "Simulate read failure",
     "workbench.subtask-conversation.demo-reset": "Reset demo",

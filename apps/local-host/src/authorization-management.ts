@@ -54,14 +54,17 @@ async function taskEntries(ports: AuthorizationManagementPorts, preference: McpT
   return [...entries.values()];
 }
 
+async function actionTitles(ports: AuthorizationManagementPorts, ref: LocalHostProjectReference | undefined) {
+  const catalog = await ports.host.inspectPreparedActionMetadata({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: ref?.project_id ?? null, audience: "user", permissions: [] }, ref)
+    .catch(() => []);
+  return new Map(catalog.map(view => [JSON.stringify([view.capability_id, view.version, view.provider.provider_id]),
+    { title: view.action.title, provider: view.provider.title }]));
+}
+
 async function resolveAuthorizationNames(ports: AuthorizationManagementPorts, projectId: string | null | undefined) {
   const ref = projectId ? ports.projects.get(projectId) : ports.contextProject ? ports.projects.get(ports.contextProject) : undefined;
-  const [owners, catalog] = await Promise.all([
-    authorizationOwnerTitles(ports.host, ref).catch(() => new Map<string, string>()),
-    ports.host.inspectPreparedActionMetadata({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: ref?.project_id ?? null, audience: "user", permissions: [] }, ref).catch(() => []),
-  ]);
-  return { ref, owners, actions: new Map(catalog.map(view => [JSON.stringify([view.capability_id, view.version, view.provider.provider_id]),
-    { title: view.action.title, provider: view.provider.title }])) };
+  const [owners, actions] = await Promise.all([authorizationOwnerTitles(ports.host, ref).catch(() => new Map<string, string>()), actionTitles(ports, ref)]);
+  return { ref, owners, actions };
 }
 
 async function listAuthorizations(ports: AuthorizationManagementPorts, filter: AuthorizationFilter, caller: ActionExecutionContext): Promise<AuthorizationList> {
@@ -89,9 +92,14 @@ async function listAuthorizations(ports: AuthorizationManagementPorts, filter: A
     "session-command": async () => (await rules()).filter(row => row.owner === "session-command"),
     "task-grant": async () => taskEntries(ports, await saved, filter, caller),
     "mcp-client": async () => {
-      const preference = await saved, clientMap = await labels, known = (await names()).actions;
+      const preference = await saved, clientMap = await labels, { ref, actions } = await names();
       const rows = preference.action_grants.filter(row => !parseTaskGrantSubject(row.client_id) && (!filter.client_id || row.client_id === filter.client_id));
-      const entries = rows.map(row => mcpAuthorization(row, known.get(JSON.stringify([row.capability_id, row.version, row.provider_id]))?.title, clientMap.get(row.client_id)));
+      // A grant held for one project names an action of that project's catalog, which the Home's catalog no longer lists for a plugin that
+      // runs in each space it is enabled in (batch 108): its title is read where it was granted.
+      const elsewhere = [...new Set(rows.flatMap(row => row.project_id && row.project_id !== ref?.project_id && ports.projects.has(row.project_id) ? [row.project_id] : []))];
+      const catalogs = new Map(await Promise.all(elsewhere.map(async id => [id, await actionTitles(ports, ports.projects.get(id))] as const)));
+      const entries = rows.map(row => mcpAuthorization(row, (catalogs.get(row.project_id ?? "") ?? actions).get(JSON.stringify([row.capability_id, row.version, row.provider_id]))?.title,
+        clientMap.get(row.client_id)));
       if (filter.client_id && filter.project_id !== undefined && clientMap.has(filter.client_id)) entries.push(...await defaultMcpAuthorizations(ports.host,
         preference, filter.project_id ? ports.projects.get(filter.project_id) : undefined, filter.client_id, clientMap.get(filter.client_id)!));
       return entries;

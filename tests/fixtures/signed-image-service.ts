@@ -21,7 +21,7 @@ export function signedImageService(key: string, version: string, incomplete: boo
         : role === 'image.read' ? { input: { id: job.id, image_id: image.id }, output: { mime_type: 'image/png', base64: png } }
         : { input: role === 'generate' ? { connection_id: connection, request_id: 'one', prompt: 'test' } : { id: job.id }, output: { job } };
       contract.operations.push({ id: 'picture.' + role, kind: role === 'generate' ? 'command' : 'query',
-        action_protocol: { kind: 'image_generation', role }, input: structuredClone(schema.input), output: structuredClone(schema.output),
+        action_protocol: { kind: 'image_generation', role }, input: { ...schema.input }, output: { ...schema.output },
         effects: { storage: role === 'generate' ? ['read', 'write'] : ['read'] }, errors: [], examples: [example] });
     }
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);

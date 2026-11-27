@@ -25,7 +25,7 @@ import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type Sand
 import { SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_OUTPUT_SCHEMA, SETTINGS_WRITE_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mac, person as sandboxPerson, ref } from "./fixtures/home-sandbox.js";
-import { PACKAGE_PLUGIN_ID, fixturePublisher, newPublisher, packageMethod, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { fixturePublisher, newPublisher, packageMethod, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { readyPublication } from "./fixtures/studio-publishing.js";
 import type { CharacterRoleCatalog, CharacterRoleVersionEntry, SignedCharacterTemplate } from "@molis-ai/molis-work-contracts/modules/characters";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";

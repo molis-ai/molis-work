@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import type { TestContext } from "node:test";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import type { openTestHome } from "./test-home.js";
 import { recordingTextModel } from "./recording-text-model.js";
+import { CURRENT_WORK } from "./assistant-current-work.js";
 import { response } from "./prologue-reviewed-tool.js";
 
 /** The loopback model proposes a signed tool. The ordinary assistant and the person's Workbench own execution and approval. */
@@ -29,12 +29,17 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
   }, served.withCatalog);
   await served.grant("agent:prologue", project.project_id, [view]);
   const page = await browser.page();
-  await page.command("Page.navigate", { url: served.origin + "/projects/" + project.project_id + "/" });
-  await page.wait('!!document.querySelector("[data-assistant-head]")');
-  const sent = await served.web.post<AssistantSendResult>("/projects/" + project.project_id + "/api/assistant/send", {
-    scope: { kind: "project", project_id: project.project_id }, request_id: randomUUID(), text: "Use Notebook editing to review and save the proposed wording.",
-  });
-  const id = sent.work.work_id, current = () => served.web.get<AssistantWorkView>("/api/assistant/works/" + encodeURIComponent(id));
+  await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
+  await page.command("Page.navigate", { url: served.origin + "/" });
+  await page.wait('document.querySelector(".chooser")?.dataset.selected === ' + JSON.stringify(project.project_id));
+  await page.evaluate('document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: { new: true } }))');
+  const composer = "[data-assistant-composer] .mw-composer__input";
+  await page.wait('document.querySelector(' + JSON.stringify(composer) + ')?.getBoundingClientRect().width > 0');
+  await page.evaluate('(() => { const input = document.querySelector(' + JSON.stringify(composer) + '); input.value = "Use Notebook editing to review and save the proposed wording."; input.dispatchEvent(new Event("input", {bubbles:true})); })()');
+  await page.click("[data-assistant-composer] [data-composer-send]");
+  await page.wait(CURRENT_WORK);
+  const id = await page.evaluate<string>(CURRENT_WORK);
+  const current = () => served.web.get<AssistantWorkView>("/api/assistant/works/" + encodeURIComponent(id));
   const deadline = Date.now() + 25000;
   let work = await current();
   while (!work.reviews.length && Date.now() < deadline && !["failed", "completed", "cancelled"].includes(work.work.state)) {
@@ -49,8 +54,13 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
   assert.ok(held?.document.kind === "tool-operation");
   assert.equal(held.document.plugin_review?.kind, scenario.review.kind);
   const selector = '[data-review="' + review.review_id + '"]';
-  await page.evaluate('document.dispatchEvent(new CustomEvent("molis:assistant-open",{detail:{work_id:' + JSON.stringify(id) + '}}))');
-  await page.wait('document.querySelector(' + JSON.stringify(selector) + ')?.textContent.includes(' + JSON.stringify(scenario.review.title) + ')');
+  try {
+    await page.wait('document.querySelector(' + JSON.stringify(selector) + ')?.textContent.includes(' + JSON.stringify(scenario.review.title) + ')');
+  } catch (error) {
+    t.diagnostic(JSON.stringify(await page.evaluate('({path:location.pathname, cards:Array.from(document.querySelectorAll("[data-review]"), card=>[card.getAttribute("data-review"),card.innerText]), panel:document.querySelector("[data-assistant-panel]")?.innerText?.slice(-950), errors:document.querySelector("[data-assistant-error]")?.textContent})')));
+    t.diagnostic(JSON.stringify({ summary: review.summary, fields: review.fields.map(field => field.label), html: ("html" in review ? String(review.html) : "").slice(0,1200) }));
+    throw error;
+  }
   const text = await page.evaluate<string>('document.querySelector(' + JSON.stringify(selector) + ').textContent');
   for (const expected of [scenario.review.fields[0]!.label, input.word, view.provider.provider_id]) assert.ok(text.includes(expected), expected);
   await page.click(selector + ' [data-assistant-decision="approve"]');

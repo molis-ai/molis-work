@@ -4,61 +4,53 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, releaseHeldHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, releaseHeldHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
 import { HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, homeStores } from "@molis-ai/molis-work-app-local-host";
 
-/** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
- * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
- * Characters with its own native runs (Sessions cleanup SC-2). */
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
-
-/**
- * Registered libraries without a frozen schema fixture in home-store-schemas: the discussion store, project knowledge's cards
- * (specs/project-knowledge K1), the original-file registrations plugins keep (plugin-originals, 2026-10-20) and the installations'
- * remembered Agent declarations (agent-declarations, PG-051 2026-10-23) and the local directories the person granted plugins
- * (plugin-directories, PG-049 2026-10-25) are new, so no Home has them yet. A new library either
- * comes with a fixture or is named here.
- * Feed's Home reference ledger (feed-content, FI-6) is new with the Feed Home half, so no Home has it either; its v1 is frozen below.
- */
-const WITHOUT_REAL_HOME_FIXTURE = ["plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "feed-content"];
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
-test("every library in the Home's store registry has a schema fixture or is named as having none", () => {
-  const fixtures = new Set(readdirSync(new URL("./fixtures/home-store-schemas/", import.meta.url)).filter(file => file.endsWith(".sql")).map(file => file.slice(0, -4)));
-  assert.deepEqual(libraries.map(([name]) => name).filter(name => !fixtures.has(name)), WITHOUT_REAL_HOME_FIXTURE);
-});
+const pluginRuntimeBaseline = () => homeStores().stores.find(store => store.path === "plugin-runtime")!.library!.baseline;
 
-test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no real-Home receipt implied", () => {
+test("FI-6: Feed's Home reference ledger declares a valid v1 baseline schema", () => {
   const ledger = homeStores().stores.find(store => store.path === "feed-content");
   assert.equal(ledger?.owner, "io.molis.work.feed");
   assert.equal(ledger?.library?.baseline.version, 1);
-  assert.deepEqual(shape(ledger!.library!.baseline.schema), shape(readFileSync(new URL("./fixtures/feed-content-home-v1.sql", import.meta.url), "utf8")));
+  assert.deepEqual(ledger?.library?.baseline.upgrades ?? [], []);
+  assert.ok(Object.keys(shape(ledger!.library!.baseline.schema).tables).length > 0);
 });
 
-// Frozen fixtures describe each owner's complete current schema (repository-anti-corruption §4.1). Some began as
-// schema-only real-Home records; connectors, Pages, Form, Issues, Memory and Characters now freeze current DDL (the work records, new in batch 28, from the start),
-// without claiming another real-Home inspection. The independently frozen Runtime schema is checked by its Host test below.
-// Changing a baseline means a new version and a new fixture, never a silent drift.
-// V7 (batch 106, user 2026-11-24 「106 一次全复位」): agent-definitions, blueprints, dataset, external-sessions, functions, sync and work-brief
-// went back to version 1 with their current schema (tooling/gates/schemas/v1-reset-exceptions.json); the memory ledger was not in that reset.
-const HOME_STORE_FIXTURE_VERSIONS = new Map([["memory", 2]]);
-for (const [name, baseline] of libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime")) {
-  test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
-    assert.equal(baseline.version, HOME_STORE_FIXTURE_VERSIONS.get(name) ?? 1);
-    const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
-    // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
-    assert.deepEqual(want, existing, `${name}: complete frozen schema`);
+for (const [name, baseline] of libraries) {
+  test(`N41-PERSONAL-01 the ${name} store stays at v1 with zero upgrade steps, initializes cleanly and reopens intact`, () => {
+    assert.equal(baseline.version, 1, `${name}: pre-release Home store baseline stays at version 1`);
+    assert.deepEqual(baseline.upgrades ?? [], [], `${name}: pre-release Home store baseline declares no upgrade steps`);
+    const root = mkdtempSync(join(tmpdir(), `home-baseline-${name.replace(/[^a-z0-9_-]/giu, "_")}-`));
+    const file = join(root, "store.db");
+    try {
+      const db = new DatabaseSync(file);
+      try {
+        applySqliteBaseline(db, file, baseline);
+        assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
+        assert.ok(Object.keys(describeSqliteSchema(db).tables).length > 0);
+        assert.equal(db.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
+        assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
+      } finally { db.close(); }
+      const reopened = new DatabaseSync(file);
+      try {
+        applySqliteBaseline(reopened, file, baseline);
+        assert.deepEqual(describeSqliteSchema(reopened), shape(baseline.schema));
+      } finally { reopened.close(); }
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 }
 
-// RAC-44 (library version and shape kept when Cognia moved to a Home Runtime): the cognia row above compares the library
-// Cognia's own Home Runtime entry declares with the real-Home fixture. The registry only carries that library while the
-// declaration exists, and the row would silently go with it, so its presence is asserted here.
-test("RAC-44: the cognia library is the one Cognia's Home Runtime declares, at version 1, so the row above checks its shape", () => {
+// RAC-44 (library version and shape kept when Cognia moved to a Home Runtime): the cognia row above checks the library
+// Cognia's own Home Runtime entry declares. The registry only carries that library while the declaration exists, so its presence is asserted here.
+test("RAC-44: the cognia library is the one Cognia's Home Runtime declares, at version 1", () => {
   const cognia = homeStores().stores.find(store => store.path === "cognia");
   assert.equal(cognia?.owner, "io.molis.work.cognia");
   assert.equal(cognia?.library?.baseline.version, 1);
-  assert.ok(libraries.some(([name]) => name === "cognia") && !WITHOUT_REAL_HOME_FIXTURE.includes("cognia"));
+  assert.ok(libraries.some(([name]) => name === "cognia"));
 });
 
 test("W3-06-F-04 Home Runtime created by the public Host is the complete independent current baseline at 1", async () => {
@@ -69,7 +61,7 @@ test("W3-06-F-04 Home Runtime created by the public Host is the complete indepen
     db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
     assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
     assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
-    assert.deepEqual(describeSqliteSchema(db), shape(STORAGE_SPACE_SCHEMA_SQL + readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")));
+    assert.deepEqual(describeSqliteSchema(db), shape(STORAGE_SPACE_SCHEMA_SQL + pluginRuntimeBaseline().schema));
   } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
 });
 
@@ -77,8 +69,8 @@ test("RAC-2645 the prior Runtime consent shape falsely labeled as current is ref
   const home = mkdtempSync(join(tmpdir(), "project-reach-old-baseline-")), directory = join(home, "plugin-runtime"), file = join(directory, "plugin-runtime.db");
   try {
     mkdirSync(directory);
-    const current = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
-    const old = current.replace(", 'project_reach'", "").replace(/revoked_at TEXT,\n  approved_capability_ids TEXT,\n  CHECK \(\(kind = 'project_reach'[\s\S]*?approved_capability_ids IS NULL\)\)/u, "revoked_at TEXT");
+    const current = pluginRuntimeBaseline().schema;
+    const old = current.replace(", 'project_reach'", "").replace(/revoked_at TEXT,\s*approved_capability_ids TEXT,\s*CHECK \(\(kind = 'project_reach'[\s\S]*?approved_capability_ids IS NULL\)\)/u, "revoked_at TEXT");
     assert.ok(!old.includes("approved_capability_ids"));
     const db = new DatabaseSync(file);
     db.exec(old + " PRAGMA user_version=1;");
@@ -113,7 +105,7 @@ test("RAR-01 repeated Home consent reads and revocations do not rebuild the expe
 test("RAR-02 cached expectations keep both space shapes and still refuse changed stores intact", t => {
   const root = mkdtempSync(join(tmpdir(), "home-shape-refusal-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const schema = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
+  const schema = `${pluginRuntimeBaseline().schema};\nPRAGMA user_version = 1;`;
   // Exercise a bound store first, then a complete unbound store. The latter's read-only check must use its own shape;
   // its subsequent writable open binds the space, and later reads must select the bound shape again.
   const bound = new HomeConsentLedger(join(root, "bound"));

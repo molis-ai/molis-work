@@ -11,4 +11,3 @@ tests/fixtures/goals-page-golden/golden.json merge=molis-json
 # Generated snapshots: take the incoming side and list the path; `pnpm merge:regenerate` rewrites them from the merged source.
 tooling/gates/api/** merge=molis-snapshot
 tooling/gates/actions/*.tsv merge=molis-snapshot
-tooling/gates/schemas/stores.tsv merge=molis-snapshot

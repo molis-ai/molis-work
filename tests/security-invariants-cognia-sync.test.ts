@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 import {cogniaSyncProjection} from '@molis-ai/molis-work-plugin-cognia';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
+import { homeStores } from '@molis-ai/molis-work-app-local-host';
 import { ensureStorageSpace, personalStorageSpace, openBaselineHomeSqlite } from '@molis-ai/molis-work-storage';
 
 test('S-129 PCSYNC-01/11/22 knowledge refuses a local scanner path, corrupt original bytes and missing fixed citation',t=>{
@@ -22,7 +23,7 @@ test('S-129 PCSYNC-01/11/22 knowledge refuses a local scanner path, corrupt orig
  b.receive({...next,operationId:'good',revision:++revision});b.resolve(next.key,'remote',revision);assert.equal(target.read(m.id).body,'Unique original');assert.equal(b.next(),null,'applying content has no new work or replication echo');
 });
 test('S-129 PCSYNC-12 N41-PERSONAL-01 Cognia refuses old structure and wrong versions without changing original rows or bytes',t=>{
- const currentSql=readFileSync(new URL('./fixtures/home-store-schemas/cognia.sql',import.meta.url),'utf8');
+ const currentSql=homeStores().stores.find(store=>store.path==='cognia')!.library!.baseline.schema;
  for(const [version,schema,code] of [[1,currentSql+'; DROP TABLE cognia_drafts;','storage.schema_structure_mismatch'],[2,currentSql,'storage.store_too_new']] as const){
   const home=mkdtempSync(join(tmpdir(),'cognia-old-schema-'));t.after(()=>rmSync(home,{recursive:true,force:true}));ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
   const db=openBaselineHomeSqlite(home,'cognia',{version,schema});

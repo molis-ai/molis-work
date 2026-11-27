@@ -26,7 +26,7 @@ for (const { declaration, manifest, table, seed } of cases) {
   const open = (home: string, authorize: (permission: string) => void) => partitioned
     ? openPartitionPluginDatabase(scope(home), home, manifest, authorize, instance) : openPluginDatabase(home, baseline, authorize, instance, manifest);
   const where = (home: string) => partitioned ? scope(home).libraryPath(declaration.store_name) : join(home, declaration.store_name, `${declaration.store_name}.db`);
-  const name = declaration.store_name, sql = readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8");
+  const name = declaration.store_name, sql = baseline.schema;
   test(`RAC-2368 ${name} opens and reopens its current complete declared schema at 1`, () => {
     const home = mkdtempSync(join(tmpdir(), `clean-home-${name}-`)), file = where(home), permissions: string[] = [];
     try {

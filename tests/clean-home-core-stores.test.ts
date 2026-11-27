@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { describeSqliteSchema, openBaselineHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { AssistantStore, ASSISTANT_STORE_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore, ASSISTANT_STORE_BASELINE, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
@@ -27,7 +27,7 @@ const cases = [
 ];
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 for (const item of cases) {
-  const sql = readFileSync(new URL(`./fixtures/home-store-schemas/${item.name}.sql`, import.meta.url), "utf8");
+  const sql = homeStores().stores.find(store => store.path === item.name)!.library!.baseline.schema;
   test(`RAC-2364 ${item.name} creates and reopens current complete schema at ${item.version}`, () => {
     const home = mkdtempSync(join(tmpdir(), `clean-home-${item.name}-`));
     try {

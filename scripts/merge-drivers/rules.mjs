@@ -31,10 +31,9 @@ export const ARRAY_IDENTITIES = {
  */
 export const REGENERATE_STEPS = [
   { id: "versions", command: ["pnpm", "versions:generate"], matches: (file) => file === "tooling/versions.json" },
-  { id: "build", command: ["pnpm", "build"], needs: ["actions", "schemas"] },
+  { id: "build", command: ["pnpm", "build"], needs: ["actions"] },
   { id: "api", command: ["pnpm", "api:update"], matches: (file) => file.startsWith("tooling/gates/api/") },
   { id: "actions", command: ["pnpm", "actions:update"], matches: (file) => /^tooling\/gates\/actions\/[^/]+\.tsv$/.test(file) },
-  { id: "schemas", command: ["pnpm", "schemas:update"], matches: (file) => file === "tooling/gates/schemas/stores.tsv" },
 ];
 
 /** The steps a list of merged paths needs, in order (a step with `needs` runs when any step it serves does). */

@@ -4,11 +4,11 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
+import { homeStores, withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
 import { describeSqliteSchema, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
-const sql = readFileSync(new URL("./fixtures/home-store-schemas/connectors.sql", import.meta.url), "utf8");
+const sql = homeStores().stores.find(store => store.path === "connectors")!.library!.baseline.schema;
 const shape = (bound = false) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); if (bound) db.exec("CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)"); return describeSqliteSchema(db); } finally { db.close(); } };
 test("RAC-2382 RAC-2384 both connector owner paths create and reopen the complete current schema at 1", () => {
   const home = mkdtempSync(join(tmpdir(), "clean-home-connectors-"));

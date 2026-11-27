@@ -1,3 +1,4 @@
+import { imageGenerationRoleOf } from '@molis-ai/molis-work-contracts/platform/actions';
 import { studioImageInstallation } from './fixtures/builder-workflow-design.js';
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
@@ -91,7 +92,7 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 // T405-FULL-04: real G1–G6 include the Seatbelt typecheck and sandbox workers.
 const nativeBuildChecks = { skip: process.platform !== 'darwin' && 'Real G1–G6 require macOS Seatbelt (/usr/bin/sandbox-exec)' };
 
-async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
+async function startStudioFixture(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
   let closeStudio: (() => Promise<void>) | undefined, server: ReturnType<typeof createServer> | undefined;
   t.after(async () => {
     try { await closeStudio?.(); }
@@ -194,6 +195,16 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
     }
     throw new Error('revision fixture did not settle');
   };
+  return { f, project, answer, words, coded, helper, nested, send, wait, trialKeys, origin,
+    reverseDirectory() { reverseDirectory = !reverseDirectory; }, restartStudio: () => releaseAgentStudio(store, project.project_id),
+    image: (build: string, candidate: string) => fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + build + '/mockups/' + candidate),
+    rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
+    async checkTrials() { await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []); },
+  };
+}
+
+async function revisionHelperStudio(t: TestContext, setup?: Parameters<typeof startStudioFixture>[1]) {
+  const studio = await startStudioFixture(t, setup), { send, wait } = studio;
   const created = await send<{ build: AgentBuild }>('/builds', { brief: '共享清单' });
   let current = await wait(created.build.id);
   await send('/builds/' + current.id + '/action', { action: 'choose', revision: current.revision, candidateId: 'quick' });
@@ -201,15 +212,12 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   const passed = (build: AgentBuild) => {
     assert.equal(build.checks.global?.passed, true, studioBuildDiagnostic(build.error) || JSON.stringify(build.checks.global));
     assert.deepEqual(build.checks.global!.gates.map(gate => [gate.id, gate.passed]), ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'].map(id => [id, true]));
-    assert.equal(build.browserResult?.passed, setup.browserExecutable ? setup.browserPassed ?? true : false, JSON.stringify(build.browserResult));
-    if (!setup.browserExecutable) assert.match(build.browserResult!.cases[0]!.detail, /验收浏览器未能启动/);
+    assert.equal(build.browserResult?.passed, setup?.browserExecutable ? setup?.browserPassed ?? true : false, JSON.stringify(build.browserResult));
+    if (!setup?.browserExecutable) assert.match(build.browserResult!.cases[0]!.detail, /验收浏览器未能启动/);
   };
   passed(current);
-  await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []);
-  return { f, project, answer, words, coded, helper, nested, send, wait, passed, current, trialKeys, origin,
-    reverseDirectory() { reverseDirectory = !reverseDirectory; }, restartStudio: () => releaseAgentStudio(store, project.project_id),
-    image: (build: string, candidate: string) => fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + build + '/mockups/' + candidate),
-    rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
+  await studio.checkTrials();
+  return { ...studio, passed, current,
     async revise() { await send('/builds/' + current.id + '/action', { action: 'revise', revision: current.revision, message: '只调整界面' }); current = await wait(current.id); return current; },
   };
 }
@@ -764,7 +772,7 @@ test('after the host restarts mid-build, continuing writes only what was not con
 });
 
 test('44C-06 Studio polls the original installed signed service across restart, directory reordering and withdrawal', { timeout: 120_000 }, async t => {
-  const studio = await revisionHelperStudio(t), { f, project } = studio;
+  const studio = await startStudioFixture(t), { f, project } = studio;
   const client = f.host.actionClient(project.reference), who = installPerson(project.project_id);
   const install = async (key: string, version = '1.0.0', incomplete = false) => {
     const fixture = signedImageService(key, version, incomplete);
@@ -775,6 +783,22 @@ test('44C-06 Studio polls the original installed signed service across restart, 
   const incomplete = await install('partial', '1.0.0', true);
   const first = await install('quartz'), second = await install('cobalt');
   const created = await studio.send<{ build: AgentBuild }>('/builds', { brief: '为签名样例画草图' });
+  if (process.platform !== 'darwin') {
+    // These are real installed packages. The platform can register them, while their workers require Seatbelt.
+    const catalog = await f.host.inspectActions(who, project.reference);
+    for (const service of [first, second]) {
+      const list = catalog.find(view => view.provider.plugin_id === service.pluginId && imageGenerationRoleOf(view.action) === 'services.list');
+      assert.ok(list, service.pluginId);
+      const ref = { capability_id: list.capability_id, version: list.version, provider_id: list.provider.provider_id };
+      await assert.rejects(client.invoke({ ...who, permissions: list.action.permissions }, ref, {}), /macOS Seatbelt/);
+    }
+    assert.deepEqual((await studio.send<{ choices: unknown[] }>('/image-services')).choices, []);
+    const build = await studio.wait(created.build.id);
+    assert.equal(build.phase, 'choosing');
+    assert.ok(build.candidates.length && build.candidates.every(candidate => !candidate.mockup?.jobId));
+    t.diagnostic('Installed image providers refused execution on this OS; Studio kept the proposals without an image job.');
+    return;
+  }
   async function picture(phase: 'drawing' | 'ready') {
     const deadline = Date.now() + 25000;
     while (Date.now() < deadline) {

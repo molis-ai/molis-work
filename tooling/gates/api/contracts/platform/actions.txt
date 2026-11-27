@@ -2581,10 +2581,10 @@ export declare const FILE_ENTRIES_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 surface: {
-                                    type: string;
-                                    minLength: number;
-                                    maxLength: number;
-                                    pattern: string;
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 64;
+                                    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                                 };
                                 id: {
                                     type: string;
@@ -2674,10 +2674,10 @@ export declare const FILE_ENTRY_SCHEMA: {
                 type: string;
                 properties: {
                     surface: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
-                        pattern: string;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 64;
+                        readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                     };
                     id: {
                         type: string;
@@ -4299,10 +4299,10 @@ export declare const SEARCH_ENTRIES_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 surface: {
-                                    type: string;
-                                    minLength: number;
-                                    maxLength: number;
-                                    pattern: string;
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 64;
+                                    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                                 };
                                 id: {
                                     type: string;
@@ -4379,10 +4379,10 @@ export declare const SEARCH_ENTRY_SCHEMA: {
                 type: string;
                 properties: {
                     surface: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
-                        pattern: string;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 64;
+                        readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                     };
                     id: {
                         type: string;
@@ -4404,10 +4404,10 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
     type: string;
     properties: {
         surface: {
-            type: string;
-            minLength: number;
-            maxLength: number;
-            pattern: string;
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 64;
+            readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
         };
         id: {
             type: string;
@@ -4419,6 +4419,13 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 };
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
+
+export declare const SEARCH_SURFACE_SCHEMA: {
+    readonly type: "string";
+    readonly minLength: 1;
+    readonly maxLength: 64;
+    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
+};
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
     readonly type: "object";

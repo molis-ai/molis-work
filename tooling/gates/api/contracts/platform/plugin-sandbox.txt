@@ -33,6 +33,11 @@ export type SandboxActionProtocol = {
     target?: PlacementRelationTarget;
     subject_kinds?: readonly string[];
 } | {
+    kind: 'workflow_receive';
+    title: string;
+    icon: string;
+    subject_kind: string;
+} | {
     kind: 'settings';
     role: 'read' | 'write';
 };
@@ -502,6 +507,13 @@ export type SandboxReadProtocol = {
     subject_kinds: readonly string[];
 } | {
     kind: 'presentation_overview';
+} | {
+    kind: 'search_entries';
+    kinds: readonly {
+        kind: string;
+        title: string;
+        glyph?: string;
+    }[];
 } | {
     kind: 'resume_summary';
     subject_kinds: readonly string[];

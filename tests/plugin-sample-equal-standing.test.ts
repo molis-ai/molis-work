@@ -449,14 +449,12 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
 
   // Use the actual card menu route and read back the receiver's persisted content through its own subject reader.
   const menu = "/projects/" + project.project_id + "/api/mainline/receive";
-  const targets = await (await home.request(menu + "/targets", { method: "POST", body: {} })).json() as { targets: Array<{ station: string; title: string }> };
+  const targets = await home.web.post<{ targets: Array<{ station: string; title: string }> }>(menu + "/targets", {});
   const destination = targets.targets.find(target => target.title === "Card collection");
   assert.ok(destination);
-  const sent = await home.request(menu, { method: "POST", body: { station: destination.station, source: { kind: "sandbox_card", id: "card-1" }, title: "Delivered", text: "Body from the Workbench" } });
-  const receipt = await sent.json() as { object?: { id: string }; error?: unknown };
-  assert.equal(sent.status, 200, JSON.stringify(receipt));
+  const receipt = await home.web.post<{ object: { id: string } }>(menu, { station: destination.station, source: { kind: "sandbox_card", id: "card-1" }, title: "Delivered", text: "Body from the Workbench" });
   const ownerRead = byLocal("cards.read");
-  const delivered = await projectClient.invoke(person, { capability_id: ownerRead.capability_id, version: ownerRead.version, provider_id: ownerRead.provider.provider_id }, { subject_id: receipt.object!.id }) as { content: string };
+  const delivered = await projectClient.invoke(person, { capability_id: ownerRead.capability_id, version: ownerRead.version, provider_id: ownerRead.provider.provider_id }, { subject_id: receipt.object.id }) as { content: string };
   assert.equal(delivered.content, "Body from the Workbench");
 
   // 3. resume_summary: aggregated by real MolisWorkServer context_resolve.

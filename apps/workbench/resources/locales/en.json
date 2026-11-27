@@ -9992,7 +9992,7 @@
     "workbench.package-install-card.molis-work-install-confirmation": "Molis Work install confirmation",
     "workbench.package-install-card.owner-cant-change-this-part": "“{owner}” can’t change this part",
     "workbench.package-install-card.checking-the-package": "Checking the package…",
-    "workbench.package-install-card.cleanup-incomplete": "The new version is installed. Some old data could not be removed. To try again, uninstall it and delete its data before adding new content, then reinstall.",
+    "workbench.package-install-card.cleanup-incomplete": "The new version is installed, but some old data could not be removed. Check your free disk space and folder permissions.",
   "workbench.package-install-card.cannot-read-kept-data": "This version can’t read your old data",
     "workbench.package-install-card.discard-consequence": "Installing {name} {version} will permanently delete the data you kept when you uninstalled it.",
     "workbench.package-install-card.discard-and-install": "Discard old data and install",

@@ -59,6 +59,6 @@ export function stageConnectorPluginBindings(home: string, scopeId: string, plug
   forgetConnectorPluginBindings(home, scopeId, pluginId);
   return { restore() {
     forgetConnectorPluginBindings(home, scopeId, pluginId);
-    if (restore) withConnectorsStore(home, restore, true);
+    if (restore && existsSync(homeSqlitePath(home, "connectors"))) withConnectorsStore(home, restore);
   } };
 }

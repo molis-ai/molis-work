@@ -256,8 +256,12 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
     }
     if (kept && earlier && discard) {
       const clear = async () => {
-        try { await forgetRetainedInstallationRecords(c.home, c.project_id, earlier); }
-        finally { for (const part of staged) part.close?.(); }
+        const results = await Promise.allSettled([
+          async () => forgetRetainedInstallationRecords(c.home, c.project_id, earlier),
+          ...staged.map(part => () => part.close?.()),
+        ].map(async remove => remove()));
+        const failed = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+        if (failed.length) throw new AggregateError(failed, '部分旧数据未能删除');
       };
       if (grants.afterInstall) grants.afterInstall(clear);
       else await clear();

@@ -9204,7 +9204,7 @@
     "workbench.package-install-card.molis-work-install-confirmation": "Molis Work 安装确认",
     "workbench.package-install-card.owner-cant-change-this-part": "这一块「{owner}」改不了",
     "workbench.package-install-card.checking-the-package": "正在检查安装包…",
-    "workbench.package-install-card.cleanup-incomplete": "新版已安装，部分旧数据未能删除。如要重新清理，请在写入新内容前卸载插件，选择删除数据，再重新安装。",
+    "workbench.package-install-card.cleanup-incomplete": "新版已安装，但部分旧数据未能删除。请检查磁盘剩余空间和文件夹权限。",
   "workbench.package-install-card.cannot-read-kept-data": "这个版本读不了旧数据",
     "workbench.package-install-card.discard-consequence": "安装「{name}」{version} 会永久删除上次卸载时保留的数据。",
     "workbench.package-install-card.discard-and-install": "放弃旧数据并安装",

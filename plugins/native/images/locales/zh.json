@@ -21,7 +21,6 @@
       }
     },
     "images.background.failed": "没有生成出来",
-    "images.background.interrupted": "图片没有生成完：{prompt}",
     "images.background.generating": "正在用 {model} 生成",
     "images.background.open": "打开图片",
     "images.background.stop-summary": "停止本机等待；服务商可能仍在生成或计费",

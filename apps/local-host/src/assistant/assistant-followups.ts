@@ -362,9 +362,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   tellReminder(reminder: PartitionReminder): boolean {
     const time_zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const title = cutHead(reminder.title, 120);
+    const key = reminder.interrupted
+      ? (reminder.late ? "workbench.assistant-notice.reminder-interrupted-missed" : "workbench.assistant-notice.reminder-interrupted")
+      : (reminder.late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder");
     return this.ports.notify({ kind: "reminder", work_id: "", work_title: reminder.source_title,
-      text: assistantWords(reminder.late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder",
-        { source: reminder.source_title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
+      text: assistantWords(key, { source: reminder.source_title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
       ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title, project_id: reminder.partition_id } } : {}) },
       `reminder:${reminder.install_id}:${reminder.partition_id}:${reminder.entry_key}@${reminder.due_at}`);
   }

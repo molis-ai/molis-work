@@ -1,12 +1,13 @@
 import { realpathSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDueReminder } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * A reminder a per-partition plugin's due entry raised (batch 108): its overview table's reminder time, or an entry it registered, fell due,
  * the platform woke only that plugin in that partition, and this is what the person is told. The Assistant takes it and tells it once, under
  * the person's notice rules, as it told the reminders it once asked the plugins for.
  */
-export interface PartitionReminder {
+export interface PartitionReminder extends Pick<PluginDueReminder, "interrupted"> {
   readonly partition_id: string;
   readonly plugin_id: string;
   readonly install_id: string;

@@ -57,6 +57,13 @@ test("W5-01-IMGPORT-02 RAC-329: stop writes no failure; restart interrupts once 
   await f.platform.supervisor.restart(imagesManifest.plugin_id);
   const recovered = (await client.invoke(actions.get, { id: job.id })).job;
   assert.equal(recovered.status, "interrupted"); assert.equal(recovered.prompt, input.prompt);
+  // B2R-05 / UPP-32. A retried delivery returns the same subject and interruption for the Assistant to show later.
+  const deadline = { source: "plugin" as const, entry_key: `job:${job.id}`, due_at: new Date().toISOString(), late: true };
+  for (let delivery = 0; delivery < 2; delivery++) {
+    assert.deepEqual(await f.platform.deliverDue(imagesManifest.plugin_id, deadline), {
+      reminder: { title: input.prompt, interrupted: true, open: { surface: "images", id: job.id } },
+    });
+  }
   assert.equal((await client.invoke(actions.start, input)).job.id, job.id); assert.equal(f.calls.length, 2);
   assert.deepEqual(f.assets(), [savedJob.images[0]!.filename]);
   assert.equal((await client.invoke(actions.image, { id: savedJob.id, image_id: savedJob.images[0]!.id })).base64, IMAGE_PNG);

@@ -1801,6 +1801,8 @@
       }
     },
     "workbench.assistant-notice.reminder": "Reminder from {source} at {at}: {title}",
+    "workbench.assistant-notice.reminder-interrupted": "Task interrupted in {source} at {at}: {title}",
+    "workbench.assistant-notice.reminder-interrupted-missed": "Missed reminder from {source} at {at} — task interrupted: {title}",
     "workbench.assistant-notice.reminder-missed": "Missed reminder from {source} at {at}: {title}",
     "workbench.assistant-notice.result": "{from} returned a result to “{title}”.",
     "workbench.assistant-notice.results": {

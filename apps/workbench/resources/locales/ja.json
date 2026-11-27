@@ -1717,6 +1717,8 @@
     "workbench.assistant-notice.open-named": "「{title}」を開く",
     "workbench.assistant-notice.plugin-review": "プラグイン通知：確認待ち{count}件",
     "workbench.assistant-notice.reminder": "リマインダー（{source} · {at}）：{title}",
+    "workbench.assistant-notice.reminder-interrupted": "{source}のタスクが中断しました（{at}）：{title}",
+    "workbench.assistant-notice.reminder-interrupted-missed": "未確認のリマインダー（{source} · {at}）：タスクが中断しました。{title}",
     "workbench.assistant-notice.reminder-missed": "未確認のリマインダー（{source} · {at}）：{title}",
     "workbench.assistant-notice.result": "{from}が「{title}」へ結果を返しました。",
     "workbench.assistant-notice.results": "新しい結果が{count}件あります",

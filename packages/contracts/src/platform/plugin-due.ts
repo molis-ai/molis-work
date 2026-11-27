@@ -44,7 +44,10 @@ export interface PluginDueContext {
  * for an overview entry says the reminder no longer stands (done, acknowledged, moved): nothing is shown.
  */
 export interface PluginDueReminder {
+  /** Original subject text to keep and open, e.g. the prompt of a generation. */
   readonly title: string;
+  /** The work stopped before completing. The Assistant describes this in the person's current language. */
+  readonly interrupted?: true;
   /** The object to open, in this plugin's page in this partition. */
   readonly open?: { readonly surface: string; readonly id: string };
 }

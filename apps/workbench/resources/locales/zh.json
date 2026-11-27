@@ -1727,6 +1727,8 @@
     "workbench.assistant-notice.open-named": "打开「{title}」",
     "workbench.assistant-notice.plugin-review": "插件通知：{count} 条待核对",
     "workbench.assistant-notice.reminder": "提醒（{source} · {at}）：{title}",
+    "workbench.assistant-notice.reminder-interrupted": "{source} 的任务已中断（{at}）：{title}",
+    "workbench.assistant-notice.reminder-interrupted-missed": "错过的提醒（{source} · {at}）：任务已中断，{title}",
     "workbench.assistant-notice.reminder-missed": "错过的提醒（{source} · {at}）：{title}",
     "workbench.assistant-notice.result": "{from} 把结果交回了「{title}」",
     "workbench.assistant-notice.results": "有 {count} 条新结果",

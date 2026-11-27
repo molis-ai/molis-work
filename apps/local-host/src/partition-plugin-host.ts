@@ -226,7 +226,8 @@ export class PartitionPluginHost {
     const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry, manifest) : null;
     if (!reminder) return false;
     await tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
-      due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null });
+      due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null,
+      ...(reminder.interrupted ? { interrupted: true } : {}) });
     return true;
   }
 

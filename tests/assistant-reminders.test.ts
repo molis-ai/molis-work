@@ -44,6 +44,21 @@ test("a reminder that fell due in a partition is told once, where to open it, un
   assert.equal(service.followUps.tellReminder(reminder({ partition_id: "personal", entry_key: "task:t2", due_at: "2026-09-29T09:30:00Z", late: true, title: "交报销单", open: { surface: "todo", id: "t2" } })), true);
   notices = service.notices.notices("goals");
   assert.deepEqual(notices.map(notice => [noticeText(notice), notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", "personal"]]);
+
+  // B2R-05 / UPP-32. The same saved interruption still has the original subject when the reader changes language.
+  for (const late of [false, true]) {
+    const entry = reminder({ plugin_id: "io.molis.work.images", install_id: "images", entry_key: `job:${late}`, late,
+      interrupted: true, source_title: "Images", title: "🌃 海报", open: { surface: "images", id: "poster" } });
+    assert.equal(service.followUps.tellReminder(entry), true);
+    assert.equal(service.followUps.tellReminder(entry), false);
+    const saved = service.notices.notices("goals").find(n => n.open?.id === "poster");
+    assert.ok(saved);
+    assert.equal(saved.open?.title, "🌃 海报");
+    assert.match(noticeText(saved, "zh"), late ? /错过.*任务已中断.*🌃 海报/u : /任务已中断.*🌃 海报/u);
+    assert.match(noticeText(saved, "en"), late ? /Missed reminder.*task interrupted.*🌃 海报/u : /Task interrupted.*🌃 海报/u);
+    assert.match(noticeText(saved, "ja"), late ? /未確認.*中断しました.*🌃 海报/u : /中断しました.*🌃 海报/u);
+    assert.equal(service.notices.settleNotices({ notice_id: saved.notice_id }, "seen"), 1);
+  }
 });
 
 test("a reminder reaches the Assistant of its own Home only, and is refused while nobody takes reminders so its due entry is tried again", async () => {

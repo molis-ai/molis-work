@@ -91,7 +91,7 @@ Todo 的 [投影写入](../../plugins/native/todo/src/overview.ts) 与 Jelly 的
 context.services.due?.register({ entry_key: job.id, due_at: job.deadline });
 ```
 
-到期回调先用 `delivery.beforeEffect()` 复查权限，再把结果写进本分区业务库。通过 `{ reminder: { title, open } }` 返回需要告诉本人的内容。宿主等待通知接收成功才确认这次交付。重复交付同一键与时间时读取已完成的业务结果。
+到期回调用第二个参数的 `beforeEffect()` 复查权限，再把结果写进本分区业务库。通过 `{ reminder: { title, open } }` 返回用户原文和打开目标。工作中断时在提醒上加 `interrupted: true`，助理会按查看时的界面语言说明原因。宿主等待通知接收成功才确认交付。重复交付同一键与时间时读取已完成的业务结果。
 
 受保护的工作台页面用宿主已验证的本人会话读取任务。下例可放在工作台的个人空间组件内：
 

@@ -4578,6 +4578,7 @@ export interface PluginDueOutcome {
 
 export interface PluginDueReminder {
     readonly title: string;
+    readonly interrupted?: true;
     readonly open?: {
         readonly surface: string;
         readonly id: string;

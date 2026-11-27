@@ -7,7 +7,7 @@ import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenera
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutCharacters, exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ImagesStore, INTERRUPTED } from "./store.js";
 import type { ImagesConnectionChanges, ImagesConnections, StoredConnection } from "./connections.js";
 import { runImageJob } from "./service-job.js";
@@ -271,7 +271,7 @@ export class ImagesService {
       return {};
     }
     if (row.status === "running") await this.write(control, store => store.finish(id, "interrupted", [], INTERRUPTED));
-    return { reminder: { title: uiText.text("images.background.interrupted", { prompt: [...row.prompt].slice(0, 120).join("") }), open: { surface: "images", id } } };
+    return { reminder: { title: cutCharacters(row.prompt, 120), interrupted: true, open: { surface: "images", id } } };
   }
 
   close(): void { this.closed = true; for (const controller of this.active.values()) controller.abort(); this.active.clear(); }

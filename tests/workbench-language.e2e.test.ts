@@ -216,6 +216,22 @@ test("FSS-36 an open missed follow-up notice keeps its original label and time t
   const readSource = `(() => { const go = document.querySelector(${JSON.stringify(imageButton)}), row = go?.closest('.assistant-notice');
     return [row?.querySelector('.assistant-notice-text')?.textContent, go?.getAttribute('aria-label'),
       row?.querySelector('[data-notice-action=dismiss]')?.getAttribute('aria-label')]; })()`;
+  // The bell retains the displayed notices when their part of an attention read is unavailable.
+  await b.evaluate(`(() => {
+    let omit = true;
+    const fetchOriginal = window.fetch;
+    window.fetch = async (input, init) => {
+      const reply = await fetchOriginal(input, init);
+      if (!omit || !new URL(String(input?.url || input), location.href).pathname.endsWith('/api/attention')) return reply;
+      omit = false;
+      return Response.json({ ...await reply.json(), notices: null });
+    };
+    document.addEventListener('molis-work:attention', function partial(event) {
+      if (event.detail.notices === null) { window.partialNoticesSeen = true; document.removeEventListener('molis-work:attention', partial); }
+    });
+    document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'));
+  })()`);
+  await b.waitFor("window.partialNoticesSeen === true");
   for (const [tag, words, name] of [["ja", /原始提醒 <raw>/u, "画像"], ["zh", /错过了「原始提醒 <raw>」.*03:00:37/u, "图片"], ["en", english, "Images"]] as const) {
     await select(tag);
     await b.waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);

@@ -153,7 +153,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     try {
       const data = await molisWorkRequest(address, { signal: current.controller.signal });
       if (reading !== current || address !== readAddress()) return;
-      hasReminderSources = data.notices?.some(notice => notice.reminder_source) === true;
+      if (Array.isArray(data.notices)) hasReminderSources = data.notices.some(notice => notice.reminder_source);
       if (hasReminderSources && current.language !== document.documentElement.dataset.uiLanguageTag) { again = true; return; }
       showTasks(data.background_tasks, sequence);
       again ||= data.background_tasks?.updating === true;

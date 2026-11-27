@@ -1,7 +1,13 @@
-import { ActionError, definePlugin, defineAction, definePollingIntegrationPlugin, bindActionHandler, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
+import { defineErrorCodes, definePlugin, defineAction, definePollingIntegrationPlugin, bindActionHandler, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { defineStateMachine } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 import manifest from "./manifest.json" with { type: "json" };
+
+const noteErrors = defineErrorCodes("notes", {
+  not_found: "not_found",
+  setting_invalid: "invalid",
+  setting_conflict: "conflict",
+});
 
 /** Where the sample says its results come from. */
 const SAMPLE_SOURCE = "Tom's R&D notes";
@@ -114,6 +120,7 @@ function sampleNotes(storage, projectDatabase, pluginId) {
         return outcome;
       });
     }
+    await context?.beforeEffect?.();
     const state = read();
     const outcome = mutate(state);
     state.revision += 1;
@@ -122,7 +129,7 @@ function sampleNotes(storage, projectDatabase, pluginId) {
   };
   const find = (state, id) => {
     const note = state.notes.find(item => item.id === id);
-    if (!note) throw Object.assign(new Error("No such sample note"), { code: "actions.not_found" });
+    if (!note) throw noteErrors.not_found("No such sample note");
     return note;
   };
   const item = note => ({ subject: { kind: NOTE, id: note.id }, title: note.title, next_hint: "", status_label: note.bindings.length ? "attached" : "blank",
@@ -190,7 +197,7 @@ function sampleNotes(storage, projectDatabase, pluginId) {
     },
     "work_prompt": (_context, input) => {
       const note = read().notes.find(item => item.id === input.subject_id);
-      if (!note) throw new ActionError("actions.missing", "No such sample note");
+      if (!note) throw noteErrors.not_found("No such sample note");
       return {
         subject: { kind: NOTE, id: note.id },
         title: note.title,
@@ -216,13 +223,16 @@ function sampleNotes(storage, projectDatabase, pluginId) {
       return { cleared };
     },
     "settings.read": () => values(),
-    "settings.write": (_context, input) => {
-      if (input.key !== "greeting") throw Object.assign(new Error("No such setting"), { code: "actions.input_invalid" });
-      if (input.expected_revision !== values().values[0].revision) throw Object.assign(new Error("The setting changed meanwhile"), { code: "actions.conflict" });
-      if ("set" in input.change) {
-        if (typeof input.change.set !== "string" || input.change.set.length > 80) throw Object.assign(new Error("A greeting is text of at most 80"), { code: "actions.input_invalid" });
-        storage.set("setting:greeting:" + input.layer, input.change.set);
-      } else storage.delete("setting:greeting:" + input.layer);
+    "settings.write": async (context, input) => {
+      if (input.key !== "greeting") throw noteErrors.setting_invalid("No such setting");
+      if (input.expected_revision !== values().values[0].revision) throw noteErrors.setting_conflict("The setting changed meanwhile");
+      if ("set" in input.change && (typeof input.change.set !== "string" || input.change.set.length > 80)) {
+        throw noteErrors.setting_invalid("A greeting is text of at most 80");
+      }
+      await context?.beforeEffect?.();
+      if (input.expected_revision !== values().values[0].revision) throw noteErrors.setting_conflict("The setting changed meanwhile");
+      if ("set" in input.change) storage.set("setting:greeting:" + input.layer, input.change.set);
+      else storage.delete("setting:greeting:" + input.layer);
       return values();
     },
   };

@@ -27,7 +27,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const remaining = (left, timing) => { if (!timing?.calls) return globalThis.t.text("workbench.context-onboarding.estimating-time-left"); const minutes = Math.ceil(left * timing.ms / timing.calls / 60000); return minutes <= 1 ? globalThis.t.text("workbench.context-onboarding.under-minute-left") : minutes < 60 ? globalThis.t.text("workbench.context-onboarding.about-n-min-left", {n:minutes}) : globalThis.t.text("workbench.context-onboarding.about-h-h-m-min-left", {h:Math.floor(minutes / 60), m:minutes % 60}); };
   const included = s => (s.metadata?.files||[]).filter(f=>!(s.excluded||[]).some(p=>f.path===p||f.path.startsWith(p+'/')));
   const route = path => desktop && !/[?&]desktop=1(&|$)/.test(path) ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
-  let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null, takeNotice = '';
+  let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, pollGen = 0, authGen = 0, opener = null, takeNotice = '';
+  const stopPolling = () => { pollGen += 1; authGen += 1; clearTimeout(timer); clearTimeout(authTimer); timer = 0; authTimer = 0; };
   let saveQueue = Promise.resolve();
   const api = (path, body) => molisWorkRequest(path, {body, fallback:globalThis.t.text("workbench.context-onboarding.request-failed-try-again")});
   const failureText = value => typeof value==='string' ? value : molisWorkRequest.text(value);
@@ -253,7 +254,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
     const right = stageHead(globalThis.t.text("workbench.context-onboarding.confirm-one-one"), globalThis.t.text("workbench.context-onboarding.n-selected-size", {n:total.count, size:size(total.bytes)})) + listed.map(scopeGroup).join('') + staleSummaryCard();
     return {kind:'onboard', view:'preview', step:'scope', left, right,
       bar:{start:exitButton() + stepsBar('scope'), center:barStatus({glyph:'shield', title:globalThis.t.text("workbench.context-onboarding.n-selected-size", {n:total.count, size:size(total.bytes)}), caption:missing ? globalThis.t.text("workbench.context-onboarding.finish-sources-above-skip-what-don-t-need") : config.ai_available ? globalThis.t.text("workbench.context-onboarding.after-start-text-read-sent-chosen-model") : globalThis.t.text("workbench.context-onboarding.after-start-text-read-kept-device")}),
-        end:secondary("workbench.context-onboarding.previous",'sources',{icon:'back'}) + (uploading || readingLocal ? primary(uploading ? globalThis.t.text("workbench.context-onboarding.uploading-k-n", uploading) : globalThis.t.text("workbench.context-onboarding.reading-name", {name:readingLocal}), 'start', {disabled:true}) : primary("workbench.context-onboarding.next",'model'))}};
+        end:secondary("workbench.context-onboarding.previous",'sources',{icon:'back'}) + (uploading || readingLocal ? primaryText(uploading ? globalThis.t.text("workbench.context-onboarding.uploading-k-n", uploading) : globalThis.t.text("workbench.context-onboarding.reading-name", {name:readingLocal}), 'start', {disabled:true}) : primary("workbench.context-onboarding.next",'model'))}};
   }
 
   /* ───────── Reading: the Host reads and sorts; the person may leave and come back ───────── */
@@ -267,7 +268,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
         bar:{start:exitButton() + stepsBar('reading'), center:barStatus({glyph:'check', title:globalThis.t.text("workbench.context-onboarding.materials-ready"), caption:globalThis.t.text("workbench.context-onboarding.originals-kept-device")}), end:secondary("workbench.context-onboarding.adjust-sources",'restart') + primary("workbench.context-onboarding.save-materials-start",'materials-only')}};
     }
     const reading = journey.phase==='reading', failed = journey.phase==='failed';
-    const heading = reading ? (done===picked().length ? "workbench.context-onboarding.tracing-how-work-fits-together" : "workbench.context-onboarding.reading-materials") : "workbench.context-onboarding.materials-kept";
+    const heading = readText(reading ? (done===picked().length ? "workbench.context-onboarding.tracing-how-work-fits-together" : "workbench.context-onboarding.reading-materials") : "workbench.context-onboarding.materials-kept");
     // Files, not sources: each source is read file by file, and its checkpoint says how far it has come.
     const files = picked().reduce((n, s) => ({done:n.done + (s.references ? s.references.length + (s.issues?.length || 0) + (s.held_secrets?.length || 0) : s.reading?.done || 0), total:n.total + (s.references ? s.references.length + (s.issues?.length || 0) + (s.held_secrets?.length || 0) : s.reading?.total || 0)}), {done:0, total:0});
     const synthesis = journey.synthesis, todo = journey.drafts && journey.drafts.status !== 'none' ? journey.drafts : null, bytes = journey.reading_bytes?.total ? journey.reading_bytes : null;
@@ -516,29 +517,46 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const summary = journey.summary_open;
     return route(summary ? objectLinkAt(home, { surface: summary.surface, id: summary.id, title: (journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary") }) : home);
   }
-  async function poll() {
-    clearTimeout(timer);
-    try { journey=await api(endpoint()); if(journey.phase==='complete'){if(takeHeld()){render();return;}location.assign(projectLocation());return;} render();void installDraftWords();if(journey.phase==='reading'||journey.phase==='adopting')timer=setTimeout(poll,1800); }
-    catch(e){error=keepFailure(e);render();timer=setTimeout(poll,5000);}
+  const schedulePoll = (ms) => { clearTimeout(timer); const gen = ++pollGen; timer = setTimeout(() => { if (gen === pollGen) void poll(gen); }, ms); };
+  const scheduleAuth = (ms) => { clearTimeout(authTimer); const gen = ++authGen; authTimer = setTimeout(() => { if (gen === authGen) void pollAuthorization(gen); }, ms); };
+  async function poll(gen = ++pollGen) {
+    clearTimeout(timer); timer = 0;
+    const id = journey?.id;
+    if (!id) return;
+    try {
+      const latest = await api(endpoint());
+      if (gen !== pollGen || journey?.id !== id) return;
+      journey = latest;
+      if (journey.phase === 'complete') { if (takeHeld()) { render(); return; } location.assign(projectLocation()); return; }
+      render(); void installDraftWords();
+      if (journey.phase === 'reading' || journey.phase === 'adopting') schedulePoll(1800);
+    } catch (e) {
+      if (gen !== pollGen || journey?.id !== id) return;
+      error = keepFailure(e); render(); schedulePoll(5000);
+    }
   }
   async function connect(auto=false) {
     if(!config.gmail_configured) { expanded='gmail';error=globalThis.t.text("workbench.context-onboarding.google-access-isn-t-ready-yet-use-other");render();return; }
     source('gmail').selected=true;journey.auto_start=auto;await save();
     const result=await api('/api/settings/connectors/methods/oauth/start',{service_id:config.mailbox.service_id,display_name:config.mailbox.title,onboarding_id:journey.id,desktop});
     if(globalThis.molisWorkOpenExternalUrl){
-      await globalThis.molisWorkOpenExternalUrl(result.authorization_url);journey.oauth_status='pending';render();authTimer=setTimeout(pollAuthorization,1500);
+      await globalThis.molisWorkOpenExternalUrl(result.authorization_url);journey.oauth_status='pending';render();scheduleAuth(1500);
     }else location.assign(result.authorization_url);
   }
-  async function pollAuthorization() {
-    clearTimeout(authTimer);
+  async function pollAuthorization(gen = ++authGen) {
+    clearTimeout(authTimer); authTimer = 0;
+    const id = journey?.id;
+    if (!id) return;
     try {
       const latest=await api(endpoint());
-      if(latest.oauth_status==='pending'){authTimer=setTimeout(pollAuthorization,1800);return;}
+      if (gen !== authGen || journey?.id !== id) return;
+      if(latest.oauth_status==='pending'){scheduleAuth(1800);return;}
       journey=latest;config=await readConfig();
+      if (gen !== authGen || journey?.id !== id) return;
       if(latest.oauth_status==='connected'){error='';if(journey.auto_start&&journey.phase==='selecting')await prepare();else if(journey.phase==='reading'||journey.phase==='adopting')await poll();}
       else error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-try-again-use");
       render();
-    }catch(e){error=keepFailure(e);render();authTimer=setTimeout(pollAuthorization,5000);}
+    }catch(e){if (gen !== authGen || journey?.id !== id) return; error=keepFailure(e);render();scheduleAuth(5000);}
   }
   async function refreshGrants() { if(native) for(const grant of await invoke('context_directory_status')) grants[grant.id]=grant; }
   async function authorize(kind) {
@@ -576,7 +594,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
       const files=lists.reduce((n,[s,chosen])=>n+chosen.filter(f=>!f.alreadyStaged&&!s.staged_digests?.[f.path]).length,0),total=lists.reduce((n,[s,chosen])=>n+chosen.reduce((m,f)=>m+(f.alreadyStaged||s.staged_digests?.[f.path]?0:(f.size||0)),0),0);
       let k=0,sent=0,drawn=0;
       try{for(const [s,chosen] of lists) {
-        readingLocal=names[s.kind];s.files=[];
+        readingLocal=readText(names[s.kind]);s.files=[];
         for(const item of chosen) {
           const hadDigest=item.alreadyStaged||s.staged_digests?.[item.path];
           if(hadDigest){s.files.push({path:item.path,staged:hadDigest});continue;}
@@ -586,12 +604,14 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
           else{const staged=await molisWorkRequest(endpoint('files')+'?path='+encodeURIComponent(item.webkitRelativePath||item.name),{file:item,fallback:globalThis.t.text("workbench.context-onboarding.upload-failed-try-again")});(s.staged_digests||={})[staged.path]=staged.staged;s.files.push({path:staged.path,staged:staged.staged});}
           sent+=item.size||0;
         }
-      }}finally{uploading=null;}
-      readingLocal='';uploading=null;await save();
+      }}finally{uploading=null;readingLocal='';}
+      await save();
     }
-    journey=await api(endpoint('start'),{});render();timer=setTimeout(poll,800);
+    stopPolling();
+    journey=await api(endpoint('start'),{});render();schedulePoll(800);
   }
   async function restart() {
+    stopPolling();
     const oldId=journey?.id, previous=journey?.sources || [];
     if(oldId)await clearJourneyUploads(oldId);
     uploads.clear();pausedScan=null;
@@ -601,6 +621,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';draftPicked=null;await save();
   }
   async function reopen() {
+    stopPolling();
     await saveQueue;journey=await api(endpoint('reopen'),{});journey.previewed=false;blank=false;error='';editing=false;draftPicked=null;render();
   }
   function saveDraft() {
@@ -670,7 +691,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(b.dataset.action==='continue-upload'){const paused=pausedUploads.get(b.dataset.continueUpload);if(paused){busy=true;error='';render();try{await runUploadCount(null,paused);pausedUploads.delete(b.dataset.continueUpload);await save();}catch(err){error=keepFailure(err);}finally{busy=false;counting=null;render();}}return;}
     if(b.dataset.moreFiles){scopeVisible[b.dataset.moreFiles]=(scopeVisible[b.dataset.moreFiles]||200)+400;render();return;}
     if(b.dataset.mrFilter){mrFilter=b.dataset.mrFilter;render();return;}
-    if(b.dataset.secretKey){busy=true;error='';render();try{journey=await api(endpoint('secret'),{key:b.dataset.secretKey,decision:b.dataset.secretDecision});if(journey.phase==='reading')timer=setTimeout(poll,800);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
+    if(b.dataset.secretKey){busy=true;error='';render();try{stopPolling();journey=await api(endpoint('secret'),{key:b.dataset.secretKey,decision:b.dataset.secretDecision});if(journey.phase==='reading')schedulePoll(800);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
     if(b.dataset.fold){if(folded.has(b.dataset.fold))folded.delete(b.dataset.fold);else folded.add(b.dataset.fold);render();return;}
     if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{/* Ignore sessionStorage cleanup failure on exit. */}location.assign(route('/'));}catch(err){error=keepFailure(err);render();}return;}
     if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{/* Ignore localStorage failure while toggling onboarding theme. */}render();return;}
@@ -740,7 +761,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(action==='model'||action==='model-back'||action==='model-save'){await globalThis.molisWorkOnboardingModel?.act(action);return;}
     if(action==='take-continue'){location.assign(projectLocation());return;}
     busy=true;error='';b.disabled=true;
-    try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){clearTimeout(authTimer);source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
+    try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){authGen+=1;clearTimeout(authTimer);authTimer=0;source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
     catch(err){error=keepFailure(err);}finally{busy=false;b.disabled=false;render();}
   });
   dialog.addEventListener('click',e=>{if(e.target.closest('[data-close]'))dialog.close();});dialog.addEventListener('close',()=>opener?.focus());
@@ -786,7 +807,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(journey.phase==='selecting'){const gmail=source('gmail');if(gmail&&!gmail.connection_id&&connected().length===1)gmail.connection_id=connected()[0].connection_id;}
     if(params.get('start')==='blank'||params.get('name')){blank=true;blankName=(params.get('name')||'').trim();}
     const oauth=params.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}
-    render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:globalThis.t.text(oauth==='connected'?"workbench.context-onboarding.google-connected":"workbench.context-onboarding.google-not-connected"),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)authTimer=setTimeout(pollAuthorization,1000);if(journey.phase==='complete'){if(takeHeld()){render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
+    render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:globalThis.t.text(oauth==='connected'?"workbench.context-onboarding.google-connected":"workbench.context-onboarding.google-not-connected"),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)scheduleAuth(1000);if(journey.phase==='complete'){if(takeHeld()){render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
   }catch(e){loadError=e;error=keepFailure(e);render();}})();
 })();
 `;

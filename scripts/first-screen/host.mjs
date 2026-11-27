@@ -8,7 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 export const LOCALES = ["zh", "en"];
 export const LOCALE_COOKIE = "molis_work_locale";
-const RESERVED_PORTS = new Set([4207, 4208]);
+const RESERVED_PORTS = new Set([4173, 4207, 4208]);
 
 async function availablePort(requested, signal) {
   if (RESERVED_PORTS.has(requested)) throw new Error(`port ${requested} belongs to the real Home`);

@@ -221,6 +221,8 @@ export class MolisWorkLocalHost {
   readonly placement?: PlacementHost;
   readonly homePlugins?: HomePluginHost;
   private readonly callReports = hostCallReports(this);
+  /** Partitions opened solely by a single-plugin due wakeup without starting their project platform (S-partition-wake-scope). */
+  private readonly dueWokenPartitions = new Set<string>();
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     if (options.homeDirectory !== undefined) {
@@ -348,6 +350,9 @@ export class MolisWorkLocalHost {
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         sessionLifecycle: runtimeId => this.agents?.service.agentHost.adapter(runtimeId).sessionLifecycle,
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
+        backgroundProject: projectId => this.dueWokenPartitions.has(projectId)
+          ? undefined
+          : this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
         ownerContext,
         // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
@@ -374,7 +379,17 @@ export class MolisWorkLocalHost {
       partitionPluginHostFor(home, startPartitionPluginInstance).startServices(async (partitionId, work) => {
         const record = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listPartitions().find(project => project.project_id === partitionId)) : undefined;
         if (!record) throw new ActionError("actions.plugin_unavailable", "这个分区已经不在了");
-        return withPartitionPluginPorts(this.plugins, reference(record), work);
+        const key = partitionId.trim();
+        const alreadyOpen = this.host.projects().some(row => row.project_id === key && row.state !== "closing");
+        if (!alreadyOpen) this.dueWokenPartitions.add(key);
+        try {
+          return await withPartitionPluginPorts(this.plugins, reference(record), work);
+        } catch (error) {
+          if (!alreadyOpen && !this.host.projects().some(row => row.project_id === key && row.state !== "closing")) {
+            this.dueWokenPartitions.delete(key);
+          }
+          throw error;
+        }
       });
     }
     } catch (error) {
@@ -554,6 +569,7 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     caller.signal?.throwIfAborted();
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
+    this.dueWokenPartitions.delete(reference.project_id.trim());
     return prepareProjectActionDirectory(this.plugins, reference, caller.signal);
   }
 
@@ -589,10 +605,18 @@ export class MolisWorkLocalHost {
     reference: LocalHostProjectReference,
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, options?: { activatePlugins?: boolean },
   ): Promise<Result> {
+    if (options?.activatePlugins) this.dueWokenPartitions.delete(reference.project_id.trim());
     return withPreparedProject(this.plugins, reference, operation, options?.activatePlugins);
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
+    const projectId = (typeof referenceOrStorageKey === "string"
+      ? this.host.projects().find(project => project.storage_key === referenceOrStorageKey)?.project_id
+      : referenceOrStorageKey.project_id)?.trim();
+    if (projectId) {
+      this.dueWokenPartitions.delete(projectId);
+      this.search?.projectClosed(projectId);
+    }
     return this.host.closeProject(referenceOrStorageKey);
   }
 
@@ -643,7 +667,7 @@ export class MolisWorkLocalHost {
    * later opens it again. Whether it was closed.
    */
   async sleepIfIdle(reference: LocalHostProjectReference, idleMs: number): Promise<boolean> {
-    return this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
+    const slept = await this.host.sleepIfIdle(reference.storage_key, idleMs, async () => {
       if (this.homePlugins?.hasProjectWork(reference.project_id)) return true;
       const running = await this.host.withExistingRuntime(reference, runtime => agentStudioOpen(runtime.store, runtime.project_id)
         || projectPluginsHaveWork(runtime.store, runtime.project_id) || installedPluginsStarting(runtime.store, runtime.project_id));
@@ -652,6 +676,12 @@ export class MolisWorkLocalHost {
       const source = hostOverviewSource(this);
       return source ? backgroundWorkUnderWay(source, { project_id: reference.project_id, display_name: reference.project_id }) : false;
     });
+    if (slept) {
+      const projectId = reference.project_id.trim();
+      this.dueWokenPartitions.delete(projectId);
+      this.search?.projectClosed(projectId);
+    }
+    return slept;
   }
 
   close(): Promise<void> {

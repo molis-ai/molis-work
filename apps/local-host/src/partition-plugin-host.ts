@@ -143,6 +143,7 @@ export class PartitionPluginHost {
   private sweep: NodeJS.Timeout | undefined;
   private stopAttentionMarks: (() => void) | undefined;
   private readonly rounds = new Map<string, Promise<void>>();
+  private readonly releasing = new Map<string, number>();
 
   constructor(readonly home: string, private readonly startInstance: StartInstance) {
     this.assembly = new PartitionPluginAssembly<PartitionPluginInstance>({
@@ -250,18 +251,31 @@ export class PartitionPluginHost {
     return (this.installs ??= openHomePluginStore(this.home)).db;
   }
 
-  private async start(scope: import("./partition-plugin-assembly.js").PartitionPluginScope, _reason: PartitionWakeReason): Promise<PartitionPluginInstance> {
+  private async start(scope: import("./partition-plugin-assembly.js").PartitionPluginScope, reason: PartitionWakeReason): Promise<PartitionPluginInstance> {
+    if (this.closed || this.releasing.has(scope.partition_id)) throw new ActionError("actions.plugin_unavailable", "分区正在关闭");
     const entry = this.entries.get(scope.plugin_id);
     if (!entry) throw new ActionError("actions.plugin_unavailable", "这个插件还不按分区运行");
     const run = async (ports: ProjectPluginPorts) => {
+      if (this.closed || this.releasing.has(scope.partition_id)) throw new ActionError("actions.plugin_unavailable", "分区正在关闭");
       this.noteStore(ports.store, ports.projectId);
       const instance = await this.startInstance(ports, scope, entry, this.installDatabase());
+      if (this.closed || this.releasing.has(scope.partition_id)) {
+        await instance.stop().catch(() => {});
+        throw new ActionError("actions.plugin_unavailable", "分区正在关闭");
+      }
       storeHosts.set(ports.store, this);
       return instance;
     };
     const opened = this.open.get(scope.partition_id);
-    if (opened) return run(opened.ports);
-    if (!this.opener) throw new ActionError("actions.plugin_unavailable", "这个分区现在没有打开");
+    if (opened) {
+      const instance = await run(opened.ports);
+      if (reason === "open" && (this.open.get(scope.partition_id) !== opened || this.releasing.has(scope.partition_id))) {
+        await instance.stop().catch(() => {});
+        throw new ActionError("actions.plugin_unavailable", "这个分区已关闭");
+      }
+      return instance;
+    }
+    if (reason === "open" || !this.opener) throw new ActionError("actions.plugin_unavailable", "这个分区现在没有打开");
     return this.opener(scope.partition_id, run);
   }
 
@@ -305,10 +319,12 @@ export class PartitionPluginHost {
 
   private async reconcile(partitionId: string): Promise<ProjectPluginRefreshResult> {
     const opened = this.open.get(partitionId);
-    if (!opened) return [];
+    if (!opened || this.closed || this.releasing.has(partitionId)) return [];
     const members = new Set(await this.members(partitionId));
+    if (this.open.get(partitionId) !== opened || this.closed || this.releasing.has(partitionId)) return [];
     const unfinished: { plugin_id: string; desired_enabled: boolean; reason: string }[] = [];
     for (const pluginId of this.plugins()) {
+      if (this.open.get(partitionId) !== opened || this.closed || this.releasing.has(partitionId)) return [];
       const key = JSON.stringify([pluginId, partitionId]);
       const held = opened.leases.get(pluginId);
       if (members.has(pluginId)) {
@@ -319,15 +335,18 @@ export class PartitionPluginHost {
         held?.release();
         opened.leases.delete(pluginId);
         try {
+          if (this.open.get(partitionId) !== opened || this.closed || this.releasing.has(partitionId)) return [];
           const lease = await this.assembly.acquire(pluginId, partitionId, "open");
           // Closed while it started: the lease goes with the partition.
-          if (this.open.get(partitionId) !== opened) {
+          if (this.open.get(partitionId) !== opened || this.closed || this.releasing.has(partitionId)) {
             lease.release();
-            continue;
+            if (!this.open.has(partitionId)) await this.assembly.stopPlugin(pluginId, partitionId).catch(() => {});
+            return [];
           }
           opened.leases.set(pluginId, lease);
           this.failures.delete(key);
         } catch (error) {
+          if (this.open.get(partitionId) !== opened || this.closed || this.releasing.has(partitionId)) return [];
           const reason = error instanceof Error ? error.message : String(error);
           // Which plugin in which partition, and the platform's code for why: never the plugin's own words.
           const causeCode = error instanceof ActionError ? (error.details as { code?: unknown } | undefined)?.code ?? error.code : undefined;
@@ -347,12 +366,13 @@ export class PartitionPluginHost {
           await this.assembly.stopPlugin(pluginId, partitionId);
           this.pluginDisabled(pluginId, partitionId);
         } catch (error) {
+          if (this.open.get(partitionId) !== opened || this.closed || this.releasing.has(partitionId)) return [];
           unfinished.push({ plugin_id: pluginId, desired_enabled: false, reason: error instanceof Error ? error.message : String(error) });
           continue;
         }
       }
       const entry = this.entries.get(pluginId);
-      if (entry && !opened.off.has(pluginId) && this.open.get(partitionId) === opened) {
+      if (entry && !opened.off.has(pluginId) && this.open.get(partitionId) === opened && !this.releasing.has(partitionId)) {
         opened.off.set(pluginId, registerPluginOffHere(opened.ports.actions.registry, entry.definition.manifest,
           { provider_id: providerOf(entry), plugin_install_id: installIdentity(entry.definition.manifest), project_id: partitionId }));
       }
@@ -371,14 +391,26 @@ export class PartitionPluginHost {
 
   /** The partition closes (its runtime, or the project is deleted): its leases go and every instance in it stops. */
   async releasePartition(partitionId: string): Promise<void> {
-    const opened = this.open.get(partitionId);
-    this.open.delete(partitionId);
-    for (const lease of opened?.leases.values() ?? []) lease.release();
-    for (const withdraw of opened?.off.values() ?? []) withdraw();
-    for (const key of [...this.failures.keys()]) if ((JSON.parse(key) as string[])[1] === partitionId) this.failures.delete(key);
-    await this.assembly.stopPartition(partitionId);
-    // Made by a bare project platform (no Host started the services): nothing keeps it once its last partition closed.
-    if (!this.services && this.open.size === 0 && this.assembly.instances().length === 0) await this.close();
+    this.releasing.set(partitionId, (this.releasing.get(partitionId) ?? 0) + 1);
+    try {
+      const opened = this.open.get(partitionId);
+      this.open.delete(partitionId);
+      for (const lease of opened?.leases.values() ?? []) lease.release();
+      for (const withdraw of opened?.off.values() ?? []) withdraw();
+      let waited: Promise<void> | undefined;
+      for (let pending = this.rounds.get(partitionId); pending && pending !== waited && !this.open.has(partitionId); pending = this.rounds.get(partitionId)) {
+        waited = pending;
+        await pending.catch(() => {});
+      }
+      for (const key of [...this.failures.keys()]) if ((JSON.parse(key) as string[])[1] === partitionId) this.failures.delete(key);
+      await this.assembly.stopPartition(partitionId);
+      // Made by a bare project platform (no Host started the services): nothing keeps it once its last partition closed.
+      if (!this.services && this.open.size === 0 && this.assembly.instances().length === 0) await this.close();
+    } finally {
+      const remaining = (this.releasing.get(partitionId) ?? 1) - 1;
+      if (remaining <= 0) this.releasing.delete(partitionId);
+      else this.releasing.set(partitionId, remaining);
+    }
   }
 
   /** Whether an instance in this partition has background work that closing it would end. */

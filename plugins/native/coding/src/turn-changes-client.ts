@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TimelineRun, TimelineTurnChanges } from "./timeline.js";
 
 /** Runs in the browser only; the plugin build has no DOM library, so elements are typed by the fields this script touches. */
@@ -21,7 +21,7 @@ export function createCodingTurnChanges(_L: (key: string, values?: Record<string
    * before each write. Rebuilt only when what it shows changes, so an open row stays open while the round goes on.
    */
   const render = (node: TurnNode, changes: TimelineTurnChanges, run: TimelineRun, rewindable: boolean) => {
-    const key = JSON.stringify([changes.files.map(file => [file.path, file.digest, file.checkpoint_id]), rewindable]);
+    const key = JSON.stringify([activeUiLocale(), changes.files.map(file => [file.path, file.digest, file.checkpoint_id]), rewindable]);
     node.className = "coding-turn-changes";
     node.dataset.codingTurnChanges = `${run.ref.run_id}:${changes.turn}`;
     if (node.dataset.key === key) return;

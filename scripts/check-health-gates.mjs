@@ -40,7 +40,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { acquireSlot } from "./machine-slot.mjs";
 import ts from "typescript";
-import { oldNamesWantsText, SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
+import { oldNamesWantsText, SOURCE_COUNT_RULES, testAssertMatcherProblems } from "./gates/source-counts.mjs";
 import { browserWantsText } from "./gates/browser-graph.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
@@ -54,6 +54,7 @@ import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
 import { productSubsetProblems } from "./gates/product-subset.mjs";
 import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
+import { layerExceptionsWantsText } from "./gates/layer-exceptions.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { hostLineDetails, hostLineSummary, hostLinesWantText, reportHostLines } from "./gates/host-lines.mjs";
 import { hostEntryWidthSummary, measureHostEntryWidth } from "./gates/host-entry-exports.mjs";
@@ -101,7 +102,14 @@ const run = (gitArgs, extra = {}) => execFileSync("git", gitArgs, { cwd: root, e
 const git = (gitArgs, extra) => {
   try { return run(gitArgs, extra); } catch (error) { fail(`git ${gitArgs.join(" ")} failed in ${root}: ${String(error.stderr ?? error.message).trim()}`); }
 };
-const gitMaybe = (gitArgs) => { try { return run(gitArgs).trim(); } catch { return ""; } };
+const gitMaybe = (gitArgs) => {
+  try {
+    return run(gitArgs).trimEnd();
+  } catch {
+    /* ref or blob absent in git */
+    return null;
+  }
+};
 
 // ---- the thresholds (§4.5): they may be tightened, never loosened; --base compares them with the merge-base's --------
 const LIMIT_KEYS = ["file", "classLines", "classMethods", "functionLines", "vendoredPrologueSdk"];
@@ -457,7 +465,7 @@ const METRIC_BASE_INPUTS = {
   platformPluginNames: (file) => isSource(file) || /^plugins\/[^/]+\/[^/]+\/package\.json$/u.test(file),
   contractsPurity: (file) => isStructureSource(file) || structureWantsText(file),
   hostEntryExports: (file) => isStructureSource(file) || structureWantsText(file),
-  layerExceptions: (file) => isStructureSource(file) || structureWantsText(file),
+  layerExceptions: (file) => isStructureSource(file) || layerExceptionsWantsText(file) || structureWantsText(file),
   moduleRepositoryExports: (file) => isStructureSource(file) || structureWantsText(file),
   typedCapabilities: (file) => isStructureSource(file) || structureWantsText(file),
   translations: (file) => isSource(file) || file.endsWith(".json"),
@@ -587,12 +595,15 @@ const retiredRecordErrors = () => [
   ...headSnapshot.files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`),
   ...headSnapshot.files.filter(file => file.startsWith("tooling/gates/page-asset-allowances/") && file.endsWith(".json")).map(file => `${file}: retired per-byte page-asset allowance; use route budgets in tooling/gates/page-asset-budgets.json`),
 ];
-const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...pluginNameExceptionProblems(headSnapshot, head.platformPluginNames ?? {}, { required: isOwnRepository(root, import.meta.url) }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root)];
+const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...pluginNameExceptionProblems(headSnapshot, head.platformPluginNames ?? {}, { required: isOwnRepository(root, import.meta.url) }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root), ...testAssertMatcherProblems(headSnapshot)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
 // Pre-development v1 guard (scripts/gates/initial-versions.mjs): every first-party store, format, action, manifest and artifact stays at v1 with zero upgrade steps.
-const versionOrigin = () => versionOriginProblems(headSnapshot, { readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
+const versionOrigin = () => versionOriginProblems(headSnapshot, {
+  baseFiles: baseSnapshot?.files,
+  readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined,
+});
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
 
 // ---- --report --------------------------------------------------------------------------------------------------------

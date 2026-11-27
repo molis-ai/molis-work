@@ -12,7 +12,7 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 
 ## 当前真实实现
 
-- `packages/contracts/platform/app-host` 定义 versioned Capability、Project reference、Host Client 和状态类型。
+- `@molis-ai/molis-work-contracts/platform/app-host`（源码 `packages/contracts/src/platform/app-host.ts`）定义 versioned Capability、Project reference、Host Client 和状态类型。
 - `packages/kernel` 提供 Provider-neutral `CapabilityRegistry`；它只做注册、查找和调用，不保存业务事实。
 - `apps/local-host` 按 `storage_key` 发现 Project Runtime。并发连接同一 Project 只调用一次 factory，Capability 调用按 Project 串行，关闭会等待正在使用的 Runtime。
 - 装配点：`apps/local-host/src/local-host.ts`（Runtime 发现、串行队列、动作注册与调用）、`project-host.ts`（`MolisWorkLocalHost`：项目 Runtime、系统动作、插件准备、Agent 服务）、`web-composition.ts`（Web 入口的组合）。Store 与 Coordinator 只在这里创建；Web、CLI、MCP 不各自构造。

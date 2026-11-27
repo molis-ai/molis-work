@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import { addProjectPlugin, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync } from "node:fs";

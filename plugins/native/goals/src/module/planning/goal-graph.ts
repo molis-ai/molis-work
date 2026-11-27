@@ -82,17 +82,30 @@ export function validatePlanningProposalGraph(
     }
     if (item.kind !== "relation") continue;
     for (const [index, relation] of proposalRelationValues(item).entries()) {
-      const type = String(relation.type ?? "") as GoalRelationRecord["type"];
-      if (!RELATION_TYPES.has(type)) continue;
+      const action = item.operation === "deactivate" || relation.action === "deactivate" ? "deactivate" : "add";
+      const explicitRelationId = String(relation.relation_id ?? "").trim();
+      const rawType = String(relation.type ?? "") as GoalRelationRecord["type"];
+      if (action === "deactivate" && explicitRelationId) {
+        changes.push({
+          action: "deactivate",
+          relation_id: explicitRelationId,
+          from_goal_id: String(relation.from_goal_id ?? "").trim(),
+          to_goal_id: String(relation.to_goal_id ?? "").trim(),
+          type: RELATION_TYPES.has(rawType) ? rawType : "depends_on",
+          reason: String(relation.reason ?? ""),
+        });
+        continue;
+      }
+      if (!RELATION_TYPES.has(rawType)) continue;
       const from = String(relation.from_goal_id ?? "").trim();
       const to = String(relation.to_goal_id ?? "").trim();
       if (!from || !to) continue;
       changes.push({
-        action: item.operation === "deactivate" || relation.action === "deactivate" ? "deactivate" : "add",
-        relation_id: String(relation.relation_id ?? "").trim() || `proposal:${item.item_id ?? "item"}:${index}`,
+        action,
+        relation_id: action === "deactivate" ? undefined : explicitRelationId || `proposal:${item.item_id ?? "item"}:${index}`,
         from_goal_id: from,
         to_goal_id: to,
-        type,
+        type: rawType,
         reason: String(relation.reason ?? ""),
       });
     }

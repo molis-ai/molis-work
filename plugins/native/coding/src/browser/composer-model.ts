@@ -191,7 +191,7 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
       paint();
     }
   }
-  rows.addEventListener("change", (event) => {
+  lifetime.listen(rows, "change", (event) => {
     const select = event.target;
     if (!(select instanceof HTMLSelectElement)) return;
     if (select.hasAttribute("data-coding-model")) value = select.value;
@@ -200,7 +200,7 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     changed();
     paint();
   });
-  rows.addEventListener("click", (event) => { if (event.target instanceof Element && event.target.closest("[data-coding-model-switch]")) void switchTo(); });
+  lifetime.listen(rows, "click", (event) => { if (event.target instanceof Element && event.target.closest("[data-coding-model-switch]")) void switchTo(); });
   return {
     fill(next) {
       list = next;

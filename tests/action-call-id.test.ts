@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionService, currentCallId, markCallRecorded, newCallId, recordedCallId, withCallId, withCallIdSync } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionService, currentCallId, markCallRecorded, newCallId, recordedCallId, refuseCall, withCallId, withCallIdSync, type CallOutcome } from "@molis-ai/molis-work-kernel";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 type Effects = NonNullable<ConstructorParameters<typeof ActionService>[1]>;
 type Settled = NonNullable<Effects["settled"]>;
@@ -234,4 +234,70 @@ test("a call scope is reused for its own id, nested for another, and closed when
   assert.equal(recordedCallId(), undefined, "outside an operation there is nothing to mark");
   await assert.rejects(withCallId(first, async () => { throw new Error("boom"); }), /boom/u);
   assert.equal(currentCallId(), undefined, "a failed operation ends too");
+});
+
+// RAC-2040 to RAC-2043, RAC-2428 (T-239, T-308): the message a settled call records is cut by UTF-16 units;
+// a cut between the two halves of a character drops the lone half.
+const SURROGATE_PAIR = "\u{1F600}";
+const repeatA = (count: number) => "a".repeat(count);
+const endsWithLoneHigh = (text: string): boolean => /[\uD800-\uDBFF]$/.test(text);
+const cutContext: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [] };
+const cutReference: ActionReference = { capability_id: "test.settle", version: 1, provider_id: "system.test" };
+
+async function settleCutError(error: unknown): Promise<{ outcome: CallOutcome; caught: unknown }> {
+  let told: CallOutcome | undefined;
+  let caught: unknown;
+  await refuseCall({ settled: (_call, _action, outcome) => { told = outcome; } }, cutContext, cutReference, error).catch(thrown => { caught = thrown; });
+  assert.ok(told, "the call was settled once");
+  return { outcome: told, caught };
+}
+
+const cutMessageOf = async (error: unknown): Promise<string> => {
+  const { outcome } = await settleCutError(error);
+  assert.equal(outcome.ok, false);
+  return outcome.ok ? "" : outcome.message;
+};
+
+test("RAC-2040 a failure message is recorded at 200 units without leaving half a character", async () => {
+  const cases: Array<[string, string]> = [
+    [repeatA(199) + SURROGATE_PAIR, repeatA(199)],
+    [repeatA(198) + SURROGATE_PAIR + SURROGATE_PAIR, repeatA(198) + SURROGATE_PAIR],
+    [repeatA(199) + "\u{10000}", repeatA(199)],
+    [repeatA(199) + "\u{10FFFF}", repeatA(199)],
+  ];
+  for (const [said, expected] of cases) {
+    const message = await cutMessageOf(new Error(said));
+    assert.equal(message, expected, `${said.length} units`);
+    assert.ok(message.length <= 200);
+    assert.equal(endsWithLoneHigh(message), false);
+  }
+});
+
+test("RAC-2041 the record is the cut one and the caller still gets the whole error", async () => {
+  const thrown = new Error(repeatA(199) + SURROGATE_PAIR + "b");
+  Object.assign(thrown, { code: "test.failed" });
+  const { outcome, caught } = await settleCutError(thrown);
+  assert.equal(caught, thrown, "the same error reaches the caller");
+  assert.equal(thrown.message, repeatA(199) + SURROGATE_PAIR + "b", "its message is untouched");
+  assert.deepEqual(outcome, { ok: false, code: "test.failed", message: repeatA(199), refused: true });
+  assert.equal(await cutMessageOf(repeatA(199) + SURROGATE_PAIR), repeatA(199), "something thrown that is not an Error is cut the same way");
+});
+
+test("RAC-2042 text without two-unit characters is recorded exactly as before", async () => {
+  for (const source of [repeatA(1), "中", "很长 的\t文字\n第二行"]) {
+    for (const length of [199, 200, 201, 202]) {
+      const said = source.repeat(Math.ceil(length / source.length)).slice(0, length);
+      assert.equal(await cutMessageOf(new Error(said)), said.slice(0, 200), `${JSON.stringify(source)} at ${length} units`);
+    }
+  }
+  assert.equal(await cutMessageOf(new Error(repeatA(198) + SURROGATE_PAIR)), repeatA(198) + SURROGATE_PAIR, "exactly 200 units: the whole character that fits is kept");
+  assert.equal(await cutMessageOf(new Error(repeatA(199) + "\uD83D")), repeatA(199) + "\uD83D", "a half character the message itself carried, within the limit, is not this cut: left as it came");
+});
+
+test("RAC-2043 an empty message is recorded as empty", async () => {
+  assert.equal(await cutMessageOf(new Error("")), "");
+});
+
+test("RAC-2428 a long message's own lone half away from the cut point is left as it came", async () => {
+  assert.equal(await cutMessageOf(new Error(repeatA(10) + "\uD83D" + repeatA(300))), repeatA(10) + "\uD83D" + repeatA(189), "10 + 1 + 189 = 200 units, the half away from the cut kept");
 });

@@ -127,14 +127,20 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
   return {
     collaboration,
     background: {
-      async read(project: string, sessionId?: string): Promise<AgentBackgroundTask[]> {
+      async read(project: string, sessionId?: string, allowSession?: (sessionId: string) => Promise<boolean> | boolean): Promise<AgentBackgroundTask[]> {
+        if (sessionId && allowSession && !(await allowSession(sessionId))) return [];
         const out: AgentBackgroundTask[] = [];
-        for (const one of runtime.background.list(sessionId ? { session: sessionId } : undefined)) if (await inProject(project, one.session.id)) out.push(task(one));
+        for (const one of runtime.background.list(sessionId ? { session: sessionId } : undefined)) {
+          if (!(await inProject(project, one.session.id))) continue;
+          if (allowSession && !(await allowSession(one.session.id))) continue;
+          out.push(task(one));
+        }
         return out;
       },
-      async stop(project: string, taskId: string): Promise<boolean> {
+      async stop(project: string, taskId: string, allowSession?: (sessionId: string) => Promise<boolean> | boolean): Promise<boolean> {
         const one = runtime.background.get(taskId);
-        if (!one || !(await inProject(project, one.session.id))) throw new Error("这个后台命令不属于这个项目");
+        if (!one || !(await inProject(project, one.session.id))) throw agentErrors.session_unknown("这个后台命令不属于这个项目");
+        if (allowSession && !(await allowSession(one.session.id))) throw agentErrors.session_unknown("这个后台命令不属于当前会话归属");
         return runtime.background.stop(taskId);
       },
     },

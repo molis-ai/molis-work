@@ -1,5 +1,6 @@
 import { syncError } from './sync-errors.js';
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { PagesBody } from "./contract.js";
 import { parsePagesBody } from "./document.js";
 interface Folder { id: string; title: string; created_at: string; updated_at: string }
@@ -10,7 +11,10 @@ interface Document extends Folder {
 interface Payload { folders: Folder[]; documents: Document[] }
 const MAX_RECORDS = 1000;
 const MAX_BYTES = 16 * 1024 * 1024;
-export function parsePayload(input: unknown): Payload {
+const PORTABLE_URL = /^(https?:\/\/|mailto:|#|data:image\/(png|jpeg|gif|webp);base64,)/i;
+const CONTROL_OR_SPACE = /[\u0000-\u001f\u007f\s\\]/u;
+
+export function parsePayload(input: unknown, projectId?: string): Payload {
   let encoded: string;
   try { encoded = JSON.stringify(input); } catch { invalid("快照不是 JSON 数据"); }
   if (!encoded) invalid("缺少快照内容");
@@ -31,8 +35,9 @@ export function parsePayload(input: unknown): Payload {
     if (typeof row.starred !== "boolean" || !Number.isSafeInteger(row.artifact_version)
       || Number(row.artifact_version) < 0 || (artifact_id ? Number(row.artifact_version) < 1 : row.artifact_version !== 0)) invalid("文档元数据不合法");
     if (!row.body) invalid("快照缺少文档正文");
-    portable(row.body, 0);
-    const body = parsePagesBody(row.body);
+    portable(row.body, 0, projectId);
+    let body: PagesBody;
+    try { body = parsePagesBody(row.body); } catch { invalid("文档正文不合法"); }
     return { ...base(row, 80), body, folder_id, starred: row.starred, goal_id: text(row.goal_id, 80, true), artifact_id, artifact_version: Number(row.artifact_version) };
   });
   unique(documents);
@@ -40,15 +45,33 @@ export function parsePayload(input: unknown): Payload {
   return { folders: folders.sort(sort), documents: documents.sort(sort) };
 }
 
-function portable(value: unknown, depth: number): void {
+function isSameProjectObjectLink(value: string, projectId?: string): boolean {
+  if (!projectId || projectId === "." || projectId === ".." || CONTROL_OR_SPACE.test(value)) return false;
+  const path = `/projects/${encodeURIComponent(projectId)}/`;
+  const prefix = `${path}?`;
+  if (!value.startsWith(prefix)) return false;
+  const rest = value.slice(prefix.length);
+  if (!/^(?:openPlugin|openObject)=/u.test(rest)) return false;
+  let parsed: URL;
+  try { parsed = new URL(value, "https://molis.invalid"); } catch { return false; }
+  if (parsed.origin !== "https://molis.invalid" || parsed.pathname !== path) return false;
+  const openPlugin = parsed.searchParams.get("openPlugin");
+  const openObject = parsed.searchParams.get("openObject");
+  const openItem = parsed.searchParams.get("openItem");
+  if (openPlugin !== null) return Boolean(openPlugin.trim()) && !/[/\\]|\.\./u.test(openPlugin);
+  return Boolean(openObject?.trim() && openItem?.trim());
+}
+
+function portable(value: unknown, depth: number, projectId?: string): void {
   if (depth > 64) invalid("文档嵌套过深");
   if (!value || typeof value !== "object") return;
   for (const [key, child] of Object.entries(value)) {
     if ((key === "src" || key === "href") && typeof child === "string" && child
-      && !/^(https?:\/\/|mailto:|#|data:image\/(png|jpeg|gif|webp);base64,)/i.test(child)) {
+      && !PORTABLE_URL.test(child)
+      && !(key === "href" && isSameProjectObjectLink(child, projectId))) {
       throw syncError("dependencies", "文档包含本机或相对链接，需先转换为可同步资源引用");
     }
-    portable(child, depth + 1);
+    portable(child, depth + 1, projectId);
   }
 }
 function record(value: unknown, keys: string[]): Record<string, unknown> {
@@ -58,7 +81,7 @@ function record(value: unknown, keys: string[]): Record<string, unknown> {
   return row;
 }
 function text(value: unknown, max: number, empty = false): string {
-  if (typeof value !== "string" || (!empty && !value.trim()) || value.length > max || value !== value.trim()) invalid("快照文字字段不合法");
+  if (typeof value !== "string" || (!empty && !value.trim()) || exceedsCharacters(value, max) || value !== value.trim()) invalid("快照文字字段不合法");
   return value;
 }
 function date(value: unknown): string {

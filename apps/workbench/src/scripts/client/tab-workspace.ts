@@ -381,7 +381,12 @@ ${TAB_WORKSPACE_DRAG_PART}
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => {
-    if (event.detail?.next) directory = readDirectory(event.detail.next);
+    if (event.detail?.next) {
+      directory = readDirectory(event.detail.next);
+      for (const key of Object.keys(DIRECTORY_HUES)) delete DIRECTORY_HUES[key];
+      for (const entry of directory) if (entry.hue) DIRECTORY_HUES[entry.id] = entry.hue;
+    }
+    refreshPluginTitles();
     dropRemovedTemplates(event.detail?.gone);
     captureSurfaceTemplates();
     apply();

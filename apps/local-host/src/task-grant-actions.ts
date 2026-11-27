@@ -10,9 +10,11 @@ import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { createMcpActionGrant } from "./mcp-action-grants.js";
 import { actionGrantKey, readMcpToolPreference, removeMcpActionGrants, replaceMcpClientGrants, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
+import type { InstalledPluginEntry } from "./plugin-installed-view.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { categoryKey, namedCategory, offeredCategories, recordedCategories, subjectCategories, subjectRevision, taskReadableCatalog, type DeclarationOf, type ProviderDeclaration } from "./task-grant-categories.js";
 import { parseTaskGrantSubject, taskGrantSubjectId, TASK_GRANT_SUBJECT_PREFIX, type TaskGrantSubjectIdentity } from "./task-grant-subjects.js";
+import { readWorkbenchText } from "./ui-error-words.js";
 import { manifestWordResolver, registeredInstallationText } from "./ui-text-provider.js";
 import { activeLocale } from "./web-locale.js";
 
@@ -24,6 +26,7 @@ export interface TaskGrantDeclarations {
   readonly of: DeclarationOf;
   installed(installId: string): boolean;
   assertCurrent?(installId: string, providers: ReadonlySet<string>): void;
+  verifyCurrent?(installId: string, providers: ReadonlySet<string>): Promise<void>;
 }
 
 /** What the three actions read of the Host. */
@@ -37,7 +40,8 @@ export interface TaskGrantPorts {
   declarations(reference: LocalHostProjectReference, locale?: string): Promise<TaskGrantDeclarations>;
 }
 
-type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectActions" | "inspectActionMetadata" | "projects">;
+type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectActions" | "inspectActionMetadata" | "projects">
+  & Partial<Pick<MolisWorkLocalHost, "lifecycle">>;
 
 /**
  * The providers' declarations, from the Manifest each installation was installed with: the project's own installations first (a
@@ -45,11 +49,14 @@ type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectAct
  * Plugin Runtime registers an installation under (`resolveActionProviderId`). A plugin provider whose Manifest cannot be read offers nothing (`null`); a provider of the
  * Host's own has none to read (`{}`): it is one whole category if it declares `task_readable`, and offers nothing otherwise (`readableByTask`).
  */
-export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "homePlugins">, reference: LocalHostProjectReference, requestedLocale?: string): Promise<TaskGrantDeclarations> {
-  const { entries, current, projectReaders } = await host.withProject(reference, runtime => {
-    const current = () => installedPluginEntries(runtime.store.db);
+export async function taskGrantDeclarations(
+  host: Pick<Host, "withProject" | "homePlugins"> & Partial<Pick<Host, "projects" | "lifecycle">>,
+  reference: LocalHostProjectReference,
+  requestedLocale?: string,
+): Promise<TaskGrantDeclarations> {
+  const { entries, projectReaders } = await host.withProject(reference, runtime => {
     const installedHost = currentInstalledPluginHost(runtime.store, runtime.project_id);
-    const list = current();
+    const list = installedPluginEntries(runtime.store.db);
     const projectReaders = new Map<string, PluginLocaleReader | null>();
     for (const { record } of list) {
       projectReaders.set(
@@ -59,11 +66,11 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
           : installedHost?.releaseFor(record.plugin_id)?.packaged?.localePacks ?? null,
       );
     }
-    return { entries: list, current, projectReaders };
+    return { entries: list, projectReaders };
   });
   const home = host.homePlugins;
   const provides = (record: PluginInstanceRecord, providerId: string) => resolveActionProviderId(record) === providerId;
-  const manifestOf = (providerId: string, at = entries): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
+  const manifestOf = (providerId: string, at: readonly InstalledPluginEntry[] = entries): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
     const own = at.find(({ record }) => provides(record, providerId));
     if (own) return own;
     const record = home?.installations().find(entry => entry.state !== "uninstalled" && provides(entry, providerId));
@@ -117,10 +124,30 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
         return { title, description };
       },
       actionTitle: view => resolveManifestText(owner, view.action.title, view.action.title_text, resolve),
-      separator: resolve ? resolve({ owner: "workbench", key: "common.list.separator" }, "、") : undefined,
+      separator: readWorkbenchText("common.list.separator", locale),
     };
     declarations.set(record.install_id, result);
     return result;
+  };
+  let latestProjectEntries: readonly InstalledPluginEntry[] = entries;
+  const assertProjectOpen = () => {
+    if (host.lifecycle && host.lifecycle() !== "running") {
+      throw new ActionError("actions.host_closed", "项目运行环境已关闭");
+    }
+    if (host.projects) {
+      const open = host.projects().find(project => project.project_id === reference.project_id);
+      if (!open || open.state !== "ready") {
+        throw new ActionError("actions.host_closed", "项目运行环境已关闭");
+      }
+    }
+  };
+  const checkEntries = (installId: string, providers: ReadonlySet<string>, latest: readonly InstalledPluginEntry[]) => {
+    const task = latest.find(({ record }) => record.install_id === installId);
+    const homeTask = home?.installation(installId);
+    const live = task ?? (homeTask && { record: homeTask, manifest: home?.manifest(homeTask.plugin_id) }) ?? undefined;
+    if (identity(originalInstall(installId)) !== identity(live) || [...providers].some(id => identity(original(id)) !== identity(manifestOf(id, latest)))) {
+      throw new ActionError("actions.conflict", "任务安装或读取类别已变化，请刷新后再改");
+    }
   };
   return {
     of: provider => {
@@ -129,14 +156,22 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
       return provider.kind === "plugin" ? null : {};
     },
     installed: installId => !!originalInstall(installId),
-    assertCurrent(installId, providers) {
-      const latest = current();
-      const task = latest.find(({ record }) => record.install_id === installId);
-      const homeTask = home?.installation(installId);
-      const live = task ?? (homeTask && { record: homeTask, manifest: home?.manifest(homeTask.plugin_id) }) ?? undefined;
-      if (identity(originalInstall(installId)) !== identity(live) || [...providers].some(id => identity(original(id)) !== identity(manifestOf(id, latest)))) {
-        throw new ActionError("actions.conflict", "任务安装或读取类别已变化，请刷新后再改");
+    async verifyCurrent(installId, providers) {
+      assertProjectOpen();
+      let latest: InstalledPluginEntry[];
+      try {
+        latest = await host.withProject(reference, runtime => installedPluginEntries(runtime.store.db));
+      } catch (error) {
+        if (error instanceof ActionError) throw error;
+        throw new ActionError("actions.host_closed", "项目运行环境已关闭", { cause: error });
       }
+      assertProjectOpen();
+      latestProjectEntries = latest;
+      checkEntries(installId, providers, latest);
+    },
+    assertCurrent(installId, providers) {
+      assertProjectOpen();
+      checkEntries(installId, providers, latestProjectEntries);
     },
   };
 }
@@ -281,7 +316,7 @@ async function setCategories(ports: TaskGrantPorts, caller: ActionExecutionConte
     if (current && (current.length !== registered.length || current.some((row, index) => row.action !== registered[index]?.action || row.provider !== registered[index]?.provider))) {
       throw new ActionError("actions.conflict", "任务的能力登记已变化，请刷新后再改");
     }
-  }));
+  }, () => declarations.verifyCurrent?.(input.plugin_install_id, providers)));
   return subjectView(written, { project_id: asked.projectId, plugin_install_id: input.plugin_install_id, key: input.key }, catalog, declarations.of);
 }
 
@@ -299,8 +334,18 @@ async function clearSubject(ports: TaskGrantPorts, caller: ActionExecutionContex
   return { cleared: await removeMcpActionGrants(ports.homeDirectory, grant => grant.client_id === clientId, caller, taskGrantWriteControl(caller)) > 0 };
 }
 
-function taskGrantWriteControl(caller: ActionExecutionContext, ownerCurrent?: () => void) {
-  return { beforeEffect: caller.beforeEffect, assertCurrent: () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.()); ownerCurrent?.(); } };
+function taskGrantWriteControl(caller: ActionExecutionContext, ownerCurrent?: () => void, ownerBeforeEffect?: () => void | Promise<void>) {
+  return {
+    beforeEffect: async () => {
+      await caller.beforeEffect();
+      await ownerBeforeEffect?.();
+    },
+    assertCurrent: () => {
+      caller.signal?.throwIfAborted();
+      requireSynchronous(caller.assert_authority_current?.());
+      ownerCurrent?.();
+    },
+  };
 }
 
 async function listSubjects(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantListRequest): Promise<TaskGrantListResult> {

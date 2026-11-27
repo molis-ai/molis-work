@@ -10,8 +10,9 @@ interface QuickState { readonly title: string; readonly parts: readonly TodoQuic
 /** Which view a todo lands in, as the lists draw them. */
 function viewKeyFor(page: TodoPage, item: TodoRow | ItemPayload["item"]): string {
   const { today } = page.state;
+  if ((item.planned_date && item.planned_date <= today) || (item.due_date && item.due_date <= today)
+    || item.status === "doing" || (item.status === "waiting" && item.waiting?.follow_up_on && item.waiting.follow_up_on <= today)) return "today";
   if (item.status === "waiting") return "waiting";
-  if ((item.planned_date && item.planned_date <= today) || (item.due_date && item.due_date <= today) || item.status === "doing") return "today";
   if (!item.planned_date && !item.due_date) return "unscheduled";
   if (item.due_date && page.dayDiff(item.due_date) <= 7) return "upcoming";
   return "all";

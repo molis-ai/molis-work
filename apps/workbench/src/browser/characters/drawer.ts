@@ -71,6 +71,8 @@ class RoleDrawerState {
   protected theirs: CharacterRoleContent | null = null;
   protected diffOpen = false;
   protected busy = false;
+  protected readSeq = 0;
+  protected loadingSeq = 0;
   protected opener: HTMLElement | null = null;
   protected focusRow: string | null = null;
   protected readonly drafts: WindowDrafts;
@@ -120,6 +122,7 @@ class RoleDrawerState {
       tools: !sameRoleCapabilities(now, base) };
   }
   protected dirty(): boolean { return this.phase === "dirty" || this.phase === "conflict"; }
+  protected isReading(): boolean { return this.loadingSeq !== 0 && this.loadingSeq === this.readSeq; }
   protected roleKey(): string | null { const target = this.target; return !target || target.kind === "new" ? null : target.kind + ":" + target.id; }
   /** The version the role reads as now. */
   protected now(): CharacterRoleVersionEntry | undefined { return this.versions.find(entry => entry.current); }
@@ -139,15 +142,14 @@ class RoleDrawerState {
 /** How the drawer is drawn from its state. */
 class RoleDrawerView extends RoleDrawerState {
   protected controls(): void {
-    this.host.actions.controls(this.busy);
+    const locked = this.busy || this.isReading();
+    this.host.actions.controls(locked);
     this.dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>("[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools], [data-character-drawer-foot] button, [data-character-drawer-notices] button, [data-roles-version]")
-      .forEach(control => { control.disabled = this.busy || control.dataset.rolesDisabled === "true"; });
+      .forEach(control => { control.disabled = locked || control.dataset.rolesDisabled === "true"; });
   }
 
-  // ---------- drawing ----------
-  protected render(): void {
+  protected syncImported(): void {
     if (!this.target) return;
-    this.renderHead(); this.renderNotices(); this.renderSections(); this.renderVersions(); this.renderFoot(); this.controls();
     // An imported original shows its source; it can be tried in a project's folder when this project uses it as it is
     // (an original from Settings has no folder to run in, and a member that changed a section is not the original any more).
     const entry = this.originalEntry(), member = this.member();
@@ -156,7 +158,15 @@ class RoleDrawerView extends RoleDrawerState {
     const record: CharacterRecord | null = entry && content?.import_snapshot
       ? { ...content, action_tools: (content.action_tools ?? null) as ActionRef[] | null, character_id: entry.ref.character_id, revision: entry.draft_revision, state: entry.state,
         import_snapshot: content.import_snapshot as CharacterRecord["import_snapshot"] } : null;
-    this.host.imported(record, Boolean(record && this.host.scope === "project" && entry?.state === "active" && entry.version !== null));
+    const runnable = Boolean(record && this.host.scope === "project" && entry?.state === "active" && entry.version !== null && !(this.target.kind === "member" && this.dirty()));
+    this.host.imported(record, runnable);
+  }
+
+  // ---------- drawing ----------
+  protected render(): void {
+    if (!this.target) return;
+    this.renderHead(); this.renderNotices(); this.renderSections(); this.renderVersions(); this.renderFoot(); this.controls();
+    this.syncImported();
   }
 
   protected caption(): string {
@@ -265,6 +275,8 @@ export class RoleDrawer extends RoleDrawerView {
 
   /** Opens over the page; `opener` gets focus back when it closes. */
   async open(target: DrawerTarget, opener: HTMLElement | null): Promise<void> {
+    const seq = ++this.readSeq;
+    this.loadingSeq = 0;
     this.target = target; this.opener = opener; this.focusRow = null;
     this.phase = "clean"; this.ask = null; this.saved = null; this.theirs = null; this.diffOpen = false; this.where = "project";
     this.versions = []; this.original = null;
@@ -273,9 +285,23 @@ export class RoleDrawer extends RoleDrawerView {
     this.fill(this.baseline);
     this.render();
     if (!this.dialog.open) this.dialog.showModal();
-    if (target.kind !== "new") await this.guard(() => this.read(true, true));
+    if (target.kind !== "new") await this.loadOpen(seq);
     else { this.phase = target.from ? "dirty" : "clean"; this.render(); }
-    requestAnimationFrame(() => (target.kind === "new" ? this.part<HTMLInputElement>("title") : this.part<HTMLTextAreaElement>("instructions")).focus());
+    if (this.readSeq === seq) requestAnimationFrame(() => (target.kind === "new" ? this.part<HTMLInputElement>("title") : this.part<HTMLTextAreaElement>("instructions")).focus());
+  }
+
+  private async loadOpen(seq: number): Promise<void> {
+    this.loadingSeq = seq;
+    this.controls();
+    try { await this.read(true, true, seq); }
+    catch (error) {
+      if (seq === this.readSeq) this.host.note(messageOf(error) || say("workbench.characters.failure-kept"));
+    } finally {
+      if (this.loadingSeq === seq) {
+        this.loadingSeq = 0;
+        this.controls();
+      }
+    }
   }
 
   /**
@@ -283,16 +309,18 @@ export class RoleDrawer extends RoleDrawerView {
    * brings back this window's unsaved edit (RAC-1607); one typed over an older version than the current one is a conflict to settle
    * before saving, never a silent overwrite (RAC-1608).
    */
-  private async read(refill: boolean, restore = false): Promise<void> {
-    const target = this.target;
+  private async read(refill: boolean, restore = false, expectedSeq?: number): Promise<void> {
+    const target = this.target, seq = expectedSeq ?? ++this.readSeq;
     if (!target || target.kind === "new") return;
+    const stale = () => this.target !== target || this.readSeq !== seq;
     const role = target.kind === "original" ? { kind: "personal", character_id: target.id } : { kind: "project", member_id: target.id };
     const result = await this.host.request<{ versions: CharacterRoleVersionEntry[] }>("POST", "/roles/versions", { role });
-    if (this.target !== target) return;
+    if (stale()) return;
     this.versions = result.versions;
     const original = this.member()?.role.current.original;
     if (original) {
       const read = await this.host.request<{ versions: CharacterRoleVersionEntry[] }>("POST", "/roles/versions", { role: { kind: "personal", character_id: original.character_id } });
+      if (stale()) return;
       this.original = read.versions.find(entry => entry.current)?.content ?? null;
     }
     const current = this.now()?.content;
@@ -313,7 +341,7 @@ export class RoleDrawer extends RoleDrawerView {
   }
 
   private async guard(action: () => Promise<void>): Promise<void> {
-    if (this.busy) return;
+    if (this.busy || this.isReading()) return;
     this.busy = true; this.controls();
     try { await action(); }
     catch (error) {
@@ -377,12 +405,14 @@ export class RoleDrawer extends RoleDrawerView {
 
   /** The fields moved: the draft is dirty (the head of a new role follows its name), and the footer says what saving would do. */
   changed(): void {
-    if (!this.target || this.busy) return;
+    if (!this.target || this.busy || this.isReading()) return;
     const moved = this.target.kind === "new" ? true : this.edited().way || this.edited().tools || this.edited().title;
     if (this.phase !== "conflict") this.phase = moved ? "dirty" : this.phase === "saved" ? "saved" : "clean";
     this.keep();
     if (this.target.kind === "new") this.renderHead();
-    this.renderFoot(); this.controls();
+    this.renderFoot();
+    this.controls();
+    this.syncImported();
   }
 
   private askOrClose(): void {
@@ -395,6 +425,8 @@ export class RoleDrawer extends RoleDrawerView {
   }
 
   private close(): void {
+    this.readSeq++;
+    this.loadingSeq = 0;
     this.target = null; this.ask = null;
     this.host.imported(null, false);
     this.dialog.close();
@@ -529,5 +561,12 @@ export class RoleDrawer extends RoleDrawerView {
   /** Whether an edit is open with unsaved changes (imports ask before rescanning over it). */
   isDirty(): boolean { return this.dirty(); }
   /** Saves what is in the drawer for an import that needs the latest saved content. */
-  async saveNow(): Promise<void> { await this.save(); }
+  async saveNow(): Promise<boolean> {
+    let ok = false;
+    await this.guard(async () => {
+      await this.save();
+      ok = true;
+    });
+    return ok;
+  }
 }

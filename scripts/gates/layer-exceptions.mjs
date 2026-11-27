@@ -22,8 +22,15 @@ export const BOUNDARIES_SOURCE = "packages/test-kit/src/boundaries.ts";
 const LISTS = { APP_IMPORT_ALLOWLIST: "app-import", PLUGIN_MODULE_IMPORT_ALLOWLIST: "plugin-module-import" };
 const DECLARED = "lists#declared";
 
+const appImporterOf = (file) => {
+  if (!/\.[cm]?[jt]sx?$/.test(file) || file.includes("/dist/") || file.startsWith("tests/")) return null;
+  const app = /^apps\/([^/]+)\/src\//.exec(file);
+  if (app) return `apps/${app[1]}`;
+  return file.startsWith("apps/desktop/launchers/") ? "." : null;
+};
+
 /** Text this gate reads besides source files (the entry reads it from the merge-base too). */
-export const layerExceptionsWantsText = (file) => hasPath(file, BOUNDARIES_SOURCE);
+export const layerExceptionsWantsText = (file) => hasPath(file, BOUNDARIES_SOURCE) || appImporterOf(file) !== null;
 
 /** The listed edges of a boundaries.ts text, keyed `<list>#<edge>`. Exported for the gate's test. */
 export function listedLayerExceptions(text) {
@@ -51,8 +58,8 @@ export function listedLayerExceptions(text) {
 /** D0272/D0280: listed edges cannot hide a second import point in an existing or new file. */
 export function appImportSites(snapshot) {
   const counts = {};
-  for (const file of snapshot.files.filter(file => /\.[cm]?[jt]sx?$/.test(file) && !file.includes("/dist/") && !file.startsWith("tests/"))) {
-    const app = /^apps\/([^/]+)\/src\//.exec(file), importer = app ? `apps/${app[1]}` : file.startsWith("apps/desktop/launchers/") ? "." : null;
+  for (const file of snapshot.files) {
+    const importer = appImporterOf(file);
     if (!importer) continue;
     const source = ts.createSourceFile(file, snapshot.read(file) ?? "", ts.ScriptTarget.Latest, true);
     const visit = node => {

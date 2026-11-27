@@ -158,6 +158,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/condition-frame.ts": "开发规格板：条件与状态的框架页",
   "apps/workbench/src/assistant-board-frame.ts": "开发规格板：助理信息与任务的框架页",
   "apps/workbench/src/navigation-specimens.ts": "开发规格板：工作台导航的框架页",
+  "apps/workbench/src/browser/plugin-frame/files.ts": "打印：宿主插件沙箱打印隔离框（严格 CSP，无脚本 srcdoc）",
   "apps/workbench/src/browser/plugin-frame/home-page-document.ts": "生成首页隔离框：给已校验的生成首页组装 strict hash-only CSP 的 srcdoc 文档",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",

@@ -261,7 +261,7 @@ test("S-97 RAC-1017: a request is the kind's own fields and nothing else, and a 
   await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", ...base, definition_id: entry.id }, {} as never)), code("plugin.source_pull_hold_invalid"));
   // Addresses the platform will not fetch are refused before anything leaves (S-10), and a catalog entry that does not exist is not a source.
   for (const feed_url of ["https://127.0.0.1/feed.xml", "http://example.com/feed.xml", "https://10.0.0.5/feed.xml", "https://user:pw@example.com/feed.xml"]) {
-    await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", ...base, definition_id: "custom-rss", address: feed_url }, options)), feed_url);
+    await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", ...base, definition_id: "custom-rss", address: feed_url }, options)), code("rss.custom_url_invalid"), feed_url);
   }
   await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", ...base, definition_id: "no-such-source" }, options)));
   assert.deepEqual(f.fetched, [], "no refused request reached the transport");
@@ -384,4 +384,26 @@ test("RAC-2507 a pure presentation rechecks the original consumer authority afte
   const refused = assert.rejects(pending, { code: "actions.forbidden" });
   await entered.promise; current = false; release.resolve(); await refused;
   assert.equal(presentations, 1); assert.deepEqual(f.fetched, []);
+});
+
+test("F-hc2-26: public feed pull runs beforeDispatch authority check before the RSS HTTP transport executes", { timeout: 120_000 }, async t => {
+  const f = await fixture(t);
+  const entry = f.catalog[0]!, probe = await f.start("pullpredispatch", [FEED]);
+  f.feeds.set(entry.feed_url, rss("Pre-dispatch feed", [{ id: "pre-1", title: "Must not fetch", text: "Body that must not be fetched." }]));
+  let checks = 0;
+  await assert.rejects(
+    probe.in(
+      services => services.sourcePull!.pull!({ kind: "public_feed", operation_id: "pull-pre-dispatch-1", source_name: entry.name, definition_id: entry.id }, { hold: async () => {} }),
+      probe.run,
+      [FEED],
+      {
+        validate_authority: async () => {
+          checks += 1;
+          if (checks >= 2) throw new ActionError("actions.forbidden", "revoked before rss dispatch");
+        },
+      },
+    ),
+    { code: "actions.forbidden" },
+  );
+  assert.equal(f.fetched.length, 0, "revocation at beforeDispatch blocks the RSS HTTP request");
 });

@@ -58,13 +58,20 @@ export function acceptanceView(subject: AcceptanceSubject, rows: SubjectRows, vo
     const stands = standsOn(rows.deliveries, row.requirement_id);
     const mine = checks.filter(item => item.requirement_id === row.requirement_id);
     const live = stands ? mine.filter(item => item.requirement_version === row.version && item.round >= stands.round) : [];
-    const latest = (kind: AcceptanceCheck["kind"]) => live.filter(item => item.kind === kind).at(-1) ?? null;
-    const engineering = latest("engineering"), handsOn = latest("hands_on"), last = live.at(-1) ?? null;
-    const contradicted = [engineering, handsOn].some(item => item?.verdict === "contradicts");
-    const verified = !contradicted && [engineering, handsOn].some(passes);
+    const onTarget = (item: CheckRow) => stands !== null && item.checked_version === stands.version && item.gap !== "wrong_object" && item.gap !== "evidence_stale";
+    const relevant = live.filter(onTarget);
+    const relevantLatest = (kind: AcceptanceCheck["kind"]) => relevant.filter(item => item.kind === kind).at(-1) ?? null;
+    const contradicted = [relevantLatest("engineering"), relevantLatest("hands_on")].some(item => item?.verdict === "contradicts");
+    const verified = !contradicted && [relevantLatest("engineering"), relevantLatest("hands_on")].some(passes);
+    const display = (kind: AcceptanceCheck["kind"]) => {
+      const rel = relevantLatest(kind);
+      if (verified || contradicted || (rel && (passes(rel) || rel.verdict === "contradicts"))) return rel;
+      return live.filter(item => item.kind === kind).at(-1) ?? null;
+    };
+    const engineering = display("engineering"), handsOn = display("hands_on"), last = live.at(-1) ?? null;
     const made = stands ? decisions.filter(item => item.requirement_id === row.requirement_id && item.requirement_version === row.version && item.stands_round === stands.round).at(-1) ?? null : null;
     const awaiting = made !== null && made.origin === "trusted_decision" && !vouched(made.decision_id);
-    const overturned = made !== null && live.some(item => item.verdict === "contradicts" && item.clock > made.clock);
+    const overturned = made !== null && relevant.some(item => item.verdict === "contradicts" && item.clock > made.clock);
     const decided = made && !awaiting && !overturned ? made : null;
     const person: AcceptanceRequirementState["person"] = decided ? decided.decision
       // Without a passing check a delivered requirement is the person's to accept or return, whether or not it was asked of them.

@@ -10,8 +10,12 @@ const uiText = globalThis.t;
 
 // Merge conflicts: each conflicted file opens with its markers; pick a side per conflict or edit it, then resolve it
 // through a Host review. Resolving is refused while any marker is left; the commit then finishes the merge.
-const MARKS = ["<<<<<<<", "|||||||", "=======", ">>>>>>>"];
-const isMark = (line: string): boolean => MARKS.some((mark) => line === mark || line.startsWith(`${mark} `));
+const MARKS = ["<<<<<<<", "|||||||", "=======", ">>>>>>>"] as const;
+const hasMark = (line: string, mark: string): boolean => {
+  const clean = line.endsWith("\r") ? line.slice(0, -1) : line;
+  return clean === mark || (clean.startsWith(mark) && /\s/u.test(clean[mark.length]!));
+};
+const isMark = (line: string): boolean => MARKS.some((mark) => hasMark(line, mark));
 
 interface Block { start: number; end: number; ours: string[]; base: string[]; theirs: string[] }
 
@@ -20,11 +24,11 @@ function blocksOf(text: string): Block[] {
   const blocks: Block[] = [];
   let block: Block | null = null, part: "ours" | "base" | "theirs" = "ours";
   text.split("\n").forEach((line, index) => {
-    if (line.startsWith("<<<<<<<")) { block = { start: index, end: index, ours: [], base: [], theirs: [] }; part = "ours"; return; }
+    if (hasMark(line, "<<<<<<<")) { block = { start: index, end: index, ours: [], base: [], theirs: [] }; part = "ours"; return; }
     if (!block) return;
-    if (line.startsWith("|||||||")) { part = "base"; return; }
-    if (line.startsWith("=======")) { part = "theirs"; return; }
-    if (line.startsWith(">>>>>>>")) { block.end = index; blocks.push(block); block = null; return; }
+    if (hasMark(line, "|||||||")) { part = "base"; return; }
+    if (hasMark(line, "=======")) { part = "theirs"; return; }
+    if (hasMark(line, ">>>>>>>")) { block.end = index; blocks.push(block); block = null; return; }
     block[part].push(line);
   });
   return blocks;

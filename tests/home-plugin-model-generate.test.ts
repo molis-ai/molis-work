@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import test, { type TestContext } from "node:test";

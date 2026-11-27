@@ -1,4 +1,5 @@
 import {
+  actionEffect,
   retainActionAuthority,
   type ActionCallContext,
   type ActionClient,
@@ -33,21 +34,22 @@ const EXTERNAL_CAPABILITY_PATTERNS = [
 
 function isExternalEffectCapability(capabilityId: string, view: ActionView | undefined): string | null {
   if (view) {
-    if (view.action.external === true && view.action.effect !== "read") {
+    const effect = actionEffect(view.action, view.capability_id);
+    if (view.action.external === true && effect !== "read") {
       return "isolated_replay_blocks_external_declared_action";
     }
-    if (view.provider.kind === "mcp" && view.action.effect === "write") {
+    if (view.provider.kind === "mcp" && effect !== "read") {
       return "isolated_replay_blocks_external_mcp_write";
     }
     if (
-      view.action.effect === "write"
+      effect !== "read"
       && view.action.permissions.some(
         (perm) => perm.startsWith("network.") || perm.startsWith("network:") || perm.startsWith("connector.") || perm.startsWith("connectors:"),
       )
     ) {
       return "isolated_replay_blocks_external_permissioned_write";
     }
-    if (view.action.effect === "read" && capabilityId.startsWith("connectors.")) {
+    if (effect === "read" && capabilityId.startsWith("connectors.")) {
       return null;
     }
   }
@@ -72,28 +74,33 @@ export async function executeIsolatedReplay(options: {
 }> {
   const blocked: { readonly capability_id: string; readonly reason: string }[] = [];
   const retainedCaller = retainActionAuthority(options.caller, options.origin, options.caller.beforeEffect);
-  const cachedDirectories = new Map<string, readonly ActionView[]>();
 
-  const lookupView = async (ctx: ActionCallContext, ref: ActionReference): Promise<ActionView | undefined> => {
-    const scopeKey = ctx.project_id ?? "";
-    let cachedDirectory = cachedDirectories.get(scopeKey);
-    if (!cachedDirectory) {
-      cachedDirectory = await options.clientFor(ctx).discover(ctx);
-      cachedDirectories.set(scopeKey, cachedDirectory);
+  const lookupView = async (ctx: ActionCallContext, ref: ActionReference): Promise<ActionView | undefined> =>
+    await options.clientFor(ctx).discoverOne(ctx, ref);
+
+  const findExternalBlock = async (
+    ctx: ActionCallContext,
+    ref: ActionReference,
+    visited: Set<string>,
+  ): Promise<string | null> => {
+    const key = `${ref.provider_id ?? ""}:${ref.capability_id}@${ref.version}`;
+    if (visited.has(key)) return null;
+    visited.add(key);
+    const view = await lookupView(ctx, ref);
+    const direct = isExternalEffectCapability(ref.capability_id, view);
+    if (direct !== null) return direct;
+    for (const required of view?.action.required_actions ?? []) {
+      const nested = await findExternalBlock(ctx, required, visited);
+      if (nested !== null) return nested;
     }
-    return cachedDirectory.find(
-      (item) => item.capability_id === ref.capability_id
-        && item.version === ref.version
-        && (!ref.provider_id || item.provider.provider_id === ref.provider_id),
-    );
+    return null;
   };
 
   const guardedClient: ActionClient = {
     discover: (ctx) => options.clientFor(ctx).discover(ctx),
     discoverOne: (ctx, ref) => options.clientFor(ctx).discoverOne(ctx, ref),
     invoke: async (ctx, action, input) => {
-      const view = await lookupView(ctx, action);
-      const blockReason = isExternalEffectCapability(action.capability_id, view);
+      const blockReason = await findExternalBlock(ctx, action, new Set());
       if (blockReason !== null) {
         blocked.push({ capability_id: action.capability_id, reason: blockReason });
         throw evaluationErrors.replay_external_effect_blocked(

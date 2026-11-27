@@ -3,18 +3,52 @@
  * into an isolated Home; it never looks at the real Home, the system key store, or credentials in the environment.
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { homedir, tmpdir, userInfo } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { SmokeBrief } from './smoke.mjs';
 
 export interface SmokeCommandOptions { root: string; briefs: string; out?: string; minutes: number; standIn?: boolean }
 
 /** The path with symlinks resolved as far as it exists: a Home that is not created yet is judged by where its nearest existing parent really is. */
-const real = (path: string): string => {
-  const absolute = resolve(path);
-  try { return realpathSync(absolute); } catch { const parent = dirname(absolute); return parent === absolute ? absolute : join(real(parent), relative(parent, absolute)); }
+const real = (target: string): string => {
+  const absolute = resolve(target);
+  try {
+    return realpathSync(absolute);
+  } catch {
+    /* path may not exist yet; resolve nearest existing ancestor */
+    const parent = dirname(absolute);
+    return parent === absolute ? absolute : join(real(parent), relative(parent, absolute));
+  }
 };
-const inside = (outer: string, path: string) => { const step = relative(outer, path); return step === '' || (!step.startsWith('..') && !isAbsolute(step)); };
+const inside = (outer: string, target: string) => {
+  const step = relative(outer, target);
+  return step === '' || (!step.startsWith('..') && !isAbsolute(step));
+};
+const realHomeRoots = (): string[] => {
+  const bases = new Set([homedir()]);
+  try {
+    const accountHome = userInfo().homedir;
+    if (accountHome) bases.add(accountHome);
+  } catch {
+    /* userInfo() may be unavailable in restricted environments */
+  }
+  return [...bases].filter(Boolean).map(base => real(join(base, '.molis-work')));
+};
+const allowedLocales = (root: string): Set<string> => {
+  const catalogPath = join(root, 'apps/workbench/resources/languages.json');
+  if (existsSync(catalogPath)) {
+    try {
+      const catalog = JSON.parse(readFileSync(catalogPath, 'utf8')) as { languages?: Array<{ tag?: unknown }> };
+      const tags = (catalog.languages ?? [])
+        .map(entry => entry?.tag)
+        .filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
+      if (tags.length) return new Set(tags);
+    } catch {
+      /* fall back to the shipped trilingual tags if languages.json is unreadable */
+    }
+  }
+  return new Set(['zh', 'en', 'ja']);
+};
 
 /** How to give the isolated Home a model, printed whenever the smoke has none. */
 const HOW = (home: string) => [
@@ -25,35 +59,58 @@ const HOW = (home: string) => [
   'The key stays in that Home\'s own file secret store. Nothing is copied from the real Home and nothing is printed.'].join('\n');
 
 export async function runSmokeCommand(options: SmokeCommandOptions): Promise<number> {
-  const refuse = (line: string) => { process.stderr.write('REFUSED: ' + line + '\n'); return 2; };
+  const refuse = (line: string) => {
+    process.stderr.write('REFUSED: ' + line + '\n');
+    return 2;
+  };
   if (!(options.minutes > 0 && options.minutes <= 30)) return refuse('--minutes is a number in (0, 30]');
   if (process.env.MOLIS_WORK_SECRET_BACKEND !== 'file') return refuse('MOLIS_WORK_SECRET_BACKEND must be "file" so the system key store and its real keys are not touched.');
   if (!existsSync(options.briefs)) return refuse(`no briefs file at ${options.briefs}`);
   const parsed = JSON.parse(readFileSync(options.briefs, 'utf8')) as { briefs?: SmokeBrief[] };
   const briefs = parsed.briefs ?? [];
-  if (!briefs.length || briefs.some(item => typeof item?.id !== 'string' || typeof item?.brief !== 'string' || (item.locale !== undefined && item.locale !== 'zh' && item.locale !== 'en') || (item.clarification !== undefined && typeof item.clarification !== 'string'))) return refuse(`${options.briefs} needs { "briefs": [{ "id", "brief" }, ...] }`);
+  const locales = allowedLocales(options.root);
+  if (!briefs.length || briefs.some(item => typeof item?.id !== 'string' || typeof item?.brief !== 'string' || (item.locale !== undefined && (typeof item.locale !== 'string' || !locales.has(item.locale))) || (item.clarification !== undefined && typeof item.clarification !== 'string'))) {
+    return refuse(`${options.briefs} needs { "briefs": [{ "id", "brief" }, ...] }`);
+  }
+  const realHomes = realHomeRoots();
+  if (options.out) {
+    const outTarget = real(resolve(options.out));
+    for (const realHome of realHomes) {
+      if (inside(realHome, outTarget)) return refuse(`--out is the real Home or inside it (${options.out}). Point it at a scratch path.`);
+    }
+  }
   if (options.standIn) return withStandIn(options, briefs);
 
   const requested = process.env.MOLIS_WORK_HOME?.trim();
   if (!requested) return refuse('MOLIS_WORK_HOME is not set. The smoke only runs on an isolated Home (a scratch directory), never on the default one.\n' + HOW('<scratch dir>'));
   const home = resolve(requested);
   // Not the real Home, not anywhere inside it (its tmp, a project's directory), and not a directory that holds it: the smoke writes under the Home it is given.
-  const realHome = real(join(homedir(), '.molis-work'));
-  if (inside(realHome, real(home))) return refuse(`MOLIS_WORK_HOME is the real Home or inside it (${home}). Point it at a scratch directory.`);
-  if (inside(real(home), realHome)) return refuse(`MOLIS_WORK_HOME (${home}) contains the real Home (${realHome}). Point it at a scratch directory.`);
+  const resolvedHome = real(home);
+  for (const realHome of realHomes) {
+    if (inside(realHome, resolvedHome)) return refuse(`MOLIS_WORK_HOME is the real Home or inside it (${home}). Point it at a scratch directory.`);
+    if (inside(resolvedHome, realHome)) return refuse(`MOLIS_WORK_HOME (${home}) contains the real Home (${realHome}). Point it at a scratch directory.`);
+  }
   return execute(home, briefs, options, false);
 }
 
 /** The wiring check: a throwaway Home and a scripted local model, no key and no cost. */
 async function withStandIn(options: SmokeCommandOptions, briefs: SmokeBrief[]): Promise<number> {
   const { startStandInModel, configureStandInHome, standInAnswers } = await import('./stand-in.mjs');
-  const home = mkdtempSync(join(tmpdir(), 'studio-replay-stand-in-')), standIn = await startStandInModel(standInAnswers(resolve(options.root, 'tests/fixtures/studio-replay/corpus.json')));
-  process.env.MOLIS_WORK_HOME = home;
+  const home = mkdtempSync(join(tmpdir(), 'studio-replay-stand-in-'));
+  const previousHome = process.env.MOLIS_WORK_HOME;
+  let standIn: Awaited<ReturnType<typeof startStandInModel>> | undefined;
   try {
+    standIn = await startStandInModel(standInAnswers(resolve(options.root, 'tests/fixtures/studio-replay/corpus.json')));
+    process.env.MOLIS_WORK_HOME = home;
     configureStandInHome(home, standIn.address);
     process.stdout.write('STAND-IN MODEL: a scripted local model answers with fixed valid designs. This checks the wiring (Home, model, agent, workflow, report), not any Skill or prompt.\n');
     return await execute(home, briefs, options, true);
-  } finally { await standIn.close(); rmSync(home, { recursive: true, force: true }); }
+  } finally {
+    if (previousHome === undefined) delete process.env.MOLIS_WORK_HOME;
+    else process.env.MOLIS_WORK_HOME = previousHome;
+    await standIn?.close();
+    rmSync(home, { recursive: true, force: true });
+  }
 }
 
 async function execute(home: string, briefs: SmokeBrief[], options: SmokeCommandOptions, standIn: boolean): Promise<number> {

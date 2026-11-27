@@ -47,6 +47,19 @@ export class FeedReads {
     }
   }
 
+  *projectBodyRefs(projectId: string) {
+    let afterSourceId = "";
+    let afterRef = "";
+    for (;;) {
+      const page = this.ports.historyReads.projectRefs(projectId, afterSourceId, afterRef);
+      if (!page.length) return;
+      yield page;
+      const last = page.at(-1)!;
+      afterSourceId = last.source_id;
+      afterRef = last.ref;
+    }
+  }
+
   facets(projectId: string) { return this.ports.feed.query.facets(projectId); }
 
   hasPackage(projectId: string, sourceId: string, externalId: string, hash: string) {

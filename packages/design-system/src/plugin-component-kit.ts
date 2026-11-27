@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { Column } from './plugin-component-types.js';
 
@@ -41,12 +41,12 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
     const element = make(tag, words, cls); element.translate = false; return element;
   };
   /** An icon from the page's sprite; decorative, the words beside it carry the meaning. */
-  const glyph = (name: string) => {
+  const glyph = (name: PluginIconName) => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
     use.setAttribute('href', '#icon-' + name); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', 'pc-icon'); svg.append(use); return svg;
   };
   /** A catalog button (`mw-btn`). */
-  const button = (label: string, variant: 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-outline', size: 'sm' | 'md' | 'lg' | 'icon' = 'sm', icon?: string) => {
+  const button = (label: string, variant: 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-outline', size: 'sm' | 'md' | 'lg' | 'icon' = 'sm', icon?: PluginIconName) => {
     const el = make('button', undefined, 'mw-btn mw-btn--' + variant + ' mw-btn--' + size); el.type = 'button'; el.dataset.slot = 'button';
     if (icon) el.append(glyph(icon)); const words = make('span', label); words.dataset.slot = 'button-label'; el.append(words); return el;
   };
@@ -92,10 +92,25 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
   /** Status tags use neutral/info/success tones (amber is reserved strictly for attention / user turn). */
   const TONES = ['info', 'success', 'neutral'];
   /** A plugin's mark: a neutral icon that says what it is about (colour belongs to state and selection). */
-  const MARKS: Array<[RegExp, string]> = [[/书|读|阅|摘抄|文章/u, 'book'], [/单词|生词|词汇|英语|背诵/u, 'library'], [/账|钱|支出|收入|花销|预算|消费|报销/u, 'hash'],
-    [/待办|任务|todo|清单|计划/iu, 'completed'], [/打卡|习惯|坚持/u, 'calendar'], [/提醒|闹钟|到期/u, 'bell'], [/目标|里程碑/u, 'target'], [/日志|日记|复盘|进展|周报/u, 'history'],
-    [/灵感|想法|点子|创意/u, 'idea'], [/自测|测验|问答|题|考/u, 'question'], [/对话|聊天|助手/u, 'message'], [/报名|名单|联系人|客户|成员/u, 'user'],
-    [/喝水|健康|运动|睡眠|体重/u, 'activity'], [/计时|番茄|时间/u, 'timer'], [/收藏|书签|链接|网址/u, 'bookmark'], [/图片|照片|相册/u, 'image'], [/笔记|随手记|记录|备忘/u, 'note']];
+  const MARKS: readonly [RegExp, PluginIconName][] = [
+    [/书|读|阅|摘抄|文章|\b(?:book|read|reading|article|excerpt)s?\b|読書|本|記事/iu, 'book'],
+    [/单词|生词|词汇|英语|背诵|\b(?:vocab(?:ulary)?|word|flashcard|english|study)s?\b|単語|語彙|英語/iu, 'library'],
+    [/账|钱|支出|收入|花销|预算|消费|报销|\b(?:expense|budget|finance|money|cost|invoice|ledger|receipt)s?\b|家計|予算|支出|収入|経費/iu, 'hash'],
+    [/待办|任务|清单|计划|\b(?:todo|task|checklist|plan)s?\b|タスク|やること|計画|リスト/iu, 'completed'],
+    [/打卡|习惯|坚持|\b(?:habit|streak|check-?in|calendar|schedule)s?\b|習慣|カレンダー|予定/iu, 'calendar'],
+    [/提醒|闹钟|到期|\b(?:remind(?:er)?|alarm|alert|due)s?\b|リマインダー|通知|アラーム|期限/iu, 'bell'],
+    [/目标|里程碑|\b(?:goal|milestone|target|okr)s?\b|目標|マイルストーン/iu, 'target'],
+    [/日志|日记|复盘|进展|周报|\b(?:log|journal|diary|review|progress|retro|weekly)s?\b|日記|記録|振り返り|週報|進捗/iu, 'history'],
+    [/灵感|想法|点子|创意|\b(?:idea|brainstorm|inspiration|spark)s?\b|アイデア|ひらめき|発想/iu, 'idea'],
+    [/自测|测验|问答|题|考|\b(?:quiz|test|exam|question|q&a|practice)s?\b|クイズ|テスト|問題|質問/iu, 'question'],
+    [/对话|聊天|助手|\b(?:chat|message|conversation|assistant|talk)s?\b|チャット|会話|メッセージ/iu, 'message'],
+    [/报名|名单|联系人|客户|成员|\b(?:contact|member|client|customer|roster|signup|people)s?\b|連絡先|メンバー|顧客|名簿/iu, 'user'],
+    [/喝水|健康|运动|睡眠|体重|\b(?:health|water|workout|exercise|fitness|sleep|weight)s?\b|健康|運動|睡眠|体重/iu, 'activity'],
+    [/计时|番茄|时间|\b(?:timer|pomodoro|stopwatch|time\s*track)s?\b|タイマー|ポモドーロ|時間/iu, 'timer'],
+    [/收藏|书签|链接|网址|\b(?:bookmark|link|url|favorite|favourite|saved)s?\b|ブックマーク|リンク|お気に入り/iu, 'bookmark'],
+    [/图片|照片|相册|\b(?:image|photo|picture|gallery|album)s?\b|画像|写真|アルバム/iu, 'image'],
+    [/笔记|随手记|记录|备忘|\b(?:note|memo|jot|scratchpad)s?\b|ノート|メモ|備忘/iu, 'note'],
+  ];
   const MOMENT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
   const TEMPLATE = /\{\{\s*[\w.]+\s*\}\}/u;
   const DAY = /^\d{4}-\d{2}-\d{2}$/;

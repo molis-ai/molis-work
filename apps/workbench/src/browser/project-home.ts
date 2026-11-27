@@ -330,7 +330,8 @@ export function mountHome(host: HomeHost) {
         placement.close(false);
         paint(result);
       } else {
-        // Nothing shown changed, but the page was read again: the margin says when.
+        // Nothing shown changed, but the page was read again: re-arm corrections and update the margin timestamp.
+        corrections.rendering(result);
         const read = margin.querySelector(".mw-first-page__margin-head small");
         if (read) read.textContent = homeReadAt(new Date().toISOString());
       }

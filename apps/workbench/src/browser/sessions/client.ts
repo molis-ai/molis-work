@@ -83,7 +83,9 @@ function applySurfaceScopeMeta(ctx: SurfaceCtx, sc: SessionScopeWithMeta): void 
 async function loadSurfaceScopeMeta(ctx: SurfaceCtx): Promise<void> {
   try {
     applySurfaceScopeMeta(ctx, await sessionsApi.scopeRead(false));
-  } catch { /* list still loads */ }
+  } catch (err) {
+    ctx.showError((err as Error)?.message || uiText.text("workbench.sessions.read-failed"));
+  }
 }
 
 async function loadSurfaceList(ctx: SurfaceCtx, withSuggest = true, page: "reset" | "refresh" | "next" | "previous" = "reset"): Promise<void> {
@@ -132,6 +134,9 @@ async function loadSurfaceList(ctx: SurfaceCtx, withSuggest = true, page: "reset
 
 async function openSurfaceSession(ctx: SurfaceCtx, sessionKey: string, query = "", revalidate = false): Promise<void> {
   const seq = ++ctx.detailSeq;
+  const knownRow = ctx.rows.find((r) => r.session_key === sessionKey)
+    ?? ctx.droidRows?.find((r) => r.session_key === sessionKey)
+    ?? (ctx.detail?.row.session_key === sessionKey ? ctx.detail.row : null);
   ctx.selectedKey = sessionKey;
   ctx.root.dataset.expanded = "true";
   ctx.detail = null;
@@ -143,9 +148,15 @@ async function openSurfaceSession(ctx: SurfaceCtx, sessionKey: string, query = "
     ctx.detail = { row: hist.session, entries: hist.entries, olderCursor: hist.older_cursor, loadingEarlier: false, query, history: hist, error: null };
   } catch (err) {
     if (seq !== ctx.detailSeq) return;
-    ctx.selectedKey = null;
-    ctx.root.dataset.expanded = "false";
-    if (!revalidate) ctx.showError((err as Error)?.message || uiText.text("workbench.sessions.read-failed"));
+    const message = (err as Error)?.message || uiText.text("workbench.sessions.read-failed");
+    if (knownRow && !revalidate) {
+      ctx.detail = { row: knownRow, entries: [], olderCursor: null, loadingEarlier: false, query, history: null, error: message };
+    } else {
+      ctx.selectedKey = null;
+      ctx.root.dataset.expanded = "false";
+      ctx.detail = null;
+    }
+    if (!revalidate) ctx.showError(message);
     paintSurfaceList(ctx);
   }
   renderDetailPane(ctx.detailEl, ctx.detailEmptyEl, ctx.detail);
@@ -191,9 +202,10 @@ async function loadEarlierEntries(ctx: SurfaceCtx): Promise<void> {
     const hist = await sessionsApi.history({ session_key: key, from: { before: olderCursor } });
     if (seq !== ctx.detailSeq || ctx.detail?.row.session_key !== key) return;
     ctx.detail = { ...ctx.detail, entries: [...hist.entries, ...ctx.detail.entries], olderCursor: hist.older_cursor, loadingEarlier: false };
-  } catch {
+  } catch (err) {
     if (seq !== ctx.detailSeq || !ctx.detail) return;
     ctx.detail = { ...ctx.detail, loadingEarlier: false };
+    ctx.showError((err as Error)?.message || uiText.text("workbench.sessions.read-failed"));
   }
   renderDetailPane(ctx.detailEl, ctx.detailEmptyEl, ctx.detail);
 }
@@ -222,9 +234,17 @@ export function mountSessionsSurface(
     selectedKey: null, detail: null, listRead: null, pageCursors: [null], nextCursor: null, detailSeq: 0, dirtyChoices: new Map(), liveSuggestions: new Map(),
     showError: message => showToast?.(message, true),
   };
+  const retryingEntries = new Set<string>();
   bindSourcesEvents(ctx.sourcesEl, {
     onToggle: () => { ctx.sourcesExpanded = !ctx.sourcesExpanded; renderSourcesSection(ctx.sourcesEl, ctx.sources, ctx.sourcesExpanded); },
-    onRetry: (entryId) => { void sessionsApi.discoveryRun({ entry_id: entryId as never }).then(() => { ctx.poller.kick(true); return loadSurfaceList(ctx, false); }); },
+    onRetry: (entryId) => {
+      if (retryingEntries.has(entryId)) return;
+      retryingEntries.add(entryId);
+      void sessionsApi.discoveryRun({ entry_id: entryId as never })
+        .then(() => { ctx.poller.kick(true); return loadSurfaceList(ctx, false); })
+        .catch((err) => ctx.showError((err as Error)?.message || uiText.text("workbench.sessions.read-failed")))
+        .finally(() => { retryingEntries.delete(entryId); });
+    },
     onToast: (msg) => showToast?.(msg, false),
   });
   bindSessionsClientEvents(ctx, {

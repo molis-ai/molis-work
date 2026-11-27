@@ -20,7 +20,7 @@ export type { PagesImportFile, PreparedPagesImportDocument, PreparedPagesImport 
 export { pagesErrors } from "./error.js";
 export { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./templates.js";
-export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
+export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth, safePagesHeadingLevel } from "./schema.js";
 export { columnDropAnchor, dragRows, nodesInSpan, nudgeSpan, placeCopySpan, previewCopySpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
 export { convertedBlocks, convertedNodes } from "./convert.js";
 export { scrollChildIntoView } from "./floating.js";

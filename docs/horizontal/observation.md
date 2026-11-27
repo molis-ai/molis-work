@@ -2,7 +2,7 @@
 
 **白话：** 把这台电脑上发生的工作——本人在界面上的操作、每次动作调用、各种 AI 的运行、工作流的每一步、定时与后台执行——逐条记下来，留下当时的材料，并如实登记哪些记了、哪些没记、为什么。
 
-**提供：** 工作记录、证据快照、覆盖登记与缺口；系统动作 `observation.report@1`、读取动作（`records.query@1`、`evidence.get@1`、`coverage.get@1`）、记录管理与清理动作（`settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`）、评测样本留存动作（`holds.put/release/list@1`）；用途开关、暂停／恢复、自动与手动清理（含留存豁免）、空间占用与容量提醒线；来源范围 `withObservationSource`。评测样本期望、判分与对比运行归 `horizontal/evaluation`。
+**提供：** 工作记录、证据快照、覆盖登记与缺口；系统动作 `observation.report@1`、读取动作（`records.query@1`、`evidence.get@1`、`coverage.get@1`）、记录管理与清理动作（`settings.get/set@1`、`preferences.read/write@1`、`space.get@1`、`cleanup.preview/apply@1`）、评测样本留存动作（`holds.put/release/list@1`）；用途开关、暂停／恢复、自动与手动清理（含留存豁免）、空间占用与容量提醒线；来源范围 `withObservationSource`。评测样本期望、判分与对比运行归 `horizontal/evaluation`。
 
 **不拥有：** 任何业务事实。记录只说「发生了什么、当时用的是什么」，业务状态永远向主人读。
 
@@ -33,7 +33,7 @@
 
 - **统一读取动作**：页面、主动助理、效果评测、工作流、插件与 MCP 共用 `observation.records.query@1`（按 `work_ref`、`call_id`、`run_id`、`subject`、时间、平台版本或 `after_seq` 增量游标查询，返回 `kind`、`late` 与可选 `subject_status`）、`observation.evidence.get@1`（按 `record_id` 解封快照或核对主人版本引用）与 `observation.coverage.get@1`（查看覆盖登记、缺口与无活动区分）。
 - **跨项目与用途边界**：非本人受众只能读当前 `context.project_id`，不得跨项目或传 `use: "lookback"`；本人跨项目读取由宿主现算当前可读且未关闭的项目集合（`S-74`）。关掉某项用途开关（`assistant`、`evaluation`、`export`）后，对应 `use` 的查询与证据读取立即拒 `observation.use_disabled`。
-- **暂停、保留期、手动清理与评测样本留存**：管理与留存动作（`settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`、`holds.put/release/list@1`）仅对本人开放。暂停记录前先刷完已入队记录并记下 `paused_at`，恢复时记一段 `by_rule: recording_paused` 缺口；自动到期清理与手动范围清理均在单事务内删除记录、回收无引用快照并记 `expired` 缺口，其中未过期 `evaluation_holds` 覆盖的记录及其关联快照豁免清理并计入 `preserved.evaluation_samples_count`；项目删除与插件清除仍优先删除；容量提醒线到达后只提醒不删记录、不阻断写入。
+- **暂停、保留期、手动清理与评测样本留存**：管理、偏好与留存动作（`settings.get/set@1`、`preferences.read/write@1`、`space.get@1`、`cleanup.preview/apply@1`、`holds.put/release/list@1`）仅对本人开放。其中 `observation.settings.set@1` 只负责暂停／恢复与 `uses` 用途开关，**明确拒绝**提交 `retention_mode` 与 `space_reminder_bytes`（报错 `observation.setting_invalid`）；清理期限（`observation.retention`）与容量提醒线（`observation.space_reminder`）必须先经 `observation.preferences.read@1` 取得所见版本，再经 `observation.preferences.write@1` 按版本提交保存。暂停记录前先刷完已入队记录并记下 `paused_at`，恢复时记一段 `by_rule: recording_paused` 缺口；自动到期清理与手动范围清理均在单事务内删除记录、回收无引用快照并记 `expired` 缺口，其中未过期 `evaluation_holds` 覆盖的记录及其关联快照豁免清理并计入 `preserved.evaluation_samples_count`；项目删除与插件清除仍优先删除；容量提醒线到达后只提醒不删记录、不阻断写入。
 
 <a id="observation-evidence"></a>
 

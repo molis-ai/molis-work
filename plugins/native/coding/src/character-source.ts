@@ -1,7 +1,22 @@
-import { characterRoleActions, type CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
+import { characterRoleActions, type CharacterRoleCatalog, type CharacterRoleUnavailable } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ActionExecutionContext, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { CodingCharacterChoice, CodingRoleRef } from "./characters.js";
+import { codingLocalFailure } from "./words.js";
+
+const UNAVAILABLE_CHARACTER_REASON: Readonly<Record<CharacterRoleUnavailable, readonly [key: string, fallback: string]>> = {
+  disabled: ["coding.server.character-disabled", "所选角色已停用，请另选"],
+  original_disabled: ["coding.server.character-original-disabled", "所选角色的原件已停用，请另选"],
+  unsaved: ["coding.server.character-unsaved", "所选角色还没保存成版本，请先保存或另选"],
+};
+
+function unavailableCharacterError(reason: string | undefined): Error {
+  const pair = reason && Object.hasOwn(UNAVAILABLE_CHARACTER_REASON, reason)
+    ? UNAVAILABLE_CHARACTER_REASON[reason as CharacterRoleUnavailable]
+    : undefined;
+  const [key, fallback] = pair ?? ["coding.server.character-unavailable", "所选角色已停用或还没保存成版本，请另选"];
+  return Object.assign(codingLocalFailure(key, fallback), reason ? { details: { reason } } : {});
+}
 
 type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">;
 
@@ -37,7 +52,7 @@ const same = (a: CodingRoleRef, b: CodingRoleRef) => a.kind === "personal" ? b.k
  */
 export function codingCharacters(context: PluginStartContext) {
   const actions = () => {
-    if (!context.services?.actions) throw Object.assign(new Error("宿主未提供系统动作调用入口"), { code: "actions.unredeemed" });
+    if (!context.services?.actions) throw Object.assign(codingLocalFailure("coding.server.no-actions", "宿主未提供系统动作调用入口"), { code: "actions.unredeemed" });
     return context.services.actions;
   };
   const catalog = (control?: Control) => actions().invoke(characterRoleActions.list, {}, control);
@@ -53,15 +68,15 @@ export function codingCharacters(context: PluginStartContext) {
      */
     async actionTools(ref: CodingRoleRef, control?: Control): Promise<ExactActionReference[] | null | undefined> {
       const found = lookup(await catalog(control), ref);
-      if (!found) throw new Error("这个角色不在本项目里，请另选");
-      if (!found.available) throw new Error("所选角色已停用或还没保存成版本，请另选");
+      if (!found) throw codingLocalFailure("coding.server.character-not-in-project", "这个角色不在本项目里，请另选");
+      if (!found.available) throw unavailableCharacterError(found.reason);
       return found.action_tools;
     },
     /** The role the person chose, checked now and kept with its title; one that cannot be chosen is refused. */
     async chosen(ref: CodingRoleRef, control?: Control): Promise<{ ref: CodingRoleRef; title: string }> {
       const found = lookup(await catalog(control), ref);
-      if (!found) throw new Error("这个角色不在本项目里，请另选");
-      if (!found.available) throw new Error("所选角色已停用或还没保存成版本，请另选");
+      if (!found) throw codingLocalFailure("coding.server.character-not-in-project", "这个角色不在本项目里，请另选");
+      if (!found.available) throw unavailableCharacterError(found.reason);
       return { ref: found.ref, title: found.title };
     },
     /** The role a session with no choice of its own gets now (project default, else the person's), with its title; null for the Assistant itself. */

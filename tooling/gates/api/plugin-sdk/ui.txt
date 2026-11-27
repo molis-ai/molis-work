@@ -867,6 +867,8 @@ export declare function renderCalendar(options: {
     labelledBy?: string;
     title?: string;
     weekdays?: ReadonlyArray<string>;
+    prevLabel?: string;
+    nextLabel?: string;
     className?: string;
     attrs?: Record<string, AttrValue>;
 }): string;
@@ -945,6 +947,7 @@ export declare function renderDatePicker(options: {
     name?: string;
     value?: string;
     placeholder?: string;
+    openLabel?: string;
     className?: string;
     calendar: Parameters<typeof renderCalendar>[0];
 }): string;
@@ -976,6 +979,7 @@ export declare function renderField(options: {
     hint?: string;
     error?: string;
     required?: boolean;
+    requiredLabel?: string;
     control: string;
     className?: string;
 }): string;
@@ -1166,6 +1170,8 @@ export declare function renderNumberField(options: {
     min?: number;
     max?: number;
     step?: number;
+    decrementLabel?: string;
+    incrementLabel?: string;
     className?: string;
     attrs?: Record<string, AttrValue>;
 }): string;
@@ -1190,6 +1196,7 @@ export declare function renderObjectRow(options: {
 export declare function renderOtpField(options?: {
     length?: number;
     name?: string;
+    digitLabel?: (index: number, length: number) => string;
     className?: string;
 }): string;
 

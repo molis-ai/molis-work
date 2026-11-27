@@ -4,7 +4,7 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { createContextLedger, relationEdgesReplicationDefinition } from "@molis-ai/molis-work-module-context-ledger";
 import { FEED_ITEMS_SCHEMA_SQL, fromProjectConnection, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { feedLedgerKey, feedLedgerPort, unassignedFeedAttention } from "./fixtures/feed-ledger.js";
@@ -242,4 +242,36 @@ test("D0195: Feed pages fetch only selected materials and one exact-key ledger b
     assert.deepEqual(feed.query.list("project-a", { limit: 200, offset: 0 }), []);
 
   } finally { h.db.close(); }
+});
+
+test("F-modules-server-11 remove rejects blank key/cause and relationEdges replication validates agent-host, JSON, state, timestamp and source invariance", () => {
+  const db = openTestSqlite(":memory:");
+  try {
+    const ledger = createContextLedger(db, { authorize: () => true });
+    ledger.commands.put(access, {
+      key: "agent-edge", type: "goal.conversation_input.proposal",
+      source: pluginObject("goals", "goal", "goal-1"),
+      target: { ...reference("agent-host", "sess-1/inp-1"), object_type: "agent_input", project_id: "project-a" },
+      cause: "linked",
+    });
+    assert.throws(() => ledger.commands.remove(access, "   ", "reason"), { code: "context_ledger.invalid_reference" });
+    assert.throws(() => ledger.commands.remove(access, "agent-edge", "  "), { code: "context_ledger.invalid_reference" });
+
+    const def = relationEdgesReplicationDefinition("goals", "io.molis.work.goals");
+    const validRow = {
+      scope_kind: "personal", scope_id: "project-a", edge_key: "agent-edge", revision: 1,
+      relation_type: "goal.conversation_input.proposal",
+      source_json: JSON.stringify(pluginObject("goals", "goal", "goal-1")),
+      target_json: JSON.stringify({ ...reference("agent-host", "sess-1/inp-1"), object_type: "agent_input", project_id: "project-a" }),
+      actor_id: "alice", cause: "linked", recorded_at: "2026-11-20T00:00:00.000Z", state: "active",
+    };
+    assert.doesNotThrow(() => def.validate!({ context_edges: [validRow] }, "project-a"));
+    assert.throws(() => def.validate!({ context_edges: [{ ...validRow, source_json: "{broken" }] }, "project-a"), { code: "context_ledger.replica_invalid" });
+    assert.throws(() => def.validate!({ context_edges: [{ ...validRow, state: "archived" }] }, "project-a"), { code: "context_ledger.replica_invalid" });
+    assert.throws(() => def.validate!({ context_edges: [{ ...validRow, recorded_at: "not-a-date" }] }, "project-a"), { code: "context_ledger.replica_invalid" });
+    assert.throws(() => def.validate!({ context_edges: [
+      validRow,
+      { ...validRow, revision: 2, source_json: JSON.stringify(pluginObject("goals", "goal", "goal-2")) },
+    ] }, "project-a"), { code: "context_ledger.replica_invalid" });
+  } finally { db.close(); }
 });

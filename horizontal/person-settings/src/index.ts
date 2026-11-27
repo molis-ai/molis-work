@@ -183,7 +183,7 @@ export function personSettingsConfigReplica(db: Parameters<typeof personalConfig
       assertPortableConfig(value, PERSON_SETTING_LIMITS.value_bytes);
       const current = db.prepare("SELECT revision FROM person_settings WHERE install_id = ? AND key = ?").get(target.install_id, target.key) as { revision: number } | undefined;
       db.prepare(`INSERT INTO person_settings (install_id, plugin_id, key, kind, portable, value_json, revision, updated_at) VALUES (?, ?, ?, 'preference', 1, ?, ?, ?)
-        ON CONFLICT (install_id, key) DO UPDATE SET value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
+        ON CONFLICT (install_id, key) DO UPDATE SET kind = excluded.kind, portable = excluded.portable, value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
         .run(target.install_id, target.plugin_id, target.key, JSON.stringify(value), (current?.revision ?? 0) + 1, now().toISOString());
     },
     canUpload(id) { return portable(id) !== null; },

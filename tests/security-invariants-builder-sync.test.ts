@@ -252,11 +252,11 @@ test('S-119 PCSYNC-22/23 the signed release and all five current release files s
  const extraFile=JSON.stringify(signPluginPackage({payload:payloadOf(distributed,{...bodies,'hidden.dat':'undeclared data'}),signature:null,publisher_key:null},publisher.signer));
  for(const malformed of [extraFile,JSON.stringify({...JSON.parse(signed),extra:'unsigned data'}),signed.replace('{','{"payload":{},')]){
   writeFileSync(join(directory,'signed-package.json'),malformed);
-  assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),'even a signed envelope may only describe the fixed release files');
+  assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),(error:unknown)=>error instanceof Error&&(/签名分发物与发布记录不符|创作同步内容或归属无效/u.test(error.message)||(error as {code?:string}).code==='plugin.signature_invalid'||(error as {code?:string}).code==='plugin.declaration_invalid'),'even a signed envelope may only describe the fixed release files');
  }
  writeFileSync(join(directory,'signed-package.json'),signed);
  writeFileSync(join(directory,'plugin.mjs'),'another body at the fixed version');
- assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),'file digests alone cannot replace the signed distribution');
+ assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),/签名分发物与发布记录不符/u,'file digests alone cannot replace the signed distribution');
  writeFileSync(join(directory,'signed-package.json'),signFiles({...bodies,'plugin.mjs':'another body at the fixed version'}));
  f.stores[0]!.update(build.id,checked.revision,row=>{row.title='force a normal owner mutation';});
  const changed=f.replicas[0]!.next()!;f.replicas[1]!.receive({...changed,revision:2});assert.equal(f.replicas[1]!.conflicts().length,1);
@@ -314,5 +314,32 @@ test('S-119 PCSYNC-01/14 actual Host rejects malformed authoring items before cr
  for(let variant=0;variant<6;variant++){const value=structuredClone(original),row=value.content.builds[0]!;if(variant===0)row.directory='/foreign-native';if(variant===1)row.id='another-build';if(variant===2)Object.assign(row,{browserResult:{passed:true,cases:'not-a-list',at:'2026-10-19T00:00:00Z'}});if(variant===3)row.design!.contract.operations[0]!.input={type:'array'};if(variant===4)row.design!.parts[0]!.pageId='absent-page';if(variant===5){const design=structuredClone(row.design!);design.contract.pluginId='studio.foreign';row.history=[{design,nodes:[],connected:[]}];}
   incoming={...op,value,revision:1};const home=join(f.base,'uninitialized-'+variant);ensureStorageSpace(home,f.space);const client=(await createPersonalSync(home,f.space,lease,withMolisWorkProjectCatalog,check))!;
   try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await client.withCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);assert.equal(existsSync(join(home,'plugin-builder')),false);}finally{await client.close();}
+ }
+});
+
+test('F-horiz-runtime-38 Builder sync preserves contract.help and browserResult.blocked while rejecting malformed values',t=>{
+ const f=fixture(t),source=f.create(),design=structuredClone(source.design!);
+ const help={default_topic:'overview',topics:[{id:'overview',title:'概览',sections:[{id:'start',heading:'快速开始',body:'写一条笔记并提交。'}]}]};
+ design.contract.help=help;
+ writeFileSync(join(source.directory!,'contract.json'),JSON.stringify(design.contract));
+ const blockedResult={passed:false,cases:[{id:'add-note',passed:false,detail:'尚未执行：本机未安装 Chrome'}],blocked:'本机未安装 Chrome',at:'2026-10-19T00:00:00Z'};
+ f.stores[0]!.update(source.id,source.revision,row=>{row.design=design;row.browserResult=blockedResult;});
+ const op=f.send();
+ const received=f.stores[1]!.require(source.id);
+ assert.deepEqual(received.design?.contract.help,help);
+ assert.deepEqual(received.browserResult,blockedResult);
+ assert.equal(f.replicas[1]!.next(),null);
+ const validate=(value:unknown)=>validatePrivateValueReplication(value,f.definitions[1]!,{spaceId:f.space.spaceId,projectId,title:'Builder owner',authorize(){}},op.key);
+ const invalidCases:Array<(row:AgentBuild)=>void>=[
+  row=>{Reflect.set(row.design!.contract.help!,'extra','disallowed');},
+  row=>{Reflect.set(row.design!.contract.help!.topics[0]!,'extra','disallowed');},
+  row=>{Reflect.set(row.browserResult!,'blocked',123);},
+  row=>{row.browserResult!.blocked='';},
+  row=>{row.browserResult!.blocked='x'.repeat(4_001);},
+ ];
+ for(const mutate of invalidCases){
+  const copy=structuredClone(op.value) as {content:{builds:AgentBuild[]}};
+  mutate(copy.content.builds[0]!);
+  assert.throws(()=>validate(copy),{code:'plugin_builder.sync_invalid'});
  }
 });

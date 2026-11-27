@@ -1,4 +1,4 @@
-import { defineErrorCodes, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, requireSynchronous, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOST_CONNECTIONS_OBSERVE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { noProjectMcp, listProjectMcpConnections, manageProjectMcp, type ProjectMcpManagementPort } from "./connector-project-mcp.js";
 import { controlConnectorConnection } from "./connector-management-service.js";
@@ -64,13 +64,18 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     if (!result) throw managementErrors.authorization_unknown("授权记录已失效，请重新发起接入");
     return result;
   };
+  const callerControl = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => ({
+    signal: caller.signal,
+    beforeEffect: () => caller.beforeEffect(),
+    assertCurrent: () => requireSynchronous(caller.assert_authority_current?.()),
+  });
   const change = async (caller: Parameters<ActionHandlerBinding["handle"]>[0], command: { connection_id: string; expected_revision: string; action: "enable" | "disable" | "remove" }) => {
     if (command.connection_id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, command);
     await caller.beforeEffect();
     const current = withConnectorConnections(home, store => store.require(command.connection_id), "required");
     if (current.updated_at !== command.expected_revision) throw managementErrors.changed("连接已变化，请重新读取后操作");
     const result = controlConnectorConnection(home, command.connection_id, command.action);
-    return command.action === "enable" ? { ...result, verification: await verifyEnabledConnection(home, command.connection_id, remember, caller) } : result;
+    return command.action === "enable" ? { ...result, verification: await verifyEnabledConnection(home, command.connection_id, remember, callerControl(caller)) } : result;
   };
   return [
     binding(connectorManagementActions.catalog, async (_caller, input) => {
@@ -88,7 +93,7 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     binding(connectorManagementActions.check, async (caller, input) => {
       const id = (input as { connection_id: string }).connection_id;
       if (id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, { connection_id: id, action: "check" });
-      return checkConnectorConnection(home, id, remember, caller);
+      return checkConnectorConnection(home, id, remember, callerControl(caller));
     }),
     binding(connectorManagementActions.availability, (_caller, input) => {
       const id = (input as { connection_id: string }).connection_id;

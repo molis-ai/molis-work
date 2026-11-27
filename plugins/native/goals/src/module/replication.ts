@@ -30,7 +30,7 @@ export function goalReplicationDefinition(): ProjectReplicaDefinition {
       {"name":"input_bindings","columns":["binding_id","project_id","goal_id","input_name","source_type","source_ref","source_edge_key","snapshot_digest","state","reason","created_by","created_at"],"keys":["binding_id"]},
     ],
     journalTypes: ["board.%","goal.%","relation.%","policy.%"],
-    receiptOperations: ["initialize_board","set_active_goal","create_goal","create_goal_intent","add_relation","deactivate_relation","save_project_policy","set_goal_archived","set_goal_trashed","configure_goal_events_request","configure_goal_events","report_goal_events","record_goal_progress","record_goal_note","apply_goal_concern","request_goal_decision","cite_goal_decision","record_goal_user_decision","submit_goal_event_closure","resume_goal_event_work","set_goal_event_agreement"],
+    receiptOperations: ["initialize_board","set_active_goal","create_goal","create_goal_intent","add_relation","deactivate_relation","save_project_policy","set_goal_archived","set_goal_trashed","configure_goal_events_request","configure_goal_events","report_goal_events","record_goal_progress","record_goal_note","acknowledge_goal_event","apply_goal_concern","request_goal_decision","cite_goal_decision","record_goal_user_decision","submit_goal_event_closure","resume_goal_event_work","set_goal_event_agreement"],
     sequenceFields: ["journal_seq","based_on_cursor","observed_event_cursor","goal_event_cursor","event_list_next_cursor","event_cursor","next_cursor"],
     validate: validateGoalReplication,
   };

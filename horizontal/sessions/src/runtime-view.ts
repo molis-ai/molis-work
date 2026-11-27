@@ -71,18 +71,28 @@ export function toSummarySource(source: ExternalSessionSource): ExternalSessionS
   return summary;
 }
 
+export function isLocationActiveForTool(
+  tool: ExternalToolEntry,
+  locationKey: string,
+  ports: SessionsPorts,
+): boolean {
+  if (tool.surface === "cloud") return true;
+  return resolveLocalToolRoot(tool, ports).locationKey === locationKey;
+}
+
 export function isSourceCurrentlyAllowed(
   scope: ExternalSessionReadScope | undefined,
-  surface: ExternalToolEntry["surface"],
+  tool: ExternalToolEntry,
   ports: SessionsPorts,
 ): boolean {
   if (!scope || !scope.allowed) return false;
-  if (surface === "cloud") {
+  if (tool.surface === "cloud") {
     if (!scope.connection_id) return false;
     const conn = ports.connections.current(scope.connection_id);
     if (!conn || !conn.enabled) return false;
+    return true;
   }
-  return true;
+  return isLocationActiveForTool(tool, scope.location_key, ports);
 }
 
 export function isSessionInScopeWithMaps(
@@ -95,8 +105,9 @@ export function isSessionInScopeWithMaps(
 ): boolean {
   const tool = findTopLevelTool(session.entry_id);
   if (!tool || !hasSessionAdapter(session.entry_id)) return false;
+  if (!isLocationActiveForTool(tool, session.location_key, ports)) return false;
   const scope = scopeMap.get(`${session.entry_id}\0${session.location_key}`);
-  if (!isSourceCurrentlyAllowed(scope, tool.surface, ports)) return false;
+  if (!isSourceCurrentlyAllowed(scope, tool, ports)) return false;
   if (scope!.directories.mode === "all") return true;
 
   const dirRow = session.directory_key ? dirMap.get(session.directory_key) : undefined;
@@ -111,7 +122,7 @@ export function isSessionInScopeWithMaps(
 export function upsertWorkspaceDirectoryCache(
   snapshot: SessionProjectSnapshot,
   workspaces: readonly PreparedLinkedWorkspace[],
-  _dirDigest: string,
+  dirDigest: string,
   store: SessionsStore,
 ): void {
   const byCanonical = new Map(workspaces.map(ws => [ws.canonical_path, ws]));
@@ -124,7 +135,7 @@ export function upsertWorkspaceDirectoryCache(
       ws ? { real_path: ws.real_path, repository_key: ws.repository_key, worktree_relative: ws.worktree_relative } : null,
     );
   }
-  store.setWorkspaceCache(entries);
+  store.setWorkspaceCache(entries, dirDigest);
 }
 
 export interface ResolvedDerivedSnapshot {
@@ -447,10 +458,10 @@ export function maybeTriggerStaleDiscovery(
   for (const scope of scopes) {
     const tool = findTopLevelTool(scope.entry_id);
     if (!tool || !hasSessionAdapter(scope.entry_id)) continue;
-    if (!isSourceCurrentlyAllowed(scope, tool.surface, ports)) continue;
-    if (discovery.isRunning(scope.entry_id, scope.location_key)) continue;
+    if (!isSourceCurrentlyAllowed(scope, tool, ports)) continue;
+    if (discovery.isActiveOrQueued(scope.entry_id, scope.location_key)) continue;
     const stored = sourceRows.get(`${scope.entry_id}\0${scope.location_key}`);
-    if (!stored) {
+    if (!stored || stored.state === "reading") {
       discovery.enqueue(scope.entry_id, scope.location_key, true);
       continue;
     }

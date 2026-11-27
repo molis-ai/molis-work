@@ -1,6 +1,7 @@
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
 import { renderButton } from "./button.js";
 import { icon, type PluginIconName } from "./icon.js";
+import { trySharedUiText, tryUiText } from "./text.js";
 
 type MwControlSize = "sm" | "md" | "lg";
 
@@ -123,11 +124,13 @@ export function renderField(options: {
   hint?: string;
   error?: string;
   required?: boolean;
+  requiredLabel?: string;
   control: string;
   className?: string;
 }): string {
+  const requiredText = options.requiredLabel ?? trySharedUiText("common.field.required") ?? "*";
   return `<label class="${cx("mw-field", options.className)}" data-slot="field"><span class="mw-field__label">${escapeHtml(options.label)}${
-    options.required ? `<small>${escapeHtml("必填")}</small>` : ""
+    options.required ? `<small>${escapeHtml(requiredText)}</small>` : ""
   }</span>${options.control}${
     options.hint ? `<small class="mw-field__hint">${escapeHtml(options.hint)}</small>` : ""
   }${options.error ? `<p class="mw-field__error" role="alert">${escapeHtml(options.error)}</p>` : ""}</label>`;
@@ -184,15 +187,18 @@ export function renderNumberField(options: {
   min?: number;
   max?: number;
   step?: number;
+  decrementLabel?: string;
+  incrementLabel?: string;
   className?: string;
   attrs?: Record<string, AttrValue>;
 }): string {
+  const step = options.step ?? 1;
   const decrement = renderButton({
     variant: "ghost",
     size: "icon",
     icon: "minus",
     iconOnly: true,
-    label: "减少",
+    label: options.decrementLabel ?? tryUiText("common.interaction.step-decrease", { step }) ?? "-",
     attrs: { "data-number-step": "-1" },
   });
   const increment = renderButton({
@@ -200,24 +206,32 @@ export function renderNumberField(options: {
     size: "icon",
     icon: "plus",
     iconOnly: true,
-    label: "增加",
+    label: options.incrementLabel ?? tryUiText("common.interaction.step-increase", { step }) ?? "+",
     attrs: { "data-number-step": "1" },
   });
   return `<div class="${cx("mw-number", options.className)}" data-slot="number-field">${decrement}${renderInput({
     name: options.name,
     type: "number",
     value: options.value == null ? undefined : String(options.value),
-    attrs: { min: options.min, max: options.max, step: options.step ?? 1, ...options.attrs },
+    attrs: { min: options.min, max: options.max, step, ...options.attrs },
   })}${increment}</div>`;
 }
 
-export function renderOtpField(options: { length?: number; name?: string; className?: string } = {}): string {
+export function renderOtpField(options: {
+  length?: number;
+  name?: string;
+  digitLabel?: (index: number, length: number) => string;
+  className?: string;
+} = {}): string {
   const length = options.length ?? 6;
-  const cells = Array.from({ length }, (_, index) =>
-    `<input class="mw-otp__cell" data-slot="otp-cell" type="text" inputmode="numeric" maxlength="1" autocomplete="${index === 0 ? "one-time-code" : "off"}"${
+  const cells = Array.from({ length }, (_, index) => {
+    const ariaLabel = options.digitLabel
+      ? options.digitLabel(index, length)
+      : tryUiText("common.field.otp-digit", { index: index + 1, length }) ?? `${index + 1}/${length}`;
+    return `<input class="mw-otp__cell" data-slot="otp-cell" type="text" inputmode="numeric" maxlength="1" autocomplete="${index === 0 ? "one-time-code" : "off"}"${
       options.name ? ` name="${escapeHtml(options.name)}-${index}"` : ""
-    } aria-label="第 ${index + 1} 位">`,
-  ).join("");
+    } aria-label="${escapeHtml(ariaLabel)}">`;
+  }).join("");
   return `<div class="${cx("mw-otp", options.className)}" data-slot="otp-field">${cells}</div>`;
 }
 

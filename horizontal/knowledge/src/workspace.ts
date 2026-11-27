@@ -39,10 +39,17 @@ export class KnowledgeWorkspace {
     for (const folder of folders) {
       const queue: string[][] = pattern.starts.map(start => [...start]);
       while (queue.length) {
+        (access.workspace ?? access.caller).signal?.throwIfAborted();
+        access.caller.signal?.throwIfAborted();
         const path = queue.shift()!;
         if (listed >= KNOWLEDGE_GLOB_MAX_FOLDERS || result.files.length >= limit) { result.more = true; break; }
         listed += 1;
-        const read = await invoke({ workspace_id: folder.workspace_id, path, kind: "directory" }).catch((error: unknown) => ({ outcome: "error" as const, error }));
+        const read = await invoke({ workspace_id: folder.workspace_id, path, kind: "directory" }).catch((error: unknown) => {
+          (access.workspace ?? access.caller).signal?.throwIfAborted();
+          access.caller.signal?.throwIfAborted();
+          if (error instanceof Error && error.name === "AbortError") throw error;
+          return { outcome: "error" as const, error };
+        });
         if (read.outcome !== "directory") {
           // A starting folder the pattern names but the project does not have is simply not there.
           if (read.outcome !== "missing") result.unread.push({ workspace_id: folder.workspace_id, path: path.join("/"), reason: "error" in read ? reasonText(String((read.error as Error)?.message ?? read.error)) : NOT_TEXT[read.outcome as keyof typeof NOT_TEXT] ?? "读不了这个目录" });

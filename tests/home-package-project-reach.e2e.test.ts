@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import assert from "node:assert/strict";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -269,7 +270,7 @@ test("S-107 project settings reject copied credentials, other audiences, extra i
     assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), before);
     hold.release(); assert.equal((await granted).status, 200);
   } finally { hold.close(); await Promise.allSettled([granted]); }
-  await assert.rejects(hold.original.call(f.host, f.a.reference).invoke(hold.caller()!, { capability_id: "plugins.project_reach.grant", version: 1 }, input), "a settings credential ends with the actual request");
+  await assert.rejects(hold.original.call(f.host, f.a.reference).invoke(hold.caller()!, { capability_id: "plugins.project_reach.grant", version: 1 }, input), { code: "actions.forbidden" }, "a settings credential ends with the actual request");
   const client = f.host.actionClient(f.a.reference), preview = await client.invoke(person(f.a.project_id), ref(pluginInstallActions.preview), { bundle: projectReachPackage(f.publisher, { version: "1.1.0" }) }) as { preview_id: string };
   await client.invoke(person(f.a.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true });
   const afterUpgrade = f.ledger.consents(REACH_PLUGIN_ID), stale = await f.settings(f.a, "grant", input);

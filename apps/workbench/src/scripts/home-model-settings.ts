@@ -31,17 +31,18 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
     content.replaceChildren();
     retry.hidden = true; status.hidden = true; content.removeAttribute('aria-busy');
     const cached = pages.get(key);
-    if (cached) { content.append(cached); if (!models) return; }
+    const reuse = Boolean(cached && (models || cached.dataset.cachedHref === href));
+    if (reuse) { content.append(cached); if (!models) return; }
     status.hidden = false; status.textContent = globalThis.t.text("workbench.home-model-settings.loading"); content.setAttribute('aria-busy', 'true');
     try {
       const url = new URL(href, location.origin); url.searchParams.set('embed', '1');
-      if (cached && models) url.searchParams.set('new', '1');
+      if (reuse && models) url.searchParams.set('new', '1');
       const html = await molisWorkRequest(url.href, {as:'text', signal:controller.signal, fallback:globalThis.t.text("workbench.home-model-settings.cannot-load-model-settings")});
       const page = new DOMParser().parseFromString(html, 'text/html');
       const document = page.querySelector(models ? '[data-model-settings]' : '[data-connectors-settings]');
       if (!document) throw new Error(globalThis.t.text("workbench.home-model-settings.model-settings-page-incomplete"));
       if (controller.signal.aborted) return;
-      if (cached) {
+      if (reuse) {
         // Refresh connection choices after managing accounts without replacing unsaved model inputs.
         const current = cached.querySelector('[data-model-connection]'), fresh = document.querySelector('[data-model-connection]');
         if (current) {
@@ -54,8 +55,8 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
         }
       } else {
         // Cache a stable wrapper: the existing connections binding can replace its own document.
-        const holder = page.createElement('div'); holder.append(document); content.append(holder);
-        if (models) globalThis.molisWorkBindModelSettings(document);
+        const holder = page.createElement('div'); holder.dataset.cachedHref = href; holder.append(document); content.replaceChildren(holder);
+        if (models) globalThis.molisWorkBindModelSettings(document, { saved: ({ first, ready } = {}) => { if (first || ready) globalThis.document.dispatchEvent(new CustomEvent('molis-work:model-ready')); } });
         else {
           let connectionAddress = url;
           globalThis.molisWorkBindConnectorsSettings(document, { address: () => connectionAddress, replace: next => { connectionAddress = next; } });

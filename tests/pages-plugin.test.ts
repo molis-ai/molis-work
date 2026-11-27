@@ -104,6 +104,7 @@ import {
   outdentListItem,
   removeCodeIndent,
   pagesSchema,
+  parsePagesBody,
   scrollChildIntoView,
   replaceEnclosingRow,
   revealHeading,
@@ -120,6 +121,7 @@ import {
   safePagesCalloutTone,
   safePagesColumnShare,
   safePagesColumnWidth,
+  safePagesHeadingLevel,
   setCalloutStyle,
   menuKey,
   hoverMenuIndex,
@@ -339,8 +341,19 @@ test("按住 Alt 拖开会复制一块，原来的还在", () => {
   assert.deepEqual(pair!.content.content.map((node) => node.textContent), ["甲", "乙", "丙", "甲", "乙"]);
   assert.equal(placeCopySpan(doc, 0, 0, 99, 0), null);
 
+  // F-pm3-19: Alt-copying into an adjacent slot (or inside a single-block document) is a move no-op,
+  // so release validation must check previewCopySpan rather than previewSpan.
+  const single = pagesSchema.node("doc", null, [para("独块")]);
+  assert.equal(previewSpan(single, 0, 0, 0, 0), null);
+  assert.equal(previewSpan(single, 0, 0, 1, 0), null);
+  assert.deepEqual(previewCopySpan(single, 0, 0, 0, 0)?.doc.content.content.map((node) => node.textContent), ["独块", "独块"]);
+  assert.deepEqual(previewCopySpan(single, 0, 0, 1, 0)?.doc.content.content.map((node) => node.textContent), ["独块", "独块"]);
+  assert.equal(previewSpan(doc, 0, 0, 1, 0), null);
+  assert.deepEqual(previewCopySpan(doc, 0, 0, 1, 0)?.doc.content.content.map((node) => node.textContent), ["甲", "甲", "乙", "丙"]);
+
   const drag = readFileSync(new URL("../plugins/native/pages/src/editor-block-drag.ts", import.meta.url), "utf8");
   const render = readFileSync(new URL("../plugins/native/pages/src/editor-block-drag-render.ts", import.meta.url), "utf8");
+  assert.match(drag, /\(alt \? previewCopySpan : previewSpan\)\(view\.state\.doc, anchor, head, gap, level\)/);
   assert.match(drag, /commitDrag\(view, anchor, head, gap, level,\s*tr => tr\.setMeta\(hoverKey, \{ span: null, pos: -1, dragging: false \}\), alt\)/);
   assert.match(drag, /drag\.alt = event\.altKey/);
   assert.match(render, /previewCopySpan\(motion\.layoutSource/);
@@ -3187,6 +3200,27 @@ test("查找能替换当前一处或全部，加粗留在新字上", () => {
   assert.equal(coded?.textContent, "甲b");
   assert.equal(coded?.child(0).attrs.language, "typescript");
   assert.equal(coded?.child(0).firstChild?.marks.length, 0);
+
+  // F-pm3-17: variable-length case folding (İ U+0130 -> i\u0307) must map hits back to original UTF-16 offsets.
+  const expanded = pagesSchema.node("doc", null, [para("İİİabc")]);
+  const expandedHits = findHits(expanded, "abc");
+  assert.equal(expandedHits.length, 1);
+  assert.equal(expanded.textBetween(expandedHits[0]!.from, expandedHits[0]!.to), "abc");
+  const singlePlan = replaceFindHit(expanded, "abc", 0, "XYZ");
+  assert.ok(singlePlan?.text);
+  assert.equal(expanded.replace(singlePlan.from, singlePlan.to, new Slice(Fragment.from(singlePlan.text), 0, 0)).textContent, "İİİXYZ");
+  assert.equal(replaceAllFindHits(expanded, "abc", "XYZ")?.textContent, "İİİXYZ");
+
+  const repeated = pagesSchema.node("doc", null, [para("İabcİabc")]);
+  assert.equal(replaceAllFindHits(repeated, "abc", "XY")?.textContent, "İXYİXY");
+
+  const dotted = pagesSchema.node("doc", null, [para("İİa")]);
+  assert.equal(findHits(dotted, "İ").length, 2);
+  assert.equal(replaceAllFindHits(dotted, "İ", "I")?.textContent, "IIa");
+
+  const mixedI = pagesSchema.node("doc", null, [para("İi")]);
+  assert.equal(findHits(mixedI, "i").length, 1);
+  assert.equal(replaceAllFindHits(mixedI, "i", "X")?.textContent, "İX");
 });
 
 test("空行粘贴图片地址变成图片，普通网址仍是书签", () => {
@@ -4459,6 +4493,20 @@ test("链接只收可导航地址，脚本伪协议被丢掉", () => {
   assert.equal(safePagesHref("  molis.ai/docs "), "https://molis.ai/docs");
   assert.equal(safePagesHref("mailto:a@b.com"), "mailto:a@b.com");
   assert.equal(safePagesHref("/projects/p1"), "/projects/p1");
+  assert.equal(safePagesHref("/projects/p1/?openPlugin=pages"), "/projects/p1/?openPlugin=pages");
+  assert.equal(safePagesHref("#section-1"), "#section-1");
+  // F-pm3-16: protocol-relative, backslash-relative, whitespace, and control characters must be rejected.
+  assert.equal(safePagesHref("//evil.example/x"), "");
+  assert.equal(safePagesHref("/\\evil.example"), "");
+  assert.equal(safePagesHref("/a\nb"), "");
+  assert.equal(safePagesHref("/a\n"), "");
+  assert.equal(safePagesHref("/a\u0000b"), "");
+  assert.equal(safePagesHref("/a b"), "");
+  assert.equal(safePagesHref("#sec\nb"), "");
+  assert.equal(safePagesHref("#sec\u0000b"), "");
+  assert.equal(safePagesHref("#sec bad"), "");
+  assert.equal(safePagesHref("https://molis.ai/\nb"), "");
+  assert.equal(safePagesHref("java\tscript:alert(1)"), "");
   assert.equal(safePagesHref("javascript:alert(1)"), "");
   assert.equal(safePagesHref("JaVaScRiPt:alert(1)"), "");
   assert.equal(safePagesHref("data:text/html,<script>"), "");
@@ -4472,6 +4520,32 @@ test("链接只收可导航地址，脚本伪协议被丢掉", () => {
   assert.equal(dom[0], "a");
   assert.equal(dom[1].href, "https://molis.ai/");
   assert.equal(dom[1].rel, "noreferrer noopener");
+});
+
+test("F-pm3-15: heading level is clamped safely in toDOM/to-markdown and malformed levels are rejected by parsePagesBody", () => {
+  assert.equal(safePagesHeadingLevel(1), 1);
+  assert.equal(safePagesHeadingLevel(2), 2);
+  assert.equal(safePagesHeadingLevel(3), 3);
+  assert.equal(safePagesHeadingLevel(0), 1);
+  assert.equal(safePagesHeadingLevel(4), 3);
+  assert.equal(safePagesHeadingLevel(1e9), 3);
+  assert.equal(safePagesHeadingLevel("1 bad"), 1);
+  assert.equal(safePagesHeadingLevel("r"), 1);
+  assert.equal(safePagesHeadingLevel("tml"), 1);
+
+  for (const level of ["1 bad", "r", "tml", 1e9, 0, -2, 1.5, null]) {
+    const node = pagesSchema.node("heading", { level }, [pagesSchema.text("Heading")]);
+    const dom = pagesSchema.nodes.heading.spec.toDOM?.(node) as [string, Record<string, string>, number];
+    assert.ok(dom[0] === "h1" || dom[0] === "h2" || dom[0] === "h3");
+    const markdown = nodesToMarkdown([node]);
+    assert.match(markdown, /^#{1,3} Heading$/u);
+    assert.throws(
+      () => parsePagesBody({ type: "doc", content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Heading" }] }] }),
+      { code: "pages.invalid" },
+    );
+  }
+  assert.doesNotThrow(() => parsePagesBody({ type: "doc", content: [{ type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Ok" }] }] }));
+  assert.doesNotThrow(() => parsePagesBody({ type: "doc", content: [{ type: "heading", content: [{ type: "text", text: "Default" }] }] }));
 });
 
 test("Tab 嵌套对待办列表同样生效，Shift-Tab 能原路退回", () => {

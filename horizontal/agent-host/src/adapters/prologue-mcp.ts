@@ -104,14 +104,21 @@ async function heldConfiguration(runtime: Runtime, owner: AgentSkillOwner, id: s
 
 async function closeConnections(state: Pick<McpState, "runtime" | "transports" | "withDispatchGuard">, id: string) {
   const { runtime, transports, withDispatchGuard } = state;
+  let firstError: unknown;
   for (const conn of runtime.mcp.list().filter(item => item.id === id || item.id.startsWith(id + "@"))) {
     const transport = transports.get(conn.id);
     transports.delete(conn.id);
     const disconnect = () => runtime.disconnectMcp(conn.ref);
-    if (transport) await withDispatchGuard({ beforeEffect: () => {}, assertCurrent: () => {}, mcp: { maintenance: transport } }, disconnect);
-    else await disconnect();
-    runtime.mcp.remove(conn.ref);
+    try {
+      if (transport) await withDispatchGuard({ beforeEffect: () => {}, assertCurrent: () => {}, mcp: { maintenance: transport } }, disconnect);
+      else await disconnect();
+    } catch (error) {
+      firstError ??= error;
+    } finally {
+      try { runtime.mcp.remove(conn.ref); } catch (error) { firstError ??= error; }
+    }
   }
+  if (firstError !== undefined) throw firstError;
 }
 
 function serverView(runtime: Runtime, saved: Saved, version: number, busy: ReadonlyMap<string, { action: string }>, errors: ReadonlyMap<string, string>): AgentMcpServerView {
@@ -175,7 +182,7 @@ async function connectTransport(state: McpState, transport: McpTransport, dispat
     await state.withDispatchGuard({ ...dispatch, mcp: { maintenance: transport } }, connect);
     dispatch.assertCurrent();
   } catch (error) {
-    await closeConnections(state, transport.connection);
+    await closeConnections(state, transport.connection).catch(() => undefined);
     throw error;
   }
 }
@@ -223,8 +230,8 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
       () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms,
         guard: state.requestGuard(transport), ...(credentialRef ? { credentialRef } : {}) } }));
   }
-  if (invalidated.has(id)) { await closeConnections(state, id); throw new Error("MCP 账号已改变，请重新连接"); }
-  if (abort.signal.aborted) { await closeConnections(state, id);throw new Error("连接已取消"); }
+  if (invalidated.has(id)) { await closeConnections(state, id).catch(() => undefined); throw new Error("MCP 账号已改变，请重新连接"); }
+  if (abort.signal.aborted) { await closeConnections(state, id).catch(() => undefined); throw new Error("连接已取消"); }
   runtime.adoptMcpTools(conn.ref);
 }
 
@@ -315,6 +322,22 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
     }
   });
   const resolveHost = (saved: Saved) => resolveHostCredential(options, saved);
+  const refreshSelectedUnderLock = async (record: Held, connectionId: string, abort: AbortController, dispatch: ReviewDecisionControl) => {
+    const { saved } = record;
+    if (!saved.auth_connection_id) return undefined;
+    try {
+      if (invalidated.has(saved.id)) throw new Error("MCP 账号已改变，请重新连接");
+      const current = await resolveHost(saved);
+      const previous = linked.get(saved.id);
+      if (!previous || previous.revision !== current.revision) throw new Error("MCP 账号已改变，请重新连接");
+      if (previous.credential !== JSON.stringify(current.credentialRef)) {
+        await close(saved.id);
+        await connectConfiguration(state, record, connectionId, abort, dispatch);
+      }
+      current.assertCurrent?.();
+      return current.assertCurrent;
+    } catch (error) { await close(saved.id).catch(() => undefined); throw error; }
+  };
   const refreshSelected = async (saved: Saved, callOptions?: Parameters<AgentMcpLibrary["control"]>[3]) => {
     if (!saved.auth_connection_id) return;
     try {
@@ -328,7 +351,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
       }
       current.assertCurrent?.();
       return current.assertCurrent;
-    } catch (error) { await close(saved.id); throw error; }
+    } catch (error) { await close(saved.id).catch(() => undefined); throw error; }
   };
   const locked = async <T>(id: string, action: string, work: (abort: AbortController) => Promise<T>) => {
     if (busy.has(id)) throw new Error("这个 MCP 正在处理另一项操作，请等待或取消连接");
@@ -394,9 +417,8 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
     },
     async control(owner, id, action, callOptions = {}) {
       if (action === "cancel") { await held(owner, id);if (["connect", "refresh"].includes(busy.get(id)?.action ?? "")) busy.get(id)!.abort.abort();return; }
-      let assertCurrent: (() => void) | undefined;
-      if (action === "refresh") { await callOptions.beforeDispatch?.(); callOptions.signal?.throwIfAborted(); assertCurrent = await refreshSelected((await held(owner, id)).saved, callOptions); }
       await locked(id, action, async abort => {
+        let assertCurrent: (() => void) | undefined;
         const cancelled = () => abort.abort();
         callOptions.signal?.addEventListener("abort", cancelled, { once: true });
         const current = () => {
@@ -412,6 +434,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
         if (action === "connect") await connectConfiguration(state, record, connectionId, abort, dispatch);
         else if (action === "refresh") {
           if (!record.saved.enabled) throw new Error("请先启用这个 MCP 服务");
+          assertCurrent = await refreshSelectedUnderLock(record, connectionId, abort, dispatch);
           await assertDirectory(record.saved);
           const conn = connection(connectionId);
           const transport = transports.get(connectionId);
@@ -487,7 +510,8 @@ async function callMcpTool(state: McpState, library: AgentMcpLibrary,
     const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
     // Adopted on connect; adopting again after a reconnect keeps the catalog on the live shape.
     const conn = connection(mcpConnectionId(checked!));
-    if (!conn || !runtime.tools.get(name)) runtime.adoptMcpTools(conn!.ref);
+    if (!conn || conn.health !== "connected") throw createPrologueError("EFFECT_NOT_AUTHORIZED", "原 MCP 连接已断开");
+    if (!runtime.tools.get(name)) runtime.adoptMcpTools(conn.ref);
     const root = await runtime.workspace.authorize({ path: saved.transport === "stdio" ? saved.directory!.canonical_path : await callRoot() });
     assertSourceCurrent?.();
     const run = runtime.createSystemToolRunner(root.ref);
@@ -518,7 +542,9 @@ async function callMcpTool(state: McpState, library: AgentMcpLibrary,
       // the SDK still records it as an external write and runs it through its own chain.
       onAwaiting: effect => {
         if (!effect.pending) return;
-        void runtime.readClock().then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock));
+        void runtime.readClock()
+          .then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock))
+          .catch(() => undefined);
       },
     });
     assertSourceCurrent?.();

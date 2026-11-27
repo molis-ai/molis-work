@@ -1,4 +1,4 @@
-import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import { refreshState } from "./configuration.js";
 import type { Page } from "./page.js";
@@ -52,7 +52,7 @@ function queuedAction(page: Page, id: string, queued: QueuedRound, label: string
 
 /** A round waiting for another session: what it waits for, and starting it now or giving the wait up. */
 export function renderQueued(page: Page, id: string, queued: QueuedRound | null | undefined) {
-  const { q, s } = page, box = q("[data-coding-queued]"), next = JSON.stringify([id, queued]);
+  const { q, s } = page, box = q("[data-coding-queued]"), next = JSON.stringify([activeUiLocale(), id, queued]);
   if (next === s.queuedKey) return;
   s.queuedKey = next;
   box.hidden = !queued;

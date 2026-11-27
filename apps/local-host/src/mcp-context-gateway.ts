@@ -15,7 +15,7 @@ import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { readLocalWebBody, sendLocalGatewayJson as sendLocalWebJson } from "./web-http.js";
+import { readLocalWebBody, requestAbortSignal, sendLocalGatewayJson as sendLocalWebJson } from "./web-http.js";
 import { homeHostUrl } from "./host-endpoint.js";
 
 interface ContextGatewayOwner {
@@ -26,12 +26,11 @@ interface ContextGatewayOwner {
 export async function handleMcpContextHttp(request: IncomingMessage, response: ServerResponse, url: URL, owner: ContextGatewayOwner): Promise<boolean> {
   if (url.pathname !== MCP_CONTEXT_PATH) return false;
   if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "只支持本机 POST 调用" }); return true; }
-  const abort = new AbortController(), instance = owner.host.instanceId;
-  const disconnect = () => { if (!response.writableFinished) abort.abort(new ActionError("actions.cancelled", "Runtime 上下文连接已断开")); };
-  response.once("close", disconnect);
+  const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "Runtime 上下文连接已断开"));
+  const instance = owner.host.instanceId;
   let cache: ContextCacheUpdate = { kind: "none" };
   const check = () => {
-    abort.signal.throwIfAborted();
+    disconnected.signal.throwIfAborted();
     if (owner.host.instanceId !== instance || owner.host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原常驻服务已关闭");
   };
   try {
@@ -49,7 +48,7 @@ export async function handleMcpContextHttp(request: IncomingMessage, response: S
     runtimeConnectionIdentity(requireMcpRuntimeContextHost({ runtimeContextHost: host }, protocol), protocol);
     await withCallId(body.call_id, async () => {
       try {
-        const result = await executeContext(owner, body, host, protocol, abort.signal, check, update => { cache = update; });
+        const result = await executeContext(owner, body, host, protocol, disconnected.signal, check, update => { cache = update; });
         check();
         sendLocalWebJson(response, 200, { instance_id: instance, result, cache });
       } catch (error) {
@@ -60,7 +59,7 @@ export async function handleMcpContextHttp(request: IncomingMessage, response: S
   } catch (error) {
     const failed = actionErrorResponse(error);
     if (!response.destroyed) sendLocalWebJson(response, failed.status, { ...failed.body, instance_id: instance, cache });
-  } finally { response.off("close", disconnect); }
+  } finally { disconnected.dispose(); }
   return true;
 }
 

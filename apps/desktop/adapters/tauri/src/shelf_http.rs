@@ -455,6 +455,59 @@ pub fn parse_wheel_gates(payload: &str) -> Option<(bool, bool)> {
     Some((!executable.is_empty(), can_run))
 }
 
+fn recipe_action_failed() -> String {
+    tr(
+        "这次操作没能完成，请稍后再试。",
+        "Couldn’t complete that action right now. Please try again.",
+        "操作を完了できませんでした。少し待ってからもう一度お試しください。",
+    )
+    .to_string()
+}
+
+fn non_empty_error_value(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        serde_json::Value::Object(map) => map
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map(str::to_string)
+            .or_else(|| Some(recipe_action_failed())),
+        _ => Some(recipe_action_failed()),
+    }
+}
+
+fn parse_recipe_response(payload: &str) -> Result<(), String> {
+    let parsed: serde_json::Value = serde_json::from_str(payload).map_err(|error| {
+        eprintln!("shelf_http::parse_recipe_response invalid json: {error}");
+        recipe_action_failed()
+    })?;
+    if let Some(error) = parsed.get("error").and_then(non_empty_error_value) {
+        return Err(error);
+    }
+    if parsed.get("ok").and_then(serde_json::Value::as_bool) == Some(false) {
+        return Err(recipe_action_failed());
+    }
+    if let Some(job) = parsed.get("job") {
+        if let Some(error) = job.get("error").and_then(non_empty_error_value) {
+            return Err(error);
+        }
+        if job.get("status").and_then(serde_json::Value::as_str) == Some("failed") {
+            return Err(recipe_action_failed());
+        }
+    }
+    Ok(())
+}
+
 /// A wheel petal runs its recipe with the default option, no confirmation page.
 pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
     if item_ids.is_empty() {
@@ -470,17 +523,7 @@ pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
         "item_ids": item_ids,
     });
     let payload = post_json(&format!("{SHELF_API}/jobs"), &body)?;
-    if payload.contains("\"error\"") {
-        return Err(json_error(&payload).unwrap_or_else(|| {
-            tr(
-                "这次操作没能完成，请稍后再试。",
-                "Couldn’t complete that action right now. Please try again.",
-                "操作を完了できませんでした。少し待ってからもう一度お試しください。",
-            )
-            .into()
-        }));
-    }
-    Ok(())
+    parse_recipe_response(&payload)
 }
 
 fn parse_item_id(payload: String) -> Result<String, String> {
@@ -1137,5 +1180,33 @@ mod tests {
             assert_eq!(super::notice_code_for_error(ja), expected);
         }
         assert_eq!(super::notice_code_for_error("custom error"), None);
+    }
+
+    #[test]
+    fn parse_recipe_response_accepts_null_error_and_rejects_real_failures() {
+        // Real POST /api/platform/shelf/jobs success payloads include `"error":null` on outcome.job
+        // and snapshot.running_jobs[], and may mention `"error"` inside generated result text.
+        assert!(super::parse_recipe_response(r#"{"ok":true,"error":null}"#).is_ok());
+        assert!(super::parse_recipe_response(
+            r#"{"job":{"job_id":"j1","status":"completed","error":null},"result":{"title":"fix \"error\" bug"},"snapshot":{"running_jobs":[{"job_id":"j2","error":null}]}}"#,
+        )
+        .is_ok());
+
+        assert_eq!(
+            super::parse_recipe_response(r#"{"error":"没有可用模型"}"#),
+            Err("没有可用模型".into())
+        );
+        assert_eq!(
+            super::parse_recipe_response(r#"{"job":{"status":"failed","error":"模型调用失败"}}"#),
+            Err("模型调用失败".into())
+        );
+        assert_eq!(
+            super::parse_recipe_response(r#"{"error":{"message":"bad request"}}"#),
+            Err("bad request".into())
+        );
+        assert!(super::parse_recipe_response(r#"{"ok":false,"error":null}"#).is_err());
+        let failed_job = r#"{"job":{"status":"failed","error":null}}"#;
+        assert!(super::parse_recipe_response(failed_job).is_err());
+        assert!(super::parse_recipe_response("not-json").is_err());
     }
 }

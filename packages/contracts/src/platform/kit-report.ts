@@ -167,8 +167,8 @@ const trusts = { host: true, pinned: true, home_local: true } satisfies Record<S
 
 /** A pack id (§4.1): the only three forms there are. */
 export const KIT_PACK_ID_SCHEMA: ActionSchema = { type: "string", maxLength: 220, pattern: "^(?:plugin:[^\\s]{1,200}|system:builtin|system:characters)$" };
-/** A same-origin path: never another origin, never `//`. Whose surface it is the gatherer checks (§4.6). */
-export const KIT_MANAGE_LINK_SCHEMA: ActionSchema = object({ href: { type: "string", maxLength: 1000, pattern: "^/(?!/)" }, label: text(KIT_LIMITS.nameChars) });
+/** A same-origin path: never another origin, never `//` or `/\`, and no control characters or spaces. Whose surface it is the gatherer checks (§4.6). */
+export const KIT_MANAGE_LINK_SCHEMA: ActionSchema = object({ href: { type: "string", maxLength: 1000, pattern: "^/(?![/\\\\])[^\\u0000-\\u0020\\u007f]*$" }, label: text(KIT_LIMITS.nameChars) });
 export const KIT_VERSION_SCHEMA: ActionSchema = object({ label: text(KIT_LIMITS.nameChars), change: { oneOf: [
   object({ kind: { const: "default_updated" }, base_version: count, default_version: count }),
   object({ kind: { const: "discovered" }, added: count, removed: count, changed: count }),

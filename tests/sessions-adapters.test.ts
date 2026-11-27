@@ -641,3 +641,203 @@ test("SRB-13 a later discovery page with an unknown file does not discard valid 
     }
   });
 });
+
+test("S-sessions-untrusted-text 3 F-horiz-runtime-46: codexAdapter preserves upstream truncated: true on pre-truncated entries", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const repoDir = path.join(root, "repo");
+    for (const d of [homeDir, userHome, repoDir]) await mkdir(d, { recursive: true });
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async op => op(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+      protocols: {
+        codexThreadList: async () => ({
+          threads: [{ id: "codex-trunc-1", title: "Truncated Codex", cwd: repoDir, updated_at: "2026-11-10T08:00:00Z", activity: "idle", parent_thread_id: null }],
+          next_cursor: null,
+        }),
+        codexThreadRead: async () => ({
+          activity: "idle",
+          entries: [
+            { position: "turn:0", role: "tool", at: "2026-11-10T08:00:00Z", text: "A".repeat(16_384), truncated: true },
+            { position: "turn:1", role: "you", at: "2026-11-10T08:01:00Z", text: "Short follow-up", truncated: false },
+          ],
+        }),
+      },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "codex", allowed: true, directories: { mode: "all" } }] }, PERSON);
+      await svc.waitForDiscoveryIdle();
+
+      const key = (await svc.list({ view: "all" }, PERSON)).sessions[0]!.session_key;
+      const hist = await svc.historyRead({ session_key: key }, PERSON);
+      assert.equal(hist.entries.length, 2);
+      assert.equal(hist.entries[0]?.truncated, true, "upstream truncated: true must survive makeEntry");
+      assert.equal(hist.entries[1]?.truncated, false);
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("F-horiz-runtime-47: qoder-cn and minimax-code readHistory fall back to meta.sessionId when filename stem differs", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const repoDir = path.join(root, "repo");
+    const qoderDir = path.join(userHome, ".qoder-cn", "projects", "demo");
+    const minimaxDir = path.join(userHome, ".minimax", "projects", "p1");
+    for (const d of [homeDir, userHome, repoDir, qoderDir, minimaxDir]) await mkdir(d, { recursive: true });
+
+    await writeFile(
+      path.join(qoderDir, "2026-conv.jsonl"),
+      `${JSON.stringify({ sessionId: "qoder-meta-47", cwd: repoDir, timestamp: "2026-11-10T04:00:00Z", message: { role: "user", content: "Qoder fallback content" } })}\n`,
+    );
+    await writeFile(
+      path.join(minimaxDir, "2026-chat.jsonl"),
+      `${JSON.stringify({ sessionId: "minimax-meta-47", cwd: repoDir, timestamp: "2026-11-10T06:00:00Z", message: { role: "user", content: "MiniMax fallback content" } })}\n`,
+    );
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async op => op(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet(
+        {
+          expected_revision: s0.scope_revision,
+          sources: [
+            { entry_id: "qoder-cn", allowed: true, directories: { mode: "all" } },
+            { entry_id: "minimax-code", allowed: true, directories: { mode: "all" } },
+          ],
+        },
+        PERSON,
+      );
+      await svc.waitForDiscoveryIdle();
+
+      const rows = (await svc.list({ view: "all" }, PERSON)).sessions as ExternalSessionRow[];
+      const qoderRow = rows.find(r => r.tool.entry_id === "qoder-cn");
+      const minimaxRow = rows.find(r => r.tool.entry_id === "minimax-code");
+      assert.equal(qoderRow?.identity.native_id, "qoder-meta-47");
+      assert.equal(minimaxRow?.identity.native_id, "minimax-meta-47");
+
+      const qoderHist = await svc.historyRead({ session_key: qoderRow!.session_key }, PERSON);
+      assert.deepEqual(qoderHist.entries.map(e => e.text), ["Qoder fallback content"]);
+      const minimaxHist = await svc.historyRead({ session_key: minimaxRow!.session_key }, PERSON);
+      assert.deepEqual(minimaxHist.entries.map(e => e.text), ["MiniMax fallback content"]);
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("F-horiz-runtime-49: nanosecond, microsecond, and out-of-range timestamps normalize to 4-digit UTC ISO or null without RangeError", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const claudeDir = path.join(userHome, ".claude", "projects", "ts-test");
+    for (const d of [homeDir, userHome, claudeDir]) await mkdir(d, { recursive: true });
+
+    await writeFile(
+      path.join(claudeDir, "ts-precision.jsonl"),
+      [
+        JSON.stringify({ sessionId: "ts-precision", timestamp: 1731234567890123456, message: { role: "user", content: "Nanosecond msg" } }),
+        JSON.stringify({ sessionId: "ts-precision", timestamp: 1731234567890123, message: { role: "assistant", content: "Microsecond msg" } }),
+        JSON.stringify({ sessionId: "ts-precision", timestamp: 1e30, message: { role: "user", content: "Overflow numeric msg" } }),
+        JSON.stringify({ sessionId: "ts-precision", timestamp: "+056827-01-01T00:00:00.000Z", message: { role: "assistant", content: "Overflow string msg" } }),
+      ].join("\n") + "\n",
+    );
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async op => op(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] }, PERSON);
+      await svc.waitForDiscoveryIdle();
+
+      const listed = await svc.list({ view: "all" }, PERSON);
+      assert.equal(listed.sessions.length, 1);
+      const row = listed.sessions[0]!;
+      assert.match(row.last_activity_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u);
+      assert.ok(row.last_activity_at.startsWith("2024-11-10T"));
+
+      const hist = await svc.historyRead({ session_key: row.session_key }, PERSON);
+      assert.equal(hist.entries.length, 4);
+      assert.match(hist.entries[0]!.at ?? "", /^2024-11-10T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u);
+      assert.match(hist.entries[1]!.at ?? "", /^2024-11-10T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u);
+      assert.equal(hist.entries[2]!.at, null);
+      assert.equal(hist.entries[3]!.at, null);
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("SRB-13 F-horiz-runtime-50: Claude Code auxiliary and unknown record types do not truncate history while unknown-only files still report version_unreadable", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const claudeDir = path.join(userHome, ".claude", "projects", "aux-test");
+    for (const d of [homeDir, userHome, claudeDir]) await mkdir(d, { recursive: true });
+
+    await writeFile(
+      path.join(claudeDir, "aux-mid.jsonl"),
+      [
+        JSON.stringify({ sessionId: "aux-mid", timestamp: "2026-11-10T01:00:00Z", message: { role: "user", content: "First turn" } }),
+        JSON.stringify({ type: "progress", data: { step: 1 } }),
+        JSON.stringify({ type: "custom-title", customTitle: "Custom title" }),
+        JSON.stringify({ type: "pr-link", url: "https://example.com/pr/1" }),
+        JSON.stringify({ type: "last-prompt", prompt: "First turn" }),
+        JSON.stringify({ type: "unlisted_aux_event", detail: "skip without truncating" }),
+        JSON.stringify({ sessionId: "aux-mid", timestamp: "2026-11-10T01:02:00Z", message: { role: "assistant", content: "Second turn after aux events" } }),
+      ].join("\n") + "\n",
+    );
+    await writeFile(
+      path.join(claudeDir, "unknown-only.jsonl"),
+      `${JSON.stringify({ sessionId: "unknown-only", timestamp: "2026-11-10T01:03:00Z", type: "session" })}\n`,
+    );
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const svc = new SessionsService(homeDir, {
+      ...base,
+      projects: { read: async op => op(EMPTY_SNAPSHOT) },
+      directories: { identify: () => null },
+    });
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] }, PERSON);
+      await svc.waitForDiscoveryIdle();
+
+      const rows = (await svc.list({ view: "all" }, PERSON)).sessions as ExternalSessionRow[];
+      const auxRow = rows.find(r => r.identity.native_id === "aux-mid")!;
+      const auxHist = await svc.historyRead({ session_key: auxRow.session_key }, PERSON);
+      assert.equal(auxHist.read_state, "complete");
+      assert.equal(auxHist.stopped, null);
+      assert.deepEqual(auxHist.entries.map(e => e.text), ["First turn", "Second turn after aux events"]);
+
+      // A file containing solely unknown record types (0 readable messages) still reports `sessions.version_unreadable`.
+      await writeFile(
+        path.join(claudeDir, "unknown-only.jsonl"),
+        `${JSON.stringify({ type: "completely_unknown_envelope", payload: 1 })}\n`,
+      );
+      const unknownRow = rows.find(r => r.identity.native_id === "unknown-only")!;
+      await assert.rejects(
+        () => svc.historyRead({ session_key: unknownRow.session_key }, PERSON),
+        (err: unknown) => err instanceof ActionError && err.code === "sessions.version_unreadable",
+      );
+    } finally {
+      svc.close();
+    }
+  });
+});

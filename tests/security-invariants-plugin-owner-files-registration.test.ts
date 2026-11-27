@@ -60,7 +60,7 @@ test("RAC-323 a root may hold the plugin's own library: a plugin whose Manifest 
   assert.equal(readFileSync(join(root, "catalog.json"), "utf8"), "beside the library");
   assert.ok(existsSync(join(root, `${probe.owner_files.store_name}.db`)), "the library is in the same root");
   assert.ok(probe.contexts.at(-1)!.services?.database, "and it has its library too");
-  await assert.rejects(run.write(writer => writer.writeFile(`${probe.owner_files.store_name}.db`, Buffer.from("bad"), "replace")), "the library's file is not one of its declared entries");
+  await assert.rejects(run.write(writer => writer.writeFile(`${probe.owner_files.store_name}.db`, Buffer.from("bad"), "replace")), { code: "host.owner_file_invalid" }, "the library's file is not one of its declared entries");
 });
 
 for (const first of ["home", "project"] as const) {

@@ -1,6 +1,8 @@
 import type { PluginActionClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { SKILL_EXCERPT_CHARS, skillCatalogActions, type SkillUnavailableReason } from "@molis-ai/molis-work-contracts/services/skills";
+import { activeUiLocale, tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingManifest } from "./manifest.js";
 import type { CodingActivation } from "./route-activation.js";
 import { unlessMissing } from "./route-selections.js";
@@ -36,8 +38,15 @@ export function ownSkillRefs(context: Pick<PluginStartContext, "plugin_id" | "ve
  * are on in this scope, read as this installation with its own `skills:read`. A host without the catalog lists only Coding's own.
  */
 export async function codingSkillChoices(a: CodingActivation, actions: PluginActionClient): Promise<CodingSkillChoice[]> {
-  const own = ownSkillRefs(a.context).map(({ ref, skill }) => ({ ref, name: skill.name, description: skill.summary, excerpt: [...skill.body].slice(0, SKILL_EXCERPT_CHARS).join(""),
-    available: true, assistant_only: false }));
+  const locale = activeUiLocale()?.split("-")[0];
+  const own = ownSkillRefs(a.context).map(({ ref, skill }) => ({
+    ref,
+    name: tryUiText(`coding.skill.${skill.skill_id}.name`) ?? skill.name,
+    description: tryUiText(`coding.skill.${skill.skill_id}.description`) ?? skill.summary,
+    excerpt: [...agentBodyIn(skill, locale)].slice(0, SKILL_EXCERPT_CHARS).join(""),
+    available: true,
+    assistant_only: false,
+  }));
   const listed = await unlessMissing(actions.invoke(skillCatalogActions.list, { applies_to: "coding", states: ["auto", "manual"] }), { skills: [] });
   return [...own, ...listed.skills.map(entry => ({ ref: entry.ref, name: entry.name, description: entry.description, excerpt: entry.excerpt,
     available: entry.availability.available, ...(entry.availability.available ? {} : { reason: entry.availability.reason }),

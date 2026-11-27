@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, createImDomain, startServer } from "@molis-ai/molis-work-server";
 
 test("different server databases keep independent cookies; IM SSE checks membership and server shutdown closes streams",async()=>{
@@ -87,5 +88,90 @@ test("D0017 unknown HTTP failures expose only a correlated code and preserve exp
     const denied=await fetch(server.origin+"/im/api/session");assert.equal(denied.status,403);
     assert.deepEqual(await denied.json(),{code:"im.forbidden",error:"你没有这个群的访问权限"});
     assert.equal(diagnostic.some(line=>line.includes("server.request_failed")),false);
+    // R-07: structured ActionError instances keep their HTTP status instead of collapsing to 503.
+    failure=new ActionError("actions.conflict","state moved",{kind:"conflict"});
+    const conflict=await fetch(server.origin+"/im/api/session");
+    assert.equal(conflict.status,409);
+    assert.equal((await conflict.json()).code,"actions.conflict");
   } finally {await server.close();storage.close();await rm(directory,{recursive:true,force:true});}
+});
+
+test("Q-modules-server-02 (A5): GET /im/api/session rate-limits anonymous issuance, purges expired anonymous sessions, and connect revokes active continuity requests", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "continuity-q02-"));
+  let clock = Date.now();
+  const storage = openServerDatabase(join(directory, "server"));
+  const identity = new Identity(storage.db, () => clock);
+  const events = new ServerEvents(storage.db);
+  let abortedByRevoke = false;
+  let releaseHold!: () => void;
+  const hold = new Promise<void>(resolve => { releaseHold = resolve; });
+  let entered!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const continuity = new ContinuityService(storage.db, identity, events, ({ signal }) => ({
+    caller: { actor_id: "runtime:test", project_id: "p1", audience: "user", permissions: [], signal },
+    client: {
+      discover: async () => {
+        entered();
+        await new Promise<void>((resolve, reject) => {
+          signal?.addEventListener("abort", () => { abortedByRevoke = true; reject(signal.reason); }, { once: true });
+          void hold.then(resolve);
+        });
+        return [];
+      },
+      invoke: async () => ({}),
+    } as never,
+  }));
+  const server = await startServer({ identity, events, continuity, im: createImDomain({ db: storage.db, identity, events }), port: 0 });
+  try {
+    // 1. Anonymous session issuance rate limit: 30 allowed per IP/min, 31st gets 429 without DB write, existing cookie still works.
+    let keptCookie = "";
+    for (let i = 0; i < 30; i += 1) {
+      const res = await fetch(server.origin + "/im/api/session");
+      assert.equal(res.status, 200, `anonymous session ${i}`);
+      if (i === 0) keptCookie = res.headers.get("set-cookie")!.split(";")[0]!;
+    }
+    const beforeLimit = (storage.db.prepare("SELECT COUNT(*) AS n FROM mw_sessions WHERE member_id IS NULL").get() as { n: number }).n;
+    assert.equal(beforeLimit, 30);
+    const throttled = await fetch(server.origin + "/im/api/session");
+    assert.equal(throttled.status, 429);
+    assert.equal(throttled.headers.get("retry-after"), "60");
+    assert.equal((await throttled.json()).code, "im.server.rate_limited");
+    assert.equal((storage.db.prepare("SELECT COUNT(*) AS n FROM mw_sessions WHERE member_id IS NULL").get() as { n: number }).n, 30);
+    assert.equal((await fetch(server.origin + "/im/api/session", { headers: { cookie: keptCookie } })).status, 200, "existing cookie bypasses anonymous creation limit");
+
+    // 2. Advancing clock beyond 30-day TTL lets lazy purge remove expired anonymous sessions on the next issuance.
+    clock += 31 * 24 * 3600 * 1000;
+    const afterExpiry = await fetch(server.origin + "/im/api/session");
+    assert.equal(afterExpiry.status, 200);
+    assert.equal((storage.db.prepare("SELECT COUNT(*) AS n FROM mw_sessions WHERE member_id IS NULL").get() as { n: number }).n, 1, "expired anonymous sessions were purged");
+
+    // 3. Reconnecting with an existing session revokes existing.id and aborts in-flight continuity requests immediately.
+    const owner = identity.createMember("Owner");
+    continuity.registerProject({ id: "p1", title: "P1", goal_ids: ["g1"], artifacts: [] }, owner.id);
+    const firstCode = identity.code("bootstrap", owner.id).code;
+    const firstRes = await fetch(server.origin + "/continuity/api/connect", {
+      method: "POST",
+      headers: { origin: server.origin, "content-type": "application/json" },
+      body: JSON.stringify({ code: firstCode, display_name: "Owner", device_label: "D1" }),
+    });
+    assert.equal(firstRes.status, 200);
+    const firstCookie = firstRes.headers.get("set-cookie")!.split(";")[0]!;
+    const inFlight = fetch(server.origin + "/continuity/api/projects/p1", { headers: { cookie: firstCookie } });
+    await reached;
+    const secondCode = identity.code("bootstrap", owner.id).code;
+    const secondRes = await fetch(server.origin + "/continuity/api/connect", {
+      method: "POST",
+      headers: { origin: server.origin, cookie: firstCookie, "content-type": "application/json" },
+      body: JSON.stringify({ code: secondCode, display_name: "Owner", device_label: "D2" }),
+    });
+    assert.equal(secondRes.status, 200);
+    const revokedRes = await inFlight;
+    assert.equal(abortedByRevoke, true, "connect must trigger continuity.deviceRevoked for the replaced session");
+    assert.equal(revokedRes.status, 401);
+  } finally {
+    releaseHold();
+    await server.close();
+    storage.close();
+    await rm(directory, { recursive: true, force: true });
+  }
 });

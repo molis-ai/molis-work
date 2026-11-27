@@ -28,7 +28,7 @@ export interface HomeStoreSnapshotPolicy {
   readonly restoreEntry?: (relativePath: string, incoming: boolean) => HomeRestoreDisposition;
   readonly omit?: string;
   readonly emptyOnly?: boolean;
-  readonly entry?: (home: string, relativePath: string) => SnapshotDisposition;
+  readonly entry?: (home: string, relativePath: string, online?: boolean) => SnapshotDisposition;
   readonly database?: (relativePath: string) => SqliteSnapshotOptions | undefined;
   /** Inspect final private payloads using only their original Home dependencies and the same offline owner. */
   readonly inspect?: (dataRoot: string, keyRoot: string, paths: readonly string[], control: { readonly signal?: AbortSignal; assertCurrent(): void }) => Promise<void>;
@@ -89,8 +89,9 @@ function sdkEntry(file: string): SnapshotDisposition {
   return unknown(file);
 }
 
-function sdkSnapshotEntry(file: string): SnapshotDisposition {
-  return file === "records.sqlite" ? { kind: "keep" } : sdkEntry(file);
+function sdkSnapshotEntry(file: string, online = false): SnapshotDisposition {
+  if (file === "records.sqlite" || (online && /^records\.sqlite-(?:journal|wal|shm)$/u.test(file))) return { kind: "keep" };
+  return sdkEntry(file);
 }
 
 function sdkSnapshotDatabase(file: string): SqliteSnapshotOptions | undefined {
@@ -108,16 +109,16 @@ function sdkRestoreEntry(file: string, incoming: boolean): HomeRestoreDispositio
 }
 
 export const agentSnapshot: HomeStoreSnapshotPolicy = {
-  entry: (_home, file) => sdkSnapshotEntry(file),
+  entry: (_home, file, online) => sdkSnapshotEntry(file, online),
   database: sdkSnapshotDatabase,
   restoreEntry: sdkRestoreEntry,
   inspect: (storageRoot, keyRoot, _paths, control) => verifyPrologueNodeStorageContents({ storageRoot, keyRoot, ...control }),
 };
 
 export const builderSnapshot: HomeStoreSnapshotPolicy = {
-  entry: (_home, file) => {
+  entry: (_home, file, online) => {
     const run = /^[^/]+\/runs\/[^/]+\/(.+)$/u.exec(file);
-    if (run) return sdkSnapshotEntry(run[1]!);
+    if (run) return sdkSnapshotEntry(run[1]!, online);
     return /(?:^|\/)(?:node_modules|\.cache)(?:\/|$)/u.test(file) ? excluded("Rebuildable build dependencies/cache") : { kind: "keep" };
   },
   database: file => {

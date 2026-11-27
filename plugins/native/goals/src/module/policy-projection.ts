@@ -7,7 +7,11 @@ function applies(rule: ProjectApprovalRule): boolean {
   return rule.scope.kind === "project_default" || rule.scope.subject.kind === "goal";
 }
 
-export function goalApprovalBindings(rules: readonly ProjectApprovalRule[], goalId?: string): GoalPolicyBindingRecord[] {
+export function goalApprovalBindings(
+  rules: readonly ProjectApprovalRule[],
+  goalId?: string,
+  ancestorGoalIds?: ReadonlySet<string>,
+): GoalPolicyBindingRecord[] {
   const active = rules.filter(rule => rule.state === "active" && applies(rule));
   const defaults = active.filter(rule => rule.scope.kind === "project_default" && rule.requires_person !== null);
   const project = defaults.filter(rule => rule.scope.owner === undefined).at(-1);
@@ -17,7 +21,11 @@ export function goalApprovalBindings(rules: readonly ProjectApprovalRule[], goal
     policy: { human_approval: project?.requires_person === true || original?.requires_person === true },
   }] : [];
   return [...defaultPolicy, ...active.flatMap<GoalPolicyBindingRecord>(({ scope, requires_person }) => {
-    if (scope.kind === "project_default" || goalId !== undefined && scope.subject.id !== goalId) return [];
+    if (scope.kind === "project_default") return [];
+    if (goalId !== undefined) {
+      if (scope.kind === "object" && scope.subject.id !== goalId) return [];
+      if (scope.kind === "ancestor_minimum" && scope.subject.id !== goalId && !ancestorGoalIds?.has(scope.subject.id)) return [];
+    }
     return [{ scope: scope.kind === "object" ? "goal_override" : "ancestor_minimum", goal_id: scope.subject.id,
       policy: requires_person === null ? {} : { human_approval: requires_person } }];
   })];

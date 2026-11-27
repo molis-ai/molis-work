@@ -29,9 +29,9 @@ mod traffic_lights;
 mod web_identity;
 mod web_service;
 
-use native_language::{
-    tr, NativeLanguage, NativeLanguageState, QuitPromptKind, ShelfNoticeCode, TrayStatusKind,
-};
+#[cfg(target_os = "macos")]
+use native_language::ShelfNoticeCode;
+use native_language::{tr, NativeLanguage, NativeLanguageState, QuitPromptKind, TrayStatusKind};
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicU8, Ordering},
@@ -627,22 +627,45 @@ fn shelf_find_files_blocking(query: String) -> Vec<ShelfFoundFile> {
     let Ok(output) = output else {
         return Vec::new();
     };
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|line| !line.is_empty())
-        .filter(|line| std::path::Path::new(line).is_file())
-        .take(12)
-        .map(|line| ShelfFoundFile {
-            name: std::path::Path::new(line)
-                .file_name()
-                .map(|value| value.to_string_lossy().to_string())
-                .unwrap_or_default(),
-            path: line.to_string(),
-        })
-        .collect()
+    let molis_home = web_service::molis_work_home();
+    let mut admitted = Vec::new();
+    let mut found = Vec::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let candidate = Path::new(line);
+        let Ok(meta) = std::fs::symlink_metadata(candidate) else {
+            continue;
+        };
+        if meta.file_type().is_symlink() || !meta.is_file() {
+            continue;
+        }
+        let Ok(real) = candidate.canonicalize() else {
+            continue;
+        };
+        if selected_file::is_blocked_home_path(&real, &molis_home) {
+            continue;
+        }
+        let name = real
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_default();
+        found.push(ShelfFoundFile {
+            name,
+            path: real.to_string_lossy().into_owned(),
+        });
+        admitted.push(real);
+        if found.len() >= 12 {
+            break;
+        }
+    }
+    selected_file::admit_search_results(&admitted);
+    found
 }
 
 /// Leave feedback in the existing main WebView without opening it or changing focus.
+#[cfg(target_os = "macos")]
 fn shelf_notice(
     app: &tauri::AppHandle,
     message: &str,
@@ -664,45 +687,6 @@ fn shelf_notice(
         };
         let _ = window.eval(script);
     }
-}
-
-/// Add local files by path; the bytes never travel through the WebView.
-#[tauri::command]
-async fn shelf_admit_paths(app: tauri::AppHandle, paths: Vec<String>) -> Result<usize, String> {
-    tauri::async_runtime::spawn_blocking(move || shelf_admit_paths_blocking(&app, paths))
-        .await
-        .map_err(|error| {
-            eprintln!("shelf_admit_paths join error: {error}");
-            tr(
-                "文件导入没能完成，请稍后再试。",
-                "Couldn’t finish adding files. Please try again.",
-                "ファイルの取り込みを完了できませんでした。もう一度お試しください。",
-            )
-            .to_string()
-        })?
-}
-
-fn shelf_admit_paths_blocking(app: &tauri::AppHandle, paths: Vec<String>) -> Result<usize, String> {
-    // A second invocation must not interleave this command's original ordered batch.
-    static ADMISSIONS: Mutex<()> = Mutex::new(());
-    let _admission = ADMISSIONS.lock().map_err(|_| {
-        tr(
-            "文件导入暂时不可用，请稍后再试。",
-            "File import is temporarily unavailable. Please try again.",
-            "ファイルの取り込みが一時的に利用できません。もう一度お試しください。",
-        )
-        .to_string()
-    })?;
-    let mut added = 0;
-    for path in paths {
-        let candidate = std::path::Path::new(&path);
-        shelf_http::admit_file(candidate)?.into_item_id(|message| {
-            let code = ShelfNoticeCode::key(shelf_http::ORIGINAL_NOT_REGISTERED_CODE);
-            shelf_notice(app, message, true, Some(message), Some(&code), 0);
-        });
-        added += 1;
-    }
-    Ok(added)
 }
 
 /// Double-click opens the copy with whatever the system uses for it. The page names its own file by relative path; the shell
@@ -1032,6 +1016,28 @@ fn bootstrap_view(failure: Option<&str>) -> String {
     )
 }
 
+fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
+    if app.get_webview_window("main").is_some() {
+        return Ok(());
+    }
+    let Some(config) = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+    else {
+        return Ok(());
+    };
+    tauri::WebviewWindowBuilder::from_config(app.handle(), config)?
+        .on_new_window(|url, _features| {
+            external_links::handle_new_window_request(&url);
+            tauri::webview::NewWindowResponse::Deny
+        })
+        .build()?;
+    Ok(())
+}
+
 fn main() {
     let home = web_service::molis_work_home();
     native_language::init_from_home(&home);
@@ -1087,7 +1093,6 @@ fn main() {
       files_copy,
       shelf_find_files,
       selected_file::platform_read_selected_file,
-      shelf_admit_paths,
       files_open,
       shelf_setup_status,
       shelf_hotkey_status,
@@ -1096,6 +1101,7 @@ fn main() {
       handle(invoke)
     })
     .setup(|app| {
+      build_main_window(app)?;
       install_molis_work_tray(app)?;
       #[cfg(target_os = "macos")]
       if let Err(error) = drop_wheel_macos::install(app.handle()) {
@@ -1471,7 +1477,6 @@ mod tests {
             "files_copy",
             "files_open",
             "shelf_find_files",
-            "shelf_admit_paths",
             "platform_read_selected_file",
             "unknown_future_command",
         ] {

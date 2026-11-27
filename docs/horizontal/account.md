@@ -1,6 +1,6 @@
 # 中央账号服务
 
-状态：安装登录与 Home 已统一 V2；首轮完整回归结果见 [统一账号回归记录](../../specs/unified-account/v2-regression-20261109.md)。2026-11-09 追加删除无消费者的 V1 服务凭据合同，修改后完整回归已执行 1,879 文件，复验后 1,874 通过、5 个已知基线失败保留，详见同一回归记录；历史 WORK-01 至 WORK-09 验证不代表本轮已经完成。统一账号的业务合同与实际验收状态由 Auth 仓库 `docs/unified-account/`、`contracts/unified-account/` 持有；Work 使用固定字节快照，不另定义账号、租户、订阅和权益事实。未上线，本轮不实现旧体系兼容，不操作真实存量或外部服务。
+状态：安装登录与 Home 已统一 V2；最新主线集成与 PR 检查见 [2026-11-10 回归记录](../../specs/unified-account/v2-regression-20261110.md)（首轮记录见 [2026-11-09 回归记录](../../specs/unified-account/v2-regression-20261109.md)）。2026-11-09 追加删除无消费者的 V1 服务凭据合同，修改后完整回归已执行 1,879 文件，复验后 1,874 通过、5 个已知基线失败保留，详见同一回归记录；历史 WORK-01 至 WORK-09 验证不代表本轮已经完成。统一账号的业务合同与实际验收状态由 Auth 仓库 `docs/unified-account/`、`contracts/unified-account/` 持有；Work 使用固定字节快照，不另定义账号、租户、订阅和权益事实。未上线，本轮不实现旧体系兼容，不操作真实存量或外部服务。
 
 ## 边界与入口
 
@@ -51,4 +51,4 @@ Auth 的现行管理说明及本轮记录在 `docs/unified-account/integration-g
 
 ## 登录一致性 P1
 
-新增 `GET /api/account/auth/capabilities`，由 Host 配置绑定客户端调用中央能力接口。界面按返回清单显示登录方式，查询失败不猜测可用能力。固定合同来源、CI 与回归证据见[本次 P1 验收](account-login-p1.md)。
+新增 `GET /api/account/auth/capabilities`，由 Host 配置绑定客户端调用中央能力接口。界面按返回清单显示登录方式，查询失败不猜测可用能力。固定合同来源、CI 与回归证据见[本次 P1 验收（已归档）](../archive/horizontal/account-login-p1.md)。

@@ -1042,6 +1042,20 @@ test("UPP-05 the six partition plugins' code never narrows its own tables by pro
   assert.deepEqual(found, []);
 });
 
+test("F-hc2-18: releasing a partition while refresh is in flight leaves zero leaked instances or failure records", { timeout: 60_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("并发释放分区", ["dataset"]);
+  await f.host.actionClient(a.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, a.project_id), datasetActions.create, { title: "初始" });
+  const partitionHost = existingPartitionPluginHost(f.home);
+  assert.ok(partitionHost, "the Home runs the partition plugin host");
+  await partitionHost.assembly.stopPlugin(DATASET, a.project_id);
+  const refreshing = partitionHost.refresh(a.project_id);
+  await partitionHost.releasePartition(a.project_id);
+  await refreshing;
+  assert.deepEqual(partitionHost.assembly.instances().filter(item => item.partition_id === a.project_id), []);
+  assert.equal(partitionHost.failure(a.project_id, DATASET), undefined);
+});
+
 test("UPP-06 S-partition-isolation overview.read@1: the person reads every partition's waiting entries, the assistant only what the person granted in its settings, revoked at once; other callers are refused", { timeout: 60_000 }, async t => {
   const { openTestHome } = await import("./fixtures/test-home.js");
   const { ATTENTION_OVERVIEW_SOURCE, assistantSettingActions, assistantSettingOwner } = await import("@molis-ai/molis-work-app-local-host");

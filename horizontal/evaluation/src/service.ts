@@ -48,7 +48,7 @@ import {
 import type { EvaluationReplayScenario } from "./replay.js";
 import { isPluginDeliveryRole } from "./rules.js";
 import { executeSampleEvaluationRun } from "./run-executor.js";
-import { EvaluationStore } from "./store.js";
+import { EvaluationStore, normalizeMetricsWindow } from "./store.js";
 
 export interface EvaluationServiceOptions {
   readonly home: string;
@@ -108,16 +108,8 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
   }
 }
 
-function validateMetricsWindow(input: EvaluationMetricsSummarizeInput): void {
-  if (input.since !== undefined && Number.isNaN(Date.parse(input.since))) {
-    throw evaluationErrors.invalid(`指标汇总起始时间不合法：${input.since}`);
-  }
-  if (input.until !== undefined && Number.isNaN(Date.parse(input.until))) {
-    throw evaluationErrors.invalid(`指标汇总结束时间不合法：${input.until}`);
-  }
-  if (input.since && input.until && Date.parse(input.since) > Date.parse(input.until)) {
-    throw evaluationErrors.invalid("指标汇总 since 不能晚于 until");
-  }
+function validateMetricsWindow(input: EvaluationMetricsSummarizeInput): EvaluationMetricsSummarizeInput {
+  return normalizeMetricsWindow(input);
 }
 
 export class EvaluationService {
@@ -178,15 +170,32 @@ export class EvaluationService {
       return commit({ holdId: target.hold_id, heldCount });
     } catch (error) {
       if (!written) throw error;
-      const cleanup = { ...retainActionAuthority(caller, origin), signal: undefined, beforeEffect: async () => {} };
-      if (previous) {
-        const { note, expires_at, record_ids } = previous;
-        for (let offset = 0; offset < record_ids.length; offset += 500) {
-          await commitEvaluationSampleHold(client, cleanup, target, { note, project_id: sample.project_id, expires_at },
-            record_ids.slice(offset, offset + 500), offset > 0);
+      // Keep the caller's live authority/permission validators (QRF-02: a revoked caller must NOT mutate holds during
+      // cleanup; the hold is recovered later once authority returns via samples.remove), while stripping only the
+      // aborted outer signal and execution-scoped `assert_authority_current` closure so pure AbortSignal cancellation
+      // rolls back cleanly and never hides `error`.
+      const cleanup: ActionCallContext = {
+        actor_id: caller.actor_id,
+        actor_kind: caller.actor_kind,
+        audience: caller.audience,
+        project_id: caller.project_id,
+        permissions: caller.permissions,
+        ...(caller.locale !== undefined ? { locale: caller.locale } : {}),
+        ...(caller.validate_authority ? { validate_authority: caller.validate_authority } : {}),
+        ...(caller.validate_permissions ? { validate_permissions: caller.validate_permissions } : {}),
+      };
+      try {
+        if (previous) {
+          const { note, expires_at, record_ids } = previous;
+          for (let offset = 0; offset < record_ids.length; offset += 500) {
+            await commitEvaluationSampleHold(client, cleanup, target, { note, project_id: sample.project_id, expires_at },
+              record_ids.slice(offset, offset + 500), offset > 0);
+          }
+        } else {
+          await releaseEvaluationSampleHolds(client, cleanup, [target]);
         }
-      } else {
-        await releaseEvaluationSampleHolds(client, cleanup, [target]);
+      } catch {
+        // Keep the original refusal/cancellation error when the host itself is already closed.
       }
       throw error;
     }
@@ -328,11 +337,11 @@ export class EvaluationService {
       defineAction(evaluationActions.reviewsRecord, (caller, input) => this.recordReview(caller, input)),
       defineAction(evaluationActions.metricsSummarize, async (caller, input: EvaluationMetricsSummarizeInput): Promise<EvaluationMetricsSummary> => {
         assertPersonCaller(caller);
-        validateMetricsWindow(input);
-        const { runs, sampleCount } = this.store.queryRunsForMetrics(input);
+        const normalized = validateMetricsWindow(input);
+        const { runs, sampleCount } = this.store.queryRunsForMetrics(normalized);
         const nested = retainActionAuthority(caller, originOf(caller, evaluationActions.metricsSummarize));
         const evidence = await readRunFunnelEvidence(this.options.clientFor(caller), nested, runs.map(run => run.view));
-        return summarizeEvaluationMetrics(input, runs, sampleCount, evidence);
+        return summarizeEvaluationMetrics(normalized, runs, sampleCount, evidence);
       }),
     ];
     return {

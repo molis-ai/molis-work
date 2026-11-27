@@ -96,6 +96,6 @@ test('AC-11: packed SDK: a refused command carries its reason, naming the comman
     assert.ok(next.includes(note),'the reason reaches the model');
     assert.ok(next.includes('touch ran.txt'),'the refused command is named, not just its kind');
     assert.ok(completed.turns.some(turn=>turn.kind==='notice' && turn.text.includes(note)),'the refusal reaches the run as the Host\'s notice, not as the person\'s words (ai-input-receipts D18)');
-    await assert.rejects(access(join(project,'ran.txt')),'a refused command never runs');
+    await assert.rejects(access(join(project,'ran.txt')),{code:'ENOENT'},'a refused command never runs');
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
 });

@@ -25,7 +25,7 @@ for (const outcome of ["complete", "consumer-cancel", "abort"] as const) {
     else {
       const read = new Response(stream).text();
       controller.abort();
-      await assert.rejects(read, "cancellation must not return a successful partial transcript");
+      await assert.rejects(read, { name: "AbortError" }, "cancellation must not return a successful partial transcript");
     }
     // Web completion may precede the underlying FileHandle close callback.
     const deadline = Date.now() + 2_000;

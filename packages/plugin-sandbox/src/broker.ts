@@ -143,6 +143,7 @@ export class SandboxBroker {
       return materials?.readLocalPage ? extractionJson(await materials.readLocalPage(url, { signal: context.signal })) : missing();
     }
     if (method === 'materials.claimOriginal' || method === 'materials.releaseOriginal') {
+      if (operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot claim or release original files');
       permit('materials', 'original'); count(1);
       const key = originalRecordKey(args[0]);
       const call = method === 'materials.claimOriginal' ? materials?.claimOriginal : materials?.releaseOriginal;
@@ -157,7 +158,9 @@ export class SandboxBroker {
       const part = await materials.readOriginalRange(key, { offset, length, ...(revision !== undefined ? { revision } : {}), signal: context.signal });
       return { data_base64: Buffer.from(part.bytes).toString('base64'), byte_length: part.bytes.byteLength, size: part.size, revision: part.revision };
     }
-    permit('materials', 'read'); if (/^materials\.(attach|readAttachment|readAttachmentPart)$/u.test(method)) return attachmentCall(method, args, materials, context.signal, call) ?? missing();
+    permit('materials', 'read');
+    if (method === 'materials.attach' && operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot attach files');
+    if (/^materials\.(attach|readAttachment|readAttachmentPart)$/u.test(method)) return attachmentCall(method, args, materials, context.signal, call) ?? missing();
     if (method === 'materials.imageTextAvailable') { count(0); return materials?.imageTextAvailable ? materials.imageTextAvailable() : missing(); }
     if (method !== 'materials.readDocuments' && method !== 'materials.extract') throw new SandboxError('sandbox.invalid_request', 'Unknown materials method');
     count(2);
@@ -363,6 +366,14 @@ export class SandboxBroker {
         count(1);
         const request = args[0] as unknown as SandboxNetworkRequest;
         if (!request || typeof request !== 'object' || Array.isArray(request) || typeof request.url !== 'string') throw new SandboxError('sandbox.invalid_request', 'Invalid network request');
+        if (operation.kind === 'query') {
+          if (request.method !== undefined && request.method !== 'GET' && request.method !== 'HEAD') {
+            throw new SandboxError('sandbox.not_authorized', 'A query can only send GET or HEAD network requests');
+          }
+          if (request.body !== undefined) {
+            throw new SandboxError('sandbox.not_authorized', 'A query cannot send a network request body');
+          }
+        }
         let domain: string;
         try { domain = new URL(request.url).hostname; } catch { throw new SandboxError('sandbox.invalid_request', 'Invalid URL'); }
         permit('networkDomains', domain);

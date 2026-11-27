@@ -46,7 +46,7 @@ export async function readContextMaterials(home: string, journey: ContextJourney
       const sessions = source === sessionSource ? await readSessionsSource() : null;
       source.error = sessions?.notice;
       const titles: Record<string, string> = sessions?.titles ?? {};
-      const input = sessions ?? await (ports.readSource ?? readContextSource)(home, source);
+      const input = sessions ?? await (ports.readSource ?? readContextSource)(home, source, signal);
       signal.throwIfAborted();
       const reusedByPath = new Map((source.reused_references ?? []).map(r => [r.path, r]));
       const reading = source.reading?.total === input.files.length

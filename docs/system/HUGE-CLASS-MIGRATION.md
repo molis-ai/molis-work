@@ -1,4 +1,6 @@
-# 巨大单元清单与判定
+# 巨大单元清单与判定（已归档／历史台账）
+
+> **归档说明（已退役）：** 本文为 2026-10 反腐重构期间的巨大单元人工判定与分批拆分台账，原 `tooling/gates/giant-exceptions/` 与 `tooling/gates/baseline.json` 均已移除。当前巨大单元门禁的唯一权威来源是 [`tooling/gates/README.md`](../../tooling/gates/README.md) 与 [`tooling/gates/limits.json`](../../tooling/gates/limits.json)，实时清点以 `node scripts/check-health-gates.mjs --report` 及 `pnpm health:check`（对照 merge-base 动态实测）为准。本文原地保留供历史追溯，不作当前操作步骤。
 
 当前所有超过阈值的文件、类和函数，各自的 owner（包）、判定和计划。快照取自 main `4d59cd4d`（2026-10-08），之后 W1-05 把 `evaluateImportBoundary` 拆到阈值以下、从清单删去，W3-03 的 B2 把 `inspectActionDeclarations` 与 `inspectAgentDeclaration` 拆成按声明段的小函数、搬进 `packages/plugin-sdk` 并从清单删去，W4-06 把 `prologue-node.ts` 的文件与两个函数拆成九个模块、从清单删去，W4-07 把 Coding 的 `routes.ts` 文件与 `codingRouteBindings` 按资源拆成路由组、从清单删去，CHR-0 把 Characters 的 `createCharactersPlugin` 与 `start` 两个函数拆到阈值以下（处理器搬进 `modules/characters`，插件只绑定）、从清单删去，SC-3 把 Work 的 `handleWorkPanelHttp`、`startWorkTerminalClient`、`createTerminalPanels` 搬出 Work 并拆到阈值以下（面板路由进 Host 的 `web-panel-routes.ts`，终端进 `apps/workbench/src/terminal/`）、从清单删去，W5-10 的 `modules/feed` 与 `modules/functions` 两个批次（随 W5-08 的 R5 PR 一起做）把 `FeedModule`、`FunctionsStore` 与 `store.ts` 拆到阈值以下、从清单删去，共 148 个单元，分布在 35 个包的 120 个文件里（2026-10-26 W5-10 逐个判定后，当时在册的 72 个里 45 个新标明为例外、24 个列入下面“判拆”的九批，见 §2「2026-10-26 W5-10 逐个判定」）；实时数字以 `node scripts/check-health-gates.mjs --report` 为准，本表只在判定或计划变化时改。每个单元都有判定（拆、归线或例外），没有“待排期”。2026-09 的迁移记录（列的是已不存在的 `src/v1/coordinator.ts` 等）已移到 [归档](../archive/huge-class-migration-2026-09.md)。
 
@@ -26,11 +28,11 @@
 | --- | --- |
 | 拆 | 路线（`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`）里有一片负责拆它，写片号；大多数是 W5-10，见 §2 |
 | 归线 | 路线里别的整改线会让它消失或换形态，写任务书的节号和片号：§4.8（改需求、修 bug、调交互的便利：浏览器代码打包、删旧皮肤）、§4.7（多人并行：热点聚合文件改成各主人自己登记，如翻译词典按主人分）、§4.6（扩展点与插件装配）、§4.3（分层与边界：能力机制、宿主瘦身） |
-| 例外 | 本身合理、只做一件事而很长（文案表、样式表、静态数据、生成代码，或内聚的状态机、解析器、协议适配这类拆开反而把一件事散到几处的单元）；在 `tooling/gates/giant-exceptions/` 标明，带理由和实测大小，由门禁校验。巨大单元不硬拆（用户 2026-10-25 定）：只有混了几件事的才判“拆” |
+| 例外 | 本身合理、只做一件事而很长（文案表、样式表、静态数据、生成代码，或内聚的状态机、解析器、协议适配这类拆开反而把一件事散到几处的单元）；历史方案曾单独建表登记（已随门禁演进移除），现行以 `tooling/gates/limits.json` 与 `pnpm health:check` 动态比对 merge-base 为准。巨大单元不硬拆（用户 2026-10-25 定）：只有混了几件事的才判“拆” |
 
-**例外的门禁规则**（`scripts/check-health-gates.mjs`，用例在 `tests/health-gates-merge-base.test.ts`）：
+**例外的历史门禁规则**（注：原 `giant-exceptions/` 目录与旧静态基线文件已退役，现行规则见 [`tooling/gates/README.md`](../../tooling/gates/README.md) 与 `scripts/check-health-gates.mjs`）：
 
-- 条目的键与 `baseline.json` 里的单元键相同（`file …`、`class …#名`、`function …#名`），值是 `{ kind, reason, size }`。`kind` 取 `translation-table`、`stylesheet`、`static-data`、`generated-code`、`cohesive-unit` 之一（最后一个给内聚而很长的代码单元）；`reason` 至少 20 个非空白字符，写明这个单元做的是哪一件事、为什么拆开反而更糟；`size` 是门禁量出的大小：文件与函数写行数，类只能写包含且仅包含两个字段的非数组对象 `{ "lines": …, "methods": … }`，两值都与实测严格相等，多字段或字符串数字均拒绝。
+- 历史条目的键格式为 `file …`、`class …#名`、`function …#名`，值是 `{ kind, reason, size }`。`kind` 取 `translation-table`、`stylesheet`、`static-data`、`generated-code`、`cohesive-unit` 之一（最后一个给内聚而很长的代码单元）；`reason` 至少 20 个非空白字符，写明这个单元做的是哪一件事、为什么拆开反而更糟；`size` 是门禁量出的大小：文件与函数写行数，类只能写包含且仅包含两个字段的非数组对象 `{ "lines": …, "methods": … }`，两值都与实测严格相等，多字段或字符串数字均拒绝。
 - 条目必须对应一个现存的巨大单元。拆小了、改名了、删了，条目要在同一个 PR 里跟着改，否则门禁报“条目已过期”；所以登记表随清单一起缩小。文件改名时条目改成新键；搬动的同时又大改，git 认不出改名，会被算成新单元，所以先搬后改，分两个 PR。
 - **标明的单元放行新增与变大**（用户 2026-10-25 定）：条目齐全、`size` 等于实测的单元，对 merge-base 是新的也好、变大了也好，门禁都放行。`size` 与实测不等的条目什么都不放行，并且按绝对规则失败（不看 merge-base）：所以单元每变一次大小，PR 里都要把新数字写进条目，大小的变化落在 `tooling/gates/` 的 diff 里、由评审看见，不会悄悄长大。
 - `--base` 输出以真实 merge-base 的登记表为准，列出本次新增登记与 `size` 变更、单元键和前后大小；即使其他门禁失败或 `--update` 拒绝也会显示。文本报告同样展示，JSON 报告用 `giantExceptionChanges` 保持结构化输出。该列表服务评审，不改变准入规则。
@@ -50,14 +52,14 @@
 | 例外 | 3 | 0 | 0 | 3 |
 | 合计 | 31 | 37 | 78 | 146 |
 
-- **例外**（原 3 个，2026-10-26 起共 40 个，新增的 37 个见下节）已登记在 `tooling/gates/giant-exceptions/`：样式表 2 份（动量、基础控件）、连接器声明表 1 份。Coding 的样式表 `plugins/native/coding/src/styles.ts` 已拆出编辑条与时间线两份样式、降到 748 行，不再是巨大单元，条目与下表的行都已删。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
-- **归线**（19 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 的两个函数（`createCharactersPlugin`、`start`）曾挂在 W5-01 下，CHR-0 已把它们拆到阈值以下，不在清单里了（见下）。
+- **例外**（历史快照原 3 个，2026-10-26 起共 40 个；原例外目录现已移除）：样式表 2 份（动量、基础控件）、连接器声明表 1 份。Coding 的样式表 `plugins/native/coding/src/styles.ts` 已拆出编辑条与时间线两份样式、降到 748 行，不再是巨大单元，条目与下表的行都已删。旧英文词典已随第 16 批稳定键与按主人分拆的 `locales/*.json` 删除。
+- **归线**（历史快照 19 个）：浏览器脚本模板、旧皮肤和旧英文词典（决定 #16，W5-03，已于第 16 批删除）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 的两个函数（`createCharactersPlugin`、`start`）曾挂在 W5-01 下，CHR-0 已把它们拆到阈值以下，不在清单里了（见下）。
 - **拆**（124 个，95 个文件）：其中 117 个归 W5-10（89 个文件，30 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 117 个里），其余 7 个归 W5-04、W5-07、W5-09（SC-3 的三个已搬出 Work 并拆完，W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
 - 全部单元里，42 个只超出阈值不到 20%（8 个文件、26 个函数、8 个类；类按行数与方法数里超得多的那一项算），其中 34 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
-### 2026-10-26 W5-10 逐个判定
+### 2026-10-26 W5-10 逐个判定（历史记录）
 
-用户 2026-10-25 定“本身合理的标明、不硬拆，职责混杂的才拆”，W5-10 把当时的 72 个巨大单元逐个看过（`--report`，量的是工作树，比 `baseline.json` 新）：3 个原有例外不动，**37 个新标明为例外**（条目、种类、理由和实测 `size` 在 `tooling/gates/giant-exceptions/`，理由是对着代码写的），**32 个混了几件事、判“拆”**（其中批 G 的六个已拆，见 §3 对应四行），不在这里硬拆，下面写清楚混了什么、怎么拆、归谁。登记后例外共 40 个。评审（#1310）退回了 8 个原判例外的仓储和命令类，改判“拆”，见批 E、J、K。大小以统筹在合成树上重量为准（Goals、记忆、助理、Runtime 几条线仍在改这些文件），条目里的 `size` 随之重写。§3 各行里这 37 个单元的“拆 · W5-10”以本节为准，行不逐条改；单元拆到阈值以下或再变化时，同一个 PR 里改条目和本节。
+用户 2026-10-25 定“本身合理的标明、不硬拆，职责混杂的才拆”，W5-10 当时将 72 个巨大单元逐个复核（历史快照记录）：3 个原有例外不动，37 个新标明为例外，32 个混了几件事、判“拆”（其中批 G 的六个已拆，见 §3 对应四行）。现行门禁不再使用旧静态基线与独立例外目录，实时状态请运行 `node scripts/check-health-gates.mjs --report`。
 
 判例外的标准（逐个对着成员的行数分布看过）：一个类只管一个聚合或一组表（仓储，成员各自只有一两条 SQL）、一条事务或流水线、一个状态机、一个解析器或算法、一个组合根、一个页面模板或一个协议适配；这些拆开会把同一件事散到几处。“一张表只由建它的包读写”（`tooling/gates/table-owners.json`）不是不拆的理由：它约束的是包与包之间，同一个包里把一个仓储类按表族拆成几个类不违反它。判“拆”的标准：成员分成至少两组、服务不同调用方、几乎不共享状态，且别处已有同样的拆法可照。
 
@@ -75,7 +77,7 @@
 | `apps/local-host/src/web-server.ts#createLocalWebServerFactory` | 154 行 | 内聚单元 |
 | `apps/local-host/src/web-server.ts#createMolisWorkWebServer` | 151 行 | 内聚单元 |
 | `apps/workbench/src/capsule-items.ts#createCapsuleItemProjection` | 229 行 | 内聚单元（第 44 批随胶囊删除，文件已删） |
-| `apps/workbench/src/i18n/en.ts` | 3266 行 | 翻译表 |
+| 旧英文总词典（第 16 批已删除，拆为各主人 `locales/*.json`） | 3266 行 | 翻译表（已删除） |
 | `apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer` | 176 行 | 内聚单元 |
 | `apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps` | 425 行 | 内聚单元 |
 | `horizontal/scheduler/src/index.ts#createScheduleService` | 215 行 | 内聚单元 |
@@ -405,11 +407,7 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 | `gmail` | `src/oauth.ts` | `createGmailOAuth` 函数 14 行 | 已拆 · W5-10 | 基线实测 177 → 14 行；start/complete 操作提到模块级，按实例绑定原 Ports 与函数引用，最大 93 行。先消耗 state 再交换，先核邮箱、解析 refs 再同步提交；公开参数与返回保持。 | 1 |
 | `gmail` | `src/provider.ts` | 文件 263 行<br>`createGmailProvider` 函数 63 行 | 已拆 · W5-10 | 基线实测文件 910 → 263、factory 177 → 63 行（原表 957/198 为旧值）；health/sync 操作留在本文件模块级，实例 resolver 保留原 opts 接收者。私有 `provider-sync.ts` 446 行（最大函数 93）、`provider-message.ts` 176 行（最大函数 53）、`provider-fixture.ts` 38 行。分页、详情界限、映射与游标进度不变，无新增公开出口或例外。 | 2 |
 
-## 4. 维护
+## 4. 维护（已归档）
 
-- 文档清单由改动者人工维护：改登记或判定时，同步本节与 §2/§3 对应行，核对实际登记；历史分类总数与当前测量分开说明，不增设表格门禁。
-- 拆完一个单元：改这里对应的行（删行或改数字），在同一个 PR 里跑 `node scripts/check-health-gates.mjs --update --base origin/main` 更新本地快查；它如果有例外条目，同时删掉条目。
-- 新写的东西超限：先看它是不是只做一件事。混了几件事的，按职责拆到每一块都在阈值以下；本身合理的（文案表、样式表、静态数据、生成代码、内聚的状态机或解析器），在 `tooling/gates/giant-exceptions/` 标明（`kind`、理由、门禁报错里给出的 `size`），并在这里加一行“例外”。不要把“懒得拆”写成理由，理由里写的事实要能在代码里查到。
-- 给没有标明的单元加功能：先把要加的部分抽到新文件，再接上去，门禁不会放行它变大；它若本身合理，也可以在同一个 PR 里标明并写上新的 `size`，这里的判定改成“例外”。清单里点名的各片（W3-01、W3-05、W3-06、W3-07、W4-02、W5-02）会碰到的类，也这样处理。
-- 判“拆”的单元（多数在 W5-10）照上面重新看一遍：本身合理的改判“例外”并标明，不为凑数字硬拆。
-- 路线收尾（W6-04）重量这些数字，和 2026-10-02 开工时对比：当时 37 个超过 800 行的文件、43 个超过 300 行的类、25 个方法数超过 25 的类、99 个超过 150 行的函数（`specs/archive/repository-anti-corruption/spec.md` §2.3）。
+- 本文已归档，不再作为人工维护的巨大单元台账。当前门禁阈值与规则请以 [`tooling/gates/README.md`](../../tooling/gates/README.md)、[`tooling/gates/limits.json`](../../tooling/gates/limits.json) 及 `node scripts/check-health-gates.mjs --report` 为准；原 `giant-exceptions/` 登记目录已移除。
+- 路线收尾（W6-04）对比基准保留记录：2026-10-02 开工时共 37 个超过 800 行的文件、43 个超过 300 行的类、25 个方法数超过 25 的类、99 个超过 150 行的函数（`specs/archive/repository-anti-corruption/spec.md` §2.3）。

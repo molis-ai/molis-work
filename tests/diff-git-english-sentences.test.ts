@@ -12,13 +12,13 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 // VUX-40: the owner's fixed words take the original paths, names and counts as arguments. The action keeps the source facts.
 
 const HAN = /[一-鿿]/;
-const primitives = (locale: "zh" | "en") => ({ escape: escapeHtml, text: diffPageText(locale), icon: () => "" });
+const primitives = (locale: "zh" | "en" | "ja") => ({ escape: escapeHtml, text: diffPageText(locale), icon: () => "" });
 const WS = { workspace_id: "ws-1", name: "项目" };
 const run = { scope: "run-frozen" as const, run_id: "run-1", applied: false, coverage: "text-reviews" as const,
   origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" },
   files: [{ path: "a.ts", kind: "modified" as const, added_lines: 1, removed_lines: 1, diff: "",
     review: { review_id: "v", before_text: "a\n", after_text: "b\n", decision: "approved" as const, execution: "applied" as const } }] };
-const shown = (locale: "zh" | "en", view: DiffView) => diffUiContribution.render({
+const shown = (locale: "zh" | "en" | "ja", view: DiffView) => diffUiContribution.render({
   contribution_id: DIFF_UI_CONTRIBUTION_ID, surface: "comparison", model: { view, primitives: primitives(locale), sides: false },
 });
 
@@ -122,4 +122,18 @@ test("VUX-40: the Git surface's branch, upstream and status lines read in Englis
   const drawn = withPageText("en", ["git"], () => renderGitChanges(model)).replace(/<[^>]*>/g, " ");
   assert.match(drawn, /origin\/main: 2 ahead · 1 behind/);
   assert.match(readFileSync(new URL("../plugins/native/git/src/browser/list.ts", import.meta.url), "utf8"), /\[view\.head, page\.U\(view\.upstream\), view\.message\]\.filter\(Boolean\)\.join\(" · "\)/u);
+});
+
+test("F-plugins-rest-w2-10: out-of-range changeIndex renders localized file-index notice across zh/en/ja without literal undefined", () => {
+  const input = { content: run, source_plugin_id: "io.molis.work.coding", content_version: 1 };
+  const missing = compareRunChangeSet(input, undefined, 3);
+  assert.equal(missing.phase, "unavailable");
+  assert.equal(missing.message, "这一轮没有第 4 个改动文件");
+  assert.doesNotMatch(missing.message, /undefined/);
+  const zh = shown("zh", missing), en = shown("en", missing), ja = shown("ja", missing);
+  assert.ok(zh.includes("这一轮没有第 4 个改动文件"));
+  assert.ok(en.includes("This turn has no file #4"));
+  assert.ok(ja.includes("このターンには 4 番目の変更ファイルがありません"));
+  for (const html of [zh, en, ja]) assert.doesNotMatch(html, /undefined/);
+  assert.doesNotMatch(en.replace(/<[^>]*>/g, ""), HAN);
 });

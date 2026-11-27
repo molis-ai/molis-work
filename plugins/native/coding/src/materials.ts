@@ -308,7 +308,10 @@ function envelope(
   text: string,
   meta: { delivery: "full" | "clipped"; total_chars: number; delivered_chars: number },
 ): AgentTextMaterial {
-  const fixed = materialArtifact(material), subject = subjectOf(material), key = `${subject.kind}:${subject.id}`;
+  const fixed = materialArtifact(material), subject = subjectOf(material);
+  const range = "ref" in material ? material.ref.range : undefined;
+  const rangeKey = range ? `#${JSON.stringify([range.anchor ?? null, range.line ?? null, range.length ?? null, range.page ?? null])}` : "";
+  const key = `${subject.kind}:${subject.id}${rangeKey}`;
   // A fixed version keeps its own identity; anything else is named by its subject, and its version is the revision read.
   const plain = {
     material_id: `${key.length > 160 ? createHash("sha256").update(key).digest("hex").slice(0, 32) : key}@${revision.slice(0, 64)}`,

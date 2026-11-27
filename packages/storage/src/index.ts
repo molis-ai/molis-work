@@ -22,7 +22,9 @@ export {
   openHomeSqliteDatabase,
   openHomeSqliteFile,
   openReadOnlyHomeSqlite,
+  type HomeSqliteOpenOptions,
 } from "./home-sqlite.js";
+export { isPathInsideRoot } from "./path-containment.js";
 export { runSqliteUpgrade, upgradeStepsProblem, type SqliteUpgradeResult } from "./sqlite-upgrade.js";
 export { readUpgradeStore, readUpgradeStoreSpace, readUpgradeStoreVersion, upgradeFailedRefusal, upgradeInProgressRefusal, upgradeNoSpaceRefusal, type UpgradeStoreVersion } from "./upgrade-inspection.js";
 export {

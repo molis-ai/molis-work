@@ -127,8 +127,11 @@ export function finished(
 
 /** The plan's version: when one of its own steps last changed. What other sessions do on the board does not move it. */
 function planVersion(board: SdkBoard, place: PlanPlace, reconciledSteps?: ReconciledStepMap): number {
-  const reconciledMax = reconciledSteps ? Math.max(0, ...Object.values(reconciledSteps).map(entry => entry.at_ms)) : 0;
-  return Math.max(reconciledMax, ...planNodes(board, place).map(node => node.changedAt ?? board.version));
+  const boardMax = planNodes(board, place).reduce((max, node) => Math.max(max, node.changedAt ?? board.version), 0);
+  const reconciledCount = reconciledSteps
+    ? Object.values(reconciledSteps).reduce((sum, entry) => sum + (entry.count ?? 1), 0)
+    : 0;
+  return boardMax + reconciledCount;
 }
 
 /** The plan's own step title for a confirmed step, the person's title for an inserted one. */
@@ -440,7 +443,7 @@ async function reconcileAmendedStep(options: {
   target: TaskNode;
   action: "confirm-done" | "rerun";
   note: string;
-  expectedVersion: number;
+  reconciledSteps?: ReconciledStepMap;
   person: { kind: "human"; id: string };
   roundSession?: ExactRef<"session">;
   dependents: (id: string) => string[];
@@ -449,12 +452,14 @@ async function reconcileAmendedStep(options: {
   report: (nodeId: string, note: string, to?: TaskNode["state"]) => Promise<void>;
   rewire: (nodeId: string, dependsOn: string[]) => Promise<void>;
   setBoard: (next: SdkBoard) => void;
-  onReconcile?: (stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>;
+  onReconcile?: (stepId: string, entry: ReconciledStepEntry) => Promise<void>;
 }): Promise<void> {
-  const { runtime, place, target, action, note, expectedVersion, person, roundSession, dependents, exactNode, replaced, report, rewire, setBoard, onReconcile } = options;
+  const { runtime, place, target, action, note, reconciledSteps, person, roundSession, dependents, exactNode, replaced, report, rewire, setBoard, onReconcile } = options;
   const ref = place.ref;
   const stepKey = canonicalLocalId(place, target.id) ?? target.id;
-  const nowMs = Math.max(Date.now(), expectedVersion + 1);
+  const previous = reconciledSteps?.[stepKey];
+  const nowMs = Math.max(Date.now(), (previous?.at_ms ?? 0) + 1);
+  const nextCount = (previous ? (previous.count ?? 1) : 0) + 1;
   if (action === "confirm-done") {
     if (target.state === "cancelled" || target.state === "not-started") {
       throw new Error("这一步还未执行或已跳过，不能核对为已完成");
@@ -466,7 +471,7 @@ async function reconcileAmendedStep(options: {
     }
     if (exactNode(target.id).state === "ready") await report(target.id, "用户核对中", "running");
     if (exactNode(target.id).state === "running") await report(target.id, `用户核对完成：${note}`, "succeeded");
-    await onReconcile?.(stepKey, { action: "confirm-done", note, at_ms: nowMs });
+    await onReconcile?.(stepKey, { action: "confirm-done", note, at_ms: nowMs, count: nextCount });
     return;
   }
   if (target.state === "cancelled") throw new Error("已跳过的步骤不能直接重新执行");
@@ -499,7 +504,7 @@ async function reconcileAmendedStep(options: {
   } else {
     await report(target.id, `用户决定重新执行：${note}`);
   }
-  await onReconcile?.(stepKey, { action: "rerun", note, at_ms: nowMs });
+  await onReconcile?.(stepKey, { action: "rerun", note, at_ms: nowMs, count: nextCount });
 }
 
 async function removeStepFromScope(options: {
@@ -549,7 +554,7 @@ export async function amendPlan(
   roundSession: ExactRef<"session"> | undefined,
   ledger: RoundLedger,
   reconciledSteps?: ReconciledStepMap,
-  onReconcile?: (stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>,
+  onReconcile?: (stepId: string, entry: ReconciledStepEntry) => Promise<void>,
   unknownStepIds?: ReadonlySet<string>,
 ): Promise<SdkBoard> {
   const ref = place.ref;
@@ -637,7 +642,7 @@ export async function amendPlan(
       break;
     }
     case "reconcile": {
-      await reconcileAmendedStep({ runtime, place, target: target!, action: amendment.action, note: text(amendment.note, "核对说明", 500), expectedVersion, person, roundSession, dependents, exactNode, replaced, report, rewire, setBoard: next => { board = next; }, onReconcile });
+      await reconcileAmendedStep({ runtime, place, target: target!, action: amendment.action, note: text(amendment.note, "核对说明", 500), reconciledSteps, person, roundSession, dependents, exactNode, replaced, report, rewire, setBoard: next => { board = next; }, onReconcile });
       break;
     }
     case "unblock": {

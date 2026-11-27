@@ -269,3 +269,26 @@ test("S-18 a search withdrawn after DNS or before the TLS body sends no request 
     assert.equal(net.bodies, 0, "withdrawn before TLS completes: the body is never sent");
   } finally { await transport.shutdown!(); t.mock.restoreAll(); syncBuiltinESMExports(); }
 });
+
+test("R-01 S-10 AnySearch uses canonical isPublicAddress and rejects 3fff:1000::1 and 2001:1::1 before any HTTPS request", { timeout: 15_000 }, async t => {
+  let requests = 0;
+  let answers: Array<{ address: string; family: number }> = [];
+  t.mock.method(dns, "lookup", async () => answers);
+  t.mock.method(https, "request", () => {
+    requests++;
+    throw new Error("no connection may be opened");
+  });
+  syncBuiltinESMExports();
+  const transport = createAnySearchTransport();
+  try {
+    for (const address of ["3fff:1000::1", "2001:1::1"]) {
+      answers = [{ address, family: 6 }];
+      await assert.rejects(transport.execute(anysearchCall(new AbortController().signal)), /provider_unavailable/, address);
+    }
+    assert.equal(requests, 0);
+  } finally {
+    await transport.shutdown!();
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});

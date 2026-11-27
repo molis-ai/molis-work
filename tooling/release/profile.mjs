@@ -2,7 +2,6 @@ import { workEnvironment } from "../../scripts/account-environments.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { releaseApplication, releaseMacOS, releaseProfile, releaseRuntime } from "@molis-ai/molis-work-app-local-host";
 
 const root = new URL("../../", import.meta.url);
 const read = file => readFileSync(new URL(file, root), "utf8");
@@ -10,6 +9,31 @@ const configurationFile = "apps/local-host/src/release-profiles.json";
 const tauriFile = "apps/desktop/src-tauri/tauri.conf.json";
 const tauriMacOSFile = "apps/desktop/src-tauri/tauri.macos.conf.json";
 const macOSWorkflow = ".github/workflows/release-macos.yml";
+
+// Read release-profiles.json directly so release/install scripts and CI work on a clean checkout before `pnpm build`.
+const profileConfiguration = JSON.parse(read(configurationFile));
+const releaseApplication = profileConfiguration.application;
+const releaseMacOS = profileConfiguration.macOS;
+const releaseRuntime = profileConfiguration.runtime;
+const connectorApplications = profileConfiguration.connectorApplications;
+
+function releaseProfile(name) {
+  if (!Object.hasOwn(profileConfiguration.profiles, name)) {
+    throw new Error("Choose a release profile: dev, test or release");
+  }
+  return profileConfiguration.profiles[name];
+}
+
+export function connectorApplicationReferences(profile, service) {
+  const { applicationRefs, applications } = releaseProfile(profile).connectors;
+  const table = applications === null ? undefined : connectorApplications[applications];
+  const primary = Object.hasOwn(applicationRefs, service)
+    ? applicationRefs[service]
+    : table?.secretPrefix
+      ? `${table.secretPrefix}${service.replaceAll("-", "_").toUpperCase()}`
+      : undefined;
+  return { primary, fallback: primary ? table?.fallbackMapRef ?? undefined : undefined };
+}
 
 export function nodeVersion(environment = process.env) {
   const version = environment.MOLIS_WORK_NODE_VERSION || read(releaseRuntime.nodeVersionFile).trim();
@@ -129,7 +153,6 @@ export function publisherKeyReference(name) {
   return releaseProfile(name).publisherKeyRef;
 }
 
-export { connectorApplicationReferences } from "@molis-ai/molis-work-app-local-host";
 export { releaseMacOS };
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) run(process.argv.slice(2));

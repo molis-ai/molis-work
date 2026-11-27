@@ -2,11 +2,11 @@
 
 [中文](NETWORK.md)
 
-Molis Work is a local-first workbench: your goals, notes and files live on your own computer. This page lists the network requests Molis Work makes **itself**: which features go online, to which site, what is sent, and what limits apply. There are 13 classes (class 0 is the model; the other 12 are not model calls; the former class 6, the Casebook reference client, was deleted with Casebook, and the other numbers stay).
+Molis Work is a local-first workbench: your goals, notes and files live on your own computer. This page lists the network requests Molis Work makes **itself**: which features go online, to which site, what is sent, and what limits apply. There are 16 numbered classes (class 0 is the model; classes 1–16 are not model calls; the former class 6, the Casebook reference client, was deleted with Casebook, and class 7 was retired with the old Alchemist; the other numbers stay).
 
 Commands you run in the terminal panel, commands the host runs after you approve them (such as `git push`), external agents you start yourself, and external links you click are your own actions and are not covered here.
 
-> For maintainers: any new outbound request (`fetch`, `https.request`, a networked command in a child process) needs a class on this page first, or an entry in an existing class, with host, trigger, what is sent and the limits. Checked against `main` on 2026-10-09; class 0 was checked again on 2026-10-10 against `06a64c98c` (it gained the one-click model-settings templates and the connectivity check on save).
+> For maintainers: any new outbound request (`fetch`, `https.request`, a networked command in a child process) needs a class on this page first, or an entry in an existing class, with host, trigger, what is sent and the limits. Initially checked against `main` on 2026-10-09; class 0 was re-checked on 2026-10-10 against `06a64c98c`; classes 14–16 (account avatars, central Auth V2 service, and personal cloud sync via Cloudflare Worker/R2) were added on 2026-11-26 against `2ca43ef58f`.
 
 ## At a glance
 
@@ -26,6 +26,8 @@ Commands you run in the terminal panel, commands the host runs after you approve
 | 12 | Side-panel browser | The pages you or the assistant open | Ordinary browser visits |
 | 13 | Feed research-library source | `github.com` | `git fetch` |
 | 14 | Account avatars | `*.googleusercontent.com`, `avatars.githubusercontent.com` | Browser image requests when showing linked account avatars; no Auth token and no referrer |
+| 15 | Central account login & session management (Auth V2) | Your environment's configured Auth service origin (HTTPS in test/production, e.g. `https://auth.test.molis.ai`; numeric loopback in local dev) | Sign-in/verification/OAuth callback exchange, session read/refresh, logout revocation, profile/tenant/entitlement queries (tokens stay inside the Host, never exposed to plugins or the browser) |
+| 16 | Personal cloud sync (Cloudflare Worker / R2) | Only when a sync origin (`MOLIS_WORK_SYNC_ORIGIN`, e.g. `https://work.test.molis.ai`) is explicitly configured and you sign in and opt this device in | Incremental changes for collections you explicitly select, SHA-256-verified private attachment chunks (within the shared 100 MB account quota), and quota/retained-history/trash queries; carries only your Auth access token, never model keys or third-party connection credentials |
 
 Only classes 9 and 10 send a **name** (a package name, a site name) to a third party that has nothing to do with the feature itself, and what they send contains none of your content. These three cases are described below.
 
@@ -115,8 +117,27 @@ When you type an address in the side-panel browser, or the assistant works on th
 
 When the Feed "research library" source syncs, Molis Work starts a `git` child process that shallow-fetches the `main` branch of `https://github.com/<owner>/<repo>.git` (`git fetch --depth=1`) into Molis Work's own cache directory, without touching your checkouts and without ever prompting; 120 seconds, 16 MiB of output; it reads only `sources.json`, `catalog.json` and each package's `manifest.json`, `research.json` and `report.md`.
 
+### 14. Account avatars
+
+- **When:** while signed in, the browser loads linked third-party account avatars displayed in the account menu or account settings.
+- **Where to:** Google and GitHub avatar hosts (`*.googleusercontent.com`, `avatars.githubusercontent.com`).
+- **What is sent and limits:** ordinary browser image requests with `no-referrer` and no Auth tokens or Molis Work credentials. Never triggered when signed out or when no linked avatar is shown.
+
+### 15. Central account login and session management (Auth V2)
+
+- **When:** when you sign in (password, email/SMS verification code, or Google/GitHub OAuth), restore or refresh a session, read or update your profile and login methods, check tenants/subscriptions/entitlements, or sign out and revoke sessions.
+- **Where to:** the fixed central Auth origin configured for your environment (`horizontal/account`; HTTPS in test/production such as `https://auth.test.molis.ai`, or configured numeric loopback such as `http://127.0.0.1:8787` in local development). Neither the browser, plugins, nor business input can choose or override the Auth URL.
+- **What is sent and limits:** only operations defined in the pinned Auth OpenAPI contract (authentication transactions, session refresh/revocation, profile/entitlement queries). Redirects, malformed schemas, and oversized bodies are rejected; mutating requests are never auto-retried. Central access and refresh tokens remain inside the Host secret store and in-memory session manager and are never exposed to the browser, plugins, or models. When unconfigured or signed out, no requests are sent and local spaces remain completely offline.
+
+### 16. Personal cloud sync (Cloudflare Worker / R2)
+
+- **When:** only after you sign into a personal account, enter your personal space, and explicitly opt this device into automatic sync or click "Sync now" / inspect cloud retained history or trash (disabled by default; a new device asks before any background transfer).
+- **Where to:** the canonical HTTPS sync service origin explicitly configured on the trusted Host (`modules/sync-replication` and `apps/sync-worker` via `MOLIS_WORK_SYNC_ORIGIN`, e.g. `https://work.test.molis.ai`, or explicit local dev `http://127.0.0.1:8788`). The sync service runs on Cloudflare Workers + D1 + private R2; browser pages, plugins, and login parameters cannot choose the destination.
+- **What is sent and limits:** only incremental changes for the collections you explicitly select in Settings › Sync plus owner-declared private attachment chunks (fixed 4 MiB chunks with per-part and full SHA-256 verification under a shared 100 MB account quota). Local-space data, arbitrary local folders, model API keys, third-party connection credentials, and external AI session transcripts are never uploaded. Requests carry only your Auth Bearer token (or short-lived signed read proof) and never follow redirects; signing out, switching accounts, or returning to a local space immediately cancels in-flight sync. With no sync origin configured or device sync off, zero requests are sent.
+
 ## To go online less
 
 - Do not connect services, add feed sources, or use web search, and the matching classes do not happen.
+- Staying in a local space without signing in avoids classes 14, 15, and 16; even when signed in, leaving device cloud sync disabled (the default) prevents class 16.
 - Model requests go only to the service you configured, never to another vendor.
 - Class 10 happens only where a proxy hands out placeholder addresses; without a proxy environment variable 10a is never triggered.

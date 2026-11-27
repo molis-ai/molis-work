@@ -738,3 +738,91 @@ test("D0246 D0247 S-84 complete signed bodies and changed tails are reviewed on 
     for (const version of [3, 4]) await assert.rejects(actions.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version }, { bundle: next }));
   } finally { await h.done(); }
 });
+
+test("Q-cf2-04 preview refuses ReDoS OAuth regex patterns before evaluating default values or writing anything", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const publisher = newPublisher();
+    const base = integrationPackage(publisher);
+    const evilManifest = structuredClone(base.payload.manifest) as PluginManifest;
+    const service = evilManifest.connection_services![0]!;
+    (service.auth as { methods: unknown[] }).methods = [
+      ...service.auth.methods,
+      {
+        kind: "oauth",
+        grant: "authorization_code",
+        authorize_url: "https://api.example-feed.com/oauth/authorize",
+        token_url: "https://api.example-feed.com/oauth/token",
+        settings: [{
+          key: "site",
+          label: "Site",
+          use: "path",
+          pattern: "(a+)+$",
+          default: `${"a".repeat(40)}!`,
+        }],
+      },
+    ];
+    const evilPayload = structuredClone(base.payload);
+    evilPayload.manifest = evilManifest;
+    replaceSignedFile({ ...base, payload: evilPayload }, "manifest.json", JSON.stringify(evilManifest));
+    const bundle: PluginPackageBundle = {
+      payload: evilPayload,
+      signature: {
+        algorithm: "ed25519",
+        value_base64: Buffer.from(publisher.signer.sign(pluginPackageSigningBytes(evilPayload))).toString("base64"),
+      },
+      publisher_key: { algorithm: "ed25519", spki_base64: publisher.signer.public_key_spki_base64 },
+    };
+    const startedAt = Date.now();
+    await assert.rejects(h.service.preview({ bundle }, who), refused("plugin.declaration_invalid"));
+    assert.ok(Date.now() - startedAt < 500, "ReDoS pattern is rejected linearly without blocking the event loop");
+    h.nothingWritten();
+  } finally { await h.done(); }
+});
+
+test("F-hc2-03 dual-instance confirm surfaces explicit partial-upgrade state when Home upgrades and project half fails", async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-dual-partial-"));
+  const ledger = new MemoryPluginConsentLedger();
+  const packages = new SandboxPackageStore(home);
+  const publisher = newPublisher();
+  const dualBundle = (version: string, upgradesFrom?: string[]) => signedPackage(publisher, (_files, manifest) => {
+    manifest.runtime = { scope: "home", dual_instance: true };
+    if (upgradesFrom) manifest.upgrade_compatibility = { compatible_from_versions: upgradesFrom };
+  }, { version });
+  const v1 = dualBundle("1.0.0");
+  packages.save(v1, readSandboxPackage(v1.payload));
+  const homeRecords: PluginInstanceRecord[] = [homeRecord(readSandboxPackage(v1.payload).manifest)];
+  const projectRecords: PluginInstanceRecord[] = [homeRecord(readSandboxPackage(v1.payload).manifest)];
+  const homeCalls: string[] = [];
+  const service = new PluginInstallService({
+    ledger,
+    packages,
+    now: () => AT,
+    homeInstalled: async () => homeRecords.map(record => ({ record, manifest: undefined })),
+    installed: async () => projectRecords.map(record => ({ record, manifest: undefined })),
+    installInHome: async release => {
+      homeCalls.push(release.packaged!.manifest.version);
+      homeRecords[0] = homeRecord(release.packaged!.manifest);
+    },
+    installInProject: async () => {
+      throw new ActionError("actions.execution_failed", "项目侧启动失败", { kind: "internal" });
+    },
+    control: async () => ({ state: "disabled" }),
+  });
+  try {
+    const v2 = dualBundle("1.1.0", ["1.0.0"]);
+    const preview = await service.preview({ bundle: v2 }, who);
+    await assert.rejects(
+      service.confirm({ preview_id: preview.preview_id, consent: true, pin_label: "Dual" }, who),
+      (error: unknown) => {
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.details?.dual_partial_upgrade, true);
+        assert.equal(error.details?.home_version, "1.1.0");
+        assert.equal(error.details?.previous_home_version, "1.0.0");
+        assert.equal(error.details?.home_database_upgraded, false);
+        return true;
+      },
+    );
+    assert.deepEqual(homeCalls, ["1.1.0"]);
+  } finally { await rm(home, { recursive: true, force: true }); }
+});

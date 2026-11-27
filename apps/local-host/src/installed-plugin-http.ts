@@ -10,7 +10,7 @@ import { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, installedStageSec
   type PluginDirectoryEntry, type UnavailablePluginStage } from './workbench-renderer.js';
 import { assertStageInstallation, installedStageIdentity, installedStageReleaseMatches, requestedStageInstallation, sameInstalledRelease } from './installed-stage-identity.js';
 import { captureWebSessionAuthority, shellPageRead } from './web-sessions.js';
-import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from './web-http.js';
+import { LOCAL_PAGE_CSP, readLocalWebBody, refuseLocalWebRequest, requestAbortSignal, requestHost, sendLocalWebJson } from './web-http.js';
 import { htmlLang } from "./web-locale.js";
 import { ensureInstalledPlugins, type InstalledPluginHostOptions } from './installed-plugin-host.js';
 import { installedPluginWords, installedPluginPage } from "./installed-plugin-page.js";
@@ -24,6 +24,7 @@ export interface InstalledPluginHttpOptions extends Omit<InstalledPluginHostOpti
   /** Without a Home there is nothing installed: the stages are none and a page or call is refused. */
   homeDirectory?: string;
   accountRegistration?: boolean;
+  pageCsp?: string;
 }
 
 /** An installed plugin's stage in the workbench, the name it was published under, and what its Manifest declares (the page's plugin directory). */
@@ -101,12 +102,7 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     refuseLocalWebRequest(response);
     return true;
   }
-  const pageAuthority = pluginPageRequest(request), disconnected = new AbortController();
-  const disconnect = () => {
-    if (!response.writableEnded) disconnected.abort(new Error('调用连接已关闭'));
-  };
-  request.once('aborted', disconnect);
-  response.once('close', disconnect);
+  const pageAuthority = pluginPageRequest(request), disconnected = requestAbortSignal(request, response);
   const signal = pageAuthority ? AbortSignal.any([pageAuthority.signal, disconnected.signal]) : disconnected.signal;
   const currentSession = captureWebSessionAuthority();
   const assertCurrent = () => {
@@ -125,7 +121,12 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     return true;
   };
   const sendHtml = (html: string) => {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    response.writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'content-security-policy': options.pageCsp ?? LOCAL_PAGE_CSP,
+      'x-content-type-options': 'nosniff',
+    });
     response.end(html);
     return true;
   };
@@ -189,7 +190,6 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     sendLocalWebJson(response, refused.status, refused.body);
     return true;
   } finally {
-    request.removeListener('aborted', disconnect);
-    response.removeListener('close', disconnect);
+    disconnected.dispose();
   }
 }

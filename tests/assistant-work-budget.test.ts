@@ -117,3 +117,53 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     assert.doesNotMatch(stopText("连续 3 次调用都没有成功，这一轮先停在这里"), /circuit/i);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("F-host-subsystems-04 exhausted work budget fails before cancelling an active continuation wait", async () => {
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const controls: unknown[] = [];
+  const stubAdapter = {
+    readSession: async () => ({
+      session_id: "s-budget",
+      latest_run: { ref: { runtime_id: "prologue", session_id: "s-budget", run_id: "r1" }, phase: "completed" as const },
+    }),
+    read: async () => ({
+      ref: { runtime_id: "prologue", session_id: "s-budget", run_id: "r1" },
+      phase: "completed" as const,
+      usage: { tokens: { input: 1000, output: 0 } },
+      ended_at: new Date().toISOString(),
+    }),
+    collaboration: {
+      read: async () => [{
+        wait: { wait_id: "wait-active", state: "waiting" as const, reason: "等待后台核对", by: "assistant" as const },
+        continuation: { state: "waiting" as const },
+      }],
+      control: async (_owner: string, command: unknown) => {
+        controls.push(command);
+        return { ok: true };
+      },
+    },
+  };
+  const stubHost = { adapter: () => stubAdapter } as never;
+  const service = new AssistantService(store, {
+    pages: async () => ["home"],
+    host: async () => stubHost,
+    authority: async work => assistantAuthority(local, work, () => new Set()),
+    timeZone: "Asia/Shanghai",
+  }, "web-user");
+  try {
+    const created = store.create({ actor_id: "web-user", title: "预算与等待", scope: { kind: "personal" }, origin: null });
+    const work = store.update("web-user", created.work_id, null, { session_id: "s-budget", budget_tokens: 1000 });
+    store.addRound(work.work_id, { run_id: "r1", text: "第一轮", materials: [], context: null, started_at: new Date().toISOString() });
+    store.usage.record("web-user", { work_id: work.work_id, run_id: "r1", ended_at: new Date().toISOString(), input: 1000, output: 0, cached: 0 });
+
+    await assert.rejects(
+      inAssistantPage("zh", () => service.send({ work_id: work.work_id, text: "超过上限的一轮", request_id: "budget-before-withdraw-1" }, {})),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.budget",
+    );
+    assert.deepEqual(controls, [], "budget refusal must happen before irreversible cancel-wait");
+  } finally {
+    service.continuations.close();
+    await local.close();
+  }
+});

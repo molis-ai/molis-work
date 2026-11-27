@@ -1791,3 +1791,180 @@ test('RAC-2937 a held real trial call cannot write or create a runner after its 
   assert.ok(children.length > 0, 'the regression used actual sandbox processes');
   assert.ok(children.every(child => child.exitCode !== null || child.signalCode !== null), 'the completed trial stopped every sandbox it created');
 });
+
+test('F-horiz-runtime-38 browser acceptance truncates overlong blocked messages to the sync bound', async () => {
+  const h = harness([PROPOSALS, detail('受阻截断')]);
+  h.ports.browserAcceptance = async () => { throw new Error('b'.repeat(5_000)); };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const created = workflow.create('受阻截断');
+    let build = await until(workflow, created.id, value => value.phase === 'choosing');
+    await workflow.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, created.id, value => value.phase === 'failed' || value.phase === 'ready');
+    assert.equal(build.phase, 'failed');
+    assert.equal(build.browserResult?.blocked?.length, 4_000);
+  } finally { await workflow.close(); }
+});
+
+test('F-horiz-runtime-39 concurrent undo uses revision CAS and aborted enable-plugins does not mutate draft', async () => {
+  const h = harness([PROPOSALS, detail('版本一'), detail('版本二'), detail('版本三')]);
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const created = workflow.create('撤销并发测试');
+    let build = await until(workflow, created.id, value => value.phase === 'choosing');
+    await workflow.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(build.phase, 'ready');
+    await workflow.action(build.id, { action: 'message', revision: build.revision, message: '改为版本二' });
+    build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    await workflow.action(build.id, { action: 'message', revision: build.revision, message: '改为版本三' });
+    build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(build.history.length, 2);
+
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let resetCalls = 0;
+    const origReset = h.ports.resetPreview;
+    h.ports.resetPreview = async (id, beforeReset) => {
+      if (++resetCalls === 1) { entered.resolve(); await release.promise; }
+      beforeReset?.();
+      return origReset(id, beforeReset);
+    };
+    const rev = build.revision;
+    const first = workflow.action(build.id, { action: 'undo', revision: rev }, publicationAuthority);
+    await entered.promise;
+    const second = workflow.action(build.id, { action: 'undo', revision: rev }, publicationAuthority);
+    release.resolve();
+    const settled = await Promise.allSettled([first, second]);
+    assert.equal(settled.filter(item => item.status === 'fulfilled').length, 1);
+    assert.equal(settled.filter(item => item.status === 'rejected').length, 1);
+    const rejected = settled.find(item => item.status === 'rejected')!;
+    assert.equal((rejected.reason as { code?: string })?.code, 'revision_conflict');
+    h.ports.resetPreview = origReset;
+    build = await until(workflow, build.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(build.history.length, 1, 'concurrent undo must pop history only once');
+  } finally { await workflow.close(); }
+
+  // Aborted authority during enable-plugins must leave pendingPlugins intact and launch no build.
+  const h2 = harness([PROPOSALS, detailUsing('待启用', 'goals.note')]);
+  const enableHeld = Promise.withResolvers<void>(), enableRelease = Promise.withResolvers<void>();
+  h2.ports.catalog = async () => GOALS_CATALOG;
+  h2.ports.missingPlugins = async () => [{ pluginId: 'io.molis.work.goals', title: 'Goals', capabilities: ['goals.note'] }];
+  h2.ports.enablePlugins = async () => { enableHeld.resolve(); await enableRelease.promise; };
+  const workflow2 = new AgentBuilderWorkflow(memoryStorage(), h2.ports);
+  try {
+    const created = workflow2.create('待启用测试');
+    let build = await until(workflow2, created.id, value => value.phase === 'choosing');
+    await workflow2.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow2, created.id, value => value.phase === 'paused' || value.phase === 'failed');
+    assert.equal(build.pendingPlugins?.length, 1);
+    const abort = new AbortController();
+    const pendingAction = workflow2.action(build.id, { action: 'enable-plugins', revision: build.revision }, {
+      signal: abort.signal, beforeEffect: async () => { abort.signal.throwIfAborted(); }, assert_authority_current() { abort.signal.throwIfAborted(); },
+    });
+    await enableHeld.promise;
+    abort.abort();
+    enableRelease.resolve();
+    await assert.rejects(pendingAction, (error: unknown) => error instanceof Error && error.name === 'AbortError');
+    const after = workflow2.store.require(build.id);
+    assert.equal(after.pendingPlugins?.length, 1);
+    assert.equal(after.active, null);
+    assert.equal(after.phase, 'paused');
+  } finally { await workflow2.close(); }
+});
+
+test('F-horiz-runtime-40 missingCapability revision pauses on unenabled plugin and repairAcceptance pauses on pendingPart', async () => {
+  // 1. missingCapability auto-revision triggers waitForPlugins instead of failing against unenabled plugin.
+  const h1 = harness([PROPOSALS, detail('补能力'), detailUsing('补能力', 'goals.note')]);
+  h1.ports.catalog = async () => GOALS_CATALOG;
+  h1.ports.missingPlugins = async design => design.contract.operations.some(op => op.effects.capabilities?.includes('goals.note'))
+    ? [{ pluginId: 'io.molis.work.goals', title: 'Goals', capabilities: ['goals.note'] }] : [];
+  h1.ports.check = async (currentBuild, operationIds) => {
+    const addOp = currentBuild.design?.contract.operations.find(op => op.id === 'notes.add');
+    if (operationIds.includes('notes.add') && !addOp?.effects.capabilities?.includes('goals.note')) {
+      return { passed: false, gates: [{ id: 'G5', passed: false, detail: 'Undeclared or unapproved capabilities: goals.note' }] };
+    }
+    return { passed: true, gates: [{ id: 'G5', passed: true, detail: 'ok' }], bundlePath: '/tmp/molis-build-fixture/plugin.mjs' };
+  };
+  const workflow1 = new AgentBuilderWorkflow(memoryStorage(), h1.ports);
+  try {
+    const created = workflow1.create('自动补能力');
+    let build = await until(workflow1, created.id, value => value.phase === 'choosing');
+    await workflow1.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow1, created.id, value => value.phase === 'paused' || value.phase === 'failed' || value.phase === 'ready');
+    assert.equal(build.phase, 'paused', studioBuildDiagnostic(build.error) ?? '');
+    assert.equal(build.error, null);
+    assert.equal(build.pendingPlugins?.length, 1);
+    assert.equal(build.pendingPlugins![0]!.pluginId, 'io.molis.work.goals');
+  } finally { await workflow1.close(); }
+
+  // 2. repairAcceptance display revision hitting pendingPart pauses cleanly instead of throwing acceptance failure.
+  const revised = JSON.parse(detail('展示修订'));
+  revised.design.pages[0].parts[2].props.emptyText = '没有记录';
+  const h2 = harness([PROPOSALS, detail('展示修订'), JSON.stringify(revised)], { jev: new Error('Jev 暂时不可用') });
+  let allowSelection = false;
+  h2.ports.selectionAvailable = () => allowSelection;
+  h2.ports.browserAcceptance = async () => {
+    allowSelection = true;
+    return {
+      passed: false, at: new Date().toISOString(),
+      cases: [{ id: 'add-note', passed: false, detail: JSON.stringify({ step: 3, action: 'expect', componentId: 'notes', reason: '验收等待超时', visible: '全部笔记 选择', data: '[{"id":"n1","text":"hello"}]' }) }],
+    };
+  };
+  const workflow2 = new AgentBuilderWorkflow(memoryStorage(), h2.ports);
+  try {
+    const created = workflow2.create('展示修订暂停');
+    let build = await until(workflow2, created.id, value => value.phase === 'choosing');
+    await workflow2.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow2, created.id, value => value.phase === 'paused' || value.phase === 'failed' || value.phase === 'ready');
+    assert.equal(build.phase, 'paused', studioBuildDiagnostic(build.error) ?? '');
+    assert.equal(build.active, null);
+    assert.equal(build.error, null);
+    assert.equal(build.pendingPart?.id, 'notes');
+  } finally { await workflow2.close(); }
+});
+
+test('F-horiz-runtime-41 pause aborts retry backoff without late agent spawn and smoke passes signal/beforeEffect to ports.call', async t => {
+  setModelRetryWaits([60_000]);
+  t.after(() => setModelRetryWaits([5_000, 15_000, 30_000]));
+  const h1 = harness([PROPOSALS]);
+  let agentCalls = 0;
+  h1.ports.agent = async () => {
+    agentCalls++;
+    return {
+      async run() { throw new Error('fetch failed'); },
+      async close() {}, async records() { return []; },
+    };
+  };
+  const workflow1 = new AgentBuilderWorkflow(memoryStorage(), h1.ports);
+  try {
+    const created = workflow1.create('退避可取消');
+    await until(workflow1, created.id, value => value.steps.some(step => step.id.includes(':retry:')));
+    const startedAt = Date.now();
+    const paused = await workflow1.pause(created.id);
+    assert.ok(Date.now() - startedAt < 1_000, 'pause must cancel 60s retry backoff promptly');
+    assert.equal(paused.phase, 'paused');
+    assert.equal(agentCalls, 1, 'late designer must not spawn another agent session');
+  } finally { await workflow1.close(); }
+
+  // smoke() passes signal and beforeEffect to ports.call.
+  const withQueryCap = JSON.parse(detail('实时冒烟'));
+  withQueryCap.design.operations[0].effects.capabilities = ['goals.list'];
+  const h2 = harness([PROPOSALS, JSON.stringify(withQueryCap)]);
+  h2.ports.catalog = async () => GOALS_CATALOG;
+  let receivedControl: Parameters<AgentBuilderPorts['call']>[3] | undefined;
+  h2.ports.call = async (_build, _operationId, _input, control) => {
+    receivedControl = control;
+    await control?.beforeEffect?.();
+    return [];
+  };
+  const workflow2 = new AgentBuilderWorkflow(memoryStorage(), h2.ports);
+  try {
+    const created = workflow2.create('实时冒烟测试');
+    let build = await until(workflow2, created.id, value => value.phase === 'choosing');
+    await workflow2.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow2, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
+    assert.ok(receivedControl?.signal instanceof AbortSignal);
+    assert.equal(typeof receivedControl?.beforeEffect, 'function');
+  } finally { await workflow2.close(); }
+});

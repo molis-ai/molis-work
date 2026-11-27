@@ -3,6 +3,7 @@ import { AGENT_MCP_DESTINATION_ID, JUDGMENT_RULE_AUTHORING_SUBJECTS,
   type JudgmentRuleAuthoringCatalog, type JudgmentRuleAuthoringOption } from "@molis-ai/molis-work-contracts/modules/functions";
 import { subjectOfferChoices } from "@molis-ai/molis-work-kernel";
 import type { ActionProvider, ActionView, ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { readWorkbenchText } from "./ui-error-words.js";
 
 /** The authoring catalog names a plugin by its plugin id; `provider_id` is the registration (an installation id for a plugin that is not bundled). */
 const pluginIdOf = (provider: ActionProvider): string => provider.plugin_id ?? provider.provider_id;
@@ -25,7 +26,7 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
     const values = properties?.suggested_behavior_ids?.items?.enum;
     const supported = definition.result_type === /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1"
       && (definition.recommendation_source === "subject-offers" || Array.isArray(values) && values.every(value => typeof value === "string"));
-    const available = !supported ? { available: false as const, code: "actions.scene_incompatible", reason: "此场景需要不同的结果合同，当前规则编辑器不能直接映射" } : availability;
+    const available = !supported ? { available: false as const, code: "actions.scene_incompatible", reason: readWorkbenchText("workbench.capabilities.input-output-incompatible") } : availability;
     const offered = definition.recommendation_source === "subject-offers"
       ? choices.filter(choice => !definition.subject_kinds.length || choice.subject_kinds.some(kind => definition.subject_kinds.includes(kind))) : [];
     const ids = definition.recommendation_source === "subject-offers" ? offered.map(choice => choice.key) : supported ? values as string[] : [];
@@ -43,7 +44,7 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
     }
     return { destination_id: definition.scene_id, scene_version: definition.version, provider_id: provider.provider_id,
       kind: "event" as const, title: definition.title, when: definition.trigger, effect: definition.description,
-      configure_at: "发布后在原用途中启用", subject_kinds: definition.subject_kinds.length ? definition.subject_kinds : [...new Set(offered.flatMap(choice => choice.subject_kinds))],
+      configure_at: readWorkbenchText("workbench.client-render.results-suggest-page-actions-activate-project-after-publishing"), subject_kinds: definition.subject_kinds.length ? definition.subject_kinds : [...new Set(offered.flatMap(choice => choice.subject_kinds))],
       option_ids: ids, availability: available };
   });
   // A plugin's kind reads as the title its search source declares for it (M9); the platform names only its own kinds.
@@ -51,8 +52,8 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
   return {
     subjects: [...JUDGMENT_RULE_AUTHORING_SUBJECTS, ...kinds.filter(kind => !JUDGMENT_RULE_AUTHORING_SUBJECTS.some(subject => subject.subject_kind === kind))
       .map(subject_kind => ({ subject_kind, title: declaredTitles.get(subject_kind) ?? subject_kind }))],
-    destinations: [...destinations, { destination_id: AGENT_MCP_DESTINATION_ID, kind: "mcp", title: "Agent", when: "返回判断和推荐能力，由 Agent 按授权调用",
-      configure_at: "发布后可供已授权 Agent 调用", effect: "推荐不自动执行，也不授予权限", subject_kinds: [], option_ids: agentActions.map(action => action.option_id) }],
+    destinations: [...destinations, { destination_id: AGENT_MCP_DESTINATION_ID, kind: "mcp", title: "Agent", when: readWorkbenchText("workbench.client-render.published-authorized-agents-returns-judgment-recommended-capabil"),
+      configure_at: readWorkbenchText("workbench.capabilities.built-agent-characters-can-select"), effect: readWorkbenchText("workbench.client-render.recommend-capability-each-result-return-judgment-alone-recommend"), subject_kinds: [], option_ids: agentActions.map(action => action.option_id) }],
     options: [...options, ...agentActions],
   };
 }

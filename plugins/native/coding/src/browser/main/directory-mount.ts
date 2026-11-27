@@ -1,5 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
+import { sessionTitle } from "../session-title.js";
 import type { CodingWorkbenchHost } from "../workbench.js";
 import { hostRequest } from "./request.js";
 import type { SessionRecord } from "./shapes.js";
@@ -19,14 +20,15 @@ export function mountCodingDirectory(host: CodingWorkbenchHost): void {
     archivedButton.setAttribute("aria-pressed", String(archived));
     const needle = root.querySelector<HTMLInputElement>("[data-coding-search]")?.value.trim().toLocaleLowerCase() ?? "";
     const filter = root.querySelector<HTMLElement>("[data-coding-filter][aria-pressed=true]")?.dataset.codingFilter ?? "all";
-    const visible = rows.filter(row => row.title.toLocaleLowerCase().includes(needle)
+    const visible = rows.filter(row => sessionTitle(row.title).toLocaleLowerCase().includes(needle)
       && (archived || filter === "all" || filter === "running" && row.state === "running" || filter === "needs-you" && ["paused", "waiting-answer", "waiting-approval", "failed", "reconcile-required"].includes(row.state)));
     list.replaceChildren();
     for (const session of visible) {
       const incomplete = !session.archived && session.execution_state === "archived", restoring = archived || incomplete;
       const row = el("div", "", "mw-dir-row-wrap"), link = el("a", "", "mw-dir-row mw-dir-row--meta coding-session-row");
       link.href = "#session-" + encodeURIComponent(session.session_id); link.dataset.codingSession = session.session_id;
-      const title = el("strong", session.title, "coding-session-title"); title.title = session.title;
+      const shownTitle = sessionTitle(session.title);
+      const title = el("strong", shownTitle, "coding-session-title"); title.title = shownTitle;
       const copy = el("span", "", "mw-dir-row__copy"); copy.append(title);
       if (incomplete || session.runtime_session_id && session.execution_state === null) copy.append(el("small", uiText.text(incomplete ? "coding.session.lifecycle-incomplete" : "coding.session.lifecycle-unavailable"), "coding-session-state"));
       link.append(copy); row.append(link);
@@ -65,8 +67,9 @@ export function mountCodingDirectory(host: CodingWorkbenchHost): void {
         finally { target.removeAttribute("disabled"); }
       } else if (target.dataset.codingSession) {
         event.preventDefault(); const session = rows.find(row => row.session_id === target.dataset.codingSession);
-        if ((mouse.metaKey || mouse.ctrlKey) && host.openBeside) host.openBeside("coding", target.dataset.codingSession, session?.title);
-        else host.openItem?.("coding", target.dataset.codingSession, session?.title);
+        const shownTitle = session ? sessionTitle(session.title) : undefined;
+        if ((mouse.metaKey || mouse.ctrlKey) && host.openBeside) host.openBeside("coding", target.dataset.codingSession, shownTitle);
+        else host.openItem?.("coding", target.dataset.codingSession, shownTitle);
       } else if (target.dataset.codingFilter) {
         root.querySelectorAll("[data-coding-filter]").forEach(button => button.setAttribute("aria-pressed", String(button === target))); render();
       } else if (target.hasAttribute("data-coding-search-toggle")) {

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applySqliteBaseline, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, isSqliteVersionRefusal, heldHomeSqlite, releaseHeldHomeSqlite, withHeldHomeSqlite } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, describeSqliteSchema, ensureStorageSpace, isPathInsideRoot, openOverviewIndex, openTextSearchIndex, readDatabaseSpace, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, isSqliteVersionRefusal, heldHomeSqlite, releaseHeldHomeSqlite, TEXT_SEARCH_STORE, withHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 
 test('binding a new Home store before first use does not masquerade as an old business schema', t => {
   const home = mkdtempSync(join(tmpdir(), 'molis-bound-baseline-'));
@@ -482,4 +482,89 @@ test("RAC-427 platform env prefix, project database filename and security direct
   assert.equal(resolveProjectDatabaseFile(dir), join(dir, PROJECT_DATABASE_FILENAME));
   assert.equal(existsSync(leftover), true);
   assert.equal(existsSync(join(dir, PROJECT_DATABASE_FILENAME)), false);
+});
+
+test("R-03 openHomeSqliteDatabase enforces baseline pragmas and supports explicit journalMode overrides", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-home-pragmas-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const standard = openHomeSqliteDatabase(home, "default-store");
+  try {
+    assert.equal((standard.prepare("PRAGMA busy_timeout").get() as { timeout: number }).timeout, 5000);
+    assert.equal((standard.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys, 1);
+    assert.equal((standard.prepare("PRAGMA synchronous").get() as { synchronous: number }).synchronous, 2);
+  } finally {
+    standard.close();
+  }
+  const wal = openHomeSqliteDatabase(home, "wal-store", undefined, { journalMode: "wal", synchronous: "NORMAL", busyTimeoutMs: 3000 });
+  try {
+    assert.equal((wal.prepare("PRAGMA busy_timeout").get() as { timeout: number }).timeout, 3000);
+    assert.equal(String((wal.prepare("PRAGMA journal_mode").get() as { journal_mode: string }).journal_mode).toLowerCase(), "wal");
+    assert.equal((wal.prepare("PRAGMA synchronous").get() as { synchronous: number }).synchronous, 1);
+  } finally {
+    wal.close();
+  }
+  const del = openHomeSqliteDatabase(home, "delete-store", undefined, { journalMode: "delete" });
+  try {
+    assert.equal(String((del.prepare("PRAGMA journal_mode").get() as { journal_mode: string }).journal_mode).toLowerCase(), "delete");
+    assert.equal((del.prepare("PRAGMA synchronous").get() as { synchronous: number }).synchronous, 3);
+  } finally {
+    del.close();
+  }
+});
+
+test("F-cf-02 search.db rebuilds only on SQLite corruption and refuses foreign space ownership without deleting the file", t => {
+  const root = mkdtempSync(join(tmpdir(), "molis-search-db-guard-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const homeA = join(root, "home-a");
+  const homeB = join(root, "home-b");
+  const indexA = openTextSearchIndex({ homeDirectory: homeA });
+  indexA.close();
+  ensureStorageSpace(homeB);
+  const srcPath = homeSqlitePath(homeA, TEXT_SEARCH_STORE);
+  const foreignPath = homeSqlitePath(homeB, TEXT_SEARCH_STORE);
+  mkdirSync(dirname(foreignPath), { recursive: true });
+  copyFileSync(srcPath, foreignPath);
+  const beforeBytes = readFileSync(foreignPath);
+
+  assert.throws(() => openTextSearchIndex({ homeDirectory: homeB }), /SPACE_OWNERSHIP_MISMATCH/);
+  assert.deepEqual(readFileSync(foreignPath), beforeBytes, "openTextSearchIndex must not delete a foreign-space search.db");
+  assert.throws(() => openOverviewIndex({ homeDirectory: homeB }), /SPACE_OWNERSHIP_MISMATCH/);
+  assert.deepEqual(readFileSync(foreignPath), beforeBytes, "openOverviewIndex must not delete a foreign-space search.db");
+
+  const homeCorrupt = join(root, "home-corrupt");
+  const corruptPath = homeSqlitePath(homeCorrupt, TEXT_SEARCH_STORE);
+  mkdirSync(dirname(corruptPath), { recursive: true });
+  writeFileSync(corruptPath, "not a sqlite database");
+  const healed = openTextSearchIndex({ homeDirectory: homeCorrupt });
+  healed.close();
+  writeFileSync(corruptPath, "corrupted again");
+  const healedOverview = openOverviewIndex({ homeDirectory: homeCorrupt });
+  healedOverview.close();
+});
+
+test("R-08 isPathInsideRoot canonicalizes symlinks and rejects sibling prefixes, traversals, and NUL bytes", t => {
+  const base = mkdtempSync(join(tmpdir(), "molis-path-root-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const root = join(base, "project");
+  const sibling = join(base, "project-evil");
+  mkdirSync(join(root, "nested"), { recursive: true });
+  mkdirSync(sibling, { recursive: true });
+  writeFileSync(join(root, "nested", "a.txt"), "ok");
+  writeFileSync(join(root, "..dotfile.ts"), "ok");
+  writeFileSync(join(sibling, "secret.txt"), "no");
+  symlinkSync(join(sibling, "secret.txt"), join(root, "escape-file.txt"));
+  symlinkSync(sibling, join(root, "escape-dir"));
+
+  assert.equal(isPathInsideRoot(root, root), true);
+  assert.equal(isPathInsideRoot(root, join(root, "nested", "a.txt")), true);
+  assert.equal(isPathInsideRoot(root, join(root, "..dotfile.ts")), true);
+  assert.equal(isPathInsideRoot(root, join(root, "nested", "future", "new.txt")), true);
+  assert.equal(isPathInsideRoot(root, sibling), false);
+  assert.equal(isPathInsideRoot(root, join(sibling, "secret.txt")), false);
+  assert.equal(isPathInsideRoot(root, join(root, "..", "project-evil", "secret.txt")), false);
+  assert.equal(isPathInsideRoot(root, join(root, "escape-file.txt")), false);
+  assert.equal(isPathInsideRoot(root, join(root, "escape-dir", "secret.txt")), false);
+  assert.equal(isPathInsideRoot(root, join(root, "escape-dir", "nonexistent.txt")), false);
+  assert.equal(isPathInsideRoot(root, `${root}/a\0b`), false);
+  assert.equal(isPathInsideRoot("", root), false);
 });

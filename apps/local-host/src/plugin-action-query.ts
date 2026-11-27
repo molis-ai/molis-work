@@ -23,6 +23,46 @@ export function checkedReference(reference: ActionReference): ActionReference {
   return ref;
 }
 
+/**
+ * Hop-scoped Host-issued trust fields that belong solely to the outer call and must never ride along into
+ * a plugin's nested query or delegated action call (F-hc2-10).
+ */
+const HOP_SCOPED_CALLER_FIELDS = [
+  "acting_for",
+  "memory_session",
+  "memory_operation_id",
+  "memory_read_mode",
+  "memory_context_selection",
+  "assert_memory_sources_current",
+  "runtime_memory",
+  "original_file",
+  "original_input",
+  "named_skills",
+  "skill_round",
+  "stage_scene_metadata",
+  "subject_state_capture",
+  "readable_project_ids",
+  "calling_plugin_id",
+  "direct_person_entry",
+  "assistant_reply",
+  "home_page",
+  "delegated_action",
+  "retain_background_authority",
+  "on_progress",
+  "scene_binding",
+  "provideSubjectState",
+  "current_action",
+  "parent_action",
+  "beforeEffect",
+  "retainAuthority",
+  "retainBackgroundAuthority",
+] as const;
+
+export function stripPluginDelegatedFields<T extends object>(caller: T): T {
+  for (const key of HOP_SCOPED_CALLER_FIELDS) Reflect.deleteProperty(caller, key);
+  return caller;
+}
+
 /** Delegate a query under the active caller, with the source installation's additional restrictions. */
 export async function invokePluginQuery<Output>(context: PluginStartContext, manifest: PluginManifest,
   options: { client: ActionClient; project_id?: string; assertActive(): void }, reference: ActionReference, input: unknown): Promise<Output> {
@@ -44,15 +84,17 @@ export async function invokePluginQuery<Output>(context: PluginStartContext, man
     requireSynchronous(original.assert_authority_current?.());
   };
   const check = async () => { source(); await original.beforeEffect(); source(); };
-  const caller: ActionCallContext = { ...original, delegated_by: manifest.plugin_id, delegated_audience: original.audience, query_only: true, locale: activeLocale() ?? undefined,
+  const inherited: ActionCallContext = stripPluginDelegatedFields({ ...original });
+  if (original.audience !== "plugin") {
+    Reflect.deleteProperty(inherited, "plugin_install_id");
+    Reflect.deleteProperty(inherited, "host_plugin");
+  }
+  const caller: ActionCallContext = { ...inherited, delegated_by: manifest.plugin_id, delegated_audience: original.audience, query_only: true, locale: activeLocale() ?? undefined,
     permissions: original.permissions.filter(permission => declared.has(permission) && context.grants.includes(permission)),
     validate_authority: async target => { await check(); await original.validate_authority?.(target); source(); },
     validate_permissions: async permissions => { source(permissions); await original.validate_permissions?.(permissions); source(); },
     assert_authority_current: (target, permissions) => { source(permissions); requireSynchronous(original.assert_authority_current?.(target, permissions)); },
   };
-  Reflect.deleteProperty(caller, "stage_scene_metadata");
-  Reflect.deleteProperty(caller, "direct_person_entry");
-  Reflect.deleteProperty(caller, "acting_for");
   await check();
   const pinned = { ...ref, provider_id: await pluginActionProvider(options.client, caller, ref) };
   await check();

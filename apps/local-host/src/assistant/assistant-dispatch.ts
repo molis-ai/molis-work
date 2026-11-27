@@ -309,7 +309,6 @@ export class AssistantDispatch {
           : "这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
       return this.result(work, outcome, latest.ref.run_id, stillCurrent, intent?.draftCurrent);
     }
-    const previousWaitWithdrawn = !intent?.byHost && await this.link.continuations.withdraw(work, "用户更新了任务，接下来按最新要求处理", inputEffect);
     await this.link.assertBudget();
     // The work's own cap: none left means no round; otherwise the round may spend only what is left.
     const spent = await this.link.workUsage(work);
@@ -327,6 +326,7 @@ export class AssistantDispatch {
       throw assistantErrors.budget(message, { action: readAssistantErrorWord("workbench.assistant-error.raise-work-budget"), action_kind: "raise_work_budget" });
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
+    const previousWaitWithdrawn = !intent?.byHost && await this.link.continuations.withdraw(work, "用户更新了任务，接下来按最新要求处理", inputEffect);
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);

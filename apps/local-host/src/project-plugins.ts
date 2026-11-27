@@ -14,7 +14,7 @@ import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
-import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
+import { fixtureAdmission, fixtureDeclarationsFor, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
@@ -233,8 +233,12 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
 
 /** Partition declarations used before the first project opens, so a due entry can resolve its own plugin on cold start. */
 export function declarePartitionPlugins(home: string): void {
-  const scoped = projectScopeEntries([...projectPluginEntries(), ...projectFixtureEntries(home)], home);
-  partitionPluginHostFor(home, startPartitionPluginInstance).declare(scoped.filter(entry => assembledPerPartition(entry.definition.manifest)));
+  const fixtures = fixtureDeclarationsFor(home, "project");
+  const scoped = projectScopeEntries([...projectPluginEntries(), ...fixtures], home);
+  // Scope checks see both halves. Execution checks for fixtures belong to their project startup.
+  const sandboxFixtures = new Set(fixtures.filter(entry => entry.definition.execution === "sandbox").map(entry => entry.definition));
+  partitionPluginHostFor(home, startPartitionPluginInstance).declare(scoped.filter(({ definition }) =>
+    assembledPerPartition(definition.manifest) && !sandboxFixtures.has(definition)));
 }
 
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {

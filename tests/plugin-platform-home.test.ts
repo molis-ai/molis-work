@@ -10,7 +10,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
-  homeStores, installedArtifacts, artifactTypeDeclarations,
+  homeStores, installedArtifacts, artifactTypeDeclarations, existingPartitionPluginHost,
   DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, molisWorkHostProjectReference, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -215,8 +215,17 @@ test("a fixture that cannot run the way the Host runs a plugin stops the project
     try {
       assert.deepEqual(await pluginsSeen(shipping, named!, PROBE, SHIPPED), [], "named like a shipped plugin: it neither replaces the shipped one nor runs beside it");
     } finally { await shipping.close(); }
-    const sandbox = fixtured(home, probe({ execution: "sandbox" }));
+    const unsupported = probe({ pluginId: SECOND, execution: "sandbox" });
+    const partitionFixture: PluginDefinition = { ...unsupported, manifest: { ...unsupported.manifest,
+      permissions: ["storage:private", "notes:read", "notes:write"].map(permission => ({ permission, required: true, reason: "访问测试笔记" })),
+      databases: { partition: { store_name: "notes", version: 1,
+        schema: "CREATE TABLE notes (id TEXT PRIMARY KEY);", read_permission: "notes:read", write_permission: "notes:write" } } } };
+    const sandbox = fixtured(home, probe({ execution: "sandbox" }), partitionFixture);
     try {
-      assert.deepEqual(await pluginsSeen(sandbox, sandboxed!, PROBE, SHIPPED), [], "a sandboxed definition is not a plugin the Host runs itself");
+      // B2R-02: cold reminder discovery keeps working without admitting unsupported project fixtures.
+      const declared = existingPartitionPluginHost(home)!.plugins();
+      assert.ok(declared.includes("io.molis.work.todo"));
+      assert.ok(!declared.includes(SECOND));
+      assert.deepEqual(await pluginsSeen(sandbox, sandboxed!, PROBE, SECOND, SHIPPED), [], "a sandboxed definition is not a plugin the Host runs itself");
     } finally { await sandbox.close(); }
   }));

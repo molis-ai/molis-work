@@ -176,10 +176,12 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
       && (entry.manifest.ui.embedded_plugins ?? []).includes(pluginIdOf.get(id)!)).map(entry => entry.project_plugin_id);
     if (embeddedBy.length) await readThroughBoth();
     else {
-      await assert.rejects(client.invoke(person, ref, input), { code: "actions.plugin_disabled" });
-      if (!ownerBound.has(agentId + "/" + id)) await assert.rejects(callAsAgent(ref, input));
+      const installedView = (await client.discover(person) as ActionView[]).find(row => row.provider.provider_id === ref.provider_id && row.capability_id === ref.capability_id);
+      const refused = installedView ? "actions.plugin_disabled" : "actions.missing";
+      await assert.rejects(client.invoke(person, ref, input), { code: refused });
+      if (!ownerBound.has(agentId + "/" + id)) await assert.rejects(callAsAgent(ref, input), { code: refused });
       const denied = await callTool(ref, input);
-      assert.ok(denied.failed && typeof denied.value.code === "string", `${id}: ${JSON.stringify(denied.value)}`);
+      assert.ok(denied.failed && [refused, "actions.mcp_unavailable", "mcp.action_revoked"].includes(denied.value.code), `${id}: ${JSON.stringify(denied.value)}`);
     }
     const survivor = probes.find(other => other.id !== id && shown.includes(other.id) && !ownerBound.has(runtimeId + "/" + other.id) && !ownerBound.has(agentId + "/" + other.id));
     assert.ok(survivor, "at least one other installed plugin remains callable");

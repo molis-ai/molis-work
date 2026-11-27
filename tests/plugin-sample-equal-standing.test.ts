@@ -213,7 +213,7 @@ function attachedTo(state, key) {
   return { targets: state.items.filter(item => item.bindings.includes(key)).map(item => ({ kind: 'sandbox_card', id: item.id })) };
 }
 export const operations = {
-  'scene.choose': async (input, sdk) => sdk.scenes.run('proofread', input),
+  'scene.choose': async (input, sdk) => { const result = await sdk.scenes.run('proofread', input); return { status: result.status, suggested_behavior_ids: result.suggested_behavior_ids }; },
   'artifact.save': async (input, sdk) => {
     const receipt = await sdk.artifacts.put({ artifact_id:'standing-card-one', version:1, artifact_type_id:'com.example.standing.note', schema_version:1,
       title:'Notebook record', media_type:'application/json', subject:{kind:'sandbox_card',id:'card-1'}, revision:'1', payload:{special_topic:input.word} });
@@ -337,7 +337,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
       },
       operations: [
         { id: "scene.choose", kind: "command", input: { type: "object", required: ["content"], properties: { content: { type: "string" } }, additionalProperties: false },
-          output: { type: "object", properties: { status: { type: "string" }, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: ["status", "suggested_behavior_ids"] },
+          output: { type: "object", properties: { status: { type: "string" }, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: ["status", "suggested_behavior_ids"], additionalProperties: false },
           effects: { scenes: ["proofread"] }, errors: [], examples: [{ input: { content: "A draft" }, outputIncludes: { status: "ok" } }] },
         { id: "artifact.save", kind: "command", ui_event: "card-saved", input: { type: "object", required: ["word"], properties: { word: { type: "string" } }, additionalProperties: false },
           output: { type: "string" }, effects: { artifacts: ["write"] }, errors: [], examples: [{ input: { word: "example" }, output: "standing-card-one" }] },
@@ -679,6 +679,7 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
   const example = { values: [{ key, value: title, state: "ok", source: layer, revision: "1" }] };
   return signedPackage(publisher, (files, manifest) => {
     const contract: SandboxPluginContract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!);
+    contract.operations.find(item => item.id === "notes.add")!.effects.storage = ["read", "write"];
     if (scope === "home") contract.operations.find(item => item.id === "notes.list")!.effects.networkDomains = ["example.org"];
     const complete = { ...contract, ui: { locales: { default: "en", available: ["en"] } },
       settings_entries: { entries: [{ key, title: { key: "settings.title" }, layers: [layer], schema: { type: "string", maxLength: 80 } }], read_operation: "settings.read", write_operation: "settings.write" },

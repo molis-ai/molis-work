@@ -98,7 +98,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
     finally { if (server?.listening) await new Promise<void>(resolve => { server!.close(() => resolve()); server!.closeAllConnections(); }); }
   });
   const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Shared revision sources');
-  const store = await f.host.withProject(project.reference, runtime => runtime.store);
+  const store = await f.host.withProject(project.reference, runtime => runtime.store, { activatePlugins: true });
   closeStudio = async () => { try { await releaseAgentStudio(store, project.project_id); } finally { await releaseInstalledPlugins(store, project.project_id); } };
   const answer = JSON.parse(detail('共享清单'));
   answer.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };

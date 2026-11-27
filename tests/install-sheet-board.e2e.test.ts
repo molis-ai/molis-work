@@ -31,7 +31,10 @@ const MEASURE = `(() => {
     for (const steps of card.querySelectorAll('.install-steps')) if (steps.scrollWidth > steps.clientWidth + 0.5 || steps.scrollHeight > steps.clientHeight + 0.5) problems.push('the steps are cut');
     for (const name of card.querySelectorAll('.install-steps li>span')) {
       const range = document.createRange(); range.selectNodeContents(name);
-      if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1) problems.push(name.textContent + ' wraps');
+      const rects = [...range.getClientRects()];
+      if (new Set(rects.map(rect => Math.round(rect.top))).size > 1)
+        problems.push(name.textContent + ' wraps: ' + JSON.stringify(rects.map(rect => [rect.x, rect.y, rect.width, rect.height])));
+      if (name.scrollWidth > name.clientWidth + 0.5) problems.push(name.textContent + ' is cut');
     }
     const tiles = [...card.querySelectorAll('.install-tile')].map(tile => Math.round(box(tile).height));
     if (new Set(tiles).size > 1) problems.push('tiles differ in height: ' + tiles.join());

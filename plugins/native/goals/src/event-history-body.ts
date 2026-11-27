@@ -81,11 +81,9 @@ export function renderWorkEventBody(
   }
   if (event.kind === "configuration") {
     const types = event.payload.types.map((type) => `<li>${escapeHtml(type.name)} v${type.version}<small> · ${escapeHtml(type.type_id)}</small></li>`).join("");
-    const extras = event.payload.extra_requirements.map((item) => `<li>${escapeHtml(item.statement)}</li>`).join("");
     return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>
       <p>${uiText("goals.event-history-body.configuration-version")} ${event.payload.config_version}</p>
       ${types ? `<h3>${uiText("goals.event-history-body.register-type")}</h3><ul>${types}</ul>` : ""}
-      ${extras ? `<h3>${uiText("goals.event-history-body.new-completion-requirement")}</h3><ul>${extras}</ul>` : ""}
     </article>`;
   }
   return renderSystemPayload(event.title, meta, event.payload, readText, escapeHtml, requirementNames, { actorId: event.actor_id, acknowledgedActorKind });
@@ -140,8 +138,6 @@ function renderSystemPayload(
 }
 
 function effectLabel(kind: string, _L: GoalsDocumentUiPrimitives["translate"]): string {
-  if (kind === "accept_requirements") return uiText.text("goals.event-history-body.accept-requirement");
-  if (kind === "reject_requirements") return uiText.text("goals.event-history-body.reject-requirement");
   if (kind === "accept_concerns") return uiText.text("goals.event-history-body.accept-concern");
   if (kind === "reject_concerns") return uiText.text("goals.event-history-body.reject-concern");
   if (kind === "authorize_action") return uiText.text("goals.event-history-body.authorize-action");

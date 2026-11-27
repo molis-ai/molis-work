@@ -4,8 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { PERSISTENT_DEFINITIONS, PERSISTENT_ENTRY_KEYS, PERSISTENT_FORMAT_ENTRIES, checkRepository, goldenFormatVersions, initialVersionProblems, isCheckedSource, registeredUpgradeChains, sourceVersionProblems, upgradeStepProblems, versionOriginProblems } from "../scripts/gates/initial-versions.mjs";
-import { PERSISTENT_FORMAT_LOCATIONS } from "../scripts/golden/formats.mjs";
+import { checkRepository, initialVersionProblems, isCheckedSource, sourceVersionProblems, versionOriginProblems } from "../scripts/gates/initial-versions.mjs";
 
 test("U0-03: an active registration cannot hide a later action, manifest, role, prompt, instruction or method version", () => {
   const agent = {
@@ -52,272 +51,97 @@ test("U0-03: first-party version constants are checked in source, independently 
   assert.equal(sourceVersionProblems(file, 'const GITHUB_API_VERSION = 2;').length, 1);
 });
 
-test("QEA-80: only the registered imported document fixed format can advance from 1 to 2 without rewriting its history", () => {
-  const file = "packages/contracts/src/modules/artifacts.ts", entry = "artifact.io.molis.work.document";
-  const source = (version: number, key = entry) => `export const IMPORTED_DOCUMENT_SCHEMA_VERSION = /* @version ${key} */ ${version};`;
-  assert.deepEqual(sourceVersionProblems(file, source(2)), []);
-  assert.equal(sourceVersionProblems(file, source(3)).length, 1);
-  assert.equal(sourceVersionProblems(file, source(2, "artifact.example.other")).length, 1);
-  assert.equal(sourceVersionProblems("packages/contracts/src/modules/other.ts", source(2)).length, 1);
-  assert.equal(sourceVersionProblems(file, "const OTHER_VERSION = /* @version artifact.example.other */ 2;").length, 1);
-  const checkTable = (version: number) => initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries: { [entry]: version } });
-  assert.deepEqual(checkTable(2), []);
-  assert.match(checkTable(3)[0]!, /expected 2/u);
-});
-
-// specs/upgrade-continuity/upgrade-chain-design.md §11.1: a persistent format above 1 is let through by a registered chain with
-// consecutive steps and a replay that passed; nothing else ever is. The rebuild window needs none of this while everything is 1.
-const CATALOG = "apps/local-host/src/project-catalog-contract.ts";
-const CATALOG_CONSTANT = `${CATALOG}#CATALOG_SCHEMA_VERSION`;
-const catalogAt = (version: number) => `export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ ${version};`;
-const chain = (fields: Record<string, unknown> = {}) => new Map([[CATALOG_CONSTANT, { version: 3, froms: [1, 2], replay_passed: true, ...fields }]]);
-
-test("UPG1-i-initial-01: at 1 a persistent format needs no chain, marker or not, number or text", () => {
-  assert.deepEqual(sourceVersionProblems(CATALOG, catalogAt(1)), []);
-  assert.deepEqual(sourceVersionProblems("packages/storage/src/adapters/text-search-index.ts", 'const SCHEMA_VERSION = /* @version database.search.text-index "{version}" */ "1";'), []);
-});
-
-test("UPG1-i-initial-02: above 1 with no registered chain fails, and says what it needs", () => {
-  const problems = sourceVersionProblems(CATALOG, catalogAt(2));
-  assert.equal(problems.length, 1);
-  assert.match(problems[0]!, /CATALOG_SCHEMA_VERSION = 2 .*registered upgrade chain and a replay that passed/);
-  assert.equal(sourceVersionProblems("packages/storage/src/adapters/text-search-index.ts", 'const SCHEMA_VERSION = "2";').length, 1, "a version kept as text is the same");
-});
-
-test("UPG1-i-initial-03: a consecutive chain with a passed replay lets it through", () => {
-  assert.deepEqual(sourceVersionProblems(CATALOG, catalogAt(3), chain()), []);
-  assert.deepEqual(sourceVersionProblems(CATALOG, catalogAt(3), chain({ froms: [2, 1] })), [], "the order they are listed in does not matter");
-});
-
-test("UPG1-i-initial-04: each way the chain falls short fails on its own", () => {
-  const cases: Array<[string, Record<string, unknown>, RegExp]> = [
-    ["a gap", { froms: [2] }, /has no step from 1/],
-    ["a repeated step", { froms: [1, 1, 2] }, /has 2 steps from 1/],
-    ["a step past the end", { froms: [1, 2, 3] }, /a step from 3, outside 1 to 2/],
-    ["a step from zero", { froms: [0, 1, 2] }, /a step from 0, outside 1 to 2/],
-    ["a chain to another version", { version: 4, froms: [1, 2, 3] }, /chain goes to 4/],
-    ["a replay that failed", { replay_passed: false }, /replay of its upgrade chain did not pass/],
-    ["a replay with no result", { replay_passed: undefined }, /replay of its upgrade chain did not pass/],
-    ["a replay result that is not true", { replay_passed: "yes" }, /replay of its upgrade chain did not pass/],
+test("pre-dev v1 guard: every persistent store, format, and artifact stays strictly at 1 with no upgrade-chain bypass", () => {
+  const cases: Array<[string, string]> = [
+    ["packages/contracts/src/modules/artifacts.ts", "export const IMPORTED_DOCUMENT_SCHEMA_VERSION = /* @version artifact.io.molis.work.document */ 2;"],
+    ["apps/local-host/src/project-catalog-contract.ts", "export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 2;"],
+    ["packages/storage/src/adapters/text-search-index.ts", 'const SCHEMA_VERSION = /* @version database.search.text-index "{version}" */ "2";'],
+    ["horizontal/appearance/src/state.ts", "export const APPEARANCE_STATE_VERSION = /* @version format.ui.appearance-state */ 2;"],
+    ["apps/local-host/src/onboarding.ts", "export const ONBOARDING_SCHEMA_VERSION = /* @version format.home.onboarding */ 2;"],
+    ["apps/local-host/src/project-database-schema.ts", "export const B: SqliteBaseline = { version: /* @version database.project_database_baseline */ 2, schema: `` };"],
+    ["packages/storage/src/adapters/memory-ledger.ts", "export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 2, schema: `` };"],
+    ["plugins/native/jelly/src/contract.ts", "export interface Workspace { schema_version: /* @version format.jelly.workspace */ 2; revision: number }"],
+    ["apps/local-host/src/connector-private-state.ts", "const record = () => ({ schema_version: /* @version format.connector.private-state */ 2 });"],
+    ["apps/local-host/src/connector-private-state.ts", 'const record = () => ({ schema_version: /* @version format.connector.private-state */ "2" });'],
   ];
-  for (const [name, fields, pattern] of cases) {
-    const problems = sourceVersionProblems(CATALOG, catalogAt(3), chain(fields));
-    assert.equal(problems.length, 1, `${name}: ${problems.join("; ")}`);
-    assert.match(problems[0]!, pattern, name);
+  for (const [file, source] of cases) {
+    const problems = sourceVersionProblems(file, source);
+    assert.equal(problems.length, 1, `${file}: ${problems.join("; ")}`);
+    assert.match(problems[0]!, /\(expected 1\)/u, `${file}: ${problems[0]}`);
   }
+  // At 1, all of them pass; content markers (prompt/method/role) are checked by contentVersionChanges instead.
+  assert.deepEqual(sourceVersionProblems("packages/contracts/src/modules/artifacts.ts", "export const IMPORTED_DOCUMENT_SCHEMA_VERSION = /* @version artifact.io.molis.work.document */ 1;"), []);
+  assert.deepEqual(sourceVersionProblems("apps/local-host/src/project-database-schema.ts", "export const B: SqliteBaseline = { version: /* @version database.project_database_baseline */ 1, schema: ``, upgrades: [] };"), []);
+  assert.deepEqual(sourceVersionProblems("apps/local-host/src/prompts.ts", "export const P = { version: /* @version prompt.assistant-base */ 7 };"), []);
+  // A named constant is judged once, not a second time by its @version marker.
+  assert.deepEqual(sourceVersionProblems("apps/local-host/src/a.ts", "const PRIVATE_STATE_VERSION = /* @version format.connector.private-state */ 2;"), [
+    "apps/local-host/src/a.ts: PRIVATE_STATE_VERSION = 2 (expected 1)",
+  ]);
+  // Comments are ignored.
+  assert.deepEqual(sourceVersionProblems("apps/local-host/src/a.ts", "// see /* @version format.connector.private-state */ 2\nconst PLAIN_VERSION = 1;"), []);
 });
 
-test("UPG1-i-initial-05: a chain lets through nothing but its own persistent format", () => {
-  const anyChain = new Map(["apps/local-host/src/installed-plugin-catalog.ts#CATALOG_VERSION", "plugins/x/src/store.ts#STORED_VERSION", `${CATALOG}#OTHER_VERSION`]
-    .map(definition => [definition, { version: 2, froms: [1], replay_passed: true }]));
-  assert.equal(sourceVersionProblems("apps/local-host/src/installed-plugin-catalog.ts", 'const CATALOG_VERSION = "actions/2";', anyChain).length, 1, "the same name in another file is not the Shelf catalog");
-  assert.equal(sourceVersionProblems("plugins/x/src/store.ts", "const STORED_VERSION = 2;", anyChain).length, 1, "a constant not on the list");
-  assert.equal(sourceVersionProblems(CATALOG, "const OTHER_VERSION = 2;", anyChain).length, 1, "another constant in a listed file");
-  const manifest = { plugin_id: "notes", schema_version: 2, host_api_version: 2, actions: [{ capability_id: "notes.read", version: 2 }] };
-  const problems = initialVersionProblems({ manifests: [manifest], hostViews: [], registrations: [], chains: anyChain });
-  assert.equal(problems.length, 3, "actions and Manifests never go through a chain");
-});
-
-test("UPG1-i-initial-06: a computed version or a chain for a lower one is not a way through", () => {
-  assert.equal(sourceVersionProblems(CATALOG, "export const CATALOG_SCHEMA_VERSION = compute();", chain()).length, 1);
-  assert.equal(sourceVersionProblems(CATALOG, "export const CATALOG_SCHEMA_VERSION = 0;", chain()).length, 1);
-  assert.equal(sourceVersionProblems(CATALOG, "export const CATALOG_SCHEMA_VERSION = 2.5;", chain()).length, 1);
-});
-
-test("UPG1-i-initial-07: the two ledgers and the integration receipt are no constants, and go by their version entries the same way", () => {
-  const inspect = (versionEntries: Record<string, number>, chains?: Map<string, unknown>) => initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, ...(chains ? { chains } : {}) });
-  assert.deepEqual(inspect({ "database.ledger_baseline": 1, "database.memory_ledger_baseline": 1, "format.runtime.integration.receipt": 1 }), []);
-  assert.match(inspect({ "database.memory_ledger_baseline": 2 })[0]!, /memory-ledger\.ts#MEMORY_LEDGER_BASELINE = 2 .*registered upgrade chain/);
-  assert.match(inspect({ "database.ledger_baseline": 2 })[0]!, /installed-plugin-libraries\.ts#LEDGER_BASELINE = 2 .*registered upgrade chain/);
-  assert.match(inspect({ "format.runtime.integration.receipt": 2 })[0]!, /runtime-integration-receipt\.ts#RUNTIME_INTEGRATION_RECEIPT_FILE = 2 .*registered upgrade chain/);
-  const receipt = "apps/local-host/src/installer/runtime-integration-receipt.ts#RUNTIME_INTEGRATION_RECEIPT_FILE";
-  assert.deepEqual(inspect({ "format.runtime.integration.receipt": 2 }, new Map([[receipt, { version: 2, froms: [1], replay_passed: true }]])), []);
-  assert.equal(inspect({ "format.runtime.integration.receipt": 2 }, new Map([[receipt, { version: 2, froms: [], replay_passed: true }]])).length, 1);
-  assert.deepEqual(inspect({ "database.other_baseline": 2 }), [], "other baselines stay with scripts/verify-release-versions.mjs");
-});
-
-test("UPG1-i-initial-08: every persistent format named here is still where it says, so moving one cannot lose it", () => {
-  for (const definition of PERSISTENT_DEFINITIONS) {
-    const [file, name] = definition.split("#") as [string, string];
-    assert.match(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), new RegExp(`\\b${name}\\b`), definition);
+test("pre-dev zero-upgrades guard: any non-empty upgrades array or *_UPGRADES constant in source is refused", () => {
+  const file = "packages/example/src/store.ts";
+  // Empty upgrades arrays and pass-through generic engine forwarding are allowed.
+  for (const ok of [
+    "export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [];",
+    "export const UPGRADES: readonly VersionedFileStep[] = [];",
+    "export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: [] };",
+    "const CATALOG_UPGRADES: readonly VersionedFileStep[] = []; export const FILE: VersionedFile<State> = { version: 1, field: 'version', upgrades: CATALOG_UPGRADES, parse };",
+    "export const PLUGIN: PluginDatabaseDeclaration = { store_name: 'x', version: 1, schema: ``, upgrades: [], read_permission: 'r', write_permission: 'w' };",
+    "const localEmpty = []; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: localEmpty };",
+    "const upgrades = [] as const; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades };",
+    "export const forward = (library: { version: number; schema: string; upgrades?: readonly unknown[] }) => ({ version: library.version, schema: library.schema, ...(library.upgrades ? { upgrades: library.upgrades } : {}) });",
+  ]) {
+    assert.deepEqual(sourceVersionProblems(file, ok), [], ok);
   }
-  for (const [key, definition] of Object.entries(PERSISTENT_ENTRY_KEYS)) {
-    const [file] = definition.split("#") as [string];
-    assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), "utf8").includes(`/* @version ${key} */`), `${file} carries ${key}`);
+  // Concrete upgrade steps in any spelling fail (including shorthand properties, let/var, imported *_UPGRADES, Object.freeze, and inline baselines).
+  for (const bad of [
+    "const STORE_UPGRADES = [{ from: 1, sql: 'ALTER TABLE t ADD COLUMN c TEXT' }];",
+    "let STORE_UPGRADES = [{ from: 1, run: () => {} }];",
+    "let STORE_UPGRADES: readonly SqliteUpgradeStep[] = [];",
+    "var STORE_UPGRADES = [{ from: 1, run: () => {} }];",
+    "export const UPGRADES: readonly VersionedFileStep[] = [{ from: 1, transform: (v) => v }];",
+    "export const UPGRADES = Object.freeze([{ from: 1, transform: (v) => v }]);",
+    "export const STORE_UPGRADES = buildSteps();",
+    "import { steps as STORE_UPGRADES } from './other.js'; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: STORE_UPGRADES };",
+    "export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] };",
+    "export const STORE: SqliteBaseline = Object.freeze({ version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] });",
+    "export const FILE: VersionedFile<State> = { version: 1, field: 'version', upgrades: [{ from: 1, transform: (v) => v }], parse };",
+    "export const PLUGIN = { store_name: 'x', version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] } satisfies PluginDatabaseDeclaration;",
+    "export const HOME_DB = { store_name: 'x', version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] } as HomePluginDatabaseDeclaration;",
+    "const steps = [{ from: 1, sql: 'SELECT 1' }]; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: steps };",
+    "const upgrades = [{ from: 1, run: () => {} }]; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades };",
+    "export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: buildSteps() };",
+    "export const UNTYPED = { version: 1, schema: ``, upgrades: [{ from: 1, run: () => {} }] };",
+    "const steps = [{ from: 1, run: () => {} }]; applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades: steps });",
+    "const steps = Object.freeze([{ from: 1, run: () => {} }]); applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades: steps });",
+    "let steps = [{ from: 1, run: () => {} }]; applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades: steps });",
+    "const upgrades = [{ from: 1, run: () => {} }]; applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades });",
+  ]) {
+    const problems = sourceVersionProblems(file, bad);
+    assert.equal(problems.length, 1, `${bad}: ${problems.join("; ")}`);
+    assert.match(problems[0]!, /must be empty during pre-development/u, `${bad}: ${problems[0]}`);
   }
-  // 17 since batch 112-2 retired format.jelly.workspace (Jelly keeps rows, not one JSON document).
-  assert.equal(PERSISTENT_DEFINITIONS.length, 17);
-  // A golden records each one under its version entry, so the entry is the one its definition carries, and the golden knows where it sits.
-  for (const definition of PERSISTENT_DEFINITIONS) {
-    const [file, name] = definition.split("#") as [string, string], entry = PERSISTENT_FORMAT_ENTRIES[definition];
-    assert.ok(entry, `${definition} names its entry`);
-    if (!(entry in PERSISTENT_ENTRY_KEYS)) assert.match(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), new RegExp(`\\b${name} = /\\* @version ${entry.replace(/\./gu, "\\.")}\\b`), `${definition} carries ${entry}`);
-  }
-  assert.deepEqual(Object.keys(PERSISTENT_FORMAT_LOCATIONS).sort(), Object.values(PERSISTENT_FORMAT_ENTRIES).sort(), "scripts/golden/formats.mjs says where each one sits in a Home, or why a golden cannot hold it");
-});
-
-test("UPG1-i-initial-10: a payload version kept in a row is no persistent format, so a chain does not let it above 1", () => {
-  const stored = [
-    ["plugins/native/coding/src/plans.ts", "CODING_PLAN_SCHEMA_VERSION"],
-    ["plugins/native/feed/src/identity.ts", "FEED_CAPTURE_SCHEMA_VERSION"],
-    ["plugins/official-integrations/gmail/src/history-cursor.ts", "GMAIL_LIVE_CURSOR_VERSION"],
-    ["plugins/native/pages/src/contract.ts", "PAGES_ARTIFACT_SCHEMA_VERSION"],
-  ];
-  for (const [file, name] of stored) {
-    const chain = new Map([[`${file}#${name}`, { version: 2, froms: [1], replay_passed: true }]]);
-    const problems = sourceVersionProblems(file!, `const ${name} = 2;`, chain);
-    assert.deepEqual(problems, [`${file}: ${name} = 2 (expected 1)`]);
-  }
-});
-
-const CHAIN_FILES = [
-  ["apps/local-host/src/onboarding.ts", "ONBOARDING_SCHEMA_VERSION", "format.home.onboarding"],
-  ["apps/local-host/src/project-arrival.ts", "PROJECT_ARRIVAL_SCHEMA_VERSION", "format.project.arrival"],
-  ["apps/local-host/src/browser/browser-surfaces.ts", "BROWSER_SITES_VERSION", "format.browser.site-decisions"],
-  ["apps/local-host/src/computer/computer-settings.ts", "COMPUTER_SETTINGS_VERSION", "format.computer.settings"],
-  ["apps/local-host/src/computer/computer-records.ts", "COMPUTER_RECORD_VERSION", "format.computer.record"],
-  ["apps/local-host/src/model-configuration.ts", "MODEL_PREFERENCE_SCHEMA_VERSION", "format.model.preference"],
-] as const;
-const inspectEntries = (versionEntries: Record<string, number>, chains?: Map<string, unknown>) =>
-  initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, ...(chains ? { chains } : {}) });
-
-test("UPG1-i-initial-11: the six files of design §2.6 at 2 fail with no chain and pass only with a consecutive chain and a passed replay", () => {
-  for (const [file, name, tag] of CHAIN_FILES) {
-    const definition = `${file}#${name}`, source = (version: number) => `const ${name} = /* @version ${tag} */ ${version};`;
-    assert.deepEqual(sourceVersionProblems(file, source(1)), [], `${name} at 1 needs no chain`);
-    assert.deepEqual(sourceVersionProblems(file, source(2)), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
-    const withChain = (froms: number[], replay_passed: boolean) => sourceVersionProblems(file, source(2), new Map([[definition, { version: 2, froms, replay_passed }]]));
-    assert.deepEqual(withChain([1], true), [], `${name}: a consecutive chain with a passed replay`);
-    assert.equal(withChain([], true).length, 1, `${name}: a chain with a gap`);
-    assert.equal(withChain([1], false).length, 1, `${name}: a replay that did not pass`);
-    assert.ok(PERSISTENT_DEFINITIONS.includes(definition), `${definition} is on the list`);
-  }
-});
-
-// The same rule for the values `pnpm versions:generate` writes but no `const …VERSION` declares: a property, a return, a type. Before this
-// pass only named constants were read, so an inline `/* @version */` could carry a value above the unified origin unseen (2026-11-11 review).
-test("UPG1-i-initial-19: a literal a marker names without a constant follows the same rule, above the origin and at it", () => {
-  const file = "apps/local-host/src/connector-private-state.ts";
-  const inline = (tag: string, version: number) => `const record = (v: unknown) => ({ schema_version: /* @version ${tag} */ ${version}, fields: [] });`;
-  const privateState = "format.connector.private-state";
-  assert.deepEqual(sourceVersionProblems(file, inline(privateState, 1)), []);
-  assert.deepEqual(sourceVersionProblems(file, inline(privateState, 2)),
-    [`${file}: /* @version ${privateState} */ = 2 (expected 1; only a registered persistent format may be above the unified origin)`]);
-  assert.equal(sourceVersionProblems(file, `const x = { value: /* @version ${privateState} */ "2" };`).length, 1, "a whole number written as text is the same");
-  // A persistent format goes up exactly as its constant does: with a consecutive chain and a passed replay.
-  const receipt = "apps/local-host/src/installer/runtime-integration-receipt.ts", definition = `${receipt}#RUNTIME_INTEGRATION_RECEIPT_FILE`;
-  const stored = (version: number) => `export interface Receipt { schema_version: /* @version format.runtime.integration.receipt */ ${version}; installed_at: string }`;
-  assert.deepEqual(sourceVersionProblems(receipt, stored(2)), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
-  assert.deepEqual(sourceVersionProblems(receipt, stored(2), new Map([[definition, { version: 2, froms: [1], replay_passed: true }]])), []);
-  // A library's version is UPG-01's (stores.tsv and the golden replay), not this half's; it is not held at 1 here.
-  assert.deepEqual(sourceVersionProblems("apps/local-host/src/project-database-schema.ts", "export const B = { version: /* @version database.project_database_baseline */ 2 };"), []);
-  // One literal is judged once: a named constant's own problem is the one reported, not the marker's too.
-  const named = `const PRIVATE_STATE_VERSION = /* @version ${privateState} */ 2;`;
-  assert.deepEqual(sourceVersionProblems(file, named), [`${file}: PRIVATE_STATE_VERSION = 2 (expected 1)`]);
-  assert.deepEqual(sourceVersionProblems(file, "// see /* @version format.connector.private-state */ 2 above\nconst PLAIN_VERSION = 1;"), []);
-});
-
-test("UPG1-i-initial-12: the machine receipt stays out of the list, as design §2.6 says", () => {
-  const definitions = new Set<string>(PERSISTENT_DEFINITIONS);
-  assert.ok(!definitions.has("apps/local-host/src/installer/web-service-contract.ts#schema_version"));
-  assert.deepEqual(inspectEntries({ "format.web.service.receipt": 2 }), []);
 });
 
 const snapshotOf = (texts: Record<string, string>) => ({ files: Object.keys(texts), read: (file: string) => texts[file] ?? null });
 
-test("UPG1-i-initial-13: the half with no build passes on this repository as it stands", () => {
-  const root = new URL("../", import.meta.url);
-  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);
-  const read = (file: string) => { try { return readFileSync(new URL(file, root), "utf8"); } catch { return null; } };
-  // The catalog is at 3 (05② 的 2、日报 D0057/D0273 的 3): like the whole check, the half takes the chains this repository registers and the
-  // versions its goldens hold.
-  assert.deepEqual(versionOriginProblems({ files, read }, { chains: registeredUpgradeChains({ files, read }) }), []);
-});
-
-test("UPG1-i-initial-14: the half with no build finds a constant and a persistent format, leaves prompts and methods, keeps an exception, and passes a chain", () => {
-  const versions = (entries: Record<string, number>) => JSON.stringify({ versions: entries });
+test("pre-dev v1 guard: tooling/versions.json holds every non-content numeric version at 1, while allowing content versions and semver strings", () => {
+  const versions = (entries: Record<string, number | string>) => JSON.stringify({ versions: entries });
   const inspect = (texts: Record<string, string>, options?: Parameters<typeof versionOriginProblems>[1]) => versionOriginProblems(snapshotOf(texts), options);
   assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 1;" }), [], "a repository with no tables");
   assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 2;" }), ["packages/a/src/a.ts: A_VERSION = 2 (expected 1)"]);
   assert.deepEqual(inspect({ "packages/a/tests/a.ts": "const A_VERSION = 2;", "docs/a.ts": "const A_VERSION = 2;" }), [], "outside the checked source");
-  // A prompt or method goes up when its text changes (tests/prompt-registration.test.ts); only the hand-run half holds them at 1 (U0-03).
-  assert.deepEqual(inspect({ "tooling/versions.json": versions({ "prompt.a.b": 2, "method.a": 2, "role.a": 2 }) }), [], "not data files, so not this half");
-  const ledger = "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE";
-  const raised = { "tooling/versions.json": versions({ "database.ledger_baseline": 2 }) };
-  assert.match(inspect(raised)[0]!, /installed-plugin-libraries\.ts#LEDGER_BASELINE = 2 .*registered upgrade chain/);
-  assert.deepEqual(inspect(raised, { chains: new Map([[ledger, { version: 2, froms: [1], replay_passed: true }]]) }), []);
+  // Content versions (prompt/method/role) and semver/release strings pass in the no-build half.
+  assert.deepEqual(inspect({ "tooling/versions.json": versions({ "prompt.a.b": 2, "method.a": 2, "role.a": 2, "product.release": "0.1.0", "plugin.integration-github": "1.5.0", "identity.system.materials-producer": "1" }) }), []);
+  // Every non-content numeric entry above 1 fails.
+  for (const key of ["database.ledger_baseline", "database.memory_ledger_baseline", "format.ui.appearance-state", "artifact.io.molis.work.document", "remote.sync.d1-schema", "action.notes.read"]) {
+    assert.deepEqual(inspect({ "tooling/versions.json": versions({ [key]: 2 }) }), [`tooling/versions.json: ${key} = 2 (expected 1)`], key);
+  }
   const excepted = JSON.stringify([{ file: "packages/a/src/a.ts", name: "A_VERSION", reason: "x" }]);
   assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 2;", "tooling/gates/version-exceptions.json": excepted }), [], "the exceptions of the repository it reads, not of this one");
-});
-
-test("UPG1-12: the register is read from the definition's own file: its steps beside it, or in its baseline. What cannot be read exactly is no chain", () => {
-  const catalog = "apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION", file = catalog.split("#")[0]!;
-  const ledger = "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE", ledgerFile = ledger.split("#")[0]!;
-  const chainsOf = (texts: Record<string, string>) => registeredUpgradeChains({ read: (name: string) => texts[name] ?? null });
-  assert.deepEqual(chainsOf({ [file]: "export const CATALOG_SCHEMA_VERSION = 3;\nexport const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [{ from: 1, sql: `x` }, { from: 2, run: () => {} }];" }).get(catalog),
-    { version: 3, froms: [1, 2], replay_passed: false, unheld: [1, 2] });
-  assert.deepEqual(chainsOf({ [ledgerFile]: "const LEDGER_BASELINE: SqliteBaseline = { version: 2, schema: ``, upgrades: [{ from: 1, sql: `x` }] };" }).get(ledger),
-    { version: 2, froms: [1], replay_passed: false, unheld: [1] });
-  assert.deepEqual(chainsOf({ [ledgerFile]: "const STEPS = [{ from: 1, sql: `x` }];\nconst LEDGER_BASELINE = { version: 2, schema: ``, upgrades: STEPS } satisfies SqliteBaseline;" }).get(ledger),
-    { version: 2, froms: [1], replay_passed: false, unheld: [1] });
-  assert.equal(chainsOf({ [file]: "const CATALOG_SCHEMA_VERSION = 2;\nconst CATALOG_UPGRADES = [...older];" }).has(catalog), false, "a spread");
-  assert.equal(chainsOf({ [file]: "const CATALOG_SCHEMA_VERSION = 2;\nconst CATALOG_UPGRADES = [{ from: FIRST }];" }).has(catalog), false, "a computed from");
-  assert.equal(chainsOf({ [file]: "const CATALOG_SCHEMA_VERSION = 2;" }).has(catalog), false, "no steps");
-  assert.equal(chainsOf({ [ledgerFile]: "const LEDGER_BASELINE = { version: CURRENT, schema: `` };" }).has(ledger), false, "a version that is not a number");
-});
-
-test("UPG1-12: steps alone do not raise a persistent format: with no golden that holds the old version, what is above 1 fails, and here it reaches the rule", () => {
-  const file = "apps/local-host/src/project-catalog-contract.ts", text = "export const CATALOG_SCHEMA_VERSION = 2;\nexport const CATALOG_UPGRADES = [{ from: 1, sql: `x` }];";
-  const snapshot = snapshotOf({ [file]: text });
-  const problems = versionOriginProblems(snapshot, { chains: registeredUpgradeChains(snapshot) });
-  assert.equal(problems.length, 1, problems.join("\n"));
-  assert.match(problems[0]!, /^apps\/local-host\/src\/project-catalog-contract\.ts#CATALOG_SCHEMA_VERSION = 2: the replay of its upgrade chain did not pass: no golden Home under tests\/fixtures\/golden-homes\/ holds it at 1,/u);
-});
-
-// U2-d (the coordinator 2026-11-08, upgrade-chain-design §11.1): the replay is the `golden-replay` job, which `Verify` requires; what the half
-// with no build checks is that the goldens hold the format at every older version, read from their manifests' `formats` by version entry.
-const CATALOG_FILE = "apps/local-host/src/project-catalog-contract.ts";
-const catalogTo = (version: number) => ({ [CATALOG_FILE]: `export const CATALOG_SCHEMA_VERSION = ${version};\nexport const CATALOG_UPGRADES = [${Array.from({ length: version - 1 }, (_, i) => `{ from: ${i + 1}, sql: \`x\` }`).join(", ")}];` });
-const goldenAt = (formats: Array<{ entry: string; version: number; path?: string }>) => JSON.stringify({ formats: formats.map(item => ({ path: "projects/catalog.db", ...item })) });
-const raisedWith = (texts: Record<string, string>) => { const tree = snapshotOf(texts); return versionOriginProblems(tree, { chains: registeredUpgradeChains(tree) }); };
-
-test("UPG1-i-initial-16: a persistent format above 1 passes when the goldens hold it at every older version, in one golden or several", () => {
-  assert.deepEqual(raisedWith({ ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 1 }]) }), []);
-  assert.deepEqual(raisedWith({ ...catalogTo(3), "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 1 }]),
-    "tests/fixtures/golden-homes/0.2.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 2 }]) }), []);
-  assert.deepEqual(raisedWith({ ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 1, path: "spaces/space_1/projects/catalog.db" }]) }), [], "the account Home's copy counts");
-});
-
-test("UPG1-i-initial-17: no golden, a golden with only some of the older versions, or one that holds another format, does not let it through", () => {
-  const cases: Array<[string, Record<string, string>, RegExp]> = [
-    ["no golden", catalogTo(3), /holds it at 1, 2,/u],
-    ["only some older versions", { ...catalogTo(3), "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 1 }]) }, /holds it at 2,/u],
-    ["another format at those versions", { ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "format.shelf.catalog", version: 1 }]) }, /holds it at 1,/u],
-    ["the same format at another version", { ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 2 }]) }, /holds it at 1,/u],
-    ["a manifest it cannot read", { ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/manifest.json": "{ not json" }, /holds it at 1,/u],
-    ["a library recorded only as a store, not as a format", { ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/manifest.json": JSON.stringify({ stores: [{ path: "projects/catalog.db", schema_version: 1 }] }) }, /holds it at 1,/u],
-    ["a manifest that is not a golden's own", { ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/copy/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 1 }]) }, /holds it at 1,/u],
-    ["a version that is not a whole number", { ...catalogTo(2), "tests/fixtures/golden-homes/0.1.0/manifest.json": JSON.stringify({ formats: [{ entry: "database.home.catalog", version: "1" }] }) }, /holds it at 1,/u],
-  ];
-  for (const [name, texts, pattern] of cases) {
-    const problems = raisedWith(texts);
-    assert.equal(problems.length, 1, `${name}: ${problems.join("; ")}`);
-    assert.match(problems[0]!, /CATALOG_SCHEMA_VERSION = \d: the replay of its upgrade chain did not pass: no golden Home/u, name);
-    assert.match(problems[0]!, pattern, name);
-  }
-  // The steps are still checked on their own: a golden does not make up for a missing one.
-  const gap = raisedWith({ [CATALOG_FILE]: "export const CATALOG_SCHEMA_VERSION = 2;\nexport const CATALOG_UPGRADES = [];", "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 1 }]) });
-  assert.deepEqual(gap, [`${CATALOG_FILE}#CATALOG_SCHEMA_VERSION = 2: the registered upgrade chain has no step from 1`]);
-});
-
-test("UPG1-i-initial-18: the goldens' formats are read by version entry, and only from a golden's own manifest", () => {
-  const held = goldenFormatVersions(snapshotOf({
-    "tests/fixtures/golden-homes/0.1.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 1 }, { entry: "format.home.onboarding", version: 1, path: "config/onboarding.json" }]),
-    "tests/fixtures/golden-homes/0.2.0/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 2 }]),
-    "tests/fixtures/golden-homes/0.2.0/files/manifest.json": goldenAt([{ entry: "database.home.catalog", version: 9 }]),
-  }));
-  assert.deepEqual([...held.get("database.home.catalog")!].sort(), [1, 2]);
-  assert.deepEqual([...held.get("format.home.onboarding")!], [1]);
 });
 
 test("UPG1-i-initial-15: a table it cannot read, or one this repository had and lost, is a problem and not a pass", () => {
@@ -386,8 +210,6 @@ test("VG-39 a test file outside a `tests/` or `fixtures/` directory is checked a
   assert.deepEqual(files.filter(before).filter(file => !isCheckedSource(file)), []);
 });
 
-// The whole check over a tracked repository, with the running Host's half handed in: this job has no build, and
-// tests/initial-versions-check.test.ts runs the script itself against the real build.
 const scratchRepository = (t: { after: (cleanup: () => void) => void }, texts: Record<string, string>, untracked: Record<string, string> = {}) => {
   const root = mkdtempSync(path.join(tmpdir(), "molis-initial-versions-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -401,11 +223,10 @@ const scratchRepository = (t: { after: (cleanup: () => void) => void }, texts: R
 const TABLES = { "tooling/versions.json": JSON.stringify({ versions: {} }), "tooling/gates/version-exceptions.json": "[]" };
 const NOTHING_RUNNING = async () => ({ manifests: [], hostViews: [], registrations: [] });
 
-test("VG-30 the whole check reads the tracked source, the two tables, the chains its source registers and the running Host, and finds what each of them holds", async (t) => {
+test("VG-30 the whole check reads the tracked source, the two tables and the running Host, and finds every violation", async (t) => {
   assert.deepEqual(await checkRepository(scratchRepository(t, { ...TABLES, "packages/a/src/a.ts": "const A_VERSION = 1;" }), NOTHING_RUNNING), []);
   const root = scratchRepository(t, {
     "tooling/versions.json": JSON.stringify({ versions: { "prompt.a.b": 2, "method.a": 2, "database.ledger_baseline": 2 } }),
-    // A persistent format whose steps are beside it: the chain is read from this repository, so only the replay is missing.
     "apps/local-host/src/onboarding.ts": "const ONBOARDING_SCHEMA_VERSION = 2;\nconst ONBOARDING_UPGRADES = [{ from: 1, transform: (value) => value }];",
     "tooling/gates/version-exceptions.json": JSON.stringify([{ file: "packages/a/src/excepted.ts", name: "EXCEPTED_VERSION", values: { 5: 1 }, reason: "an upstream's" }]),
     "packages/a/src/marked.ts": "const OTHER_VERSION = /* @version product.release */ 9;",
@@ -419,14 +240,15 @@ test("VG-30 the whole check reads the tracked source, the two tables, the chains
     registrations: [{ owner_id: "assistant", prompts: [{ prompt_id: "work", version: 2 }], roles: [] }],
   }));
   assert.deepEqual(problems, [
-    "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)",
     "assistant: prompt work = 2 (expected 1)",
     "notes: Manifest schema_version = 2 (expected 1)",
     "notes: action notes.read = 2 (expected 1)",
     "system.home: action home.read = 2 (expected 1)",
+    "tooling/versions.json: database.ledger_baseline = 2 (expected 1)",
     "tooling/versions.json: method method.a = 2 (expected 1)",
     "tooling/versions.json: prompt prompt.a.b = 2 (expected 1)",
-    "apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION = 2: the replay of its upgrade chain did not pass: no golden Home under tests/fixtures/golden-homes/ holds it at 1, so the golden replay has nothing to bring up from there. Generate a golden on the code before the change (specs/upgrade-continuity/golden-replay-design.md §3)",
+    "apps/local-host/src/onboarding.ts: ONBOARDING_SCHEMA_VERSION = 2 (expected 1)",
+    "apps/local-host/src/onboarding.ts: ONBOARDING_UPGRADES must be empty during pre-development (expected [])",
     "packages/a/src/fixtures/shipped.ts: SHIPPED_VERSION = 2 (expected 1)",
     "packages/a/src/marked.ts: OTHER_VERSION = 9 (expected 1)",
   ]);
@@ -438,9 +260,9 @@ test("VG-31 the whole check does not pass a repository whose tables it cannot re
   await assert.rejects(checkRepository(scratchRepository(t, { ...TABLES, "tooling/versions.json": '{ "versions": { "prompt.a": 1, "prompt.a": 2 } }' }), NOTHING_RUNNING), /prompt\.a appears twice/);
 });
 
-test("UPG1-i-initial-09: the step rule is from 1 to version - 1, each once", () => {
-  assert.deepEqual(upgradeStepProblems(1, []), []);
-  assert.deepEqual(upgradeStepProblems(2, [1]), []);
-  assert.deepEqual(upgradeStepProblems(2, []), ["no step from 1"]);
-  assert.deepEqual(upgradeStepProblems(1, [1]), ["a step from 1, outside 1 to 0"]);
+test("pre-dev v1 guard: the half with no build passes on this repository as it stands", () => {
+  const root = new URL("../", import.meta.url);
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);
+  const read = (file: string) => { try { return readFileSync(new URL(file, root), "utf8"); } catch { return null; } };
+  assert.deepEqual(versionOriginProblems({ files, read }), []);
 });

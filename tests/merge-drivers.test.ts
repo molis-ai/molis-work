@@ -92,14 +92,14 @@ test("new keys both sides add after the same key come out in name order", () => 
   assert.equal(merged, `{\n  "a": 1,\n  "b": 1,\n  "c": 1,\n  "d": 1,\n  "m": 1\n}\n`);
 });
 
-test("the regeneration steps: versions before the build, the build before the action and library snapshots", () => {
+test("the regeneration steps: versions before the build, the build before the action snapshot", () => {
   const ids = (files: string[]) => stepsFor(files).map((step: { id: string }) => step.id);
   assert.deepEqual(ids(["tooling/gates/api/plugin-sdk/index.txt"]), ["api"], "the API snapshot reads the source and needs no build");
   assert.deepEqual(ids(["tooling/gates/actions/actions.tsv", "tooling/versions.json"]), ["versions", "build", "actions"]);
-  assert.deepEqual(ids(["tooling/gates/schemas/stores.tsv", "tooling/gates/api/contracts/platform/plugin.txt"]), ["build", "api", "schemas"]);
+  assert.deepEqual(ids(["tooling/gates/actions/actions.tsv", "tooling/gates/api/contracts/platform/plugin.txt"]), ["build", "api", "actions"]);
   assert.deepEqual(ids(["apps/workbench/resources/locales/zh.json"]), []);
   const scripts = JSON.parse(real("package.json")).scripts as Record<string, string>;
-  for (const step of stepsFor(["tooling/versions.json", "tooling/gates/api/x.txt", "tooling/gates/actions/actions.tsv", "tooling/gates/schemas/stores.tsv"])) {
+  for (const step of stepsFor(["tooling/versions.json", "tooling/gates/api/x.txt", "tooling/gates/actions/actions.tsv"])) {
     assert.equal(step.command[0], "pnpm");
     assert.ok(scripts[step.command[1]!], `package.json has the script ${step.command[1]}`);
   }

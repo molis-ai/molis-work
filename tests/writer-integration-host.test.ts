@@ -60,11 +60,6 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   const view=await reads.invoke(integration.read,source);assert.equal(view.files[0]!.after_text,"child result\n");assert.equal(view.files[0]!.selectable,true);
   assert.deepEqual(view.files[1]?.path,["z-legacy.cfg"]);assert.equal(view.files[1]?.target,"deleted");assert.equal(view.files[1]?.after_text,null);assert.equal(view.files[1]?.selectable,true);
   assert.deepEqual([view.workspace_id,view.worktree_id],["main","child"],"the output it comes back to, and the Host's worktree it comes from");
-  // A round recorded before writers were named by their worktree (its child carries `workspace_id`) is refused, never read another way.
-  const recorded=adapter.read.bind(adapter),old=t.mock.method(adapter,"read",async(ref:Parameters<typeof recorded>[0])=>{const run=await recorded(ref);
-   return {...run,frozen:{...run.frozen,subagent_workspaces:run.frozen.subagent_workspaces?.map(({worktree_id,directory})=>({workspace_id:worktree_id,directory}))}};});
-  await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.round_outdated",message:/这一轮是旧版本开的，写手的目录接不上，请重开一轮/});
-  old.mock.restore();
   await elsewhere.start(coding,[...integrate],granted,consumes);
   await assert.rejects(elsewhere.actions(coding).invoke(integration.read,source),{code:"workspace_git.writer.session_foreign",message:/不属于本项目/});
   await assert.rejects(reads.invoke(integration.read,{...source,subagent_id:"forged"}),{code:"workspace_git.writer.unsettled",message:/子任务/});

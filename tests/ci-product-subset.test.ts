@@ -506,7 +506,7 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
   assert.ok(budget + browserBudget <= 25, "the job stays within about 25 minutes of tests, so Verify in the merge queue is not held much longer");
   assert.ok(blockingJobs().includes("product-subset"), "Verify waits for it");
   const needs = workflow.split("\n").filter((line) => /^\s*needs:/.test(line) && line.includes("product-subset"));
-  assert.deepEqual(needs, ["    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, security-invariants-macos, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]"], "verify is the only job that needs it; the selector is an auxiliary dependency");
+  assert.deepEqual(needs, ["    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, security-invariants-macos, product-subset, queue-check, test-selection]"], "verify is the only job that needs it; the selector is an auxiliary dependency");
   assert.ok(jobBlock("verify").includes("          PRODUCT_SUBSET_RESULT: ${{ needs.product-subset.result }}"), "its result reaches Verify's last step (judged in tests/ci-queue-verified.test.ts, RAC-1903)");
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 });
@@ -519,7 +519,7 @@ test("ci.yml: a blocking job runs the subset's own rules", () => {
 
 test("MR19-06 workflows: shared dist build artifacts are passed via build job outputs so --failed reruns resolve attempt-1 outputs", () => {
   for (const [file, prefix, expectedDownloads] of [
-    ["ci.yml", "ci-dist", 6],
+    ["ci.yml", "ci-dist", 5],
     ["full-suite.yml", "full-suite-dist", 2],
     ["visual-audit.yml", "visual-audit-dist", 2],
   ] as const) {

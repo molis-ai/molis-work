@@ -132,9 +132,6 @@ export function configurationPayload(raw: Record<string, unknown>): GoalEventCon
   return {
     config_version: Number(raw.config_version) || 0,
     types: Array.isArray(raw.types) ? raw.types as GoalEventTypeDefinition[] : [],
-    extra_requirements: Array.isArray(raw.extra_requirements)
-      ? raw.extra_requirements as GoalEventConfigurationPayload["extra_requirements"]
-      : [],
     requirement_bindings: Array.isArray(raw.requirement_bindings)
       ? raw.requirement_bindings as GoalEventConfigurationPayload["requirement_bindings"]
       : [],

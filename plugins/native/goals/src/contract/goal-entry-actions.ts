@@ -8,7 +8,7 @@ import type { GoalTreeProposalCheckInput, GoalTreeProposalCheckResult, GoalTreeP
   GoalTreeProposalListQuery, GoalTreeProposalListResult, GoalTreeProposalRecord, GoalTreeProposalSubmitInput } from "./governance-collaboration.js";
 import { goalIntentSourceKinds } from "./goal-events.js";
 import { goalAction } from "./goal-action-definition.js";
-import { text, identifier, count, boolean, object, array, nullable, enumeration, scope, changeInput, effectInput, decision, goalDirectoryItemSchema } from "./goal-event-action-schemas.js";
+import { text, identifier, count, boolean, object, array, nullable, enumeration, scope, change, effect, decision, goalDirectoryItemSchema } from "./goal-event-action-schemas.js";
 import { boardSnapshotSchema } from "./goal-snapshot-action-schemas.js";
 import * as tree from "./goal-tree-action-schemas.js";
 
@@ -84,7 +84,7 @@ const treeDecide = goalAction<Business<GoalTreeProposalDecideInput>, GoalTreePro
 const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>(goalEventDecisionRef.capability_id, goalEventDecisionRef.version, "记录用户决定",
   "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺", "command",
   object({ goal_id: identifier, idempotency_key: identifier, request_id: identifier, selected_option_id: identifier,
-    conclusion: identifier, accepts_requirements: boolean, effects: array({ ...effectInput, properties: { ...effectInput.properties as Record<string, unknown>, action: identifier } }), authorized_change: changeInput,
+    conclusion: identifier, accepts_requirements: boolean, effects: array({ ...effect, properties: { ...effect.properties as Record<string, unknown>, action: identifier } }), authorized_change: change,
     scope: { ...scope, required: [] } }, ["goal_id", "idempotency_key", "conclusion"]),
   object({ event_id: identifier, observed_event_cursor: count, replayed: boolean, recorded: { const: true }, decision }));
 

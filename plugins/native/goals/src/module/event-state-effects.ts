@@ -208,7 +208,7 @@ export class GoalEventStateEffects {
         request?.purpose === "agreement_change"
         && resolved.effects.some((effect) => effect.kind === "authorize_agreement_change")
       ) {
-        if (!agreementChangeCommitmentCurrent(request.commitment, requirements, outcome)) {
+        if (!agreementChangeCommitmentCurrent(request.commitment, outcome)) {
           throw goalErrors["goals.event_decision.stale_commitment"]("原约定或受影响要求已经变化，不能批准这份过期请求");
         }
       }
@@ -234,7 +234,7 @@ export class GoalEventStateEffects {
         ? request.commitment
         : resolved.authorized_change
           ? snapshotAgreementChangeCommitment(outcome)
-          : snapshotCommitment(requirements(), outcome, resolved.scope, resolved.effects);
+          : snapshotCommitment(requirements(), outcome, resolved.scope);
       const configVersion = this.host.configVersion(goal.project_id, goal.goal_id);
       const agreementVersion = agreement?.version ?? 0;
       const decisionId = `gdec-${randomUUID()}`;

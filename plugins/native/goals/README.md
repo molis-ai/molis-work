@@ -86,7 +86,7 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
 
 项目规则的创建、撤回和历史查询由统一授权管理页调用 `project.approvals.rules.read@1` 和 `project.approvals.rules.change@1`。Goals 的详情读取适用规则，显示生效结论和授权管理页入口。
 
-第 41 批（2026-11-14）起 Goals 没有方法库，也没有 Home 那一半：方法目录、读取、保存、个人方法和事件配置里的「采用」都已删除，`planning` 只剩关系图检查（`goals.planning.graph.check`）与影响分析（`goals.planning.impact`）。Goals 私有库 v3→v4 的升级段删掉 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列；原 Home 库 `goals/goals.db` 在升级轮里连目录删除（宿主的 `REMOVED_HOME_STORES`）。
+第 41 批（2026-11-14）起 Goals 没有方法库，也没有 Home 那一半：方法目录、读取、保存、个人方法和事件配置里的「采用」都已删除，`planning` 只剩关系图检查（`goals.planning.graph.check`）与影响分析（`goals.planning.impact`）。Goals 私有库保持现行 Clean v1 基线（不含 `planning_method_packs` 表与 `adopted_planning_json` 列），不再有 Home 库 `goals/goals.db`。
 
 ## 开发要求
 
@@ -120,7 +120,7 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
     - 完成只经显式收尾：普通支持不自动完成，无关笔记不重开已完成的 Goal。
     - 项目规则「完成前必须你点头」进入完成检查：打开时，完成前要有这一轮、这份约定的可信用户结论（点头）；点「完成」的人是用户，本身不算，管理入口把收尾记成本机这个人也不算。点头有两种：某条要求上已接受且仍然成立的结论，和针对 `complete` 的最近一条决定（要是授权）。两种按同一个办法判断，看写下结论的那份决定：它是在这一轮工作里做出的（Goal 被继续或重新打开之后，更早的授权和接受都不再放行），并且它记下的整份约定的承诺（授权 `complete` 和接受要求的决定都记整份：结果说明、每条要求的原文、是否需要用户验收、绑定的事件类型）和现在的约定逐字相同（有一处变了就不放行，不论谁改；改了又改回，逐字相同就又放行）。要求上的结论是否还在，仍是要求自己的规则：要求被改写、退休、结果说明被改写（每条要求的结论都过期）、结论之后被拒绝，结论就没了，改回原文也不恢复。授权按决定的效果判断，不按范围里写的动作：范围里写了 `complete`、效果只有接受要求的决定是接受，不是授权。被别的原因挡住的收尾和成立的收尾都不会用掉点头，同一轮同一份约定里可以再收尾。带「需要用户验收」的要求本身不受影响（结论还成立就算已验收），项目规则另外要点头，授权不能代替那条要求自己的验收。`tests/goal-events-state.test.ts` 守着这条，管理入口那一面在 `tests/goal-management-identity.test.ts`（`specs/archive/goal-closure-identity`）。
     - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
-    - 结果合同只认现行取值；存量数据由维护改成现行形状，读取不兜底历史取值。
+    - 结果合同只认现行取值；开发前阶段直接改 v1 基线与所有消费者，不做旧数据迁移、读取不兜底历史取值。
     - 库里存的项目 JSON（`policy_json`、`in_scope_json`、`pack_json`、`source_refs_json`、`baseline_versions_json`、`scope_json` 等）读不出来时抛 `goals.storage.record_unreadable`（`internal`），不按空值处理；SQL NULL 仍用备用值。解码只经 `src/stored-json.ts` 的 `storedJson(row, 表, 列, 备用值)`：读它的语句都投影 `rowid AS stored_row`（漏了第一次读就报错），错误详情正好是 `{ storage: { table, column, row_ref } }`（`row_ref` 是这一行的 rowid，十进制字符串，只在当前这份库里有效，重建后会变），不带存的原文、解析器的报错、业务键（各种 id）和路径（BL-821，用户 2026-11-09 定）。
   - `src/governance/`（原 `modules/governance-collaboration`）的不变量：
     - 本包直接声明并抛出共同 `ActionError`；装配不注入错误工厂，现行用户来源拒绝与聚合输入详情由本包保留。

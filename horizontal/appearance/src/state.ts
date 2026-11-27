@@ -6,7 +6,7 @@ import { isRecord, parseSyncDocumentValue } from "@molis-ai/molis-work-plugin-sd
 import { entryAt, readVersionedFile, sqliteVersionRefusal, type VersionedFile, type VersionedFileRead } from "@molis-ai/molis-work-storage";
 
 export const APPEARANCE_STATE_PATH = join("interface", "state.json");
-export const APPEARANCE_STATE_VERSION = /* @version format.ui.appearance-state */ 2;
+export const APPEARANCE_STATE_VERSION = /* @version format.ui.appearance-state */ 1;
 
 export interface AppearanceApplication {
   readonly actor_id: string;
@@ -92,18 +92,10 @@ export function parseAppearanceValues(value: unknown): AppearanceValues {
   throw new Error("interface/state.json is not an appearance record of this version");
 }
 
-const APPEARANCE_STATE_UPGRADES = [{
-  from: 1,
-  transform(value: unknown) {
-    if (!isRecord(value) || Object.hasOwn(value, 'sync')) throw new Error('外观的历史结构无效');
-    return { ...value, sync: null };
-  },
-}];
-
 /** The Host registers the same declaration for upgrade inspection. Only this owner reads or replaces the state. */
 export const APPEARANCE_STATE_FILE: VersionedFile<AppearanceState> = {
   version: APPEARANCE_STATE_VERSION, field: 'schema_version',
-  upgrades: APPEARANCE_STATE_UPGRADES,
+  upgrades: [],
   parse(value) {
     if (!isRecord(value) || !Object.hasOwn(value, 'sync')) throw new Error('外观的同步状态无效');
     const { sync, ...data } = value;

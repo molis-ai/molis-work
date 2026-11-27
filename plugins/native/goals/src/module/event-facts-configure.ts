@@ -76,8 +76,6 @@ export class GoalEventConfiguration {
       const payload = {
         config_version: nextVersion,
         types: addedTypes,
-        // A configuration hangs no requirement (they are the platform's, contract-design §10.3); the record keeps its shape.
-        extra_requirements: [],
         requirement_bindings: addedBindings,
       };
       const cursor = this.context.repository.appendEvent({

@@ -130,10 +130,10 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 /** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
 const TEST_JOBS = ["security-invariants", "security-invariants-macos", "product-subset"];
 /** The jobs that also wait for `test-selection`: the test jobs, build, and the scoped checks. */
-const SELECTED_JOBS = [...TEST_JOBS, "build", "account-login", "golden-replay", "golden-replay-third-party", "native-checks", "gates", "gates-built", "gate-rules", "shell-checks"];
-const BUILD_CONSUMERS = ["gates-built", "gate-rules", "account-login", "security-invariants", "golden-replay", "product-subset"];
-const BLOCKING = ["build", "account-login", "gates", "gates-built", "gate-rules", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS, "golden-replay", "golden-replay-third-party"];
-const RESULTS = ["BUILD", "ACCOUNT_LOGIN", "GATES", "GATES_BUILT", "GATE_RULES", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "SECURITY_INVARIANTS_MACOS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+const SELECTED_JOBS = [...TEST_JOBS, "build", "account-login", "native-checks", "gates", "gates-built", "gate-rules", "shell-checks"];
+const BUILD_CONSUMERS = ["gates-built", "gate-rules", "account-login", "security-invariants", "product-subset"];
+const BLOCKING = ["build", "account-login", "gates", "gates-built", "gate-rules", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS];
+const RESULTS = ["BUILD", "ACCOUNT_LOGIN", "GATES", "GATES_BUILT", "GATE_RULES", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "SECURITY_INVARIANTS_MACOS", "PRODUCT_SUBSET"];
 const TEST_RESULTS = ["SECURITY_INVARIANTS", "SECURITY_INVARIANTS_MACOS", "PRODUCT_SUBSET"];
 const steps = (job: string) => jobBlock(job).split("\n      - ").slice(1);
 const scratch = () => { const directory = mkdtempSync(path.join(tmpdir(), "molis-queue-check-")); directories.push(directory); return directory; };
@@ -170,7 +170,7 @@ const contexts = (item: Case, buildResult = "success") => ({
   "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified,
   "needs.build.result": buildResult,
   "needs.test-selection.result": "success", "needs.test-selection.outputs.security_mode": "some", "needs.test-selection.outputs.product_mode": "some",
-  "needs.test-selection.outputs.native_mode": "whole", "needs.test-selection.outputs.golden_third_party_mode": "whole",
+  "needs.test-selection.outputs.native_mode": "whole",
   "needs.test-selection.outputs.documentation_mode": "code", "needs.test-selection.outputs.gate_rules_mode": "whole", "needs.test-selection.outputs.shell_mode": "whole",
   "needs.test-selection.outputs.account_login_mode": "whole", "needs.test-selection.outputs.studio_replay_mode": "whole",
 });
@@ -329,7 +329,7 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the blocking j
     }
   }
 
-  assert.match(verify, /^    needs: \[build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, security-invariants-macos, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection\]$/m);
+  assert.match(verify, /^    needs: \[build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, security-invariants-macos, product-subset, queue-check, test-selection\]$/m);
   assert.ok(verify.includes("          TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}"), "Verify receives the selector result directly");
   for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"], ["ACCOUNT_LOGIN_MODE", "account_login_mode"], ["GATE_RULES_MODE", "gate_rules_mode"]]) {
     assert.ok(verify.includes(`          ${name}: \${{ needs.test-selection.outputs.${output} }}`), `${output} reaches its own Verify verdict`);

@@ -18,7 +18,7 @@ test("RAC-2376 RAC-2380 the current server database starts at 1 and refuses anot
     try {
       assert.equal(SERVER_DATABASE_BASELINE.version, 1);
       assert.equal((created.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, SERVER_DATABASE_BASELINE.version);
-      const expected = new DatabaseSync(":memory:"); expected.exec(readFileSync(new URL("./fixtures/server-database-schema.sql", import.meta.url), "utf8"));
+      const expected = new DatabaseSync(":memory:"); expected.exec(SERVER_DATABASE_BASELINE.schema);
       try { assert.deepEqual(describeSqliteSchema(created), describeSqliteSchema(expected)); } finally { expected.close(); }
       assert.equal((created.prepare("SELECT COUNT(*) AS n FROM mw_server_identity").get() as { n: number }).n, 1);
       assert.equal(created.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
@@ -39,7 +39,7 @@ for (const fault of ["DROP TABLE mw_members", "CREATE TABLE unexpected (id TEXT)
     const directory = mkdtempSync(join(tmpdir(), "server-current-shape-")), file = join(directory, "server.sqlite");
     try {
       const db = new DatabaseSync(file);
-      db.exec(readFileSync(new URL("./fixtures/server-database-schema.sql", import.meta.url), "utf8"));
+      db.exec(SERVER_DATABASE_BASELINE.schema);
       db.exec("PRAGMA user_version = 1"); db.exec(fault); db.close();
       const before = readFileSync(file);
       assert.throws(() => openServerDatabase(directory), { code: "im.database.structure_invalid" });
@@ -83,7 +83,7 @@ test("UPG-01 IUI-21 a prior discussion v1 missing subjects_json is refused with 
   const directory = mkdtempSync(join(tmpdir(), "discussion-v1-refusal-")), file = join(directory, "server.sqlite");
   const writer = new DatabaseSync(file);
   try {
-    const oldSchema = readFileSync(new URL("./fixtures/server-database-schema.sql", import.meta.url), "utf8").replace(", subjects_json TEXT NOT NULL DEFAULT '[]'", "");
+    const oldSchema = SERVER_DATABASE_BASELINE.schema.replace(", subjects_json TEXT NOT NULL DEFAULT '[]'", "");
     assert.equal(oldSchema.includes("subjects_json"), false);
     writer.exec(oldSchema + "; PRAGMA user_version = 1;");
     assert.equal(writer.prepare("PRAGMA user_version").get()?.user_version, 1);

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { assertNoPendingArtifactRows, recoverHomeLibraryTransactions } from "./home-library-recovery.js";
 import { recoverInstalledHomeUpgrade } from "./installed-home-upgrade-recovery.js";
-import { lstatSync, realpathSync, rmSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
   acquireStorageOwner, assertNoPendingHomeRestore, entryAt, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
@@ -18,8 +18,6 @@ import {
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { diagnosticId } from "./home-unavailable-owners.js";
-import { shippedParts } from "./plugin-registry.js";
-import { homeStores } from "./home-stores.js";
 
 /** What this call did. Nothing to do reads `ran: false`; a store that failed is in `units`, not an exception (§5.2). */
 export interface HomeUpgradeReport {
@@ -387,19 +385,6 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
 }
 
 /**
- * Directories of a Home that held a store this build no longer has. Nothing reads them, and an entry the store registry does not name
- * stops the Home's snapshot, so a round removes them before it lists the stores. A library each partition keeps (`databases.partition`)
- * has no top-level Home directory: one of its name is what an older Home kept before the plugin moved into the partitions (batch 108),
- * and it is not migrated but goes (user 2026-11-26, CONTRACT-CHANGES 「当前保留机制」). Read from the declarations, never a list of
- * plugins; a name the Home still registers (any store's top-level directory, `homeStores()`) or a Home library still uses is never one of them.
- */
-export function removedHomeStores(): readonly string[] {
-  const home = new Set([...homeStores().stores.map(store => store.path.split("/")[0]!),
-    ...shippedParts().flatMap(entry => entry.manifest.databases?.home?.store_name ?? [])]);
-  return [...new Set(shippedParts().flatMap(entry => entry.manifest.databases?.partition?.store_name ?? []))].filter(name => !home.has(name)).sort();
-}
-
-/**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that
  * matches costs one small file and opens nothing; otherwise every store's version is read, the older ones are upgraded one at a time, and a
  * store that fails is put back and stays alone. All of it is synchronous. Only what is wrong with the whole Home throws: a record that
@@ -421,15 +406,6 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   if (stamp === fingerprint) return NOTHING;
   const previous = readUpgradeLedger(root);
   removeUpgradeTemporaries(root);
-  for (const path of removedHomeStores()) {
-    const target = join(root, path);
-    try {
-      lstatSync(target);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-    }
-    rmSync(target, { recursive: true, force: true });
-  }
   releaseHeldHomeSqlite(root);
   const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [], onUnitDone: options.onUnitDone };
   const resumed = finishInterrupted(round, previous);

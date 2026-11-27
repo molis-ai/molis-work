@@ -1,8 +1,8 @@
 # 版本与发布策略
 
-状态：0.1.0 统一起点候选（2026-11-06，N34）。产品载体及现行内置插件清单已在源码中复位 0.1.0，范围以 `plugins/native/*` 与构建后的 `BUILTIN_PLUGIN_CATALOG` 为准；版本复位后的最终构建、登记、安装及必要回归另验。新候选尚未发布；真实 Home 已于 2026-11-07 干净重建，统一起点已登记（[检查清单第 4 节](CHECKLIST.md#4-真实-home搬开后干净重建)）。原 [0.3.0 候选](v0.3.0.md)及第 7 节的历史决策保留各自基线，不作为新候选通过的证据。
+状态：0.1.0 开发前阶段（2026-11-26 更新）。产品载体及现行内置插件清单统一为 0.1.0，范围以 `plugins/native/*` 与构建后的 `BUILTIN_PLUGIN_CATALOG` 为准；尚未对外发布，零存量外部用户、零旧 Home 保留、零数据迁移、零开发金样，全部持久化存储固定为干净 v1 基线（见 [检查清单第 3–4 节](CHECKLIST.md#3-各库版本表)）。原 [0.3.0 候选](v0.3.0.md)只作历史基线记录。
 
-Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG 和一份发布前检查清单（含各库版本表与真实 Home 的处理）。根包、桌面端、Tauri 跟同一版本，内置插件 Manifest 跟宿主版本，工作区包保持私有 0.0.0；这一编号归属沿用用户 2026-10-08 的决定（`specs/archive/repository-anti-corruption/spec.md` §1「版本与发布策略」）。用户 2026-11-02 另定产品复位 0.1.0，按第 3 节的 N34 例外执行。
+Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG 和一份发布前检查清单。根包、桌面端、Tauri 跟同一版本，内置插件 Manifest 跟宿主版本，工作区包保持私有 0.0.0；这一编号归属沿用用户 2026-10-08 的决定（`specs/archive/repository-anti-corruption/spec.md` §1「版本与发布策略」），2026-11-02 定产品为 0.1.0。
 
 - 每次发布做什么、按什么顺序：[CHECKLIST.md](CHECKLIST.md)。
 - 改了什么：[CHANGELOG.md](CHANGELOG.md)（按版本）和 `v<版本>.md`（每个版本一篇发布说明）。
@@ -14,9 +14,9 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 ## 1. 一个产品版本和它的载体
 
-所有自有版本的唯一维护入口是 `tooling/versions.json`：产品、各库和文件格式、动作、提示词、角色、方法、同步集合与自有协议分别命名。修改条目后运行 `pnpm versions:generate`，它只把表里的值写到用的地方，校验不过就一个文件也不写。构建入口只核对不生成：结果过期就失败，并提示运行这条命令。绕过这张表的新声明归 `scripts/gates/version-declarations.mjs` 管，由 `node scripts/verify-release-versions.mjs` 调用；例外都写在 `tooling/gates/version-exceptions.json`，按文件、名字和字面量个数逐条登记，各带理由。代码只写字面量加标记（`version: /* @version action.todo.items.list */ 1`），不导入版本表，也没有生成的常量文件；写不了标记的地方（方法 Markdown、Manifest、配置，以及 `server/src/sync/quota.rs`、`server/src/sync/round.rs`、`apps/local-host/src/assistant/assistant-agent.ts` 里的几处）只由表里的 `carriers` 改写。例外是外观与语言文件（共同规格、皮肤、字体方案、语言包、资源登记表，`format.ui.*`）：格式版本升一号时文件形状也变了，只改数字的工具帮不上忙，所以这些 JSON 手写 `format_version`，不走 `carriers`，`scripts/gates/version-declarations.mjs` 也不读它们；解析器发现不符就拒绝，CI 的解析测试拦住（`specs/font-and-skin-system/a-section-contract.md` 第 1.4 节）。发布检查单的库版本表是手写的，`verify-release-versions` 对照定义处核对，不符就失败；历史维护清单也人工登记。
+所有自有版本的唯一维护入口是 `tooling/versions.json`：产品、各库和文件格式、动作、提示词、角色、方法、同步集合与自有协议分别命名。修改条目后运行 `pnpm versions:generate`，它只把表里的值写到用的地方，校验不过就一个文件也不写。构建入口只核对不生成：结果过期就失败，并提示运行这条命令。绕过这张表的新声明归 `scripts/gates/version-declarations.mjs` 管，由 `node scripts/verify-release-versions.mjs` 调用；例外都写在 `tooling/gates/version-exceptions.json`，按文件、名字和字面量个数逐条登记，各带理由。代码只写字面量加标记（`version: /* @version action.todo.items.list */ 1`），不导入版本表，也没有生成的常量文件；写不了标记的地方（方法 Markdown、Manifest、配置，以及 `server/src/sync/quota.rs`、`server/src/sync/round.rs`、`apps/local-host/src/assistant/assistant-agent.ts` 里的几处）只由表里的 `carriers` 改写。例外是外观与语言文件（共同规格、皮肤、字体方案、语言包、资源登记表，`format.ui.*`）：格式版本升一号时文件形状也变了，只改数字的工具帮不上忙，所以这些 JSON 手写 `format_version`，不走 `carriers`，`scripts/gates/version-declarations.mjs` 也不读它们；解析器发现不符就拒绝，CI 的解析测试拦住（`specs/font-and-skin-system/a-section-contract.md` 第 1.4 节）。开发前阶段全部持久化库与带版本文件固定为 v1，由 `scripts/gates/initial-versions.mjs` 与 `tooling/versions.json` 统一守住；[检查清单第 3 节](CHECKLIST.md#3-各库版本表)保留为人工参考表。
 
-字面量保留公开 literal 类型和浏览器函数的独立作用域；它只是表的副本，手改会被核对拦下。动作工厂没有缺省版本：`define*Action` 的版本是紧跟 id 的必填参数，`createActionDefinition` 和 `defineWorkExecutorAction` 也必须传；每个静态业务动作传自己的条目，调用方使用已有 descriptor.version。改这个值会让旧数据或旧调用方不再被接受，就进表，包括读时按整串比较或拒绝的类型名和前缀（`type.molis.work-executor.*`、`type.molis-work-local-payload`）；只是一个名字就不进，比如界面贡献 id；其他的只留字面量。工作流内容的四个角色各是一份共享协议；动态 SDK 成果动作按真实操作管理。并存的 inline/blob、inline/chunks 编码是线上判别值，用具名常量加例外，不进表：成果一侧内容超过 64 KB 或带原件的导入文档走附件，项目内容一侧超过 64 KB 的 Goal 内容分块，其余内联。远端 D1 基线仍为 6，固定成果生产者身份跟产品版本。依赖、上游协议、业务修订计数和用于拒绝的历史测试输入不属于当前声明。
+字面量保留公开 literal 类型和浏览器函数的独立作用域；它只是表的副本，手改会被核对拦下。动作工厂没有缺省版本：`define*Action` 的版本是紧跟 id 的必填参数，`createActionDefinition` 和 `defineWorkExecutorAction` 也必须传；每个静态业务动作传自己的条目，调用方使用已有 descriptor.version。改这个值会让旧数据或旧调用方不再被接受，就进表，包括读时按整串比较或拒绝的类型名和前缀（`type.molis.work-executor.*`、`type.molis-work-local-payload`）；只是一个名字就不进，比如界面贡献 id；其他的只留字面量。工作流内容的四个角色各是一份共享协议；动态 SDK 成果动作按真实操作管理。并存的 inline/blob、inline/chunks 编码是线上判别值，用具名常量加例外，不进表：成果一侧内容超过 64 KB 或带原件的导入文档走附件，项目内容一侧超过 64 KB 的 Goal 内容分块，其余内联。远端 D1 同步基线同样固定为干净 v1，固定成果生产者身份跟产品版本。依赖、上游协议、业务修订计数和用于拒绝的历史测试输入不属于当前声明。
 
 **生成器的拒绝。** 模板没有 `{version}` 或含 `*`、值不是普通整数、JSON 有重复键，都失败。一个 carrier 只能命中一处、只改一行，Markdown 只改 frontmatter。注释里引用的标记不算使用。
 
@@ -32,53 +32,47 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 | 发布说明与 CHANGELOG | `docs/releases/v<版本>.md`、`docs/releases/CHANGELOG.md` 里的 `[<版本>]` 一节 | 当前产品版本两者都有；CHANGELOG 第一节永远是 `[Unreleased]` | 脚本 |
 | 工作区包 | 每个 `pnpm-workspace.yaml` 列出的包 | 私有，版本固定 0.0.0；它们不单独发布，随产品一起构建 | 脚本 |
 | 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前内置插件（以 `plugins/native/*` 为准，不在这里写死个数）统一为 0.1.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/plugin-declaration-rules.test.ts` 再核对 |
-| 各库的结构版本 | 见 [CHECKLIST.md](CHECKLIST.md) 的「各库版本表」 | 每个库自己一个数字，与产品版本无关；改库就升那个库的数字 | 脚本核对表与代码一致 |
+| 各库的结构版本 | 参考 [CHECKLIST.md](CHECKLIST.md#3-各库版本表) | 开发前阶段一律固定为 `1`、原地修改 v1 基线、零升级段；1.0 对外发布起按阶段二启用逐版升级 | `scripts/gates/initial-versions.mjs` 与 `tooling/versions.json` |
 
 不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS［含 YouTube 频道］）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在版本表里，各自独立）。它们通过各自的 `./drivers` 导出驱动、经生成的登记清单由 `apps/local-host/src/builtin-drivers.ts` 与 `apps/local-host/src/integration-registry.ts` 统一装配，没有持久的插件安装记录；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
 
 ## 2. 版本号怎么选
 
-1.0.0 之前按 `0.次版本.补丁` 选，1.0.0 是单独的决定，不由这份策略触发。以下是编号含义的例子，不指定复位后的下一次发版号；实际选号须核对已有 release/tag，旧 GoalBoard v0.2.0 仍保留。
+1.0.0 之前按 `0.次版本.补丁` 选，1.0.0 是单独的决定，不由这份策略触发。以下是编号含义的例子，不指定下一次发版号；实际选号须核对已有 release/tag，旧 GoalBoard v0.2.0 仍保留。
 
-- **次版本**（0.1.0 → 0.2.0）：发布里有下列任何一项。任一个库的结构版本变了（统一起点前按现行基线拒绝错版，真实 Home 先按检查清单第 4 节干净重建；统一起点之后须升库版本并带连续升级步骤，见[升级连续性](../../specs/upgrade-continuity/spec.md#3-起点库从统一起点开始升级链)）；MCP 工具、CLI 参数、环境变量、Skill 名称、插件 Manifest 合同做了不兼容的改动；功能被移除；名称改了。
-- **补丁**（0.1.0 → 0.1.1）：只修问题，不动任何一个库的版本，不动上面那些对外名称。
-- 补丁发布仍然写 CHANGELOG 和发布说明，检查清单的各库版本表照常核对（应该没有变化）。
+- **次版本**（0.1.0 → 0.2.0）：发布里有下列任何一项。对开发机或接入方有不兼容变更（MCP 工具、CLI 参数、环境变量、Skill 名称、插件 Manifest 合同，或开发前阶段 v1 基线不兼容旧开发 Home 需要清空重建）；功能被移除；名称改了。待 1.0.0 对外发布启用阶段二后，持久化库版本升级也在此列。
+- **补丁**（0.1.0 → 0.1.1）：只修问题，不动对外名称或不兼容的合同/存储结构。
+- 补丁发布仍然写 CHANGELOG 和发布说明。
 
 ## 3. 什么时候改版本号
 
-常规只在发布 PR 里改，别的 PR 不碰；两次发布之间，main 上的版本是最近一次发布的版本。本次 N34 复位按下述例外执行。这条同时适用于产品版本与内置插件清单版本，两者保持统一。第 3 节和第 7 节一起定，用户 2026-10-08 两个都确认了（第 7.6 节）：内置清单等于产品版本之后，两次发布之间不会升版本，每个改了清单（或清单引进的定义）的合并都是一次「同版本不同摘要」（第 7 节的情形二）；这在 A 之前会让开发机的 Home 每次都停在旧代码上，A 之后下次启动就跟上。情形二在 A 之前因为漏升版本发生过至少 24 次（第 7.3 节）。第 7.5 节的选项 F 是第 3 节的另一种答案，没有选。
+常规只在发布 PR 里改，别的 PR 不碰；两次发布之间，main 上的版本是最近一次发布的版本。这条同时适用于产品版本与内置插件清单版本，两者保持统一。第 3 节和第 7 节一起定，用户 2026-10-08 两个都确认了（第 7.6 节）：内置清单等于产品版本之后，两次发布之间不会升版本，每个改了清单（或清单引进的定义）的合并都是一次「同版本不同摘要」（第 7 节的情形二），Runtime 对 `HOST_BUILD_TRUST` 内置插件自动跟随当前构建。
 
 发布 PR 一次做完：改全部载体 → 把 CHANGELOG 的 `[Unreleased]` 改成 `[<版本>] - <日期>` 并另起一个空的 `[Unreleased]` → 写 `docs/releases/v<版本>.md` → 过检查清单 → 合并后在合并提交上打 tag `v<版本>`，再在这个 tag 上手动运行发布工作流（`release-macos.yml` 只有 `workflow_dispatch`；选 tag 运行才会做 `--tag` 核对并发布 GitHub Release，选分支只构建并上传构建产物）。
 
-**0.1.0 复位的例外（用户 2026-11-02 定，N34）。** 用户选择把产品与全部内置 Manifest 从 0.3.0 复位 0.1.0。旧 GoalBoard `v0.1.0` release（`375162104`，8 个附件）及指向 `60ca973e2b` 的同名 tag，经用户 2026-11-06 追加授权，由 Codex 在 13:18 UTC 删除并核实名称释放。该次删除只覆盖这两个旧对象；不删除 v0.2.0，不撤回历史许可，也不等于发布新的 v0.1.0。源码复位仍在第 02 批消费方内完成，版本检查、最终构建和安装各自留证；装过 0.3.0 的开发机须在约定重建窗口手动重装，不依赖桌面端的常规更新判断来完成降版。新发布、打 tag 与真实 Home 切换各按已有流程另行执行。
-
-**原 0.3.0 例外的历史。** #595 在 2026-10-16 发布前合入 main，产品及内置清单已为 0.3.0，当时决定不退回已发布的 0.2.0，并在最终切版时刷新发布记录。该计划现已由 N34 复位决定取代；原候选提交、清单摘要、产物与验证仍在 [v0.3.0.md](v0.3.0.md)保留，不改写为新 0.1.0 的证据。
-
-**同一个版本号会对应不同的构建。** main 上每个提交都叫最近一次发布的版本；安装器遇到版本相同、内容不同时会原子刷新（`docs/installation.md`「安装边界」），每次安装的 `release.json` 记下 `content_digest`（`apps/local-host/src/installer/home-release.ts`）。0.2.0 已经因此既指 2026-09-11 的 tag，也指之后装进开发机 Home 的两个差别很大的构建（2026-09-23 的安装版，和 2026-10-07 维护三时用 e1cd4906 的构建重装的那个，见 `specs/archive/repository-anti-corruption/spec.md` §4.1「真实 Home 维护三已做」第 1、3 步）。所以：不是从 tag 构建的安装，只说「某提交的构建」，在维护记录里写提交与 `content_digest`，不说成某个版本。
+**同一个版本号会对应不同的构建。** main 上每个提交都叫最近一次发布的版本；安装器遇到版本相同、内容不同时会原子刷新（`docs/installation.md`「安装边界」），每次安装的 `release.json` 记下 `content_digest`（`apps/local-host/src/installer/home-release.ts`）。所以不是从 tag 构建的安装，只说「某提交的构建」，在记录里写提交与 `content_digest`，不说成某个版本。
 
 ## 4. 每次发布的材料
 
-- **发布说明** `docs/releases/v<版本>.md`：概述、按主题的变化、架构与安装、**兼容与升级**、发布范围与验证（`v0.2.0.md` 的结构）。兼容与升级必须写清：哪些库的版本变了（从哪个数到哪个数）、旧 Home 要做什么（维护、备份、重建）、Runtime 要不要重新接入。发布范围与验证写真实的全量回归数字和没有验证的东西，已知失败逐条列出。GitHub Release 的正文是工作流自动生成的（`generate_release_notes`），不是这篇发布说明，需要时在 Release 页面里放链接。
+- **发布说明** `docs/releases/v<版本>.md`：概述、按主题的变化、架构与安装、**兼容与升级**、发布范围与验证（`v0.2.0.md` 的结构）。兼容与升级写清开发期 Home 是否需要干净重建、Runtime 是否需要重新接入（1.0 起列库版本变更与升级链）。发布范围与验证写真实的全量回归数字和没有验证的东西，已知失败逐条列出。GitHub Release 的正文是工作流自动生成的（`generate_release_notes`），不是这篇发布说明，需要时在 Release 页面里放链接。
 - **CHANGELOG** `docs/releases/CHANGELOG.md`：按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的写法，每个版本一节，条目按「升级须知（需要动手）、新增、变化、移除、修复」分组。发布说明讲故事，CHANGELOG 做可查的清单；两者不互相复制。
 - **检查清单** [CHECKLIST.md](CHECKLIST.md)：每次发布复制进发布 PR 描述，逐项勾选。
 
 ## 5. 数据库版本与产品版本
 
-产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本才能。统一起点前，每个库按现行基线拒绝不符版本（只有搜索索引这种可重建的派生库重建；角色库同样严格拒绝不符版本，MCP 授权文件和密钥文件 `security/secrets.json` 拒绝读取并保留原文件）；怎么记、记在哪、不符时怎样，都在检查清单的「各库版本表」里，并由脚本对照代码核对：改了某个库的版本而没改表、或新增了一个以 `SqliteBaseline` 常量声明的库而没列进表，CI 都会失败（脚本找不到的情况写在检查清单第 3 节）。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。
+产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本和基线结构才能。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。
 
-存储统一起点与首次外部安装分别登记。真实 Home 干净重建、各库与带版本文件核实为第 1 版之后，结构改动须升版本并带连续升级步骤，按[升级连续性 §3](../../specs/upgrade-continuity/spec.md#3-起点库从统一起点开始升级链)执行；本次产品源码复位不登记该日期。动作、Manifest 与 MCP 等合同的读取兼容仍从第一个装到开发机之外的版本开始，起点不早于 1.0.0，由发布 PR 写进 [CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md)。两条起点都不由产品显示 0.1.0 自动触发。
-
-2026-10-30 用户经统筹 #1332 6517794305 改为干净重建：本次保留各库现行完整结构，存储起点统一为 1；W5-16 B1 的讨论库 1→2、W5-17、Goals S9 等旧库维护路线取消，旧转换工具、旧结构夹具和演练删除。各片代码先验证合入，真实 Home 的搬开与重建另等用户说“开始”，步骤见检查清单第 4 节；此决定不授权提前停服务、安装或操作 Keychain，也不改变产品发布版本及外部版本之后的兼容策略。
-
-版本号相同、结构不同的旧库仍按各 owner 已有的结构、路径、权限与密钥检查处理，不能一律推定接受或拒绝；具体边界见检查清单第 3 节。重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝。这里只引用既有记录，没有重新读取真实Home。
+**开发前阶段规则（用户 2026-11-26 定）：**
+- 1.0.0 对外发布之前，零存量外部用户、零旧 Home 保留、零数据迁移、零历史读时兼容、零开发金样。
+- 所有持久化 SQLite 库、插件库与带版本文件一律固定版本 `1`（由 `scripts/gates/initial-versions.mjs` 与 `tooling/versions.json` 强制守住，`upgrades` 保持空）；结构变动直接原地修改 v1 基线，版本或结构不符时直接拒绝打开（只有 `search/search.db` 这类可重建的派生索引清空重建）；旧本机开发 Home 直接删除并干净重建。
+- 通用升级引擎代码（Plan A）仅休眠保留在仓库中；存储升级链与合同读取兼容均统一自 1.0.0 首次装到开发机之外的版本起启用（见 [CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 与 [升级连续性](../../specs/upgrade-continuity/spec.md)）。
 
 ## 6. 交付状态与尚缺项
 
-- 内置插件 Manifest 版本跟宿主版本（W5-15）已在原 0.3.0 候选完成，N34 将当前源码一起复位 0.1.0；新候选的最终构建、登记与安装仍须单独验证，正式发布取决于检查清单和发行物。
-- 检查「内置清单摘要变了而版本没升」的机制：选了做法 A 以后不需要，不做（第 7.6 节第 3 条）：Runtime 对内置插件的任何摘要变化都跟。非内置的插件（装的、生成的）规则没变，仍靠版本号和 `upgrade_compatibility`。
-- 产品里的备份与升级命令：现在备份是离线整份拷贝（`docs/installation.md`「离线备份与恢复边界」），库版本变了的发布靠发布者提供一次性维护流程（检查清单第 4 节）。用户 2026-10-08 定了方向：离线快照命令 `molis-work home snapshot --to <目录>` 加覆盖所有登记库的「卸载并清除数据」，路线图 W5-16，依赖 W4-11 的统一库登记表；定时在线备份留给 C 端就绪方案（`docs/prompts/repository-anti-corruption.md` §4.19）。
+- 内置插件 Manifest 版本跟宿主版本（W5-15）已落地并在 0.1.0 统一，Runtime 对 `HOST_BUILD_TRUST` 内置插件自动跟随当前构建（第 7 节）；非内置插件（第三方签名包、生成插件）仍走版本号与 `upgrade_compatibility`。
+- 离线快照与恢复命令 `molis-work home snapshot` / `home restore` 已实现（见 `docs/installation.md`「离线备份与恢复边界」）；定时在线备份留给后续 C 端就绪方案。
 - 自动发布：`release-macos.yml` 只能手动触发；公开安装包需要 Developer ID 签名与 Apple 公证（`docs/installation.md`）。
-- 账号采用（2026-10-27 用户已定，BL-021）：使用已有个人 Apple Developer 账号，后续接入签名与公证；正式 OAuth 应用优先由公司管理，按[服务接入需求](../../specs/assistant-service-connections/spec.md)逐家核对资格与例外，两项分别管理。当前只确定采用安排，账号有效状态、Team、证书、公证凭据、流水线及最终发行物仍待实施时核验；本次未读取或配置凭据，未执行签名、公证或发布。完成证据按 [发布检查清单](CHECKLIST.md)保留。
+- 账号采用（2026-10-27 用户已定，BL-021）：使用已有个人 Apple Developer 账号，后续接入签名与公证；正式 OAuth 应用优先由公司管理，按[服务接入需求](../../specs/assistant-service-connections/spec.md)逐家核对资格与例外，两项分别管理。当前只确定采用安排，账号有效状态、Team、证书、公证凭据、流水线及最终发行物仍待实施时核验。
 
 ## 7. 内置插件清单版本跟宿主版本（W5-15）：Runtime 一律跟当前构建（用户 2026-10-08 选做法 A，已实现）
 
@@ -205,10 +199,10 @@ A 已经落地（第 7.8 节），下面是落地之前的临时规则，保留�
 - **授权。** 与其他插件同一规则（用户 2026-10-18，防腐 spec §1「内置插件的授权」）：必需的权限总有，可选的按人留下的给，可选的都能关（Runtime 的 `runtime.grant`，插件先停），关了只是用到它的动作不可用（`action-provider.ts` 的 `actions.plugin_permission`），插件照常运行。开关在项目设置的插件页（PG-002，S-94）：本人经 `plugins.permissions.set@1` 对这个项目里装的插件逐项开关，关掉时先收回运行中那次激活的权限、再停—改—起（`PluginRuntime.regrant`），放宽 `actions:delegate`、`network:*`、`secret:*`、`model:invoke` 前页面先弹一次确认；个人空间里自己运行的插件（Manifest `runtime.scope: "home"`）有同样的开关，列在同一页的项目插件下面，走宿主设置入口（`plugins.home.permissions.set@1`，BL-700）；`runtime.grant` 仍可收窄。内置插件的不同只在起点：全新安装时可选的默认都开，条目自己的 `grants` 不看（`PluginRuntime.install` 带 `bundled` 时用 `bundledGrants`），所以没人动过权限时内置插件和以前一样。之后三个方向用同一条规则（`bundledGrants` 带记录的授权）：同一构建的启动按记录重放，不补回人关掉的，也不当成静默改 grant；跟随新构建（`followBundledBuild`）时，新清单不再声明的去掉，必需的补上（原来可选、新清单改成必需的也补上），记录持有、新清单仍声明的保留，新清单声明而记录自己那个构建没声明的，像新装一样默认打开。「记录自己那个构建声明了什么」读发行物存档里记录的（版本，摘要）那一行的清单（监督器的 `startInstallInput`，交给 `install` 的 `declared_before`）；每次启动都先把当前构建存档再安装，所以记录自己的那一行总在；找不到时只补必需的，不打开任何可选的，人关掉的不会被启动打开。**已知窗口（P3）：** 存档里没有记录自己那个版本的一行时，新构建新声明的可选权限一项也不给，而项目设置的插件页（PG-002、BL-700）有开关，Manifest 声明、记录里没有的那些，这一项也能由本人打开。今天只有开发机会遇到：还没有装到开发机之外的版本，每个内置条目都带发行物存档（`releaseArtifact`），那一行只在手动清过存档、或记录来自条目还没有存档的早期构建时才缺，所以先记下，不另做补救。已有记录缺了必需的权限（同一构建也一样）时启动把它补上，不报 `plugin.state_invalid`（`recordToFollow`）；只缺可选的不是跟随的理由。同版本改清单时新增的权限像新装一样自动授予，不再是启动失败 `plugin.state_invalid`；这是 A 的已知代价（第 7.5 节表）。**沿革：** A 落地时的规则是「记录里新清单仍声明的授权保留，必需的补上，不再声明的去掉」（#237 的向上跟），可选的不会自己补上；2026-10-10（W3-06 B）改成内置插件一律拿清单声明的全部权限、不能逐项关掉（用 `runtime.grant` 收窄，下次启动恢复），因为当时没有地方能逐项撤销、迁来的插件用到的可选权限又不能少；2026-10-18 改成现在这条，项目设置里的开关随 PG-002 落地（S-94）。现存记录在 10-10 那条规则下每次启动都补齐过，所以都持有构建声明的全部权限，换规则不用迁移数据。
 - **监督器。** `directlyUsable`（同一个文件，`#resolveInstalledEntry` 调用）对 `bundled` 条目恒为真：不再去恢复任何存档发行物，不管是旧版本的还是旧摘要的，存档不在也不再是 `plugin_release_artifact_missing`。当前构建的发行物照旧在启动时写进 `plugin_runtime_release_artifacts`，所以记录自己的（版本，摘要）在表里总有一行（Schedule 提醒按它取插件的标题）。`upgradeCandidates()` 不列 `bundled` 条目：它们启动时就跟上了，市场没有要确认的。
 - **没有变的。** 非内置的插件（装的、生成的）规则一字没改：版本更低、版本更高但没有声明来源、同版本不同摘要，Runtime 仍分别以 `plugin.upgrade_required`、`plugin.upgrade_required`、`plugin.definition_conflict` 拒绝，监督器仍恢复存档的发行物，存档不在时 `plugin_release_artifact_missing`；同版本声明自己为来源仍只让改过的构建运行而不动记录。已卸载的记录也没有变：它不是「跟」，是确认安装，保留数据时「只向上」的限制照旧（`keptDataRefusal`，`tests/plugin-lifecycle-states.test.ts`）。代码里没有任何路径对这 7 个内置插件调 `runtime.uninstall`（只有官方集成、插件开发和装进来的插件调它），所以今天碰不到这条边界；哪天内置插件能被卸载，重装时的保留数据规则要再定。 `bundled`（现在是 `host` 等级）只给宿主自己运行的代码（W3-06 D）：`PluginRuntime.install` 对 `host` 等级加沙箱定义一律以 `plugin.grant_denied` 拒绝（`assertTrustFitsExecution`），不论带不带 `grants`，所以沙箱插件的授权始终是人确认的那一份，不会因为启动名单上误标 `bundled` 而拿到清单声明的全部（`tests/bundled-plugin-grants.test.ts` 最后一条）。
-- **不做迁移。** 跟的时候不调插件的 `validateUpgrade`，也不捕获和恢复私有数据；这和 #237 的向上跟一样。版本跟随本身不保证旧数据可读；N34 的 0.1.0 统一起点按检查清单第 4 节干净重建，不沿旧 Home 做数据降级或搬迁。
+- **不做迁移。** 跟的时候不调插件的 `validateUpgrade`，也不捕获和恢复私有数据；这和 #237 的向上跟一样。版本跟随本身不保证旧数据可读；开发前阶段不兼容的旧开发 Home 按检查清单第 4 节直接清空并干净重建。
 - **代价。** 同第 7.5 节表里 A 一行：多一条永久的向下规则，旧版本宿主打开新 Home 时会把记录改回自己带的版本。
 - **用例。** `tests/plugin-release-artifact.test.ts`：「a bundled Manifest below the installed version is followed …」「a bundled Manifest changed without a new version is followed …」换下了固定旧规则的两条；另有往返、三个方向的授权收敛（记录持有构建声明的全部时，结果是新清单声明的全部）、同版本声明对内置插件无效且新增必需权限照授予、`PluginRuntime.install` 本身、部署环境不变、内置插件不进市场更新列表；非内置插件的旧行为由原来两条的原文（去掉 `bundled`）和一条新的拒绝用例固定。`tests/bundled-plugin-grants.test.ts`：可选权限随全新安装打开；人关掉的可选权限在同一构建连续启动时保持关着、不报 `plugin.state_invalid`，重新打开的也保持打开；跟随新构建时关掉的仍关着、新声明的可选权限打开、改成必需的补上、不再声明的去掉；条目自己传较窄 `grants` 时首次安装就是全部、连续启动五次都不失败；`PluginRuntime.install` 带 `bundled` 时不看 `grants`，带 `declared_before` 时只打开记录自己那个构建没声明的，不带时不打开任何可选的。`tests/plugin-release-artifact.test.ts` 另有经真实存档的两条：关掉的可选权限跟随时仍关、存档没了时不打开任何可选的。`tests/plugin-upgrades.test.ts`：真实项目启动路径（7 个条目、真实发行物）下，安装记录高于构建、或同版本不同清单，都在启动时跟上。
-- **当前落实与待验。** 全部内置清单已跟产品同版，`scripts/verify-release-versions.mjs` 核对源码，`tests/plugin-declaration-rules.test.ts` 核对构建目录；插件开发 Skill 已区分内置与独立发布的版本规则。N34 源码复位为 0.1.0 后，另在最终构建上验证登记、降版跟随和隔离安装，并按检查清单第 4.5 节取得全部清单摘要；真实 Home 的备份、干净重建与安装记录核对在维护窗口执行。
+- **当前落实。** 全部内置清单已跟产品同版，`scripts/verify-release-versions.mjs` 核对源码，`tests/plugin-declaration-rules.test.ts` 核对构建目录；插件开发 Skill 已区分内置与独立发布的版本规则。
 
 ### 7.9 版本跟随算安装信任（ac-trust，PG-016）
 

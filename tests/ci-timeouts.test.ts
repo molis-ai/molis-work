@@ -29,10 +29,6 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean; 
   "security-invariants-macos": { limit: 45, longest: 0, blocking: true },
   // Measured on the same window when it joined the table (2026-10-31): 939 s at the longest of 422 successful jobs.
   "product-subset": { limit: 35, longest: 939, blocking: true },
-  // Measured on the one run there was when they joined the table (run 42410763603, 2026-11-07): 203 s on Linux, 334 s on macOS. One run each, so later runs are what to
-  // read next; the limit is the blocking floor either way.
-  "golden-replay": { limit: 30, longest: 203, blocking: true },
-  "golden-replay-third-party": { limit: 30, longest: 334, blocking: true },
 };
 /** The shared setup-work step covers Node, pnpm install (longest 66 s), cache restore, and pnpm install. */
 const SETUP_WORK = { limit: 8, longest: 180 };
@@ -107,7 +103,7 @@ test("RAC-1906 ci.yml: every setup-work step (including Install pnpm and pnpm in
       assert.ok(SETUP_WORK.limit * 60 >= 1.8 * SETUP_WORK.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 10, "the ten blocking job definitions that install pnpm and dependencies through setup-work");
+  assert.equal(seen, 8, "the eight blocking job definitions that install pnpm and dependencies through setup-work");
   for (const [name, entry] of Object.entries(JOBS)) {
     assert.equal(setupWorkSteps(jobBlock(name)).length, entry.setupWork === false ? 0 : 1, `${name} setup-work count`);
   }

@@ -78,22 +78,6 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const nameMain=(work)=>{if(work&&work.main)work.title=work.character?work.character.title:globalThis.t.text("workbench.assistant-tabs.main-conversation");return work;};
   const named=(res)=>{if(res&&res.work)nameMain(res.work);if(res&&Array.isArray(res.works))res.works.forEach(nameMain);return res;};
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")}).then(named);
-  let executorRequest = 0, executorsFor = null, executorsLoaded = Promise.resolve();
-  const loadExecutors = () => {
-    if (!project) { executorsFor = null; executorsLoaded = Promise.resolve(); return executorsLoaded; }
-    const targetId = project.id, request = ++executorRequest;
-    executorsFor = targetId;
-    const promise = api("/executors").catch(() => null).then((result) => {
-      if (request !== executorRequest) return;
-      if (!result) { if (executorsFor === targetId) executorsFor = null; return; }
-      executors = result.executors || [];
-      if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant";
-      paintAim(); paintSum();
-    });
-    executorsLoaded = promise;
-    return promise;
-  };
-  const ensureExecutors = () => project && executorsFor !== project.id ? loadExecutors() : executorsLoaded;
   loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, readText("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });

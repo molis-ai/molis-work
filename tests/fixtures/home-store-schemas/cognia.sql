@@ -1,4 +1,4 @@
--- Frozen complete current baseline; test-only schema, no real Home receipt.
+-- Frozen complete current baseline of the plugin's library in each partition (<partition>/libraries/cognia.db, batch 108); test-only schema, no real Home receipt.
 
   CREATE TABLE cognia_domains (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
   CREATE TABLE cognia_sources (id TEXT PRIMARY KEY,body TEXT NOT NULL);

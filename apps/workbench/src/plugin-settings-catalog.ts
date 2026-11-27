@@ -83,7 +83,7 @@ export function pluginSettingsNavItemsFrom(
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));
 }
 
-/** The settings pages of the plugins the context shows (`shown`, as the Host works it out: personal ones unless hidden, and the enabled ones). */
+/** The settings pages of the plugins the context shows (`shown`, as the Host works it out: the ones the partition has). */
 export function listPluginSettingsNavItems(shown: readonly string[] = []): PluginSettingsNavItem[] {
   const scope = [...new Set(shown)] as ProjectPluginId[];
   const placed = settingsEntries(scope);

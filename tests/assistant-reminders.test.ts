@@ -3,90 +3,63 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AssistantNotice } from "@molis-ai/molis-work-contracts/services/assistant";
 import { DatabaseSync } from "node:sqlite";
-import { assertDueReminderWindow, defineDueRemindersAction, withinDueReminderWindow, type ActionCallContext, type DueReminder, type DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { LocalHost, AssistantStore, AssistantService } from "@molis-ai/molis-work-app-local-host";
+import { AssistantStore, AssistantService, onPartitionReminder, tellPartitionReminder, type PartitionReminder } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { addProjectPlugin, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 
-const due = defineDueRemindersAction("fixture.todo.reminders.due", 1, ["todo"], "到期提醒", ["todo:read"]);
+const reminder = (over: Partial<PartitionReminder>): PartitionReminder => ({ partition_id: "project-a", plugin_id: "io.molis.work.todo", install_id: "todo-install",
+  entry_key: "task:t1", due_at: "2026-09-29T09:03:00Z", late: false, source_title: "待办", title: "给王总回电话", open: { surface: "todo", id: "t1" }, ...over });
 
-test("a due-reminders query is declared in the Home with the whole contract", () => {
-  assert.deepEqual(inspectActionDeclarations([due], undefined), []);
-  const inProject = { ...due, action: { ...due.action, scope: "project" as const } };
-  assert.match(inspectActionDeclarations([inProject], undefined).join(), /到期提醒查询/);
-  const loose = { ...due, action: { ...due.action, output_schema: { type: "object" } } };
-  assert.match(inspectActionDeclarations([loose], undefined).join(), /到期提醒查询/);
-  assert.throws(() => assertDueReminderWindow({ from: "2026-09-29T10:00:00Z", to: "2026-09-29T09:00:00Z" }), /窗口无效/);
-  assert.equal(withinDueReminderWindow("2026-09-29T09:30:00Z", { from: "2026-09-29T09:00:00Z", to: "2026-09-29T10:00:00Z" }), true);
-});
-
-test("a reminder the person set is told once when it comes due, where to open it, under their rules; one missed while off says so", async () => {
-  let clock = new Date("2026-09-29T09:00:00Z");
-  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  // Two reminders the person set: one at 09:03 in a project, one at 09:30 in the personal space.
-  const reminders: DueReminder[] = [
-    { reminder_id: "t1@0903", due_at: "2026-09-29T09:03:00Z", title: "给王总回电话", subject: { kind: "todo", id: "t1" }, project_id: "project-a", open: { surface: "todo", id: "t1" } },
-    { reminder_id: "t2@0930", due_at: "2026-09-29T09:30:00Z", title: "交报销单", subject: { kind: "todo", id: "t2" }, project_id: null, open: { surface: "todo", id: "t2" } },
-  ];
-  const asked: DueReminderWindow[] = [];
-  let failing = false;
-  const unregister = local.actionRegistry().registerProvider({ provider: { provider_id: "fixture.todo", kind: "plugin", title: "待办" }, definitions: [due],
-    handlers: [{ ...due, handle(_context, input) {
-      const window = input as DueReminderWindow;
-      assertDueReminderWindow(window);
-      asked.push(window);
-      if (failing) throw new Error("待办暂时读不到");
-      return { source: { surface: "todo", title: "待办" }, reminders: reminders.filter(item => withinDueReminderWindow(item.due_at, window)) };
-    } }] });
-  const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read"] };
+// Batch 108: the Host no longer asks the plugins for reminders each minute. A reminder time in a partition's overview table (or an entry
+// the plugin registered) falls due in the due registry, only that plugin in that partition is woken, and its reminder reaches the Assistant.
+test("a reminder that fell due in a partition is told once, where to open it, under the person's rules; one reached late says so", async () => {
+  const clock = new Date("2026-09-29T09:04:00Z");
   const store = new AssistantStore(new DatabaseSync(":memory:"), () => clock);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
-    homeActions: async () => ({ discover: () => local.homeActionClient().discover(person), invoke: (action, input) => local.homeActionClient().invoke(person, action, input) }),
     timeZone: "Asia/Shanghai" }, "web-user", () => clock);
-  try {
-    // Nothing is due yet; the first look reaches back only a few minutes.
-    assert.equal(await service.followUps.sweepReminders(), 0);
-    assert.equal(asked[0]!.from, "2026-09-29T08:50:00.000Z");
-    clock = new Date("2026-09-29T09:04:00Z");
-    assert.equal(await service.followUps.sweepReminders(), 1);
-    assert.equal(asked[1]!.from, "2026-09-29T09:00:00.000Z", "each look starts where the last stopped");
-    let notices = service.notices.notices("pages");
-    assert.deepEqual(notices.map(notice => [notice.kind, notice.work_id, noticeText(notice), notice.open]), [["reminder", "", "提醒（待办 · 17:03）：给王总回电话", { surface: "todo", id: "t1", title: "给王总回电话", project_id: "project-a" }]]);
-    // Told once, however often it is looked at.
-    assert.equal(await service.followUps.sweepReminders(), 0);
+  assert.equal(service.followUps.tellReminder(reminder({})), true);
+  let notices = service.notices.notices("pages");
+  assert.deepEqual(notices.map(notice => [notice.kind, notice.work_id, noticeText(notice), notice.open]), [["reminder", "", "提醒（待办 · 17:03）：给王总回电话", { surface: "todo", id: "t1", title: "给王总回电话", project_id: "project-a" }]]);
+  // Told once, however often the same occurrence is handed over (a wake retried after a failure, say).
+  assert.equal(service.followUps.tellReminder(reminder({})), false);
+  assert.equal(service.notices.notices("pages").length, 1);
 
-    // The person's quiet rule holds it on that page unless reminders are an exception.
-    service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "写文档时不要提醒" });
-    assert.equal(service.notices.notices("pages")[0]!.held?.reason, "写文档时不要提醒");
-    assert.equal(service.notices.notices("goals")[0]!.held, undefined);
-    service.followUps.saveRule({ kind: "quiet", surfaces: ["goals"], except: ["reminder"], label: "看目标时不要提醒，我设的提醒除外" });
-    assert.equal(service.notices.notices("goals")[0]!.held, undefined);
+  // The person's quiet rule holds it on that page unless reminders are an exception.
+  service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "写文档时不要提醒" });
+  assert.equal(service.notices.notices("pages")[0]!.held?.reason, "写文档时不要提醒");
+  assert.equal(service.notices.notices("goals")[0]!.held, undefined);
+  service.followUps.saveRule({ kind: "quiet", surfaces: ["goals"], except: ["reminder"], label: "看目标时不要提醒，我设的提醒除外" });
+  assert.equal(service.notices.notices("goals")[0]!.held, undefined);
 
-    // Settling a reminder settles only it: it belongs to no work.
-    assert.equal(service.notices.settleNotices({ work_id: "" }, "seen"), 0);
-    assert.equal(service.notices.settleNotices({ notice_id: notices[0]!.notice_id }, "seen"), 1);
+  // Settling a reminder settles only it: it belongs to no work.
+  assert.equal(service.notices.settleNotices({ work_id: "" }, "seen"), 0);
+  assert.equal(service.notices.settleNotices({ notice_id: notices[0]!.notice_id }, "seen"), 1);
 
-    // A Plugin that cannot answer is asked again for the same stretch; once it answers, a reminder missed meanwhile says so.
-    failing = true;
-    clock = new Date("2026-09-29T09:50:00Z");
-    assert.equal(await service.followUps.sweepReminders(), 0);
-    failing = false;
-    clock = new Date("2026-09-29T09:51:00Z");
-    assert.equal(await service.followUps.sweepReminders(), 1);
-    assert.equal(asked.at(-1)!.from, "2026-09-29T09:04:00.000Z");
-    notices = service.notices.notices("goals");
-    assert.deepEqual(notices.map(notice => [noticeText(notice), notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", null]]);
-  } finally { unregister(); await local.close(); }
+  // The same item at a new time is a new reminder; one reached while the Host was off says it was missed and opens in the personal space.
+  assert.equal(service.followUps.tellReminder(reminder({ partition_id: "personal", entry_key: "task:t2", due_at: "2026-09-29T09:30:00Z", late: true, title: "交报销单", open: { surface: "todo", id: "t2" } })), true);
+  notices = service.notices.notices("goals");
+  assert.deepEqual(notices.map(notice => [noticeText(notice), notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", "personal"]]);
 });
 
+test("a reminder reaches the Assistant of its own Home only, and is refused while nobody takes reminders so its due entry is tried again", () => {
+  const told: string[] = [];
+  assert.throws(() => tellPartitionReminder("/nowhere/home-a", reminder({})), { code: "actions.plugin_unavailable" });
+  const stop = onPartitionReminder("/nowhere/home-a", item => { told.push(item.entry_key); });
+  try {
+    tellPartitionReminder("/nowhere/home-a", reminder({}));
+    assert.throws(() => tellPartitionReminder("/nowhere/home-b", reminder({ entry_key: "task:other" })), { code: "actions.plugin_unavailable" });
+    assert.deepEqual(told, ["task:t1"]);
+  } finally { stop(); }
+  assert.throws(() => tellPartitionReminder("/nowhere/home-a", reminder({})), { code: "actions.plugin_unavailable" }, "after stopping, nobody takes it");
+});
 
-// W2-18-S8-TODO-01: real Todo owner → declared due-reminders action → the running service's own reminder timer.
-test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistant notice", { timeout: 60_000 }, async t => {
-  t.mock.timers.enable({ apis: ["setInterval"] });
+// W2-18-S8-TODO-01: real Todo in the personal space → its overview row's reminder time → the due registry wakes that Todo → one Assistant notice.
+test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistant notice", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "todo-assistant-timer-")), previous = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const token = "todo-reminder-test-token-012345678901234", server = createDesktopWebCore({ ptyClientFilePath: () => "unused" })({ homeDirectory: home, controlToken: token });
@@ -98,26 +71,23 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
       "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "todo-reminder-" + (++requests) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     assert.equal(response.status, 200, await response.clone().text()); return response.json();
   };
+  const noticesOf = async () => (await request("/api/assistant/notices") as { notices: AssistantNotice[] }).notices.filter(notice => noticeText(notice).includes("Read the actual overdue draft"));
   try {
-    t.mock.timers.tick(60_000); await new Promise(resolve => setTimeout(resolve, 25));
-    const created = await request("/api/plugins/io.molis.work.todo/items", { title: "Read the actual overdue draft", placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() }) as { item: { id: string } };
-    await new Promise(resolve => setTimeout(resolve, 25)); t.mock.timers.tick(60_000);
-    const deadline = Date.now() + 10_000;
+    await addProjectPlugin(new LocalHostHttpClient({ origin, controlToken: token }), PERSONAL_SPACE_PROJECT_ID, "todo");
+    const created = await request(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/plugins/io.molis.work.todo/items`, { title: "Read the actual overdue draft",
+      remind_at: new Date(Date.now() + 200).toISOString() }) as { item: { id: string } };
+    const deadline = Date.now() + 15_000;
     let notices: AssistantNotice[] = [];
-    do {
-      notices = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => noticeText(notice).includes("Read the actual overdue draft"));
-      if (notices.length) break;
-      assert.ok(Date.now() < deadline, "the actual service reminder timer did not report Todo");
-      // The timer's next minute: a sweep still running from the Host's start skips this tick (one sweep at a time), so a slower
-      // machine needs the one after; each tick is the real timer, nothing here asks the reminders directly.
-      await new Promise(resolve => setTimeout(resolve, 200)); t.mock.timers.tick(60_000);
-    } while (true);
+    // Nothing here asks for reminders: the due registry's own timer falls due and wakes Todo in this partition.
+    while (!(notices = await noticesOf()).length) {
+      assert.ok(Date.now() < deadline, "the due registry did not wake Todo for its reminder");
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
     assert.equal(notices.length, 1); assert.equal(notices[0]!.kind, "reminder");
     assert.match(JSON.stringify(notices[0]), new RegExp(created.item.id));
-    const first = notices[0]!.notice_id;
-    t.mock.timers.tick(60_000); await new Promise(resolve => setTimeout(resolve, 25));
-    const again = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => noticeText(notice).includes("Read the actual overdue draft"));
-    assert.deepEqual(again.map(notice => notice.notice_id), [first], "actual Todo and the timer's persistent notice dedupe agree");
+    assert.equal(notices[0]!.open?.project_id, PERSONAL_SPACE_PROJECT_ID, "the notice opens the todo where it is");
+    await new Promise(resolve => setTimeout(resolve, 500));
+    assert.deepEqual((await noticesOf()).map(notice => notice.notice_id), [notices[0]!.notice_id], "a settled entry is not told again");
   } finally {
     server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous;

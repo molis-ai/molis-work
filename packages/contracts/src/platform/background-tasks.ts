@@ -8,9 +8,10 @@ import { OPEN_TARGET_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, type OpenTarget } from ".
 
 /**
  * The table of background tasks (specs/work-line §6): the work that is being done or waits on the person behind the events of
- * the line, whoever does it. A provider declares one project-scope, read-only query of these types with `home_aggregate`; the
- * Host asks it in every open project (S-49), and the task panel, the line and the Home's title bar read the same answers. The page
- * knows no provider: what a row is, whom it serves, where it opens and how it is stopped all come from the row.
+ * the line, whoever does it. A provider declares one project-scope, read-only query of these types; the project's task panel and line
+ * read its answers (S-49). The Home's title bar reads the `background_task` overview rows the provider writes with its data, across
+ * partitions and without opening one (specs/unified-partition-plugins §6.1, V17). The page knows no provider: what a row is, whom it
+ * serves, where it opens and how it is stopped all come from the row.
  */
 export const BACKGROUND_TASKS_INPUT_TYPE = /* @version type.molis.background-tasks.query "molis.background-tasks.query.v{version}" */ "molis.background-tasks.query.v1";
 export const BACKGROUND_TASKS_OUTPUT_TYPE = /* @version type.molis.background-tasks.collection "molis.background-tasks.collection.v{version}" */ "molis.background-tasks.collection.v1";
@@ -121,7 +122,7 @@ export const BACKGROUND_TASK_COLLECTION_SCHEMA = { type: "object", properties: {
 
 export function defineBackgroundTasksAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<Record<string, never>, BackgroundTaskCollection> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "读取本项目里正在办、或等着你处理的后台任务，给后台任务面板、事项线与首页标题栏；只读，不会执行任务上的动作。",
-    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions, subject_kinds: kinds, home_aggregate: true,
+    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions, subject_kinds: kinds,
     input_type: BACKGROUND_TASKS_INPUT_TYPE, output_type: BACKGROUND_TASKS_OUTPUT_TYPE,
     input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }), output_schema: BACKGROUND_TASK_COLLECTION_SCHEMA } };
 }

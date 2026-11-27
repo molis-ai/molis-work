@@ -178,5 +178,17 @@
     "sceneDirectoryRows": 0,
     "ownerResolutions": 6,
     "shippedRegistrationRows": 2112
+  },
+  "personalOverview": {
+    "prepareContext": 0,
+    "inspectActions": 0,
+    "discover": 0,
+    "discoverScenes": 0,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0,
+    "actionDirectoryRows": 0,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 1,
+    "shippedRegistrationRows": 20
   }
 }

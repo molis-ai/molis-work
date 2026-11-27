@@ -28,6 +28,11 @@ export interface FeedRuntimePorts extends Pick<FeedAssemblyPorts, "sql" | "atten
    * when it ends, so nothing kept from `body` can write later.
    */
   within<T>(transaction: PluginProjectDatabaseTransaction, actorId: string, body: () => T): T;
+  /**
+   * What runs at the end of every `within`, still bound to its transaction: Feed's rows in the overview (V17), written again with each
+   * write so the Home reads them without asking the project. Set once, after the application is assembled.
+   */
+  summarizeWith(summarize: (transaction: PluginProjectDatabaseTransaction) => void): void;
 }
 
 interface Bound { readonly transaction: PluginProjectDatabaseTransaction; readonly sql: FeedSql; readonly actorId: string }
@@ -42,6 +47,7 @@ export function createFeedRuntimePorts(services: FeedRuntimeServices): FeedRunti
   const reader = fromPluginReader(services.database);
   let bound: Bound | null = null;
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
+  let summarize: ((transaction: PluginProjectDatabaseTransaction) => void) | undefined;
   const current = (): FeedSql => bound?.sql ?? reader;
   const writing = (): Bound => bound ?? notBound();
   const inProject = (projectId: string): void => {
@@ -107,7 +113,12 @@ export function createFeedRuntimePorts(services: FeedRuntimeServices): FeedRunti
     within: (transaction, actorId, body) => {
       if (bound) throw new ActionError("actions.execution_failed", "Feed's ports are already bound to a transaction");
       bound = { transaction, sql: fromPluginTransaction(transaction), actorId };
-      try { return body(); } finally { bound = null; }
+      try {
+        const result = body();
+        summarize?.(transaction);
+        return result;
+      } finally { bound = null; }
     },
+    summarizeWith: value => { summarize = value; },
   };
 }

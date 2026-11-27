@@ -13,13 +13,16 @@ import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 // 90 s: the loaded Linux full-suite runner took 45.8 s on main (#2315) and timed out at 45 s twice on batch 106; 14 s on a development machine.
 test("standard MCP clients share Jelly rows, keep their permissions and can undo a delete after a client restart", { timeout: 90_000 }, async t => {
   const homes = await Promise.all([openTestHome(t), openTestHome(t)]);
+  // Jelly works in a partition (batch 108): each Home's clients are bound to one project that has it.
+  const projects = new Map(await Promise.all(homes.map(async home => [home, await home.createProject("Calendar", ["jelly"])] as const)));
   const clients: Client[] = [];
   const grant = residentMcpGrants();
   const connect = async (resident: TestHome, access = "write") => {
     const actor = `runtime:fixture-${access}`, permissions = access === "read" ? ["jelly:read"] : JELLY_ACTION_PERMISSIONS;
-    await grant(resident, null, actor, "jelly", permissions);
+    const project = projects.get(resident)!;
+    await grant(resident, project.project_id, actor, "jelly", permissions);
     const client = new Client({ name: "external-jelly", version: "1" }); clients.push(client);
-    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/jelly-mcp-server.ts", import.meta.url)), resident.home, `fixture-${access}`, resident.origin], stderr: "pipe" });
+    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/jelly-mcp-server.ts", import.meta.url)), resident.home, `fixture-${access}`, resident.origin, project.database_path, project.project_id], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
@@ -48,6 +51,6 @@ test("standard MCP clients share Jelly rows, keep their permissions and can undo
     const restarted = await connect(homes[0]!);
     await call(restarted, "restore", { rows: restore });
     assert.equal((await call(reader, "note.get", { id: note.id })).note.body, "核对真正的结果");
-    const store = openJellyStore(homes[0]!.home); try { assert.equal(store.read(s => s.get("note", note.id))?.title, "外部笔记"); } finally { store.close(); }
+    const store = openJellyStore(homes[0]!.home, projects.get(homes[0]!)!.project_id); try { assert.equal(store.read(s => s.get("note", note.id))?.title, "外部笔记"); } finally { store.close(); }
   } finally { await Promise.all(clients.map(client => client.close())); }
 });

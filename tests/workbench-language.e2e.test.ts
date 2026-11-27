@@ -5,9 +5,10 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ASSISTANT_STORE_NAME, AssistantStore, homeAgentDefinitions, hostTextProblems, openProjectVersionStores, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { ISSUES_PAGE, personalIssues } from "./fixtures/issue-browser.js";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
@@ -994,8 +995,9 @@ function holdIssueOpening(t: TestContext, b: LanguageBrowser) {
 
 test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized projection and retains the draft", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await personalIssues(b);
   const child = await pluginFrameBrowser(t, b, "issues");
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(ISSUES_PAGE) }, b.sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
   await child.frameCommand("Runtime.evaluate", {
     expression: `(() => {
@@ -1012,8 +1014,9 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
     window.liveIssueFrame = document.querySelector('iframe[data-plugin-frame=issues]'); window.wordsRequests = [];
     const transport = window.molisWorkUiTransport;
     window.molisWorkUiTransport = (url, init) => {
-      const path = new URL(url);
-      if (path.pathname === '/api/ui/locales') {
+      const path = new URL(typeof url === 'string' ? url : url.url, location.href);
+      // The frame's words come from its partition's route (/projects/personal/api/ui/locales for the personal space's Issues, batch 108).
+      if (path.pathname.endsWith('/api/ui/locales')) {
         wordsRequests.push([path.searchParams.get('locale'), path.searchParams.getAll('page').length]);
         if (path.searchParams.get('locale') === 'en') return fetch(url, init).then(async response => {
           if (!response.ok) return response;
@@ -1026,9 +1029,13 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
   })()`);
   const described = Promise.withResolvers<void>();
   void described.promise.catch(() => undefined);
+  // Only the page's own words get the fixture's conventions. The personal space's Issue capture view, preloaded beside the page in its own
+  // document since batch 108, loads the same asset and takes it as served.
+  const { frameTree } = await b.command<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree", {}, b.sessionId);
   const stop = b.on("Fetch.requestPaused", (event, session) => {
     if (session !== b.sessionId) return;
     const requestId = String(event.requestId);
+    if (event.frameId !== frameTree.frame.id) { void b.command("Fetch.continueRequest", { requestId }, session).catch(() => undefined); return; }
     void (async () => {
       const result = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, session);
       const source = result.base64Encoded ? Buffer.from(result.body, "base64").toString("utf8") : result.body;
@@ -1069,22 +1076,25 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
 
 test("S-ui-text-page FSS-08 stopping the real plugin during the opening locale batch denies frame config", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await personalIssues(b);
   const { entered, finish } = holdIssueOpening(t, b);
   const child = await pluginFrameBrowser(t, b, "issues");
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/plugins/issues" }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + ISSUES_PAGE }, b.sessionId));
   await entered.promise;
   await child.waitFor("document.querySelector('meta[name=molis-work-frame-mount]') && typeof t === 'undefined'");
-  // The actual Home Plugin Supervisor withdraws the running installation while the actual HTTP scope check is waiting.
-  await b.web.post("/api/plugins/" + ISSUE_OWNER + "/disable", {});
+  // The personal space's plugin supervisor withdraws the running instance (Issues is removed from the space) while the actual HTTP scope check
+  // is waiting (batch 108: Issues is a partition plugin, no longer a Home one).
+  await b.web.delete(`/api/settings/projects/${PERSONAL_SPACE_PROJECT_ID}/plugins`, { plugin_id: "issues", expected_revision: await projectPluginRevision(b.web, PERSONAL_SPACE_PROJECT_ID) });
   finish.resolve();
-  await b.waitFor("!document.querySelector('iframe[data-plugin-frame=issues]') && !document.querySelector('[data-home-status]').hidden", 15000);
-  assert.equal(await b.evaluate("document.querySelector('[data-work-surface=issues]').dataset.uiClientState"), "failed");
+  await b.waitFor("!document.querySelector('iframe[data-plugin-frame=issues]')", 15000);
+  assert.equal(await b.evaluate("document.querySelector('[data-work-surface=issues]').dataset.uiClientState"), "failed", "the frame is denied its config and says so");
 });
 
 test("FSS-20 FSS-37 a frame still opening when Settings changes the language draws all its words before running the plugin", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await personalIssues(b);
   const child = await pluginFrameBrowser(t, b, "issues");
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(ISSUES_PAGE) }, b.sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
   await child.evaluate(`(() => {
     const draft = document.querySelector('[data-issue-composer] textarea');
@@ -1932,6 +1942,8 @@ test("FSS-20 FSS-34 FSS-35 FSS-36 full live zh → en → ja → zh switching ac
   // 2. Full Project Workbench: Shell + Side Panel + Split-Pane Clone + IM + Plugin Stage (issues) + Non-ja fallback plugin (shelf).
   const select = await openLanguageSettings(t, b);
   const issuesFrame = await pluginFrameBrowser(t, b, "issues");
+  // Issues runs in each partition since batch 108: the project's own Issues is its plugin stage.
+  await addProjectPlugin(b.web, b.projectId!, "issues");
   const projectPath = `/projects/${b.projectId}/?desktop=1&openPlugin=issues`;
   await b.navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=" + encodeURIComponent(projectPath) }, sessionId));
   await waitFor("document.documentElement.lang === 'zh-CN' && !!document.querySelector('[data-side-tabs]') && !!document.querySelector('[data-tab-pane]')", 25_000);

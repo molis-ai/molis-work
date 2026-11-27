@@ -168,7 +168,7 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
  */
 function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
   return { ...BUILTIN_PLUGIN_REGISTRY,
-    isPersonal: pluginId => BUILTIN_PLUGIN_REGISTRY.isPersonal?.(pluginId) === true || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
+    isPersonal: pluginId => homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
 }
 
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
@@ -232,7 +232,7 @@ export class MolisWorkProjectCatalog {
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.stageHiddenProject = this.personalProjects.stageHiddenProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
-    this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
+    this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p));};
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.terminalPanels.deleteForProject(projectId),

@@ -5,6 +5,7 @@ import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { AssistantService } from "./assistant/assistant-service.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import { hostLog } from "./host-log.js";
+import { onPartitionReminder } from "./partition-reminders.js";
 import { runBackgroundWork, type WebLocale } from "./web-locale.js";
 
 /** Assistant background activity belongs to the serving Host, never to an open page or the request that started it. */
@@ -24,6 +25,7 @@ export function attachWebAssistant(server: Server, home: string, assistant: () =
   const look = <T>(fn: () => Promise<T>) => runWithMolisWorkHome(home, () => withCallId(newCallId(), () => runBackgroundWork(lastLocale(), fn)));
   periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
     run: () => look(() => assistant().notices.scanNewMaterial()), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
-  periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
-    run: () => look(() => assistant().followUps.sweepReminders()), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
+  // A plugin's reminder falls due in one partition and is handed here (batch 108); the Assistant tells it under the person's rules.
+  const stopReminders = onPartitionReminder(home, reminder => { void look(async () => assistant().followUps.tellReminder(reminder)).catch(error => hostLog.warn("assistant", "reminder_tell_failed", error)); });
+  server.once("close", stopReminders);
 }

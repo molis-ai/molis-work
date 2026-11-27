@@ -20,7 +20,7 @@ import {
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import type { LingguangSpark } from "@molis-ai/molis-work-plugin-lingguang/contract";
 import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 const PROJECT = "project-lingguang";
 
@@ -95,9 +95,8 @@ function emptyView(): MolisWorkWebView {
 }
 
 test("灵光由项目按分区启用（第 107 批做法 A），岛上叫灵光、图标用 idea", () => {
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(LINGGUANG_PROJECT_PLUGIN_ID), false);
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("lingguang"), true);
-  const enabled = ["goals", LINGGUANG_PROJECT_PLUGIN_ID, ...PERSONAL_PLUGIN_IDS, "files"] as const;
+  assert.equal(BUILTIN_PLUGIN_IDS.includes("lingguang"), true);
+  const enabled = ["goals", LINGGUANG_PROJECT_PLUGIN_ID, "files"] as const;
   assert.equal(railEntries([...enabled]).some((item) => item.id === "lingguang"), false);
   const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");

@@ -84,7 +84,8 @@ function declaredReductions(entry) {
 }
 
 /** Whether a recorded store lies in a directory the upgrade round removes, in the root Home or an account's. */
-const removedStore = recorded => local.REMOVED_HOME_STORES.some(root => { const relative = recorded.replace(/^spaces\/[^/]+\//u, ""); return relative === root || relative.startsWith(root + "/"); });
+const removedStores = local.removedHomeStores();
+const removedStore = recorded => removedStores.some(root => { const relative = recorded.replace(/^spaces\/[^/]+\//u, ""); return relative === root || relative.startsWith(root + "/"); });
 
 /**
  * Every recorded table of every library still has at least its recorded rows (§4 step 5), library by library and table by table.
@@ -92,7 +93,7 @@ const removedStore = recorded => local.REMOVED_HOME_STORES.some(root => { const 
  */
 function assertRowsKept(manifest, home) {
   for (const entry of manifest.stores) {
-    // A store the build no longer has is removed by the upgrade round (`REMOVED_HOME_STORES`, named beside the round): it must be gone, not kept.
+    // A store the build no longer has is removed by the upgrade round (`removedHomeStores()`, named beside the round): it must be gone, not kept.
     if (removedStore(entry.path)) {
       if (existsSync(path.join(home, entry.path))) throw goldenFailure("golden.removed_store_kept", entry.path);
       continue;

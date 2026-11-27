@@ -112,7 +112,7 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
   } finally { db.close(); }
 });
 
-test("Removing a project plugin leaves companions, removing a dependency takes dependents, and a personal plugin can be hidden then restored", async t => {
+test("Removing a project plugin leaves companions, removing a dependency takes dependents, and a partition plugin is added then removed like any other", async t => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-remove-"));
   const { host, catalog } = await catalogWebHost(homeDirectory);
   const project = await catalog.createProject({ display_name: "可移除", actor_id: "test" });
@@ -153,16 +153,15 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   const removedInbox = await change("DELETE", project.project_id, "inbox");
   assert.deepEqual((await removedInbox.json()).plugins, ["schedule"]);
   assert.equal((await change("DELETE", project.project_id, "inbox")).status, 200);
-  const hidden = await change("DELETE", project.project_id, "todo");
-  assert.equal(hidden.status, 200);
-  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: ["todo"], revision: await projectPluginRevisionAt(origin, project.project_id) });
+  // Batch 108: Todo is no personal plugin any more, hidden per project; it is enabled in a partition and taken out of it like any other.
+  const added = await change("POST", project.project_id, "todo");
+  assert.equal(added.status, 200);
+  assert.deepEqual(await added.json(), { project_id: project.project_id, plugins: ["schedule", "todo"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
+  assert.match(await (await fetch(`${origin}/projects/${project.project_id}/`)).text(), /data-plugin-id="todo"/);
+  const removed = await change("DELETE", project.project_id, "todo");
+  assert.deepEqual(await removed.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.equal((await change("DELETE", project.project_id, "todo")).status, 200);
-  const hiddenPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.doesNotMatch(hiddenPage, /data-plugin-id="todo"/);
-  const restored = await change("POST", project.project_id, "todo");
-  assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
-  const restoredPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.match(restoredPage, /data-plugin-id="todo"/);
+  assert.doesNotMatch(await (await fetch(`${origin}/projects/${project.project_id}/`)).text(), /data-plugin-id="todo"/);
   // RAC-73: Characters is no plugin since CHR-1: Settings › 角色 is the Host's own section, which no project hides.
   const characters = await change("DELETE", project.project_id, "characters");
   assert.equal(characters.status, 400);

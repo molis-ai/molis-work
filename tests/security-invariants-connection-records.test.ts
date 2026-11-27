@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, bindActionClient, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionDefinition, type ActionExecutionContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ProjectDeletionService, connectorPluginSlotActions, createPluginConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -72,7 +72,8 @@ function rig(port: PluginConnectionsPort, instance: { project_id?: string; plugi
     title: "fetch", description: "probe", scope: "project", kind: kind === "query" ? "query" : "operation", subject_kinds: [], audiences: ["user"],
     permissions: ["connections:use"], scheduling: "concurrent", input_schema: { type: "object", additionalProperties: false } } });
   const inAction = <T>(project_id: string | null, run: () => T, kind: "query" | "command" = "command"): T => runInPluginAction({ install_id, installation_generation: "g1", definition: action(kind),
-    caller: { permissions: ["connections:use"], project_id, signal: state.abort.signal, beforeEffect: () => state.beforeEffect(), query_only: kind === "query" ? true : undefined } as ActionExecutionContext }, run);
+    // The person's own call: an installation slot is the person's account (S-71, batch 108), so a caller with no person is refused it.
+    caller: { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", permissions: ["connections:use"], project_id, signal: state.abort.signal, beforeEffect: () => state.beforeEffect(), query_only: kind === "query" ? true : undefined } as ActionExecutionContext }, run);
   return { client, inAction, state };
 }
 

@@ -1,18 +1,20 @@
 import { networkInterfaces } from "node:os";
-import { ActionError, RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, type ActionReference, type ActionView,
+import { ActionError, RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, runsExpiryBounds, type ActionReference, type RunsExpiryBounds, type ActionView,
   type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
-import { beforeDeadline, collectHomeAggregate, HomeAggregateInputEach, type HomeAggregatePorts } from "./home-aggregate.js";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import type { HomeRunsOwner, HomeScheduledRuns } from "./home-overview.js";
 import { expiredOwnerKey, type ExpiredSeen } from "./runs-expired-seen.js";
 import type { RuntimeGap } from "./host-presence.js";
 
 /**
- * What runs on its own here, side by side (specs/proactive-assistant/resident-runtime-design.md §2.2): the owners that declare the runs types
- * (Schedule, Feed, the Assistant's follow-ups …) are found by type, asked once each, and their answers put together with when Molis Work
- * was not running and what a run is waiting for. Nothing here names an owner or reads its record; 「现在做」 and 「跳过」 go back to the
- * owner of that one run, found again by type in the same place.
+ * What runs on its own here, side by side (specs/proactive-assistant/resident-runtime-design.md §2.2): the partitions' runs as their plugins
+ * wrote them into the overview (`scheduled_run`, V17: Schedule, Feed …), read without opening a partition, and the Home's own owners (the
+ * Assistant's follow-ups …), found by type and asked once each; all put together with when Molis Work was not running and what a run is
+ * waiting for. Nothing here names an owner or reads its record; 「现在做」 and 「跳过」 go back to the owner of that one run, found again by
+ * type in the same place.
  */
 
-/** Where an owner lives and how to reach its actions: the project its provider runs in (null: the Home), and the provider. */
+/** Where an owner lives and how to reach its actions: the project its provider runs in (null: the Home), and the provider (in a project: its plugin). */
 export interface RuntimeRunSource { readonly scope_project_id: string | null; readonly provider_id: string; readonly surface: string; readonly title: string }
 export interface RuntimeUpcomingRun extends ScheduledRun { readonly source: RuntimeRunSource; readonly waiting: boolean }
 export interface RuntimeMissedRun extends MissedRun { readonly source: RuntimeRunSource }
@@ -37,7 +39,11 @@ export interface RuntimeOverview {
 /** The person's own actions in the Home, or in one open project (`work` runs while it stays open; undefined once it is not open). */
 export interface RunsClient { discover(): Promise<readonly ActionView[]>; invoke(reference: Required<ActionReference>, input: unknown): Promise<unknown> }
 export interface RuntimeOverviewPorts {
-  readonly aggregate: HomeAggregatePorts;
+  /**
+   * The partitions' runs as their plugins wrote them into the overview (`homeScheduledRuns`), up to `until`, with each owner's expired runs
+   * counted from its `bounds`; null when no overview is read here.
+   */
+  projectRuns(window: { readonly now: Date; readonly until: Date }, bounds: (owner: HomeRunsOwner) => RunsExpiryBounds): Promise<HomeScheduledRuns | null>;
   within<T>(projectId: string | null, work: (client: RunsClient) => Promise<T>): Promise<T | undefined>;
   now(): Date;
   /** Whether this computer has a network to reach anything on; false is written as 「没联网」. */
@@ -89,6 +95,17 @@ const isDecision = (view: ActionView) => view.action.input_type === RUN_DECISION
 const referenceOf = (view: ActionView): Required<ActionReference> => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
 
+/** One slow Home owner cannot keep the panel waiting. */
+async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: 2_000, reason: new ActionError("actions.timeout", "首页读取超时，请重试") } });
+  try {
+    lifetime.assertActive();
+    return await lifetime.wait(work(lifetime.signal));
+  } finally {
+    lifetime.dispose();
+  }
+}
+
 export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: AbortSignal): Promise<RuntimeOverview> {
   const now = ports.now(), seen = ports.expiredSeen();
   const window = (scope: string | null, providerId: string): RunsWindow => ({ now: now.toISOString(),
@@ -101,32 +118,12 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
     upcoming.push(...rows.upcoming); missed.push(...rows.missed); owners.push(expiredOwnerKey(scope, providerId));
     if (rows.expired) expired.set(rows.title, (expired.get(rows.title) ?? 0) + rows.expired);
   };
-  // The project owners, in open and resting projects (their list is a `home_aggregate` query), and the Home's own owners, at the same time.
-  const nowMs = now.getTime();
+  // The partitions' runs from the overview, and the Home's own owners, at the same time.
+  const window_ = (projectId: string, pluginId: string) => window(projectId, pluginId);
   const [projects] = await Promise.all([
-    collectHomeAggregate<RunsOverview>(
-      ports.aggregate,
-      RUNS_OVERVIEW_OUTPUT_TYPE,
-      new HomeAggregateInputEach(
-        (projectId, source) => window(projectId, source.provider_id),
-        // A sleeping project's last overview holds while the person has not marked its expired runs seen since, and for the hour it was read in.
-        (projectId, source) => JSON.stringify([seen[expiredOwnerKey(projectId, source.provider_id)] ?? null, Math.floor(nowMs / 3_600_000)]),
-      ),
-      signal,
-      {
-        // If any cached upcoming run has already reached its due time before the hour rolls over, re-read rather than show it as upcoming.
-        stillValid: result => result.answers.every(answer => {
-          const output = answer.output as Partial<RunsOverview> | null;
-          return !Array.isArray(output?.upcoming)
-            || output.upcoming.every(run => {
-              const dueMs = run && typeof run.due_at === "string" ? Date.parse(run.due_at) : Number.NaN;
-              return Number.isFinite(dueMs) && dueMs > nowMs;
-            });
-        }),
-      },
-    ),
+    ports.projectRuns({ now, until: new Date(now.getTime() + UPCOMING_HOURS * 3_600_000) }, owner => runsExpiryBounds(window_(owner.project_id, owner.plugin_id))),
     ports.within(null, async client => {
-      const views = (await client.discover()).filter(view => isOverview(view) && view.action.scope === "home" && !view.action.home_aggregate);
+      const views = (await client.discover()).filter(view => isOverview(view) && view.action.scope === "home");
       await Promise.all(views.map(async view => {
         if (!view.availability.available) { unavailable.push({ project_id: null, provider_id: view.provider.provider_id, code: view.availability.code }); return; }
         try { take(await beforeDeadline(signal, async () => client.invoke(referenceOf(view), window(null, view.provider.provider_id))), null, view.provider.provider_id); }
@@ -134,8 +131,15 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
       }));
     }).catch((error: unknown) => { signal?.throwIfAborted(); unavailable.push({ project_id: null, provider_id: null, code: codeOf(error) }); }),
   ]);
-  for (const answer of projects.answers) take(answer.output, answer.project_id, answer.source.provider_id);
-  for (const issue of projects.issues) unavailable.push({ project_id: issue.project_id, provider_id: issue.source?.provider_id ?? null, code: issue.code });
+  if (projects) {
+    const sourceOf = (owner: { project_id: string; plugin_id: string; surface: string; title: string }): RuntimeRunSource =>
+      ({ scope_project_id: owner.project_id, provider_id: owner.plugin_id, surface: owner.surface, title: owner.title });
+    for (const run of projects.upcoming) upcoming.push({ run_id: run.run_id, title: run.title, due_at: run.due_at, project_id: run.owner.project_id, open: run.open, needs: run.needs, source: sourceOf(run.owner) });
+    for (const run of projects.missed) missed.push({ run_id: run.run_id, title: run.title, due_at: run.due_at, project_id: run.owner.project_id, open: run.open, needs: run.needs,
+      missed_at: run.missed_at!, source: sourceOf(run.owner) });
+    for (const owner of projects.owners) owners.push(expiredOwnerKey(owner.project_id, owner.plugin_id));
+    for (const [owner, count] of projects.expired) expired.set(owner.title, (expired.get(owner.title) ?? 0) + count);
+  }
   const waiting = { network: !ports.online(), model: !ports.model() };
   return {
     state: "running", waiting, gaps: ports.gaps(),
@@ -164,7 +168,9 @@ export function runtimeRunDecisionRequest(body: Record<string, unknown>): Runtim
  */
 export async function decideRuntimeRun(ports: Pick<RuntimeOverviewPorts, "within">, request: RuntimeRunDecisionRequest): Promise<RunDecided> {
   const decided = await ports.within(request.scope_project_id, async client => {
-    const view = (await client.discover()).find(entry => isDecision(entry) && entry.provider.provider_id === request.provider_id && entry.availability.available);
+    // In a project the owner is named by its plugin (the overview's rows carry no provider); in the Home, by its provider.
+    const view = (await client.discover()).find(entry => isDecision(entry) && entry.availability.available
+      && (request.scope_project_id === null ? entry.provider.provider_id === request.provider_id : entry.provider.plugin_id === request.provider_id));
     if (!view) return { state: "gone" } satisfies RunDecided;
     const answer = await client.invoke(referenceOf(view), { run_id: request.run_id, decision: request.decision } satisfies RunDecision) as Partial<RunDecided> | null;
     if (answer?.state !== "started" && answer?.state !== "skipped" && answer?.state !== "gone") throw new ActionError("actions.output_invalid", "这件事的主人没有给出处理结果");

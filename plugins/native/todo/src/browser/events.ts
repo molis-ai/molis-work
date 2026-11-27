@@ -120,26 +120,18 @@ export function listen(page: TodoPage): void {
       await page.openDetail(state.selected.id).catch(() => page.closeDetail());
     }).catch(() => undefined);
   });
-  // Moved from the placement panel: same todo, new place. Read it again; close it if it left what this page shows.
+  // Moved or copied from the placement panel: a todo moved away is no longer in this partition's library, so it is closed here.
   window.addEventListener("molis:placement-changed", (event) => {
     const detail = (event as CustomEvent<{ from?: { kind?: string; id?: string }; to?: { kind?: string } }>).detail || {};
     if (![detail.from?.kind, detail.to?.kind].includes("todo_item")) return;
     void page.load().then(async () => {
       if (!state.selected || !detail.from || state.selected.id !== detail.from.id || state.dirtyKeys.size || state.saving) return;
-      try {
-        // The person can still read it (the page may show every project), so the event alone does not say where it went:
-        // read it, and close it when it now belongs to a project this page is not showing.
-        await page.openDetail(state.selected.id);
-        if (state.selected && !state.everything && state.selected.project_id && state.selected.project_id !== page.projectId()) await page.closeDetail();
-      } catch { await page.closeDetail(); }
+      try { await page.openDetail(state.selected.id); } catch { await page.closeDetail(); }
     }).catch(() => undefined);
   });
   const languageAbort = new AbortController();
   window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
   document.addEventListener("molis-work:language-changed", () => {
-    const batchProject = el.bench.querySelector<HTMLElement>('[data-todo-batch-placement="project"]');
-    if (batchProject) batchProject.textContent = page.hereName();
-    page.paintPlaces(el.quickPlacement, page.quickDefaultPlacement(), "data-todo-quick-placement-choice");
     page.renderQuick();
     page.renderReminders();
     if (state.view === "review") page.renderReview();

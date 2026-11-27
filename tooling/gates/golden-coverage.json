@@ -50,10 +50,6 @@
       "reason": "Git 操作审查才写，金样的项目没有 Git 仓库和工作区"
     },
     {
-      "path": "images/assets/",
-      "reason": "生成图片才写，要真实模型；images.ts 只建连接，不发任务"
-    },
-    {
       "path": "runtime-config-backups/<runtime>/<plan>.bak",
       "reason": "接入本机的 Runtime 配置才写，要真实的 Runtime，生成时不碰本机配置"
     },
@@ -84,10 +80,6 @@
     {
       "path": "evidence/evidence.db",
       "reason": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
-    },
-    {
-      "path": "person-settings/person-settings.db",
-      "reason": "第 106 批新建的随本人设置；插件侧 services.personSettings 随第 108 批接上，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
     }
   ],
   "writes": {
@@ -175,16 +167,6 @@
         "characters.ts"
       ]
     },
-    "issues/issues.db": {
-      "cases": [
-        "issues.ts"
-      ]
-    },
-    "images/images.db": {
-      "cases": [
-        "images.ts"
-      ]
-    },
     "projects/<project_id>/libraries/<库名>.db": {
       "cases": [
         "pages.ts",
@@ -192,29 +174,18 @@
         "dataset.ts",
         "ppt.ts",
         "lingguang.ts",
-        "workflows.ts"
-      ]
-    },
-    "personal-space/libraries/<库名>.db": {
-      "none": "第 107 批起六个插件的分区独立库在每个分区各一份；金样的写入用例只写主项目，个人空间的同一份库由同一组用例在项目分区里证明能改（与 personal-space/molis-work.db 同理），个人空间里的写入从第 109 批起补用例"
-    },
-    "feed-content/feed-content.db": {
-      "none": "正文只在 Feed 真的拉到内容时写，要联网；金样不联网，这个库只有结构和空间行，没有业务行（feed.ts 写的是项目那一半）"
-    },
-    "todo/todo.db": {
-      "cases": [
-        "todo.ts"
-      ]
-    },
-    "jelly/jelly.db": {
-      "cases": [
+        "workflows.ts",
+        "todo.ts",
+        "issues.ts",
+        "cognia.ts",
         "jelly.ts"
       ]
     },
-    "cognia/cognia.db": {
-      "cases": [
-        "cognia.ts"
-      ]
+    "personal-space/libraries/<库名>.db": {
+      "none": "第 107、108 批起这些插件的分区独立库在每个分区各一份；金样的写入用例只写主项目，个人空间的同一份库由同一组用例在项目分区里证明能改（与 personal-space/molis-work.db 同理），个人空间里的写入从第 109 批起补用例"
+    },
+    "feed-content/feed-content.db": {
+      "none": "正文只在 Feed 真的拉到内容时写，要联网；金样不联网，这个库只有结构和空间行，没有业务行（feed.ts 写的是项目那一半）"
     },
     "work-brief/work-brief.db": {
       "none": "Work Brief 的库只在插件运行时保存或刷新时写；现有金样不安装 Work Brief，生成时也没有种子简报。首个真实简报的保存路径由 tests/work-brief-plugin.test.ts 覆盖。"
@@ -253,13 +224,17 @@
       ]
     },
     "due-registry/due-registry.db": {
-      "none": "0.1.1-dev.9 已捕获此库。当前回放没有单独修改旧到期项的用例，交给第 108 批到期登记的写入入口验证。"
+      "cases": [
+        "todo.ts"
+      ]
     },
     "evidence/evidence.db": {
       "none": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"
     },
     "person-settings/person-settings.db": {
-      "none": "第 106 批新建的随本人设置；插件侧 services.personSettings 随第 108 批接上，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"
+      "cases": [
+        "images.ts"
+      ]
     }
   },
   "other_writes": {

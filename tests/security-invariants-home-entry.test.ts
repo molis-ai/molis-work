@@ -87,7 +87,7 @@ test("RAC-713 a link inside the Home is still refused, with the Home reached thr
   await mkdir(outside); await writeFile(join(outside, "value"), "A different owner's bytes");
   await mkdir(join(f.realHome, "config"), { recursive: true });
   await writeFile(join(f.realHome, "config", "onboarding.json"), "{}\n", { mode: 0o640 });
-  await symlink(outside, join(f.realHome, "images"));
+  await symlink(outside, join(f.realHome, "plugin-files"));
   const result = await runHomeEntry(t, "cli", ["home", "snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
   assert.equal(result.code, 1, "the snapshot is refused");
   assert.equal(JSON.parse(result.stderr).error.code, "host.home_snapshot.invalid");

@@ -4,6 +4,7 @@ import {
   RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT,
   type ActionExecutionContext, type ActionHandlerBinding, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_TEXT_LIMITS, type PluginOverviewRows } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { sourceDeletedAt } from "./contract/sources.js";
 import type { FeedApplication } from "./application.js";
 
@@ -73,4 +74,30 @@ export function createFeedRunsHandlers(projectId: string, ports: { feed(): FeedA
     bindActionHandler(feedRunsActions.overview, (input, caller) => { here(caller); return feedRunsOverview(ports.feed(), projectId, input); }),
     bindActionHandler(feedRunsActions.decide, (input, caller) => { here(caller); return decideMissedPull(ports.feed(), projectId, input, ports.now?.() ?? new Date()); }),
   ];
+}
+
+/** How many upcoming and missed pulls Feed keeps in the overview at most: well under the platform's limit of rows per kind. */
+const OVERVIEW_UPCOMING_ROWS = 200, OVERVIEW_MISSED_ROWS = 250;
+const OPEN_PART = /^[A-Za-z0-9._:-]{1,200}$/;
+
+/**
+ * Feed's rows in the overview (specs/unified-partition-plugins §6.1「主库摘要表」, V17, batch 108), written again at the end of every Feed
+ * write, in its transaction (`FeedRuntimePorts.summarizeWith`): each scheduled source's next pull, and each missed pull nobody decided on.
+ * What is expired and what the person was told stays the Home's (`runExpiredUntold`).
+ */
+export function writeFeedRunRows(rows: PluginOverviewRows, feed: FeedApplication, projectId: string, now: number): void {
+  rows.removePrefix("scheduled_run", "pull:");
+  const at = new Date(now).toISOString(), title = (name: string, fallback: string) => [...(name.trim() || fallback)].slice(0, OVERVIEW_TEXT_LIMITS.title).join("");
+  const open = (sourceId: string) => OPEN_PART.test(sourceId) ? { open: { surface: FEED_SURFACE, id: sourceId } } : {};
+  const upcoming = feed.sources.list(projectId).flatMap(source => source.enabled && source.status !== "paused" && source.status !== "disconnected" && source.schedule.mode === "interval"
+    && source.schedule.enabled && source.schedule.next_pull_at && Date.parse(source.schedule.next_pull_at) > now ? [{ source, due: source.schedule.next_pull_at }] : [])
+    .sort((a, b) => Date.parse(a.due) - Date.parse(b.due)).slice(0, OVERVIEW_UPCOMING_ROWS);
+  for (const { source, due } of upcoming) {
+    rows.upsert("scheduled_run", { row_id: missedPullRunId(source.source_id, due), title: title(source.name, source.source_id), due_at: due, updated_at: at,
+      needs: ["network"], ...open(source.source_id) });
+  }
+  for (const entry of feed.sources.missed.list(projectId, OVERVIEW_MISSED_ROWS, "")) {
+    rows.upsert("scheduled_run", { row_id: entry.run_id, title: title(entry.title, entry.source_id), due_at: entry.due_at, missed_at: entry.missed_at,
+      updated_at: entry.missed_at, needs: ["network"], ...open(entry.source_id) });
+  }
 }

@@ -147,7 +147,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn', sync: 'refused', savedHistory: 'refused',
   database: 'entry', files: 'entry', imageGeneration: 'given',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'given', judgments: 'refused', artifacts: 'given', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', personSettings: 'refused', due: 'refused', overview: 'refused', actions: 'refused', scenes: 'given', judgments: 'refused', artifacts: 'given', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -194,6 +194,10 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['sources:pull_public_feed', 'sources:pull_query', 'evidence:read', 'sources:read_repository', 'sources:pull_connector']) },
   { service: 'evidenceCollector', services: ['evidenceCollector'], reason: 'Deleting evidence bodies nothing refers to (evidence:collect) is only given to plugins the Host runs itself in the Home: it removes files of the Home\'s evidence store, outside a sandbox.',
     declared: (definition, held) => asksFor(definition, held, ['evidence:collect']) },
+  { service: 'personSettings', services: ['personSettings', 'due'], reason: 'The person\'s own settings (person_settings in the Manifest) and per-partition due entries are only given to plugins the Host runs itself in a partition (batch 108): the settings live in the Home, outside a sandboxed package\'s data, and a due entry wakes the plugin through the Host.',
+    declared: definition => definition.manifest.person_settings !== undefined },
+  { service: 'overview', services: ['overview'], reason: 'Overview rows in the partition\'s main database (overview_projection with databases.project, V17 batch 108) are written inside the plugin\'s transaction on the Host\'s own connection, which a sandboxed package does not hold; a package with its own partition library writes molis_overview_rows there instead.',
+    declared: definition => Boolean(definition.manifest.overview_projection?.kinds.length && definition.manifest.databases?.project && !definition.manifest.databases?.partition) },
   { service: 'scheduler', services: ['scheduler'], reason: 'Wakeups (schedule:read, schedule:write) are not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['schedule:read', 'schedule:write']) },
   { service: 'agents', services: ['agents'], reason: 'Running an Agent (agent:run) is not given to sandboxed plugins yet (PG-017 BL-494).',

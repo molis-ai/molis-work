@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countFile, countNonTsOldNames, countPackedStatements, countPartitionPathScans, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
+import { countFile, countNonTsOldNames, countPackedStatements, countPartitionPathScans, countPartitionProjectIdSql, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
 
 // specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
@@ -103,6 +103,15 @@ test("UPP G3 path half definition: a platform source counts direct listings of p
   assert.equal(countPartitionPathScans("modules/projects/src/project-catalog.ts", 'readdirSync(projects, { withFileTypes: true });'), 1, "only that one file, not its package");
 });
 
+test("UPP G3 SQL half definition: a plugin source counts project_id filters on a bound value and project_id columns, nothing else", () => {
+  const file = "plugins/native/todo/src/store.ts";
+  assert.equal(countPartitionProjectIdSql(file, "db.prepare('SELECT * FROM todos WHERE project_id = ? AND id = ?'); `DELETE FROM t WHERE project_id IN (?, ?)`; 'WHERE project_id=:project'; 'project_id = @p';"), 4);
+  assert.equal(countPartitionProjectIdSql(file, "CREATE TABLE todos (id TEXT PRIMARY KEY, project_id TEXT NOT NULL); CREATE TABLE n (project_id integer);"), 2);
+  // A project id the call carries, a value in a row, and SQL on other columns are not counted.
+  assert.equal(countPartitionProjectIdSql(file, "const project_id = context.project_id; row.project_id === id; ({ project_id: text }); 'WHERE todo_id = ?'; 'SELECT project_id FROM x';"), 0);
+  assert.equal(countPartitionProjectIdSql("apps/local-host/src/a.ts", "'WHERE project_id = ?'"), 0, "the platform's own tables are not a plugin's business SQL");
+});
+
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-health-counts-"));
   gitAt(repo, "init", "-q", "-b", "main");
@@ -116,6 +125,7 @@ before(() => {
   put("packages/alpha/src/packed.ts", "export const p1 = 1; export const p2 = 2;\n");
   put("plugins/native/demo/package.json", "{\"name\":\"@molis-ai/molis-work-plugin-demo\"}\n");
   put("packages/alpha/src/plugin-named.ts", "export const id = 'io.molis.work.demo';\n");
+  put("plugins/native/demo/src/store.ts", "export const read = 'SELECT * FROM items WHERE project_id = ?';\n");
   // Not violations: look-alike names (and code the static checks, not these counts, look at).
   put("packages/alpha/src/clean.ts", [
     "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
@@ -166,6 +176,10 @@ const violations: Scenario[] = [
     expect: [/plugin names in a platform source in packages\/alpha\/src\/plugin-named\.ts 1 → 2/] },
   { name: "UPP G3 a platform loop that lists projects/ in a new file", mutate: () => put("packages/alpha/src/walk.ts", "export const walk = (home: string) => readdirSync(join(home, \"projects\"));\n"),
     expect: [/platform loops over partitions that list projects\/ or iterate listProjects\(\) in packages\/alpha\/src\/walk\.ts 0 → 1/] },
+  { name: "UPP G3 a project_id filter in a new plugin file", mutate: () => put("plugins/native/demo/src/notes.ts", "export const ddl = 'CREATE TABLE notes (id TEXT, project_id TEXT NOT NULL)';\n"),
+    expect: [/project_id filters or columns in a plugin's SQL in plugins\/native\/demo\/src\/notes\.ts 0 → 1/] },
+  { name: "UPP G3 one more project_id filter in a plugin file that has one", mutate: () => put("plugins/native/demo/src/store.ts", read("plugins/native/demo/src/store.ts") + "export const drop = 'DELETE FROM items WHERE project_id = ?';\n"),
+    expect: [/project_id filters or columns in a plugin's SQL in plugins\/native\/demo\/src\/store\.ts 1 → 2/] },
   { name: "Batch 100-2 packed sibling statements in a new file", mutate: () => put("packages/alpha/src/new-packed.ts", "export function f() { const a = 1; return a; }\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/new-packed\.ts 0 → 1/] },
   { name: "Batch 100-2 another packed sibling statement in an existing file", mutate: () => put("packages/alpha/src/packed.ts", read("packages/alpha/src/packed.ts") + "export const p3 = 3; export const p4 = 4;\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/packed\.ts 1 → 2/] },
   { name: "PG-097 retired name in Rust source", mutate: () => put("apps/desktop/adapters/tauri/src/probe.rs", 'const ENV: &str = "MOLIS_JELLY_WHISPER";\n'), expect: [/uses of an old name \(goalboard, board_id\) in apps\/desktop\/adapters\/tauri\/src\/probe\.rs 0 → 1/] },

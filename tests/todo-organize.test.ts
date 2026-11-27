@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { TodoOrganizer, type TodoCandidateDecision, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, organizeParts, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TodoOrganizer, TODO_BATCH_SUBJECT_KIND, type TodoCandidateDecision, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, organizeParts, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const TODAY = "2026-09-28";
@@ -17,25 +17,34 @@ const MAIL = { title: "张总：新版方案", subject: { kind: "feed_item", id:
   text: "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。" };
 
 type Model = (prompt: InstructedPrompt) => string;
+/** Todo in each partition it is used in (batch 108): its own library and instance; the personal space unless a caller names a project. */
 function fixture(t: { after(fn: () => void): void }, model: Model | null) {
   const home = mkdtempSync(join(tmpdir(), "todo-organize-"));
-  const store = openTodoStore(home);
-  const service = new ActionService();
   const prompts: InstructedPrompt[] = [];
-  service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
-    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => TODAY,
-      ...(model ? { completeText: async (prompt: InstructedPrompt) => { prompts.push(prompt); return model(prompt); } } : {}) }) });
-  t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
-  const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
-    bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: [...TODO_ACTION_PERMISSIONS] }));
-  return { home, service, store, me: as(null), agent: as(null, "agent"), inA: as("project-a"), agentA: as("project-a", "agent"), inB: as("project-b"), prompts };
+  const partitions = new Map<string, { store: ReturnType<typeof openTodoStore>; service: ActionService }>();
+  const open = (project_id: string) => {
+    let partition = partitions.get(project_id);
+    if (!partition) {
+      const store = openTodoStore(home, undefined, project_id), service = new ActionService();
+      service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
+        definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => TODAY,
+          ...(model ? { completeText: async (prompt: InstructedPrompt) => { prompts.push(prompt); return model(prompt); } } : {}) }) });
+      partitions.set(project_id, partition = { store, service });
+    }
+    return partition;
+  };
+  t.after(() => { for (const { store } of partitions.values()) store.close(); rmSync(home, { recursive: true, force: true }); });
+  const as = (project_id: string, audience: ActionCallContext["audience"] = "user") =>
+    bindActionClient(open(project_id).service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: [...TODO_ACTION_PERMISSIONS] }));
+  return { home, store: open("personal").store, storeOf: (project_id: string) => open(project_id).store, me: as("personal"), agent: as("personal", "agent"),
+    inA: as("project-a"), agentA: as("project-a", "agent"), inB: as("project-b"), prompts };
 }
 
 /** What a model would answer for the example in spec 6.6, plus one invented passage that must not survive. */
 const exampleAnswer = (existing?: { id: string; relation: string; changes?: Record<string, unknown> }) => JSON.stringify({
   candidates: [
     { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true },
-      due: { date: "2026-10-02", time: null, phrase: "周五前" }, suggested_date: null, topic: "Q4 方案", placement: "project",
+      due: { date: "2026-10-02", time: null, phrase: "周五前" }, suggested_date: null, topic: "Q4 方案",
       evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], uncertain: ["发给谁没写，推测是张总"], depends_on: ["c2"], existing: existing ?? null },
     { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, time: null, phrase: null },
       waiting: { who: "小李", what: "确认预算" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }], uncertain: [], depends_on: [] },
@@ -136,7 +145,6 @@ test("organizing the spec example: invented passages dropped, unstated dates onl
   const [send, wait, nudge] = batch.candidates;
   assert.deepEqual([send!.due_date, send!.due_phrase], ["2026-10-02", "周五前"]);
   assert.deepEqual(send!.depends_on, [wait!.candidate_id]);
-  assert.equal(send!.placement, "project", "建议放进项目；没有项目时采用会放进暂未归类");
   assert.equal(nudge!.due_date, null, "原文没写“今天催”，日期只作建议");
   assert.equal(nudge!.suggested_date, "2026-09-28");
   assert.ok(nudge!.uncertain.some(line => line.includes("推测")));
@@ -247,13 +255,12 @@ test("a field the person edits after the review was made stays theirs: the revie
   }
 });
 
-test("an extract request id belongs to the caller and project that chose it: another caller reusing it organizes afresh", async t => {
+test("an extract request id belongs to the caller and partition that chose it: another caller reusing it organizes afresh", async t => {
   const f = fixture(t, () => exampleAnswer());
   const mine = await f.inA.invoke(organize.extract, { materials: [MAIL], request_id: "r-shared" });
   const other = await f.inB.invoke(organize.extract, { materials: [MAIL], request_id: "r-shared" });
   assert.equal(other.replayed, false);
   assert.notEqual(other.batch.batch_id, mine.batch.batch_id);
-  assert.equal(other.batch.project_id, "project-b");
   const assistant = await f.agentA.invoke(organize.extract, { materials: [MAIL], request_id: "r-shared" });
   assert.deepEqual([assistant.replayed, assistant.batch.origin], [false, "assistant"]);
   assert.notEqual(assistant.batch.batch_id, mine.batch.batch_id);
@@ -616,7 +623,7 @@ test("split adoption records only newly enabled dependencies in the second undo 
 test("55-3 T3-02 reopened decisions survive pagination and explicit close across reopen", async t => {
   const f = fixture(t, () => exampleAnswer());
   const { batch } = await f.inA.invoke(organize.extract, { materials: [MAIL] });
-  const db = f.store.database();
+  const db = f.storeOf("project-a").database();
   const handled = await f.inA.invoke(organize.apply, { id: batch.batch_id, decisions: batch.candidates.map<TodoCandidateDecision>((candidate, index) =>
     ({ candidate_id: candidate.candidate_id, action: index === 2 ? "ignore" : "add" })) });
   await f.inA.invoke(todoActions.revert, { batch_id: handled.change_batch_id });
@@ -627,34 +634,60 @@ test("55-3 T3-02 reopened decisions survive pagination and explicit close across
     action: "added", item_id: kept.id, reason: "", at: batch.created_at,
   } })) };
   const reads = t.mock.method(db, "get"), lists = t.mock.method(db, "all");
-  let visibleReadCounts: number[] = [];
-  for (const project of ["project-b", "project-a"]) {
-    for (let i = 0; i < 50; i++) {
-      db.run(`INSERT INTO todo_batches(batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision)
-        SELECT ?, ?, origin, method, title, ?, ?, '2099-01-01', updated_at, 1 FROM todo_batches WHERE batch_id = ?`,
-        [project + i, project, JSON.stringify(history), project === "project-b" ? "open" : "done", batch.batch_id]);
-    }
+  const measure = async () => {
     reads.mock.resetCalls();
     lists.mock.resetCalls();
     assert.deepEqual((await f.agentA.invoke(organize.list, {})).batches, [reopened]);
-    const counts = [reads.mock.callCount(), lists.mock.callCount()];
-    if (project === "project-b") visibleReadCounts = counts;
-    else assert.deepEqual(counts, visibleReadCounts, "completed history adds no per-candidate reads or extra list queries");
-    await assert.rejects(f.agentA.invoke(organize.get, { id: "project-b0" }), { code: "todo.not_found" });
+    return [reads.mock.callCount(), lists.mock.callCount()];
+  };
+  const before = await measure();
+  for (let i = 0; i < 50; i++) {
+    db.run(`INSERT INTO todo_batches(batch_id, origin, method, title, body_json, status, created_at, updated_at, revision)
+      SELECT ?, origin, method, title, ?, 'done', '2099-01-01', updated_at, 1 FROM todo_batches WHERE batch_id = ?`, [`done-${i}`, JSON.stringify(history), batch.batch_id]);
   }
+  assert.deepEqual(await measure(), before, "completed history adds no per-candidate reads or extra list queries");
+  // Another partition's batch is not here.
+  const elsewhere = (await f.inB.invoke(organize.extract, { materials: [MAIL] })).batch;
+  await assert.rejects(f.agentA.invoke(organize.get, { id: elsewhere.batch_id }), { code: "todo.not_found" });
   const closed = (await f.inA.invoke(organize.close, { id: batch.batch_id })).batch;
-  const store = openTodoStore(f.home);
+  const store = openTodoStore(f.home, undefined, "project-a");
   try {
-    const owner = new TodoOrganizer(store), access = { projectId: "project-a", projectIds: [], actor: "user" as const, actorId: "web-user" };
+    const owner = new TodoOrganizer(store), access = { actor: "user" as const, actorId: "web-user" };
     assert.deepEqual(owner.list(access), []);
     assert.equal(owner.get(batch.batch_id, access).status, "done");
     assert.deepEqual(owner.get(batch.batch_id, access).candidates.map(c => c.decision?.action ?? null), [null, null, "ignored"]);
     assert.equal(owner.close(batch.batch_id, access).revision, closed.revision);
     assert.equal(owner.list(access, "all").length, 50);
-    assert.ok(owner.list(access, "all").every(entry => entry.project_id === "project-a"));
     db.run("DELETE FROM todo_batches WHERE created_at = '2099-01-01'");
     assert.deepEqual(owner.list(access, "all"), [closed]);
   } finally { store.close(); }
+});
+
+test("onboarding's drafts move with the new project: placement carries an undecided batch, lets go of matches to todos left behind, and keeps a decided batch where it is", async t => {
+  const f = fixture(t, () => exampleAnswer());
+  const existing = (await f.me.invoke(todoActions.create, { title: "发送新版方案" })).item;
+  const drafted = (await f.me.invoke(organize.extract, { materials: [MAIL] })).batch;
+  const matched = (await f.me.invoke(organize.get, { id: drafted.batch_id })).batch;
+  const subject = { kind: TODO_BATCH_SUBJECT_KIND, id: drafted.batch_id };
+  const exported = await f.me.invoke(todoActions.placementExport, { subject });
+  assert.equal(exported.revision, String(drafted.revision));
+  const put = await f.inA.invoke(todoActions.placementPut, { kind: TODO_BATCH_SUBJECT_KIND, record: exported.record, request_id: "move-batch", target_id: drafted.batch_id });
+  assert.deepEqual([put.subject, put.project_id], [subject, "project-a"]);
+  assert.deepEqual(await f.inA.invoke(todoActions.placementPut, { kind: TODO_BATCH_SUBJECT_KIND, record: exported.record, request_id: "move-batch", target_id: drafted.batch_id }), put, "replayed");
+  assert.deepEqual(await f.me.invoke(todoActions.placementRemove, { subject, revision: exported.revision }), { subject, removed: true });
+  await assert.rejects(f.me.invoke(organize.get, { id: drafted.batch_id }), { code: "todo.not_found" });
+  const arrived = (await f.inA.invoke(organize.get, { id: drafted.batch_id })).batch;
+  assert.deepEqual(arrived.candidates.map(candidate => candidate.title), matched.candidates.map(candidate => candidate.title));
+  assert.ok(arrived.candidates.every(candidate => candidate.existing === null), "the personal todo it matched stayed behind");
+  // Kept in the project, the drafts become the project's todos.
+  const applied = await f.inA.invoke(organize.apply, { id: drafted.batch_id, decisions: [{ candidate_id: arrived.candidates[0]!.candidate_id, action: "add" }] });
+  const added = applied.results[0]!.item_id!;
+  assert.equal((await f.inA.invoke(todoActions.get, { id: added })).item.title, "发送新版方案");
+  assert.equal((await f.me.invoke(todoActions.get, { id: existing.id })).item.title, "发送新版方案");
+  // A batch some of whose drafts are already todos stays where it is.
+  const decided = await f.inA.invoke(todoActions.placementExport, { subject });
+  await assert.rejects(f.me.invoke(todoActions.placementPut, { kind: TODO_BATCH_SUBJECT_KIND, record: decided.record, request_id: "back", target_id: drafted.batch_id }), { code: "todo.conflict" });
+  await assert.rejects(f.me.invoke(todoActions.placementPut, { kind: TODO_BATCH_SUBJECT_KIND, record: { title: "缺字段" }, request_id: "bad" }), { code: "todo.invalid" });
 });
 
 test("batch subject preserves storage and decode failures and hides inaccessible IDs", async t => {
@@ -663,7 +696,7 @@ test("batch subject preserves storage and decode failures and hides inaccessible
   const read = (client: typeof f.inA, id: string) => client.invoke(organize.subject, { subject_id: id });
   const missing = { code: "todo.not_found", message: "找不到这份整理结果" };
   await assert.rejects(read(f.inA, "missing"), missing);
-  const db = f.store.database();
+  const db = f.storeOf("project-a").database();
   db.run("UPDATE todo_batches SET body_json = ? WHERE batch_id = ?", ["private damaged body", batch.batch_id]);
   await assert.rejects(read(f.inB, batch.batch_id), missing);
   await assert.rejects(read(f.inA, batch.batch_id), { message: `Cannot decode todo_batches.body_json for batch ${batch.batch_id}` });

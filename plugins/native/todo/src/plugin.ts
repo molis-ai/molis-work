@@ -8,12 +8,13 @@ import { todoOrganizeActions } from "./organize-actions.js";
 import { todoSkills, todoPrompts } from "./roles.js";
 import { TODO_INSTRUCTIONS } from "./prompts.js";
 import { TodoStore, type TodoStores } from "./store.js";
+import { todoDue } from "./overview.js";
 import { todoUiContribution } from "./ui.js";
 
 /**
- * Todo as a Plugin Runtime plugin on the Home instance (docs/system/RUNTIME-MIGRATION.md 5.2): one library for the person, whichever
- * project they are in. Its library is the `todo` store its catalog entry declares; the model and the actions it routes come from the
- * Runtime's services. Inside a project the page calls its routes under that project's path, so the actions see the project (S-31).
+ * Todo as a per-partition plugin (specs/unified-partition-plugins §4.2, batch 108): one instance and one library for each partition it is
+ * enabled in, the personal space or a project. The model and the actions it routes come from the Runtime's services. A reminder that falls
+ * due wakes only this partition's instance, which says what it reminds of (`onDue`).
  */
 export function createTodoPlugin(): PluginDefinition {
   return { manifest: todoManifest, agent_prompts: todoPrompts, instructions: TODO_INSTRUCTIONS, methods: todoSkills, async start(context) {
@@ -27,6 +28,7 @@ export function createTodoPlugin(): PluginDefinition {
     };
     const model = context.services?.model;
     return { kind: "app", sync: syncBindings(context), views: [todoUiContribution], routes: todoRoutes(context),
+      onDue: entry => stores.read(store => todoDue(entry.entry_key, entry.due_at, id => store.find(id))),
       actions: createTodoActionHandlers({ ...stores,
         modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
         ...(model ? { completeText: async (prompt, options) => (await model.complete(prompt, { signal: options.signal })).text } : {}) }) };
@@ -48,8 +50,8 @@ function todoRoutes(context: PluginStartContext) {
   const flag = (value: string | undefined) => value === "1" || value === "true";
   return [
     route(todoActions.list, "todo.list", ({ query }) => ({
-      ...(query.view ? { view: query.view } : {}), ...(query.q ? { query: query.q } : {}), ...(query.placement ? { placement: query.placement } : {}),
-      ...(flag(query.archived) ? { archived: true } : {}), ...(flag(query.all) ? { all_projects: true } : {}), ...(query.today ? { today: query.today } : {}),
+      ...(query.view ? { view: query.view } : {}), ...(query.q ? { query: query.q } : {}),
+      ...(flag(query.archived) ? { archived: true } : {}), ...(query.today ? { today: query.today } : {}),
     })),
     route(todoActions.create, "todo.create", fields),
     route(todoActions.batch, "todo.batch", fields),

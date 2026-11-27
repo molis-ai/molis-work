@@ -21,7 +21,7 @@ import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson 
 import { captureRuntimeStageOwner, type HomeStageHalves } from "./project-plugin-stages.js";
 import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
-import { pluginRouteControl } from "./plugin-route-control.js";
+import { clientPageContext, pluginRouteControl } from "./plugin-route-control.js";
 import { readText, htmlLang } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
 import { installedRepairStage } from "./installed-stage-section.js";
@@ -216,7 +216,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
-    const caller = splitContext ? await splitContext() : await projectContext(host, project);
+    const caller = splitContext ? await splitContext() : await localOwnerContext(host, project);
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;
@@ -295,12 +295,13 @@ function binds(platform: Pick<PluginPlatform, "runtime">, install: PluginInstanc
   return Boolean(contribution?.kind === "app" && (contribution.routes ?? []).some(binding => binding.route_id === routeId));
 }
 
-const projectContext = (host: MolisWorkLocalHost, project: LocalHostProjectReference | undefined) => localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
+/** The local owner's context in a project (or in none): Home plugin routes and the Home's overview build it the same way. */
+export const localOwnerContext = (host: MolisWorkLocalHost, project: LocalHostProjectReference | undefined) => localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
 
 /** One request's person context for a project, built on first use: starting the platform and the route that answers share it (N42). */
 function requestProjectContext(host: MolisWorkLocalHost, project: LocalHostProjectReference): () => Promise<ActionCallContext> {
   let pending: Promise<ActionCallContext> | undefined;
-  return () => pending ??= projectContext(host, project);
+  return () => pending ??= localOwnerContext(host, project);
 }
 
 /**
@@ -331,15 +332,9 @@ function projectHalfBinds(platform: PluginPlatform, pluginId: string, method: st
   return binds(platform, state?.install_id ? platform.runtime.get(state.install_id) : null, match.route_id);
 }
 
-/** The browser's same-origin page locator is a client report; it does not prove what was on screen. */
+/** A Home page's report names the registered plugin it shows, when it shows one. */
 function homePageContext(request: IncomingMessage, url: URL, registered: ReturnType<HomePluginHost["registered"]>) {
-  if (typeof request.headers.referer !== "string") return undefined;
-  try {
-    const page = new URL(request.headers.referer);
-    if (page.protocol !== url.protocol || page.host !== requestHost(request)) return undefined;
-    const plugin = registered.find(entry => page.pathname === `/plugins/${entry.key}` || page.searchParams.get("openPlugin") === entry.key);
-    return { url: page.pathname, title: plugin?.manifest.name ?? null, provenance: "client_reported" as const };
-  } catch { return undefined; /* A Referer that is not a URL names no page. */ }
+  return clientPageContext(request, url, page => registered.find(entry => page.pathname === `/plugins/${entry.key}` || page.searchParams.get("openPlugin") === entry.key)?.manifest.name ?? null);
 }
 
 /** What the Home page draws of a registered plugin: its key, name and id. */

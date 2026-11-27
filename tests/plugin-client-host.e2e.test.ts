@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { formManifest } from "@molis-ai/molis-work-plugin-form";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -23,11 +25,14 @@ test("RAC-132 opaque factories receive Manifest routes and Todo/Form requests fo
       return true;
     }
   });`);
+  // Todo runs in each partition since batch 108: the personal space is a partition like a project, with its own prefix.
+  await addProjectPlugin(browser.web, PERSONAL_SPACE_PROJECT_ID, "todo");
   for (const scene of [
-    { plugin: "todo", manifest: todoManifest, prefix: "", page: "/plugins/todo", firstPath: "/items" },
-    { plugin: "todo", manifest: todoManifest, prefix: `/projects/${browser.projectId}`, page: `/projects/${browser.projectId}/?openPlugin=todo`, firstPath: "/items" },
-    { plugin: "form", manifest: formManifest, prefix: `/projects/${browser.projectId}`, page: `/projects/${browser.projectId}/?openPlugin=form`, firstPath: "/forms" },
+    { plugin: "todo", manifest: todoManifest, project: PERSONAL_SPACE_PROJECT_ID, page: `/projects/${PERSONAL_SPACE_PROJECT_ID}/?openPlugin=todo`, firstPath: "/items" },
+    { plugin: "todo", manifest: todoManifest, project: browser.projectId!, page: `/projects/${browser.projectId}/?openPlugin=todo`, firstPath: "/items" },
+    { plugin: "form", manifest: formManifest, project: browser.projectId!, page: `/projects/${browser.projectId}/?openPlugin=form`, firstPath: "/forms" },
   ]) {
+    const prefix = `/projects/${scene.project}`;
     const child = await pluginFrameBrowser(t, browser, scene.plugin);
     await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + scene.page }, browser.sessionId));
     await child.waitFor("window.clientHost && window.clientRequestsDone > 0");
@@ -36,11 +41,11 @@ test("RAC-132 opaque factories receive Manifest routes and Todo/Form requests fo
       platform: clientHost.route('/api/host/plugin-page-actions'), requests: clientRequests
     })`);
     assert.equal(paths.pluginId, scene.manifest.plugin_id);
-    assert.equal(paths.projectId, scene.prefix ? browser.projectId : "");
-    const pluginPrefix = scene.prefix + "/api/plugins/" + scene.manifest.plugin_id;
+    assert.equal(paths.projectId, scene.project);
+    const pluginPrefix = prefix + "/api/plugins/" + scene.manifest.plugin_id;
     assert.equal(paths.plugin, pluginPrefix + "/probe");
-    assert.equal(paths.platform, scene.prefix + "/api/host/plugin-page-actions");
-    const requested = pluginPrefix + "/probe-" + (scene.prefix ? "project" : "home") + scene.firstPath;
+    assert.equal(paths.platform, prefix + "/api/host/plugin-page-actions");
+    const requested = pluginPrefix + "/probe-project" + scene.firstPath;
     assert.ok(paths.requests.some(path => new URL(path, browser.origin).pathname === requested), JSON.stringify(paths));
     assert.ok(observed.some(path => new URL(path, browser.origin).pathname === requested), "the actual request reaches the server with the injected plugin prefix");
     assert.equal(await child.evaluate(`(async () => {

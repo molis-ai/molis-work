@@ -1,4 +1,4 @@
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createHash, randomUUID } from "node:crypto";
@@ -7,9 +7,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { OnboardingDraftBatch, OnboardingDraftInput } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
-import { onboardingTakers } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference, onboardingTakers, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/dist/context-onboarding-store.js";
 import { startContextJourney, waitContextJourney } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -24,9 +25,9 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 const MAIL = "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。";
 const TODOS = JSON.stringify({
   candidates: [
-    { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, phrase: null }, placement: "project",
+    { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, phrase: null },
       evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], depends_on: ["c2"] },
-    { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null }, placement: "project",
+    { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null },
       waiting: { who: "小李", what: "确认预算" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
     { ref: "c3", kind: "suggestion", title: "今天催小李确认预算，并把新版方案里还没定的预算项逐条列给他看一遍", why: "预算影响周五交付", owner: { who: "你", stated: false }, due: { date: null, phrase: null },
       evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
@@ -73,10 +74,17 @@ async function openJourneyBrowser(t: TestContext, mode: true | "empty") {
     return id;
   };
   // Drafts by the plugin that declares it drafts (Todo), through its own declared action (contract-design §2.5); each call is its own batch.
-  let drafted = 0;
+  // Since batch 108 Todo is a partition plugin and a new project's drafts are made in the personal space (draftPartition), which has only
+  // what the person added: the first seeded batch adds Todo there, so the journeys that never seed keep a personal space without it.
+  let drafted = 0, personal: ReturnType<MolisWorkLocalHost["actionClient"]> | undefined;
   const batch = async () => {
     const drafter = onboardingTakers("drafts")[0]!;
-    const { batch: made } = await localHost!.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...drafter.take.action.permissions] },
+    if (!personal) {
+      await addProjectPlugin(browser.web, PERSONAL_SPACE_PROJECT_ID, drafter.project_plugin_id);
+      const space = await localHost!.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog).withCatalog({ homeDirectory }, catalog => catalog.getProject(PERSONAL_SPACE_PROJECT_ID));
+      personal = localHost!.actionClient(molisWorkHostProjectReference({ databasePath: space.database_path, projectId: PERSONAL_SPACE_PROJECT_ID }));
+    }
+    const { batch: made } = await personal.invoke({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: [...drafter.take.action.permissions] },
       drafter.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>,
       { title: "开始使用时整理的待办", origin: "onboarding", request_id: `onboarding:e2e:${++drafted}`, materials: [{ title: "张总：新版方案", text: MAIL }] });
     return { plugin_id: drafter.plugin_id, surface: drafter.project_plugin_id, batch: made };

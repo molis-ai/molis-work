@@ -4,9 +4,11 @@ import test from "node:test";
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
 import type { OnboardingDraftBatch, OnboardingDraftInput } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
-import { onboardingTakers } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference, onboardingTakers } from "@molis-ai/molis-work-app-local-host";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { withContextJourneys, type ContextJourney } from "../apps/local-host/dist/context-onboarding-store.js";
@@ -16,9 +18,9 @@ import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 const MAIL = "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。";
 const TODOS = JSON.stringify({
   candidates: [
-    { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, phrase: null }, placement: "project",
+    { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, phrase: null },
       evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], depends_on: ["c2"] },
-    { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null }, placement: "project",
+    { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null },
       waiting: { who: "小李", what: "确认预算" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
     { ref: "c3", kind: "suggestion", title: "今天催小李确认预算", why: "预算影响周五交付", owner: { who: "你", stated: false }, due: { date: null, phrase: null },
       evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
@@ -30,13 +32,17 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
   const browser = await openGoalBrowser(t, true, undefined, async () => TODOS);
   if (!browser) return;
   const child=await pluginFrameBrowser(t,browser,"todo");
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, homeDirectory, localHost } = browser;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, homeDirectory, localHost, web } = browser;
   // A journey that has already read its material and drafted from it: the drafts are a real batch of the plugin that declares it drafts (Todo),
   // made by its own declared action (contract-design §2.5).
   const id = randomUUID();
   const drafter = onboardingTakers("drafts")[0]!;
   assert.equal(drafter.plugin_id, TODO_PLUGIN_ID);
-  const { batch } = await localHost.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...drafter.take.action.permissions] },
+  // Drafts are made in the personal space (the new project does not exist yet) and go with the new project (batch 108); the person has
+  // Todo there, since the platform adds no plugin to the personal space on its own.
+  await addProjectPlugin(web, PERSONAL_SPACE_PROJECT_ID, "todo");
+  const space = localHost.actionClient(molisWorkHostProjectReference({ databasePath: partitionDatabasePath(homeDirectory, PERSONAL_SPACE_PROJECT_ID), projectId: PERSONAL_SPACE_PROJECT_ID }));
+  const { batch } = await space.invoke({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: [...drafter.take.action.permissions] },
     drafter.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>,
     { title: "开始使用时整理的待办", origin: "onboarding", request_id: `onboarding:${id}:e2e:1`, materials: [{ title: "张总：新版方案", text: MAIL }] });
   // The journey's staging holds the mail as its file and its text, under its digest (docs/system/HOME-DATA.md).
@@ -76,10 +82,10 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
   // The new project opens on Todo by itself, and the link's request leaves the address once honored.
   await waitFor("location.pathname.startsWith('/projects/') && document.body.dataset.desktopSurface === 'todo'", 15_000);
   assert.equal(await evaluate("new URL(location.href).searchParams.has('openPlugin')"), false);
-  const store = openTodoStore(homeDirectory);
+  const adoptedProject = String(await evaluate("location.pathname.split('/')[2]"));
+  const store = openTodoStore(homeDirectory, undefined, adoptedProject);
   try {
-    const adoptedProject = String(await evaluate("location.pathname.split('/')[2]"));
-    const items = store.list({ projectId: null, projectIds: [adoptedProject], actor: "user", actorId: "test" });
+    const items = store.list({ actor: "user", actorId: "test" });
     assert.deepEqual(items.map(item => item.title), ["发送新版方案"]);
     assert.equal(items[0]!.sources[0]!.kind, "onboarding");
   } finally { store.close(); }

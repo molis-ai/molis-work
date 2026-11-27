@@ -9,7 +9,7 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "jelly");
-  const rows = () => { const store = openJellyStore(homeDirectory); try { return store.read(s => ({ items: s.items("2000-01-01", "2100-12-31"), notes: s.notes() })); } finally { store.close(); } };
+  const rows = () => { const store = openJellyStore(homeDirectory, projectId!); try { return store.read(s => ({ items: s.items("2000-01-01", "2100-12-31"), notes: s.notes() })); } finally { store.close(); } };
   const open = async () => {
     await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
     if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") await browser.click("[data-plugin-strip] [data-plugin-id=jelly]");

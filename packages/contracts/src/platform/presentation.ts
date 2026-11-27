@@ -167,7 +167,7 @@ export const PRESENTATION_OVERVIEW_OUTPUT_SCHEMA = { type: "object", additionalP
   outline: PRESENTATION_OUTLINE_SCHEMA, lede: PRESENTATION_LEDE_SCHEMA } } as const;
 
 /**
- * The plugin's overview: a read that calls no model and costs nothing, like `home_aggregate`. A Home-level plugin's (`scope: "home"`) is
+ * The plugin's overview: a read that calls no model and costs nothing. A Home-level plugin's (`scope: "home"`) is
  * given the projects the person may reach through it (`project_reach`, so its Manifest declares `projects:reach`); the input names no project.
  * Besides the person's own page, a plugin the person granted `actions:delegate` reads it as that person: a delegated call is checked under
  * the `workflow` audience, with the person's permissions as they are.

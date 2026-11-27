@@ -20,7 +20,8 @@ test("SAI-06/08/09: taking back the original Work child before its float approva
         title: "Original review child", brief: "SAI_REVIEW_CHILD: propose a Todo and await the original review.", acceptance: "Todo reviewed" } });
       return reply(undefined, "Parent keeps its own conversation.");
     });
-  } }); assert.ok(b);
+  // The child proposes a Todo, a plugin of the project since batch 108.
+  }, projectPlugins: ["todo"] }); assert.ok(b);
   await b.setViewport(1440, 960);
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
   const base = `/projects/${b.projectId}/api/assistant`;

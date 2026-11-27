@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
-import { applySqliteBaseline, createFileSecretStore, homeSqlitePath, openHomeSqliteDatabase, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
 type Host = ReturnType<typeof createMolisWorkLocalHost>;
@@ -68,12 +71,14 @@ test("deleting a project removes its Plugin Studio builds and releases and the s
 test("a running Host's owners clear what only they can: pictures being made, the search index, the runtime", async () => {
   await withHost(async ({ home, catalog, host }) => {
     const project = await catalog.createProject({ display_name: "图片项目", actor_id: "test-user" });
-    mkdirSync(join(home, "images", "assets"), { recursive: true });
-    writeFileSync(join(home, "images", "assets", "aaaa-0001.png"), "png");
-    const images = openHomeSqliteDatabase(home, "images");
-    applySqliteBaseline(images, homeSqlitePath(home, "images"), IMAGES_DATABASE);
-    images.prepare(`INSERT INTO jobs (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
-      VALUES ('job-1',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(project.project_id, "request-1", "hash", "c", "c", "openai-images", "m", "提示词", "", "", "succeeded",
+    // Images keeps its jobs in the project's own library and its pictures in the project's plugin files (batch 108).
+    const library = partitionLibraryFile(home, project.project_id, "images"), assets = join(partitionRoot(home, project.project_id), "plugin-files", "images-install", "images", "assets");
+    mkdirSync(dirname(library), { recursive: true }); mkdirSync(assets, { recursive: true });
+    writeFileSync(join(assets, "aaaa-0001.png"), "png");
+    const images = new DatabaseSync(library);
+    images.exec(IMAGES_DATABASE.schema);
+    images.prepare(`INSERT INTO jobs (id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
+      VALUES ('job-1',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run("request-1", "hash", "c", "c", "openai-images", "m", "提示词", "", "", "succeeded",
       JSON.stringify([{ id: "i", filename: "aaaa-0001.png", mime_type: "image/png", byte_length: 3 }]), "", new Date().toISOString(), new Date().toISOString(), null);
     images.close();
 
@@ -84,9 +89,8 @@ test("a running Host's owners clear what only they can: pictures being made, the
 
     const result = await catalog.deleteProject(deletion(project.project_id));
     assert.equal(result.deletion.cleanup_state, "complete", JSON.stringify(result.deletion.owner_steps.filter(step => step.state !== "complete")));
-    const check = openHomeSqliteDatabase(home, "images");
-    try { assert.equal((check.prepare("SELECT COUNT(*) n FROM jobs WHERE project_id = ?").get(project.project_id) as { n: number }).n, 0); } finally { check.close(); }
-    assert.equal(existsSync(join(home, "images", "assets", "aaaa-0001.png")), false);
+    assert.equal(existsSync(library), false, "the project's Images library goes with it");
+    assert.equal(existsSync(join(assets, "aaaa-0001.png")), false, "and so do its pictures");
     assert.equal(host.status().projects.length, 0);
   });
 });

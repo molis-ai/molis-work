@@ -43,7 +43,6 @@ export const todoUiContribution: UiContribution<TodoUiModel> = {
 
 const VIEWS: readonly [string, string][] = [["today", "todo.date.today"], ["waiting", "todo.view.waiting"], ["unscheduled", "todo.view.unscheduled"], ["upcoming", "todo.view.upcoming"], ["all", "todo.view.all"], ["closed", "todo.status.done"]];
 const STATUSES: readonly [string, string][] = [["open", "todo.status.open"], ["doing", "todo.status.doing"], ["waiting", "todo.status.waiting"], ["done", "todo.status.done"], ["cancelled", "todo.status.cancelled"]];
-const PLACEMENTS: readonly [string, string][] = [["personal", "todo.place.personal"], ["project", "todo.place.this-project"], ["unassigned", "todo.place.unassigned"]];
 const RELATIONS: readonly [string, string][] = [["blocked_by", "todo.relation.blocked-by"], ["blocks", "todo.relation.blocks"], ["related", "todo.relation.related"]];
 /** The ring each status draws: the platform's state vocabulary, not a colour of our own. */
 const STATUS_RINGS: Record<string, string> = { open: "idle", doing: "doing", waiting: "waiting", done: "done", cancelled: "cancelled" };
@@ -77,14 +76,12 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         </nav>
         <div class="todo-chrome-tools" data-help-slot>
           <label class="mw-input-group todo-search">${icon("search")}<input class="mw-input" type="search" data-todo-search placeholder="${uiText("todo.chrome.search")}" aria-label="${uiText("todo.chrome.search")}"></label>
-          <button class="mw-btn mw-btn--ghost" type="button" data-todo-scope aria-pressed="false" title="${uiText("todo.chrome.all-projects-hint")}">${uiText("todo.chrome.all-projects")}</button>
         </div>
       </header>
       <form class="todo-quick" data-todo-quick autocomplete="off">
         <input class="mw-input todo-quick-input" data-todo-quick-input maxlength="400" aria-label="${uiText("todo.quick.label")}" placeholder="${uiText("todo.quick.placeholder")}">
         <div class="todo-quick-meta">
           <div class="todo-quick-parts" data-todo-quick-parts aria-live="polite"></div>
-          <div class="mw-toggle-group todo-quick-placement" data-slot="toggle-group" role="radiogroup" aria-label="${uiText("todo.field.place")}" data-todo-quick-placement>${PLACEMENTS.map(([value, label]) => `<button class="mw-toggle${value === "unassigned" ? " is-current" : ""}" type="button" data-todo-quick-placement-choice="${value}" role="radio" aria-checked="${value === "unassigned"}">${uiText(label)}</button>`).join("")}</div>
           <button class="mw-btn mw-btn--primary" type="submit" data-todo-quick-submit disabled>${icon("plus")}<span>${uiText("todo.quick.add")}</span></button>
         </div>
       </form>
@@ -110,14 +107,6 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="shift">${uiText("todo.batch.shift")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="today">${uiText("todo.batch.today")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="unplan">${uiText("todo.batch.unplan")}</button>
-        <details class="todo-batch-more">
-          <summary class="mw-btn mw-btn--ghost">${uiText("todo.batch.move")}</summary>
-          <!-- 菜单项是 menuitem；打开 details 不会触发共享 roving 的 MutationObserver（它只观察 hidden/aria-*/role 变化，
-               不看 open），所以初始的单一 Tab 停点直接写进 markup，焦点进入后由共享 roving 接管方向键与停点。 -->
-          <div class="mw-menu" role="menu">
-            ${PLACEMENTS.map(([value, label], index) => `<button class="mw-menu__item" type="button" role="menuitem" tabindex="${index === 0 ? 0 : -1}" data-todo-batch-placement="${value}">${uiText(label)}</button>`).join("")}
-          </div>
-        </details>
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="archive" hidden>${uiText("todo.action.archive")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="clear">${uiText("todo.batch.clear")}</button>
       </div>
@@ -196,8 +185,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
             </div>
             <div class="todo-rail-group">
               <div class="todo-rail-label">${uiText("todo.field.placement")}</div>
-              ${prop("place", "folder", "todo.field.place")}
-              <span class="todo-seen" data-placement-slot data-placement-saved="off" data-placement-scope="home"></span>
+              <span class="todo-seen" data-placement-slot data-placement-saved="off"></span>
               <label class="todo-prop todo-prop--switch">${icon("flag")}<span class="todo-prop-name">${uiText("todo.field.important")}</span><span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" data-todo-field="important" aria-label="${uiText("todo.field.important")}"><span class="mw-switch__track" aria-hidden="true"></span></span></label>
             </div>
           </aside>
@@ -209,7 +197,6 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <div class="mw-menu__group">${STATUSES.slice(0, 3).map(statusItem).join("")}</div>
         <div class="mw-menu__group">${STATUSES.slice(3).map(statusItem).join("")}</div>
       </div>
-      <div class="mw-menu todo-pop" data-todo-pop="place" data-todo-placement-choices role="radiogroup" aria-label="${uiText("todo.field.place")}" hidden></div>
       <div class="mw-popover todo-pop todo-date" data-todo-pop="date" role="group" hidden>
         <div data-todo-date-quick></div>
         <hr>

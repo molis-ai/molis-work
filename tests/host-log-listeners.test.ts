@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { defineDueRemindersAction, defineSubjectContextAction, defineWorkEventsAction, subjectContext, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectContextAction, defineWorkEventsAction, subjectContext, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { AssistantService, AssistantStore, ComputerDesk, ComputerRecords, ComputerSettings, LocalHost, PluginInstallService, SandboxPackageStore, assistantAuthority, captureHostLog,
@@ -180,10 +180,10 @@ test("RAC-1113 W5-13-15 a publishers' ledger that cannot be read still trusts no
   assert.equal(other.value, false); assert.equal(other.entries.length, 1);
 });
 
-test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new material, a reminder source, a continuation watch) is written when it starts, by its key, and the look carries on", async t => {
+test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new material, a continuation watch) is written when it starts, by its key, and the look carries on", async t => {
   const local = newLocalHost();
   t.after(() => local.close());
-  let eventsBroken = true, remindersBroken = true;
+  let eventsBroken = true;
   const events = defineWorkEventsAction("fixture.material.events", 1, ["note"], "事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.material", kind: "plugin", title: "Material" }, definitions: [events],
     handlers: [{ ...events, handle: () => { if (eventsBroken) throw failure("fixture.events_down"); return { source: { surface: "notes", title: "Notes", icon: "note" }, events: [] }; } }] });
@@ -192,14 +192,9 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [notes],
     handlers: [{ ...notes, handle: (_caller: unknown, input: unknown) => subjectContext({ subject: { kind: "note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "笔记", content: "笔记",
       attached_to: [{ kind: "goal", id: "g1" }] }) }] });
-  const reminders = defineDueRemindersAction("fixture.material.reminders", 1, ["note"], "提醒", []);
-  local.actionRegistry().registerProvider({ provider: { provider_id: "fixture.reminders", kind: "plugin", title: "Reminders" }, definitions: [reminders],
-    handlers: [{ ...reminders, handle: () => { if (remindersBroken) throw failure("fixture.reminders_down"); return { source: { surface: "notes", title: "Notes" }, reminders: [] }; } }] });
-  const inHome: ActionCallContext = { ...person, project_id: null };
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw failure("fixture.runtime_down"); }, authority: noRounds,
-    scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }),
-    homeActions: async () => ({ discover: () => local.homeActionClient().discover(inHome), invoke: (action, input) => local.homeActionClient().invoke(inHome, action, input) }) }, "web-user");
+    scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }) }, "web-user");
   t.after(() => service.continuations.close());
   const work = store.create({ actor_id: "web-user", title: "整理", scope: { kind: "project", project_id: "project" }, origin: null, project_ref: project });
   store.relations.link({ work_id: work.work_id, project_id: "project" }, "material", { kind: "note", id: "n1", revision: "1" }, "测试");
@@ -210,21 +205,11 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   assert.deepEqual(of(looks.entries, "material_source_failed").map(entry => [entry.area, entry.fields?.project_id, entry.fields?.capability_id, Boolean(entry.error)]),
     Array(2).fill(["assistant", "project", "fixture.material.events", true]));
 
-  // Reminders: the stretch a source could not answer is asked again next time, and its failure is written once.
-  const swept = await captured(async () => [await service.followUps.sweepReminders(), await service.followUps.sweepReminders()]);
-  assert.deepEqual(swept.value, [0, 0]);
-  assert.equal(store.setting("web-user", "reminder_sweep"), null, "the missed stretch is not marked as looked at");
-  assert.deepEqual(of(swept.entries, "reminder_source_failed").map(entry => [entry.area, entry.fields?.capability_id, Boolean(entry.error)]),
-    [["assistant", "fixture.material.reminders", true]]);
-  remindersBroken = false;
-  await service.followUps.sweepReminders();
-  assert.notEqual(store.setting("web-user", "reminder_sweep"), null, "a source that answers again moves the look on");
-
   // The continuation starter whose runtime cannot be reached (the Assistant serves it when it attaches, and attaches again later):
   // written once when it starts failing, however often it is tried.
   store.update("web-user", work.work_id, null, { session_id: "session-1" }, false);
   const watched = await captured(async () => { service.continuations.attach(); await new Promise(resolve => setTimeout(resolve, 20)); service.continuations.attach(); await new Promise(resolve => setTimeout(resolve, 50)); });
   assert.deepEqual(of(watched.entries, "continuation_starter_failed").map(entry => [entry.area, entry.error?.code]),
     [["assistant", "fixture.runtime_down"]]);
-  assert.ok(!JSON.stringify([looks.entries, swept.entries, watched.entries]).includes("secret"), "no message or path reaches the log");
+  assert.ok(!JSON.stringify([looks.entries, watched.entries]).includes("secret"), "no message or path reaches the log");
 });

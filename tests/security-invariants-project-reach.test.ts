@@ -1,4 +1,3 @@
-import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { existsSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -63,8 +62,6 @@ async function setup(t: TestContext, probe: ReachProbe, extra: readonly PluginDe
   const call = async (definition: ActionDefinition, caller: ActionCallContext, input: unknown = {}) => (await home.host.homeActionClient().invoke(caller, definition, input)) as { readable: string[] | null };
   return { home, platform, grant, as, call };
 }
-const hide = async (home: TestHome, project: TestProject, plugin: string) => home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin, expected_revision: await projectPluginRevision(home.web, project.project_id) });
-const unhide = async (home: TestHome, project: TestProject, plugin: string) => home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin, expected_revision: await projectPluginRevision(home.web, project.project_id) });
 const sorted = (ids: readonly string[] | null) => [...(ids ?? [])].sort();
 
 /** The existing close notification runs after resource release and is awaited before the Host drops its closing entry. */
@@ -115,35 +112,6 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
     assert.equal(catalog.listProjects().some(project => project.project_id === closing.project_id), false);
   });
   assert.equal(existsSync(closing.database_path), false);
-});
-
-test("RAC-590-CLOSE-02 S-74 Todo all-projects reads exclude closing projects while live hidden state still changes on each call", { timeout: 60_000 }, async t => {
-  const barrier = closingBarrier();
-  let deleting: Promise<unknown> | undefined;
-  t.after(async () => { barrier.release(); await deleting; });
-  const home = await openTestHome(t, { host: { onRuntimeClose: barrier.onRuntimeClose } });
-  const closing = await home.createProject("Closing Todo"), reads = await home.createProject("Reads"), hidden = await home.createProject("Visibility changes");
-  const items = (project: TestProject) => `/projects/${project.project_id}/api/plugins/io.molis.work.todo/items`;
-  for (const [project, title] of [[closing, "Closing item"], [reads, "Readable item"], [hidden, "Visibility item"]] as const) {
-    await home.web.post(items(project), { title, placement: "project" });
-  }
-  const titles = async () => (await home.web.get<{ items: Array<{ title: string }> }>(`${items(reads)}?all=1&view=all`)).items.map(item => item.title).sort();
-  assert.deepEqual(await titles(), ["Closing item", "Readable item", "Visibility item"]);
-  barrier.hold(closing);
-  deleting = home.web.post(`/api/settings/projects/${closing.project_id}/delete`, { delete_confirmed: true, idempotency_key: "reach-closing-todo" });
-  await Promise.race([barrier.entered, deleting.then(() => assert.fail("deletion completed before the resource-release barrier"))]);
-  assert.equal(home.host.projects().find(project => project.project_id === closing.project_id)?.state, "closing");
-  const withCatalog = home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog);
-  await withCatalog({ homeDirectory: home.home }, catalog => { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id)); });
-  assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
-  await hide(home, hidden, "todo");
-  assert.deepEqual(await titles(), ["Readable item"]);
-  await unhide(home, hidden, "todo");
-  assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
-  barrier.release();
-  const result = await deleting as { deletion: { cleanup_state: string } };
-  assert.equal(result.deletion.cleanup_state, "complete");
-  assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
 });
 
 test("RAC-590 S-74 the person's call to an action that declares project_reach gets the projects in the catalog now, worked out again at every call", async t => {
@@ -213,26 +181,6 @@ test("RAC-593 S-74 the plugin's call to its own action carries the outer call's 
   const byPerson = (await s.call(probe.actions.outer, s.as("user"))).readable;
   assert.ok(byPerson?.includes(a.project_id), JSON.stringify(byPerson));
   for (const audience of ["agent", "mcp", "workflow"] as const) assert.equal((await s.call(probe.actions.outer, s.as(audience, { actor_id: LOCAL_PERSON_ACTOR_ID }))).readable, null, audience);
-});
-
-test("RAC-590 RAC-592 S-74 a project that hides Todo is not in the list: its todos are not in the person's all-projects view and are not found by id, until it shows Todo again", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), a = await home.createProject("Reads"), b = await home.createProject("Hides Todo");
-  const items = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.todo/items`;
-  type Listed = { items: Array<{ id: string; title: string; revision: number }> };
-  const titles = async (query: string) => (await home.web.get<Listed>(`${items(a)}?${query}`)).items.map(item => item.title).sort();
-  const made = await home.web.post<{ item: { id: string; revision: number } }>(items(b), { title: "B 项目里的事", placement: "project" });
-  await home.web.post(items(a), { title: "A 项目里的事", placement: "project" });
-  assert.deepEqual(await titles("all=1&view=all"), ["A 项目里的事", "B 项目里的事"]);
-  assert.equal((await home.web.get<{ item: { title: string } }>(`${items(a)}/${made.item.id}`)).item.title, "B 项目里的事");
-  await hide(home, b, "todo");
-  assert.deepEqual(await titles("all=1&view=all"), ["A 项目里的事"]);
-  await assert.rejects(home.web.get(`${items(a)}/${made.item.id}`), { status: 404, code: "todo.not_found" });
-  await assert.rejects(home.web.post(`${items(a)}/${made.item.id}/status`, { status: "doing", expected_revision: made.item.revision }), { status: 404, code: "todo.not_found" });
-  await assert.rejects(home.web.post(`${items(a)}/${made.item.id}`, { title: "越界改动", placement: "project", expected_revision: made.item.revision }), { status: 404, code: "todo.not_found" });
-  // Shown again, it is there with nothing lost or changed.
-  await unhide(home, b, "todo");
-  assert.deepEqual(await titles("all=1&view=all"), ["A 项目里的事", "B 项目里的事"]);
-  assert.equal((await home.web.get<{ item: { revision: number } }>(`${items(a)}/${made.item.id}`)).item.revision, made.item.revision);
 });
 
 test("T405-FULL-08 RAC-590 RAC-592 S-74 closing search waits for knowledge's real Catalog borrow and stops catch-up after its owner context returns", { timeout: 60_000 }, async t => {

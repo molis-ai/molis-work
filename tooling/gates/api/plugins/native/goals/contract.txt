@@ -1990,7 +1990,6 @@ export declare const goalEntryActions: {
                 readonly role: "context" | "reply";
                 readonly subject_kind: string;
             };
-            home_aggregate?: true;
             project_reach?: "person";
             placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
@@ -2075,7 +2074,6 @@ export declare const goalEntryActions: {
                 readonly role: "context" | "reply";
                 readonly subject_kind: string;
             };
-            home_aggregate?: true;
             project_reach?: "person";
             placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
@@ -2176,7 +2174,6 @@ export declare const goalEntryActions: {
                 readonly role: "context" | "reply";
                 readonly subject_kind: string;
             };
-            home_aggregate?: true;
             project_reach?: "person";
             placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
@@ -2261,7 +2258,6 @@ export declare const goalEntryActions: {
                 readonly role: "context" | "reply";
                 readonly subject_kind: string;
             };
-            home_aggregate?: true;
             project_reach?: "person";
             placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
@@ -2358,7 +2354,6 @@ export declare const goalEntryActions: {
                 readonly role: "context" | "reply";
                 readonly subject_kind: string;
             };
-            readonly home_aggregate?: true;
             readonly project_reach?: "person";
             readonly placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             readonly subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
@@ -2448,7 +2443,6 @@ export declare const goalEntryActions: {
                 readonly role: "context" | "reply";
                 readonly subject_kind: string;
             };
-            readonly home_aggregate?: true;
             readonly project_reach?: "person";
             readonly placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
             readonly subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];

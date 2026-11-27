@@ -6,7 +6,7 @@ import { jellyManifest } from "./manifest.js";
 import { JellyStore, type JellyStores } from "./store.js";
 import { jellyUiContribution } from "./ui.js";
 
-/** One Home Runtime instance owns every Jelly action and view. It needs its database and nothing else: no model, no settings. */
+/** One instance per partition Jelly is enabled in owns that partition's Jelly actions and views. It needs its database and nothing else: no model, no settings. */
 export function createJellyPlugin(): PluginDefinition {
   return { manifest: jellyManifest, async start(context) {
     for (const permission of jellyManifest.permissions) if (permission.required) context.requireGrant(permission.permission);

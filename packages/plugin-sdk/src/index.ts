@@ -44,7 +44,7 @@ export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxPromptId, sandboxRoleIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
-export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
+export { inspectActionDeclarations, isProjectReadQuery } from "./action-declarations.js";
 export { extractActionDelegation } from "./action-delegation.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
@@ -93,7 +93,7 @@ export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from 
 /** Putting what the person has in hand somewhere: declare `intake` (this command creates an Item) or `attach` (it adds to one) on the command itself. */
 export type { ActionIntake, PersonIntake, DeliveredIntake, IntakeStart, ItemMaterial, PersonMaterial, DeliveredMaterial, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkEventsAction, withinWorkEventWindow, assertWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-/** The Home title bar's background tasks: a read-only project query the Home asks in every open project (`home_aggregate`). */
+/** A project's background tasks: a read-only project query its panel and line ask; the Home reads `background_task` overview rows instead (V17). */
 export { defineBackgroundTasksAction, defineTaskServesAction, TASK_SERVES_RELATION } from "@molis-ai/molis-work-contracts/platform/actions";
 export { definePlacementRelationAction, PLACEMENT_RELATION_LIMITS, type PlacementRelationCandidates, type PlacementRelationCreateInput, type PlacementRelationOptions,
   type PlacementRelationResult, type PlacementRelationSubjectInput, type PlacementRelationTargetInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -369,5 +369,5 @@ export { syncAggregateDeclaration, parseSyncTracking, parseSyncAggregates } from
 export { syncSection, syncSectionsDeclaration, syncSectionsTracking } from './sync-sections.js';
 
 export { readLocalizedMarkdown } from "./localized-markdown.js";
-export { checkOverviewRow, overviewRows, overviewEventWindowEnd, overviewColumns, type OverviewRowCheck } from "./overview-rows.js";
+export { checkOverviewRow, overviewRows, overviewEventWindowEnd, overviewColumns, type OverviewRowCheck, type OverviewRowsWriter } from "./overview-rows.js";
 export { partitionDeclarationProblems, type PartitionDeclarationFields } from "./partition-declarations.js";

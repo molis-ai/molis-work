@@ -6,6 +6,7 @@ import { IMAGES_PLUGIN_ID } from "./contract.js";
 import { IMAGES_DATABASE } from "./database.js";
 import { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
 import { imagesSync } from './replication.js';
+import { IMAGES_PERSON_SETTINGS } from "./connections.js";
 
 export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
 const routes: PluginRouteDeclaration[] = [
@@ -33,8 +34,11 @@ export const imagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: Object.values(imagesActions).map(localizeAction),
-  runtime: { scope: "home" },
-  databases: { home: IMAGES_DATABASE },
+  // Each partition's own jobs and pictures (specs/unified-partition-plugins §4.2, batch 108); the image services are the person's.
+  databases: { partition: IMAGES_DATABASE },
+  // Its generations in the Home's list of background work, read from its own library without starting it (V17, batch 108).
+  overview_projection: { kinds: ["background_task"] },
+  person_settings: { keys: IMAGES_PERSON_SETTINGS },
   owner_files: IMAGES_OWNER_FILES,
   image_generation: IMAGES_IMAGE_GENERATION,
   routes: routes.map(route => route.method === "POST" ? { ...route, max_body_bytes: 160_000 } : route),

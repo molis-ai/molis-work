@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, type ActionReference, type ActionView, type RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-import { isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
+import { isProjectReadQuery } from "@molis-ai/molis-work-plugin-sdk";
 
 // What runs on its own and was missed (specs/work-line §6, WLN-39): a project's runs owners (Schedule, Feed …) already say it with the
 // runs types, so the task table reads those answers instead of asking each owner to report a second time. A missed run is a task that
@@ -10,7 +10,7 @@ import { isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 export const MISSED_RUN_KIND = "scheduled_run";
 
 /** A project's runs owner: the overview query with the runs types. There is no other list of owners. */
-export const isRunsSource = (view: ActionView): boolean => view.action.input_type === RUNS_OVERVIEW_INPUT_TYPE && view.action.output_type === RUNS_OVERVIEW_OUTPUT_TYPE && isHomeAggregateQuery(view);
+export const isRunsSource = (view: ActionView): boolean => view.action.input_type === RUNS_OVERVIEW_INPUT_TYPE && view.action.output_type === RUNS_OVERVIEW_OUTPUT_TYPE && isProjectReadQuery(view);
 /** The action that owner decides a missed run with: the decision types, under the same provider. */
 export const isRunDecisionOf = (view: ActionView, source: Required<ActionReference>): boolean =>
   view.action.input_type === RUN_DECISION_INPUT_TYPE && view.action.output_type === RUN_DECISION_OUTPUT_TYPE && view.provider.provider_id === source.provider_id && view.availability.available;

@@ -14,27 +14,27 @@ import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 
 // A Home plugin's part of deleting a project is what its Manifest declares (`databases.home.project_rows`, PG-024), deleted by the
 // platform: the plugin is called for none of it (PG-106). Its background work in the project is stopped by the platform (PG-038;
-// tests/security-invariants-plugin-background.test.ts). Todo is the shipped Home plugin whose library declares its rows.
+// tests/security-invariants-plugin-background.test.ts). Work Brief's Home half is the shipped Home plugin whose library declares its rows
+// (Todo's library moved into each partition in batch 108, where deleting a partition deletes the file).
 
 function fixture(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "home-project-cleanup-"));
   pluginPagesFor(home); // Include the Host's page authority before comparing the plugin owner's lifecycle.
   const hooks = projectDeletedHooksFor(home), trace: string[] = [];
-  const base = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo");
+  const base = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "work-brief");
   const library = base?.manifest.databases?.home;
   assert.ok(base?.runtime && library?.project_rows);
   const ownerId = base.project_plugin_id, runtime = base.runtime;
   /** A batch of the project's in the plugin's own library, written beside the plugin's connection, and one of another project's. */
   const batches = (project: string) => {
     const db = openBaselineHomeSqlite(home, library.store_name, library);
-    try { return (db.prepare("SELECT count(*) AS n FROM todo_batches WHERE project_id = ?").get(project) as { n: number }).n; } finally { db.close(); }
+    try { return (db.prepare("SELECT count(*) AS n FROM brief_editor_versions WHERE project_id = ?").get(project) as { n: number }).n; } finally { db.close(); }
   };
   const mark = () => {
     trace.length = 0;
-    const db = openBaselineHomeSqlite(home, library.store_name, library), now = new Date().toISOString();
+    const db = openBaselineHomeSqlite(home, library.store_name, library);
     try {
-      for (const project of ["p1", "p2"]) db.prepare(`INSERT OR IGNORE INTO todo_batches (batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision)
-        VALUES (?, ?, 'manual', 'manual', '批次', '{}', 'open', ?, ?, 1)`).run(`batch-${project}`, project, now, now);
+      for (const project of ["p1", "p2"]) db.prepare("INSERT OR IGNORE INTO brief_editor_versions (id, project_id, version) VALUES (?, ?, 1)").run(`brief-${project}`, project);
     } finally { db.close(); }
   };
   // The owner the Home's catalog gives without a running Host; while the plugin runs, the platform's own step for it is on top.
@@ -124,8 +124,8 @@ test("W5-01-RPC-01 project cleanup still deletes the rows when a same-id install
   const previous = f.entry.create();
   // An installation's id is a hash of the plugin id and the publisher's signature (`installIdentity`): pick a signature whose id sorts first.
   const idOf = (signature: string) => `plugin-install-${createHash("sha256").update(`${record.plugin_id}\u0000${signature}`).digest("hex").slice(0, 32)}`;
-  let signature = "previous-todo-binding";
-  for (let n = 1; idOf(signature) >= record.install_id; n++) signature = `previous-todo-binding-${n}`;
+  let signature = "previous-brief-binding";
+  for (let n = 1; idOf(signature) >= record.install_id; n++) signature = `previous-brief-binding-${n}`;
   previous.manifest = { ...previous.manifest, publisher: { ...previous.manifest.publisher, signature } };
   const earlier = platform.runtime.install({ definition: previous, deployment: "local", trust: { level: "host" } }).install;
   assert.notEqual(earlier.publisher_signature, record.publisher_signature);

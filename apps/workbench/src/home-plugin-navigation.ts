@@ -1,4 +1,5 @@
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 import type { SidePanelPluginTab } from "./side-panel.js";
 import { builtinPluginDirectory, hostSurfaceDirectory } from "./plugin-catalog.js";
@@ -6,18 +7,21 @@ import type { PluginDirectory } from "./plugin-directory.js";
 
 /**
  * Home views share their instance; a project side view keeps the project named by its route. A platform part (Shelf, 44B) is in no
- * plugin directory: its tab is drawn from the platform's own surface entry, in every project.
+ * plugin directory: its tab is drawn from the platform's own surface entry, in every project. A partition plugin with a chord
+ * (`project_runtime.keys`, Issues) has its tab in every partition too, showing the personal space's view (R14, batch 108).
  */
 export function homePluginSideTabs(routePrefix = "", directory: PluginDirectory = builtinPluginDirectory()): SidePanelPluginTab[] {
   const surfaces = hostSurfaceDirectory();
-  return SHIPPED_WORKBENCH_PARTS.filter(entry => entry.manifest.runtime?.scope === "home").flatMap(entry =>
+  const personal = `/projects/${encodeURIComponent(PERSONAL_SPACE_PROJECT_ID)}`;
+  return SHIPPED_WORKBENCH_PARTS.filter(entry => entry.manifest.runtime?.scope === "home" || entry.project_runtime?.keys).flatMap(entry =>
     ((directory.find(item => item.id === entry.project_plugin_id) ?? surfaces.find(item => item.id === entry.project_plugin_id))?.ui.views ?? []).filter(view => view.slot === "side").map((view, index) => ({
       key: `${entry.project_plugin_id}/${view.view_id}`, title: view.title,
       ...(view.context_binding ? { contextOwner: entry.manifest.plugin_id, contextSurface: entry.project_plugin_id } : {}),
       icon: (view.icon ?? "package") as PluginIconName, ...(view.order === undefined ? {} : { order: view.order }),
-      src: routePrefix ? `${routePrefix}/side/${encodeURIComponent(entry.project_plugin_id)}/${encodeURIComponent(view.view_id)}`
+      src: entry.project_runtime?.keys ? `${personal}/side/${encodeURIComponent(entry.project_plugin_id)}/${encodeURIComponent(view.view_id)}`
+        : routePrefix ? `${routePrefix}/side/${encodeURIComponent(entry.project_plugin_id)}/${encodeURIComponent(view.view_id)}`
         : `/plugins/${encodeURIComponent(entry.project_plugin_id)}?side=${encodeURIComponent(view.view_id)}`,
-      ...(index === 0 && entry.runtime?.keys ? { keys: entry.runtime.keys } : {}),
+      ...(index === 0 && (entry.runtime?.keys ?? entry.project_runtime?.keys) ? { keys: (entry.runtime?.keys ?? entry.project_runtime?.keys)! } : {}),
     })));
 }
 

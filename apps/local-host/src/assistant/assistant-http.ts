@@ -10,7 +10,6 @@ import { assistantLineAcceptance } from "../acceptance-review.js";
 import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
 import { AssistantTaskReports, type AssistantReportRounds } from "./assistant-task-reports.js";
 import { onAttentionChangeOf } from "../attention-changes.js";
-import { homeAggregatePorts } from "../home-aggregate.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -117,11 +116,12 @@ const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ 
  * Only a project open now is read (the Home never opens one to read it), kept open while it is, in the language last used.
  */
 function watchTaskReports(ports: AssistantHttpPorts, tableOf: (projectId: string) => ReturnType<ReturnType<typeof personTaskTable>>, rounds: AssistantReportRounds): AssistantTaskReports {
-  const aggregate = homeAggregatePorts(ports.localHost);
+  const host = ports.localHost;
   const reports = new AssistantTaskReports({ changes: onAttentionChangeOf, reportsTo: projectId => rounds.reportsTo(projectId), report: report => rounds.report(report),
     table: async projectId => {
-      const reference = aggregate.openProjects().find(one => one.project_id === projectId);
-      const read = reference && await aggregate.whileOpen(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
+      // Checked and entered in the same turn: a project closing is not read, and reading never reopens one.
+      const reference = host.projects().find(one => one.project_id === projectId && one.state !== "closing");
+      const read = reference && await host.withProject(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
       return read ?? { tasks: [], issues: [] };
     } });
   reports.start();
@@ -485,6 +485,11 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
         const client = bindLocalWebActions(ports.localHost, ports.projectRef, [], { assertCurrent: policyControl.assertCurrent, signal: responseAbortSignal(response) });
         if (method === "GET") return { status: 200, body: await client.invoke({ ...assistantSettingActions.read, provider_id: assistantSettingOwner.provider_id }, { keys: assistantSettingOwner.settings_entries.entries.map(entry => entry.key) }) };
         if (method === "POST") return { status: 200, body: await client.invoke<unknown, SettingsValues>({ ...assistantSettingActions.write, provider_id: assistantSettingOwner.provider_id }, body) };
+      }
+      // The places the person may grant the assistant's cross-project overview reads in (设置 › 个人助理, overview-readers): every partition now.
+      if (method === "GET" && parts.length === 1 && parts[0] === "overview-places") {
+        policyControl.assertCurrent();
+        return { status: 200, body: { places: (await ports.localHost.partitions()).map(place => ({ project_id: place.project_id, display_name: place.display_name })) } };
       }
       const thread = await handleThreadHttp(parts, method, url, body, ports);
       if (thread) return thread;

@@ -618,7 +618,6 @@ export interface ActionMetadata {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
     };
-    readonly home_aggregate?: true;
     readonly project_reach?: "person";
     readonly placement_relation?: PlacementRelationDeclaration;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];

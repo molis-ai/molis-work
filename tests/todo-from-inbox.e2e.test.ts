@@ -3,6 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -21,7 +22,11 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/todo", research_source: "current" }).source;
   const item = feed.ingestItem({ source, externalId: "todo-from-inbox", title: "供应商报价需要回复", summary: "报价单", body: "请本周内确认报价", occurredAt: new Date().toISOString(), attention: false }).item;
   const entry = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
-  const todos = () => { const todo = openTodoStore(homeDirectory); try { return todo.list({ projectId, projectIds: [], actor: "user", actorId: "test" }); } finally { todo.close(); } };
+  const listIn = (partition: string) => { const todo = openTodoStore(homeDirectory, undefined, partition); try { return todo.list({ actor: "user", actorId: "test" }); } finally { todo.close(); } };
+  const todos = () => listIn(projectId!);
+  // A todo has no placement field since batch 108: it lives in the partition it was made in, so "in this project" means this
+  // project's library has it and the personal space's does not.
+  const personalTitles = () => listIn(PERSONAL_SPACE_PROJECT_ID).map(todo => todo.title);
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
@@ -48,7 +53,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   const [fromInbox] = todos();
   assert.equal(fromInbox!.title, "供应商报价需要回复");
-  assert.deepEqual([fromInbox!.placement, fromInbox!.project_id], ["project", projectId], "Inbox 属于项目，转成的待办也在这个项目");
+  assert.equal(personalTitles().includes(fromInbox!.title), false, "Inbox 属于项目，转成的待办也在这个项目");
   assert.deepEqual([fromInbox!.sources[0]!.kind, fromInbox!.sources[0]!.title, fromInbox!.sources[0]!.subject, fromInbox!.sources[0]!.open], ["material", "供应商报价需要回复", { kind: "inbox_entry", id: entry.entry_id }, null]);
   assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "open", "转为待办不替你处理 Inbox 条目");
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");
@@ -89,7 +94,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   const spark = todos().find(todo => todo.title === "给新人写一页入门");
   assert.ok(spark, "灵光转成的待办");
-  assert.deepEqual([spark.placement, spark.project_id], ["project", projectId], "灵光属于项目，转成的待办也在这个项目");
+  assert.equal(personalTitles().includes(spark.title), false, "灵光属于项目，转成的待办也在这个项目");
   assert.deepEqual([spark.sources[0]!.kind, spark.sources[0]!.excerpt, spark.sources[0]!.subject?.kind, spark.sources[0]!.open], ["material", "给新人写一页入门\n先列常见问题，再配截图。", "lingguang_spark", null]);
   assert.ok(await lingguang.evaluate("Boolean(document.querySelector('[data-lingguang-id]'))"), "灵光还在");
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth") && await lingguang.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");

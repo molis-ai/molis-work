@@ -8,7 +8,7 @@ import { MAINLINE_ARRANGE_PERMISSION, mainlineErrors, type BackgroundTaskCommand
   type WaitingItem, type WaitingReadResult, type WorkLineContainsRequest, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { checkItemPlacement, itemLineScope, placeInItem, taskBelongsToItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
-import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
+import { createExecutionLifetime, isProjectReadQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { MISSED_RUN_KIND, isRunDecisionOf, isRunsSource, missedRunTasks, missedRunsWindow } from "./missed-runs.js";
 
 export { MAINLINE_BASELINE, MAINLINE_HOME_STORE, MainlineStore, openMainlineDatabase, purgeMainlineProject } from "./store.js";
@@ -129,7 +129,7 @@ export function backgroundTaskRows(output: unknown, source: Required<ActionRefer
   return tasks.flatMap(task => { const row = backgroundTaskRow(task, source, origin, kinds); return row ? [row] : []; });
 }
 
-const isTaskProvider = (view: ActionView) => view.action.output_type === BACKGROUND_TASKS_OUTPUT_TYPE && isHomeAggregateQuery(view);
+const isTaskProvider = (view: ActionView) => view.action.output_type === BACKGROUND_TASKS_OUTPUT_TYPE && isProjectReadQuery(view);
 /** What the table reads: the task providers, and the owners of what runs on its own, whose missed runs wait on the person (WLN-39). */
 const isTaskSource = (view: ActionView) => isTaskProvider(view) || isRunsSource(view);
 const referenceOf = (view: ActionView): Required<ActionReference> => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });

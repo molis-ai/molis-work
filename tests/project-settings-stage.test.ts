@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import {
   isProjectSettingsWorkbenchPath,
   projectSettingsPageFromPath,
@@ -59,7 +58,7 @@ test("user settings left nav is grouped single-line categories", () => {
   // Which plugins the settings list is the Host's fact (W5-02 PR-B): without a project it is the personal ones, as the Host gives it.
   const html = renderMolisWorkSettings({
     section: "appearance",
-    shown_plugins: shownProjectPlugins([]),
+    shown_plugins: [],
     runtimes: [],
     projects: [],
     web_service: webService,
@@ -76,7 +75,7 @@ test("user settings left nav is grouped single-line categories", () => {
   const withGoals = renderMolisWorkSettings({
     section: "appearance",
     enabled_plugins: ["goals"],
-    shown_plugins: shownProjectPlugins(["goals"]),
+    shown_plugins: ["goals"],
     runtimes: [],
     projects: [],
     web_service: webService,

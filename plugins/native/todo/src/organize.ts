@@ -1,5 +1,6 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "./contract.js";
+import { ActionError, sameCarriedRecord, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import { TODO_BATCH_SUBJECT_KIND } from "./batch-kind.js";
+import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoSource } from "./contract.js";
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_SUBJECT_KIND } from "./contract.js";
 import { isTodoDate, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
@@ -10,9 +11,9 @@ import { todoRequestKey, type TodoAccess, type TodoFields, type TodoSql, type To
 export interface TodoCandidateDecision {
   readonly candidate_id: string;
   readonly action: "add" | "merge" | "update" | "complete" | "reopen" | "ignore";
-  /** Their edits before adding: title, dates, placement, notes. */
+  /** Their edits before adding: title, dates, notes. */
   readonly edits?: { readonly title?: string; readonly due_date?: string | null; readonly due_time?: string | null; readonly planned_date?: string | null;
-    readonly placement?: TodoPlacement; readonly notes?: string };
+    readonly notes?: string };
   /** Protected fields the person chose to take from the material anyway. */
   readonly accept_protected?: readonly string[];
   readonly ignore_reason?: string;
@@ -26,7 +27,7 @@ export interface TodoApplyResult {
 }
 
 interface StoredMaterial extends TodoBatchMaterial { readonly source_key: string }
-interface BatchRow { batch_id: string; project_id: string | null; origin: string; method: string; title: string; body_json: string; status: string; created_at: string; updated_at: string; revision: number }
+interface BatchRow { batch_id: string; origin: string; method: string; title: string; body_json: string; status: string; created_at: string; updated_at: string; revision: number; request_id?: string | null }
 interface BatchBody { materials: StoredMaterial[]; candidates: TodoCandidate[]; reference_only: TodoBatch["reference_only"]; notes: string[] }
 
 /** FNV-1a, enough to recognise the same pasted text again. */
@@ -56,17 +57,15 @@ export class TodoOrganizer {
   }
 
   list(access: TodoAccess, status: "open" | "all" = "open"): TodoBatch[] {
-    const projects = access.projectId ? [...access.projectIds, access.projectId] : access.projectIds;
     // A completed batch reopens when undo removed one of its adopted items (see afterUndo).
     const rows = this.db.all(`SELECT * FROM todo_batches
-      WHERE (project_id IS NULL OR project_id IN (SELECT value FROM json_each(?)))
-        AND (? = 'all' OR status = 'open' OR EXISTS (
+      WHERE (? = 'all' OR status = 'open' OR EXISTS (
           SELECT 1 FROM json_each(todo_batches.body_json, '$.candidates') AS candidate
           WHERE candidate.value ->> '$.decision.action' = 'added'
             AND candidate.value ->> '$.decision.item_id' IS NOT NULL
             AND NOT EXISTS (SELECT 1 FROM todo_items WHERE id = candidate.value ->> '$.decision.item_id')
         ))
-      ORDER BY created_at DESC, batch_id DESC LIMIT 50`, [JSON.stringify(projects), status]) as unknown as BatchRow[];
+      ORDER BY created_at DESC, batch_id DESC LIMIT 50`, [status]) as unknown as BatchRow[];
     return rows.map(row => this.live(row, access));
   }
 
@@ -74,9 +73,9 @@ export class TodoOrganizer {
     return this.live(this.visibleRow(id, access), access);
   }
 
-  private visibleRow(id: string, access: TodoAccess): BatchRow {
+  private visibleRow(id: string, _access: TodoAccess): BatchRow {
     const row = this.db.get("SELECT * FROM todo_batches WHERE batch_id = ?", [id]) as BatchRow | undefined;
-    if (!row || !visible(row, access)) throw todoErrors.not_found("找不到这份整理结果");
+    if (!row) throw todoErrors.not_found("找不到这份整理结果");
     return row;
   }
 
@@ -170,13 +169,56 @@ export class TodoOrganizer {
       ...(input.unverified ? [`${input.unverified} 条在原文里找不到依据，已略去`] : []),
       ...materials.filter(material => material.read !== "read").map(material => `「${material.title}」${material.read === "failed" ? "没读成" : "没读完"}${material.note ? "：" + material.note : ""}`),
     ];
-    const batch: TodoBatch = { batch_id: crypto.randomUUID(), title: [...input.title].slice(0, 120).join("") || `整理 ${materials.length} 份材料`, origin: input.origin, project_id: access.projectId,
+    const batch: TodoBatch = { batch_id: crypto.randomUUID(), title: [...input.title].slice(0, 120).join("") || `整理 ${materials.length} 份材料`, origin: input.origin,
       method: input.method, materials: materials.map(strip), candidates, reference_only: input.reference_only, notes, status: candidates.length ? "open" : "done",
       created_at: at, updated_at: at, revision: 1 };
-    this.db.run(`INSERT INTO todo_batches (batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision, request_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [batch.batch_id, batch.project_id, batch.origin, batch.method, batch.title,
+    this.db.run(`INSERT INTO todo_batches (batch_id, origin, method, title, body_json, status, created_at, updated_at, revision, request_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [batch.batch_id, batch.origin, batch.method, batch.title,
       JSON.stringify({ materials, candidates, reference_only: batch.reference_only, notes } satisfies BatchBody), batch.status, at, at, 1, requestKey]);
     return { batch, replayed: false };
+  }
+
+  /**
+   * A batch as placement carries it between partitions (batch 108; onboarding drafts in the personal space and the platform moves each
+   * batch into the new project before keeping it): its row without the id.
+   */
+  exportBatch(id: string): PlacementExport {
+    const row = this.db.get("SELECT * FROM todo_batches WHERE batch_id = ?", [id]) as BatchRow | undefined;
+    if (!row) throw todoErrors.not_found("找不到这份整理结果");
+    return { subject: { kind: TODO_BATCH_SUBJECT_KIND, id }, revision: String(row.revision), record: batchRecord(row) };
+  }
+
+  /**
+   * Writes a carried batch here: under its id for a move, as a new batch for a copy (the same request, the same copy). Only a batch none of
+   * whose drafts was kept yet travels (what was kept is a todo where it was), and a draft's match with a todo there is let go: that todo is
+   * not here, so the draft reads as a new one.
+   */
+  putBatch(record: PlacementRecord, requestId: string, targetId?: string): TodoBatch {
+    const row = carriedBatch(record);
+    let id = targetId;
+    if (id === undefined) {
+      const key = `copy:${requestId}`;
+      const seen = this.db.get("SELECT batch_id FROM todo_batches WHERE request_id = ?", [key]) as { batch_id: string } | undefined;
+      if (seen) return this.get(seen.batch_id, { actor: "other", actorId: "" });
+      id = crypto.randomUUID();
+      row.request_id = key;
+    }
+    const here = this.db.get("SELECT * FROM todo_batches WHERE batch_id = ?", [id]) as BatchRow | undefined;
+    if (here) {
+      if (sameCarriedRecord(batchRecord(here), batchRecord({ ...row, batch_id: id }))) return this.get(id, { actor: "other", actorId: "" });
+      throw todoErrors.conflict("目标位置已经有这份整理结果，而且内容不同；没有覆盖它");
+    }
+    this.db.run(`INSERT INTO todo_batches (batch_id, origin, method, title, body_json, status, created_at, updated_at, revision, request_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, row.origin, row.method, row.title, row.body_json, row.status, row.created_at, row.updated_at, row.revision, row.request_id ?? null]);
+    return this.get(id, { actor: "other", actorId: "" });
+  }
+
+  /** Lets a batch that went to another partition go from here, only while it is still the revision carried. */
+  removeCarriedBatch(id: string, revision: string): boolean {
+    const row = this.db.get("SELECT revision FROM todo_batches WHERE batch_id = ?", [id]) as { revision: number } | undefined;
+    if (!row) return false;
+    if (String(row.revision) !== revision) throw todoErrors.conflict("这份整理结果刚被处理过，请重新打开后再移动");
+    return Number(this.db.run("DELETE FROM todo_batches WHERE batch_id = ? AND revision = ?", [id, row.revision]).changes) === 1;
   }
 
   /** Apply the person's choices, all or nothing. Candidates not mentioned stay open for later. */
@@ -205,14 +247,12 @@ export class TodoOrganizer {
           outcome = "ignored";
         } else if (decision.action === "add") {
           const edits = decision.edits ?? {};
-          const placement = edits.placement ?? candidate.placement;
           const fields: TodoFields = {
             title: edits.title ?? candidate.title,
             notes: edits.notes ?? candidate.why,
             due_date: edits.due_date !== undefined ? edits.due_date : candidate.due_date,
             due_time: edits.due_time !== undefined ? edits.due_time : candidate.due_time,
             planned_date: edits.planned_date !== undefined ? edits.planned_date : null,
-            placement: placement === "project" && !access.projectId ? "unassigned" : placement,
             waiting: candidate.kind === "waiting" && candidate.waiting ? { who: candidate.waiting.who, what: candidate.waiting.what, follow_up_on: null } : undefined,
           };
           const created = this.store.create({ ...fields, title: fields.title!, status: candidate.kind === "waiting" ? "waiting" : "open", sources }, access, changeBatch);
@@ -326,13 +366,32 @@ function sourceKeyOf(source: Pick<TodoSource, "subject" | "excerpt">): string {
   return source.subject ? `s:${source.subject.kind}:${source.subject.id}` : `t:${hash(normalizeForMatch(source.excerpt))}`;
 }
 
-function visible(batch: Pick<TodoBatch, "project_id">, access: TodoAccess): boolean {
-  return batch.project_id === null || batch.project_id === access.projectId || access.projectIds.includes(batch.project_id);
-}
-
 function strip(material: StoredMaterial): TodoBatchMaterial {
   const { source_key: _key, ...rest } = material;
   return rest;
+}
+
+const BATCH_COLUMNS = ["origin", "method", "title", "body_json", "status", "created_at", "updated_at", "revision", "request_id"] as const;
+
+function batchRecord(row: BatchRow): PlacementRecord {
+  return Object.fromEntries(BATCH_COLUMNS.map(column => [column, row[column] ?? null]));
+}
+
+/** The row a carried batch makes here, checked as Todo checks its own (see `putBatch`). */
+function carriedBatch(record: PlacementRecord): BatchRow {
+  const keys = Object.keys(record).sort(), expected = [...BATCH_COLUMNS].sort();
+  const invalid = () => todoErrors.invalid("带来的整理结果不完整，没有放进来");
+  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) throw invalid();
+  const row = { batch_id: "carried", ...record } as BatchRow;
+  if (!["assistant", "onboarding", "manual"].includes(row.origin) || typeof row.method !== "string" || row.method.length > 200 || typeof row.title !== "string"
+    || [...row.title].length > 120 || !["open", "done"].includes(row.status) || typeof row.created_at !== "string" || typeof row.updated_at !== "string"
+    || !Number.isSafeInteger(row.revision) || row.revision < 1 || (row.request_id !== null && typeof row.request_id !== "string") || typeof row.body_json !== "string") throw invalid();
+  let body: BatchBody;
+  try { body = JSON.parse(row.body_json) as BatchBody; } catch { throw invalid(); }
+  if (!body || !Array.isArray(body.materials) || !Array.isArray(body.candidates) || !Array.isArray(body.notes) || body.candidates.length > 2000) throw invalid();
+  if (body.candidates.some(candidate => candidate?.decision?.item_id)) throw todoErrors.conflict("这份整理结果里已经有加进待办的，留在原处");
+  const candidates = body.candidates.map(candidate => candidate.existing ? { ...candidate, existing: null, selected: candidate.kind !== "suggestion" } : candidate);
+  return { ...row, body_json: JSON.stringify({ ...body, candidates }) };
 }
 
 function decodeBody(row: BatchRow): BatchBody {
@@ -341,7 +400,7 @@ function decodeBody(row: BatchRow): BatchBody {
 }
 
 function fromRow(row: BatchRow, body: BatchBody): TodoBatch {
-  return { batch_id: row.batch_id, title: row.title, origin: row.origin as TodoBatch["origin"], project_id: row.project_id, method: row.method,
+  return { batch_id: row.batch_id, title: row.title, origin: row.origin as TodoBatch["origin"], method: row.method,
     materials: body.materials.map(strip), candidates: body.candidates, reference_only: body.reference_only, notes: body.notes,
     status: row.status as TodoBatch["status"], created_at: row.created_at, updated_at: row.updated_at, revision: row.revision };
 }

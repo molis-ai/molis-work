@@ -1,4 +1,3 @@
-import { shownProjectPlugins } from "./plugin-registry.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReferenceKindsFor } from "@molis-ai/molis-work-service-agent-host";
 import { projectReferenceKinds } from "./agent-question-surfaces.js";
@@ -21,7 +20,7 @@ export function referenceKindsPort(localHost: MolisWorkLocalHost, homeDirectory:
     const catalog = withCatalog();
     const plugins = catalog ? await catalog({ homeDirectory }, opened => {
       const { plugins, hidden } = opened.projectPluginMembership(owner.project_id);
-      return { shown: new Set(shownProjectPlugins(plugins, hidden)), hidden: new Set(hidden) };
+      return { shown: new Set(plugins), hidden: new Set(hidden) };
     }) : { shown: undefined, hidden: new Set<string>() };
     return projectReferenceKinds(views, plugins.shown, plugins.hidden);
   };

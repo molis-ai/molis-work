@@ -464,7 +464,7 @@ interface UiSlotDescriptor {
 - **不经组合服务也能用。** 呈现声明可以脱离组合服务单独用：主线顶部切换（MLN-23）不调 `surfaces.compose`，直接按声明和 `PresentationValues` 画「行」。SDK 给一个按声明取值、渲染单个形态的入口（第 7 节），所以 MLN-23 不用等组合服务；这个入口（`renderPresentationForm`）随第 15 批第 2 项的形态组件交（统筹 11-08 定）。
 - **插件级概况**（`overview`）：
   - 指向的动作，输入输出 schema 由平台定死（`PRESENTATION_OVERVIEW_INPUT_SCHEMA`、`PRESENTATION_OVERVIEW_OUTPUT_SCHEMA`），声明必须一字不差，做法照 `SANDBOX_INTEGRATION_CONTRACT`；作者用 `definePresentationOverviewAction` 写。输出是 `{ summary: TextRef; subjects: ActionSubject[]（≤5）; start: Array<{ capability_id; version }>（≤3） }`；`summary` 用 `TEXT_REF_SCHEMA`，写 `owner` 被 schema 拒绝，服务按动作提供方绑主人。
-  - 动作是 `effect: "read"`，不调模型、不花钱，和 `home_aggregate` 的约束一样。
+  - 动作是 `effect: "read"`，不调模型、不花钱，和项目只读查询（`isProjectReadQuery`，原 `home_aggregate`）的约束一样。
   - `note` 是不变的一句话（如 Feed 的「同步来的资料不算你接下的工作」），写在声明里，不让动作每次返回。
   - `start` 分两半（统筹 2026-11-08 定）：声明里的 `overview.start` 至多 3 个，安装时查它们都是本 Manifest 自己的动作；动作运行时返回的 `start` 只能是声明里的子集，由第 7 节的 `presentationOverviewProblems` 查。后果从动作元数据取。
   - Home 级插件（如 Todo）的概况动作走 `project_reach`，按调用上下文给它可达的项目，不在输入里带项目。

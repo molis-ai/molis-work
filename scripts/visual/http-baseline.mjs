@@ -15,7 +15,7 @@ process.env.MOLIS_WORK_HOME = home;
 process.env.MOLIS_WORK_SECRET_BACKEND = 'file';
 const { openMolisWorkProjectCatalog, createDesktopWebCore } = await import('@molis-ai/molis-work-app-desktop');
 const { seedDemoBoard, LocalProjectDatabase } = await import('@molis-ai/molis-work-app-local-host');
-const { PROJECT_SCOPED_PLUGIN_IDS } = await import('@molis-ai/molis-work-app-local-host');
+const { BUILTIN_PLUGIN_IDS } = await import('@molis-ai/molis-work-app-local-host');
 const round = value => Math.round(value * 100) / 100;
 const loop = monitorEventLoopDelay({ resolution: 10 });
 const sockets = new Set();
@@ -47,7 +47,7 @@ try {
   let project;
   try {
     project = await catalog.createProject({ display_name: '视觉性能基线', actor_id: 'isolated-baseline' });
-    for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) {
+    for (const plugin_id of BUILTIN_PLUGIN_IDS) {
       catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: 'isolated-baseline' });
     }
   } finally { catalog.close(); }
@@ -57,7 +57,7 @@ try {
   store = new LocalProjectDatabase(project.database_path);
   const snapshot = store.snapshot(project.project_id);
   result.dataset = Object.fromEntries(Object.entries(snapshot).filter(([, value]) => Array.isArray(value)).map(([key, value]) => [key, value.length]));
-  result.dataset.projectPluginCount = PROJECT_SCOPED_PLUGIN_IDS.length;
+  result.dataset.projectPluginCount = BUILTIN_PLUGIN_IDS.length;
   const createServer = createDesktopWebCore({ ptyClientFilePath: () => resolve('dist/web/pty-client.js') });
   server = createServer({ homeDirectory: home, controlToken: randomBytes(32).toString('hex') });
   server.on('connection', socket => { sockets.add(socket); socket.once('close', () => sockets.delete(socket)); });

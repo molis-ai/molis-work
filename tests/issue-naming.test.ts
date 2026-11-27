@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installHostUiText, openPluginDatabase, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID,
-  createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesSkills, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
+  createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesSkills, ISSUE_BODY_BYTES, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelAvailability, PluginModelClient, PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -230,15 +230,18 @@ test("ISSUE-50 ISSUE-51 only the person's page calls the naming actions, each on
   assert.deepEqual(capture.action.audiences, ["user"], "only the page's manual save makes a record from a draft with a given name");
   assert.deepEqual(issuesManifest.permissions.find(row => row.permission === "model:invoke")?.required, false);
   for (const [route_id, path, permission] of [["issues.name_draft", "/name-draft", "issues:write"], ["issues.suggest_name", "/suggest-name", "issues:read"]]) {
-    assert.deepEqual(issuesManifest.routes?.find(route => route.route_id === route_id), { route_id, method: "POST", path, permission });
+    // The draft carries its pictures, so the route reads a body that size (batch 108: partition routes otherwise read the small default).
+    assert.deepEqual(issuesManifest.routes?.find(route => route.route_id === route_id), { route_id, method: "POST", path, permission, max_body_bytes: ISSUE_BODY_BYTES });
   }
 });
 
 test("ISSUE-50 ISSUE-51 through the Host: the page's draft is named by the Host's text model and saved; a suggestion writes nothing; no model keeps the draft", { timeout: 60_000 }, async t => {
   const answers: string[] = [], prompts: string[] = [];
   const f = await serveHomeRuntime(t, { completeText: async prompt => { prompts.push(JSON.stringify(prompt)); return answers.shift() ?? assert.fail("no scripted answer"); } });
+  // Issues runs in the personal space it is added to (batch 108).
+  const space = await f.personal(["issues"]);
   const call = async <T>(path: string, body?: unknown) => {
-    const response = await f.request(`/api/plugins/${ISSUES_PLUGIN_ID}/${path}`, body === undefined ? {} : { method: "POST", body });
+    const response = await f.request(`/projects/${space.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/${path}`, body === undefined ? {} : { method: "POST", body });
     assert.equal(response.status, 200, await response.clone().text()); return await response.json() as T;
   };
   const draft_id = crypto.randomUUID();
@@ -257,8 +260,8 @@ test("ISSUE-50 ISSUE-51 through the Host: the page's draft is named by the Host'
   assert.deepEqual(list.items.map(item => [item.id, item.version]), [[draft_id, 1]], "only the named draft became a record");
 
   // A Home without a text model says so in a way the page can read, and the draft stays for a manual save.
-  const bare = await serveHomeRuntime(t, { completeText: null }), unnamed = crypto.randomUUID();
-  const post = (path: string, body: unknown) => bare.request(`/api/plugins/${ISSUES_PLUGIN_ID}/${path}`, { method: "POST", body });
+  const bare = await serveHomeRuntime(t, { completeText: null }), unnamed = crypto.randomUUID(), bareSpace = await bare.personal(["issues"]);
+  const post = (path: string, body: unknown) => bare.request(`/projects/${bareSpace.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/${path}`, { method: "POST", body });
   assert.equal((await post("prepare", { draft_id: unnamed, description: "点保存没反应" })).status, 200);
   const refused = await post("name-draft", { draft_id: unnamed });
   assert.notEqual(refused.status, 200); assert.equal((await refused.json() as { code: string }).code, "actions.connection_required");

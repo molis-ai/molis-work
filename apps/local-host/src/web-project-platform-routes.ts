@@ -37,8 +37,7 @@ import { assistantWords } from "./assistant/assistant-saved-text.js";
 import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { onAttentionChange } from "./attention-changes.js";
-import { homeBackgroundTasks } from "./home-background-tasks.js";
-import { homeAggregatePorts } from "./home-aggregate.js";
+import { hostBackgroundTasks } from "./home-overview.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
@@ -78,7 +77,7 @@ export const sideViewRoute: WebRoute<ProjectRequestContext> = { id: "side-view",
   if (!sideView || request.method !== "GET" || !options.project) return false;
   const { PAGE_CSP, workbenchRenderer } = composition;
   const projectId = options.project.project_id;
-  // The same plugins the page shows: personal ones included unless the person hid them from this project.
+  // The same plugins the page shows: the ones this partition has.
   const enabled = await shownPlugins(projectId);
   const html = workbenchRenderer.renderSideViewDocument({ projectPluginId: decodeURIComponent(sideView[1]!), viewId: decodeURIComponent(sideView[2]!),
     projectId, routePrefix: `/projects/${encodeURIComponent(projectId)}`, enabled, controlToken });
@@ -201,7 +200,7 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
     // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
     ...(options.project ? { enablePlugin: async (pluginId: string) => {
       const entry = builtinPluginByManifestId(pluginId);
-      if (!entry || entry.personal) throw new Error('这个插件不能在项目里启用：' + pluginId);
+      if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
     } } : {}),
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }, controlToken) };
@@ -358,7 +357,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     const home = url.searchParams.get("view") === "home" && !pluginPageRequest(request);
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
       notices: surface => assistantNotices(assistant!, surface),
-      ...(home ? { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), options.projects) }
+      ...(home ? { backgroundTasks: () => hostBackgroundTasks(localHost) }
         : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference, true) }),
       changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });

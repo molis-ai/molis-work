@@ -11,7 +11,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { UI_VIEW_GROUPS } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, registeredBuiltinText,
-  releaseProjectPlugins, runningPluginDirectory, runWithLocale, runWithRegisteredText, seedDemoBoard, seedDemoGoals, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS,
+  releaseProjectPlugins, runningPluginDirectory, runWithLocale, runWithRegisteredText, seedDemoBoard, seedDemoGoals, BUILTIN_PLUGIN_IDS,
 } from "@molis-ai/molis-work-app-local-host";
 import {
   BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
@@ -39,7 +39,7 @@ function startingStation(id: string, title: string, start?: { title: string; hin
 const test = (name: string, check: () => void | Promise<void>) => nodeTest(name, () => runWithLocale("zh", check));
 
 const HOSTILE = "</script><img src=x onerror=alert(1)>&\u2028tail";
-const EVERYTHING = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
+const EVERYTHING = [...BUILTIN_PLUGIN_IDS];
 const PROJECT = "project-plugin-directory";
 
 /** A plugin that runs in the project without the project choosing it, as the Host reports it. */

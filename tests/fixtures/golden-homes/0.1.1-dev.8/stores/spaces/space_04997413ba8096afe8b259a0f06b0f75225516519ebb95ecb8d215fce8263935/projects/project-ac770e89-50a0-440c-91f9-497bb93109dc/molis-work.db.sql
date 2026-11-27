@@ -827,6 +827,35 @@ CREATE TABLE plugin_notifications (
       last_error_code TEXT,
       UNIQUE (sender_install_id, sender_generation, key)
     );
+CREATE TABLE plugin_overview_rows (
+  install_id TEXT NOT NULL CHECK (length(install_id) BETWEEN 1 AND 200),
+  kind TEXT NOT NULL CHECK (kind IN ('task', 'event', 'notification', 'brief', 'background_task', 'scheduled_run')),
+  row_id TEXT NOT NULL CHECK (length(row_id) BETWEEN 1 AND 200),
+  title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 500),
+  status TEXT CHECK (status IS NULL OR status IN ('open', 'done', 'cancelled')),
+  due_at TEXT,
+  remind_at TEXT,
+  priority INTEGER CHECK (priority IS NULL OR priority BETWEEN 0 AND 3),
+  tags_json TEXT,
+  starts_at TEXT,
+  ends_at TEXT,
+  all_day INTEGER CHECK (all_day IS NULL OR all_day IN (0, 1)),
+  time_zone TEXT,
+  level TEXT CHECK (level IS NULL OR level IN ('info', 'warning', 'urgent')),
+  source TEXT,
+  occurred_at TEXT,
+  summary TEXT,
+  state TEXT,
+  waiting INTEGER CHECK (waiting IS NULL OR waiting IN (0, 1)),
+  started_at TEXT,
+  reports_to TEXT CHECK (reports_to IS NULL OR reports_to = 'assistant'),
+  missed_at TEXT,
+  needs_json TEXT,
+  open_surface TEXT,
+  open_id TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (install_id, kind, row_id)
+);
 CREATE TABLE plugin_port_artifact_bindings (
       project_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
@@ -1440,6 +1469,7 @@ CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, s
 CREATE INDEX plugin_events_board_type_source
       ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
 CREATE INDEX plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
+CREATE INDEX plugin_overview_rows_remind ON plugin_overview_rows(remind_at) WHERE remind_at IS NOT NULL;
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX process_items_project_idx

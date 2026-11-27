@@ -24,7 +24,7 @@ Home 的跨项目列表复用 `backgroundTaskRows`，返回 contracts 的 `HomeB
 | [src/items.ts](src/items.ts) | 主线的动作：`readMainline`（可带每件、每组的等你与在办数，任务总表只读一次）、`createItem`、`convertItem`、排列与分组、`holds` 关联、`placeInItem`、`itemLineScope`；事项来源的发现（`itemSources`）与以调用方身份读对象（`readable`） |
 | [src/store.ts](src/store.ts) | 主线的库：`MAINLINE_BASELINE`、`MainlineStore`（每条语句带主人与项目；排列一行 JSON，带修订号）、`purgeMainlineProject` |
 
-合同在 `@molis-ai/molis-work-contracts/platform/actions`（任务行的形状、`defineBackgroundTasksAction`）和 `@molis-ai/molis-work-contracts/services/mainline`（两个系统动作、读到的行、拒绝的错误码）。Host 装配在 [apps/local-host/src/mainline-actions.ts](../../apps/local-host/src/mainline-actions.ts)，工作台的入口在 [apps/local-host/src/mainline-http.ts](../../apps/local-host/src/mainline-http.ts)；跨项目的聚合（[apps/local-host/src/home-background-tasks.ts](../../apps/local-host/src/home-background-tasks.ts)）用这里的同一份行检查。
+合同在 `@molis-ai/molis-work-contracts/platform/actions`（任务行的形状、`defineBackgroundTasksAction`）和 `@molis-ai/molis-work-contracts/services/mainline`（两个系统动作、读到的行、拒绝的错误码）。Host 装配在 [apps/local-host/src/mainline-actions.ts](../../apps/local-host/src/mainline-actions.ts)，工作台的入口在 [apps/local-host/src/mainline-http.ts](../../apps/local-host/src/mainline-http.ts)；跨项目的后台任务从各分区的总览表读（`background_task` 行，[apps/local-host/src/home-overview.ts](../../apps/local-host/src/home-overview.ts)，第 108 批），不再逐个问已打开的项目。
 
 ## 本地开发
 
@@ -53,5 +53,5 @@ pnpm --filter @molis-ai/molis-work-service-mainline build
   - 主线是一个人在一个项目里的：主人与项目只从调用上下文来，别人的、别的项目的事项当作没有（`S-mainline-own-line`）。库里只有名字、引用与排列（MLN-12）。
   - 对象先以调用方身份读到才能装进或设为事项；「建成」只调来源自己声明的、形状由平台给定的动作；要等别的主人的写在返回后先 `beforeEffect()` 再提交。排列的写带 `expected_revision`，旧的被拒并带回当前主线；「装进」与切换不动排列的修订号。
   - 下一步只许开始来源自己的动作，别家的不显示、记为问题。
-- 改动后必跑：`node scripts/run-tests.mjs tests/mainline-line-read.test.ts tests/mainline-place.test.ts tests/mainline-background-tasks.test.ts tests/mainline-missed-runs.test.ts tests/mainline-items.test.ts tests/security-invariants-mainline-own-line.test.ts tests/work-item-sources.test.ts tests/clean-home-core-stores.test.ts tests/object-link.test.ts tests/home-event-actions.test.ts tests/coding-background-tasks.test.ts tests/home-aggregate.test.ts`；改了合同再跑 `pnpm api:update`、`pnpm actions:update`，改了库结构再跑 `pnpm schemas:update` 并升版本。
+- 改动后必跑：`node scripts/run-tests.mjs tests/mainline-line-read.test.ts tests/mainline-place.test.ts tests/mainline-background-tasks.test.ts tests/mainline-missed-runs.test.ts tests/mainline-items.test.ts tests/security-invariants-mainline-own-line.test.ts tests/work-item-sources.test.ts tests/clean-home-core-stores.test.ts tests/object-link.test.ts tests/home-event-actions.test.ts tests/coding-background-tasks.test.ts tests/runtime-overview.test.ts tests/security-invariants-home-overview.test.ts`；改了合同再跑 `pnpm api:update`、`pnpm actions:update`，改了库结构再跑 `pnpm schemas:update` 并升版本。
 - 相关手册：[specs/work-line/contract-design.md](../../specs/work-line/contract-design.md) 第 3、4、5 节，[specs/work-mainline/contract-design.md](../../specs/work-mainline/contract-design.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -34,8 +34,7 @@ export async function snapshotBusinessFingerprint(home: string): Promise<Record<
     for (const name of (await readdir(directory)).sort()) {
       const path = prefix ? prefix + "/" + name : name;
       if (/^\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(basename(path))
-        || /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(basename(path)) || /-(?:journal|wal|shm)$/u.test(name)
-        || path === "images/runners") continue;
+        || /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(basename(path)) || /-(?:journal|wal|shm)$/u.test(name)) continue;
       const file = join(directory, name), info = await lstat(file);
       if (info.isSymbolicLink()) result[path] = { link: await readlink(file) };
       else if (info.isDirectory()) await visit(file, path);

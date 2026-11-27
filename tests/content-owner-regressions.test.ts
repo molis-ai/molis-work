@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { openDatasetStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
@@ -16,7 +15,7 @@ import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pa
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
+import { openCogniaStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 
 const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
@@ -182,22 +181,24 @@ test("W2-18-PAGES-SOURCES-01: prepared clipped snapshots generate once, disclose
 
 test("W2-18-COGNIA-EFFECT-01: only the originating grant is revoked during real IO; no staged preview is written", async t => {
   const home = await mkdtemp(join(tmpdir(), "cognia-origin-"));
-  const store = openCogniaStore(home), db = openHomeSqliteDatabase(home, "cognia"), service = new ActionService();
+  // Cognia's library in the personal space (batch 108: one per partition).
+  const store = openCogniaStore(home), db = openPartitionLibraryDatabase(home, "personal", "cognia"), service = new ActionService();
   t.after(async () => { db.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const entered = deferred(), release = deferred(), grants = new Set(Object.values(cogniaActions).map(action => action.capability_id));
   const check = (reference?: { capability_id: string }) => { if (reference && !grants.has(reference.capability_id)) throw new ActionError("actions.forbidden", "Origin grant revoked"); };
-  const caller: ActionCallContext = { actor_id: "knowledge-owner", actor_kind: "user", audience: "user", permissions: COGNIA_ACTION_PERMISSIONS,
+  const caller: ActionCallContext = { actor_id: "knowledge-owner", actor_kind: "user", project_id: "personal", audience: "user", permissions: COGNIA_ACTION_PERMISSIONS,
     validate_authority: check, assert_authority_current: check };
   const vault = join(home, "vault"); await mkdir(vault);
   await writeFile(join(vault, "vault.md"), "# Fixed evidence\nActual bytes read before the barrier.");
-  const runtime = await serveHomeRuntime(t); await runtime.host.homePlugins!.ready();
-  const reader = person(["cognia:read", "cognia:write", "directory:read"]);
-  const grant = await directoryForHome(runtime.home).select({plugin_id: cogniaManifest.plugin_id, project_id: null, actor_id: reader.actor_id}, async () => ({status: "picked", path: vault}));
+  const runtime = await serveHomeRuntime(t), space = await runtime.personal(["cognia"]);
+  assert.equal((await runtime.request(`/projects/${space.project_id}/api/plugins/${cogniaManifest.plugin_id}/library`)).status, 200, "the personal space's Cognia is running");
+  const reader = person(["cognia:read", "cognia:write", "directory:read"], space.project_id);
+  const grant = await directoryForHome(runtime.home).select({plugin_id: cogniaManifest.plugin_id, project_id: space.project_id, actor_id: reader.actor_id}, async () => ({status: "picked", path: vault}));
   assert.ok(grant);
   let scans = 0;
-  service.registerProvider({ provider: { provider_id: cogniaManifest.plugin_id, title: "Cognia", kind: "plugin" }, definitions: cogniaManifest.actions!, handlers: createCogniaActionHandlers({
+  service.registerProvider({ provider: { provider_id: cogniaManifest.plugin_id, title: "Cognia", kind: "plugin", project_id: "personal" }, definitions: cogniaManifest.actions!, handlers: createCogniaActionHandlers({
     ...ownCogniaStores(run => run(store)), model: () => ({}), ai: () => ({}), actions: bindActionClient(service, () => caller),
-    scan: async (grantId, path, signal) => { scans++; const scanned = await runtime.host.homeActionClient().invoke({...reader, signal}, cogniaActions.scan, {grant_id: grantId, path}); entered.resolve(); await release.promise; return scanned; },
+    scan: async (grantId, path, signal) => { scans++; const scanned = await runtime.host.actionClient(space.reference).invoke({...reader, signal}, cogniaActions.scan, {grant_id: grantId, path}); entered.resolve(); await release.promise; return scanned; },
   }) });
   const counts = () => ["cognia_previews", "cognia_materials", "cognia_sources"].map(table => Number(db.prepare(`SELECT count(*) AS total FROM ${table}`).get()!.total));
   const before = counts(), bound = bindActionClient(service, () => caller);

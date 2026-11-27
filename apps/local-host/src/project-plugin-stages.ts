@@ -5,6 +5,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByProjectKey, runsOnlyInHom
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionError, actionEffect, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
 import { isFrozenRegisteredManifest, type PluginRuntime, type PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
 import { lookingForArea, optionalPluginQuery, type MolisWorkWebView } from "./web-view.js";
 import type { UiContribution, UiRenderRequest, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -74,6 +75,7 @@ export function dualStageOwner(home: StageHalf, project: StageHalf): "home" | "p
 
 export interface ProjectRuntimeStageOptions {
   page_owner?: string;
+  routePrefix?: string;
   /** The plugins this project shows. */
   shown: readonly string[];
   /** Exact contribution/surface pairs another stage path has already drawn. */
@@ -121,7 +123,7 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
       }
     }
     const prepared = options.views ? options.views[key] : undefined;
-    const stage = runtimeStage(state, store, entry, contributionId, options.model, options.page_owner === pluginId, options.drawn, prepared, options.homeDirectory);
+    const stage = runtimeStage(state, store, entry, contributionId, options, prepared);
     if ("html" in stage) {
       if (stage.page) page = stage.page;
       if (stage.html) html.push(stage.html);
@@ -141,7 +143,8 @@ function stageView(state: ProjectPluginState, pluginId: string, contributionId: 
 }
 
 function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, entry: StageEntry, contributionId: string,
-  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared: PreparedStageView | null | undefined, homeDirectory: string | undefined): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
+  options: ProjectRuntimeStageOptions, prepared: PreparedStageView | null | undefined): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
+  const { homeDirectory, model, drawn } = options;
   const pluginId = entry.manifest.plugin_id;
   const platform = projectPluginPlatform(state, pluginId), contribution = platform?.supervisor.contribution(pluginId);
   if (!contribution) {
@@ -155,7 +158,7 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
     const upgrade = homeDirectory && upgradeRefusal ? describePluginTablesRefusal(homeDirectory, pluginId, store.path, upgradeRefusal) : undefined;
     if (upgrade) return { ...unavailableStage(state, entry, refusal?.message ?? ""), restart: null,
       upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: homeDirectory ? rollbackHrefFor(homeDirectory, upgrade.reason) : null,
-        reload_href: partitionCode && upgrade.reason === "structure_mismatch" ? `?openPlugin=${encodeURIComponent(entry.project_plugin_id)}` : null } };
+        reload_href: partitionCode && upgrade.reason === "structure_mismatch" ? objectLinkAt(options.routePrefix ?? ".", { surface: entry.project_plugin_id }) : null } };
     return unavailableStage(state, entry, projectPluginProblem(state, store, pluginId)?.reason
       ?? uiText.text(active?.status === "starting" ? "workbench.project-plugin-stages.starting" : running
         ? "workbench.project-plugin-stages.plugin-running-but-has-not-provided-page" : "workbench.project-plugin-stages.plugin-not-running"));
@@ -166,7 +169,7 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
     const manifest = platform?.supervisor.manifest(pluginId) ?? entry.manifest;
     const viewRevision = prepared?.viewRevision ?? platform?.viewRevision(pluginId);
-    return renderStagePage(view, nested ? { ...own as Record<string, unknown>, nested } : own, entry.project_plugin_id, pageOwner,
+    return renderStagePage(view, nested ? { ...own as Record<string, unknown>, nested } : own, entry.project_plugin_id, options.page_owner === pluginId,
       request => view.render(request), { manifest, rendered: drawn, client: entry.workbench,
         producer: prepared?.producer ?? captureRuntimeStageOwner(platform, "project", entry)?.producer,
         ...(viewRevision ? { viewRevision } : {}) });

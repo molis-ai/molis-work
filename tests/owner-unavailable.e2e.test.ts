@@ -72,7 +72,7 @@ test("B112-06 Clean v1 names a structure mismatch and can restart after the pers
   const file = partitionLibraryFile(browser.homeDirectory, projectId, "jelly");
   assert.ok(original);
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=jelly` }, browser.sessionId));
-  const recovery = '[data-project-plugin-unavailable] [data-owner-unavailable="structure_mismatch"] a[href="?openPlugin=jelly"]';
+  const recovery = `[data-project-plugin-unavailable] [data-owner-unavailable="structure_mismatch"] a[href="/projects/${encodeURIComponent(projectId)}/?openPlugin=jelly"]`;
   await browser.waitFor(`document.querySelector('${recovery}')?.checkVisibility()`);
   assert.match(await browser.evaluate<string>("document.querySelector('[data-owner-unavailable]').textContent"), /数据结构.*备份/u);
   assert.deepEqual(readFileSync(file), original);

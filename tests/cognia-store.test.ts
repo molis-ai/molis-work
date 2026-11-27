@@ -5,10 +5,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
 import { linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
-import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
+import { openCogniaStore, partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime, person } from "./fixtures/home-runtime.js";
@@ -42,11 +41,11 @@ test("import validation handles 8MB attachments, UTF-8 failures, unsupported fil
   assert.throws(() => preview(store, [text("a.md", "x"), text("a.md", "y")]), /重复路径/);
   assert.equal(preview(store, [{ path: "bad.md", data: "a===" }]).entries[0]?.status, "skipped");
 }));
-test("local scanner copies source bytes, skips symlinks and unsupported content; reopen and Home isolation", fixture(async (store, home, t) => {
+test("local scanner copies source bytes, skips symlinks and unsupported content; reopen and partition isolation", fixture(async (store, home, t) => {
   const vault = join(home, "vault"); mkdirSync(join(vault, "raw"), { recursive: true }); mkdirSync(join(vault, "wiki")); mkdirSync(join(vault, ".git"));
   const source = "---\ntags: [one]\n---\n# One\n[[../wiki/two]]"; writeFileSync(join(vault, "raw/one.md"), source); writeFileSync(join(vault, "wiki/two.md"), "# Two"); writeFileSync(join(vault, "index.md"), "index"); writeFileSync(join(vault, "log.md"), "log"); writeFileSync(join(vault, "AGENTS.md"), "Untrusted content"); writeFileSync(join(vault, "board.canvas"), "{}"); writeFileSync(join(vault, ".git/config"), "hidden"); symlinkSync("/etc/hosts", join(vault, "outside.txt"));
   const scan = await scanDirectory(t, vault), p = store.preview({ ...scan, kind: "llm-wiki" }); const receipt = store.commit(p.id); assert.equal(receipt.added, 5); assert.equal(receipt.skipped, 3); assert.equal(readFileSync(join(vault, "raw/one.md"), "utf8"), source); assert.equal(store.materials().find(m => m.path === "wiki/two.md")?.role, "wiki"); assert.equal(store.materials().find(m => m.path === "index.md")?.role, "index");
-  const reopened = openCogniaStore(home), isolated = openCogniaStore(join(home, "isolated")); try { assert.equal(reopened.materials().length, 5); assert.equal(isolated.materials().length, 0); } finally { reopened.close(); isolated.close(); }
+  const reopened = openCogniaStore(home), isolated = openCogniaStore(home, "project-other"); try { assert.equal(reopened.materials().length, 5); assert.equal(isolated.materials().length, 0); } finally { reopened.close(); isolated.close(); }
 }));
 test("separate store connections serialize identical preview commits without duplicate versions", fixture((store, home) => {
   const p = preview(store, [text("x.md", "# X")]), other = openCogniaStore(home); try { const first = store.commit(p.id), second = other.commit(p.id); assert.deepEqual(first, second); assert.equal(other.materials().length, 1); assert.equal(other.materials()[0]!.revision, 1); } finally { other.close(); }
@@ -85,7 +84,7 @@ test("资料与来源移出当前列表后固定版本仍可读，领域与草�
 }));
 
 test("RAC-40: Cognia Runtime 路由更新和删除资料后，固定版本仍可通过路由读取", async t => {
-  const f = await serveHomeRuntime(t), root = "/api/plugins/io.molis.work.cognia/library";
+  const f = await serveHomeRuntime(t), space = await f.personal(["cognia"]), root = `/projects/${space.project_id}/api/plugins/io.molis.work.cognia/library`;
   const post = (path: string, body: object = {}) => f.request(root + path, { method: "POST", body });
   const { material } = await (await post("/materials", { title: "旧标题", body: "旧正文" })).json();
   const previous=await (await f.request(root+`/materials/${material.id}`)).json();
@@ -99,9 +98,9 @@ test("RAC-40: Cognia Runtime 路由更新和删除资料后，固定版本仍可
   assert.equal(deleted.status, 404); assert.match((await deleted.json()).error, /不存在/);
 });
 
-/** The Home's Cognia database, opened beside the store's own connection. */
+/** The personal space's Cognia library, opened beside the store's own connection. */
 function inspect<T>(home: string, run: (db: DatabaseSync) => T, readOnly = true): T {
-  const db = new DatabaseSync(homeSqlitePath(home, "cognia"), { readOnly });
+  const db = new DatabaseSync(partitionLibraryFile(home, "personal", "cognia"), { readOnly });
   try { return run(db); } finally { db.close(); }
 }
 
@@ -171,12 +170,12 @@ test("a directory with more files than a batch holds is refused whole as too lar
 });
 
 async function scanDirectory(t: TestContext, vault: string) {
-  const f = await serveHomeRuntime(t);
-  await f.host.homePlugins!.ready();
-  const caller = person(["cognia:read", "cognia:write", "directory:read"]);
-  const grant = await directoryForHome(f.home).select({plugin_id: "io.molis.work.cognia", project_id: null, actor_id: caller.actor_id}, async () => ({status: "picked", path: vault}));
+  const f = await serveHomeRuntime(t), space = await f.personal(["cognia"]);
+  const caller = person(["cognia:read", "cognia:write", "directory:read"], space.project_id), client = f.host.actionClient(space.reference, false);
+  assert.equal((await f.request(`/projects/${space.project_id}/api/plugins/io.molis.work.cognia/library`)).status, 200); // the partition instance is running before the person picks a folder for it
+  const grant = await directoryForHome(f.home).select({plugin_id: "io.molis.work.cognia", project_id: space.project_id, actor_id: caller.actor_id}, async () => ({status: "picked", path: vault}));
   assert.ok(grant);
-  return f.host.homeActionClient().invoke(caller, cogniaActions.scan, {grant_id: grant.grant_id, path: "."});
+  return client.invoke(caller, cogniaActions.scan, {grant_id: grant.grant_id, path: "."});
 }
 
 test("RAC-1665 names and titles are counted in Unicode characters like the action schema: 120 for a domain, 200 for a source, 500 for a material title, and one more is refused", fixture(store => {

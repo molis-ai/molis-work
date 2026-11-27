@@ -50,7 +50,7 @@ async function readDetail(page: TodoPage, id: string) {
   const ticket = ++state.detailTicket;
   const [payload, pool] = await Promise.all([
     page.request<DetailPayload>("GET", `/items/${encodeURIComponent(id)}`),
-    page.request<ListPayload>("GET", `/items?view=all${state.everything ? "&all=1" : ""}`).catch(() => ({ items: [] as ListPayload["items"] })),
+    page.request<ListPayload>("GET", "/items?view=all").catch(() => ({ items: [] as ListPayload["items"] })),
   ]);
   return { ticket, payload, pool };
 }

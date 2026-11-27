@@ -20,6 +20,7 @@ import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hoo
 
 import { commitInstalledDatabaseUpgrade } from "./plugin-sandbox-database-upgrade.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
+import { forgetMainOverviewRows } from "./plugin-overview-service.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -138,6 +139,8 @@ export class PluginHostExecutor implements PluginExecutor {
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
     // File registrations and record bindings are authorization, removed on every uninstall even when private data is kept (BL-356).
     forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+    // Its rows in the partition's overview summary table are the platform's, like an authorization: they go on every uninstall (V17).
+    if (this.options.projectLibrary?.db) forgetMainOverviewRows(this.options.projectLibrary.db, record.install_id);
   }
 
   prepareReinstall(record: PluginInstanceRecord): void {

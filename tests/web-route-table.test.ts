@@ -223,6 +223,9 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "workflows", actor_id: "test" });
   // Inbox and Goals are plugins of the project's Runtime: the pages and routes under test are the project's only when it has them.
   for (const plugin_id of ["goals", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
+  // Images, Todo, Cognia and Jelly are partition plugins since batch 108: their routes are a project's (or the personal space's) once added there.
+  for (const plugin_id of ["images", "todo", "cognia", "jelly"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: "personal", plugin_id: "todo", actor_id: "test" });
   const missing = await catalog.createProject({ display_name: "没有库", actor_id: "test" });
   catalog.addProjectPlugin({ project_id: missing.project_id, plugin_id: "pages", actor_id: "test" });
   catalog.addProjectPlugin({ project_id: missing.project_id, plugin_id: "ppt", actor_id: "test" });

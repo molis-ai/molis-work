@@ -61,18 +61,19 @@ test("H1: the unified settings gate keeps original MCP and Assistant tokens and 
   const action = { capability_id: todo.capability_id, version: todo.version, provider_id: todo.provider_id };
   await f.web.post(capability, { ...action, expected: todo.expected, confirm_always: true });
   const grantPath = "/api/settings/mcp/actions";
-  const granted = await f.web.post<{ generation: string }>(grantPath, { ...action, client_id: "runtime:test", project_id: null, enabled: true, expected: { expected_absent: true } });
-  const listed = await get<AuthorizationList>({ project: "" });
+  const granted = await f.web.post<{ generation: string }>(grantPath, { ...action, client_id: "runtime:test", project_id: project.project_id, enabled: true, expected: { expected_absent: true } });
+  // Todo is a partition plugin since batch 108: the MCP grant names the project its action runs in, and is listed there.
+  const listed = await get<AuthorizationList>({ project: project.project_id });
   assert.ok(listed.owners.every(owner => owner.state === "complete"), JSON.stringify(listed.owners));
   const entry = listed.entries.find(item => item.owner === "mcp-client" && item.expected === granted.generation)!;
   assert.ok(entry);
-  const opened = await get<AuthorizationDetail>({ project: "", owner: entry.owner, id: entry.id });
+  const opened = await get<AuthorizationDetail>({ project: project.project_id, owner: entry.owner, id: entry.id });
   assert.equal(opened.availability, "available");
   assert.ok(!("permissions" in opened));
-  const changed = await f.web.post<AuthorizationDetail>(endpoint + "?project=", { owner: entry.owner, id: entry.id, expected: entry.expected, kind: "revoke" });
+  const changed = await f.web.post<AuthorizationDetail>(endpoint + "?project=" + project.project_id, { owner: entry.owner, id: entry.id, expected: entry.expected, kind: "revoke" });
   assert.equal(changed.status, "revoked");
   await assert.rejects(f.web.post(endpoint, { owner: entry.owner, id: entry.id, expected: entry.expected, kind: "revoke" }), { code: "actions.conflict" });
-  const original = await f.web.get<{ grants: { enabled: boolean; generation: string }[] }>(grantPath + "?" + new URLSearchParams({ client_id: "runtime:test" }));
+  const original = await f.web.get<{ grants: { enabled: boolean; generation: string }[] }>(grantPath + "?" + new URLSearchParams({ client_id: "runtime:test", project_id: project.project_id }));
   assert.deepEqual(original.grants.map(({ enabled, generation }) => [enabled, generation]), [[false, changed.expected]]);
   await writeFile(join(f.home, "config", "mcp-tools.json"), "{malformed");
   const partial = await get<AuthorizationList>();

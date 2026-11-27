@@ -14,6 +14,7 @@ import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { shelfActions } from "@molis-ai/molis-work-module-shelf/surface";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -29,6 +30,12 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     await (async () => { const p = await catalog.createProject({ display_name: "搜索项目甲", actor_id: "owner" }); for (const plugin_id of ["goals", "pages", "form", "lingguang"]) catalog.addProjectPlugin({ project_id: p.project_id, plugin_id, actor_id: "owner" }); return p; })(),
     await (async () => { const p = await catalog.createProject({ display_name: "搜索项目乙", actor_id: "owner" }); for (const plugin_id of ["goals", "pages"]) catalog.addProjectPlugin({ project_id: p.project_id, plugin_id, actor_id: "owner" }); return p; })(),
   ]);
+  // Cognia is a partition plugin since batch 108: the person's own material is in the personal space.
+  const space = await withCatalog({ homeDirectory: home }, async catalog => {
+    catalog.addProjectPlugin({ project_id: PERSONAL_SPACE_PROJECT_ID, plugin_id: "cognia", actor_id: "owner" });
+    return catalog.getProject(PERSONAL_SPACE_PROJECT_ID);
+  });
+  const refSpace = molisWorkHostProjectReference({ databasePath: space.database_path, projectId: space.project_id });
   const refA = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
   const refB = molisWorkHostProjectReference({ databasePath: b.database_path, projectId: b.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -63,10 +70,14 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     assert.deepEqual(ids(await search(refB, "预算")).length, 1);
     assert.equal((await search(refB, "预算")).hits[0]!.title, "乙项目的预算");
 
-    // Personal (Home) content: one Cognia material, found from either project and from outside any project, never as project content.
+    // Personal content: one Cognia material in the personal space, found from either project and from outside any project, never as project content.
     const personalCaller = await host.localPersonContext();
-    await host.homeActionClient().invoke(personalCaller, cogniaActions.createMaterial, { title: "个人知识：鲸落", body: "鲸落是深海生态的重要养分来源" });
-    for (const reference of [refA, refB]) assert.deepEqual(ids(await search(reference, "鲸落")), ["io.molis.work.cognia:cognia_material"]);
+    await call(refSpace, cogniaActions.createMaterial, { title: "个人知识：鲸落", body: "鲸落是深海生态的重要养分来源" });
+    for (const reference of [refA, refB, refSpace]) {
+      const found = await search(reference, "鲸落");
+      assert.deepEqual(ids(found), ["io.molis.work.cognia:cognia_material"]);
+      assert.equal(found.hits[0]!.project_id, PERSONAL_SPACE_PROJECT_ID, "the hit names the personal space it is in");
+    }
     assert.deepEqual(ids(await search(refA, "鲸落", { scope: "project" })), []);
     const homeOnly = await host.homeActionClient().invoke(personalCaller, searchActions.query, { query: "深海生态" }) as SearchQueryResponse;
     assert.deepEqual(ids(homeOnly), ["io.molis.work.cognia:cognia_material"]);

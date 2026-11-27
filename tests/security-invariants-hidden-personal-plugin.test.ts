@@ -1,11 +1,11 @@
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
-// BCC-08 / BCC-09: a hidden personal plugin is refused by routes and actions in the project that hid it, works again the very next call
-// after it is shown, and a Home outside the build gets the same reach treatment. The cached brief/contextual click after revoke is in
+// BCC-08 / BCC-09: a plugin a project took out is refused by routes and actions there, works again the very next call after it is added
+// back, and a Home plugin outside the build gets the same reach treatment. The cached brief/contextual click after revoke is in
 // contextual-interaction.test.ts; the old brief link's prepare/read/write refusal is the BCC-09 remaining case.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, projectActionAvailability, availableProjectPluginIds, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, projectActionAvailability, availableProjectPluginIds } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -14,9 +14,10 @@ import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-h
 import { grantHomeProbe, homeProbe } from "./fixtures/home-runtime.js";
 
 /**
- * S-72 (PG-013): a personal plugin the person hid from a project is out of reach there, for the action directory, MCP, the Agent and the
- * workflow engine alike (they all ask `projectActionAvailability`) and for the plugin's routes under the project's path. The one list they
- * share is `projectReachablePlugins`; every test here asserts a refusal, and that the owner's handler never ran.
+ * S-72 (PG-013): a plugin a partition does not have (never added, or taken out) is out of reach there, for the action directory, MCP, the
+ * Agent and the workflow engine alike (they all ask `projectActionAvailability`) and for the plugin's routes under the project's path. The one list they
+ * share is `projectReachablePlugins`; every test here asserts a refusal, and that the owner's handler never ran. Since batch 108 no built-in
+ * plugin is personal (Todo, Issues, Cognia, Images and Jelly run per partition), so "hiding" one is taking it out of the project.
  */
 
 const clientId = "runtime:hidden-personal";
@@ -49,31 +50,29 @@ async function toolNames(mcp: LocalMcpServer): Promise<string[]> {
 const todoListTool = `molis_work_v1_action_${todoActions.list.capability_id}__v1`;
 const callsOf = (home: TestHome, capabilityId: string) => home.host.callLog!.recent(200).filter(row => row.capability_id === capabilityId);
 
-test("RAC-580 S-72 a personal plugin the project hides is not reached through a plugin that embeds it; an embed brings in only what is not hidden", () => {
+test("RAC-580 S-72 a plugin the project took out is reached only through a plugin the project has that embeds it", () => {
   const goals = entry("goals"), todo = entry("todo");
   const embedding = { ...goals, project_plugin_id: "embedding", manifest: { ...goals.manifest, plugin_id: "io.example.embedding",
     ui: { ...goals.manifest.ui, embedded_plugins: [todo.manifest.plugin_id] } } };
-  const catalog = [embedding, todo];
-  // Shown without Todo (the person hid it): the embed does not bring it back.
-  assert.deepEqual([...availableProjectPluginIds(["embedding"], catalog)], ["embedding"]);
-  // Shown with Todo: reached, by the embed or by being shown.
-  assert.deepEqual([...availableProjectPluginIds(["embedding", "todo"], catalog)].sort(), ["embedding", "todo"]);
-  // A project plugin that is only embedded (not personal) still comes in through the embed, which is the route embedding exists for.
-  const embeddedProjectPlugin = { ...embedding, manifest: { ...embedding.manifest, ui: { ...embedding.manifest.ui, embedded_plugins: [goals.manifest.plugin_id] } } };
-  assert.deepEqual([...availableProjectPluginIds(["embedding"], [embeddedProjectPlugin, goals])].sort(), ["embedding", "goals"]);
+  // Without Todo (the person took it out) and with nothing that embeds it: out of reach.
+  assert.deepEqual([...availableProjectPluginIds(["goals"], [goals, todo])], ["goals"]);
+  // With Todo: reached.
+  assert.deepEqual([...availableProjectPluginIds(["goals", "todo"], [goals, todo])].sort(), ["goals", "todo"]);
+  // Since batch 108 no built-in is personal, so a plugin the project has brings in what it embeds whether or not the project added it
+  // itself: the route embedding exists for (today only Coding embeds Git and Diff, and Git embeds Diff).
+  assert.deepEqual([...availableProjectPluginIds(["embedding"], [embedding, todo])].sort(), ["embedding", "todo"]);
+  // The embedding plugin taken out too: the embedded one goes with it.
+  assert.deepEqual([...availableProjectPluginIds([], [embedding, todo])], []);
 });
 
-test("RAC-580 S-72 Shelf, a platform part, stays in reach whatever the project hid; the reach list holds no name of it", async t => {
+test("RAC-580 S-72 Shelf, a platform part, stays in reach whatever the project took out; the reach list holds no name of it", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
-  const project = await home.createProject("Platform part", ["goals"]);
+  const project = await home.createProject("Platform part", ["goals", "todo"]);
   await hide(home, project, "todo");
-  const listed = await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog => {
-    const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
-    return { enabled: plugins, hidden };
-  });
-  assert.deepEqual(listed.hidden, ["todo"], "what the person hid is listed");
-  const shown = shownProjectPlugins(listed.enabled, listed.hidden);
-  assert.ok(!shown.includes("shelf") && !shown.includes("todo"), "Shelf is no project plugin, so the list never names it");
+  const plugins = await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog =>
+    catalog.projectPluginMembership(project.project_id).plugins);
+  assert.ok(!plugins.includes("todo"), "what the person took out is no longer the project's");
+  assert.ok(!plugins.includes("shelf"), "Shelf is no project plugin, so the list never names it");
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   assert.deepEqual(await availability(callerIn(project.project_id), SHELF_VIEW), { available: true });
   assert.equal((await availability(callerIn(project.project_id), view("todo"))).available, false);
@@ -91,9 +90,9 @@ test("S-34 Shelf, a platform part, refuses every lifecycle operation and keeps a
   assert.deepEqual(await home.web.get<unknown>("/api/platform/shelf/settings"), settings, "Shelf still answers, as before");
 });
 
-test("RAC-580 S-72 the availability both the action directory and discovery use refuses a hidden personal plugin, only in the project that hid it", async t => {
+test("RAC-580 S-72 the availability both the action directory and discovery use refuses a plugin the project took out, only in that project", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
-  const hiding = await home.createProject("Hides Todo", ["goals"]), showing = await home.createProject("Shows Todo", ["goals"]);
+  const hiding = await home.createProject("Hides Todo", ["goals", "todo"]), showing = await home.createProject("Shows Todo", ["goals", "todo"]);
   await hide(home, hiding, "todo");
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   const refused = { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" };
@@ -103,7 +102,7 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
   };
   assert.deepEqual(await states(callerIn(hiding.project_id), "todo"), { live: refused, snapshot: refused });
   assert.deepEqual(await states(callerIn(showing.project_id), "todo"), { live: { available: true }, snapshot: { available: true } });
-  // Shelf is a platform part: there is no project plugin of that name to hide, and it is reached whatever was hidden.
+  // Shelf is a platform part: there is no project plugin of that name to take out, and it is reached whatever was taken out.
   await assert.rejects(hide(home, hiding, "shelf"), { status: 400, code: "catalog.plugin_not_found" });
   const shelfDiscovery = await availability.snapshotForDiscovery(callerIn(hiding.project_id));
   assert.deepEqual({ live: await availability(callerIn(hiding.project_id), SHELF_VIEW), snapshot: shelfDiscovery(callerIn(hiding.project_id), SHELF_VIEW) },
@@ -111,9 +110,9 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
   // A plugin the catalog does not know (a runtime-installed one) is not this list's to decide.
   const unknown = { provider: { provider_id: "io.example.unknown", plugin_id: "io.example.unknown", title: "Unknown", kind: "plugin" as const } };
   assert.deepEqual(await availability(callerIn(hiding.project_id), unknown), { available: true });
-  // No project, or a project that no longer exists: nothing is hidden, so a personal plugin is there; a project plugin still is not.
+  // No project, or a project that no longer exists: no built-in plugin is reached there, Todo no more than Goals (batch 108: none is personal).
   for (const caller of [callerIn(null), callerIn("deleted-project")]) {
-    assert.deepEqual(await states(caller, "todo"), { live: { available: true }, snapshot: { available: true } });
+    assert.deepEqual(await states(caller, "todo"), { live: refused, snapshot: refused });
     assert.deepEqual(await states(caller, "goals"), { live: refused, snapshot: refused });
   }
 });
@@ -121,7 +120,7 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
 test("PG094-HOME-02 S-72 only a genuine Home Runtime provider bypasses the project list, consistently for live and discovery", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
   const project = await home.createProject("Installed Feed");
-  // Feed is a project plugin (not personal) whose Home half provides actions: the only kind of provider the bypass is for.
+  // Feed is a project plugin whose Home half provides actions: the only kind of provider the bypass is for.
   await unhide(home, project, "feed");
   assert.equal(await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog =>
     catalog.projectPluginMembership(project.project_id).plugins.includes("feed")), true);
@@ -153,11 +152,11 @@ test("PG094-HOME-02 S-72 only a genuine Home Runtime provider bypasses the proje
   assert.equal(deletedSnapshot(homeCaller, action).available, false, "a snapshot keeps its original project boundary");
 });
 
-test("RAC-581 S-72 the project's MCP lists no tool of a hidden personal plugin, and calling it is refused before the owner's handler runs", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), project = await home.createProject("Hides Todo");
-  await home.grant(clientId, null, [todoActions.list]);
+test("RAC-581 S-72 the project's MCP lists no tool of a plugin the project took out, and calling it is refused before the owner's handler runs", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Hides Todo", ["todo"]);
+  await home.grant(clientId, project.project_id, [todoActions.list]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
-  assert.ok((await toolNames(mcp)).includes(todoListTool), "the grant is real: the tool is listed while the project shows Todo");
+  assert.ok((await toolNames(mcp)).includes(todoListTool), "the grant is real: the tool is listed while the project has Todo");
   await hide(home, project, "todo");
   assert.ok(!(await toolNames(mcp)).includes(todoListTool));
   const result = (await mcp.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: todoListTool, arguments: {} } }))?.result as { isError: boolean; content: Array<{ text: string }> };
@@ -170,29 +169,26 @@ test("RAC-581 S-72 the project's MCP lists no tool of a hidden personal plugin, 
   assert.equal(callsOf(home, todoActions.list.capability_id).filter(row => row.ok).length, 0);
 });
 
-test("RAC-582 S-72 and RAC-583 the hidden plugin's routes under the project refuse at once and work again as soon as it is shown; the Home path is not touched", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), hiding = await home.createProject("Hides Todo"), showing = await home.createProject("Shows Todo");
-  const homePath = "/api/plugins/io.molis.work.todo/items";
-  await home.web.get(todoItems(hiding));
+test("RAC-582 S-72 and RAC-583 the routes of a plugin the project took out refuse at once and work again as soon as it is added back; another project is not touched", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), hiding = await home.createProject("Hides Todo", ["todo"]), showing = await home.createProject("Shows Todo", ["todo"]);
+  const created = await home.web.post<{ item: { id: string } }>(todoItems(hiding), { title: "项目里的待办" });
+  assert.ok(created.item.id);
   await hide(home, hiding, "todo");
   await assert.rejects(home.web.get(todoItems(hiding)), { status: 403, code: "actions.plugin_disabled" });
   await assert.rejects(home.web.post(todoItems(hiding), { title: "隐藏后不得写入" }), { status: 403, code: "actions.plugin_disabled" });
-  // A project that did not hide it, and the Home's own path, are as before.
+  // A project that still has it is as before.
   await home.web.get(todoItems(showing));
-  await home.web.get(homePath);
-  const created = await home.web.post<{ item: { id: string } }>(homePath, { title: "本人的待办" });
-  assert.ok(created.item.id);
-  // Nothing is cached: shown again, the very next call works; hidden again, the very next call is refused.
+  // Nothing is cached: added back, the very next call works; taken out again, the very next call is refused.
   await unhide(home, hiding, "todo");
   await home.web.get(todoItems(hiding));
   await hide(home, hiding, "todo");
   await assert.rejects(home.web.get(todoItems(hiding)), { status: 403, code: "actions.plugin_disabled" });
   await unhide(home, hiding, "todo");
   const listed = await home.web.get<{ counts: { all: number } }>(todoItems(hiding));
-  assert.equal(listed.counts.all, 1, "the owner's facts were never touched while it was hidden");
+  assert.equal(listed.counts.all, 1, "the owner's facts were never touched while it was out");
 });
 
-// Since batch 107 Form is no longer personal: a project adds it, and one that takes it out refuses its routes as one that hid a personal plugin does.
+// Since batch 107 Form runs per partition: a project adds it, and one that takes it out refuses its routes from the same list the actions read.
 test("RAC-582 S-72 a per-partition plugin's routes (Form) are refused in the project that took it out, from the same list the actions read, and work in one that did not", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), hiding = await home.createProject("Hides Form", ["form"]), showing = await home.createProject("Shows Form", ["form"]);
   await home.web.get(formList(hiding));

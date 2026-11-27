@@ -101,7 +101,7 @@ output: { task: ActionSubject; serves: ActionSubject[] }
 
 ## 4. 后台任务总表
 
-沿用首页聚合的机制（`home_aggregate` 标记、每家带时限并行、失败只记问题），合同改名 `background-tasks`，行改成：
+沿用首页聚合的机制（`home_aggregate` 标记、每家带时限并行、失败只记问题；第 108 批 V17 起首页跨项目改读总览摘要表、`home_aggregate` 删除，项目内面板只调 `isProjectReadQuery` 的只读项目查询），合同改名 `background-tasks`，行改成：
 
 ```ts
 interface BackgroundTask {

@@ -4,13 +4,13 @@ import { pathToFileURL } from "node:url";
 // Use the packages built in the measured checkout, even when the calling script lives in the candidate.
 async function seed(root, home) {
   const { openMolisWorkProjectCatalog } = await import(pathToFileURL(join(root, "apps/desktop/dist/index.js")).href);
-  const { PROJECT_SCOPED_PLUGIN_IDS } = await import(pathToFileURL(join(root, "apps/local-host/dist/index.js")).href);
+  const { BUILTIN_PLUGIN_IDS } = await import(pathToFileURL(join(root, "apps/local-host/dist/index.js")).href);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const actor_id = "first-screen-report";
   try {
     const plain = await catalog.createProject({ project_id: "project-onboarding-00000000-0000-4000-8000-000000000001", display_name: "默认项目", actor_id });
     const crowded = await catalog.createProject({ project_id: "project-onboarding-00000000-0000-4000-8000-000000000002", display_name: "全部插件", actor_id });
-    for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: crowded.project_id, plugin_id, actor_id });
+    for (const plugin_id of BUILTIN_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: crowded.project_id, plugin_id, actor_id });
     const demo = (await catalog.ensureDemoProject({ actor_id, user_confirmed: true })).project;
     return [
       { id: "arrival-empty", path: "/onboarding" },

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { imagesManifest, imagesActions as actions } from "@molis-ai/molis-work-plugin-images";
@@ -26,7 +25,7 @@ test("image port inspects without pinning, pins only an authorized binding and h
   const { connection } = await f.client(null).invoke(actions.saveConnection, { ...f.input, auth_connection_id: account.connection_id });
   assert.equal(withConnectorConnections(f.home, store => store.targetOrigin(account.connection_id)), new URL(f.input.base_url).origin);
   assert.equal(connection.has_key, true); assert.equal(connection.auth_connection_id, account.connection_id);
-  assert.doesNotMatch(readFileSync(join(f.home, "images", "images.db")).toString(), new RegExp(secret));
+  assert.doesNotMatch(readFileSync(f.library()).toString(), new RegExp(secret));
   await assert.rejects(service.generate({ ...target, expected_revision: before.revision, protocol: "openai-images", model: "fixture", prompt: "forbidden" }), { code: "plugin.image_action_required" });
   assert.equal(f.calls.length, 0);
 });
@@ -183,11 +182,12 @@ test("ARF-4 an unfinished account switch or deletion survives restart and refuse
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   let failWrite = 0;
+  // The services follow the person (batch 108): each change to them is one write of Images' person setting, which fails here on cue.
   const f = await imageRuntimeFixture(t, { context(context) {
-    const db = context.services!.database!;
-    return { ...context, services: { ...context.services!, database: { ...db, transaction(check, apply) {
-      if (failWrite > 0 && --failWrite === 0) throw new Error("injected database failure");
-      return db.transaction(check, apply);
+    const settings = context.services!.personSettings!;
+    return { ...context, services: { ...context.services!, personSettings: { ...settings, set(key, value, options) {
+      if (failWrite > 0 && --failWrite === 0) throw new Error("injected settings failure");
+      return settings.set(key, value, options);
     } } } };
   } });
   const account = (name: string) => withConnectorConnections(f.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: name + "-test-token" }).connection_id);
@@ -203,7 +203,7 @@ test("ARF-4 an unfinished account switch or deletion survives restart and refuse
   assert.deepEqual(await client.invoke(actions.saveConnection, create), { connection });
   failWrite = 2;
   await client.invoke(actions.saveConnection, { ...f.input, id, auth_connection_id: a, name: "Renamed service" });
-  assert.equal(failWrite, 1, "renaming a service with its existing account uses one private transaction");
+  assert.equal(failWrite, 1, "renaming a service with its existing account is one write of the setting");
   failWrite = 1;
   await assert.rejects(client.invoke(actions.saveConnection, update));
   assert.equal(bound(), a);

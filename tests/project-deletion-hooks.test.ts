@@ -312,7 +312,7 @@ test("an English request gets the dialog's sentence and every plugin's data labe
   assert.equal(labels.get("dataset"), "Dataset tables");
   assert.equal(labels.get("ppt"), "PPT presentations");
   assert.equal(labels.get("workflows"), "Workflows and their runs");
-  assert.equal(labels.get("todo"), "Todos placed in this project");
+  assert.equal(labels.get("todo"), "Todos here and their change history");
   assert.equal(labels.get("functions"), "Function bindings and judgments made in this project");
   assert.equal(labels.get("images"), "Image jobs and the pictures they made");
 

@@ -12,9 +12,9 @@ async function setup(t: Parameters<typeof openGoalBrowser>[0], behavior: Paramet
     prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory, behavior); },
   }); if (!b) return;
   const v = await issueView(t, b, "issue-reorganize");
-  await v.viewport(1280); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
-  const issue = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", { title: "旧标题", type: "feature", description: "原来的说明" });
-  await v.go("/plugins/issues"); await v.until("$('.issues-row')"); await v.press(".issues-row"); await v.press("[data-issue-edit]");
+  await v.viewport(1280); await v.go("/projects/personal/?openPlugin=issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const issue = await v.api<Issue>("/projects/personal/api/plugins/io.molis.work.issues/create", { title: "旧标题", type: "feature", description: "原来的说明" });
+  await v.go("/projects/personal/?openPlugin=issues"); await v.until("$('.issues-row')"); await v.press(".issues-row"); await v.press("[data-issue-edit]");
   return { b, v, issue, ...model };
 }
 
@@ -42,7 +42,7 @@ test("ISSUE-48 ISSUE-51 current text and screenshots produce a review, then Save
   const saved = await v.read(issue.id); assert.equal(saved.version, 2); assert.equal(saved.description, description);
   assert.deepEqual(saved.images, [{ name: "新现场.png", data_url: image }]);
   assert.equal(saved.title, "保存按钮点击后没有反应"); assert.equal(saved.type, "bug"); assert.equal((await v.list()).items.length, 1);
-  await v.go("/plugins/issues"); await v.until("$('.issues-row')"); await v.press(".issues-row");
+  await v.go("/projects/personal/?openPlugin=issues"); await v.until("$('.issues-row')"); await v.press(".issues-row");
   await v.until("!$('[data-issue-detail]').hidden && !$('[data-issue-view]').hidden");
   assert.equal(await v.ask("$('[data-issue-title]').textContent"), saved.title);
   assert.deepEqual(await v.read(issue.id), saved);
@@ -69,7 +69,7 @@ test("ISSUE-49 failure, continued editing, cancellation and version conflicts pr
   await v.press(editor + " [name=description]"); await v.type("；保留本次修改");
   await v.press("[data-issue-redo]"); await v.until("$('[data-issue-flag]').textContent.includes('确认后保存')", 20_000);
   assert.equal(await v.ask("$('[data-issue-editor] [name=title]').value"), behavior.title);
-  await v.api("/api/plugins/io.molis.work.issues/update", { id: issue.id, expected_version: 1, title: "其他窗口的新标题" });
+  await v.api("/projects/personal/api/plugins/io.molis.work.issues/update", { id: issue.id, expected_version: 1, title: "其他窗口的新标题" });
   await v.press("[data-issue-save]"); await v.until("$('[data-issue-flag]').textContent.includes('核对后再保存')");
   assert.equal((await v.read(issue.id)).title, "其他窗口的新标题");
   assert.equal(await v.ask("$('[data-issue-editor] [name=description]').value"), "原来的说明；保留本次修改");
@@ -96,8 +96,8 @@ test("ISSUE-49 clarification and timeout keep edited text and pictures; late com
   assert.deepEqual(await v.ask("({ text: $('[data-issue-editor] [name=description]').value, image: $('[data-issue-edit-shots] img').src })"), source);
   await v.press("[data-issue-save]"); await v.until("!$('[data-issue-view]').hidden");
   const saved = await v.read(issue.id); assert.equal(saved.title, issue.title); assert.equal(saved.version, 2);
-  const other = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", { title: "另一条问题", type: "experience", description: "另一条原文" });
-  await v.go("/plugins/issues"); await v.until("d.querySelectorAll('.issues-row').length === 2");
+  const other = await v.api<Issue>("/projects/personal/api/plugins/io.molis.work.issues/create", { title: "另一条问题", type: "experience", description: "另一条原文" });
+  await v.go("/projects/personal/?openPlugin=issues"); await v.until("d.querySelectorAll('.issues-row').length === 2");
   await v.press('[data-issue-id="' + other.id + '"]'); await v.press("[data-issue-edit]");
   // The answer that comes after the timeout belongs to an editor that is gone: it is dropped.
   const asked = namings.length; finish();

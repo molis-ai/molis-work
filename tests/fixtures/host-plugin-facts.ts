@@ -1,4 +1,4 @@
-import { builtinMarketDirectory, mergePluginDirectories, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { builtinMarketDirectory, mergePluginDirectories } from "@molis-ai/molis-work-app-local-host";
 import { defaultPagePlugins } from "@molis-ai/molis-work-app-workbench";
 
 type PluginDirectory = Parameters<typeof mergePluginDirectories>[0];
@@ -11,6 +11,6 @@ type PluginDirectory = Parameters<typeof mergePluginDirectories>[0];
 export function withHostPluginFacts<V extends {
   readonly enabled_plugins?: readonly string[]; readonly hidden_plugins?: readonly string[]; readonly plugin_directory?: PluginDirectory;
 }>(view: V): V & { shown_plugins: string[]; plugin_directory: PluginDirectory } {
-  return { ...view, shown_plugins: shownProjectPlugins(view.enabled_plugins ?? defaultPagePlugins(), view.hidden_plugins ?? []),
+  return { ...view, shown_plugins: [...(view.enabled_plugins ?? defaultPagePlugins())],
     plugin_directory: mergePluginDirectories(view.plugin_directory ?? [], builtinMarketDirectory()) };
 }

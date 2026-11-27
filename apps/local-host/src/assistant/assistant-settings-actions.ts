@@ -3,7 +3,10 @@ import type { SettingsDeclaration } from "@molis-ai/molis-work-contracts/platfor
 import { bindSettingsHandlers, defineSettingsActions } from "@molis-ai/molis-work-plugin-sdk";
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore } from "./assistant-store.js";
-import { DAILY_CAP_KEY, LOOKBACK_KEY } from "./assistant-setting-values.js";
+import { DAILY_CAP_KEY, LOOKBACK_KEY, OVERVIEW_GRANTS_KEY, OVERVIEW_GRANTS_LIMIT, overviewGrants } from "./assistant-setting-values.js";
+import type { OverviewGrant } from "@molis-ai/molis-work-service-search";
+import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { OVERVIEW_SUMMARY_FIELDS } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { REPORT_SCHEDULE_KEY, reportScheduleSchema } from "./assistant-report-preference.js";
 
 export const assistantSettingActions = defineSettingsActions({
@@ -22,6 +25,11 @@ const declaration: SettingsDeclaration = {
       summary: { key: "workbench.settings-assistant.report-effect" }, layers: ["personal"], consequence: ["schedule"], schema: reportScheduleSchema },
     { key: DAILY_CAP_KEY, title: { key: "workbench.settings-assistant.daily-cap" }, summary: { key: "workbench.settings-assistant.cap-range" },
       layers: ["personal"], consequence: ["cost"], schema: { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } },
+    { key: OVERVIEW_GRANTS_KEY, title: { key: "workbench.settings-assistant.overview-grants" }, summary: { key: "workbench.settings-assistant.overview-grants-hint" },
+      layers: ["personal"], consequence: ["reach"], schema: { type: "object", additionalProperties: false, required: ["grants"], properties: {
+        grants: { type: "array", maxItems: OVERVIEW_GRANTS_LIMIT, items: { type: "object", additionalProperties: false, required: ["partition_id", "fields"], properties: {
+          partition_id: { type: "string", minLength: 1, maxLength: 200 },
+          fields: { type: "array", minItems: 1, items: { type: "string", enum: [...OVERVIEW_SUMMARY_FIELDS] } } } } } } } },
   ],
   read: { capability_id: assistantSettingActions.read.capability_id, version: assistantSettingActions.read.version },
   write: { capability_id: assistantSettingActions.write.capability_id, version: assistantSettingActions.write.version },
@@ -46,4 +54,16 @@ export function assistantSettingsProvider(store: () => AssistantStore): ActionPr
   }));
   return { provider: { provider_id: assistantSettingOwner.provider_id, kind: "system", title: "助理偏好" },
     definitions: Object.values(assistantSettingActions), handlers };
+}
+
+/**
+ * The person's grants to the assistant for the cross-project overview, as saved now (`assistant.overview_grants`). A value that cannot be
+ * read grants nothing: the assistant then reads no other project's overview until the person saves the grants again.
+ */
+export function assistantOverviewGrants(store: AssistantStore): readonly OverviewGrant[] {
+  try {
+    const [snapshot] = store.preferences.read(LOCAL_PERSON_ACTOR_ID, [OVERVIEW_GRANTS_KEY]);
+    if (!snapshot || snapshot.state !== "ok") return [];
+    return overviewGrants((snapshot.layers.personal ?? snapshot.layers.provider_default) as SandboxJson);
+  } catch { return []; }
 }

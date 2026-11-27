@@ -10,6 +10,9 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDefinition,
+  PluginDueContext,
+  PluginDueDelivery,
+  PluginDueOutcome,
   PluginInstanceRecord,
   PluginManifest,
   PluginPrivateStorage,
@@ -17,6 +20,7 @@ import type {
   PluginUpgradeContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import {
@@ -29,6 +33,7 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
+  outsidePluginAction,
   resolveActionProviderId,
   type InProcessAdmission,
   type PluginConsentLedger,
@@ -152,6 +157,11 @@ export interface PluginPlatform {
   invokeOwnedAction<Input, Output>(expected: { actor_id: string; project_id: string; plugin_id: string; install_id: string; installation_generation: string },
     reference: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference, input: Input,
     control: import("@molis-ai/molis-work-contracts/platform/plugin").PluginExecutionControl): Promise<Output>;
+  /**
+   * Hands one due entry to the running plugin's `onDue` (batch 108), outside every action: what it does there is its own background work.
+   * Answers its outcome, or undefined when it gives no handler; refused when the plugin is not running here.
+   */
+  deliverDue(pluginId: string, delivery: PluginDueDelivery): Promise<PluginDueOutcome | undefined>;
   dualInstance(pluginId: string): boolean;
   /** Whether a dual-instance plugin's matching Home half is currently running (always true for non-dual plugins). */
   dualHomeRunning(record: PluginInstanceRecord): boolean;
@@ -350,6 +360,25 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       for (const pluginId of rememberedScenes) forgetInstalledMemoryScene(options.project_id, pluginId);
       rememberedScenes.clear();
       await wiring.close(); await events.close(); await hostEvents.close();
+    },
+    async deliverDue(pluginId, delivery) {
+      const state = supervisor.state(pluginId), contribution = supervisor.contribution(pluginId);
+      const installId = state?.install_id;
+      const current = () => !closed && supervisor.state(pluginId)?.status === "running" && supervisor.state(pluginId)?.install_id === installId;
+      if (!installId || !contribution || !current()) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没有运行");
+      if (contribution.kind !== "app" || !contribution.onDue) return undefined;
+      const handler = contribution.onDue, controller = new AbortController();
+      const beforeEffect = () => {
+        if (controller.signal.aborted || !current()) throw new ActionError("actions.plugin_unavailable", "这个插件在这里已经停止");
+      };
+      const context: PluginDueContext = { project_id: options.project_id, plugin_id: pluginId, install_id: installId, signal: controller.signal, beforeEffect };
+      try {
+        const outcome = await outsidePluginAction(() => Promise.resolve().then(() => {
+          beforeEffect();
+          return handler.call(contribution, structuredClone(delivery), context);
+        }));
+        return outcome ?? undefined;
+      } finally { controller.abort(); }
     },
     dualInstance: isDualId, dualHomeRunning, effectiveGrants,
     router: () => buildPlatformRouter(supervisor, runtime, records, isDualId),

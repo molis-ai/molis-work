@@ -11,7 +11,7 @@ import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, type Pl
 import {
   forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, openPartitionPluginLibrary, PartitionPlatformServices, partitionOverviewLibraries, partitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
-import { DUE_ENTRY_LIMIT, openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
+import { DUE_ENTRY_LIMIT, DueTimer, openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_COLLECT_PERMISSION, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { openPersonSettings } from "@molis-ai/molis-work-service-person-settings";
 import { overviewReaderKind } from "@molis-ai/molis-work-service-search";
@@ -38,18 +38,49 @@ test("UPP-31 the due registry gives back what is due, once, in the order it fall
     due.register(B, { entry_key: "remind:2", due_at: "2026-11-24T10:01:00.000Z" });
     due.register(A, { entry_key: "later", due_at: "2026-11-25T10:00:00.000Z" });
     assert.equal(due.next(), "2026-11-24T10:01:00.000Z");
-    assert.deepEqual(due.takeDue(), { due: [], expired: [] }, "nothing yet");
+    assert.deepEqual(due.dueNow(), { due: [], expired: [] }, "nothing yet");
     now = new Date("2026-11-24T10:06:00.000Z");
-    const taken = due.takeDue();
+    const taken = due.dueNow();
     assert.deepEqual(taken.due.map(entry => [entry.partition_id, entry.entry_key, entry.due_at]),
       [["project-b", "remind:2", "2026-11-24T10:01:00.000Z"], ["personal", "remind:1", "2026-11-24T10:05:00.000Z"]]);
-    assert.deepEqual(due.takeDue().due, [], "an entry is given back once");
+    // Batch 108: looking is not taking. Until its wake succeeds and it is settled, a due entry stays and is offered again.
+    assert.equal(due.dueNow().due.length, 2, "a due entry not yet settled is still due");
+    for (const entry of taken.due) assert.equal(due.settle(entry), true);
+    assert.equal(due.settle(taken.due[0]!), false, "settling twice settles nothing");
+    assert.deepEqual(due.dueNow().due, [], "a settled entry is given back no more");
     assert.equal(due.entries().length, 1);
     due.register(A, { entry_key: "later", due_at: "2026-11-24T11:00:00.000Z" });
     assert.equal(due.entries()[0]!.due_at, "2026-11-24T11:00:00.000Z", "registering the same key moves it");
     assert.throws(() => due.register(A, { entry_key: "bad", due_at: "tomorrow" }), { code: "actions.input_invalid" });
     assert.throws(() => due.register({ ...A, partition_id: "" }, { entry_key: "x", due_at: now.toISOString() }), { code: "actions.input_invalid" });
   } finally { due.close(); }
+}));
+
+test("UPP-31 batch 108: a wake that fails keeps its entry and is tried again later, a minute then doubling; only a wake that succeeds settles it", async () => withHome(async home => {
+  let now = new Date("2026-11-24T10:00:00.000Z");
+  const due = openDueRegistry(home, { now: () => now });
+  const woken: string[] = [], failures: string[] = [];
+  let failing = true;
+  const timer = new DueTimer(due, { now: () => now, failed: entry => { failures.push(entry.entry_key); },
+    wake: async entry => { woken.push(entry.entry_key); if (failing) throw new Error("the instance did not start"); } });
+  try {
+    due.register(A, { entry_key: "remind:1", due_at: "2026-11-24T09:59:00.000Z" });
+    await timer.fire();
+    assert.deepEqual([woken, failures], [["remind:1"], ["remind:1"]]);
+    assert.equal(due.entries().length, 1, "a failed wake leaves the entry in the registry, so a Host that stops now still has it");
+    await timer.fire();
+    assert.deepEqual(woken, ["remind:1"], "put off for a minute: not tried again at once");
+    now = new Date("2026-11-24T10:01:01.000Z");
+    await timer.fire();
+    assert.deepEqual(failures, ["remind:1", "remind:1"], "tried again after a minute");
+    now = new Date("2026-11-24T10:02:30.000Z");
+    await timer.fire();
+    assert.equal(woken.length, 2, "the second wait is two minutes");
+    failing = false;
+    now = new Date("2026-11-24T10:03:02.000Z");
+    await timer.fire();
+    assert.deepEqual([woken.length, due.entries().length], [3, 0], "the wake that succeeds settles it");
+  } finally { timer.close(); due.close(); }
 }));
 
 test("UPP-31 95-3's rule belongs to the due registry: an entry reached seven days after its time is kept as expired and not run", async () => withHome(home => {
@@ -60,7 +91,7 @@ test("UPP-31 95-3's rule belongs to the due registry: an entry reached seven day
     due.register(A, { entry_key: "missed", due_at: new Date(start).toISOString() });
     due.register(A, { entry_key: "late", due_at: new Date(start + 60_000).toISOString() });
     now = new Date(start + RUN_MISSED_KEPT_MS);
-    const taken = due.takeDue();
+    const taken = due.dueNow();
     assert.deepEqual(taken.expired.map(entry => entry.entry_key), ["missed"], "exactly seven days past its time");
     assert.deepEqual(taken.due.map(entry => entry.entry_key), ["late"], "a minute less is still run");
     assert.deepEqual(due.expired().map(entry => entry.entry_key), ["missed"]);
@@ -75,7 +106,9 @@ test("UPP-34 a reminder read from the overview table rings once, also after the 
     const reminders = [{ entry_key: "task:1", due_at: "2026-11-24T10:30:00.000Z" }, { entry_key: "task:2", due_at: "2026-11-24T11:00:00.000Z" }];
     due.replaceOverview(A, reminders);
     now = new Date("2026-11-24T10:31:00.000Z");
-    assert.deepEqual(due.takeDue().due.map(entry => [entry.source, entry.entry_key]), [["overview", "task:1"]]);
+    const rung = due.dueNow().due;
+    assert.deepEqual(rung.map(entry => [entry.source, entry.entry_key]), [["overview", "task:1"]]);
+    for (const entry of rung) due.settle(entry);
     due.replaceOverview(A, reminders);
     assert.deepEqual(due.entries().map(entry => [entry.source, entry.entry_key]), [["overview", "task:2"], ["plugin", "own"]], "task:1 was rung: read again, it is not due again");
     due.replaceOverview(A, [{ entry_key: "task:1", due_at: "2026-11-24T10:45:00.000Z" }]);

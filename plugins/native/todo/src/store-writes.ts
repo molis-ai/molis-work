@@ -1,7 +1,7 @@
 import { TODO_STATUSES, TODO_SUBJECT_KIND, type TodoItem, type TodoLink, type TodoSource, type TodoStatus } from "./contract.js";
 import { todoErrors } from "./error.js";
 import { TodoStoreBase } from "./store-base.js";
-import { EDITABLE, LINK_KINDS, RELATIONS, normalizeFields, normalizeOpen, normalizeSources, stripProject } from "./store-normalize.js";
+import { EDITABLE, LINK_KINDS, RELATIONS, normalizeFields, normalizeOpen, normalizeSources } from "./store-normalize.js";
 import { assertRevision, conflict, invalid, text } from "./store-support.js";
 import { todoRequestKey, type TodoAccess, type TodoCreateInput, type TodoFields, type TodoLinkInput } from "./store-types.js";
 
@@ -26,8 +26,6 @@ export abstract class TodoStoreWrites extends TodoStoreBase {
       title: fields.title ?? "",
       notes: fields.notes ?? "",
       status,
-      placement: fields.placement ?? (access.projectId ? "unassigned" : "personal"),
-      project_id: fields.project_id ?? null,
       due_date: fields.due_date ?? null,
       due_time: fields.due_time ?? null,
       planned_date: fields.planned_date ?? null,
@@ -62,16 +60,6 @@ export abstract class TodoStoreWrites extends TodoStoreBase {
     return result;
   }
 
-  /**
-   * Moves a todo on the person's word from the placement panel: into a project (any, by id) or back to the personal
-   * space (`null`; an unplaced todo stays unplaced). Recorded like an edit, so it shows in the history and can be undone.
-   */
-  move(id: string, toProjectId: string | null, access: TodoAccess): { item: TodoItem; change_id: string | null } {
-    let result!: { item: TodoItem; change_id: string | null };
-    this.transaction(() => { result = this.applyUpdate(id, {}, undefined, access, null, { to: toProjectId }); });
-    return result;
-  }
-
   setStatus(id: string, status: TodoStatus, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string | null } {
     let result!: { item: TodoItem; change_id: string | null };
     this.transaction(() => { result = this.applyStatus(id, status, expectedRevision, access, batchId); });
@@ -93,6 +81,7 @@ export abstract class TodoStoreWrites extends TodoStoreBase {
       this.db.run("DELETE FROM todo_requests WHERE item_id = ?", [id]);
       const removed = this.db.run("DELETE FROM todo_items WHERE id = ? AND revision = ?", [id, current.revision]);
       if (removed.changes !== 1) throw conflict();
+      this.overviewGone(id);
     });
   }
 
@@ -142,17 +131,14 @@ export abstract class TodoStoreWrites extends TodoStoreBase {
     return { item: next, change_id: changeId };
   }
 
-  protected applyUpdate(id: string, patch: TodoFields, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null,
-    move?: { readonly to: string | null }): { item: TodoItem; change_id: string | null } {
+  protected applyUpdate(id: string, patch: TodoFields, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null): { item: TodoItem; change_id: string | null } {
     const current = this.get(id, access);
     assertRevision(current, expectedRevision);
-    const fields = normalizeFields(patch, current, access);
-    let next: TodoItem = { ...current, ...stripProject(fields), project_id: fields.placement !== undefined ? fields.project_id ?? null : current.project_id };
-    if (move) next = move.to ? { ...next, placement: "project", project_id: move.to } : { ...next, placement: current.placement === "project" ? "personal" : current.placement, project_id: null };
+    let next: TodoItem = { ...current, ...normalizeFields(patch, current, access) };
     if (!next.title) throw invalid("请写下要做什么");
     if (next.due_time && !next.due_date) throw invalid("有截止时间时要同时有截止日期");
     const before: Record<string, unknown> = {}, after: Record<string, unknown> = {};
-    for (const field of [...EDITABLE, "project_id"] as const) {
+    for (const field of EDITABLE) {
       if (JSON.stringify(current[field]) !== JSON.stringify(next[field])) { before[field] = current[field]; after[field] = next[field]; }
     }
     if (!Object.keys(after).length) return { item: current, change_id: null };

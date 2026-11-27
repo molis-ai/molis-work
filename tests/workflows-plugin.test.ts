@@ -4,14 +4,13 @@ import test from "node:test";
 
 import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { LocalProjectDatabase, openProjectVersionStores, PERSONAL_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
-import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, directHandoffLink, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
-import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, applyFunctionRule, directHandoffLink, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 
@@ -82,7 +81,6 @@ test("Function 按规则填占位，AI 的第一行当标题", () => {
 
 test("工作流程是分区插件（第 107 批起），排在左边栏，客户端脚本能解析，英文词条齐", () => {
   parsePluginManifest(workflowsManifest);
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(WORKFLOWS_PROJECT_PLUGIN_ID), false);
   const entry = withPageText("zh", ["workflows"], () => railEntries(["workflows"]).find((item) => item.id === "workflows"));
   assert.equal(entry?.label, "工作流程");
   assert.equal(entry?.glyph, "workflow");

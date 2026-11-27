@@ -32,7 +32,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 人盯着一份正在编的文档/表/问卷。工作台是编辑器，不是「新消息该去哪」。
 
-- catalog `personal: true`。plugin-stage 列表 + 编辑面 + `CLIENT_FACTORY_SCRIPT`。
+- 分区独立库 `databases.partition`，按分区启用。plugin-stage 列表 + 编辑面 + `CLIENT_FACTORY_SCRIPT`。
 - MCP：`list/get/create/update/…`，默认项目 scope，Host 注入 `project_id`。新工具默认关。
 - `pages.promote` 走 MCP 和工作台按钮，进 Agent，不进 Feed/Inbox 事件池。
 - 判断场景用 `action_scenes`（`inbox.next`），不再有 `function_scenes`。私人库用 `storage:private`。
@@ -46,7 +46,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 ## 灵光：岛
 
-人盯着一条还没想清楚的想法。`slot: "island"`，不是插件切换列表里的一级入口。丢掉 / 复制内容是对象上的处置；今天没有判断场景，不要为它新开 `action_scenes`。catalog `personal: true`。搜索来源只列未丢弃的灵光。
+人盯着一条还没想清楚的想法。`slot: "island"`，不是插件切换列表里的一级入口。丢掉 / 复制内容是对象上的处置；今天没有判断场景，不要为它新开 `action_scenes`。按分区启用，和其他插件一样（第 107 批起没有「个人插件」标签）。搜索来源只列未丢弃的灵光。
 
 ## Schedule：到点叫醒
 

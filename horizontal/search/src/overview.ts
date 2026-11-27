@@ -69,6 +69,11 @@ export function overviewReach(caller: OverviewCaller,
 export interface OverviewServiceOptions {
   /** Replaces the due registry's reminder entries of one library with the times read from it now. */
   readonly reminders?: (library: OverviewLibrary, entries: readonly { readonly entry_key: string; readonly due_at: string }[]) => void;
+  /**
+   * Reads an `attention` library (the partition's "waiting on you" entries, R13): its owner module's projection on a read-only connection.
+   * Without it such a library cannot be read and stays dirty.
+   */
+  readonly readAttention?: (library: OverviewLibrary) => readonly OverviewTableRow[] | null;
 }
 
 export class OverviewService {
@@ -87,7 +92,7 @@ export class OverviewService {
    * and stays dirty. Returns the rows held, or null when it could not be read.
    */
   refresh(library: OverviewLibrary): number | null {
-    const read = this.port.readLibrary(library);
+    const read = library.table === "attention" ? this.options.readAttention?.(library) ?? null : this.port.readLibrary(library);
     if (read === null) {
       this.port.track(library);
       return null;
@@ -113,6 +118,12 @@ export class OverviewService {
       read += 1;
     }
     return read;
+  }
+
+  /** One row as the index holds it, for the platform's own use (a reminder's title); never handed to a reader past `read`. */
+  row(partitionId: string, installId: string, kind: string, rowId: string): OverviewIndexStoredRow | null {
+    if (!(OVERVIEW_KINDS as readonly string[]).includes(kind)) return null;
+    return this.port.rows({ partitions: [partitionId], kinds: [kind], limit: 2_000 }).find(row => row.install_id === installId && row.row_id === rowId) ?? null;
   }
 
   removeInstall(installId: string, partitionId?: string): void { this.port.removeInstall(installId, partitionId); }
@@ -147,16 +158,16 @@ function reachMap(reach: OverviewReach): Map<string, Set<string>> {
 
 /** A row read back from a library as its kind's columns, or null when it is not a valid row of its kind. */
 function checkedColumns(row: OverviewTableRow): OverviewTableRow | null {
-  let tags: unknown;
-  if (typeof row.tags_json === "string") {
-    try {
-      tags = JSON.parse(row.tags_json);
-    } catch {
-      return null;
-    }
+  let tags: unknown, needs: unknown;
+  try {
+    if (typeof row.tags_json === "string") tags = JSON.parse(row.tags_json);
+    if (typeof row.needs_json === "string") needs = JSON.parse(row.needs_json);
+  } catch {
+    return null;
   }
-  const allDay = row.all_day === null || row.all_day === undefined ? undefined : row.all_day === 1 ? true : row.all_day === 0 ? false : row.all_day;
-  const checked = checkOverviewRow(row.kind, { ...row, tags: tags ?? undefined, all_day: allDay });
+  const flag = (value: unknown) => value === null || value === undefined ? undefined : value === 1 ? true : value === 0 ? false : value;
+  const open = typeof row.open_surface === "string" || typeof row.open_id === "string" ? { surface: row.open_surface, id: row.open_id } : null;
+  const checked = checkOverviewRow(row.kind, { ...row, tags: tags ?? undefined, needs: needs ?? undefined, all_day: flag(row.all_day), waiting: flag(row.waiting), open });
   if ("problem" in checked) return null;
   const columns: Record<string, string | number | null> = {};
   for (const [column, value] of Object.entries(checked.columns)) if (typeof value === "string" || typeof value === "number" || value === null) columns[column] = value;
@@ -167,8 +178,10 @@ function storedRow(library: OverviewLibrary, row: OverviewTableRow): OverviewInd
   const fields: Record<string, unknown> = {};
   for (const field of OVERVIEW_SUMMARY_FIELDS) {
     const value = field === "tags" ? (typeof row.tags_json === "string" ? JSON.parse(row.tags_json) as unknown : null)
-      : field === "all_day" ? (row.all_day === null || row.all_day === undefined ? null : Number(row.all_day) === 1)
-        : row[field];
+      : field === "needs" ? (typeof row.needs_json === "string" ? JSON.parse(row.needs_json) as unknown : null)
+        : field === "all_day" || field === "waiting" ? (row[field] === null || row[field] === undefined ? null : Number(row[field]) === 1)
+          : field === "open" ? (typeof row.open_surface === "string" && typeof row.open_id === "string" ? { surface: row.open_surface, id: row.open_id } : null)
+            : row[field];
     if (value !== null && value !== undefined) fields[field] = value;
   }
   return { partition_id: library.partition_id, install_id: library.install_id, plugin_id: library.plugin_id, kind: String(row.kind) as OverviewKind,

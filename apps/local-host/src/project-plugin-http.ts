@@ -6,7 +6,7 @@ import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { webEntryMessage } from "./entry-user-action.js";
 import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-event-http.js";
-import { pluginRouteControl } from "./plugin-route-control.js";
+import { clientPageContext, pluginRouteControl } from "./plugin-route-control.js";
 import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
 import { ensureProjectPlugins, projectPluginPlatform, projectPluginPlatforms, type ProjectPluginPorts } from "./project-plugins.js";
 import { announceProjectOpened } from "./workspace-settings-events.js";
@@ -64,7 +64,8 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     const current = () => { if (platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件已停止"); };
-    const plain = pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, current, pageAuthority?.assertCurrent);
+    const plain = { ...pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, current, pageAuthority?.assertCurrent),
+      page_context: clientPageContext(request, url) };
     abort.signal.throwIfAborted();
     const caller = await ports.routeCaller?.();
     abort.signal.throwIfAborted();

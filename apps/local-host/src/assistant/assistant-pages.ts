@@ -1,7 +1,7 @@
 import { pluginTabTitles } from "@molis-ai/molis-work-app-workbench";
 import { ARTIFACTS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "../plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "../plugin-registry.js";
 import { builtinMarketDirectory } from "../plugin-directory.js";
 import type { LocalWebCatalogRunner } from "../web-project-settings.js";
 
@@ -25,8 +25,7 @@ export function installedPagesPort(withCatalog: LocalWebCatalogRunner, homeDirec
   return () => withCatalog({ homeDirectory }, catalog => {
     const pages = new Set<string>([PROJECT_HOME_PAGE]);
     for (const project of catalog.listPartitions()) {
-      const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
-      for (const id of shownProjectPlugins(plugins, hidden)) {
+      for (const id of catalog.projectPluginMembership(project.project_id).plugins) {
         if (RAIL_PAGES.has(id)) pages.add(id);
       }
     }

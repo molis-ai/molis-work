@@ -7,16 +7,18 @@ import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTIONS, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/molis-work-plugin-cognia";
 import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
-import { MolisWorkLocalHost, directoryForHome } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, directoryForHome, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 function fixture(t: { after(fn: () => Promise<void>): void }, completeText: HostCompleteText | null = null) {
   const home = mkdtempSync(join(tmpdir(), "cognia-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS };
-  const service = host.homeActionClient(), bound = bindActionClient(service, () => caller);
+  // Cognia works in a partition (batch 108): these calls are made in project "a".
+  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", audience: "user", permissions: COGNIA_ACTION_PERMISSIONS };
+  const service = host.actionClient(reference), bound = bindActionClient(service, () => caller);
   t.after(async () => { await host.close(); rmSync(home, { recursive: true, force: true }); });
   const read = () => bound.invoke(actions.workspace, {});
-  return { home, host, caller, service, bound, read };
+  return { home, host, reference, caller, service, bound, read };
 }
 const file = (path: string, text: string) => ({ path, data: Buffer.from(text).toString("base64") });
 
@@ -37,7 +39,7 @@ test("PRR-02 the Cognia directory actions stay user-only with the platform direc
   assert.deepEqual(actions.previewDirectory.action.audiences, ["user"]);
 });
 
-test("Cognia Home capabilities are discovered without UI/project; grants and separate Homes constrain actual calls", async t => {
+test("Cognia capabilities are discovered in its partition without UI; grants and separate Homes constrain actual calls", async t => {
   const f = fixture(t), other = fixture(t);
   const directory = await f.bound.discover();
   for (const definition of COGNIA_ACTIONS) assert.ok(directory.some(d => d.capability_id === definition.capability_id));
@@ -54,7 +56,7 @@ test("Cognia Home capabilities are discovered without UI/project; grants and sep
   await assert.rejects(f.service.invoke(f.caller, actions.createMaterial, { title: "spoof", body: "x", actor_id: "other" }), { code: "actions.input_invalid" });
   await assert.rejects(f.bound.invoke(actions.read, { id: material.id, revision: 0 }), { code: "actions.input_invalid" });
   await f.host.close(); const reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
-  try { assert.equal((await bindActionClient(reopened.homeActionClient(), () => f.caller).invoke(actions.read, { id: material.id })).material.body, "Original Home data"); }
+  try { assert.equal((await bindActionClient(reopened.actionClient(f.reference), () => f.caller).invoke(actions.read, { id: material.id })).material.body, "Original Home data"); }
   finally { await reopened.close(); }
 });
 
@@ -77,7 +79,7 @@ test("uploaded and directory imports use original preview receipts, bytes and fi
   await f.bound.invoke(actions.updateSource, { id: a.receipt.source_id, name: "Renamed" });
   assert.equal((await f.read()).sources.find(s => s.id === a.receipt.source_id)!.name, "Renamed");
   const vault = join(f.home, "vault"); mkdirSync(vault); writeFileSync(join(vault, "local.md"), "Local evidence"); symlinkSync(join(vault, "local.md"), join(vault, "alias.md"));
-  const grant = await directoryForHome(f.home).select({ plugin_id: "io.molis.work.cognia", project_id: null, actor_id: f.caller.actor_id }, async () => ({ status: "picked", path: vault }));
+  const grant = await directoryForHome(f.home).select({ plugin_id: "io.molis.work.cognia", project_id: "a", actor_id: f.caller.actor_id }, async () => ({ status: "picked", path: vault }));
   assert.ok(grant);
   await assert.rejects(uploaded.invoke(actions.previewDirectory, { grant_id: grant.grant_id, path: ".", kind: "markdown" }), { code: "actions.forbidden" });
   const scanned = await f.bound.invoke(actions.scan, { grant_id: grant.grant_id, path: "." });
@@ -89,7 +91,7 @@ test("uploaded and directory imports use original preview receipts, bytes and fi
   assert.equal(local.preview.source.locator, vaultLocator, "the source identity is the stable local locator, not this grant");
   const committed = await f.bound.invoke(actions.commit, { preview_id: local.preview.id });
   assert.equal(committed.receipt.added, 1);
-  const secondGrant = await directoryForHome(f.home).select({ plugin_id: "io.molis.work.cognia", project_id: null, actor_id: f.caller.actor_id }, async () => ({ status: "picked", path: vault }));
+  const secondGrant = await directoryForHome(f.home).select({ plugin_id: "io.molis.work.cognia", project_id: "a", actor_id: f.caller.actor_id }, async () => ({ status: "picked", path: vault }));
   assert.ok(secondGrant);
   const again = await f.bound.invoke(actions.previewDirectory, { grant_id: secondGrant.grant_id, path: ".", kind: "markdown", locator: vaultLocator });
   assert.equal(again.preview.source.id, committed.receipt.source_id, "a new grant for the same directory keeps the same source identity");
@@ -165,7 +167,7 @@ test("query filters evidence by domain; failure, cancellation and invalid citati
   const controller = new AbortController(); controller.abort();
   await assert.rejects(f.service.invoke({ ...f.caller, signal: controller.signal }, actions.query, { question: "知识导入", domain_id: domain.id }));
   assert.equal((await f.read()).drafts.length, 1);
-  const store = openCogniaStore(f.home); try { assert.equal(store.drafts().length, 1); } finally { store.close(); }
+  const store = openCogniaStore(f.home, "a"); try { assert.equal(store.drafts().length, 1); } finally { store.close(); }
 });
 
 

@@ -5,8 +5,9 @@ import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import {
   bindScheduleConversationJob, createScheduleConversationTask, getScheduleConversationTask, getScheduledOperation, saveScheduledOperation, createScheduleReminders, decideMissedRun, deliverScheduleReminder, getScheduleReminder,
   endExpiredOnce, noteMissedWakeup, registerConversationJob, rescheduleEnabledConversationTasks, scheduleRunsOverview, SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE, SCHEDULE_REMINDER_WAKEUP,
-  SCHEDULE_TASK_WAKEUP_CAPABILITY,
+  SCHEDULE_TASK_WAKEUP_CAPABILITY, writeScheduleRunRows,
 } from "@molis-ai/molis-work-plugin-schedule";
+import type { OverviewScheduledRunRow, PluginOverviewRows } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
@@ -156,6 +157,18 @@ test("BL-missed-runs-never-expire a missed one-time reminder and a missed task w
     "Schedule's rows stay undecided: not the person's 跳过");
   assert.ok(getScheduleReminder(h.db, daily), "a repeating reminder goes on");
   assert.equal(h.delivered.length, 0, "nothing expired is delivered");
+});
+
+test("BL-missed-runs-never-expire a daily task whose run passed while the computer was off still shows its next run in the overview rows", async t => {
+  const h = harness(t), task = h.task("每日回顾");
+  // Off for a month: the occurrence it registered is long past and nothing has run or registered the next one yet.
+  h.clock.now = Date.parse(task.dueAt) + 30 * DAY;
+  const written: OverviewScheduledRunRow[] = [];
+  const rows: PluginOverviewRows = { upsert: (kind, row) => { if (kind === "scheduled_run") written.push(row as OverviewScheduledRunRow); }, remove: () => {}, removePrefix: () => {} };
+  writeScheduleRunRows(rows, h.db, h.schedule.list(), h.clock.now);
+  const upcoming = written.filter(row => row.missed_at === undefined);
+  assert.deepEqual(upcoming.map(row => row.title), ["每日回顾"], "the daily task keeps its next run");
+  assert.ok(Date.parse(upcoming[0]!.due_at) > h.clock.now && Date.parse(upcoming[0]!.due_at) - h.clock.now <= DAY, "the next 09:00 after now");
 });
 
 test("BL-missed-runs-never-expire the computer off across the seventh day: the first reconcile ends the one-time reminder; the person's own decisions are not counted", async t => {

@@ -29,10 +29,6 @@ export function todoClient(host: TodoClientHost): void {
   installQuick(page);
   listen(page);
 
-  // The batch menu is drawn without the project's name, and in the personal space there is no project to move into.
-  const batchProject = bench.querySelector<HTMLElement>('[data-todo-batch-placement="project"]');
-  if (batchProject) { batchProject.textContent = page.hereName(); batchProject.hidden = !page.projectId(); }
-  page.paintPlaces(page.el.quickPlacement, page.quickDefaultPlacement(), "data-todo-quick-placement-choice");
   page.publishContext();
   void page.load().catch((error: Error) => { page.el.loading.hidden = true; page.showNote(error.message || uiText.text("todo.error.not-open"), { error: true }); });
 }

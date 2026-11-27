@@ -17,7 +17,6 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
-  PAGES_PROJECT_PLUGIN_ID,
   PAGES_STYLES,
   PAGES_TEMPLATES,
   convertedBlocks,
@@ -195,7 +194,7 @@ import {
   renderMolisWorkWorkbenchClientScript,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_IDS, builtinMarketDirectory, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-pages";
@@ -553,8 +552,7 @@ test("点到正文下面的空白会落到一个空段落", () => {
 });
 
 test("Pages 是分区插件（第 107 批起），按分区启用，不再是个人插件", () => {
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(PAGES_PROJECT_PLUGIN_ID), false);
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("pages"), true);
+  assert.equal(BUILTIN_PLUGIN_IDS.includes("pages"), true);
   const rail = railEntries(["goals", "pages", "artifacts"]);
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");

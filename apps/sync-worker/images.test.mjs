@@ -13,6 +13,7 @@ import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-s
 import { cloudFixture } from './testing.mjs';
 import {runtimePersonalSync,prepareSyncTestHome} from '../../tests/fixtures/runtime-personal-sync.ts';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
+import { partitionRoot } from '@molis-ai/molis-work-module-projects';
 import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/actions';
 
 const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
@@ -23,8 +24,10 @@ test('PCSYNC-IMG-READ-01 Images transfers saved bytes/history through actual D1/
  const provider=createServer(async(req,res)=>{for await(const _ of req){}executions++;res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:[{b64_json:PNG.toString('base64')}]}));});
  await new Promise(resolve=>provider.listen(0,'127.0.0.1',resolve));t.after(()=>{provider.closeAllConnections();return new Promise(resolve=>provider.close(resolve));});
  const previous=process.env.MOLIS_WORK_SYNC_ORIGIN;process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_ORIGIN;else process.env.MOLIS_WORK_SYNC_ORIGIN=previous;});const nativeFetch=globalThis.fetch;t.mock.method(globalThis,'fetch',(url,init)=>new URL(String(url)).origin==='https://sync.example.test'?f.transport(url,init):nativeFetch(url,init));
- const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},c=>c.createProject({display_name:'Pictures',actor_id:'alice'}));
- const target=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{}));
+ // Images runs in each partition it is added to (batch 108): both Homes add it to the project, and its library is that partition's.
+ const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},async c=>{const created=await c.createProject({display_name:'Pictures',actor_id:'alice'});await c.addProjectPlugin({project_id:created.project_id,plugin_id:'images',actor_id:'alice'});return created;});
+ const target=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},async c=>{const synced=await c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});await c.addProjectPlugin({project_id:project.project_id,plugin_id:'images',actor_id:'alice'});return synced;});
+ const library=index=>join(partitionRoot(homes[index],project.project_id),'libraries','images.db');
  const runtimes=await Promise.all(homes.map(home=>runtimePersonalSync(home,space,()=>{},{accessToken:async()=>'alice',authOrigin:'https://auth.example.test'}))),hosts=runtimes.map(runtime=>runtime.host);t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
  const actions=hosts.map((host,i)=>bindActionClient(host.actionClient(molisWorkHostProjectReference({databasePath:[project,target][i].database_path,projectId:project.project_id})),()=>({actor_id:LOCAL_PERSON_ACTOR_ID,project_id:project.project_id,audience:'user',permissions:IMAGES_ACTION_PERMISSIONS})));
  const {connection}=await actions[0].invoke(imagesActions.saveConnection,{name:'This-device-only',api_format:'openai-images',base_url:`http://127.0.0.1:${provider.address().port}`,model:'synthetic'});
@@ -37,10 +40,10 @@ test('PCSYNC-IMG-READ-01 Images transfers saved bytes/history through actual D1/
  const restored=(await actions[1].invoke(imagesActions.get,{id:job.id})).job;assert.equal(restored.prompt,job.prompt);assert.equal(restored.connection_id,'');assert.equal(restored.status,'succeeded');
  assert.deepEqual((await actions[1].invoke(imagesActions.list,{})).jobs,[restored]);assert.deepEqual(Buffer.from((await actions[1].invoke(imagesActions.image,{id:job.id,image_id:job.images[0].id})).base64,'base64'),PNG);
  assert.deepEqual((await actions[1].invoke(imagesActions.connections,{})).connections,[]);assert.equal(executions,1);
- const db=new DatabaseSync(join(homes[1],'images','images.db'));try{assert.equal(db.prepare('SELECT runner_id FROM jobs WHERE id=?').get(job.id).runner_id,null);}finally{db.close();}
+ const db=new DatabaseSync(library(1));try{assert.equal(db.prepare('SELECT runner_id FROM jobs WHERE id=?').get(job.id).runner_id,null);}finally{db.close();}
  const events=await f.db.prepare('SELECT value FROM sync_events').all();assert.doesNotMatch(events.results.map(r=>r.value).join(''),/only-click|runner_id|input_hash|connection_id|filename|base_url/);assert.ok((await f.bucket.list()).objects.length>=2,'raw PNG and owner JSON are private R2 content');
  // Owner edit versus remote edit: both versions retained, compare then resolve with an observed revision.
- const edit=(index,prompt)=>{const db=new DatabaseSync(join(homes[index],'images','images.db'));try{db.prepare('UPDATE jobs SET prompt=? WHERE id=?').run(prompt,job.id);}finally{db.close();}};
+ const edit=(index,prompt)=>{const db=new DatabaseSync(library(index));try{db.prepare('UPDATE jobs SET prompt=? WHERE id=?').run(prompt,job.id);}finally{db.close();}};
  edit(0,'source edit');edit(1,'other edit');await clients[0].run();await clients[1].run();const collection=clients[1].status().collections.find(c=>c.selection.plugin_id===selection.plugin_id&&c.selection.collection_id===selection.collection_id);assert.equal(collection.conflicts.length,1);
  const key=collection.conflicts[0].key,ns=JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,selection.schema_version]);
  const seen=clients[1].inspectConflict(ns,key);assert.equal(seen.local.value.record.prompt,'other edit');assert.equal(seen.remote.value.record.prompt,'source edit');await clients[1].resolve(ns,key,'remote',seen.revision,seen.state);assert.equal(clients[1].recoveries(ns).length,1);

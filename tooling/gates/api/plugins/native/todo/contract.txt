@@ -20,7 +20,6 @@ export interface TodoBatch {
     readonly batch_id: string;
     readonly title: string;
     readonly origin: "assistant" | "onboarding" | "manual";
-    readonly project_id: string | null;
     readonly method: string;
     readonly materials: readonly TodoBatchMaterial[];
     readonly candidates: readonly TodoCandidate[];
@@ -62,7 +61,6 @@ export interface TodoCandidate {
     readonly due_phrase: string | null;
     readonly suggested_date: string | null;
     readonly topic: string | null;
-    readonly placement: TodoPlacement;
     readonly waiting: {
         readonly who: string;
         readonly what: string;
@@ -108,15 +106,13 @@ export interface TodoChange {
     readonly reverted_by: string | null;
 }
 
-export type TodoEditableField = "title" | "notes" | "due_date" | "due_time" | "planned_date" | "remind_at" | "placement" | "important" | "waiting";
+export type TodoEditableField = "title" | "notes" | "due_date" | "due_time" | "planned_date" | "remind_at" | "important" | "waiting";
 
 export interface TodoItem {
     readonly id: string;
     readonly title: string;
     readonly notes: string;
     readonly status: TodoStatus;
-    readonly placement: TodoPlacement;
-    readonly project_id: string | null;
     readonly due_date: string | null;
     readonly due_time: string | null;
     readonly planned_date: string | null;
@@ -152,8 +148,6 @@ export interface TodoLink {
 }
 
 export type TodoLinkKind = "goal" | "material" | "todo" | "outcome" | "work";
-
-export type TodoPlacement = "personal" | "project" | "unassigned";
 
 export type TodoRelation = "blocked_by" | "blocks" | "split_from" | "merged" | "related";
 

@@ -3,6 +3,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { directoryForHome } from "./plugin-directory-service.js";
+import { perPartitionPlugins } from "./partition-plugin-host.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
 
@@ -31,12 +32,17 @@ export async function handleDirectoryGrantHttp(context: WebRequestContext, proje
   return false;
 }
 
-/** Each grant as the person reads it: which plugin, which folder, in which project, and what read it lately. */
+/**
+ * Each grant as the person reads it: which plugin, which folder, in which project, and what read it lately. `every_space`: a grant of a
+ * plugin that runs in each partition, which is the person's and serves it in every space (batch 108); a Home-level plugin's grant holds no
+ * project either, but serves only calls outside one.
+ */
 async function listGrants(context: WebRequestContext, grants: Awaited<ReturnType<ReturnType<typeof directoryForHome>["list"]>>) {
   const names = grants.some(grant => grant.project_id) ? new Map(await context.composition.withCatalog({ homeDirectory: context.serverOptions.homeDirectory },
     catalog => catalog.listPartitions().map(project => [project.project_id, project.display_name] as const))) : new Map<string, string>();
+  const perPartition = perPartitionPlugins(context.serverOptions.homeDirectory!);
   return grants.map(({ install_id: _install, actor_id: _actor, device: _device, inode: _inode, ...grant }) => ({ ...grant,
-    project_name: grant.project_id ? names.get(grant.project_id) ?? grant.project_id : null }));
+    project_name: grant.project_id ? names.get(grant.project_id) ?? grant.project_id : null, every_space: grant.project_id === null && perPartition.has(grant.plugin_id) }));
 }
 
 async function selectDirectory(context: WebRequestContext, project?: LocalHostProjectReference): Promise<void> {

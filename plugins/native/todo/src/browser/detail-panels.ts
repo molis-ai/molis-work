@@ -10,7 +10,7 @@ interface Opens { readonly surface: string; readonly id: string }
 
 const FIELD_KEYS: Record<string, string> = {
   title: "todo.field.title-name", notes: "todo.field.notes", due_date: "todo.field.due-date", due_time: "todo.field.due-time", planned_date: "todo.field.planned-date",
-  remind_at: "todo.quick.remind", placement: "todo.field.placement", important: "todo.field.important", waiting: "todo.field.waiting", project_id: "todo.field.placement",
+  remind_at: "todo.quick.remind", important: "todo.field.important", waiting: "todo.field.waiting",
 };
 const WORK_STATE_KEYS: Record<string, string> = {
   idle: "todo.work.idle", running: "todo.status.doing", "waiting-input": "todo.work.waiting-input", "waiting-review": "todo.work.waiting-review", paused: "todo.work.paused",
@@ -66,11 +66,10 @@ export function renderSources(page: TodoPage, item: TodoItem): void {
   for (const source of cards) {
     const entry = make("article", "todo-source");
     const head = make("div", "todo-source-head");
-    // The original opens where it lives, in the project the person is looking at: a todo of another project keeps its source as text,
-    // and an unassigned todo (a fragment offer leaves placement to the person) opens it here. Where the source names only the object,
-    // the workbench says which surface opens that kind of object; none or several, and it stays text.
+    // The original opens here, in the partition the todo is in. Where the source names only the object, the workbench says which
+    // surface opens that kind of object; none or several, and it stays text.
     const { open, subject } = source, id = (open ?? subject)?.id, surface = open ? open.surface : subject && page.host.surfaceFor(subject.kind);
-    const here = id && surface && page.projectId() && (!item.project_id || item.project_id === page.projectId()) ? { surface, id } : null;
+    const here = id && surface ? { surface, id } : null;
     const name = here ? make("button", "mw-btn mw-btn--link", source.title) : make("strong", "", source.title);
     if (here && name instanceof HTMLButtonElement) {
       name.type = "button";
@@ -161,10 +160,10 @@ export function installWorks(page: TodoPage): void {
 
 interface LinkRow { link?: TodoLink; text: string; target: string; kind: string; detail: string }
 
-function linkRow(page: TodoPage, item: TodoItem, entry: LinkRow): HTMLElement {
+function linkRow(page: TodoPage, entry: LinkRow): HTMLElement {
   const line = make("div", "todo-link");
   // A draft, a finished result or a material that says where it opens is reached from here, as a source is.
-  const opens = !entry.target && entry.link?.open && page.projectId() && item.project_id === page.projectId() ? entry.link.open : null;
+  const opens = !entry.target && entry.link?.open ? entry.link.open : null;
   const name = entry.target || opens ? make("button", "mw-btn mw-btn--link", entry.text) : make("span", "", entry.text);
   if (name instanceof HTMLButtonElement) {
     name.type = "button";
@@ -218,7 +217,7 @@ export function renderLinks(page: TodoPage, item: TodoItem): void {
     return;
   }
   const group = make("div", "todo-linked");
-  for (const entry of rows) group.append(linkRow(page, item, entry));
+  for (const entry of rows) group.append(linkRow(page, entry));
   box.append(group);
 }
 

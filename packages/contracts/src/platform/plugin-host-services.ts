@@ -78,6 +78,8 @@ export interface PluginHostServices {
   readonly projects?: import("./plugin-projects.js").PluginProjectsClient;
   /** The project's Attention entries (the Inbox's); present with `attention:read` or `attention:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
   readonly attention?: import("./plugin-attention.js").PluginAttentionClient;
+  /** The overview rows of a plugin that keeps its data in the partition's main database and declares `overview_projection` (V17, batch 108). */
+  readonly overview?: import("./plugin-overview.js").PluginOverviewClient;
   /** The project's Context Ledger edges; present with `context-ledger:read` or `context-ledger:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
   readonly contextLedger?: import("./plugin-attention.js").PluginContextLedgerClient;
   /** The consumption scenes this plugin's Manifest declares (`action_scenes`); present with `scenes:use`, only inside the plugin's own running action (S-89). */
@@ -116,6 +118,10 @@ export interface PluginHostServices {
    * wholly the plugin's (PG-017 BL-490). The host entry that carries the plugin's code gets this in place of `database`.
    */
   readonly database_statements?: import("./plugin-database.js").PluginProjectStatements;
+  /** The keys the Manifest declares in `person_settings`, for the person and this plugin's own background (S-person-settings-private). */
+  readonly personSettings?: import("./plugin-due.js").PluginPersonSettingsClient;
+  /** A per-partition instance's own due entries (`databases.partition`): handed back to `onDue` at their time, waking only this instance. */
+  readonly due?: import("./plugin-due.js").PluginDueClient;
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;

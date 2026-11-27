@@ -41,7 +41,7 @@
 
 `host.projects()` 返回的是已经打开的实例，不是目录。个人空间一旦打开也在里面，所以这 23 个文件（44 处）本来就是按「全部分区」在遍历，不用改。唯一带个人空间特判的是 `placement-actions.ts`：本批删掉了它的 `ensurePersonalSpace` 懒建口和 `record()` 里的个人捷径；`HOME` 标记留到 110 批再删。
 
-`agent-definitions/skill-catalog-host.ts`、`agent-reference-kinds.ts`、`blueprint-host.ts`、`composer-sources-http.ts`、`home-aggregate.ts`、`local-host.ts`、`memory/memory-upkeep.ts`、`observation-host.ts`、`personal-project-sync.ts`、`placement-actions.ts`、`plugin-actions-client.ts`、`plugin-install-gateway.ts`、`plugin-installed-projects.ts`、`plugin-trust-actions.ts`、`project-deleted-runtime.ts`、`project-host.ts`、`project-plugin-ports.ts`、`project-reach.ts`、`runtime-overview-http.ts`、`scope-installations.ts`、`task-grant-actions.ts`、`web-project-schedulers.ts`、`web-request.ts`（均在 `apps/local-host/src/`）。
+`agent-definitions/skill-catalog-host.ts`、`agent-reference-kinds.ts`、`blueprint-host.ts`、`composer-sources-http.ts`、`home-aggregate.ts`（第 108 批删除）、`local-host.ts`、`memory/memory-upkeep.ts`、`observation-host.ts`、`personal-project-sync.ts`、`placement-actions.ts`、`plugin-actions-client.ts`、`plugin-install-gateway.ts`、`plugin-installed-projects.ts`、`plugin-trust-actions.ts`、`project-deleted-runtime.ts`、`project-host.ts`、`project-plugin-ports.ts`、`project-reach.ts`、`runtime-overview-http.ts`、`scope-installations.ts`、`task-grant-actions.ts`、`web-project-schedulers.ts`、`web-request.ts`（均在 `apps/local-host/src/`）。
 
 ## 3. 直接列 `projects/` 目录或手拼分区路径
 

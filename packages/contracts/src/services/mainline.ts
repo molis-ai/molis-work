@@ -47,11 +47,9 @@ export interface BackgroundTasksReadResult { tasks: BackgroundTaskRow[]; issues:
 /** An unfinished task on Home, with the project whose provider owns it. */
 export interface HomeBackgroundTaskRow extends BackgroundTaskRow {
   project_id: string; project_name: string;
-  /** The project is asleep: the row is what it said before it slept, and opening the project reads it again. */
-  resting?: true;
 }
 
-/** The open and resting projects' tasks and the sources that could not be read; empty tasks alone does not mean no work. */
+/** Every partition's tasks, read from the overview, and the sources that could not be read; empty tasks alone does not mean no work. */
 export interface HomeBackgroundTasksReadResult {
   tasks: HomeBackgroundTaskRow[];
   issues: Array<{ project_id: string; source: Required<ActionReference> | null; code: string }>;

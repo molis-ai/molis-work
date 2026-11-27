@@ -307,8 +307,10 @@ test("S-35 a carry left unsettled is not tried again on every call: the backgrou
   w.notes.set("q4", { version: 2, body: "目标改过" });
   w.exports.clear();
   let now = 0;
-  const settling = new CarrySettling(w.service(), { now: () => now, retryMs: 1000 });
+  const passes: Array<{ pending: number; left: number; failed: boolean }> = [];
+  const settling = new CarrySettling(w.service(), { now: () => now, retryMs: 1000, settled: ({ pending, left, failed }) => passes.push({ pending, left, failed }) });
   for (let call = 0; call < 5; call++) { settling.kick(); await settling.idle(); }
+  assert.deepEqual(passes, [{ pending: 1, left: 1, failed: false }], "one pass, told for the work records with what it found and left (batch 108)");
   assert.deepEqual(Object.fromEntries(w.exports), { personal: 1, q4: 1 }, "changed in both: one pass reads each side once, then waits");
   assert.equal(w.service().pendingCarries(), 1, "and the record stays");
   now = 1500;

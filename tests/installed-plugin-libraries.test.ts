@@ -156,12 +156,13 @@ test("RAC-317 the publisher of an install cannot be changed: an upgrade to anoth
 test("RAC-318 an installed plugin is not given a name that is already taken: a shipped store, the ledger's own, another plugin's library, or a directory the Home has that no ledger row made — nothing is made, nothing is changed", withDirectory(async directory => {
   const item = platformIn(directory);
   try {
-    for (const name of ["todo", "images", "security", "config", "projects", "plugin-libraries"]) {
+    // The shipped Home libraries are Work Brief's and Feed's (Todo's and Images' moved into each partition, batch 108).
+    for (const name of ["work-brief", "feed-content", "security", "config", "projects", "plugin-libraries"]) {
       const taker = probe({ name: `taker-${name}`, library: { store_name: name } });
       assert.equal(await refused(item, taker.definition), "plugin.home_database.object_taken", name);
       assert.equal(taker.started.length, 0, `${name}: the plugin's code never ran`);
     }
-    assert.equal(existsSync(join(directory, "todo")), false, "a shipped store's directory is not made for the taker");
+    assert.equal(existsSync(join(directory, "work-brief")), false, "a shipped store's directory is not made for the taker");
     assert.equal(existsSync(join(directory, LEDGER)), false, "a name the registry holds is refused before the ledger is even opened");
 
     const owner = probe({ name: "owner" });

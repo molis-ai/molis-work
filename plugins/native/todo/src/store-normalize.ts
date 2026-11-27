@@ -1,17 +1,16 @@
 import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { TodoEditableField, TodoItem, TodoLinkKind, TodoRelation, TodoSource } from "./contract.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
 import { invalid, text } from "./store-support.js";
 import type { TodoAccess, TodoCreateInput, TodoFields } from "./store-types.js";
 
-export const EDITABLE: readonly TodoEditableField[] = ["title", "notes", "due_date", "due_time", "planned_date", "remind_at", "placement", "important", "waiting"];
+export const EDITABLE: readonly TodoEditableField[] = ["title", "notes", "due_date", "due_time", "planned_date", "remind_at", "important", "waiting"];
 export const LINK_KINDS: readonly TodoLinkKind[] = ["goal", "material", "todo", "outcome", "work"];
 export const RELATIONS: readonly TodoRelation[] = ["blocked_by", "blocks", "split_from", "merged", "related"];
 export const SOURCE_KINDS: readonly TodoSource["kind"][] = ["manual", "material", "assistant", "onboarding", "inbox", "lingguang"];
 
-type NormalizedFields = Partial<Omit<TodoItem, "project_id">> & { project_id?: string | null };
+type NormalizedFields = Partial<TodoItem>;
 
 export function normalizeFields(patch: TodoFields, current: TodoItem | null, access: TodoAccess): NormalizedFields {
   const out: { -readonly [K in keyof NormalizedFields]: NormalizedFields[K] } = {};
@@ -54,25 +53,8 @@ export function normalizeFields(patch: TodoFields, current: TodoItem | null, acc
       out.waiting = { who, what, follow_up_on: follow };
     }
   }
-  if (patch.placement !== undefined) {
-    if (patch.placement === "project") {
-      if (!access.projectId) throw new ActionError("actions.project_required", "要放进项目，请在那个项目里操作");
-      // "Into the project" means the project the caller is in; other projects are not addressable by id.
-      // A todo already in some project stays there, so resending the same placement never moves it silently.
-      out.placement = "project";
-      out.project_id = current?.placement === "project" && current.project_id ? current.project_id : access.projectId;
-    } else if (patch.placement === "personal" || patch.placement === "unassigned") {
-      out.placement = patch.placement;
-      out.project_id = null;
-    } else throw invalid("归属无效");
-  }
   return out;
 }
-
-export const stripProject = (fields: NormalizedFields): Partial<TodoItem> => {
-  const { project_id: _ignored, ...rest } = fields;
-  return rest;
-};
 
 export function normalizeSources(input: TodoCreateInput["sources"], access: TodoAccess, at: string): TodoSource[] {
   const manual: TodoSource = { source_id: crypto.randomUUID(), kind: access.actor === "assistant" ? "assistant" : "manual",

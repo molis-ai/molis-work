@@ -57,7 +57,9 @@ test("FSS-08 FSS-19 FSS-20 FSS-27 FSS-28 the real Host binds appearance invalida
   });
   const request_id = "select-folio-from-another-page";
   const selection = { skin: { id: "folio", revision: 1 }, font: { policy: "follow-skin" }, mono: null };
-  const grant = await command("/api/host/plugin-pages", { plugin_id: "io.molis.work.issues" });
+  // A plugin page of the personal space (Issues runs there since batch 108), as the workbench grants it.
+  const space = await fixture.personal(["issues"]);
+  const grant = await command(`/projects/${space.project_id}/api/host/plugin-pages`, { plugin_id: "io.molis.work.issues" });
   assert.equal(grant.status, 200, (await grant.clone().text()).slice(0, 300));
   const { page_id } = await grant.json();
   assert.equal(typeof page_id, "string");

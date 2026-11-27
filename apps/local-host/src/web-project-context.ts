@@ -3,7 +3,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { builtinPluginByManifestId, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "./plugin-registry.js";
+import { builtinPluginByManifestId, BUILTIN_PLUGIN_IDS } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
 import { bindLocalWebActions, bindWebEntryActions, localWebActionContext, type LocalWebActionClient, type LocalWebEntry } from "./local-web-actions.js";
@@ -31,7 +31,7 @@ export interface ProjectRequestContext extends WebRequestContext {
    * it, a Runtime plugin's by its installation's grants alone (PG-008, `bindLocalWebActions`); `entry` is the file an import handed in.
    */
   readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => LocalWebActionClient;
-  /** The plugins this project's page shows: personal ones included unless the person hid them here. */
+  /** The plugins this project's page shows: the ones this partition has. */
   readonly shownPlugins: (projectId: string) => Promise<string[]>;
   /**
    * The plugins this project shows, read from the Catalog now: the protected page projection reads this before handing out page words,
@@ -69,10 +69,10 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
       const external = (home?.registered() ?? []).filter(entry => !builtinPluginByManifestId(entry.manifest.plugin_id)
         && !hidden.includes(entry.key)).map(entry => entry.key);
       const recoverable = home?.damagedPackages().map(({ record }) => record.plugin_id).filter(id => !hidden.includes(id)) ?? [];
-      return [...new Set([...shownProjectPlugins(plugins, hidden), ...external, ...recoverable])];
+      return [...new Set([...plugins, ...external, ...recoverable])];
     };
     // An explicitly served single-database fixture has no Catalog record; expose all registered project-scoped plugins.
-    if (!options.project) return { shown: withExternal(PROJECT_SCOPED_PLUGIN_IDS, []) };
+    if (!options.project) return { shown: withExternal(BUILTIN_PLUGIN_IDS, []) };
     // A versioned read needs the revision of exactly the membership it shows, so it reads on its own; the others share one reading (N44).
     if (versioned) return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
       const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId);

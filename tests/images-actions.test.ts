@@ -5,22 +5,24 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { IMAGE_GENERATION_ROLES, bindActionClient, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { IMAGE_GENERATION_ROLES, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesActions as actions, IMAGES_ACTION_PERMISSIONS, type ImageJob } from "@molis-ai/molis-work-plugin-images";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { imageGeneratorOf, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 const PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 async function fixture(t:test.TestContext,directory?:string) {
   const home=directory??await mkdtemp(join(tmpdir(),'images-actions-'));
   const hosts:MolisWorkLocalHost[]=[];
   const open=()=>{const host=new MolisWorkLocalHost({homeDirectory:home});hosts.push(host);return host;};
   const host=open(), ref=molisWorkHostProjectReference({databasePath:join(home,'project.sqlite'),projectId:'a'});
-  const bind=(host:MolisWorkLocalHost,projectId:string|null='a',permissions:readonly string[]=IMAGES_ACTION_PERMISSIONS)=>bindActionClient(projectId?host.actionClient(projectId === 'a' ? ref : molisWorkHostProjectReference({databasePath:join(home,`${projectId}.sqlite`),projectId:projectId})):host.homeActionClient(),()=>({actor_id:'owner',project_id:projectId,audience:'user',permissions}));
+  const bind=(host:MolisWorkLocalHost,projectId:string|null='a',permissions:readonly string[]=IMAGES_ACTION_PERMISSIONS)=>bindActionClient(projectId?host.actionClient(projectId === 'a' ? ref : molisWorkHostProjectReference({databasePath:join(home,`${projectId}.sqlite`),projectId:projectId})):host.homeActionClient(),()=>({actor_id:LOCAL_PERSON_ACTOR_ID,project_id:projectId,audience:'user',permissions}));
   t.after(async()=>{await Promise.all(hosts.map(host=>host.close()));await rm(home,{recursive:true,force:true});});
-  return {home,host,open,bind,client:bind(host),global:bind(host,null)};
+  // The image services follow the person (batch 108): they are read and written from any partition Images is in, here project a.
+  return {home,host,open,bind,client:bind(host),global:bind(host),home_client:bind(host,null)};
 }
 async function terminal(client:BoundActionClient,id:string):Promise<ImageJob>{
   const deadline=Date.now()+5000;
@@ -46,7 +48,7 @@ test('Images actions use real provider bytes, original jobs, retry identity and 
   await assert.rejects(f.bind(f.host,'a',['images:read']).invoke(actions.start,{request_id:'denied',connection_id:connection.id,prompt:'denied'}),{code:'actions.forbidden'});
   await assert.rejects(f.global.invoke(actions.saveConnection,{name:'bad',api_format:'openai-images',base_url:'https://example.com',model:'test',api_key:'not-accepted'} as never),{code:'actions.input_invalid'});
   const input={request_id:'one-click',connection_id:connection.id,prompt:'验证原始图片'};
-  await assert.rejects(f.global.invoke(actions.start,input),{code:'actions.project_required'});
+  await assert.rejects(f.home_client.invoke(actions.start,input),{code:'actions.scope_mismatch'},'Images runs only in partitions; a call without a project is refused');
   const {job}=await f.client.invoke(actions.start,input);
   assert.equal((await f.client.invoke(actions.start,input)).job.id,job.id);
   await assert.rejects(f.client.invoke(actions.start,{...input,prompt:'changed'}),{code:'images.request_conflict'});
@@ -83,7 +85,7 @@ test('Images connection revocation rejects late results and cannot fall back to 
   await new Promise(resolve=>setTimeout(resolve,300));
   const {job:ended}=await f.client.invoke(actions.get,{id:job.id});
   assert.equal(ended.status, "interrupted"); assert.ok(ended.finished_at); assert.deepEqual(ended.images, []);
-  const db = new DatabaseSync(join(f.home, "images", "images.db"), { readOnly: true });
+  const db = new DatabaseSync(partitionLibraryFile(f.home, "a", "images"), { readOnly: true });
   try {
     assert.deepEqual({ ...db.prepare("SELECT status, images_json, error, finished_at FROM jobs WHERE id=?").get(job.id) },
       { status: "running", images_json: "[]", error: "", finished_at: null }, "the interrupted view performs no business write for the revoked caller");

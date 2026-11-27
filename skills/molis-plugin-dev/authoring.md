@@ -139,8 +139,8 @@ JS
 | `tests/plugin-sample.e2e.test.ts` | CLI create、SDK tarball、两进程 poll、权限、目录边界 |
 | `tests/plugin-package.test.ts` | 签名与篡改拒绝 |
 | `tests/<plugin>-plugin.test.ts` | 该插件 HTTP/UI/MCP |
-| `tests/plugin-declarative-mounting.test.ts` | 插件切换 / 常驻（island）/ 个人插件名单 |
-| `tests/creative-tools-plugins.test.ts` | `PERSONAL_PLUGIN_IDS` |
+| `tests/plugin-declarative-mounting.test.ts` | 插件切换 / 常驻（island）/ 内置插件名单 |
+| `tests/creative-tools-plugins.test.ts` | 市场分类与工具插件名单 |
 | `tests/uninstall.test.ts` | `{home}` 下私人库名 |
 | `tests/list-silent-refresh.test.ts` | 有列表时的 factory / `loadList` |
 | `node scripts/workspace-packages.mjs` | 包名、依赖、contracts export、README/tsconfig/index |

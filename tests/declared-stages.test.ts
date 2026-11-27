@@ -10,7 +10,7 @@ import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 /** The page as the Host draws it: the plugins it shows and the marked directory are the Host's (W5-02 B1). */
 const draw = (view: MolisWorkWebView, goalId?: string) => renderMolisWorkWeb(withHostPluginFacts(view), goalId);
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 
 const PROJECT = "project-declared-stages";
 
@@ -168,7 +168,7 @@ test("W5-06 PRR-12 every shown plugin's stage comes from the view that opens it,
   for (const plugin of ["feed", "inbox", "schedule", "pages", "form", "dataset", "ppt", "workflows", "lingguang", "plugin-builder", "todo"]) {
     assert.ok(plugins.includes(plugin), `${plugin} declares its stage in its Manifest`);
   }
-  const html = draw({ ...emptyView(), enabled_plugins: [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS] } as MolisWorkWebView);
+  const html = draw({ ...emptyView(), enabled_plugins: [...BUILTIN_PLUGIN_IDS] } as MolisWorkWebView);
   for (const plugin of plugins) assert.equal(stages(html, plugin), 1, `${plugin} has one stage`);
   assert.equal(stages(html, "sources"), 1, "Feed's source page is still drawn beside its stage");
 });

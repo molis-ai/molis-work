@@ -314,26 +314,25 @@ test("a source revoked while the query waits for the index answers nothing from 
   assert.deepEqual(ids(await ask(f, owner("a"), "合同")), ["a1"], "the owner's index still holds it");
 });
 
-// Todo is one Home provider over one store, with todos placed in a project, in the personal space or not yet placed.
-// A project's todos are indexed with that project and nowhere else; the person's own are indexed once for the Home.
-test("a Home plugin's project source is searched with its project: Todo's project todos stay in their project", async t => {
+// Todo keeps one library in each partition (batch 108): each partition's todos are indexed with that partition and nowhere else, and the
+// personal space's are the person's own.
+test("a partition plugin's source is searched with its partition: Todo's todos stay where they are", async t => {
   const f = await fixture(t);
-  const store = openTodoStore(f.home, () => new Date("2026-10-01T10:00:00Z"));
-  t.after(() => store.close());
-  f.actions.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
-    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => "2026-10-01" }) });
   const person = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "search:read"] });
-  const create = (project_id: string | null, title: string, placement: "project" | "personal") => f.actions.invoke(person(project_id), todoActions.create, { title, placement });
-  await create("a", "复盘付款节奏（A）", "project");
-  await create("b", "复盘付款节奏（B）", "project");
-  await create(null, "复盘付款节奏（个人）", "personal");
+  for (const partition of ["a", "b", "personal"]) {
+    const store = openTodoStore(f.home, () => new Date("2026-10-01T10:00:00Z"), partition);
+    t.after(() => store.close());
+    f.actions.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin", project_id: partition },
+      definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => "2026-10-01" }) });
+  }
+  await f.actions.invoke(person("a"), todoActions.create, { title: "复盘付款节奏（A）" });
+  await f.actions.invoke(person("b"), todoActions.create, { title: "复盘付款节奏（B）" });
+  await f.actions.invoke(person("personal"), todoActions.create, { title: "复盘付款节奏（个人）" });
   const titles = async (caller: ActionCallContext, extra: Record<string, unknown> = {}) =>
     (await f.search.query({ client: f.actions, caller }, { query: "付款节奏", ...extra })).hits.map(hit => hit.title).sort();
   assert.deepEqual(await titles(person("a"), { scope: "project" }), ["复盘付款节奏（A）"]);
   assert.deepEqual(await titles(person("b"), { scope: "project" }), ["复盘付款节奏（B）"]);
-  assert.deepEqual(await titles(person("a"), { scope: "personal" }), ["复盘付款节奏（个人）"]);
-  assert.deepEqual(await titles(person("a")), ["复盘付款节奏（A）", "复盘付款节奏（个人）"], "each todo once, in its own scope");
-  assert.deepEqual(await titles(person(null)), ["复盘付款节奏（个人）"]);
+  assert.deepEqual(await titles(person("personal"), { scope: "project" }), ["复盘付款节奏（个人）"]);
 });
 
 test("summary-only content keeps its body out of the index", async t => {

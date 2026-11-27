@@ -21,6 +21,7 @@
       }
     },
     "images.background.failed": "生成できませんでした",
+    "images.background.interrupted": "画像の生成が完了しませんでした：{prompt}",
     "images.background.generating": "{model} で生成中",
     "images.background.open": "画像を開く",
     "images.background.stop-summary": "このパソコンでの待機を停止します（提供元では生成や課金が続く場合があります）",

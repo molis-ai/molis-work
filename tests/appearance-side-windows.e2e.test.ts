@@ -5,7 +5,8 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
-import { issueView, ISSUE_FRAME, type IssueBrowser } from "./fixtures/issue-browser.js";
+import { issueView, ISSUE_FRAME, personalIssues, type IssueBrowser } from "./fixtures/issue-browser.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
@@ -123,6 +124,8 @@ test("FSS-06 FSS-07 three Workbench windows with previously opened Issues still 
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
   assert.ok(b.projectId);
+  // Issues is a personal-space plugin (batch 108): the person has it there, and each window preloads its capture view.
+  await personalIssues(b);
   const project = `/projects/${b.projectId}`, workbench = project + "/";
   const page = openPagesStore(b.homeDirectory, b.projectId), decks = openPptStore(b.homeDirectory, b.projectId);
   const note = page.create({ title: "保留页面", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开 Pages" }] }] } });
@@ -158,7 +161,9 @@ test("FSS-06 FSS-07 QEA-169 three chooser windows keep their selected project an
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
   assert.ok(b.projectId);
-  const project = `/projects/${b.projectId}`, side = "/plugins/issues?side=capture";
+  // Issues is a personal-space plugin (batch 108): every partition's Issues tab draws the personal space's capture view.
+  const project = `/projects/${b.projectId}`, side = `/projects/${PERSONAL_SPACE_PROJECT_ID}/side/issues/capture`;
+  await personalIssues(b);
   const file = await seedOutputFile(b, b.projectId);
   singleHomeAccounts(b);
   const traffic = observeAppearance(b), chooserConnected = deferred();
@@ -210,7 +215,7 @@ test("FSS-07 FSS-27 a side view reads after the parent reconnects and applies ap
   const b = await openGoalBrowser(t, "user", undefined, null);
   if (!b) return;
   assert.ok(b.projectId);
-  const project = `/projects/${b.projectId}`, side = project + "/side/issues/capture";
+  const project = `/projects/${b.projectId}`, side = `/projects/${PERSONAL_SPACE_PROJECT_ID}/side/issues/capture`;
   const topPath = project + "/", directPath = side + "?standalone=1";
   singleHomeAccounts(b);
   const traffic = observeAppearance(b), reconnected = deferred(), directConnected = deferred();
@@ -230,7 +235,7 @@ test("FSS-07 FSS-27 a side view reads after the parent reconnects and applies ap
   const frameId = await issue.frame.frameId();
   await b.evaluate(`window.originalAppearanceSide = ${issueDocument}`);
   const direct = await openTab(t, b, directPath);
-  assert.equal(await direct.evaluate("document.body.dataset.sideView"), "issues");
+  assert.equal(await direct.evaluate("document.body.dataset.sideView"), "issues/capture", "a partition side view is named by plugin and view");
   await directConnected.promise;
   const { targetInfo } = await b.command<{ targetInfo: { targetId: string } }>("Target.getTargetInfo", {}, b.sessionId);
   await b.command("Target.activateTarget", { targetId: targetInfo.targetId });

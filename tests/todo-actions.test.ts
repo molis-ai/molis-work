@@ -1,102 +1,80 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PERSONAL_SPACE_PROJECT_ID, actionEffect, actionFieldOptions, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { TODO_DATABASE, TODO_ACTIONS as TODO_ALL_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, parseTodoQuickText, todoActions as actions, todoManifest, todoSearchActions, type TodoListResult, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
-import { openTodoStore } from "./fixtures/plugin-home-stores.js";
+import { TODO_DATABASE, TODO_ACTIONS as TODO_ALL_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, parseTodoQuickText, todoActions as actions, todoDue, todoManifest, todoSearchActions, type TodoListResult, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore, partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 const TODAY = "2026-09-28";
-const REACHABLE_PROJECTS = ["project-a", "project-b"];
 
-function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-09-28T10:30:00+08:00")) {
-  const home = mkdtempSync(join(tmpdir(), "todo-actions-"));
-  const store = openTodoStore(home, now);
+/**
+ * Todo in one partition (batch 108): its own library, its own instance. Callers name that partition as their project; the person's page and
+ * an Agent are the two audiences.
+ */
+function partition(t: { after(fn: () => void): void }, home: string, project_id: string, now: () => Date) {
+  const store = openTodoStore(home, now, project_id);
   const service = new ActionService();
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => TODAY, now }) });
-  t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
-  // The Host gives the person's own calls the list of projects they may reach (PG-014, S-74); an Agent's calls never have one. The plugin
-  // reads that list and nothing else, so what an audience may reach is the Host's to say (tests/security-invariants-project-reach.test.ts).
-  const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
-    bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
-      ...(audience === "user" ? { readable_project_ids: REACHABLE_PROJECTS } : {}) }));
-  return { service, home, store, me: as(null), inA: as("project-a"), inB: as("project-b"), agentA: as("project-a", "agent"), agentHome: as(null, "agent") };
+  t.after(() => store.close());
+  const as = (audience: ActionCallContext["audience"]) =>
+    bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS }));
+  return { store, service, me: as("user"), agent: as("agent") };
+}
+
+/** The personal space and project A of one Home. */
+function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-09-28T10:30:00+08:00")) {
+  const home = mkdtempSync(join(tmpdir(), "todo-actions-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const personal = partition(t, home, PERSONAL_SPACE_PROJECT_ID, now), a = partition(t, home, "project-a", now);
+  return { home, store: personal.store, service: personal.service, me: personal.me, agent: personal.agent, storeA: a.store, inA: a.me, agentA: a.agent };
 }
 
 const titles = (result: TodoListResult) => result.items.map(item => item.title).sort();
 
-test("manifest parses, every action is home-scoped (the home page source and a project's search source are per project) and delete is the only irreversible one", () => {
+test("manifest parses, every action runs in its partition and delete is the only irreversible one", () => {
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(todoManifest)));
   assert.equal(manifest.plugin_id, "io.molis.work.todo");
-  const perProject = new Set(["todo.events", "todo.search.project_entries"]);
-  for (const definition of todoManifest.actions!) assert.equal(definition.action.scope, perProject.has(definition.capability_id) ? "project" : "home", definition.capability_id);
+  assert.equal(manifest.databases?.partition?.store_name, TODO_DATABASE.store_name);
+  assert.equal(manifest.databases?.home, undefined);
+  assert.deepEqual(manifest.overview_projection, { kinds: ["task"] });
+  for (const definition of todoManifest.actions!) assert.equal(definition.action.scope, "project", definition.capability_id);
   const irreversible = todoManifest.actions!.filter(definition => actionEffect(definition.action, definition.capability_id) === "irreversible").map(definition => definition.capability_id);
   assert.deepEqual(irreversible, ["todo.items.delete"]);
   assert.deepEqual(actions.create.action.result_subject, { id: "item.id", revision: "item.revision" });
 });
 
-test("scope: personal and unplaced todos everywhere, a project's todos only in that project, all projects only for the person", async t => {
+test("each partition keeps its own todos: a list holds only its own, another partition's id is not found here, and a call outside a partition is refused", async t => {
   const f = fixture(t);
   await f.me.invoke(actions.create, { title: "个人的事", planned_date: TODAY });
-  await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project", planned_date: TODAY });
-  await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project", planned_date: TODAY });
-  const unplaced = await f.inA.invoke(actions.create, { title: "还没归类", planned_date: TODAY });
-  assert.equal(unplaced.item.placement, "unassigned");
-  assert.equal(unplaced.item.project_id, null);
-
-  assert.deepEqual(titles(await f.me.invoke(actions.list, {})), ["个人的事", "还没归类"]);
-  assert.deepEqual(titles(await f.inA.invoke(actions.list, {})), ["A 项目的事", "个人的事", "还没归类"]);
-  assert.deepEqual(titles(await f.agentA.invoke(actions.list, {})), ["A 项目的事", "个人的事", "还没归类"]);
-  assert.deepEqual(titles(await f.inA.invoke(actions.list, { all_projects: true })), ["A 项目的事", "B 项目的事", "个人的事", "还没归类"]);
-  await assert.rejects(f.agentA.invoke(actions.list, { all_projects: true }), { code: "actions.forbidden" });
-  await assert.rejects(f.me.invoke(actions.create, { title: "没有项目却要放进项目", placement: "project" }), { code: "actions.project_required" });
-
-  const bTodo = (await f.inB.invoke(actions.list, { placement: "project" })).items[0]!;
-  await assert.rejects(f.agentA.invoke(actions.get, { id: bTodo.id }), { code: "todo.not_found" });
-  // An AI caller sends the revision it read (W3-09-3), so what refuses this is the scope, not the missing precondition.
-  await assert.rejects(f.agentA.invoke(actions.update, { id: bTodo.id, expected_revision: bTodo.revision, title: "越界修改" }), { code: "todo.not_found" });
-  // The person's own page may edit another project's todo from "所有项目" without moving it.
-  const edited = await f.inA.invoke(actions.update, { id: bTodo.id, title: "B 项目的事（改）", placement: "project" });
-  assert.equal(edited.item.project_id, "project-b");
-});
-
-test("RAC-591 S-74 what a caller may reach is the Host's list alone: the same call is refused without one and the plugin compares no audience to decide it", async t => {
-  const f = fixture(t);
-  const inB = (await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project" })).item;
-  // The person's call, with the list the Host gives it, reaches another project's todo; the same call without a list does not, whoever makes it.
-  const withoutList = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user" as const, permissions: TODO_ACTION_PERMISSIONS }));
-  assert.equal((await f.inA.invoke(actions.get, { id: inB.id })).item.id, inB.id);
-  await assert.rejects(withoutList.invoke(actions.get, { id: inB.id }), { code: "todo.not_found" });
-  await assert.rejects(withoutList.invoke(actions.list, { all_projects: true }), { code: "actions.forbidden" });
-  // A list that names a project does not name the others: a todo of a project the Host did not list is not found.
-  const onlyA = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user" as const, permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: ["project-a"] }));
-  await assert.rejects(onlyA.invoke(actions.get, { id: inB.id }), { code: "todo.not_found" });
-  assert.deepEqual(titles(await onlyA.invoke(actions.list, { all_projects: true, view: "all" })), []);
-  assert.deepEqual(titles(await f.inA.invoke(actions.list, { all_projects: true, view: "all" })), ["B 项目的事"]);
-  const source = (name: string) => readFileSync(new URL(`../plugins/native/todo/src/${name}`, import.meta.url), "utf8");
-  // The plugin's own code has no audience comparison in what decides scope: not in the access it builds, nor in the search source.
-  for (const line of source("actions.ts").split("\n").filter(text => /projectIds|readable_project_ids/u.test(text))) assert.doesNotMatch(line, /audience/u, line);
-  assert.doesNotMatch(source("search.ts"), /audience\s*(===|!==|==)/u);
-  assert.match(source("store-types.ts"), /projectIds: readonly string\[\]/u);
-  assert.doesNotMatch(source("store-types.ts"), /everything: boolean/u);
+  const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", planned_date: TODAY })).item;
+  assert.equal("placement" in inA, false);
+  assert.equal("project_id" in inA, false);
+  assert.deepEqual(titles(await f.me.invoke(actions.list, {})), ["个人的事"]);
+  assert.deepEqual(titles(await f.agent.invoke(actions.list, {})), ["个人的事"]);
+  assert.deepEqual(titles(await f.inA.invoke(actions.list, {})), ["A 项目的事"]);
+  await assert.rejects(f.me.invoke(actions.get, { id: inA.id }), { code: "todo.not_found" });
+  await assert.rejects(f.agent.invoke(actions.update, { id: inA.id, expected_revision: inA.revision, title: "越界修改" }), { code: "todo.not_found" });
+  const outside = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: null, audience: "user" as const, permissions: TODO_ACTION_PERMISSIONS }));
+  await assert.rejects(outside.invoke(actions.list, {}), { code: "actions.project_required" });
 });
 
 test("revisions refuse stale writes; the person's edits are recorded and the Assistant cannot set importance", async t => {
   const f = fixture(t);
-  const created = await f.agentHome.invoke(actions.create, { title: "发送新版方案", due_date: "2026-10-02" });
+  const created = await f.agent.invoke(actions.create, { title: "发送新版方案", due_date: "2026-10-02" });
   assert.equal(created.item.sources[0]!.kind, "assistant");
   assert.deepEqual(created.item.edited_fields, []);
-  const byAgent = await f.agentHome.invoke(actions.update, { id: created.item.id, expected_revision: 1, notes: "预算等小李确认" });
+  const byAgent = await f.agent.invoke(actions.update, { id: created.item.id, expected_revision: 1, notes: "预算等小李确认" });
   assert.deepEqual(byAgent.item.edited_fields, []);
   await assert.rejects(f.me.invoke(actions.update, { id: created.item.id, expected_revision: 1, title: "旧版本上的修改" }), { code: "todo.conflict" });
   const byMe = await f.me.invoke(actions.update, { id: created.item.id, expected_revision: 2, due_date: "2026-10-05", important: true });
   assert.deepEqual([...byMe.item.edited_fields].sort(), ["due_date", "important"]);
-  await assert.rejects(f.agentHome.invoke(actions.update, { id: created.item.id, expected_revision: byMe.item.revision, important: false }), { code: "todo.forbidden" });
+  await assert.rejects(f.agent.invoke(actions.update, { id: created.item.id, expected_revision: byMe.item.revision, important: false }), { code: "todo.forbidden" });
   const unchanged = await f.me.invoke(actions.update, { id: created.item.id, expected_revision: 3, due_date: "2026-10-05" });
   assert.equal(unchanged.change_id, null);
   assert.equal(unchanged.item.revision, 3);
@@ -110,21 +88,21 @@ test("revisions refuse stale writes; the person's edits are recorded and the Ass
 
 test("an Agent changes a todo only from the revision it read; the person's own page may leave it out", async t => {
   const f = fixture(t);
-  const { item } = await f.agentHome.invoke(actions.create, { title: "约设计评审" });
+  const { item } = await f.agent.invoke(actions.create, { title: "约设计评审" });
   // Every write that changes an existing todo declares the revision it was read at, so the platform refuses an Agent's write without
   // one (actions.version_required) before Todo runs: without it, a model would overwrite a newer edit unseen. Nothing of Todo's own repeats it.
   const refused = { code: "actions.version_required", message: /expected_revision/u };
-  await assert.rejects(f.agentHome.invoke(actions.update, { id: item.id, notes: "没读过就改" }), refused);
-  await assert.rejects(f.agentHome.invoke(actions.status, { id: item.id, status: "doing" }), refused);
-  await assert.rejects(f.agentHome.invoke(actions.archive, { id: item.id, archived: true }), refused);
-  await assert.rejects(f.agentHome.invoke(actions.link, { id: item.id, add: { kind: "goal", subject: { kind: "goal", id: "g-1" }, title: "设计评审", relation: null, outcome: null, open: null } }), refused);
-  await assert.rejects(f.agentHome.invoke(actions.remove, { id: item.id }), refused);
-  await assert.rejects(f.agentHome.invoke(actions.batch, { ids: [item.id], change: { status: "doing" } }), refused);
-  await assert.rejects(f.agentHome.invoke(actions.batch, { ids: [item.id], change: { status: "doing" }, expected_revisions: {} }), refused, "every todo of a batch names its revision");
+  await assert.rejects(f.agent.invoke(actions.update, { id: item.id, notes: "没读过就改" }), refused);
+  await assert.rejects(f.agent.invoke(actions.status, { id: item.id, status: "doing" }), refused);
+  await assert.rejects(f.agent.invoke(actions.archive, { id: item.id, archived: true }), refused);
+  await assert.rejects(f.agent.invoke(actions.link, { id: item.id, add: { kind: "goal", subject: { kind: "goal", id: "g-1" }, title: "设计评审", relation: null, outcome: null, open: null } }), refused);
+  await assert.rejects(f.agent.invoke(actions.remove, { id: item.id }), refused);
+  await assert.rejects(f.agent.invoke(actions.batch, { ids: [item.id], change: { status: "doing" } }), refused);
+  await assert.rejects(f.agent.invoke(actions.batch, { ids: [item.id], change: { status: "doing" }, expected_revisions: {} }), refused, "every todo of a batch names its revision");
   assert.equal((await f.me.invoke(actions.get, { id: item.id })).item.revision, 1, "nothing was written");
   // With the revision it read, the same writes go through; the person's page still writes without one.
-  const moved = await f.agentHome.invoke(actions.status, { id: item.id, status: "doing", expected_revision: 1 });
-  const batched = await f.agentHome.invoke(actions.batch, { ids: [item.id], change: { status: "open" }, expected_revisions: { [item.id]: moved.item.revision } });
+  const moved = await f.agent.invoke(actions.status, { id: item.id, status: "doing", expected_revision: 1 });
+  const batched = await f.agent.invoke(actions.batch, { ids: [item.id], change: { status: "open" }, expected_revisions: { [item.id]: moved.item.revision } });
   assert.equal(batched.changed_count, 1);
   const mine = await f.me.invoke(actions.update, { id: item.id, notes: "我自己改的" });
   assert.equal(mine.item.notes, "我自己改的");
@@ -187,29 +165,24 @@ test("undoing a create removes it; request_id replays instead of creating twice;
   await assert.rejects(f.me.invoke(actions.revert, { change_id: other.change_id }), { code: "todo.not_found" });
 });
 
-test("a request id belongs to the caller and project that chose it: another caller's identical id is another request, never a replay of someone else's todo", async t => {
+test("a request id belongs to the caller and partition that chose it: another caller's identical id is another request, never a replay of someone else's todo", async t => {
   const f = fixture(t);
-  const inA = await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project", request_id: "todo-req-1" });
-  // Another project cannot see A's todo: reusing the id used to fail with not_found, and now creates its own.
-  const inB = await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project", request_id: "todo-req-1" });
-  assert.equal(inB.replayed, false);
-  assert.notEqual(inB.item.id, inA.item.id);
-  assert.equal(inB.item.title, "B 项目的事");
-  // Another caller reusing the person's id for a visible personal todo used to get that todo back as a replay.
-  const mine = await f.me.invoke(actions.create, { title: "我的个人事", placement: "personal", request_id: "todo-req-2" });
-  const assistant = await f.agentHome.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" });
+  const inA = await f.inA.invoke(actions.create, { title: "A 项目的事", request_id: "todo-req-1" });
+  // The same id in another partition is another library's request.
+  const home = await f.me.invoke(actions.create, { title: "个人空间里的另一件", request_id: "todo-req-1" });
+  assert.deepEqual([home.replayed, home.item.title], [false, "个人空间里的另一件"]);
+  // Another caller reusing the person's id here used to get the person's todo back as a replay.
+  const mine = await f.me.invoke(actions.create, { title: "我的个人事", request_id: "todo-req-2" });
+  const assistant = await f.agent.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" });
   assert.equal(assistant.replayed, false);
   assert.equal(assistant.item.title, "助理另记的事");
   assert.notEqual(assistant.item.id, mine.item.id);
-  // The same caller in a project and at Home are different places too.
-  const home = await f.me.invoke(actions.create, { title: "个人空间里的另一件", request_id: "todo-req-1" });
-  assert.deepEqual([home.replayed, home.item.title], [false, "个人空间里的另一件"]);
   // Each caller's own retry still finds its own todo.
   const retried = [
-    [await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project", request_id: "todo-req-1" }), inA],
-    [await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project", request_id: "todo-req-1" }), inB],
-    [await f.me.invoke(actions.create, { title: "我的个人事", placement: "personal", request_id: "todo-req-2" }), mine],
-    [await f.agentHome.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" }), assistant],
+    [await f.inA.invoke(actions.create, { title: "A 项目的事", request_id: "todo-req-1" }), inA],
+    [await f.me.invoke(actions.create, { title: "个人空间里的另一件", request_id: "todo-req-1" }), home],
+    [await f.me.invoke(actions.create, { title: "我的个人事", request_id: "todo-req-2" }), mine],
+    [await f.agent.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" }), assistant],
   ] as const;
   for (const [retry, first] of retried) assert.deepEqual([retry.replayed, retry.item.id], [true, first.item.id], first.item.title);
 });
@@ -241,9 +214,10 @@ test("links: todo relations read from both ends; unreachable todos cannot be lin
   const back = await f.me.invoke(actions.get, { id: wait.id });
   assert.deepEqual(back.backlinks, [{ item_id: send.id, title: send.title, relation: "blocked_by" }]);
   await assert.rejects(f.me.invoke(actions.link, { id: send.id, add: { kind: "todo", subject: { kind: "todo_item", id: wait.id }, title: "重复" } }), { code: "todo.invalid" });
-  const other = (await f.inB.invoke(actions.create, { title: "B 的事", placement: "project" })).item;
+  // A todo of another partition is not here to link to.
+  const other = (await f.inA.invoke(actions.create, { title: "A 的事" })).item;
   const sendNow = (await f.me.invoke(actions.get, { id: send.id })).item;
-  await assert.rejects(f.agentA.invoke(actions.link, { id: send.id, expected_revision: sendNow.revision, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: "B 的事" } }), { code: "todo.not_found" });
+  await assert.rejects(f.agent.invoke(actions.link, { id: send.id, expected_revision: sendNow.revision, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: "A 的事", relation: "related", open: null, outcome: null } }), { code: "todo.not_found" });
   const outcome = await f.me.invoke(actions.link, { id: send.id, add: { kind: "outcome", subject: { kind: "page", id: "doc-1" }, title: "回复张总的草稿", outcome: "draft", open: { surface: "pages", id: "doc-1" } } });
   assert.equal(outcome.item.links.length, 2);
   const undone = await f.me.invoke(actions.revert, { change_id: outcome.change_id });
@@ -272,53 +246,41 @@ test("views answer their questions with the pinned day, and flags do not change 
   assert.deepEqual(titles(await f.me.invoke(actions.list, { view: "all", query: "小李" })), ["等小李"]);
 });
 
-test("ARF-6: another project's corrupt row stays invisible, and its reader surfaces the decoding failure", async t => {
+test("ARF-6: a corrupt row of one partition leaves the other partition's list alone, and its reader surfaces the decoding failure", async t => {
   const f = fixture(t);
-  const { item } = await f.inB.invoke(actions.create, { title: "项目 B 的事", placement: "project" });
-  const db = openSqliteConnection(homeSqlitePath(f.home, TODO_DATABASE.store_name), { fileMustExist: true });
+  await f.me.invoke(actions.create, { title: "个人的事" });
+  const { item } = await f.inA.invoke(actions.create, { title: "项目 A 的事" });
+  const db = openSqliteConnection(partitionLibraryFile(f.home, "project-a", TODO_DATABASE.store_name), { fileMustExist: true });
   try {
     db.prepare("UPDATE todo_items SET sources_json = ? WHERE id = ?").run("{broken", item.id);
   } finally { db.close(); }
-  assert.deepEqual(titles(await f.agentA.invoke(actions.list, { view: "all" })), []);
-  await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: item.id }), { code: "todo.not_found" });
-  await assert.rejects(f.inB.invoke(todoSearchActions.subject, { subject_id: item.id }), SyntaxError);
+  assert.deepEqual(titles(await f.agent.invoke(actions.list, { view: "all" })), ["个人的事"]);
+  await assert.rejects(f.agent.invoke(todoSearchActions.subject, { subject_id: item.id }), { code: "todo.not_found" });
+  await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: item.id }), SyntaxError);
 });
 
-test("search entries and the object reader follow the caller's scope", async t => {
+test("search entries and the object reader read this partition's todos", async t => {
   const f = fixture(t);
   const mine = (await f.me.invoke(actions.create, { title: "个人的事", notes: "带说明" })).item;
-  const inB = (await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project" })).item;
-  const page = await f.agentA.invoke(todoSearchActions.entries, { cursor: null, limit: 50 });
-  assert.deepEqual(page.entries.map(entry => entry.title), ["个人的事"]);
-  const context = await f.agentA.invoke(todoSearchActions.subject, { subject_id: mine.id });
+  const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事" })).item;
+  assert.deepEqual((await f.agent.invoke(todoSearchActions.entries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["个人的事"]);
+  assert.deepEqual((await f.agentA.invoke(todoSearchActions.entries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["A 项目的事"]);
+  const context = await f.agent.invoke(todoSearchActions.subject, { subject_id: mine.id });
   assert.equal(context.subject.kind, "todo_item");
   assert.equal(context.revision, "1");
   assert.match(context.content, /状态：待处理/u);
   assert.deepEqual(context.open, { surface: "todo", id: mine.id });
-  assert.equal(context.project_id, null, "个人待办不属于项目");
-  const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" })).item;
-  assert.equal((await f.agentA.invoke(todoSearchActions.subject, { subject_id: inA.id })).project_id, "project-a", "项目待办说明属于哪个项目");
-  // A project's todos are searched with that project: its own source lists them, the personal source never does.
-  assert.deepEqual((await f.agentA.invoke(todoSearchActions.projectEntries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["A 项目的事"]);
-  assert.deepEqual((await f.inB.invoke(todoSearchActions.projectEntries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["B 项目的事"]);
-  assert.deepEqual((await f.agentA.invoke(todoSearchActions.entries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["个人的事"]);
-  await assert.rejects(f.me.invoke(todoSearchActions.projectEntries, { cursor: null, limit: 50 }), { code: "actions.project_required" }, "没有项目时不列项目待办");
-  await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
-  // The person at Home (the placement panel after a move) reads a project's todo and learns where it is; an agent at Home does not.
-  assert.equal((await f.me.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
-  await assert.rejects(f.agentHome.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
-  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: REACHABLE_PROJECTS }));
-  assert.equal((await personalSpace.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
-  assert.deepEqual(titles(await personalSpace.invoke(actions.list, { view: "all" })), ["个人的事"], "列表仍只列个人空间的");
+  await assert.rejects(f.agent.invoke(todoSearchActions.subject, { subject_id: inA.id }), { code: "todo.not_found" });
+  assert.equal((await f.agentA.invoke(todoSearchActions.subject, { subject_id: inA.id })).title, "A 项目的事");
   // What the person changed is said in the page's words, not as stored field names (search shows this text).
   const changed = await f.me.invoke(actions.update, { id: mine.id, expected_revision: mine.revision, due_date: "2026-10-05", planned_date: "2026-10-02" });
-  const edited = (await f.agentA.invoke(todoSearchActions.subject, { subject_id: mine.id })).content;
+  const edited = (await f.agent.invoke(todoSearchActions.subject, { subject_id: mine.id })).content;
   assert.match(edited, /你手动改过：(截止日期、计划处理日期|计划处理日期、截止日期)/u);
   assert.doesNotMatch(edited, /due_date|planned_date/u);
   // Archived reads as gone from use (the readers' shared convention), though Todo still lists it under 已归档.
   const done = await f.me.invoke(actions.status, { id: mine.id, status: "done", expected_revision: changed.item.revision });
   await f.me.invoke(actions.archive, { id: mine.id, archived: true, expected_revision: done.item.revision });
-  await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: mine.id }), { code: "todo.not_found" });
+  await assert.rejects(f.agent.invoke(todoSearchActions.subject, { subject_id: mine.id }), { code: "todo.not_found" });
 });
 
 test("quick entry reads due dates, planned days and reminders without a model, and leaves the rest alone", () => {
@@ -347,7 +309,7 @@ test("quick entry reads due dates, planned days and reminders without a model, a
   assert.equal(monthEnd.parts[0]!.date, "2026-09-30");
 });
 
-test("reminders: due once, late when missed, not delivered after 48 hours, gone once acknowledged, done or moved", async t => {
+test("reminders: due once, late when missed, not delivered after 48 hours, gone once acknowledged or done", async t => {
   let clock = new Date("2026-09-28T10:30:00+08:00");
   const f = fixture(t, () => clock);
   const soon = (await f.me.invoke(actions.create, { title: "交报销单", remind_at: "2026-09-28T10:00:00+08:00" })).item;
@@ -366,12 +328,12 @@ test("reminders: due once, late when missed, not delivered after 48 hours, gone 
   assert.equal((await f.me.invoke(actions.dueReminders, {})).reminders.length, 0);
   clock = new Date("2026-09-28T10:50:00+08:00");
   assert.deepEqual((await f.me.invoke(actions.dueReminders, {})).reminders.map(entry => entry.item.title), ["交报销单"]);
-  // A project's reminders reach only callers in that project.
-  await f.inB.invoke(actions.create, { title: "B 的提醒", placement: "project", remind_at: "2026-09-28T10:40:00+08:00" });
-  assert.deepEqual((await f.agentA.invoke(actions.dueReminders, {})).reminders.map(entry => entry.item.title), ["交报销单"]);
+  // Another partition's reminders are that partition's own.
+  await f.inA.invoke(actions.create, { title: "A 的提醒", remind_at: "2026-09-28T10:40:00+08:00" });
+  assert.deepEqual((await f.agent.invoke(actions.dueReminders, {})).reminders.map(entry => entry.item.title), ["交报销单"]);
 });
 
-test("home events: due reminders and overdue need attention; due, planned and follow-up days show for today; scoped to the project", async t => {
+test("work events: due reminders and overdue need attention; due, planned and follow-up days show for today; this partition's only", async t => {
   // Local wall-clock times: "today" and the shown clock follow this computer's time zone.
   const local = (hours: number, minutes = 0) => new Date(2026, 8, 28, hours, minutes);
   const f = fixture(t, () => local(10, 30));
@@ -380,10 +342,10 @@ test("home events: due reminders and overdue need attention; due, planned and fo
   await f.me.invoke(actions.create, { title: "计划今天", planned_date: TODAY });
   await f.me.invoke(actions.create, { title: "约好今天问", status: "waiting", waiting: { who: "王总", what: "回复", follow_up_on: TODAY } });
   await f.me.invoke(actions.create, { title: "提醒到了", remind_at: local(10, 15).toISOString() });
-  await f.inB.invoke(actions.create, { title: "B 项目逾期", placement: "project", due_date: "2026-09-20" });
+  await f.inA.invoke(actions.create, { title: "A 项目逾期", due_date: "2026-09-20" });
   await f.me.invoke(actions.create, { title: "完成了的", due_date: "2026-09-20", status: "done" });
   const window = { from: local(0).toISOString(), to: new Date(2026, 8, 29).toISOString(), now: local(10, 30).toISOString() };
-  const collection = await f.agentA.invoke(actions.homeEvents, window);
+  const collection = await f.agent.invoke(actions.workEvents, window);
   assert.equal(collection.source.surface, "todo");
   assert.deepEqual(collection.events.map(event => [event.title, event.placement, event.needs_attention, event.summary]), [
     ["提醒到了", "today", true, "提醒 · 10:15"],
@@ -395,34 +357,35 @@ test("home events: due reminders and overdue need attention; due, planned and fo
   assert.deepEqual(collection.events[0]!.open, { kind: "item", surface: "todo", id: collection.events[0]!.subject.id, title: "提醒到了", label: "打开待办" });
 });
 
-test("in the personal space Todo is the personal view, and never files a todo under a project called “personal”", async t => {
+test("placement carries a todo between partitions: a move keeps its id, dates and history; a copy is a new todo; links to todos here stay behind", async t => {
   const f = fixture(t);
-  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
-  await f.me.invoke(actions.create, { title: "个人的事" });
-  await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" });
-  const made = (await personalSpace.invoke(actions.create, { title: "在个人空间记下" })).item;
-  assert.deepEqual([made.placement, made.project_id], ["personal", null]);
-  assert.deepEqual(titles(await personalSpace.invoke(actions.list, { view: "all" })), ["个人的事", "在个人空间记下"]);
-  await assert.rejects(personalSpace.invoke(actions.create, { title: "放进项目", placement: "project" }), { code: "actions.project_required" });
-});
-
-test("the placement panel moves a todo between the personal space and projects: same todo, recorded, undoable, only for the person", async t => {
-  const f = fixture(t);
-  const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" })).item;
-  const toB = await f.me.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: "project-b" });
-  assert.deepEqual([toB.subject.id, toB.project_id], [inA.id, "project-b"]);
-  assert.deepEqual(titles(await f.inB.invoke(actions.list, { view: "all" })), ["A 项目的事"], "身份不变，到了 B");
-  assert.deepEqual(titles(await f.inA.invoke(actions.list, { view: "all" })), []);
-  const home = await f.me.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: PERSONAL_SPACE_PROJECT_ID });
-  assert.equal(home.project_id, PERSONAL_SPACE_PROJECT_ID);
-  const item = (await f.me.invoke(actions.get, { id: inA.id })).item;
-  assert.deepEqual([item.placement, item.project_id], ["personal", null]);
-  await assert.rejects(f.me.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: PERSONAL_SPACE_PROJECT_ID }), { code: "placement.same_location" });
-  const { history } = await f.me.invoke(actions.get, { id: inA.id });
-  const last = history.find(change => change.kind === "update" && "project_id" in change.after)!;
-  await f.me.invoke(actions.revert, { change_id: last.change_id });
-  assert.equal((await f.me.invoke(actions.get, { id: inA.id })).item.project_id, "project-b", "移动可以撤销");
-  await assert.rejects(f.agentHome.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: "project-a" }));
+  const other = (await f.inA.invoke(actions.create, { title: "留在 A 的事" })).item;
+  const made = (await f.inA.invoke(actions.create, { title: "A 项目的事", due_date: "2026-10-02", remind_at: "2026-10-01T09:00:00+08:00" })).item;
+  const linked = (await f.inA.invoke(actions.link, { id: made.id, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: other.title, relation: "related", open: null, outcome: null } })).item;
+  const subject = { kind: "todo_item", id: made.id };
+  const exported = await f.inA.invoke(actions.placementExport, { subject });
+  assert.equal(exported.revision, String(linked.revision));
+  // A move: put under the same id, then let it go from A while it is still the revision carried.
+  const put = await f.me.invoke(actions.placementPut, { kind: "todo_item", record: exported.record, request_id: "move-1", target_id: made.id });
+  assert.deepEqual([put.subject.id, put.project_id], [made.id, PERSONAL_SPACE_PROJECT_ID]);
+  assert.deepEqual(await f.me.invoke(actions.placementPut, { kind: "todo_item", record: exported.record, request_id: "move-1", target_id: made.id }), put, "the same put again is a replay");
+  const here = await f.me.invoke(actions.get, { id: made.id });
+  assert.deepEqual([here.item.title, here.item.due_date, here.item.remind_at, here.item.links.length], ["A 项目的事", "2026-10-02", made.remind_at, 0]);
+  assert.deepEqual(here.history.map(change => change.kind), ["create"], "the link to a todo left in A stays behind with its change");
+  await assert.rejects(f.inA.invoke(actions.placementRemove, { subject, revision: "1" }), { code: "todo.conflict" });
+  assert.deepEqual(await f.inA.invoke(actions.placementRemove, { subject, revision: exported.revision }), { subject, removed: true });
+  assert.deepEqual(titles(await f.inA.invoke(actions.list, { view: "all" })), ["留在 A 的事"]);
+  // What was written here since is never replaced by a later put of the old record.
+  await f.me.invoke(actions.update, { id: made.id, notes: "到了个人空间后补的" });
+  await assert.rejects(f.me.invoke(actions.placementPut, { kind: "todo_item", record: exported.record, request_id: "move-1", target_id: made.id }), { code: "todo.conflict" });
+  // A copy is a new todo; the same request makes the same copy.
+  const copied = await f.inA.invoke(actions.placementPut, { kind: "todo_item", record: (await f.me.invoke(actions.placementExport, { subject })).record, request_id: "copy-1" });
+  assert.notEqual(copied.subject.id, made.id);
+  assert.deepEqual((await f.inA.invoke(actions.placementPut, { kind: "todo_item", record: exported.record, request_id: "copy-1" })).subject, copied.subject);
+  await assert.rejects(f.me.invoke(actions.placementPut, { kind: "todo_item", record: { title: "缺字段" }, request_id: "bad" }), { code: "todo.invalid" });
+  await assert.rejects(f.me.invoke(actions.placementPut, { kind: "page", record: exported.record, request_id: "bad-kind" }), { code: "todo.invalid" });
+  // Placement is the person's: an Agent does not carry todos.
+  await assert.rejects(f.agent.invoke(actions.placementExport, { subject }));
 });
 
 test("every change the Assistant may make without asking says how it is undone, from its own output; delete stays confirmed each time", () => {
@@ -443,42 +406,33 @@ test("every change the Assistant may make without asking says how it is undone, 
   assert.equal(actionEffect(byId.get("todo.items.delete")!.action, "todo.items.delete"), "irreversible");
 });
 
-test("the Assistant's reminder query lists the person's own reminders due in the window, from every project, each once per time", async t => {
+test("UPP-31 a todo's reminder is its overview row: the platform reads it into the due registry and a fallen-due entry names the todo while it still stands", async t => {
   const f = fixture(t);
-  const at = (hours: number, minutes = 0) => new Date(Date.UTC(2026, 8, 28, hours, minutes)).toISOString();
-  const mine = (await f.me.invoke(actions.create, { title: "个人：交电费", remind_at: at(2) })).item;
-  const inA = (await f.inA.invoke(actions.create, { title: "A：给王总回电话", placement: "project", remind_at: at(2, 30) })).item;
-  const later = (await f.me.invoke(actions.create, { title: "窗口之后", remind_at: at(5) })).item;
-  const seen = (await f.me.invoke(actions.create, { title: "已经知道了", remind_at: at(2, 10) })).item;
-  await f.me.invoke(actions.acknowledgeReminder, { id: seen.id, remind_at: seen.remind_at! });
-  const done = (await f.me.invoke(actions.create, { title: "做完了", remind_at: at(2, 20) })).item;
-  await f.me.invoke(actions.status, { id: done.id, status: "done", expected_revision: done.revision });
-  const window = { from: at(1), to: at(3) };
-  const { source, reminders } = await f.me.invoke(actions.dueWindow, window);
-  assert.deepEqual(source, { surface: "todo", title: "待办" });
-  assert.deepEqual(reminders.map(reminder => [reminder.title, reminder.project_id, reminder.reminder_id]),
-    [["个人：交电费", null, `${mine.id}@${mine.remind_at}`], ["A：给王总回电话", "project-a", `${inA.id}@${inA.remind_at}`]]);
-  assert.deepEqual(reminders[1]!.open, { surface: "todo", id: inA.id });
-  // A new time is a new reminder; the window's end is exclusive; a reminder is never marked by being read.
-  const moved = await f.me.invoke(actions.update, { id: mine.id, remind_at: at(2, 45), expected_revision: mine.revision });
-  const again = await f.me.invoke(actions.dueWindow, window);
-  assert.equal(again.reminders.find(reminder => reminder.subject?.id === mine.id)!.reminder_id, `${mine.id}@${moved.item.remind_at}`);
-  assert.equal((await f.me.invoke(actions.dueWindow, { from: at(1), to: at(2) })).reminders.length, 0);
-  assert.ok(!(await f.me.invoke(actions.get, { id: later.id })).item.reminder_acknowledged_at);
-  await assert.rejects(f.me.invoke(actions.dueWindow, { from: at(3), to: at(1) }), { code: "actions.input_invalid" });
-  await assert.rejects(f.agentHome.invoke(actions.dueWindow, window));
+  const overview = () => f.store.database().all("SELECT row_id, title, remind_at, priority FROM molis_overview_rows WHERE kind = 'task' ORDER BY row_id") as { row_id: string; remind_at: string | null }[];
+  const find = (id: string) => f.store.find(id);
+  const item = (await f.me.invoke(actions.create, { title: "交电费", remind_at: "2026-09-28T02:00:00.000Z", important: true })).item;
+  assert.deepEqual(overview().map(row => [row.row_id, row.remind_at]), [[item.id, item.remind_at]]);
+  assert.deepEqual(todoDue(`task:${item.id}`, item.remind_at!, find), { reminder: { title: "交电费", open: { surface: "todo", id: item.id } } });
+  // A time that has changed since, a reminder seen, a todo done: nothing rings, and done todos leave the overview.
+  assert.deepEqual(todoDue(`task:${item.id}`, "2026-09-28T01:00:00.000Z", find), { reminder: null });
+  await f.me.invoke(actions.acknowledgeReminder, { id: item.id, remind_at: item.remind_at! });
+  assert.equal(overview()[0]!.remind_at, null);
+  assert.deepEqual(todoDue(`task:${item.id}`, item.remind_at!, find), { reminder: null });
+  await f.me.invoke(actions.status, { id: item.id, status: "done" });
+  assert.deepEqual(overview(), []);
+  assert.deepEqual(todoDue("event:x", item.remind_at!, find), { reminder: null });
 });
 
 test("choices a card may show carry the names a person reads, and still validate by their values", async t => {
   const props = (definition: { action: { input_schema: unknown } }) => (definition.action.input_schema as { properties: Record<string, unknown> }).properties;
   assert.deepEqual(actionFieldOptions(props(actions.status).status), [
     { value: "open", label: "待处理" }, { value: "doing", label: "进行中" }, { value: "waiting", label: "等待他人" }, { value: "done", label: "已完成" }, { value: "cancelled", label: "已取消" }]);
-  assert.deepEqual(actionFieldOptions(props(actions.update).placement)?.map(option => option.label), ["个人空间", "当前项目", "暂未归类"]);
+  assert.equal(props(actions.update).placement, undefined);
   assert.deepEqual(actionFieldOptions(props(actions.list).view)?.map(option => option.value), ["today", "waiting", "unscheduled", "upcoming", "all", "closed"]);
   const f = fixture(t);
-  const made = (await f.inA.invoke(actions.create, { title: "按名称选", placement: "project", status: "doing" })).item;
-  assert.deepEqual([made.placement, made.status], ["project", "doing"]);
-  await assert.rejects(f.inA.invoke(actions.create, { title: "不认识的值", placement: "当前项目" as never }), { code: "actions.input_invalid" });
+  const made = (await f.inA.invoke(actions.create, { title: "按名称选", status: "doing" })).item;
+  assert.equal(made.status, "doing");
+  await assert.rejects(f.inA.invoke(actions.create, { title: "不认识的值", status: "进行中" as never }), { code: "actions.input_invalid" });
 });
 test("RAC-1655: a todo's title, notes and waiting fields are counted in Unicode characters, as its action schemas count them", async t => {
   // fieldInput in src/actions.ts allows a 200-character title, 10000 characters of notes and an 80/200-character waiting who/what;
@@ -513,15 +467,12 @@ test("RAC-1657: a link's name is counted in Unicode characters, as todo.items.li
   await assert.rejects(f.me.invoke(actions.link, { id: item.id, add: { kind: "material", subject: { kind: "page", id: "doc-2" }, title: wide(201) } }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
 });
 
-test("RAC-1679: the Assistant's reminder query names a reminder by its whole title, never half a character", async t => {
-  // A todo's title is at most 200 characters (RAC-1655) and DUE_REMINDER_SCHEMA allows 300; "a" and 199 🟢 are 200 characters but 399
-  // UTF-16 units, so unit 300 is the first half of the 150th 🟢.
+test("RAC-1679: a fallen-due reminder names its todo by its whole title, never half a character", async t => {
+  // A todo's title is at most 200 characters (RAC-1655) and a reminder's title 300; "a" and 199 🟢 are 200 characters but 399 UTF-16 units.
   const f = fixture(t);
-  const at = (hours: number) => new Date(Date.UTC(2026, 8, 28, hours)).toISOString();
   const title = "a" + "🟢".repeat(199);
-  await f.me.invoke(actions.create, { title, remind_at: at(2) });
-  const { reminders } = await f.me.invoke(actions.dueWindow, { from: at(1), to: at(3) });
-  assert.deepEqual(reminders.map(reminder => reminder.title), [title], "a 200-character title is named whole");
+  const { item } = await f.me.invoke(actions.create, { title, remind_at: "2026-09-28T02:00:00.000Z" });
+  assert.equal(todoDue(`task:${item.id}`, item.remind_at!, id => f.store.find(id)).reminder?.title, title, "a 200-character title is named whole");
 });
 
 test("ARF-2 old dismissal cannot acknowledge a rescheduled reminder; title edits preserve the occurrence", async t => {

@@ -1,6 +1,7 @@
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export const ISSUES_DATABASE: PluginDatabaseDeclaration = {
+/** One partition's issue records (`<partition>/libraries/issues.db`): deleting a project takes its whole library. */
+export const ISSUES_DATABASE: PartitionPluginDatabaseDeclaration = {
   store_name: "issues", version: /* @version database.issues_database */ 1, read_permission: "issues:read", write_permission: "issues:write",
   schema: `CREATE TABLE issues (
     id TEXT PRIMARY KEY, title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 200),

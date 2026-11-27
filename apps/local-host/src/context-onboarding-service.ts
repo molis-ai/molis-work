@@ -25,7 +25,7 @@ import {
   readScopePathTags,
   stageHeldSecretDecision,
 } from "./context-onboarding-delta.js";
-import { handToTaker, importAdoptedMaterialsAndSummary, keepDrafts } from "./context-onboarding-adopt.js";
+import { draftPartition, handToTaker, importAdoptedMaterialsAndSummary, keepDrafts } from "./context-onboarding-adopt.js";
 import {
   diskFull,
   dropStagedNotes,
@@ -57,8 +57,6 @@ export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
   /** The person's actions in the new project; with `original_file`, for one import that comes with a file the Host staged. */
   actions?: (home: string, projectId: string, original_file?: HostOfferedOriginalFile) => Promise<BoundActionClient>;
-  /** The person's call of one taker's own declared Home action (drafts are made before the project exists), with its permissions only. */
-  takeAtHome?: (definition: ActionDefinition, signal: AbortSignal) => BoundActionClient;
   model?: (home: string) => Promise<TextModelPort<string>>;
   readSource?: typeof readContextSource;
   /**
@@ -68,8 +66,11 @@ export interface ContextOnboardingPorts {
   sessions?: (home: string, projectId: string, signal: AbortSignal) => Promise<BoundActionClient>;
   /** The plugins that declare they take a kind of onboarding material (`onboardingTakers`, contract-design §2.5); none offered without it. */
   takers?: (kind: OnboardingMaterialKind) => readonly OnboardingTaker[];
-  /** The person's call of one taker's own declared action in the new project, with that action's permissions only (§7.7 C1). */
-  take?: (home: string, projectId: string, definition: ActionDefinition) => Promise<BoundActionClient>;
+  /**
+   * The person's call of one taker's own declared action in one partition, with that action's permissions only (§7.7 C1): the new project
+   * once it is made, and the personal space for the drafts made before it is (`draftPartition`).
+   */
+  take?: (home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal) => Promise<BoundActionClient>;
 }
 
 // The local Host is the single writer. Persistent checkpoints survive restarts;
@@ -556,10 +557,14 @@ async function draftFromMaterials(
   save: () => unknown,
   sessionGuard?: SessionReadGuard,
 ): Promise<void> {
-  if (!ports.takeAtHome) return;
+  if (!ports.take) return;
   // Batches belong to the materials they came from; after the person chose again, the drafts start over.
   const bKey = createHash("sha256").update(JSON.stringify(references.map(r => [r.source_id, r.version]))).digest("hex").slice(0, 16);
-  const taker = chosenTaker(ports, "drafts", journey.drafts_taker);
+  // Drafts are made by a taker the drafting partition has (batch 108): the platform adds no plugin there on its own (V6), so a personal
+  // space without Todo drafts nothing.
+  const chosen = chosenTaker(ports, "drafts", journey.drafts_taker);
+  const present = chosen && await ports.withCatalog({ homeDirectory: home }, catalog => catalog.listProjectPlugins(draftPartition(journey)).some(id => id === chosen.project_plugin_id));
+  const taker = present ? chosen : undefined;
   if (journey.drafts?.key === bKey && journey.drafts.status === "ready" && journey.drafts.plugin_id === (taker?.plugin_id ?? null)) return;
   let total = 0;
   for await (const _ of draftBatches(home, journey.id, references)) total++;
@@ -575,7 +580,7 @@ async function draftFromMaterials(
         signal.throwIfAborted();
         if (++index <= completed) continue;
         // Each batch keeps its own cancellation window.
-        const client = ports.takeAtHome(taker.take, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
+        const client = await ports.take(home, draftPartition(journey), taker.take, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
         // The journey id and the batch number make a retried pass return the same drafts instead of drafting twice.
         const { batch } = await timedCall(drafts.timing, () => client.invoke(
           taker.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>,
@@ -645,6 +650,9 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       else await ports.withCatalog({ homeDirectory: home }, async catalog => {
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: journey.adoption!.documents!.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID });
+        // The drafts the person kept go to the plugin that drafted them, in the new project.
+        const drafter = journey.drafts?.surface;
+        if (journey.adoption!.keep?.length && drafter) catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: drafter, actor_id: LOCAL_PERSON_ACTOR_ID });
         // Artifact imports use the platform service in every project.
         const take = journey.adoption!.take;
         if (take) {

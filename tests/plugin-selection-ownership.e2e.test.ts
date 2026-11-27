@@ -36,7 +36,7 @@ test("QEA-72: a normal issues object link is claimed and opens its stored object
   await browser.setViewport(1440, 900);
   await pluginFrameInitScript(t, browser, observe);
   const title = `Explicit ${plugin} destination`;
-  const api = "/api/plugins/io.molis.work.issues";
+  const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.issues`;
   const made = await browser.web.post<{ id: string }>(api + "/create", { title, type: "experience", description: "Keep the destination selected by the person" });
   const read = async () => browser.web.get(api + "/read?id=" + encodeURIComponent(made.id));
   const before = await read();

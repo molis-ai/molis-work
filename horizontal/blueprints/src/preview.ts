@@ -107,7 +107,7 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     const { current, binding, entry } = owner;
     const title = "literal" in entry.title ? entry.title : { ...entry.title, owner: owner.text_owner };
     const summary = entry.summary && ("literal" in entry.summary ? entry.summary : { ...entry.summary, owner: owner.text_owner });
-    const details = { ...result, title, ...(owner.model_selection && { model_selection: owner.model_selection }), ...(entry.device_only && { device_only: entry.device_only }), ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current, owner.unavailable_reason ? undefined : owner.unavailable) }],
+    const details = { ...result, title, ...(entry.device_only && { device_only: entry.device_only }), ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current, owner.unavailable_reason ? undefined : owner.unavailable) }],
       consequences: entry.consequence ?? [] };
     if (!entry.layers.includes(layer) || input.target.kind === "personal" && layer === "project") return { ...details, decision: "skip", reason: "scope_mismatch" };
     if (!current || current.state === "unavailable") return { ...details, decision: "skip", reason: owner.unavailable_reason ?? "owner_unavailable" };

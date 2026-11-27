@@ -5331,29 +5331,10 @@ export interface PluginModelClient {
 
 export interface PluginModelConfigurationClient {
     selection(): PluginModelSelection | undefined;
-    readonly preferences?: {
-        read(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsReadInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
-        write(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsWriteInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
-    };
     read(options?: {
         preference_revision: true;
     }): Promise<PluginModelConfigurationView>;
     save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
-}
-
-export interface PluginModelConfigurationDeclaration {
-    readonly preference: {
-        readonly store_name: string;
-        readonly file_name: string;
-    };
-    readonly custom_provider: {
-        readonly provider_id: string;
-        readonly display_name: string;
-    };
-    readonly actions: {
-        readonly read: Pick<ActionReference, "capability_id" | "version">;
-        readonly save: Pick<ActionReference, "capability_id" | "version">;
-    };
 }
 
 export interface PluginModelConfigurationInput {

@@ -18,21 +18,19 @@ const HOME_ONLY = [
 ] as const;
 
 /**
- * Files, model settings and image generation are a Home instance's or a per-partition instance's: any other project plugin that declares one
+ * Files, image generation and local tools are a Home instance's or a per-partition instance's: any other project plugin that declares one
  * is refused, unless it is the project half of a dual-instance plugin, which shares its Manifest with the Home half and is given none of them.
  */
 export function assertHomeOnlyDeclarations(homeEntries: readonly { definition: PluginDefinition; dual_instance?: true }[], projectEntries: readonly { definition: PluginDefinition }[]): void {
   for (const { definition } of projectEntries) {
     const id = definition.manifest.plugin_id;
     if (homeEntries.some(other => other.dual_instance && other.definition.manifest.plugin_id === id)) continue;
-    // A per-partition instance is given its own files, model settings and image connections in its partition (batch 108, §4.2③); this
+    // A per-partition instance is given its own files and image connections in its partition (batch 108, §4.2③); this
     // machine's tools stay the Host's own code's alone, whatever scope it runs in.
     if (definition.manifest.databases?.partition) {
       if (definition.manifest.local_tools !== undefined && definition.execution === "sandbox") throw pluginErrors.declaration_invalid(`沙箱插件 ${id} 不能声明本机工具服务`);
       continue;
     }
-    if (definition.manifest.settings_entries?.model_configuration)
-      throw pluginErrors.declaration_invalid(`项目插件 ${id} 不能声明模型设置服务：它不是双实例插件在项目里的那一半`);
     for (const [field, service] of HOME_ONLY) {
       // Sandbox files use the existing installation-scoped port in either scope, never the native Home root.
       if (field === "owner_files" && definition.execution === "sandbox") continue;

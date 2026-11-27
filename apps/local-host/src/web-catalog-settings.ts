@@ -138,9 +138,6 @@ async function discoverDynamicSettingsPlugins(
   const register = (manifest: PluginManifest | undefined, scope: "home" | "project", providerId: string) => {
     if (!manifest?.settings_entries?.entries.length) return;
     if (manifest.ui?.views?.some(view => view.slot === "settings")) return;
-    const modelKey = manifest.settings_entries.model_configuration?.key;
-    const nonModel = manifest.settings_entries.entries.filter(entry => entry.key !== modelKey);
-    if (!nonModel.length) return;
     const readAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.read.capability_id && a.version === manifest.settings_entries!.read.version);
     const writeAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.write.capability_id && a.version === manifest.settings_entries!.write.version);
     if (!readAction || !writeAction || readAction.action.scope !== scope || writeAction.action.scope !== scope) return;

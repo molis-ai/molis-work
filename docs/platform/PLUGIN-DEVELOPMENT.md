@@ -241,7 +241,7 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 - `parsePluginManifest` 检查形状：除了下面的升级段（`upgrades`），只有这五个字段，`store_name` 合 Home 库同一条名字规则，`version` 是正整数，两个权限都在这份 Manifest 的 `permissions` 里；自己的表两项都写 `storage:private`。
 - `schema` 只能由 `CREATE TABLE` 和 `CREATE [UNIQUE] INDEX` 组成，名字不带库名；外键只指自己的表或 `project_root(project_id)`（项目本身，一库一行）；不用 `AUTOINCREMENT`。平台先在引号和注释之外的每个分号处切句（括号里的分号也切，什么都不执行），每句必须以 `CREATE TABLE` 或 `CREATE [UNIQUE] INDEX` 开头、表后紧跟列定义，所以 `ATTACH`、`PRAGMA`、视图、触发器、虚表、`TEMP` 表、`CREATE TABLE … AS SELECT`、增删改、`DROP` 和没闭合的引号或注释连内存库都不碰；再在空的内存库里试建，试建出来的只能有表和索引，不能有 `sqlite_` 开头的名字（SQLite 为主键和唯一约束自动建的索引除外）。`IF NOT EXISTS` 可以写，但第一次建表前库里有同名对象就拒，所以不会悄悄沿用别人的表。声明不合的拒绝码是 `plugin.project_database.declaration_invalid`。
 - 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。账本每个插件一行（`plugin_id` 主键、`publisher_signature`、`store_name` 唯一、`version`、`tables_json`、`created_at`），打开函数 `openPluginProjectDatabase`（`packages/plugin-runtime/src/project-database.ts`）在一个 `BEGIN IMMEDIATE` 事务里按下面的结果办，任何拒绝都回滚、库原样不动：库里已有同名的表或索引（名字比较时 ASCII 不分大小写）、库名归了别的插件是 `plugin.project_database.object_taken`；发布者签名与账本不同是 `publisher_mismatch`（卸载不删表也不删行，同一个 id 换了发布者拿不走数据）；版本不同是 `version_mismatch`；版本相同但库名、对象名单或表的形状与声明不同（比如库被手改过）是 `shape_mismatch`；都一致就打开。被拒的插件只停它自己，项目与别的插件照常，库不修补、不重建、不补账本。
-- 改表就升 `version`，并在同一份声明里写从旧版本到新版本的升级段 `upgrades: [{ from, sql, reduces_rows? }]`（[升级链设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.4）。段只有 SQL：`INSERT`、`UPDATE`、`DELETE`，`CREATE TABLE`、`CREATE [UNIQUE] INDEX`、`ALTER TABLE … ADD COLUMN / RENAME / DROP COLUMN`、`DROP TABLE`、`DROP INDEX`，不写 `IF [NOT] EXISTS`、库名、`AS SELECT`、触发器和 `PRAGMA`；回填只用确定的函数（`random()`、`datetime('now')`、`CURRENT_TIMESTAMP` 这类报 `plugin.project_database.upgrade_nondeterministic`）。平台在升级过程里跑，平台自己那一段之后、每个插件一个事务：段只能碰这个插件自己的表，碰了别的就整轮回滚（`plugin.project_database.upgrade_out_of_scope`），跑完的表必须正好是新声明建出来的样子，表的行数只在 `reduces_rows` 点名的表上可以变少（删掉的表也算；改名的表带着行走）。外键在段里是关的，最后统一 `foreign_key_check`；同步追踪和业务的触发器由平台在段前删、段后按声明建回，段里不用管。失败的插件只停它自己，同一个程序版本不再重试。已装签名包使用同一份检查，在确认升级时由有界 SQL Worker 执行。新库或改了版本，照旧在 `docs/releases/CHECKLIST.md` §3 改那一行，改完跑 `node scripts/verify-release-versions.mjs`。
+- **开发前阶段内置插件表固定为版本 1（2026-11-26 定）：** 内置插件改表结构直接原地修改 v1 `schema`，`version` 保持 `1`、`upgrades` 保持空（由 `scripts/gates/initial-versions.mjs` 守住），旧开发 Home 直接清空重建，不写迁移段；新增或删除库时同步更新 `tooling/versions.json` 与 [HOME-DATA.md](../system/HOME-DATA.md)。面向第三方签名包与未来 1.0 发布的升级段机制 `upgrades: [{ from, sql, reduces_rows? }]` 随平台休眠保留（[升级链设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.4）：段只允许确定的 SQL 变更（禁 `IF [NOT] EXISTS`、库名、`AS SELECT`、触发器、`PRAGMA` 与非确定函数），在升级事务内受范围检查约束（`plugin.project_database.upgrade_out_of_scope`），已装签名包在用户确认换版时由有界 SQL Worker 执行。
 
 宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Inbox、Risk、Schedule；项目指导、项目审批规则与逐项认可分别由平台模块或服务管理）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 实例只使用 Home 范围的存储；Feed 的项目实例按同一 Manifest 的 `databases.project` 使用项目库。恢复路径（`existingOnly`）只读已经在现行结构上的库，不给它建表也不写账本；这个插件平台的项目库不是文件（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路。
 
@@ -336,7 +336,7 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 ## 插件版本升级
 
-签名沙箱包用打包命令的 `--project-database` 或 `--home-database` 提供 `version`、`schema` 与可选的 `upgrades`。改变已落库的结构时保留库名、提高库版本并给出从旧库版起的连续 SQL。包用 `--migratable-from` 列可以迁移的精确旧发行版本，合同声明 `validateUpgrade` 查询，输入原发行版字符串，返回布尔值。沙箱只给这个校验提供旧安装的私有 KV 读取；返回 false 或失败时拒绝提交。兼容来源可用 `--compatible-from`，沿用原结构。打包命令的 `--state-machines` 保留经同一规则校验的状态机元数据。
+签名沙箱包（面向第三方已装包及未来 1.0；开发前阶段内置库一律固定 v1、不写升级段）用打包命令的 `--project-database` 或 `--home-database` 提供 `version`、`schema` 与可选的 `upgrades`。改变已落库的结构时保留库名、提高库版本并给出从旧库版起的连续 SQL。包用 `--migratable-from` 列可以迁移的精确旧发行版本，合同声明 `validateUpgrade` 查询，输入原发行版字符串，返回布尔值。沙箱只给这个校验提供旧安装的私有 KV 读取；返回 false 或失败时拒绝提交。兼容来源可用 `--compatible-from`，沿用原结构。打包命令的 `--state-machines` 保留经同一规则校验的状态机元数据。
 
 
 插件发布新版本时，递增 Manifest `version`。`upgrade_compatibility` 只接受精确的 SemVer 来源版本；较高目标版本的来源必须早于目标版本，每个来源版本只能列在以下一项：
@@ -490,7 +490,7 @@ Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件的 MCP 能�
 
 个人同步的并发分支可能修订数字相同而内容不同。修改已有对象需核对读取内容的版本令牌；Cognia 的 `cognia.material.get@1` 返回 `etag`，`cognia.material.update@1` 必传它并在 owner 事务内验证。网页自动携带，MCP 使用 `cognia.material.get__v1`、`cognia.material.update__v1`；固定 v1 的调用须按现行形状补充版本令牌；版本号本身不拒绝旧输入。旧编辑被拒绝后先重读、再由用户决定，不能自动带新令牌重试旧正文。
 
-Shelf 的 `shelf.items.edit@1` 必传读取动作 `shelf.items.read@1` 的完整字节 `content_hash` 作为 `expected_content_hash`，同一同步提交前验证；网页使用同次原文件响应的 ETag。Home 和项目的插件二进制响应由宿主对实际发送的所有字节计算 SHA-256，以双引号包住小写十六进制摘要作为强 ETag，响应头由宿主设置。冲突保留输入和旧前提，不能临保存时重取。原件 `origin_hash` 不代表当前内容。对应 MCP 名 shelf.items.edit__v1，统一起点前复位为 @1；现行输入仍须带所读内容指纹，缺失时拒绝，不保留 @2 名称。
+Shelf 的 `shelf.items.edit@1` 必传读取动作 `shelf.items.read@1` 的完整字节 `content_hash` 作为 `expected_content_hash`，同一同步提交前验证；网页使用同次原文件响应的 ETag。Home 和项目的插件二进制响应由宿主对实际发送的所有字节计算 SHA-256，以双引号包住小写十六进制摘要作为强 ETag，响应头由宿主设置。冲突保留输入和旧前提，不能临保存时重取。原件 `origin_hash` 不代表当前内容。对应 MCP 名 `shelf.items.edit__v1`，版本固定 @1；现行输入须带所读内容指纹，缺失时拒绝，不保留 @2 名称。
 
 JSON 文件或私有 KV owner 的同步可用 SDK `createSyncDocument`，将业务文档和队列、冻结上传、回执、冲突放进单次原子 CAS。owner 定义稳定键、完整内容令牌、格式校验及恢复；保存期间 CAS 失败不自动重跑回调，异步业务操作先等待后复查授权再进入同步提交。冻结内容须自足，不用可被编辑/删除的本机路径充当附件。该工具只提供本机原子存储技术，不负责自动注册、空间授权或安装生命周期。
 
@@ -612,13 +612,13 @@ Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstr
 
 Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。
 
-Coding 固定计划 `coding.plan.v1` 保存原任务、计划与会话/轮次引用，不保存本机目录。目录仍留在本机草稿和原规划 Run；实际执行通过当前授权读取本机已完成的 planner Run，核对同一目录，不从可携带来源取得权限。同步的固定版本可只读引用，没有原执行时须重新规划。旧 schema 不作读取回退，真实 Home 维护仍须另行批准；这不包括 Coding 私有草稿同步。
+Coding 固定计划 `coding.plan.v1` 保存原任务、计划与会话/轮次引用，不保存本机目录。目录仍留在本机草稿和原规划 Run；实际执行通过当前授权读取本机已完成的 planner Run，核对同一目录，不从可携带来源取得权限。同步的固定版本可只读引用，没有原执行时须重新规划。旧 schema 不作读取回退；这不包括 Coding 私有草稿同步。
 
 同步轮次开始时，精确身份下已选择但不可用的集合使整轮保持未完成，不更新上次成功时间；其他健康集合继续。停用或格式改变不会被冒充空成功，也不会自动选择新版。
 
 Runtime 私有 KV 的同步描述使用 `PrivateValueReplicationOwner`：可信固定前缀/key、数组/身份字段与逐对象 JSON 回调交给 Runtime 的 `installPrivateValueReplicationJournal` 和 `privateValueReplicaOwner`，插件不读写 Runtime 私有表。正常 CAS 及逐对象共同日志在同一事务；只记录真正改变的对象，独立对象分别隔离与冲突，不因为共用一个 KV key 而全量覆盖项目。`validatePrivateValueReplication` 在创建目标项目前纯检查完整输入；恢复和墓碑仅改变对应对象、保留其他对象与目标本机编辑高水位，仍走活动护栏及最终授权检查。这些端口不自动注册同步、启用插件或恢复安装批准。
 
-实际目录使用 `scope:'project-private-values'`、固定 `kind/namespace` 和原 owner 工厂；Host 注入当前 Home、授权及逐对象活动检查，不复制业务 schema 或增加逐插件分支。Builder 的 `authoring` 使用此路径，明确的源码/测试/发布文件原字节经共同 R2 codec 传输；空文件不创建零字节预留。错版的项目库被拒绝，不在同步启动时补表或维护真实 Home。
+实际目录使用 `scope:'project-private-values'`、固定 `kind/namespace` 和原 owner 工厂；Host 注入当前 Home、授权及逐对象活动检查，不复制业务 schema 或增加逐插件分支。Builder 的 `authoring` 使用此路径，明确的源码/测试/发布文件原字节经共同 R2 codec 传输；空文件不创建零字节预留。错版的项目库直接拒绝，不在同步启动时补表或迁移。
 
 Builder 的公共 `developer/sdk.d.ts` 是可校验的构建输入，不是能力授权；目标 G1 仍与本机 SDK 原件比较。同步收到的文件保持不可变，明确继续或撤回才创建本机副本；无目标 bundle 的历史及待调整界面重跑原 G1–G6，失败不执行后续模型步骤。正常修订保留作者共享源码、测试和依赖声明，不拷贝 node_modules 或 developer 能力快照；原依赖校验器仍负责真实安装准入。
 
@@ -628,7 +628,7 @@ Builder 的公共 `developer/sdk.d.ts` 是可校验的构建输入，不是能�
 
 项目 section 的 `beforeClear` 在目标事务内、删行之前检查同一次读取的本机事实；替换和墓碑都经过，拒绝不留下可复用捕获。Coding 用它保护活动执行，恢复仅合并本机已有 Runtime 绑定，不继承源设备权限。`journalColumns` 只允许本 section 已声明的列，用于避免本机执行缓存更新反复入同步队列。Coding 会话元数据、计划及未发送输入共同占一个项目一致性单元，本机编辑高水位不上传且删除后保留；项目库版本以当前 owner 声明为准，不匹配的库只拒绝，Runtime 对话以只读历史保存，不恢复执行授权。
 
-Coding 的未发送文本及待答草稿由 `CodingSessionStore.inputs` 单一 SQL owner 维护。正常 `coding.sessions.read` 返回 `input_revision`；`coding.sessions.update@1` 在写入任一草稿字段时要求原 `expected_input_revision`，缺失或过期返回冲突，不能同时写入请求内其他偏好。页面保留原编辑基线（包括刷新后的窗口缓存），后台新版本不替旧编辑补权；冲突通过标准对比对话框明确采用或按所见版本保存。已接受 Run 只清除启动前捕获的同版本、同正文草稿，不清除后来的输入或待答内容。按主线统一起点使用 v1，既有调用须补充原编辑版本；该修改动作仍仅本人 LOCAL 使用，不新增 MCP 工具。
+Coding 的未发送文本及待答草稿由 `CodingSessionStore.inputs` 单一 SQL owner 维护。正常 `coding.sessions.read` 返回 `input_revision`；`coding.sessions.update@1` 在写入任一草稿字段时要求原 `expected_input_revision`，缺失或过期返回冲突，不能同时写入请求内其他偏好。页面保留原编辑基线（包括刷新后的窗口缓存），后台新版本不替旧编辑补权；冲突通过标准对比对话框明确采用或按所见版本保存。已接受 Run 只清除启动前捕获的同版本、同正文草稿，不清除后来的输入或待答内容。现行动作固定 v1，既有调用须补充原编辑版本；该修改动作仍仅本人 LOCAL 使用，不新增 MCP 工具。
 
 
 Runtime 插件用 `context.services.materials` 读取材料：Manifest 声明 `materials:read` 才有 `extract({ file_name, bytes }, options)` 与按上传文件批量读文档的 `readDocuments([{ file_name, data_base64 }], options)`（文本、Markdown、HTML、CSV、Word 等文档文件，返回名字、格式、内容、覆盖情况和警告，格式或体积不合格直接以 `material.*` 码拒绝），另声明 `materials:fetch` 才有 `readSource(url, options)`（只许公网地址）。`readSource(url, { allowedDomains })` 可以把整次读取限在最多 20 个精确的小写域名内：首个请求、每次重定向、来源的接口与媒体请求都只许这些主机，别的主机在查找和连接之前就以 `material.source.domain_not_allowed` 拒绝，列表不合格以 `plugin.materials_domains_invalid` 拒绝；不给就是所有公网主机。同在 `materials:read` 下还有 `imageTextAvailable()`，只回答本机能不能识别图片文字。声明 `materials:fetch_local` 才有 `readLocalPage(url)`，读本机 HTTP 页面：地址只是 `127.0.0.1`、`[::1]`、`localhost`，不带账号密码，宿主自己的端口不在内，重定向每一跳再查；没声明或没授权，本机地址仍然读不了。声明 `materials:original` 才有 `claimOriginal(recordKey)`、`readOriginal(recordKey, { maxBytes })`、`releaseOriginal(recordKey)`：用户导入文件时，宿主入口把那个文件的路径交给这一次路由请求，插件在导入的动作里用自己的记录键 `claimOriginal` 把它登记下来（插件拿不到路径，也给不出路径；不是宿主入口交来的导入调用一律 `plugin.materials_original_not_offered`），之后 `readOriginal` 只读这份登记，读之前宿主重新解析真实路径，与登记值不同（文件被换成符号链接、移走、变成目录）就拒，上限 32 MiB，不列目录、不写。登记按插件、安装和记录键存，同一个安装重装后仍在。升级预检没有这项服务；沙箱执行的包经 broker 的 `sdk.materials` 用同一份（操作的 `effects.materials` 写 `read`、`fetch`、`fetch_local`、`original`，`fetch` 读的网页主机还要写进该操作的 `networkDomains` 并由人批准，读取只会到这些主机，PG-017 P2、S-93）；调用必须位于自己安装、声明对应权限的并发动作。上传解析用 SDK `decodeMaterialUpload`（安全文件名、支持格式、规范 Base64、非空且最多 25 MiB），不再复制检查。公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。灵光和 onboarding 已共用提取口，媒体模型下载只有可信 user 调用且 `allowModelDownload: true` 才生效；agent、mcp、workflow、plugin 的 true 被忽略并按缺模型规则拒绝；生成摘要继续走 Prologue。
@@ -668,7 +668,7 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 
 Work 属于系统 Module，不冒充插件或添加 Manifest。Host 使用原 Module 合同身份登记默认未选的“工作会话与交接”集合，传输的 `plugin_id` 在此只是 owner 归属字段；完整 Session/事件/交接走同一个 JSON/R2 codec，同一个本机保护提供方覆盖私密 owner 与共同暂存。被动恢复不携带 Native/工作目录绑定、未决发送或密钥，不执行交接；未知历史引用保持定位，不创建假 Goal。owner 两临时 Home 验证不等于 Host/Worker 或上线验收。
 
-固定版本在同一内置目录条目声明 `scope:'project-fixed-versions'` 与 `store:'library'|'process'`。成果和过程项由原 Artifacts Module 的同一个版本引擎处理，但分别勾选，使用各自的表、日志与游标；过程项不进入成果库。Host 完整解码并通过 owner 的纯校验后才可创建缺失项目；同版本正文不同、跨项目身份与迟到撤权拒绝。恢复固定计划、变更集等内容不安装、启用或执行生产者，也不继承批准。此集合不包括插件私有草稿或 Work 会话；真实 Home 维护仍须另行批准。
+固定版本在同一内置目录条目声明 `scope:'project-fixed-versions'` 与 `store:'library'|'process'`。成果和过程项由原 Artifacts Module 的同一个版本引擎处理，但分别勾选，使用各自的表、日志与游标；过程项不进入成果库。Host 完整解码并通过 owner 的纯校验后才可创建缺失项目；同版本正文不同、跨项目身份与迟到撤权拒绝。恢复固定计划、变更集等内容不安装、启用或执行生产者，也不继承批准。此集合不包括插件私有草稿或 Work 会话。
 
 内置目录的同步接线按集合 ID 配置工厂表，例如 `sync: { documents: { scope: 'projects', open, content } }`，由 `builtinSyncBindings` 派生。Manifest 顺序不决定使用哪个适配器，缺实现的集合不注册，未声明及继承属性不授予接入。每个集合隔离自身日志与游标；新集合仍需主动选择。该内置目录能力不替代独立 Runtime 的实例生命周期发现，后者仍在实施。
 
@@ -676,7 +676,7 @@ Work 属于系统 Module，不冒充插件或添加 Manifest。Host 使用原 Mo
 
 项目私有库可用同一条目的 `scope: 'project-library'`、固定 `kind`、owner `open(home,projectId)`。Host 复用共同分区与当前项目授权，owner 在首次业务写入前安装事务日志，绑定不可重写的空间和项目并验证当前库基线。前台模型等待或后台任务活动时暂拒覆盖。不是逐插件 Host 名单，也不自动授予集合同步许可。
 
-Module 项目内容的 `ProjectReplicaDefinition` 明确声明 `assetKind`、可携带字段及范围、语义校验，可提供纯 `project`/`restore` 投影：导出删除本机连接状态，恢复只合并同事务捕获的目标本机状态，不把这些状态传给云端。唯一内置目录用 `scope:'project-sections'`、公开 `owners` 身份、`kind` 和 `namespace` 描述；Host 在现有项目库组合根解析 owner 定义，公共 Storage `createProjectContentReplicaFactory` 负责事务技术，日志安装也从同一目录派生。工作台不新增 Module 实现依赖，Host 不另维护逐插件名单。没有自己根表的 owner 经可信组合根传入明确的项目 ID 安装日志，不能借用别人的根表声明。Sources、Attention、Feed/Signal 使用此路径；真实 Home 的项目库基线变更仍须单独批准维护。
+Module 项目内容的 `ProjectReplicaDefinition` 明确声明 `assetKind`、可携带字段及范围、语义校验，可提供纯 `project`/`restore` 投影：导出删除本机连接状态，恢复只合并同事务捕获的目标本机状态，不把这些状态传给云端。唯一内置目录用 `scope:'project-sections'`、公开 `owners` 身份、`kind` 和 `namespace` 描述；Host 在现有项目库组合根解析 owner 定义，公共 Storage `createProjectContentReplicaFactory` 负责事务技术，日志安装也从同一目录派生。工作台不新增 Module 实现依赖，Host 不另维护逐插件名单。没有自己根表的 owner 经可信组合根传入明确的项目 ID 安装日志，不能借用别人的根表声明。Sources、Attention、Feed/Signal 使用此路径。
 
 `contentRefs` 是 owner 对已选字段中确切证据正文引用的声明，不是扫描任意 JSON 的提示。Feed/Signal 经共同 JSON/R2 投影传递原字节，Host 校验归属、字段、固定历史、摘要和全部内容后复查授权，目标使用自己的 Home 密钥重加密；密钥、密文路径与监听状态不传。未知引用或缺失正文不能假报同步成功。Storage `validateProjectReplicaRows` 只做技术字段/归属验证，不授予内容读取权；目标本机合并投影在同事务 clear 捕获后才可 write。
 
@@ -692,11 +692,11 @@ Module 项目内容的 `ProjectReplicaDefinition` 明确声明 `assetKind`、可
 
 Goal 项目一致性单元也消费该接口：超过 64 KiB 的完整事实按 1 MiB 字节块表示，D1 保留绑定空间/项目的摘要清单。所有引用、块与全体摘要验证完成，再还原原格式并交给 Goals/Governance/ContextLedger 的既有校验与同一事务。最大完整聚合 100000000 字节，不等于可绕过账号额度；并发冲突仍是整项目，不按块合并。现行 inline 与块表示不接受未知格式，不包含执行授权；其他插件不因此自动获得大对象或本地文件同步。
 
-实际消费者是 Artifact 的导入原文件、较大版本正文及 Goal 项目聚合。其他插件、外部内容引用和独立 Runtime 自动装配尚未接入，不因合同存在宣称支持。D1 的结构化记录及 R2 字节/预留共用 100 MB；暂存到期与 30 天引用清理待后续。设备开关和手动单轮行为不变，部署与真实 Home 维护单独批准。
+实际消费者是 Artifact 的导入原文件、较大版本正文及 Goal 项目聚合。其他插件、外部内容引用和独立 Runtime 自动装配尚未接入，不因合同存在宣称支持。D1 的结构化记录及 R2 字节/预留共用 100 MB；暂存到期与 30 天引用清理待后续。设备开关和手动单轮行为不变，线上部署需单独批准。
 
 Host 生命周期接纳使用 `SyncRegistration.withMutation(scope, commit)`：普通接收、自动/显式重试、冲突选择和本机历史恢复共用异步预留边界，预留内只能调用一次同步提交。等待后的实际 adapter 仍重检 CAS；预留结束后保存的回调已关闭，不能迟到写入。`prepare` 只能做非破坏性准备，不得提前回收/删除。此端口属于可信 Host 装配，不增加插件权限。
 
-Projects 的同步生命周期只在可信 Host 预留许可 `authorizeLifecycle(key,recycled)` 下由 owner 在最终接收事务写入；无许可继续拒绝删除和回收项恢复。目录的回收记录可独立于项目原件保留未知项目墓碑，不能创建占位项目，也不把墓碑当可见回收条目。真实旧库不自动迁移；当前 Host 注册接线尚未完成。
+Projects 的同步生命周期只在可信 Host 预留许可 `authorizeLifecycle(key,recycled)` 下由 owner 在最终接收事务写入；无许可继续拒绝删除和回收项恢复。目录的回收记录可独立于项目原件保留未知项目墓碑，不能创建占位项目，也不把墓碑当可见回收条目。不自动迁移旧库；当前 Host 注册接线尚未完成。
 
 项目注册经可信常驻 `ProjectDeletionService.admitSync` 接纳删除和恢复；许可只在最终同步提交回调中有效。旧事件/本人回执/已知冲突不提前释放 Runtime；显式选择和恢复在等待前检查所查看的版本，最终 owner 仍复查。未知项目删除不创建原件；恢复的准备只创建被墓碑隐藏的原件，不改变回收状态。所有已注册子 owner 都需给出指定项目的未结算判断，未覆盖或不可用时继续拒绝，不能以当前接线声明整体生命周期已验收。
 

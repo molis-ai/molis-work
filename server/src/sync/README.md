@@ -11,7 +11,7 @@ This is one server module, not the entire Molis Work server. It owns the persona
 - `changes.rs`, `round.rs`, `protocol.rs`, `quota.rs`: replication, validation, round summaries and accounting.
 - `blobs.rs`, `blob_store.rs`: authenticated private attachment transfer. Every upload and read runs under an active collection selection, checked before the work and again inside the SQL that publishes it.
 - `history.rs`, `retention.rs`, `maintenance.rs`: history, trash and bounded cleanup.
-- [`server/migrations/sync/0001_sync.sql`](../../migrations/sync/0001_sync.sql) and [`0002_sync_heads_revision_index.sql`](../../migrations/sync/0002_sync_heads_revision_index.sql): the fresh D1 baseline, v6, plus the `sync_heads_revision` covering index for `/v1/round`. Moving these files does not upgrade or reinitialize an existing database.
+- [`server/migrations/sync/0001_sync.sql`](../../migrations/sync/0001_sync.sql): the fresh D1 baseline (v1, including the `sync_heads_revision` covering index for `/v1/round`). Pre-development schema changes modify this single v1 baseline directly; incompatible dev databases are recreated cleanly.
 
 The Server root owns [Cargo.toml](../../Cargo.toml) and [Cargo.lock](../../Cargo.lock), alongside the Node build manifests. `apps/sync-worker` owns Cloudflare event registration, the release build, Wrangler configuration and runtime integration tests. It calls only this library's two public functions. See its [operator and verification guide](../../../apps/sync-worker/README.md).
 
@@ -20,7 +20,7 @@ The Server root owns [Cargo.toml](../../Cargo.toml) and [Cargo.lock](../../Cargo
 - 负责：上述同步协议与远端同步存储；所有 `sync_*` 表及附件账本由本模块拥有。
 - 不负责：IM、工厂/ERP 业务、客户端插件 payload 的语义、模型执行或 Worker 部署。它不读取本地 Home 数据库。
 - 依赖：当前仍依赖 `worker` 的 Request/Env/D1/R2 API，编译目标为 `wasm32-unknown-unknown`。这是职责拆分，不宣称已经实现跨云运行时适配。
-- 不变量：账号由可信 Auth 派生；每次请求验证当前 D1 基线（v6）；守住状态变化的条件和变化写在同一个 D1 batch 里，条件不成立就插 `sync_checks` 让整组回滚，零行 UPDATE 不算断言；CAS、幂等、容量和引用约束保持原事务语义；不在请求里建表或升级库；接收数据不触发客户端业务执行。
+- 不变量：账号由可信 Auth 派生；每次请求验证当前 D1 基线（v1）；守住状态变化的条件和变化写在同一个 D1 batch 里，条件不成立就插 `sync_checks` 让整组回滚，零行 UPDATE 不算断言；CAS、幂等、容量和引用约束保持原事务语义；不在请求里建表或升级库；接收数据不触发客户端业务执行。
 - 构建检查：`cargo fmt --manifest-path server/Cargo.toml --check`；`cargo clippy --manifest-path server/Cargo.toml --target wasm32-unknown-unknown --all-targets --locked -- -D warnings`。CI 同时检查本模块和 App 入口，不缩小原检查范围。
 - 改动后必跑：仓库根 `pnpm build`，然后在 `examples/personal-sync-tools` 运行 `npm run build` 和 `npm test`；这是实际 WASM、临时 D1/R2 和多 Home 的集成测试，不是线上部署验证。
 

@@ -181,7 +181,6 @@ export async function handleHoldsPut(
   input: ObservationHoldPutInput,
 ): Promise<ObservationHoldPutResult> {
   assertPersonCaller(caller);
-  await caller.beforeEffect?.();
   caller.assert_authority_current?.();
   caller.signal?.throwIfAborted();
 
@@ -189,6 +188,7 @@ export async function handleHoldsPut(
   if (typeof input.project_id === "string" && readable && !readable.has(input.project_id)) {
     throw observationErrors.forbidden("所选项目不存在、已删除或正在关闭");
   }
+  await caller.beforeEffect?.();
   caller.assert_authority_current?.();
   caller.signal?.throwIfAborted();
 

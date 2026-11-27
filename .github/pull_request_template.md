@@ -32,10 +32,10 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 
 ## 公开合同与 API 影响
 
-<!-- 合同怎样变更见 docs/system/CONTRACT-CHANGES.md：起点之前不留兼容期，同一个 PR 改完所有消费者。 -->
+<!-- 合同与存储结构变更见 docs/system/CONTRACT-CHANGES.md：开发前阶段（1.0 发布前）不留兼容期、不做旧数据迁移，所有持久化库与带版本文件固定 v1 直接原地改、零 upgrades，同一个 PR 改完所有消费者。 -->
 
 - [ ] 没有改 `packages/contracts` 的导出、`packages/plugin-sdk` 的出口、动作的输入输出 schema、插件 Manifest 格式、MCP 工具名或对外合同 id
-- [ ] 改了：写明改了哪几项、版本号怎么变、消费者清单（仓库内、外部）和是否都在本 PR 改完；公开 API 快照（`tooling/gates/api/`）和动作合同快照（`tooling/gates/actions/`）的 diff 与兼容影响：
+- [ ] 改了：写明改了哪几项、消费者清单（仓库内、外部）和是否都在本 PR 改完；公开 API 快照（`tooling/gates/api/`）和动作合同快照（`tooling/gates/actions/`）的 diff 与影响（开发前阶段不留历史兼容读取或迁移步骤）：
 
 ## 只许减少的数字
 

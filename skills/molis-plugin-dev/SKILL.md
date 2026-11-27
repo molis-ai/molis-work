@@ -109,7 +109,7 @@ description: The single standard for building Molis Work plugins, hand-written o
     持久任务不能只记可复用的 `install_id`：同时绑定 Runtime 的安装世代，由 Host 读取并在执行前复查。重装更新世代，升级和重启不更新；旧记录归属不明时保留并暂停，不能用新安装的授权补跑。
     定时运行自己插件的 operation 使用 `schedules.add/cancel`，生产实现归 Schedule，Host 提供当前安装执行器。启动或注册执行器不能自行清空队列补跑；只能由新的 Scheduler lease 唤醒持久 pending。已派出但结果未知时停止后续排期，先核对外部结果，不能假定失败而自动重试。daily/weekly 仍是固定 24 小时/7 天间隔。
     旧定时 operation 与未知结果在 Schedule 查看原输入和历史，用 `schedule.operations.recover` 明确 resume/retry/skip；所见 revision 与安装 ID/世代/版本须与当前一致。管理动作禁止 plugin 自行调用，普通启用不能绕过核对；重试可能重复副作用，跳过一次性任务则结束。所有决定只调整持久计划，实际执行仍等待新的 lease。
-17. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本（内置插件在监督器条目里给 `trust: HOST_BUILD_TRUST`，随宿主版本升级，不写这条）。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
+17. 第三方／对外发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本（内置插件在监督器条目里给 `trust: HOST_BUILD_TRUST`，随宿主版本走；开发前阶段内置插件固定 v1 原地修改，不写升级段、不声明旧版迁移）。细则见 [elements.md · 版本升级](elements.md#版本升级)。
 
 ## 要素怎么选（别全要）
 
@@ -148,7 +148,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - 将安装时的依赖策略当作永久有效：Host 每次 operation 读取当前版本、费用、时限与可用性，等待后再次复查；query 运行时也拒绝收费和写入能力。嵌套调用的未知结果必须向公开 Action 和 Schedule 透传，不能 catch 后继续提交或伪装成功；可信控制不放入 worker JSON。
 - 丢弃原调用的执行控制：生成式动作进入 route/沙箱后，仍需传递可信 Host 的 signal/beforeEffect，嵌套 Action、网络派出和存储提交前复查；不能从 JSON 或固定 actor 名称重建授权。沙箱队列负责操作串行，外层动作声明 concurrent，避免回调平台时死锁。取消后结果未知的操作不自动重放；持久任务不能复用创建时的临时授权回调。
 - 把已安装插件运行绑在创作页面：Host 的安装运行入口读取已发布工件和明确批准记录，Studio 仅委托它管理安装。恢复和发现不能初始化创作 Workflow 或启动草稿模型任务；正常 Host 关闭保留启用意图，用户停用须保持到显式启用。缺少批准记录时报告恢复失败，不从发布权限清单自动补权。
-- 改了结果合同的枚举却不管存量：合同只认现行取值，旧记录要在同一次改动里由维护改成现行形状，否则读取报 `actions.output_invalid`。
+- 改了结果合同的枚举或字段却留历史兼容读取：合同只认现行取值；开发前阶段直接改 v1 基线与所有读写方、不写旧值兼容或旧数据迁移，否则读取报 `actions.output_invalid`。
 - 给构建期 Native 插件抄 `events:` 块指望投递。总线只在 Plugin Runtime（`apps/local-host/src/plugin-platform.ts` 的 `createPluginPlatform`）启动的插件里跑。
 - 为未发生的失败预埋兼容层；为「以后可能有」声明空 ports / 空 events。
 - 用低等级证据宣称可发布。改了可见 UI：浏览器把主路径点一遍。

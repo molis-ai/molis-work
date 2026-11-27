@@ -15,6 +15,8 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 ## 版本升级
 
+> 开发前阶段（1.0 发布前）：内置插件库与格式一律锁定 `version: 1` 原地修改、零 `upgrades` 升级段，不写旧数据迁移；以下 `upgrade_compatibility` 与库升级段仅面向第三方签名包及 1.0 对外发布后的版本升级。
+
 `upgrade_compatibility` 不是版本范围或自动升级开关，而是目标发布对精确旧版本的声明：
 
 - `compatible_from_versions`：新代码可直接读写该版本的私人数据，并沿用旧 grant。项目重启可用兼容实现恢复，但已安装版本只在用户手动升级后更新。同版本修正文档可列出当前版本以继续运行，但不会改变安装指纹或显示成升级。

@@ -34,5 +34,5 @@ pnpm --filter @molis-ai/molis-work-service-home build
   - 文件送出前必按 UTF-8 逐个重算 SHA-256，一处不符即以 `home.page_file_mismatch` 整版拒出，且页面主体不可调 `home.pages.files.read@1`（`S-home-page-files`）。
   - 页面声明与获准的动作须显式包含 `plugin` 受众且在当前项目动作目录中可达；草稿保存与复用绝不改变当前首页选择或授予批准。
   - `home.pages.adopt@1` 与 `home.pages.restore@1` 只接受无上一层动作的本人直接调用（拒绝代理、插件、页面主体与 `blueprints.adoption.*` 嵌套调用），换版或切回基础首页立即通知宿主作废旧页面会话（`S-home-page-approval`）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/home-page-contract.test.ts tests/home-pages-service.test.ts tests/home-pages-security.e2e.test.ts`；改了合同跑 `pnpm api:update`、`pnpm actions:update`，改了库结构跑 `pnpm schemas:update` 与 `pnpm versions:generate`。
+- 改动后必跑：`node scripts/run-tests.mjs tests/home-page-contract.test.ts tests/home-pages-service.test.ts tests/home-pages-security.e2e.test.ts`；改了合同跑 `pnpm api:update`、`pnpm actions:update`（开发前阶段库结构固定 v1 原地修改，不升版本）。
 - 相关手册：[specs/scene-and-page-contract/spec.md](../../specs/scene-and-page-contract/spec.md) 第 6 节；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
+import { homePagePlugin, serveHomePageBundle } from "./fixtures/home-page-plugin.js";
 
 test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home plugin states", { timeout: 180_000 }, async t => {
-  const browser = await openGoalBrowser(t, true);
+  // The disabled ring on a standalone Home page needs a Home plugin the person can turn off: the test Home plugin's, since no built-in
+  // Home page offers the switch after Issues and Jelly moved to the partitions (batch 108).
+  const probe = homePagePlugin();
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, { home: [probe.definition] });
   if (!browser) return;
+  serveHomePageBundle(browser.server);
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
-  // The disabled ring on a standalone Home page: Work Brief's since Issues and Jelly moved to the partitions (batch 108).
   await command("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#status-ring` }, sessionId));
@@ -116,7 +120,7 @@ test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home
     }
     await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   }
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/work-brief` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/${probe.key}` }, sessionId));
   await waitFor("!!document.querySelector('[data-home-lifecycle=\"disable\"]')", 20_000);
   await navigate(() => browser.click('[data-home-lifecycle="disable"]'));
   await waitFor("document.querySelector('h1[data-mw-state=disabled] .mw-state-ring [data-ring-segments]')");

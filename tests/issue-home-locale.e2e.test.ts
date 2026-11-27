@@ -9,6 +9,7 @@ import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { ISSUES_PAGE, issueView, type IssueBrowser } from "./fixtures/issue-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { homePagePlugin, serveHomePageBundle } from "./fixtures/home-page-plugin.js";
 
 const composer = "[data-issue-composer] [name=description]";
 const editor = "[data-issue-editor]";
@@ -17,11 +18,12 @@ const sideOpen = "document.body.dataset.sideOpen === 'true'";
 const issueGlyph = '[data-side-tab="plugin:issues/capture"]';
 
 /**
- * The standalone Home page (`/plugins/<id>`), its model settings dialog and its startup retry: Work Brief's is the built-in one left after Issues and
- * Jelly moved to the partitions in batch 108 (the standalone Home pages go with the Home runtime in batch 109-3).
+ * The standalone Home page (`/plugins/<id>`), its model settings dialog and its startup retry. The settings dialog needs a plugin frame on the
+ * page, which no built-in Home plugin draws after Issues and Jelly moved to the partitions in batch 108: it runs on the test Home plugin. The
+ * startup retry runs on Work Brief's page. The standalone Home pages go with the Home runtime in batch 109-3.
  */
-async function homePageView(t: TestContext, b: IssueBrowser) {
-  const frame = await pluginFrameBrowser(t, b, "work-brief");
+async function homePageView(t: TestContext, b: IssueBrowser, key = "work-brief") {
+  const frame = await pluginFrameBrowser(t, b, key);
   return {
     frame, ask: <T = unknown>(body: string) => frame.evaluate<T>(body),
     viewport: (width: number, height = 900) => b.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, b.sessionId),
@@ -104,11 +106,13 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture in the personal space offe
   assert.equal(stored.title, "删除"); assert.equal(stored.description, "问题描述"); assert.equal(stored.entered_via, "manual");
 });
 
-// The standalone Home page's settings dialog (S-47, HOME-SET-02): Work Brief's is the built-in Home page left after batch 108's Issues and Jelly moved to the partitions.
+// The standalone Home page's settings dialog (S-47, HOME-SET-02), on the test Home plugin's page: it needs a plugin frame, which no built-in Home page has after batch 108.
 test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens English model settings in place, retries a failed load and keeps the page", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const v = await homePageView(t, b);
-  await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fwork-brief");
+  const probe = homePagePlugin();
+  const b = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined, {}, { home: [probe.definition] }); if (!b) return;
+  serveHomePageBundle(b.server);
+  const v = await homePageView(t, b, probe.key);
+  await v.viewport(1440); await v.go(`/locale?lang=en&next=${encodeURIComponent(`/plugins/${probe.key}`)}`);
   await v.frame.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
   // HOME-SET-02: the standalone consumer cannot turn an invalid settings request into navigation or I/O.
   assert.deepEqual(await b.evaluate(`(() => {
@@ -121,8 +125,8 @@ test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens 
       return { requests, open: document.querySelector('[data-home-model-settings]').open, samePage: location.href === before };
     } finally { window.fetch = fetch; }
   })()`), { requests: 0, open: false, samePage: true });
-  const ownerState = "({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector('iframe[data-plugin-frame=work-brief]'))})";
-  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'home-settings-owner'; window.__homeSettingsFrame = document.querySelector('iframe[data-plugin-frame=work-brief]'); return ${ownerState}; })()`);
+  const ownerState = `({address:location.href, marker:window.__homeSettingsOwner, sameFrame:Boolean(window.__homeSettingsFrame?.isConnected && window.__homeSettingsFrame === document.querySelector(${JSON.stringify(probe.frame)}))})`;
+  const owner = await b.evaluate(`(() => { window.__homeSettingsOwner = 'home-settings-owner'; window.__homeSettingsFrame = document.querySelector(${JSON.stringify(probe.frame)}); return ${ownerState}; })()`);
   await v.ask("globalThis.__settingsDraftMarker = 'original-home-frame'");
   // W2-18-HOME-LOCALE-01 / S-47: the standalone Home host receives the opaque page's settings request in place.
   // Only fail delivery of this settings document; the retry uses the real Host and its empty model catalog.

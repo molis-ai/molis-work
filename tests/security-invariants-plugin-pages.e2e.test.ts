@@ -4,6 +4,7 @@ import test from "node:test";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import { homePagePlugin, serveHomePageBundle } from "./fixtures/home-page-plugin.js";
 
 // SYS-15-V2: local media is allowed while independent network, socket and owner-credential access is refused.
 
@@ -324,11 +325,13 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
 });
 
 test("S-ui-text-page FSS-08 a replacement document before first connection never receives the frame port", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, "empty", undefined, null); if (!browser) return;
+  const probe = homePagePlugin();
+  const browser = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined, {}, { home: [probe.definition] }); if (!browser) return;
+  serveHomePageBundle(browser.server);
   const { command, sessionId, origin, waitFor, evaluate, navigate } = browser;
-  // A standalone Home page: Work Brief's since Issues and Jelly moved to the partitions (batch 108).
-  const child = await pluginFrameBrowser(t, browser, "work-brief");
-  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/work-brief${search}` }, sessionId));
+  // A standalone Home page with a plugin frame: the test Home plugin's, since no built-in Home plugin draws one after batch 108.
+  const child = await pluginFrameBrowser(t, browser, probe.key);
+  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/${probe.key}${search}` }, sessionId));
   await open();
   await child.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
   const forged = `<!doctype html><title>Replacement frame</title><script>
@@ -341,18 +344,18 @@ test("S-ui-text-page FSS-08 a replacement document before first connection never
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `if (window===top) {
     window.frameHandshakeTrace=[];
     addEventListener('message', event => {
-      const frame = document.querySelector('iframe[data-plugin-frame=work-brief]');
+      const frame = document.querySelector(${JSON.stringify(probe.frame)});
       if (event.source===frame?.contentWindow && event.origin==='null' && event.data?.type==='frame-handshake-test') frameHandshakeTrace.push(event.data.detail);
     });
     const actual = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc');
     Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...actual, set(source) {
-      if (this.dataset.pluginFrame !== 'work-brief') { actual.set.call(this, source); return; }
+      if (this.dataset.pluginFrame !== ${JSON.stringify(probe.key)}) { actual.set.call(this, source); return; }
       this.src = URL.createObjectURL(new Blob([${JSON.stringify(forged)}], {type:'text/html'}));
     } });
   }` }, sessionId);
   await open("?frame-handshake=replaced");
   await waitFor("frameHandshakeTrace.includes('replacement-loaded')", 12_000);
-  await waitFor("!document.querySelector('iframe[data-plugin-frame=work-brief]')", 15_000);
+  await waitFor(`!document.querySelector(${JSON.stringify(probe.frame)})`, 15_000);
   assert.deepEqual(await evaluate("frameHandshakeTrace"), ["replacement-loaded"], "loading at the current frame window is insufficient to receive any config or port");
 });
 

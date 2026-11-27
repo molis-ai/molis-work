@@ -335,8 +335,9 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
       ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
       ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: pluginSyncDatabaseDeclaration(entry.manifest, library) }] : []];
   });
-  // Cognia, Images, Issues and Todo keep a library in each partition since batch 108 (databases.partition), not one at Home.
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["feed-content", "jelly", "work-brief"]);
+  // Batch 108 moved Cognia, Images, Issues, Jelly and Todo to per-partition libraries.
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["feed-content", "work-brief"]);
+  assert.equal(homeStores().get("jelly"), undefined, "the old top-level Jelly store is retired");
   assert.equal(homeStores().get("artifacts")?.owner, "modules/artifacts", "the platform's original files retain their Module owner");
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);

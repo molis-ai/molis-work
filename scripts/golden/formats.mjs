@@ -29,6 +29,8 @@ function pluginProjectTablesVersion(db, pluginId) {
 
 export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "database.home.catalog": { store: "projects/catalog.db" },
+  "format.builder.saved-state": { store: "projects/*/molis-work.db",
+    rows: "SELECT DISTINCT json_extract(item_value, '$.format') AS version FROM plugin_private_values WHERE install_id LIKE 'agent-studio:%' AND item_key = 'plugin-builder:agent-built:v1' ORDER BY version" },
   "database.ledger_baseline": { store: "plugin-libraries/plugin-libraries.db" },
   "database.memory_ledger_baseline": { store: "memory/memory.db" },
   "format.secret-store.map": { file: "security/secrets.json", field: "version" },

@@ -158,7 +158,11 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   const trialKeys: string[] = [], trialProbes: Promise<void>[] = [], trialProbeErrors: unknown[] = [];
   server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    web.handle(request, response, url, options.routePrefix!, (local, proof) => {
+    web.handle(request, response, url, options.routePrefix!, (local, proof, locale) => {
+      if (url.pathname === '/studio-preview') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(isolatedStudioHarness(f.home, project.project_id, proof, locale)); return;
+      }
       if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
       const key = url.searchParams.get('acceptance');
       if (key && !trialKeys.includes(key)) {
@@ -202,7 +206,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   };
   passed(current);
   await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []);
-  return { f, project, answer, words, coded, helper, nested, send, wait, passed, current, trialKeys,
+  return { f, project, answer, words, coded, helper, nested, send, wait, passed, current, trialKeys, origin,
     reverseDirectory() { reverseDirectory = !reverseDirectory; }, restartStudio: () => releaseAgentStudio(store, project.project_id),
     image: (build: string, candidate: string) => fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + build + '/mockups/' + candidate),
     rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
@@ -797,6 +801,27 @@ test('44C-06 Studio polls the original installed signed service across restart, 
   assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'a later release cannot read the previous job through Studio');
   assert.equal((await f.request('/api/settings/plugin-publishers/revoke', { method: 'POST', body: { key_id: selected.publisher } })).status, 200);
   assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'the remaining service cannot replace a withdrawn installation');
+  const remaining = selected === first ? second : first;
+  const browser = await openStudioChrome(f.home); assert.ok(browser);
+  try {
+    const outer = await browser.page(), page = await framedStudioPage(t, browser, outer);
+    await outer.command('Page.navigate', { url: studio.origin + '/studio-preview?build=' + created.build.id });
+    await page.wait('!!document.querySelector("[data-as-candidate]")');
+    await page.click('[data-as-candidate="' + ready.id + '"]');
+    const choose = '[data-as-image-services="' + ready.id + '"]';
+    await page.wait('document.querySelector(' + JSON.stringify(choose) + ')?.getClientRects().length > 0');
+    await page.click(choose);
+    const pick = '[data-as-new-image="' + ready.id + '"]';
+    await page.wait('!!document.querySelector(' + JSON.stringify(pick) + ')');
+    assert.deepEqual(await page.evaluate('Array.from(document.querySelectorAll(' + JSON.stringify(pick) + '), el=>el.textContent)'), [remaining.key + ' · ' + remaining.connection]);
+    await page.click(pick);
+    await page.wait('document.querySelector(".as-mockup-large")?.naturalWidth > 0');
+    const refreshed = (await studio.send<{build: AgentBuild}>('/builds/' + created.build.id)).build.candidates.find(item => item.id === ready.id)!.mockup!;
+    assert.equal(refreshed.binding?.connection_id, remaining.connection);
+    assert.notEqual(refreshed.requestId, ready.mockup!.requestId);
+    const newFile = await studio.image(created.build.id, ready.id);
+    assert.deepEqual(Buffer.from(await newFile.arrayBuffer()), Buffer.from(remaining.png, 'base64'));
+  } finally { await browser.close(); }
 });
 
 test('with an image service each proposal gets one picture (never a second try); choosing does not wait for them; without one nothing changes', async () => {

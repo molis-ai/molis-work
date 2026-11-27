@@ -733,7 +733,7 @@ export class AgentBuilderWorkflow {
     if (body.action === 'recheck') { this.launch(id, 'check'); return this.store.require(id); }
     if (body.action === 'choose') return this.choose(id, build.revision, String(body.candidateId));
     if (body.action === 'redraw') {
-      const proposal = build.candidates.find(item => item.id === body.candidateId && item.mockup?.status === 'failed');
+      const proposal = build.candidates.find(item => item.id === body.candidateId && (item.mockup?.status === 'failed' || (body.service !== undefined && item.mockup?.status === 'ready')));
       if (!proposal) return build;
       if (body.service !== undefined) {
         if (typeof body.service !== 'string' || !this.ports.mockups?.select) throw new Error('请选择可用的配图连接');

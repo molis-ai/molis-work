@@ -3,7 +3,7 @@ import { assertReadOnlyEffects, captureActionRegistration, visibleAction } from 
 import { actionDirectoryLookup, actionKey } from "./action-directory-lookup.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
-import { discoveredActionViews, registeredActionMetadata, type ActionSelection, type ObserveActionRegistration } from "./action-metadata.js";
+import { discoveredActionViews, registeredActionMetadata, registeredOneActionMetadata, type ActionSelection, type ObserveActionRegistration } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
@@ -14,7 +14,7 @@ import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/pl
 import { CapabilityRegistry } from "./index.js";
 import { assertCallerProvenance } from "./action-authorship.js";
 import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, type CallContext, type CallReports } from "./action-settlement.js";
-import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
+import { actionSchemaAccepts, createActionSchemaCompiler, freezeActionDeclaration, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { registerActionExecution, type ActionExecutionEffects } from "./action-registered-execution.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
@@ -62,13 +62,6 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   /** Monotonic stamp covering capability registrations, scene registrations, and scene binding writes. */
   directoryGeneration(): number {
     return this.registry.generation() + this.sceneGeneration;
-  }
-
-  /** O(1) owner lookup for a single visible scene without enumerating or cloning unrelated scenes. */
-  sceneOwner(context: ActionCallContext, reference: SceneReference): ActionProvider | undefined {
-    const scene = this.scenes.get(scopedSceneKey(reference, context.project_id ?? undefined))
-      ?? this.scenes.get(scopedSceneKey(reference));
-    return scene && sceneVisible(scene, context) ? scene.provider : undefined;
   }
 
   registerProvider(registration: ActionProviderRegistration): () => void {
@@ -138,9 +131,9 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, metadataAvailability: context => availability(context, true), synchronous: handler.execution === "sync" }));
       }
-      const frozenProvider = freezeDeep(provider);
+      const frozenProvider = freezeActionDeclaration(provider);
       for (const original of registration.scenes ?? []) {
-        const definition = freezeDeep(structuredClone(original));
+        const definition = freezeActionDeclaration(structuredClone(original));
         const key = scopedSceneKey(definition, provider.project_id);
         const handler = protectSceneReads(sceneHandlers.get(sceneKey(definition))!, () => {
           if (this.scenes.get(key) !== scene) throw new ActionError("actions.provider_changed", "原消费场景已停止或重新加载");
@@ -413,14 +406,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       ? inDirectoryPass(() => registeredActionMetadata(this.registry, context, (definition, provider) => metadataVisible(definition, provider, context))
           .map(metadata => ({ ...metadata, availability: this.registry.metadataAvailability(context, { ...metadata, action_provider: metadata.provider }) })))
       : undefined;
-    const fn = directory
-      ? directory.find(value => value.capability_id === reference.capability_id && value.version === reference.version && value.provider.provider_id === reference.provider_id)
-      : (() => {
-          const descriptor = this.registry.descriptor(reference, context.project_id), provider = descriptor?.action_provider;
-          if (!descriptor?.action || !provider || provider.provider_id !== reference.provider_id || !metadataVisible(descriptor as ActionDefinition, provider, context)) return undefined;
-          return { capability_id: descriptor.capability_id, version: descriptor.version, operation: descriptor.operation, provider, action: descriptor.action,
-            availability: this.registry.metadataAvailability(context, descriptor) };
-        })();
+    const metadata = directory ? undefined : registeredOneActionMetadata(this.registry, context, reference,
+      (definition, provider) => metadataVisible(definition, provider, context));
+    const fn = metadata ? { ...metadata, availability: this.registry.metadataAvailability(context, target) }
+      : directory?.find(value => value.capability_id === reference.capability_id && value.version === reference.version && value.provider.provider_id === reference.provider_id);
     const reason = actionSceneCompatibilityReason(scene.definition, fn, reference, directory, scene.provider), state = scene.availability(context);
     const availability = !binding.enabled ? unavailable("actions.binding_disabled", "此使用位置已停用")
       : !state.available ? state : reason ? unavailable("actions.binding_invalid", reason) : fn!.availability;
@@ -713,13 +702,6 @@ function rowCaller(context: ActionCallContext): ActionCallContext {
 }
 function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason, { kind: value.kind }); }
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }
-function freezeDeep<T>(value: T): T {
-  if (value && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const child of Object.values(value)) freezeDeep(child);
-  }
-  return value;
-}
 function sceneKey(v: { scene_id: string; version: number }): string { return `${v.scene_id}@${v.version}`; }
 function scopedSceneKey(v: { scene_id: string; version: number }, projectId?: string): string { return JSON.stringify([v.scene_id, v.version, projectId ?? null]); }
 function exactBindings<D, H>(definitions: readonly D[], handlers: readonly H[], key: (v: D | H) => string, label: string): Map<string, H> {

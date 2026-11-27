@@ -62,7 +62,7 @@ test("QEA-91 Inbox yields between committed judgments so a pending cancellation 
   } finally { if (pending) clearImmediate(pending); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("BL-inbox-update-blocks-host mid-batch permission revocation or plugin disablement synchronously rejects later entries with zero DB writes", async () => {
+test("BFP-05 BL-inbox-update-blocks-host mid-batch permission revocation or plugin disablement synchronously rejects later entries with zero DB writes", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-batch-fence-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);

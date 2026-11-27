@@ -122,10 +122,21 @@ export function assertActionInput(schema: ActionSchema, value: unknown): void {
 }
 
 const frozenSchemaAccepts = new WeakMap<object, WeakMap<object, boolean>>();
+const immutableDeclarations = new WeakSet<object>();
+
+/** Freeze and track the kernel's private clones, including every nested schema. */
+export function freezeActionDeclaration<T>(value: T): T {
+  if (value && typeof value === "object" && !immutableDeclarations.has(value)) {
+    Object.freeze(value);
+    immutableDeclarations.add(value);
+    for (const child of Object.values(value)) freezeActionDeclaration(child);
+  }
+  return value;
+}
 
 /** Conservative assignability. Unsupported relations require an explicit conversion. */
 export function actionSchemaAccepts(target: ActionSchema, source: ActionSchema): boolean {
-  const immutable = Object.isFrozen(target) && Object.isFrozen(source);
+  const immutable = immutableDeclarations.has(target) && immutableDeclarations.has(source);
   if (immutable) {
     const hit = frozenSchemaAccepts.get(target)?.get(source);
     if (hit !== undefined) return hit;

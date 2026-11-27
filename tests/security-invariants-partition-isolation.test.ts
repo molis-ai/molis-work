@@ -13,6 +13,7 @@ import {
   pluginInstallRecords, projectPluginPlatform, refreshRunningProjectPlugins, releaseProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { inDirectoryPass } from "@molis-ai/molis-work-kernel";
 import { installIdentity, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -452,7 +453,7 @@ test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
 // kept by that instance alone (in memory, per (install, partition)).
 const DATASET = "io.molis.work.dataset";
 
-test("UPP-21 batch 107 the Host runs a plugin with a library in each partition as its own instance per partition; one crashing leaves the other and the Home's installation as they were; the Home store and the instances share no stale record", async t => {
+test("UPP-21 BFP-06 each partition sees its current plugin state while one crashing leaves the other instance and the Home installation as they were", async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("分区 A", ["dataset"]), b = await f.project("分区 B", ["dataset"]);
   for (const p of [a, b]) await f.host.actionClient(p.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, p.project_id), datasetActions.create, { title: p.project_id });
@@ -469,7 +470,16 @@ test("UPP-21 batch 107 the Host runs a plugin with a library in each partition a
   const installs = openHomePluginStore(f.home);
   t.after(() => installs.db.close());
   const homeRows = new SqlitePluginRuntimeRepository(installs.db);
-  own.installRecords.save({ ...own.runtime.get(installId)!, state: "crashed", recovery_count: 1, last_error_code: "plugin.crashed" });
+  await f.host.withProject(a.reference, runtime => {
+    const records = pluginInstallRecords(runtime.store.db);
+    inDirectoryPass(() => {
+      assert.equal(records.get(installId)?.state, "running");
+      assert.equal(records.list().find(record => record.install_id === installId)?.state, "running");
+      own.installRecords.save({ ...own.runtime.get(installId), state: "crashed", recovery_count: 1, last_error_code: "plugin.crashed" });
+      assert.equal(records.get(installId)?.state, "crashed");
+      assert.equal(records.list().find(record => record.install_id === installId)?.state, "crashed");
+    });
+  });
   assert.equal(own.runtime.get(installId)?.state, "crashed");
   assert.equal(other.runtime.get(installId)?.state, "running", "B's instance is still running");
   // Every other reader of a partition's records (the person's authority over its actions included) reads that partition's instance.

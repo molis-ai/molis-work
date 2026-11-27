@@ -271,13 +271,8 @@ export class HomePluginHost {
     };
   }
   invalidateView(id: string): void {
-    if (!this.platform) return;
-    if (this.platform.supervisor.state(id)) {
-      this.platform.invalidateView(id);
-      return;
-    }
-    const byInstall = this.installationById(id);
-    if (byInstall) this.platform.invalidateView(byInstall.plugin_id);
+    const record = this.installation(id);
+    if (record) this.platform?.invalidateView(record.plugin_id);
   }
   /** A project closed: the Home instances' jobs kept in it stop (PG-038). Their bounded executions keep their call's authority and go on. */
   async stopProjectJobs(projectId: string): Promise<void> {

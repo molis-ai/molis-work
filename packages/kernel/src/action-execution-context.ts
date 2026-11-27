@@ -84,7 +84,7 @@ export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: 
 }
 
 type AllowedIndexState = { first: string; provider: string; index: Map<string, { any: boolean; providers: Set<string> }> | undefined };
-const frozenAllowedLists = new WeakMap<readonly ActionReference[], AllowedIndexState>();
+const frozenAllowedLists = new WeakMap<readonly ActionReference[], AllowedIndexState | null>();
 
 /**
  * A directory asks many different actions of the same list, so its second distinct target builds an index.
@@ -92,14 +92,12 @@ const frozenAllowedLists = new WeakMap<readonly ActionReference[], AllowedIndexS
  */
 function allowedAction(list: readonly ActionReference[], d: ActionDefinition, provider: ActionProvider): boolean {
   const key = `${d.capability_id}@${d.version}`;
-  let asked: AllowedIndexState;
-  if (Object.isFrozen(list)) {
-    let cached = frozenAllowedLists.get(list);
-    if (!cached) frozenAllowedLists.set(list, cached = { first: key, provider: provider.provider_id, index: undefined });
-    asked = cached;
-  } else {
-    asked = rememberInDirectoryPass(list, allowedAction, () => ({ first: key, provider: provider.provider_id, index: undefined }));
+  let cached = frozenAllowedLists.get(list);
+  if (cached === undefined && Object.isFrozen(list)) {
+    cached = list.every(ref => Object.isFrozen(ref)) ? { first: key, provider: provider.provider_id, index: undefined } : null;
+    frozenAllowedLists.set(list, cached);
   }
+  const asked: AllowedIndexState = cached ?? rememberInDirectoryPass(list, allowedAction, () => ({ first: key, provider: provider.provider_id, index: undefined }));
   if (!asked.index && asked.first === key && asked.provider === provider.provider_id) {
     return list.some(ref => ref.capability_id === d.capability_id && ref.version === d.version && (!ref.provider_id || ref.provider_id === provider.provider_id));
   }

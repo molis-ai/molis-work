@@ -1,13 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { compileActionSchema, createActionSchemaCompiler } from "../packages/kernel/dist/action-schema.js";
+import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler } from "../packages/kernel/dist/action-schema.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 
 const dialects = ["http://json-schema.org/draft-07/schema#", "https://json-schema.org/draft/2020-12/schema"];
 const rootId = "https://schema.test/record";
 const valueId = "https://schema.test/value";
 const invalidSchema = { code: "actions.schema_invalid" };
+
+test("BFP-04 scene compatibility reads a mutable property of a shallow-frozen schema", () => {
+  const item = { type: "string" };
+  const target = Object.freeze({ type: "array", items: { type: "string" } });
+  const source = Object.freeze({ type: "array", items: item });
+  assert.equal(actionSchemaAccepts(target, source), true);
+  item.type = "integer";
+  assert.equal(actionSchemaAccepts(target, source), false);
+});
 
 test("the built-in default meta alias survives registration cleanup and cannot be claimed by business schemas", () => {
   const compile = createActionSchemaCompiler(), alias = "http://json-schema.org/schema";

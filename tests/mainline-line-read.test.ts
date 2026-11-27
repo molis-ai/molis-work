@@ -5,6 +5,7 @@ import test from "node:test";
 // WLHR-04: load the mainline contract first, before any other import initializes the action schemas.
 import { MAINLINE_READ_PERMISSION, mainlineActions } from "@molis-ai/molis-work-contracts/services/mainline";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workLineContains } from "@molis-ai/molis-work-service-mainline";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 
 /*
@@ -101,6 +102,34 @@ test("WLN-37 a registrant that is off says nothing, one that cannot answer or an
   await assert.rejects(client.invoke(person(a.project_id, ["homebg:read"]), mainlineActions.line, WINDOW), code("actions.forbidden"), "the read itself needs its own permission");
   await assert.rejects(client.invoke(me, mainlineActions.line, { ...WINDOW, now: "2026-11-16T00:00:00.000Z" }), code("actions.input_invalid"), "a window that does not hold its own now");
   assert.equal(plugin.state.eventCalls.length, asked);
+});
+
+test("WLN-08 N42 event membership asks only the matching registrants as the reader, on every call", { timeout: 60_000 }, async t => {
+  const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
+  const subject = { kind: "homebg_item", id: "e1" };
+  plugin.state.events = () => ({ source: SOURCE, events: [event(subject.id, "active", 7)] });
+  const rig = await backgroundRig(t, plugin, ["A"]);
+  const project = rig.project("A"), client = rig.host.actionClient(project);
+  const me = person(project.project_id);
+  const lookup = (wanted = subject, caller = me) => client.invoke(caller, mainlineActions.contains, { subject: wanted, window: WINDOW });
+  assert.deepEqual(await lookup({ ...subject, kind: "homebg_task" }), { on_line: false });
+  assert.equal(plugin.state.eventCalls.length, 0, "a different kind with the same id does not query this registrant");
+  assert.deepEqual(await lookup(), { on_line: true });
+  assert.deepEqual(plugin.state.eventCalls, [{ project: project.project_id, query_only: true }]);
+  assert.deepEqual(await lookup(subject, person(project.project_id, [MAINLINE_READ_PERMISSION])), { on_line: false });
+  assert.equal(plugin.state.eventCalls.length, 1, "the registrant may not be read with these grants");
+  for (const events of [[], [event("other", "active", 7)], [event("e1", "active", 7), event("e1", "active", 7)]]) {
+    plugin.state.events = () => ({ source: SOURCE, events });
+    assert.deepEqual(await lookup(), { on_line: false });
+  }
+  assert.equal(plugin.state.eventCalls.length, 4, "disappeared and invalid reports are checked anew");
+  assert.equal(plugin.state.calls.length, 0, "no membership lookup needs a task provider");
+  await assert.rejects(lookup(subject, person(project.project_id, ["homebg:read"])), code("actions.forbidden"));
+  const discover = t.mock.method(client, "discover"), invoke = t.mock.method(client, "invoke");
+  plugin.state.events = () => ({ source: SOURCE, events: [event(subject.id, "active", 7)] });
+  assert.deepEqual(await workLineContains(me, client, { subject, window: WINDOW }), { on_line: true });
+  assert.equal(discover.mock.callCount(), 1);
+  assert.deepEqual(invoke.mock.calls.map(call => call.arguments[1].capability_id), ["homebg.events"]);
 });
 
 test("WLN-37 the mainline service and its Host wiring name no plugin: a registrant is found by its types, a built-in one like any other", () => {

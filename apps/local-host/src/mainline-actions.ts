@@ -5,7 +5,7 @@ import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { scopeInstallations } from "./scope-installations.js";
 import { MAINLINE_PROVIDER_ID, mainlineActions, mainlineItemActions } from "@molis-ai/molis-work-contracts/services/mainline";
 import { MainlineStore, completeItem, convertItem, createItem, decideBackgroundTask, editGroups, holdsBind, holdsCandidates, holdsCreate, holdsList, holdsRelease, moveItem, MAINLINE_BASELINE, MAINLINE_HOME_STORE,
-  openObject, placeTask, readBackgroundTasks, readContents, readItemTasks, readItemSubject, readMainline, readWaiting, readWorkLine, removeItem, renameItem, runBackgroundTaskCommand, switchItem,
+  openObject, placeTask, readBackgroundTasks, readContents, readItemTasks, readItemSubject, readMainline, readWaiting, readWorkLine, workLineContains, removeItem, renameItem, runBackgroundTaskCommand, switchItem,
   type ItemDeclaration, type MainlineItemPorts, type TaskReviewPorts } from "@molis-ai/molis-work-service-mainline";
 
 /** What the Host gives the work items: the Home that keeps the store, and the installations a call's project reaches with their Manifests. */
@@ -68,10 +68,11 @@ export function mainlineProvider(clientFor: (caller: ActionCallContext) => Actio
     bindActionHandler(mainlineItemActions.holdsCreate, (input, caller) => holdsCreate(caller, clientFor(caller), items, input)),
   ] : [];
   return { provider: { provider_id: MAINLINE_PROVIDER_ID, title: "事项线与后台任务", kind: "system" },
-    definitions: [mainlineActions.line, mainlineActions.waiting, mainlineActions.place, mainlineActions.tasks, mainlineActions.command, mainlineActions.decide, mainlineActions.open,
+    definitions: [mainlineActions.line, mainlineActions.contains, mainlineActions.waiting, mainlineActions.place, mainlineActions.tasks, mainlineActions.command, mainlineActions.decide, mainlineActions.open,
       ...(items ? Object.values(mainlineItemActions) : [])],
     handlers: [
       bindActionHandler(mainlineActions.line, (input, caller) => readWorkLine(caller, clientFor(caller), input, items, reviews)),
+      bindActionHandler(mainlineActions.contains, (input, caller) => workLineContains(caller, clientFor(caller), input)),
       bindActionHandler(mainlineActions.waiting, (input, caller) => readWaiting(caller, clientFor(caller), input)),
       bindActionHandler(mainlineActions.place, (input, caller) => placeTask(caller, clientFor(caller), input, items)),
       bindActionHandler(mainlineActions.tasks, (_input, caller) => readBackgroundTasks(caller, clientFor(caller), undefined, reviews)),

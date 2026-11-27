@@ -27,7 +27,7 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // (`plugins.installed.repair`, `plugins.home.installed.repair`).
   // Generated connection cards use the same connector binding and component-submit action exits; Studio icon selection belongs to the designer round.
   // Connector record binding, MCP configuration usage reports and connection list reads use this same action exit.
-  // The action exit also covers the work line's `background.tasks.decide` and Coding's `agent.reviews.pending-ids` and `agent.write-checks.read`.
+  // The action exit also covers the work line's `mainline.line.contains` and `background.tasks.decide` and Coding's `agent.reviews.pending-ids` and `agent.write-checks.read`.
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", SCHEDULE_ENTRY, "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },
   // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.

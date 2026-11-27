@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mainlineActions, mainlineItemActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
@@ -47,9 +47,13 @@ const ROUTES = new Map<string, ActionDefinition>([
 
 const DAY = 86_400_000;
 
+function workbenchLineWindow() {
+  const now = Date.now();
+  return { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() };
+}
+
 /**
- * The line, with the task table it was placed with, for the page's one attention read (`attention-http.ts`) and the event card's
- * check: one `mainline.line.read@1` as the person, in the window the bottom line shows (thirty days back, two ahead), optionally
+ * The line, with the task table it was placed with, for the page's one attention read: one `mainline.line.read@1` as the person, in the window the bottom line shows (thirty days back, two ahead), optionally
  * scoped to one work item (`?item=`), so the table is read once for both (N42). The attention response may present original
  * reviews. A plugin's or generated home's page gets neither, as on the routes below.
  */
@@ -60,22 +64,19 @@ export function mainlineAttention(
   presentReviews = false,
 ): {
   line(item?: string | null): Promise<WorkLineReadResult>;
+  contains(subject: ActionSubject, signal: AbortSignal): Promise<{ on_line: boolean }>;
   summary(): Promise<{ has_items: boolean; current: string | null; source_kinds: string[] }>;
 } | null {
   if (pluginPageRequest(request) || homePageRequestBound(request)) return null;
   return {
     line: (item?: string | null) => {
-      const now = Date.now();
-      const window = {
-        from: new Date(now - 30 * DAY).toISOString(),
-        to: new Date(now + 2 * DAY).toISOString(),
-        now: new Date(now).toISOString(),
-        ...(item ? { item } : {}),
-      };
+      const window = { ...workbenchLineWindow(), ...(item ? { item } : {}) };
       return presentReviews && webManagementAuthenticated(request)
         ? invokePersonPageAction(host, project, mainlineActions.line, window)
         : bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineActions.line, window);
     },
+    contains: (subject, signal) => bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal })
+      .invoke(mainlineActions.contains, { subject, window: workbenchLineWindow() }),
     summary: async () => {
       const state = await bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineItemActions.read, {});
       return {

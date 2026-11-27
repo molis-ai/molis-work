@@ -619,6 +619,7 @@ export interface ActionMetadata {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
     };
+    readonly home_aggregate?: true;
     readonly project_reach?: "person";
     readonly placement_relation?: PlacementRelationDeclaration;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
@@ -3549,23 +3550,13 @@ export declare const OPEN_TARGET_SCHEMA: {
 
 export declare const OVERVIEW_EVENT_WINDOW_DAYS = 90;
 
-export declare const OVERVIEW_KINDS: readonly ["task", "event", "notification", "brief", "background_task", "scheduled_run"];
-
-export declare const OVERVIEW_MAIN_TABLE = "plugin_overview_rows";
-
-export declare const OVERVIEW_MAIN_TABLE_SQL: string;
+export declare const OVERVIEW_KINDS: readonly ["task", "event", "notification", "brief"];
 
 export declare const OVERVIEW_NOTIFICATION_LEVELS: readonly ["info", "warning", "urgent"];
 
-export declare const OVERVIEW_PROVIDER_ID = "system.overview";
-
-export declare const OVERVIEW_READ_LIMIT = 2000;
-
 export declare const OVERVIEW_ROW_LIMIT = 500;
 
-export declare const OVERVIEW_RUN_NEEDS: readonly ["network", "model"];
-
-export declare const OVERVIEW_SUMMARY_FIELDS: readonly ["title", "status", "due_at", "remind_at", "priority", "tags", "starts_at", "ends_at", "all_day", "time_zone", "level", "source", "occurred_at", "summary", "state", "waiting", "started_at", "reports_to", "missed_at", "needs", "open", "updated_at"];
+export declare const OVERVIEW_SUMMARY_FIELDS: readonly ["title", "status", "due_at", "remind_at", "priority", "tags", "starts_at", "ends_at", "all_day", "time_zone", "level", "source", "occurred_at", "summary", "updated_at"];
 
 export declare const OVERVIEW_TABLE = "molis_overview_rows";
 
@@ -3598,14 +3589,6 @@ export interface OpenTarget {
     label: string;
 }
 
-export interface OverviewBackgroundTaskRow extends OverviewRowBase {
-    readonly state: StateRingState;
-    readonly waiting: boolean;
-    readonly started_at?: string | null;
-    readonly reports_to?: "assistant" | null;
-    readonly open?: OverviewOpen | null;
-}
-
 export interface OverviewBriefRow extends OverviewRowBase {
     readonly summary?: string | null;
 }
@@ -3624,7 +3607,7 @@ export interface OverviewIndexRow {
     readonly plugin_id: string;
     readonly kind: OverviewKind;
     readonly row_id: string;
-    readonly fields: Partial<Record<OverviewSummaryField, string | number | boolean | readonly string[] | OverviewOpen | null>>;
+    readonly fields: Partial<Record<OverviewSummaryField, string | number | boolean | readonly string[] | null>>;
 }
 
 export type OverviewKind = (typeof OVERVIEW_KINDS)[number];
@@ -3637,31 +3620,11 @@ export interface OverviewNotificationRow extends OverviewRowBase {
     readonly occurred_at: string;
 }
 
-export interface OverviewOpen {
-    readonly surface: string;
-    readonly id: string;
-}
-
-export interface OverviewReadResult {
-    readonly rows: readonly OverviewIndexRow[];
-}
-
 export interface OverviewRowByKind {
     task: OverviewTaskRow;
     event: OverviewEventRow;
     notification: OverviewNotificationRow;
     brief: OverviewBriefRow;
-    background_task: OverviewBackgroundTaskRow;
-    scheduled_run: OverviewScheduledRunRow;
-}
-
-export type OverviewRunNeed = (typeof OVERVIEW_RUN_NEEDS)[number];
-
-export interface OverviewScheduledRunRow extends OverviewRowBase {
-    readonly due_at: string;
-    readonly missed_at?: string | null;
-    readonly needs?: readonly OverviewRunNeed[];
-    readonly open?: OverviewOpen | null;
 }
 
 export type OverviewSummaryField = (typeof OVERVIEW_SUMMARY_FIELDS)[number];
@@ -4292,7 +4255,6 @@ export interface PluginAppContribution {
     onUpstreamReady?(inputs: PluginUpstreamReadyInputs, context: PluginInputDeliveryContext): void | Promise<void>;
     onUpstreamUnavailable?(reason: PluginUpstreamUnavailableReason): void | Promise<void>;
     onEvent?(event: PluginEventRecord, context: PluginEventDeliveryContext): void | Promise<void>;
-    onDue?(entry: import("platform/plugin-due").PluginDueDelivery, context: import("platform/plugin-due").PluginDueContext): void | import("platform/plugin-due").PluginDueOutcome | Promise<void | import("platform/plugin-due").PluginDueOutcome>;
 }
 
 export interface PluginArtifactClient {
@@ -4538,42 +4500,6 @@ export interface PluginDependencyDeclaration {
 
 export type PluginDeployment = "local" | "server";
 
-export interface PluginDueClient {
-    register(entry: PluginDueEntry): PluginDueEntry;
-    cancel(entryKey: string): boolean;
-    list(): PluginDueEntry[];
-}
-
-export interface PluginDueContext {
-    readonly project_id: string;
-    readonly plugin_id: string;
-    readonly install_id: string;
-    readonly signal: AbortSignal;
-    readonly beforeEffect: () => void;
-}
-
-export interface PluginDueDelivery extends PluginDueEntry {
-    readonly source: "plugin" | "overview";
-    readonly late: boolean;
-}
-
-export interface PluginDueEntry {
-    readonly entry_key: string;
-    readonly due_at: string;
-}
-
-export interface PluginDueOutcome {
-    readonly reminder?: PluginDueReminder | null;
-}
-
-export interface PluginDueReminder {
-    readonly title: string;
-    readonly open?: {
-        readonly surface: string;
-        readonly id: string;
-    };
-}
-
 export interface PluginEntrypointManifest {
     deployment: PluginDeployment;
     entrypoint: string;
@@ -4798,7 +4724,6 @@ export interface PluginHostServices {
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
     readonly projects?: import("platform/plugin-projects").PluginProjectsClient;
     readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
-    readonly overview?: import("platform/plugin-overview").PluginOverviewClient;
     readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
     readonly scenes?: import("@molis-ai/molis-work-contracts/platform/plugin-scenes").PluginSceneClient;
     readonly judgments?: import("@molis-ai/molis-work-contracts/platform/plugin-judgments").PluginJudgmentsClient;
@@ -4810,8 +4735,6 @@ export interface PluginHostServices {
     readonly project_database?: import("platform/plugin-database").PluginProjectDatabase;
     readonly project_statements?: import("platform/plugin-database").PluginProjectStatements;
     readonly database_statements?: import("platform/plugin-database").PluginProjectStatements;
-    readonly personSettings?: import("platform/plugin-due").PluginPersonSettingsClient;
-    readonly due?: import("platform/plugin-due").PluginDueClient;
     readonly scheduler?: import("platform/plugin-scheduler").PluginScheduleClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly terminal?: PluginTerminalClient;
@@ -5486,19 +5409,9 @@ export interface PluginOutputsClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
 }
 
-export interface PluginOverviewClient {
-    join<T>(transaction: PluginDatabaseTransaction, write: (rows: PluginOverviewRows) => T): T;
-}
-
 export interface PluginOverviewProjectionDeclaration {
     readonly kinds: readonly OverviewKind[];
     readonly title_text?: TextRef;
-}
-
-export interface PluginOverviewRows {
-    upsert<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): void;
-    remove(kind: OverviewKind, rowId: string): void;
-    removePrefix(kind: OverviewKind, prefix: string): void;
 }
 
 export interface PluginOwnerFileEntry {
@@ -5577,15 +5490,6 @@ export interface PluginPermissionDeclaration {
     reason: string;
     reason_text?: TextRef;
     origins?: readonly string[];
-}
-
-export interface PluginPersonSettingsClient {
-    get(key: string): PersonSettingRecord | null;
-    list(): PersonSettingRecord[];
-    set(key: string, value: unknown, options?: {
-        readonly expected_revision?: number | null;
-    }): PersonSettingRecord;
-    remove(key: string): boolean;
 }
 
 export interface PluginPersonSettingsDeclaration {
@@ -6140,7 +6044,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
     readonly assertCurrent?: () => void;
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "personSettings" | "due" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -8277,12 +8181,12 @@ export declare const WORK_ITEM_NEXT_OUTPUT_SCHEMA: {
                                 readonly text: {
                                     readonly type: "string";
                                     readonly minLength: 1;
-                                    readonly maxLength: number;
+                                    readonly maxLength: 200;
                                 };
                                 readonly waiting_on: {
                                     readonly type: "string";
                                     readonly minLength: 1;
-                                    readonly maxLength: number;
+                                    readonly maxLength: 200;
                                 };
                                 readonly start: {
                                     readonly type: "object";
@@ -8325,6 +8229,53 @@ export declare const WORK_ITEM_NEXT_OUTPUT_SCHEMA: {
         };
     };
     readonly required: readonly ["items"];
+    readonly additionalProperties: false;
+};
+
+export declare const WORK_ITEM_NEXT_STEP_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly text: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly waiting_on: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
+        };
+        readonly start: {
+            readonly type: "object";
+            readonly properties: {
+                readonly action: {
+                    readonly required: readonly ["capability_id", "version", "provider_id"];
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly capability_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                        readonly version: {
+                            readonly type: "integer";
+                            readonly minimum: 1;
+                        };
+                        readonly provider_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                        };
+                    };
+                    readonly additionalProperties: false;
+                };
+                readonly input: {
+                    readonly type: "object";
+                };
+            };
+            readonly required: readonly ["action", "input"];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly required: readonly ["text"];
     readonly additionalProperties: false;
 };
 
@@ -8484,12 +8435,12 @@ export declare const WORK_ITEM_PARTS: {
                                         readonly text: {
                                             readonly type: "string";
                                             readonly minLength: 1;
-                                            readonly maxLength: number;
+                                            readonly maxLength: 200;
                                         };
                                         readonly waiting_on: {
                                             readonly type: "string";
                                             readonly minLength: 1;
-                                            readonly maxLength: number;
+                                            readonly maxLength: 200;
                                         };
                                         readonly start: {
                                             readonly type: "object";
@@ -9336,11 +9287,6 @@ export declare function objectOrMissing<T>(read: () => T): T | null;
 export declare function orderPromptsByLayer<T extends {
     layer?: AgentPromptLayer;
 }>(prompts: readonly T[]): T[];
-
-export declare const overviewReadAction: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<{
-    kinds?: OverviewKind[];
-    limit?: number;
-}, OverviewReadResult>;
 
 export declare function ownsEventType(pluginId: string, eventTypeId: string): boolean;
 

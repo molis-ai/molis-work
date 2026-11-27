@@ -5,6 +5,7 @@
 // very function the owner reads it with at run time (not a second parser written for this table).
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { inspectSealedSecretsSnapshot } from "@molis-ai/molis-work-storage";
 import { goldenFailure } from "./failure.mjs";
 
 const { readUiLocale } = await import("@molis-ai/molis-work-app-local-host");
@@ -22,7 +23,14 @@ const READERS = new Map([
   // file was read: "zh" is also the default language, so a reader that falls back to the default when the file is missing or unreadable
   // (`lastUsedLocale`, say) would pass here without reading anything.
   ["config/ui-locale.json", [({ home }) => readUiLocale(home), "zh"]],
-  ["security/secrets.json", [({ http }) => http("/api/settings/models", GET), "present"]],
+  ["security/secrets.json", [async ({ http, home }, capturedPath) => {
+    // An empty store is a real saved state after the last connection is removed. Inspect the restored file through its owner in both cases.
+    const captured = inspectSealedSecretsSnapshot(home, readFileSync(capturedPath, "utf8"));
+    const restored = inspectSealedSecretsSnapshot(home, readFileSync(path.join(home, "security/secrets.json"), "utf8"));
+    const { health } = await http("/api/settings/models", GET);
+    const modelHasCredential = health.some(row => row.credential_status === "present");
+    return restored.entries === captured.entries && restored.backend === captured.backend && modelHasCredential === (captured.entries > 0);
+  }, "true"]],
   ["interface/state.json", [async ({ call }) => {
     const { selection, selection_revision, recovery } = await call("appearance.selection.get", { request_id: "appearance-seed" });
     return [selection_revision, selection?.skin.id, selection?.skin.revision, selection?.font.policy,
@@ -47,11 +55,11 @@ function isVersioned(file) {
 export async function assertVersionedFilesRead(manifest, directory, actions) {
   const versioned = manifest.files.filter(entry => entry.path !== COMPUTER_SETTINGS && !entry.path.startsWith("spaces/") &&
     !entry.path.startsWith(RUNTIME_RECORDS) && isVersioned(path.join(directory, entry.payload)));
-  for (const { path: file } of versioned) {
+  for (const { path: file, payload } of versioned) {
     const reader = READERS.get(file);
     if (!reader) throw goldenFailure("golden.versioned_file_unread", file);
     const [read, written] = reader;
-    if (!JSON.stringify(await read(actions)).includes(written)) throw goldenFailure("golden.versioned_file_lost", file);
+    if (!JSON.stringify(await read(actions, path.join(directory, payload))).includes(written)) throw goldenFailure("golden.versioned_file_lost", file);
   }
   const count = versioned.length;
   if (!manifest.files.some(entry => entry.path === COMPUTER_SETTINGS)) return { count, computerSettings: "absent" };

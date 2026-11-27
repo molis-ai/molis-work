@@ -28,8 +28,27 @@ const BASELINE_TYPES = new Set([
 const UPGRADES_CONSTANT = /^(?:[A-Z_\d]+_)?UPGRADES$/u;
 const CONTENT_ENTRY = /^(?:prompt|method|role)\./u;
 
+const isObjectFreezeCall = (node) => Boolean(
+  ts.isCallExpression(node)
+  && ts.isPropertyAccessExpression(node.expression)
+  && ts.isIdentifier(node.expression.expression)
+  && node.expression.expression.text === "Object"
+  && node.expression.name.text === "freeze"
+  && node.arguments.length === 1,
+);
+
 const unwrapExpression = (node) => {
-  while (node && (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node))) node = node.expression;
+  while (node) {
+    if (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node)) {
+      node = node.expression;
+      continue;
+    }
+    if (isObjectFreezeCall(node)) {
+      node = node.arguments[0];
+      continue;
+    }
+    break;
+  }
   return node;
 };
 
@@ -40,19 +59,35 @@ const namesBaselineType = (type, tree) => {
 };
 
 const isEmptyArrayLiteral = (node) => Boolean(node && ts.isArrayLiteralExpression(node) && node.elements.length === 0);
+const isNonEmptyArrayLiteral = (node) => Boolean(node && ts.isArrayLiteralExpression(node) && node.elements.length > 0);
 
-const propertyNamed = (object, name) => object.properties.find((property) =>
-  ts.isPropertyAssignment(property)
-  && (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name))
-  && property.name.text === name);
+const isPropertyWithName = (property, name) =>
+  (ts.isPropertyAssignment(property)
+    && (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name))
+    && property.name.text === name)
+  || (ts.isShorthandPropertyAssignment(property) && property.name.text === name);
+
+const propertyNamed = (object, name) => object.properties.find((property) => isPropertyWithName(property, name));
+
+const propertyValue = (property) => (
+  ts.isShorthandPropertyAssignment(property) ? property.name : unwrapExpression(property.initializer)
+);
 
 /** The object literal of a `const` declared as a baseline / VersionedFile / PluginDatabaseDeclaration, or null. */
 function baselineObjectLiteral(declaration, tree) {
   if (!(declaration.parent.flags & ts.NodeFlags.Const)) return null;
   let typed = namesBaselineType(declaration.type, tree), value = declaration.initializer;
-  while (value && (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value))) {
-    if (!ts.isParenthesizedExpression(value) && namesBaselineType(value.type, tree)) typed = true;
-    value = value.expression;
+  while (value) {
+    if (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value)) {
+      if (!ts.isParenthesizedExpression(value) && namesBaselineType(value.type, tree)) typed = true;
+      value = value.expression;
+      continue;
+    }
+    if (isObjectFreezeCall(value)) {
+      value = value.arguments[0];
+      continue;
+    }
+    break;
   }
   return typed && value && ts.isObjectLiteralExpression(value) ? value : null;
 }
@@ -118,21 +153,30 @@ const markedNumber = (node) => ts.isNumericLiteral(node) || (ts.isStringLiteralL
 export function sourceVersionProblems(file, source, exceptions = repositoryExceptions()) {
   if (!/\b[A-Z_\d]*(?:VERSION|UPGRADES)\b|@version|\bupgrades\b/u.test(source)) return [];
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const problems = [], named = new Set(), checkedUpgrades = new Set(), constants = new Map();
+  const problems = [], named = new Set(), checkedUpgrades = new Set(), checkedUpgradesConstants = new Set(), constants = new Map(), nonEmptyArrayBindings = new Set();
   const collectConstants = (node) => {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
       const constant = Boolean(node.parent && ts.isVariableDeclarationList(node.parent) && (node.parent.flags & ts.NodeFlags.Const) !== 0);
-      constants.set(node.name.text, constants.has(node.name.text) || !constant ? null : unwrapExpression(node.initializer) ?? null);
+      const unwrapped = unwrapExpression(node.initializer);
+      if (isNonEmptyArrayLiteral(unwrapped)) nonEmptyArrayBindings.add(node.name.text);
+      constants.set(node.name.text, constants.has(node.name.text) || !constant ? null : unwrapped ?? null);
     }
     ts.forEachChild(node, collectConstants);
   };
   collectConstants(tree);
 
   const visit = (node) => {
-    if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const)) {
+    if (ts.isVariableDeclarationList(node)) {
+      const isConst = (node.flags & ts.NodeFlags.Const) !== 0;
       for (const declaration of node.declarations) {
         const name = declaration.name.getText(tree);
         const value = unwrapExpression(declaration.initializer);
+        if (UPGRADES_CONSTANT.test(name)) {
+          if (isConst && isEmptyArrayLiteral(value)) checkedUpgradesConstants.add(name);
+          else problems.push(`${file}: ${name} must be empty during pre-development (expected [])`);
+          continue;
+        }
+        if (!isConst) continue;
         if (/^[A-Z_\d]*VERSION$/u.test(name)) {
           // A version written as a named constant is judged once, here (or not at all, when an exception names it); the marker pass below
           // skips the same literal, so one literal never produces two problems.
@@ -145,27 +189,23 @@ export function sourceVersionProblems(file, source, exceptions = repositoryExcep
           problems.push(`${file}: ${name} = ${value?.getText(tree) ?? "(missing)"} (expected 1)`);
           continue;
         }
-        if (UPGRADES_CONSTANT.test(name) && !isEmptyArrayLiteral(value)) {
-          problems.push(`${file}: ${name} must be empty during pre-development (expected [])`);
-        }
         const baseline = baselineObjectLiteral(declaration, tree);
         const upgradesProperty = baseline && propertyNamed(baseline, "upgrades");
         if (upgradesProperty) {
           checkedUpgrades.add(upgradesProperty.getStart(tree));
-          const upgradesValue = unwrapExpression(upgradesProperty.initializer);
+          const upgradesValue = propertyValue(upgradesProperty);
           if (isEmptyArrayLiteral(upgradesValue)) continue;
           if (upgradesValue && ts.isIdentifier(upgradesValue)) {
-            if (UPGRADES_CONSTANT.test(upgradesValue.text)) continue;
-            if (isEmptyArrayLiteral(constants.get(upgradesValue.text))) continue;
+            if (checkedUpgradesConstants.has(upgradesValue.text) || isEmptyArrayLiteral(constants.get(upgradesValue.text))) continue;
           }
           problems.push(`${file}: ${name}.upgrades must be empty during pre-development (expected [])`);
         }
       }
     }
-    if (ts.isPropertyAssignment(node) && !checkedUpgrades.has(node.getStart(tree))
-      && (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name)) && node.name.text === "upgrades") {
-      const upgradesValue = unwrapExpression(node.initializer);
-      if (upgradesValue && ts.isArrayLiteralExpression(upgradesValue) && upgradesValue.elements.length > 0) {
+    if (isPropertyWithName(node, "upgrades") && !checkedUpgrades.has(node.getStart(tree))) {
+      const upgradesValue = propertyValue(node);
+      const resolved = upgradesValue && ts.isIdentifier(upgradesValue) ? constants.get(upgradesValue.text) : upgradesValue;
+      if (isNonEmptyArrayLiteral(resolved) || (upgradesValue && ts.isIdentifier(upgradesValue) && nonEmptyArrayBindings.has(upgradesValue.text))) {
         problems.push(`${file}: upgrades must be empty during pre-development (expected [])`);
       }
     }

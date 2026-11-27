@@ -88,25 +88,37 @@ test("pre-dev zero-upgrades guard: any non-empty upgrades array or *_UPGRADES co
     "export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [];",
     "export const UPGRADES: readonly VersionedFileStep[] = [];",
     "export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: [] };",
-    "export const FILE: VersionedFile<State> = { version: 1, field: 'version', upgrades: CATALOG_UPGRADES, parse };",
+    "const CATALOG_UPGRADES: readonly VersionedFileStep[] = []; export const FILE: VersionedFile<State> = { version: 1, field: 'version', upgrades: CATALOG_UPGRADES, parse };",
     "export const PLUGIN: PluginDatabaseDeclaration = { store_name: 'x', version: 1, schema: ``, upgrades: [], read_permission: 'r', write_permission: 'w' };",
     "const localEmpty = []; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: localEmpty };",
+    "const upgrades = [] as const; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades };",
     "export const forward = (library: { version: number; schema: string; upgrades?: readonly unknown[] }) => ({ version: library.version, schema: library.schema, ...(library.upgrades ? { upgrades: library.upgrades } : {}) });",
   ]) {
     assert.deepEqual(sourceVersionProblems(file, ok), [], ok);
   }
-  // Concrete upgrade steps in any spelling fail.
+  // Concrete upgrade steps in any spelling fail (including shorthand properties, let/var, imported *_UPGRADES, Object.freeze, and inline baselines).
   for (const bad of [
     "const STORE_UPGRADES = [{ from: 1, sql: 'ALTER TABLE t ADD COLUMN c TEXT' }];",
+    "let STORE_UPGRADES = [{ from: 1, run: () => {} }];",
+    "let STORE_UPGRADES: readonly SqliteUpgradeStep[] = [];",
+    "var STORE_UPGRADES = [{ from: 1, run: () => {} }];",
     "export const UPGRADES: readonly VersionedFileStep[] = [{ from: 1, transform: (v) => v }];",
+    "export const UPGRADES = Object.freeze([{ from: 1, transform: (v) => v }]);",
     "export const STORE_UPGRADES = buildSteps();",
+    "import { steps as STORE_UPGRADES } from './other.js'; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: STORE_UPGRADES };",
     "export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] };",
+    "export const STORE: SqliteBaseline = Object.freeze({ version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] });",
     "export const FILE: VersionedFile<State> = { version: 1, field: 'version', upgrades: [{ from: 1, transform: (v) => v }], parse };",
     "export const PLUGIN = { store_name: 'x', version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] } satisfies PluginDatabaseDeclaration;",
     "export const HOME_DB = { store_name: 'x', version: 1, schema: ``, upgrades: [{ from: 1, sql: 'SELECT 1' }] } as HomePluginDatabaseDeclaration;",
     "const steps = [{ from: 1, sql: 'SELECT 1' }]; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: steps };",
+    "const upgrades = [{ from: 1, run: () => {} }]; export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades };",
     "export const STORE: SqliteBaseline = { version: 1, schema: ``, upgrades: buildSteps() };",
     "export const UNTYPED = { version: 1, schema: ``, upgrades: [{ from: 1, run: () => {} }] };",
+    "const steps = [{ from: 1, run: () => {} }]; applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades: steps });",
+    "const steps = Object.freeze([{ from: 1, run: () => {} }]); applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades: steps });",
+    "let steps = [{ from: 1, run: () => {} }]; applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades: steps });",
+    "const upgrades = [{ from: 1, run: () => {} }]; applySqliteBaseline(db, file, { version: 1, schema: ``, upgrades });",
   ]) {
     const problems = sourceVersionProblems(file, bad);
     assert.equal(problems.length, 1, `${bad}: ${problems.join("; ")}`);

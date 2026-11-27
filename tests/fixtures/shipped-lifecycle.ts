@@ -13,12 +13,15 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, projectActionAvailability, runningPluginPlatform, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { isLocalHostHttpError, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost, type TestHostServer, type TestProject } from "./test-home.js";
 
 export type Web = TestHostServer["web"];
+/** One action of the plugin, called as the person in the project: for a plugin with no routes of its own (Jelly since batch 112-2). */
+export type Call = <Output = unknown>(capability_id: string, version: number, input: unknown) => Promise<Output>;
 /** One shipped plugin: where its supervisor runs it, and how the person writes one thing in it and reads back what is there. */
 export interface Shipped {
   /** The key the project's plugin list gives it (`/api/settings/projects/<id>/plugins`). */
@@ -43,8 +46,13 @@ export interface Shipped {
   readonly revoke?: string;
   /** What `titles` answers after `write("first")`; `["first"]` unless the plugin names what it keeps otherwise. */
   readonly kept?: readonly string[];
-  write(web: Web, routes: string, title: string): Promise<unknown>;
-  titles(web: Web, routes: string): Promise<string[]>;
+  /**
+   * What reading it answers while a permission it needs is taken back: a route answers that the plugin is unavailable; a plugin read
+   * through its actions (`Call`) has none in the catalog then, so they are missing.
+   */
+  readonly revoked_answer?: string;
+  write(web: Web, routes: string, title: string, call: Call): Promise<unknown>;
+  titles(web: Web, routes: string, call: Call): Promise<string[]>;
 }
 
 /**
@@ -73,6 +81,9 @@ export type Served = Awaited<ReturnType<typeof serve>>;
 export async function answer(request: Promise<unknown>): Promise<number | string> {
   try { await request; return 200; } catch (error) {
     if (isLocalHostHttpError(error)) return error.code ? `${error.status} ${error.code}` : error.status;
+    // An action refused as it was called (`Call`): the status the Host's edge gives its kind, and its code.
+    const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+    if (typeof code === "string" && code.startsWith("actions.")) return `${actionHttpStatus(error)} ${code}`;
     throw error;
   }
 }
@@ -94,8 +105,11 @@ export function viewOf(served: Served, project: TestProject, plugin: Pick<Shippe
   /** The platform the plugin runs on in the project: its own instance there when it is partitioned, else the one above. */
   const own = async () => partitioned(plugin.plugin_id)
     ? await served.host.withProject(project.reference, (runtime: { store: Parameters<typeof runningPluginPlatform>[0] }) => runningPluginPlatform(runtime.store, project.project_id, plugin.plugin_id)) : await platform();
+  const call: Call = async <Output,>(capability_id: string, version: number, input: unknown) =>
+    await served.host.actionClient(project.reference).invoke(await served.host.localPersonContext(project.reference), { capability_id, version }, input) as Output;
   return {
     routes,
+    call,
     platform: async () => { const running = await own(); assert.ok(running, `${plugin.key}: the ${plugin.scope} platform runs`); return running; },
     /** The plugin's actions the person may call in the project now: those of the half the walk follows, or of the scope asked for. */
     async callable(scope: "home" | "project" | undefined = plugin.dual ? "home" : undefined) {
@@ -126,20 +140,20 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     // What the person may call: the actions it declares for them, but those that need a model (this Home has none).
     const callable = await at.callable();
     assert.ok(callable.length > 0 && callable.every(action => declared(plugin.plugin_id).includes(action)), `${plugin.key}: its own actions, for the person`);
-    await plugin.write(served.web, at.routes, "first");
-    assert.deepEqual(await plugin.titles(served.web, at.routes), kept);
+    await plugin.write(served.web, at.routes, "first", at.call);
+    assert.deepEqual(await plugin.titles(served.web, at.routes, at.call), kept);
     const first = await at.installation();
     assert.ok(first);
     assert.deepEqual({ state: first.state, version: first.version, trust: first.trust }, { state: "running", version: build, trust: "host" });
 
     // Taken out of the project: its routes and actions there are refused; a personal plugin's installation keeps running, a project plugin's stops.
     assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.removed_by ?? plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
-    assert.equal(await answer(plugin.titles(served.web, at.routes)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
+    assert.equal(await answer(plugin.titles(served.web, at.routes, at.call)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
     assert.deepEqual(await at.callable(), [], `${plugin.key}: nothing of it to call in the project`);
     assert.equal((await at.installation())?.state, partitioned(plugin.plugin_id) ? "installed" : plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);
     // Added back: what was written is there, in the same installation.
     assert.equal(await answer(served.web.post(settings, { plugin_id: plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
-    assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: added back, with its data`);
+    assert.deepEqual(await plugin.titles(served.web, at.routes, at.call), kept, `${plugin.key}: added back, with its data`);
     assert.deepEqual(await at.callable(), callable);
     assert.deepEqual(await at.installation(), first, `${plugin.key}: the same installation, running`);
 
@@ -148,12 +162,12 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     await running.runtime.stop(first.install_id);
     running.runtime.grant(first.install_id, first.grants.filter(permission => permission !== revoked));
     await assert.rejects(running.runtime.start(first.install_id), { code: "plugin.grant_denied" });
-    assert.equal(await answer(plugin.titles(served.web, at.routes)), "503 actions.plugin_unavailable", `${plugin.key}: revoked`);
+    assert.equal(await answer(plugin.titles(served.web, at.routes, at.call)), plugin.revoked_answer ?? "503 actions.plugin_unavailable", `${plugin.key}: revoked`);
     assert.deepEqual(await at.callable(), []);
     assert.equal((await at.installation())?.state, "disabled");
     running.runtime.grant(first.install_id, first.grants);
     await running.runtime.start(first.install_id);
-    assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: the permission given back`);
+    assert.deepEqual(await plugin.titles(served.web, at.routes, at.call), kept, `${plugin.key}: the permission given back`);
 
     // Upgrade: the Home last ran an older build of the plugin. The next start moves the same installation onto this build.
     await served.shut();
@@ -165,7 +179,7 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     } finally { db.close(); }
     served = await serve(home, host);
     at = viewOf(served, project, plugin);
-    assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: the upgrade keeps its data`);
+    assert.deepEqual(await plugin.titles(served.web, at.routes, at.call), kept, `${plugin.key}: the upgrade keeps its data`);
     assert.deepEqual(await at.installation(), { ...first, state: "running", version: build }, `${plugin.key}: the same installation, at this build`);
     assert.deepEqual(await at.callable(), callable);
 
@@ -175,14 +189,14 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     await upgraded.runtime.uninstall(first.install_id, { retain_private_data: false });
     assert.equal((await at.installation())?.state, "uninstalled");
     const uninstalledRoute = "404 actions.missing";
-    assert.equal(await answer(plugin.titles(served.web, at.routes)), uninstalledRoute, `${plugin.key}: uninstalled, its route says so`);
+    assert.equal(await answer(plugin.titles(served.web, at.routes, at.call)), uninstalledRoute, `${plugin.key}: uninstalled, its route says so`);
     assert.deepEqual(await at.callable(), []);
 
     // Neither supervisor installs it again on the next start (W3-06-F-06 for the Home's, BL-755 for a project's).
     await served.shut();
     served = await serve(home, host);
     at = viewOf(served, project, plugin);
-    assert.equal(await answer(plugin.titles(served.web, at.routes)), uninstalledRoute, `${plugin.key}: not there after a restart`);
+    assert.equal(await answer(plugin.titles(served.web, at.routes, at.call)), uninstalledRoute, `${plugin.key}: not there after a restart`);
     // The directory asks the project's platform for the plugin it expects; that also starts the platform a fresh start has not opened yet.
     assert.deepEqual(await at.callable(), []);
     assert.equal((await at.installation())?.state, "uninstalled", `${plugin.key}: still uninstalled after a restart`);

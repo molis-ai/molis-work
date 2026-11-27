@@ -104,7 +104,8 @@ test("an entry does not list the plugin pages that listen to it: the report comp
     'each page that showed \\"no model\\" (the Assistant\'s failed card, Cognia, Dataset, Form, PPT, Workflows, Jelly\'s model dialog, the plugin builder studio) reads it again');
   const found = listenersNamedInSummaries(listed);
   assert.equal(found.length, 1, found.join("\n"));
-  assert.match(found[0], /^molis-work:model-ready names its listeners: .*cognia.*jelly/);
+  // Jelly no longer listens (batch 112-2 took its model away), so it is not counted among the names.
+  assert.match(found[0], /^molis-work:model-ready names its listeners: cognia, dataset, form, ppt, workflows$/);
 });
 
 test("an unregistered CustomEvent name fails, however the constructor is written", () => {

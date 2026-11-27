@@ -5,56 +5,40 @@ import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
 import { localizeAction, localizePermission } from "./action-text.js";
 import { JELLY_DATABASE } from "./database.js";
-import { jellySettings } from "./model-configuration.js";
 export const jellyManifest: PluginManifest = {
-  summary: "日历与笔记，按天安排。", summary_text: { key: "jelly.directory.summary" },
+  summary: "日历和随手记，按天安排。", summary_text: { key: "jelly.directory.summary" },
   schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: JELLY_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "storage:private", required: true, reason: "本机日历、笔记及撤销恢复记录" },
-    ...JELLY_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按每项能力的授权读写个人内容、使用模型或管理模型选择" })),
+    { permission: "storage:private", required: true, reason: "本机日程、分类和随手记" },
+    ...JELLY_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按每项能力的授权读写个人日程和随手记" })),
   ].map(localizePermission),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
   actions: [...JELLY_ACTIONS].map(localizeAction),
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
-  // 日历 is the person's 日程 without the notes; 笔记 (full text, search, whole-workspace exports) is a switch of its own.
+  // 日历 is the person's 日程 without the notes; 随手记 (full text, search) is a switch of its own.
   read_groups: [
     {
       group_id: "calendar",
       title: "日历",
       title_text: { key: "jelly.read-group.calendar.title" },
-      description: "日历事项与进展",
+      description: "日程与分类",
       description_text: { key: "jelly.read-group.calendar.description" },
-      actions: ["jelly.calendar.list", "jelly.calendar.progress", "jelly.item.get"],
+      actions: ["jelly.calendar.list", "jelly.item.get", "jelly.item.subject.read"],
     },
     {
       group_id: "notes",
-      title: "笔记",
+      title: "随手记",
       title_text: { key: "jelly.read-group.notes.title" },
-      description: "笔记全文、搜索，以及整个 Jelly 工作区的读取与导出",
+      description: "随手记全文与搜索",
       description_text: { key: "jelly.read-group.notes.description" },
-      actions: ["jelly.search", "jelly.note.export", "jelly.note.subject.read", "jelly.content.list", "jelly.content.read", "jelly.workspace.get", "jelly.workspace.export"],
+      actions: ["jelly.note.list", "jelly.note.get", "jelly.note.subject.read", "jelly.content.list", "jelly.content.read"],
     },
   ],
   runtime: { scope: "home" },
   databases: { home: JELLY_DATABASE },
-  settings_entries: jellySettings,
   sync: jellySync,
-  routes: [
-    { route_id: "jelly.workspace", method: "GET", path: "/" },
-    { route_id: "jelly.calendar", method: "GET", path: "/calendar" },
-    { route_id: "jelly.progress", method: "GET", path: "/progress" },
-    { route_id: "jelly.export", method: "GET", path: "/export" },
-    { route_id: "jelly.preference.read", method: "POST", path: "/preferences/read" },
-    { route_id: "jelly.preference.write", method: "POST", path: "/preferences/write" },
-    { route_id: "jelly.model.read", method: "GET", path: "/model-settings" },
-    { route_id: "jelly.note.export", method: "GET", path: "/notes/:id/export" },
-    { route_id: "jelly.commands", method: "POST", path: "/commands", max_body_bytes: 36_000_000 },
-    { route_id: "jelly.preview", method: "POST", path: "/preview", max_body_bytes: 36_000_000 },
-    { route_id: "jelly.ai", method: "POST", path: "/ai", max_body_bytes: 36_000_000, stream: "ndjson" },
-    { route_id: "jelly.model.save", method: "POST", path: "/model-settings", max_body_bytes: 36_000_000 },
-  ],
   ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
@@ -65,7 +49,6 @@ export const jellyManifest: PluginManifest = {
           { id: "what", heading: { key: "common.help.section-what" }, body: { key: "jelly.help.what" } },
           { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "jelly.help.example-1" }, { key: "jelly.help.example-2" }] },
           { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "jelly.help.scope" } },
-          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "jelly.help.advanced-summary" }, body: { key: "jelly.help.advanced" } },
         ],
       }],
     }, contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", hue: "mint", order: 35, group: "personal" }] },

@@ -29,7 +29,7 @@ const MANIFESTS: Record<string, PluginManifest> = { todo: todoManifest, inbox: i
 /** The read groups by plugin, as the batch decided them (§3.2, 2026-11-05): 日程 is Jelly's calendar and Schedule's reminders, not notes. */
 const EXPECTED: Record<string, Record<string, string>> = {
   todo: { todo: "待办" }, inbox: { inbox: "来信" }, goals: { goals: "目标" },
-  jelly: { calendar: "日历", notes: "笔记" }, schedule: { reminders: "提醒", operations: "定时操作" },
+  jelly: { calendar: "日历", notes: "随手记" }, schedule: { reminders: "提醒", operations: "定时操作" },
 };
 
 test("PWA-148 the five plugins declare their read groups, and each Manifest is accepted as it is read", () => {
@@ -49,10 +49,10 @@ test("PWA-148 the five plugins declare their read groups, and each Manifest is a
   }
 });
 
-test("PWA-148 日程 is Jelly's calendar and Schedule's reminders: notes and exports, and other plugins' scheduled operations, are switches of their own", () => {
+test("PWA-148 日程 is Jelly's calendar and Schedule's reminders: notes, and other plugins' scheduled operations, are switches of their own", () => {
   const jelly = new Map(jellyManifest.read_groups!.map(group => [group.group_id, group.actions]));
-  assert.deepEqual([...jelly.get("calendar")!].sort(), ["jelly.calendar.list", "jelly.calendar.progress", "jelly.item.get"]);
-  for (const id of ["jelly.search", "jelly.note.export", "jelly.workspace.export", "jelly.workspace.get"]) {
+  assert.deepEqual([...jelly.get("calendar")!].sort(), ["jelly.calendar.list", "jelly.item.get", "jelly.item.subject.read"]);
+  for (const id of ["jelly.note.list", "jelly.note.get", "jelly.note.subject.read", "jelly.content.read"]) {
     assert.ok(jelly.get("notes")!.includes(id), `${id} is a note read`);
     assert.ok(!jelly.get("calendar")!.includes(id), `and not in the calendar`);
   }

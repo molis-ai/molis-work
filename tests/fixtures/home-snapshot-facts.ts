@@ -46,7 +46,7 @@ function libraryFacts(project: string): Record<string, Seed> {
     issues: { table: "issues", values: { id, title, type: "bug", description: "Keep the reported detail", context_json: "{}", images_json: "[]", submitter_id: actor, entered_via: "manual", created_at: at, updated_at: at, version: 3 }, field: "description" },
     cognia: { table: "cognia_domains", values: { id, name: title }, field: "name" },
     images: { table: "connections", values: { id, name: title, api_format: "openai", base_url: "https://example.invalid", model: "fixture", created_at: at, updated_at: at }, field: "name" },
-    jelly: { table: "jelly_history", values: { command: "user-edit", before_body: "before", after_body: title, before_checksum: "before-id", after_checksum: "after-id" }, field: "after_body" },
+    jelly: { table: "jelly_notes", values: { id, title, body: "Keep this note", day: null, revision: 1, created_at: at, updated_at: at }, field: "body" },
     lingguang: { table: "sparks", values: { id, project_id: project, title, body: "A retained idea", source_kind: "manual", status: "active", created_at: at, updated_at: at }, field: "body" },
     todo: { table: "todo_items", values: { id, title, notes: "Keep these notes", status: "todo", placement: "inbox", project_id: project, created_at: at, updated_at: at, revision: 5 }, field: "notes" },
     pages: { table: "pages", values: { id, project_id: project, title, body_json: JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Retained page paragraph" }] }] }), created_at: at, updated_at: at, version: 4 }, field: "body_json" },

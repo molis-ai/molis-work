@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { IMAGES_IMAGE_GENERATION } from "@molis-ai/molis-work-plugin-images";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -52,11 +51,10 @@ test("RAC-311 the Manifest's model_configuration and image_generation declare th
   ] as const) assert.throws(() => parsePluginManifest(manifest(extra, permissions as string[] | undefined)), mentions, JSON.stringify(extra));
 });
 
-test("RAC-312 Jelly's model settings and Images' image connections are their own Manifests' declarations: no registration names them", () => {
+test("RAC-312 Images' image connections are its own Manifest's declaration, no built-in declares a model choice since Jelly's went (batch 112-2), and no registration names them", () => {
   const find = (id: string) => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === id)!;
-  assert.equal(find("io.molis.work.jelly").manifest.settings_entries?.model_configuration, JELLY_MODEL_CONFIGURATION);
   assert.equal(find("io.molis.work.images").manifest.image_generation, IMAGES_IMAGE_GENERATION);
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.settings_entries?.model_configuration).map(entry => entry.manifest.plugin_id), ["io.molis.work.jelly"]);
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.settings_entries?.model_configuration).map(entry => entry.manifest.plugin_id), []);
   assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.image_generation).map(entry => entry.manifest.plugin_id), ["io.molis.work.images"]);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     for (const field of ["model_configuration", "image_generation"]) assert.equal(field in (entry.runtime ?? {}), false, `${entry.manifest.plugin_id}: runtime.${field}`);

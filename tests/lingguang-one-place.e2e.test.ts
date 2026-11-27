@@ -24,7 +24,7 @@ test("a file read into 灵光 becomes a spark, and the spark becomes a Jelly not
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
   await browser.waitFor("document.body.dataset.desktopSurface === 'jelly'");
-  await jelly.waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')");
+  await jelly.waitFor("!!document.querySelector('[data-jelly-page] [data-jelly-day]')");
   assert.equal(await jelly.evaluate("Boolean(document.querySelector('[data-jelly-view=\"inspirations\"]'))"), false, "Jelly keeps a calendar and notes; ideas live in 灵光");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=lingguang` }, sessionId));
@@ -37,15 +37,16 @@ test("a file read into 灵光 becomes a spark, and the spark becomes a Jelly not
 
   await click("[data-lingguang-to-jelly]");
   await browser.waitFor("[...document.querySelectorAll('.placement-toast')].some(toast => toast.textContent.includes('已转成') && toast.textContent.includes('发布会预热'))", 15_000);
-  const notes = (() => { const store = openJellyStore(homeDirectory); try { return store.read().notes; } finally { store.close(); } })();
+  const notes = (() => { const store = openJellyStore(homeDirectory); try { return store.read(rows => rows.notes()); } finally { store.close(); } })();
   assert.equal(notes.length, 1);
   assert.equal(notes[0]!.title, "发布会预热");
-  assert.match(notes[0]!.blocks.map(block => block.text).join("\n"), /倒计时海报提前一周放出[\s\S]*来自：灵光 · 发布会预热/);
+  assert.match(notes[0]!.body, /倒计时海报提前一周放出[\s\S]*来自：灵光 · 发布会预热/);
 
   // 「打开」 goes to that note in Jelly.
   await browser.evaluate("[...document.querySelectorAll('.placement-toast button')].find(button => button.textContent === '打开').click()");
   await browser.waitFor("document.body.dataset.desktopSurface === 'jelly'");
-  await jelly.waitFor("document.querySelector('[data-jelly-record-title]')?.value === '发布会预热'", 15_000);
+  await jelly.waitFor(`document.querySelector('[data-jelly-note][aria-current="true"]')?.dataset.jellyNote === ${JSON.stringify(notes[0]!.id)}
+    && document.querySelector('[data-jelly-notes-editor] .jelly-md')?.textContent.includes('倒计时海报提前一周放出')`, 15_000);
 });
 
 test("RAC-1844 a file read into 灵光 whose name is past 80 characters becomes a spark titled with its first 80 characters, whole", { timeout: 120_000 }, async t => {

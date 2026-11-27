@@ -4,6 +4,7 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
+import { withPendingPluginEnable } from './plugin-instructions.js';
 import { ActionError, requireSynchronous } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -55,7 +56,7 @@ export interface InstalledLifecycleContext {
   definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
   expose(release: InstalledRelease, onFailure?: 'caller', control?: Pick<EnableControl, 'beforeEffect' | 'assertCurrent'>): Promise<void>;
   withdraw(pluginId: string): void;
-  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
   /** Reminders and scheduled operations of one installation stop with it. */
   /** What the Host remembers of an uninstalled installation: its prompts and its code. */
   forget(pluginId: string, installId: string): void | Promise<void>;
@@ -110,7 +111,8 @@ async function enableInstalled(c: InstalledLifecycleContext, release: InstalledR
     await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }], { assertCurrent: enable ? check : grants.assertCurrent });
   }
   grants.assertCurrent?.();
-  const state = await platform.supervisor.enable(pluginId, enable && { ...enable, assertCurrent: check });
+  const state = await withPendingPluginEnable(enable ? record.installation_generation : undefined,
+    () => platform.supervisor.enable(pluginId, enable && { ...enable, assertCurrent: check }));
   if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
   const generation = enable && platform.supervisor.generation(pluginId);
   const assertRunning = enable && (() => {

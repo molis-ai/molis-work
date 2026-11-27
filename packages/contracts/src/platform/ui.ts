@@ -725,6 +725,11 @@ export interface UiToastTarget extends UiFailureTarget {
 export interface UiShowToastOptions {
   readonly tone?: "default" | "success" | "warning" | "error";
   readonly duration?: "short" | "normal" | "long" | number;
+  /**
+   * Puts 「撤销」 on the toast, run when the person presses it (Decision 60: a deletion is undone from the toast, not confirmed first).
+   * A page in a frame keeps the function on its side; the frame hands the press back to it.
+   */
+  readonly undo?: () => void;
 }
 
 export interface UiToastOptions {

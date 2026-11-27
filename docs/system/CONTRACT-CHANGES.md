@@ -188,6 +188,16 @@
 第 44 批插件同等地位收口（2026-11-19 合并 main #2163 后，用户批准选项 A 随发布前 v1 清理一并拍平；2026-11-20 独立复核整改经用户批准 A2 进一步补齐 `acceptance_*` 表 SQLite `CHECK` 约束）：项目指导（`guidance_entries`、`guidance_revisions`）、要求与认可（`acceptance_*` 含同步约束 CHECK、移出原独立 Home 库 `acceptance/acceptance.db`）和去掉闭合 CHECK 的 `inbox_entries` 直接落入项目库 v1 基线；Goals 私有库去掉指导与旧要求/判断/结论表、改留 `goal_requirement_links` 与 `goal_event_closures.acceptance_round`，随 `project_goals` 同步集合一起拍平为 v1；放置库（`placement.attached_in`）、上手旅程库（平台形状 `drafts` 与 `summary_open`）与外部 Runtime 接入收据（`format.runtime.integration.receipt` 保持 v1、去掉 `skill_path`/`skill_target`）均保持 v1、零迁移段、零读时兼容。PEQ-03 平台禁止 import 插件包门禁的迁移例外为空（Goals 同步决定摘要经 `PluginRegistration.approval_outcomes` 通用登记接入）。`projects/*/molis-work.db` 与 `projects/*/molis-work.db#io.molis.work.goals` 的同版 v1 结构变更按确切 `(from → to)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，并在干净 v1 基线上重新生成唯一 `0.1.0` 金样（含 `acceptance` 写入与 `codex.json` 接入收据）。
 
 第 106 批合后复查修复（2026-11-25，决定 66 C11 发布前 Clean v1 口径）：`horizontal/person-settings` 的 `person-settings/person-settings.db` 移去与主键 `PRIMARY KEY (install_id, key)` 冲突的 `UNIQUE (plugin_id, key)` 约束（该库为第 106 批新建且零生产写入、未入金样），保持 v1 不升版，确切 `(b6c54dfe0fa5eaa5 → 0aa8b1771c6fe435)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，与目录库同版例外及 `v1-reset-exceptions.json` 一并于第 107 批清退。
+
+第 112 批 112-2 Jelly 瘦身（用户 2026-11-26 选 Clean v1）：
+- **库结构**：`jelly/jelly.db` 删去四张旧表：`jelly_workspace`（`singleton = 1` 的整库 JSON）、`jelly_note_versions`、`jelly_history`、`jelly_previews`。改为按行存的四张表 `jelly_categories`、`jelly_items`、`jelly_series`、`jelly_notes`，每行带自己的 `revision`。同步技术表随集合 `jelly.entries` 换了命名空间。
+- **版本**：`database.jelly_database` 保持 v1，不升版。没有升级段，也没有读旧结构的兼容分支，旧 `singleton` 行不迁移。
+- **已有的 Home**：库号同为 1 而结构不同，Jelly 在已有旧库的 Home 上打开时按结构不符拒绝，不改动旧文件。用户选的做法是更新后手动删掉 `jelly/jelly.db`，Jelly 从空开始（平台不代删）。金样已就地改写，所以金样回放查不出这一点，这里留文字记录。
+- **门禁与金样**：确切的哈希对 `(f8ed975502abc63b → 07e620872874959d)` 登记在 `tooling/gates/schemas/same-version-exceptions.json`。三份金样的 Jelly 库就地改写为新结构，各含一行 `jelly_notes`。
+- **同批退役**：
+  - `jelly/preferences.json`，即 Jelly 自己的模型选择。`format.model.preference` 只剩沙箱插件的 `plugin-files/<install_id>/.model-settings/preference.json`。金样里的 `jelly/preferences.json` 一并删除。
+  - `format.jelly.workspace`、`format.jelly.portable`、`prompt.jelly.decompose`。
+  - 同步集合 `jelly_workspace`。
 ### 存储版本变更登记
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
@@ -336,7 +346,7 @@
 | `work-brief/work-brief.db` | 2 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
 | `characters/characters.sqlite` | 2 → 1 | 同上 | 保留现行完整基线，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
 | `shelf/catalog.json` | 2 → 1 | 同上 | 保留现行完整目录与偏好回执形状，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
-| `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 2 → 1 | 同上 | 保留现行完整模型偏好与回执形状，清空历史升级段，重新生成干净 0.1.0 v1 金样。 |
+| `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 2 → 1 | 同上 | 保留现行完整模型偏好与回执形状，清空历史升级段，重新生成干净 0.1.0 v1 金样。（`jelly/preferences.json` 于第 112 批随 Jelly 的模型设置退役，现只剩 `plugin-files/` 一份。） |
 
 ## 4. 阶段二：起点之后，读取兼容
 

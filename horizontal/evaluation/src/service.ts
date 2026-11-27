@@ -170,8 +170,10 @@ export class EvaluationService {
       return commit({ holdId: target.hold_id, heldCount });
     } catch (error) {
       if (!written) throw error;
-      // Compensation undoes the uncommitted hold we just wrote; strip the cancelled outer signal/authority closures
-      // so real AbortSignal cancellation rolls the hold back cleanly, and never let a secondary cleanup failure hide `error`.
+      // Keep the caller's live authority/permission validators (QRF-02: a revoked caller must NOT mutate holds during
+      // cleanup; the hold is recovered later once authority returns via samples.remove), while stripping only the
+      // aborted outer signal and execution-scoped `assert_authority_current` closure so pure AbortSignal cancellation
+      // rolls back cleanly and never hides `error`.
       const cleanup: ActionCallContext = {
         actor_id: caller.actor_id,
         actor_kind: caller.actor_kind,
@@ -179,6 +181,8 @@ export class EvaluationService {
         project_id: caller.project_id,
         permissions: caller.permissions,
         ...(caller.locale !== undefined ? { locale: caller.locale } : {}),
+        ...(caller.validate_authority ? { validate_authority: caller.validate_authority } : {}),
+        ...(caller.validate_permissions ? { validate_permissions: caller.validate_permissions } : {}),
       };
       try {
         if (previous) {

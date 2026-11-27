@@ -1,3 +1,4 @@
+import { refreshedOverview } from "./fixtures/overview-read.js";
 import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
@@ -297,7 +298,7 @@ test("UPP-34 a row written past the SDK is left out of the overview; the plugin'
   const libraries = partitionOverviewLibraries(home, [{ partition_id: a, plugins: [{ install_id: "todo-install", manifest: overviewManifest }] }]);
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("nothing is woken to read the overview"); } } });
   try {
-    const rows = services.readOverview(person, libraries, () => ({ readable: [a], grants: [] }));
+    const { rows } = services.readOverview(person, libraries, () => ({ readable: [a], grants: [] }));
     assert.deepEqual(rows.map(row => row.row_id), ["a1"], "the two malformed rows are left out, and reading does not fail");
     assert.deepEqual(services.due.entries().map(entry => [entry.entry_key, entry.due_at]), [["task:a1", "2026-12-01T08:00:00.000Z"]], "and a1 still rings");
   } finally { services.close(); }
@@ -319,16 +320,16 @@ test("UPP-06 S-partition-isolation the overview gives the person what they can r
   try {
     let grants = [{ partition_id: a, fields: ["due_at" as const] }];
     const now = () => ({ readable: [a, b], grants });
-    const byPerson = services.readOverview(person, libraries, now);
+    const { rows: byPerson } = await refreshedOverview(() => services.readOverview(person, libraries, now));
     assert.deepEqual(byPerson.map(row => [row.partition_id, row.fields.title]).sort(), [[a, "A 的待办"], [b, "B 的待办"]].sort(), "the person reads A and B");
     assert.deepEqual(byPerson[0]!.install_id, "todo-install", "the installation is the platform's stamp");
-    const byAssistant = services.readOverview(assistant, libraries, now);
+    const { rows: byAssistant } = services.readOverview(assistant, libraries, now);
     assert.deepEqual(byAssistant.map(row => [row.partition_id, row.fields]), [[a, { due_at: "2026-12-01T09:00:00.000Z" }]], "the assistant gets A's due date, not its title, and nothing of B");
     let calls = 0;
     const revokedInFlight = () => ({ readable: [a, b], grants: calls++ === 0 ? grants : [] });
-    assert.deepEqual(services.readOverview(assistant, libraries, revokedInFlight), [], "a grant revoked while the read was under way is not delivered");
+    assert.deepEqual(services.readOverview(assistant, libraries, revokedInFlight).rows, [], "a grant revoked while the read was under way is not delivered");
     grants = [];
-    assert.deepEqual(services.readOverview(assistant, libraries, now), [], "and the next read has nothing either");
+    assert.deepEqual(services.readOverview(assistant, libraries, now).rows, [], "and the next read has nothing either");
     for (const [label, caller] of [
       ["a project Agent", { ...assistant, actor_id: "agent:runtime-1", project_id: a }],
       ["an MCP client", { ...person, audience: "mcp", actor_kind: "runtime" }],
@@ -336,7 +337,7 @@ test("UPP-06 S-partition-isolation the overview gives the person what they can r
       ["a plugin", { ...person, audience: "plugin", actor_kind: "runtime", plugin_install_id: "todo-install" }],
       ["a call handed on by a plugin", { ...person, delegated_by: "todo-install" }],
     ] as const) assert.throws(() => services.readOverview(caller as ActionCallContext, libraries, now), forbidden, label);
-    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [b], grants: [] })).map(row => row.partition_id), [b], "the person only what they can read now");
+    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [b], grants: [] })).rows.map(row => row.partition_id), [b], "the person only what they can read now");
   } finally { services.close(); }
 }));
 
@@ -347,19 +348,19 @@ test("UPP-34 S-partition-wake-scope a synchronized write into a dormant partitio
   const started: string[] = [];
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async (plugin, partition) => { started.push(`${plugin}@${partition}`); throw new Error("not in this test"); } } });
   try {
-    assert.equal(services.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })).length, 2);
+    assert.equal((await refreshedOverview(() => services.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })))).rows.length, 2);
     assert.deepEqual(services.due.entries().map(entry => [entry.partition_id, entry.source, entry.entry_key]), [[b, "overview", "task:b1"]],
       "the reminder time read from B's table is a due entry of B: one synced in rings too");
     // Sync writes into A while it is dormant: the platform only marks it, and reads it on the next open.
     writeTasks(home, a, [{ id: "a2", title: "同步来的" }]);
     services.partitionChanged(a);
     assert.equal(services.overview.refreshDirty(libraries), 1, "only the dirty library is read");
-    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [a], grants: [] })).map(row => row.fields.title).sort(), ["同步来的", "第一条"]);
+    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [a], grants: [] })).rows.map(row => row.fields.title).sort(), ["同步来的", "第一条"]);
     // A rebuild (the index lost, as after a restore) reads every library again, read-only.
     services.close();
     rmSync(join(home, "search"), { recursive: true, force: true });
     const rebuilt = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unused"); } } });
-    try { assert.equal(rebuilt.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })).length, 3); } finally { rebuilt.close(); }
+    try { assert.equal((await refreshedOverview(() => rebuilt.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })))).rows.length, 3); } finally { rebuilt.close(); }
     assert.deepEqual(started, [], "no instance and no supervisor was started for any of it");
   } finally { try { services.close(); } catch { /* closed above */ } }
 }));
@@ -1040,7 +1041,7 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   const client = home.host.homeActionClient(), read = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", permissions: [], project_id: null } as ActionCallContext;
   const assistant = { ...person, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:work-1" } as ActionCallContext;
-  const rows = async (caller: ActionCallContext) => ((await client.invoke(caller, read, { kinds: ["notification"] })) as OverviewReadResult).rows
+  const rows = async (caller: ActionCallContext) => (await refreshedOverview(() => client.invoke(caller, read, { kinds: ["notification"] }) as Promise<OverviewReadResult>)).rows
     .filter(row => row.install_id === ATTENTION_OVERVIEW_SOURCE).map(row => [row.partition_id, row.row_id, row.fields] as const).sort();
 
   const byPerson = await rows(person);
@@ -1058,7 +1059,7 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
 
   await write("2", [a, b].map(project => ({ partition_id: project.project_id, fields: ["title"] })));
   assert.equal((await rows(assistant)).length, 2);
-  const tasks = async () => ((await client.invoke(assistant, read, { kinds: ["task"] })) as OverviewReadResult).rows.map(task => task.fields.title).sort();
+  const tasks = async () => (await refreshedOverview(() => client.invoke(assistant, read, { kinds: ["task"] }) as Promise<OverviewReadResult>)).rows.map(task => task.fields.title).sort();
   assert.deepEqual(await tasks(), [a.project_id, b.project_id].sort());
   inaccessible = a.project_id;
   assert.deepEqual(await tasks(), [b.project_id], "the same live deny removes A from plugin summaries as from platform notifications");

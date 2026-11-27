@@ -668,6 +668,7 @@ export interface HomeBackgroundTaskRow extends BackgroundTaskRow {
 }
 
 export interface HomeBackgroundTasksReadResult {
+    readonly updating?: boolean;
     tasks: HomeBackgroundTaskRow[];
     issues: Array<{
         project_id: string;

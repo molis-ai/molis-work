@@ -188,6 +188,8 @@ export const OVERVIEW_READ_LIMIT = 2_000;
 
 /** What `overview.read@1` answers: the rows the caller may see now, each with only the fields it may see. */
 export interface OverviewReadResult {
+  /** Granted sources are still being refreshed. Only current rows are included. */
+  readonly updating?: boolean;
   readonly rows: readonly OverviewIndexRow[];
 }
 
@@ -213,6 +215,7 @@ export const overviewReadAction = {
     output_schema: {
       type: "object", additionalProperties: false, required: ["rows"],
       properties: {
+        updating: { type: "boolean" },
         rows: { type: "array", maxItems: OVERVIEW_READ_LIMIT, items: {
           type: "object", additionalProperties: false, required: ["partition_id", "install_id", "plugin_id", "kind", "row_id", "fields"],
           properties: {

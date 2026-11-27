@@ -43,7 +43,7 @@ export function overviewReadProvider(ports: OverviewReadPorts): ActionProviderRe
       caller.signal?.throwIfAborted();
       const rows = read?.rows ?? [];
       if (reader === "assistant") ports.delivered?.(caller, rows);
-      return { rows };
+      return read?.updating ? { rows, updating: true } : { rows };
     }), availability }],
   };
 }

@@ -220,7 +220,7 @@ export class PartitionPluginHost {
     const late = Date.now() - Date.parse(entry.due_at) > REMINDER_LATE_MS;
     const outcome = await platform.deliverDue(entry.plugin_id, { entry_key: entry.entry_key, due_at: entry.due_at, source: entry.source, late });
     // An overview reminder the plugin does not speak for shows its overview row; `null` says it no longer stands.
-    const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry) : null;
+    const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry, manifest) : null;
     if (!reminder) return false;
     await tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
       due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null });
@@ -228,11 +228,14 @@ export class PartitionPluginHost {
   }
 
   /** The overview row behind a reminder time (`<kind>:<row_id>`), as the overview index read it from the plugin's table. */
-  private overviewReminder(entry: DueEntryRecord): PluginDueReminder | null {
+  private overviewReminder(entry: DueEntryRecord, manifest: PluginPlatformEntry["definition"]["manifest"]): PluginDueReminder | null {
     const at = entry.entry_key.indexOf(":");
     if (at < 1 || !this.services) return null;
-    const row = this.services.overview.row(entry.partition_id, entry.install_id, entry.entry_key.slice(0, at), entry.entry_key.slice(at + 1));
-    return typeof row?.fields.title === "string" ? { title: row.fields.title } : null;
+    const [library] = partitionOverviewLibraries(this.home, [{ partition_id: entry.partition_id, plugins: [{ install_id: entry.install_id, manifest }] }]);
+    if (!library) throw new ActionError("actions.plugin_unavailable", "暂时无法读取提醒");
+    const row = this.services.overview.row(library, entry.entry_key.slice(0, at), entry.entry_key.slice(at + 1));
+    return typeof row?.fields.title === "string" && typeof row.fields.remind_at === "string" && Date.parse(row.fields.remind_at) === Date.parse(entry.due_at)
+      ? { title: row.fields.title } : null;
   }
 
   /** The enabled plugins of a partition: every plugin this Host runs per partition that the partition reaches (lists, or did not hide). */

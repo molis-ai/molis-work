@@ -36,7 +36,7 @@ const { SYNC_STORE_BASELINE } = await import("@molis-ai/molis-work-module-sync-r
 const { readEveryParameterlessAction, unavailableInFixture } = await import(new URL("../tests/fixtures/parameterless-reads.ts", import.meta.url).href);
 const { expectAnswer, installedPluginSession } = await import("./replay-plugins/signed-session.mjs");
 const { thirdPartySample } = await import("./golden/populate.mjs");
-const { assertSeededReminders, readSeededPersonalPartition } = await import("./golden/partition-samples.mjs");
+const { assertSeededReminders, exerciseRestoredPersonalPartition } = await import("./golden/partition-samples.mjs");
 const { replayHomeLibrarySample } = await import("./golden/home-library-sample.mjs");
 const { assertVersionedFilesRead } = await import("./golden/versioned-files.mjs");
 const { assertRecordedVersions } = await import("./golden/formats.mjs");
@@ -288,7 +288,7 @@ async function replayGolden(name) {
     step = "restart-structure"; await assertStructure(homes); steps.restarts.push(step);
     step = "restart-read"; steps.restart_reads = await readEverything(manifest, homes); steps.restarts.push(step);
     assertSeededReminders(manifest, restored.home);
-    step = "restored-personal-samples"; await readSeededPersonalPartition(manifest, homes);
+    step = "restored-personal-samples"; await exerciseRestoredPersonalPartition(manifest, homes);
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
     const not_run = [
       ["third-party", steps.third_party],

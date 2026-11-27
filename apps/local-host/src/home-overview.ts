@@ -1,7 +1,7 @@
 import { ActionError, requireSynchronous, BACKGROUND_TASK_DONE_STATES, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, RUN_MISSED_KEPT_MS, runExpiredUntold, type ActionCallContext,
   type RunsExpiryBounds } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { OverviewIndexRow, OverviewKind, OverviewOpen, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { OverviewIndexRow, OverviewKind, OverviewOpen, OverviewReadResult, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HomeBackgroundTaskRow, HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -58,9 +58,8 @@ function overviewManifests(home: string, kinds: readonly OverviewKind[]): Map<st
  * partition services (a command-line tool). A plugin not enabled in a partition contributes nothing there.
  */
 export async function homeOverviewRows(source: HomeOverviewSource, partitions: readonly HomeOverviewPartition[], kinds: readonly OverviewKind[]):
-  Promise<{ readonly rows: readonly OverviewIndexRow[]; readonly manifests: ReadonlyMap<string, PluginManifest> } | null> {
-  const read = await overviewRowsFor(source, PERSON, partitions, () => [], { kinds, limit: 2_000 });
-  return read && { rows: read.rows, manifests: read.manifests };
+  Promise<(OverviewReadResult & { readonly manifests: ReadonlyMap<string, PluginManifest> }) | null> {
+  return overviewRowsFor(source, PERSON, partitions, () => [], { kinds, limit: 2_000 });
 }
 
 /**
@@ -71,7 +70,7 @@ export async function homeOverviewRows(source: HomeOverviewSource, partitions: r
  */
 export async function overviewRowsFor(source: HomeOverviewSource, caller: ActionCallContext, partitions: readonly HomeOverviewPartition[],
   grants: () => readonly OverviewGrant[], query: { readonly kinds: readonly OverviewKind[]; readonly limit: number }):
-  Promise<{ readonly rows: readonly OverviewIndexRow[]; readonly manifests: ReadonlyMap<string, PluginManifest> } | null> {
+  Promise<(OverviewReadResult & { readonly manifests: ReadonlyMap<string, PluginManifest> }) | null> {
   const { home } = source, services = runningPartitionPlatformServices(home);
   if (!services) return null;
   const ids = partitions.map(partition => partition.project_id);
@@ -91,9 +90,9 @@ export async function overviewRowsFor(source: HomeOverviewSource, caller: Action
       ...(attention ? [attentionOverviewLibrary(home, partition.project_id)] : [])];
   }))).flat();
   const enabled = new Set(libraries.map(library => `${library.partition_id}\u0000${library.install_id}`));
-  const rows = services.readOverview(caller, libraries, () => ({ readable: readableNow(), grants: grants() }), query)
-    .filter(row => enabled.has(`${row.partition_id}\u0000${row.install_id}`));
-  return { rows, manifests };
+  const read = services.readOverview(caller, libraries, () => ({ readable: readableNow(), grants: grants() }), query);
+  const rows = read.rows.filter(row => enabled.has(`${row.partition_id}\u0000${row.install_id}`));
+  return { ...read, rows, manifests };
 }
 
 const familyOf = new Map<string, string>(STATE_RING_FAMILIES.flatMap(family => family.states.map(state => [state, family.key] as const)));
@@ -159,7 +158,7 @@ export async function homeBackgroundTasks(source: HomeOverviewSource, partitions
     const task = manifest && partition ? homeBackgroundTaskOf(row, manifest, partition, startedAt, now) : null;
     return task ? [task] : [];
   });
-  return { tasks: tasks.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id)), issues: [] };
+  return { tasks: tasks.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id)), issues: [], ...(read.updating && { updating: true }) };
 }
 
 /**
@@ -191,7 +190,7 @@ export async function hostBackgroundTasks(host: MolisWorkLocalHost): Promise<Hom
   }))]);
   const tasks = [...overview.tasks, ...own.flatMap(part => part.tasks)];
   return { tasks: tasks.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id)),
-    issues: [...overview.issues, ...own.flatMap(part => part.issues)] };
+    ...(overview.updating && { updating: true }), issues: [...overview.issues, ...own.flatMap(part => part.issues)] };
 }
 
 /**
@@ -199,8 +198,8 @@ export async function hostBackgroundTasks(host: MolisWorkLocalHost): Promise<Hom
  * alone. Reading them opens nothing, so asking never keeps a partition awake by itself.
  */
 export async function backgroundWorkUnderWay(source: HomeOverviewSource, partition: HomeOverviewPartition): Promise<boolean> {
-  const { tasks } = await homeBackgroundTasks(source, [partition]);
-  return tasks.some(task => UNDER_WAY.has(familyOf.get(task.state) ?? ""));
+  const { tasks, updating } = await homeBackgroundTasks(source, [partition]);
+  return updating === true || tasks.some(task => UNDER_WAY.has(familyOf.get(task.state) ?? ""));
 }
 
 /** One owner of scheduled runs in one partition, as the runs panel names it: the plugin, and where its rows open. */
@@ -208,7 +207,7 @@ export interface HomeRunsOwner { readonly project_id: string; readonly plugin_id
 export interface HomeRun { readonly run_id: string; readonly title: string; readonly due_at: string; readonly missed_at?: string; readonly needs: Array<"network" | "model">;
   readonly open: { surface: string; id: string } | null; readonly owner: HomeRunsOwner }
 
-export interface HomeScheduledRuns { readonly upcoming: HomeRun[]; readonly missed: HomeRun[]; readonly expired: ReadonlyMap<HomeRunsOwner, number>; readonly owners: readonly HomeRunsOwner[] }
+export interface HomeScheduledRuns { readonly updating?: boolean; readonly upcoming: HomeRun[]; readonly missed: HomeRun[]; readonly expired: ReadonlyMap<HomeRunsOwner, number>; readonly owners: readonly HomeRunsOwner[] }
 
 /**
  * The partitions' scheduled runs (V17): what comes before `until`, what was missed in the last seven days and nobody decided on, and per
@@ -217,7 +216,7 @@ export interface HomeScheduledRuns { readonly upcoming: HomeRun[]; readonly miss
 export async function homeScheduledRuns(source: HomeOverviewSource, partitions: readonly HomeOverviewPartition[], window: { readonly now: Date; readonly until: Date },
   bounds: (owner: HomeRunsOwner) => RunsExpiryBounds): Promise<HomeScheduledRuns | null> {
   const read = await homeOverviewRows(source, partitions, ["scheduled_run"]);
-  return read ? scheduledRunsOf(read.rows, read.manifests, window, bounds) : null;
+  return read ? { ...scheduledRunsOf(read.rows, read.manifests, window, bounds), ...(read.updating && { updating: true }) } : null;
 }
 
 /** The same, from rows already read: each owner is a (partition, plugin), named by its Manifest. */

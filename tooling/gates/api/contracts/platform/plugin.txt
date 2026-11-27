@@ -3643,6 +3643,7 @@ export interface OverviewOpen {
 }
 
 export interface OverviewReadResult {
+    readonly updating?: boolean;
     readonly rows: readonly OverviewIndexRow[];
 }
 

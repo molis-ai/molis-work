@@ -51,6 +51,7 @@ export interface HomeBackgroundTaskRow extends BackgroundTaskRow {
 
 /** Every partition's tasks, read from the overview, and the sources that could not be read; empty tasks alone does not mean no work. */
 export interface HomeBackgroundTasksReadResult {
+  readonly updating?: boolean;
   tasks: HomeBackgroundTaskRow[];
   issues: Array<{ project_id: string; source: Required<ActionReference> | null; code: string }>;
 }

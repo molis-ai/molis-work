@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { OverviewIndexRow, OverviewKind, PluginManifest, PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { OverviewReadResult, OverviewKind, PluginManifest, PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type DueEntryRecord, type DueExpiredRecord, type DueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_STORE, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { PERSON_SETTINGS_STORE, openPersonSettings, type PersonSettingsInstallation } from "@molis-ai/molis-work-service-person-settings";
@@ -8,6 +8,7 @@ import { OverviewService, overviewReach, type OverviewGrant, type OverviewLibrar
 import { homeSqlitePath, openHomeSqliteFile, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
 import { attentionOverviewRows } from "@molis-ai/molis-work-module-attention-resumption";
 import { partitionPluginScope, type PartitionPluginLease } from "./partition-plugin-assembly.js";
+import { liveObservation } from "./observation-live.js";
 import { directoryForHome } from "./plugin-directory-service.js";
 import { partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
 
@@ -130,6 +131,10 @@ export class PartitionPlatformServices {
         this.timer.arm();
       },
       readAttention: readAttentionLibrary,
+      rebuilt: (refreshed, failed) => {
+        liveObservation(this.home)?.sink("home").bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null })
+          .record({ fact: "home.overview_rebuild", outcome: failed ? "failed" : "succeeded", stage: "rebuild", detail: { refreshed, failed } });
+      },
     });
     this.timer.arm();
     running.set(this.home, this);
@@ -167,11 +172,17 @@ export class PartitionPlatformServices {
    * handed over (`overview-readers`).
    */
   readOverview(caller: ActionCallContext, libraries: readonly OverviewLibrary[], now: () => { readonly readable: readonly string[]; readonly grants: readonly OverviewGrant[] },
-    query: { readonly kinds?: readonly OverviewKind[]; readonly limit?: number } = {}): OverviewIndexRow[] {
+    query: { readonly kinds?: readonly OverviewKind[]; readonly limit?: number } = {}): OverviewReadResult {
     const initial = overviewReach(caller, now());
     const allowed = new Set(initial.map(entry => entry.partition_id));
-    this.overview.refreshDirty(libraries.filter(library => allowed.has(library.partition_id)));
-    return this.overview.read(() => overviewReach(caller, now()), query);
+    const pending = this.overview.refreshForRead(libraries.filter(library => allowed.has(library.partition_id)));
+    let reach = initial;
+    const rows = this.overview.read(() => {
+      reach = overviewReach(caller, now());
+      return reach;
+    }, query);
+    const updating = pending.some(library => reach.some(entry => entry.partition_id === library.partition_id));
+    return updating ? { rows, updating } : { rows };
   }
 
   /** The plugin was disabled in this partition: its due entries and overview rows there go now. */

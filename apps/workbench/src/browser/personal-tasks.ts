@@ -12,6 +12,7 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
   const personal = PERSONAL_SPACE_PROJECT_ID,
     prefix = "/projects/" + encodeURIComponent(personal);
   let read: AbortController | undefined;
+  let retry: number | undefined;
   const request = globalThis.molisWorkRequest;
   type Place = { project_id: string; display_name: string; plugins: string[]; revision: string };
   const button = (label: string) => {
@@ -22,6 +23,7 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
     return control;
   };
   const draw = async () => {
+    clearTimeout(retry);
     read?.abort();
     body.replaceChildren();
     if (!panel.open) return;
@@ -30,30 +32,43 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
       const { projects } = await request<{ projects: Place[] }>("/api/settings/project-plugins", { signal });
       signal.throwIfAborted();
       if (panel.dataset.personalTasks === "overview") {
-        const result = await request<OverviewReadResult>("/api/runtime/overview/read", {
-          method: "POST",
-          body: { kinds: ["task"], limit: 2000 },
-          signal,
-        });
-        signal.throwIfAborted();
         const names = new Map(projects.map((place) => [place.project_id, place.display_name]));
-        const list = document.createElement("ul");
-        for (const row of result.rows) {
-          if (row.plugin_id !== taskOwner || typeof row.fields.title !== "string" || !names.has(row.partition_id)) continue;
-          const link = document.createElement("a"),
-            li = document.createElement("li");
-          const url = new URL("/projects/" + encodeURIComponent(row.partition_id) + "/", location.origin);
-          url.searchParams.set("openPlugin", taskMember);
-          url.searchParams.set("openItem", row.row_id);
-          const desktop = new URLSearchParams(location.search).get("desktop");
-          if (desktop) url.searchParams.set("desktop", desktop);
-          link.href = url.pathname + url.search;
-          link.textContent = names.get(row.partition_id) + " · " + row.fields.title;
-          li.append(link);
-          list.append(li);
-        }
-        if (list.childElementCount) body.append(list);
-        else body.textContent = t.text("workbench.personal-tasks.empty");
+        const showError = (error: unknown) => {
+          if (!signal.aborted) request.show(body, error);
+        };
+        const refresh = async () => {
+          const result = await request<OverviewReadResult>("/api/runtime/overview/read", {
+            method: "POST",
+            body: { kinds: ["task"], limit: 2000 },
+            signal,
+          });
+          signal.throwIfAborted();
+          const list = document.createElement("ul");
+          for (const row of result.rows) {
+            if (row.plugin_id !== taskOwner || typeof row.fields.title !== "string" || !names.has(row.partition_id)) continue;
+            const link = document.createElement("a"),
+              li = document.createElement("li");
+            const url = new URL("/projects/" + encodeURIComponent(row.partition_id) + "/", location.origin);
+            url.searchParams.set("openPlugin", taskMember);
+            url.searchParams.set("openItem", row.row_id);
+            const desktop = new URLSearchParams(location.search).get("desktop");
+            if (desktop) url.searchParams.set("desktop", desktop);
+            link.href = url.pathname + url.search;
+            link.textContent = names.get(row.partition_id) + " · " + row.fields.title;
+            li.append(link);
+            list.append(li);
+          }
+          body.replaceChildren();
+          if (list.childElementCount) body.append(list);
+          if (result.updating) {
+            const status = document.createElement("p");
+            status.setAttribute("role", "status");
+            status.textContent = t.text("workbench.home.refreshing");
+            body.append(status);
+            retry = window.setTimeout(() => void refresh().catch(showError), 750);
+          } else if (!list.childElementCount) body.textContent = t.text("workbench.personal-tasks.empty");
+        };
+        await refresh();
         return;
       }
       const place = projects.find((row) => row.project_id === personal);
@@ -119,6 +134,7 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
   if (panel.open) void draw();
   document.addEventListener("molis-work:language-changed", draw);
   return () => {
+    clearTimeout(retry);
     read?.abort();
     panel.removeEventListener("toggle", draw);
     document.removeEventListener("molis-work:language-changed", draw);

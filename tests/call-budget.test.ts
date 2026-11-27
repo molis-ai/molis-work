@@ -1,3 +1,4 @@
+import { refreshedOverview } from "./fixtures/overview-read.js";
 import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -232,9 +233,10 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   const { existingPartitionPluginHost } = await import("@molis-ai/molis-work-app-local-host");
   const overviewRead = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
   const overviewPerson = { actor_id: "web-user", audience: "user", permissions: [], project_id: null } as const;
-  const readOverview = async () => { assert.ok(Array.isArray((await home.host.homeActionClient().invoke(overviewPerson, overviewRead, {})).rows)); };
+  const readPage = () => home.host.homeActionClient().invoke(overviewPerson, overviewRead, {}) as Promise<OverviewReadResult>;
+  const readOverview = async () => { assert.ok(Array.isArray((await readPage()).rows)); };
   const overviewCounts = async () => {
-    await readOverview(); // what changed since the last read is read once, read-only; the measured reads find it clean
+    await refreshedOverview(readPage);
     const runs: Counts[] = [];
     for (let sample = 0; sample < samples; sample++) { t.mock.timers.setTime(now += 60_000); runs.push(await measure(readOverview)); }
     return median(runs);
@@ -273,12 +275,19 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   const initialChildren = children(), install = installIdentity(todoManifest);
   for (const dirty of [1, dormantIds.length]) {
     for (const id of dormantIds.slice(0, dirty)) service.services!.overview.markDirty(id, install);
-    const populated = async () => {
-      const { rows } = await home.host.homeActionClient().invoke(overviewPerson, overviewRead, { kinds: ["task"], limit: 100 }) as OverviewReadResult;
-      assert.equal(rows.filter(row => String(row.fields.title).startsWith("G4 ")).length, dormantIds.length);
-    };
-    const refresh = await measure(populated), cached = await measure(populated);
-    assert.ok(refresh.sqliteOpens <= dirty, "at most one read-only open per dirty source");
+    const populated = () => home.host.homeActionClient().invoke(overviewPerson, overviewRead, { kinds: ["task"], limit: 100 }) as Promise<OverviewReadResult>;
+    const countTasks = (result: OverviewReadResult) => result.rows.filter(row => String(row.fields.title).startsWith("G4 ")).length;
+    const first = await measure(async () => {
+      const page = await populated();
+      assert.equal(countTasks(page), dirty === 1 ? dormantIds.length : dormantIds.length - dirty);
+      assert.equal(Boolean(page.updating), dirty > 1);
+    });
+    assert.equal(first.sqliteOpens, dirty === 1 ? 1 : 0, "a backlog opens no source in the foreground");
+    const background = await measure(async () => {
+      assert.equal(countTasks(await refreshedOverview(populated)), dormantIds.length);
+    });
+    assert.equal(background.sqliteOpens, dirty === 1 ? 0 : dirty, "each dirty source is rebuilt exactly once");
+    const cached = await measure(async () => { assert.equal(countTasks(await populated()), dormantIds.length); });
     assert.equal(cached.sqliteOpens, 0);
     assert.equal(home.host.projects().length, open);
     assert.equal(service.assembly.instances().length, instances);

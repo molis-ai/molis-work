@@ -25,6 +25,10 @@ export interface OverviewIndexPort {
         readonly partitions: readonly string[];
         readonly kinds: readonly string[];
         readonly limit: number;
+        readonly ownerRow?: {
+            readonly install_id: string;
+            readonly row_id: string;
+        };
     }): OverviewIndexStoredRow[];
     close(): void;
 }

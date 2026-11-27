@@ -407,7 +407,7 @@ onboarding.context.secret	1	system.onboarding	command	operation	home	write	concu
 onboarding.context.select	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	342147d6bd9d	a2c799262a3c	3cfff55e5308
 onboarding.context.stage_file	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	0fadf42a7cb5	a2c799262a3c	3cfff55e5308
 onboarding.context.start	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	beab5193887d	a2c799262a3c	613063238287
-overview.read	1	system.overview	query	query	home	read	-	agent,user	-	-	-	-	742c0f493774	e5ecf49b88ab	-
+overview.read	1	system.overview	query	query	home	read	-	agent,user	-	-	-	-	742c0f493774	fe1f608f363a	-
 partitions.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	partition.plugin_membership	99334726611c	a8fb3bc69c47	-
 partitions.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	partition.plugin_membership	e1b2b86278c5	a8fb3bc69c47	-
 placement.attach	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	cdecf8a40173	673957d8495a	-

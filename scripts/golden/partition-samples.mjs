@@ -19,8 +19,8 @@ export function assertSeededReminders(manifest, root) {
   }
 }
 
-/** A retained library can belong to a disabled plugin. Enable it in the restored copy and read its original content through the owner. */
-export async function readSeededPersonalPartition(manifest, homes) {
+/** A retained library can belong to a disabled plugin. Enable it in the restored copy and exercise its retained content and current writes through the owner. */
+export async function exerciseRestoredPersonalPartition(manifest, homes) {
   for (const item of homes) {
     const recorded = relative => manifest.stores.find(store => store.path === path.posix.join(item.path, relative));
     const images = recorded("person-settings/person-settings.db")?.tables.person_settings > 0;
@@ -45,6 +45,16 @@ export async function readSeededPersonalPartition(manifest, homes) {
       if (jelly) {
         const { notes } = await call("jelly.note.list", { query: "金样便笺 seed 已改" });
         if (!notes.some(note => note.title === "金样便笺 seed 已改")) throw goldenFailure("golden.seeded_jelly_note_missing", item.path || "root");
+        const nextWeek = new Date(Date.now() + 7 * 86_400_000);
+        const day = nextWeek.toISOString().slice(0, 10);
+        const slot = { start_date: day, end_date: day, start_time: 600, end_time: 630, time_zone: "UTC" };
+        const { item: once } = await call("jelly.item.create", { item: { ...slot, title: "金样单次提醒", reminder_minutes: 5 } });
+        const { series } = await call("jelly.series.create", { series: { ...slot, title: "金样循环提醒", weekdays: [nextWeek.getUTCDay() || 7], reminder_minutes: 15 } });
+        const single = await call("jelly.item.get", { id: once.id });
+        const weekly = await call("jelly.item.get", { id: series.id });
+        if (single.item?.reminder_minutes !== 5 || weekly.series?.reminder_minutes !== 15) {
+          throw goldenFailure("golden.restored_jelly_reminder_missing", item.path || "root");
+        }
       }
     } finally { await session.close(); }
   }

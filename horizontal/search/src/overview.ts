@@ -67,6 +67,7 @@ export function overviewReach(caller: OverviewCaller,
 }
 
 export interface OverviewServiceOptions {
+  readonly rebuilt?: (refreshed: number, failed: number) => void;
   /** Replaces the due registry's reminder entries of one library with the times read from it now. */
   readonly reminders?: (library: OverviewLibrary, entries: readonly { readonly entry_key: string; readonly due_at: string }[]) => void;
   /**
@@ -77,6 +78,9 @@ export interface OverviewServiceOptions {
 }
 
 export class OverviewService {
+  private readonly pending = new Map<string, OverviewLibrary>();
+  private turn?: NodeJS.Immediate;
+
   constructor(private readonly port: OverviewIndexPort, private readonly options: OverviewServiceOptions = {}) {}
 
   /** A synchronized write or a restore reached this partition (or one installation in it): read it again on the next open. */
@@ -120,10 +124,53 @@ export class OverviewService {
     return read;
   }
 
-  /** One row as the index holds it, for the platform's own use (a reminder's title); never handed to a reader past `read`. */
-  row(partitionId: string, installId: string, kind: string, rowId: string): OverviewIndexStoredRow | null {
+  /** The foreground may read one source. A backlog is rebuilt one library per host event-loop turn. */
+  refreshForRead(libraries: readonly OverviewLibrary[]): OverviewLibrary[] {
+    const dirty = libraries.filter(library => {
+      const state = this.port.state(library.partition_id, library.install_id);
+      if (!state) this.port.track(library);
+      return !state || state.dirty;
+    });
+    if (dirty.length === 1 && !this.turn) {
+      return this.refreshAvailable(dirty[0]!) ? [] : dirty;
+    }
+    for (const library of dirty) this.pending.set(JSON.stringify([library.partition_id, library.install_id]), library);
+    if (this.pending.size && !this.turn) this.scheduleTurn(0, 0);
+    return dirty;
+  }
+
+  private refreshAvailable(library: OverviewLibrary): boolean {
+    try { return this.refresh(library) !== null; }
+    catch {
+      // Replacement commits last. Keep this source dirty and allow other sources to be shown.
+      return false;
+    }
+  }
+
+  private scheduleTurn(refreshed: number, failed: number): void {
+    this.turn = setImmediate(() => {
+      this.turn = undefined;
+      const [key, library] = this.pending.entries().next().value!;
+      this.pending.delete(key);
+      // Disabling or removing the plugin clears its tracked state, even if a read previously queued it.
+      if (this.port.state(library.partition_id, library.install_id)?.dirty) {
+        if (this.refreshAvailable(library)) refreshed++;
+        else failed++;
+      }
+      if (this.pending.size) this.scheduleTurn(refreshed, failed);
+      else this.options.rebuilt?.(refreshed, failed);
+    });
+    this.turn.unref();
+  }
+
+  /** The owner's default due reminder. An unreadable source must retry delivery, even during an index rebuild. */
+  row(library: OverviewLibrary, kind: string, rowId: string): OverviewIndexStoredRow | null {
     if (!(OVERVIEW_KINDS as readonly string[]).includes(kind)) return null;
-    return this.port.rows({ partitions: [partitionId], kinds: [kind], limit: 2_000 }).find(row => row.install_id === installId && row.row_id === rowId) ?? null;
+    const { partition_id, install_id } = library;
+    if (this.port.state(partition_id, install_id)?.dirty !== false && this.refresh(library) === null) {
+      throw new ActionError("actions.plugin_unavailable", "暂时无法读取提醒");
+    }
+    return this.port.rows({ partitions: [partition_id], kinds: [kind], ownerRow: { install_id, row_id: rowId }, limit: 1 })[0] ?? null;
   }
 
   removeInstall(installId: string, partitionId?: string): void { this.port.removeInstall(installId, partitionId); }
@@ -149,7 +196,11 @@ export class OverviewService {
     });
   }
 
-  close(): void { this.port.close(); }
+  close(): void {
+    if (this.turn) clearImmediate(this.turn);
+    this.pending.clear();
+    this.port.close();
+  }
 }
 
 function reachMap(reach: OverviewReach): Map<string, Set<string>> {

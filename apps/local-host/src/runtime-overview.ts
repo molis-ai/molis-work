@@ -26,6 +26,7 @@ export interface RuntimeExpiredRuns {
   readonly count: number; readonly through: string; readonly sources: Array<{ readonly title: string; readonly count: number }>; readonly owners: readonly string[];
 }
 export interface RuntimeOverview {
+  readonly updating?: boolean;
   readonly state: "running";
   readonly waiting: { readonly network: boolean; readonly model: boolean };
   readonly gaps: readonly RuntimeGap[];
@@ -142,7 +143,7 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
   }
   const waiting = { network: !ports.online(), model: !ports.model() };
   return {
-    state: "running", waiting, gaps: ports.gaps(),
+    state: "running", ...(projects?.updating && { updating: true }), waiting, gaps: ports.gaps(),
     upcoming: upcoming.sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, UPCOMING_SHOWN)
       .map(run => ({ ...run, waiting: run.needs.some(need => need === "network" ? waiting.network : waiting.model) })),
     missed: missed.sort((a, b) => b.due_at.localeCompare(a.due_at)),

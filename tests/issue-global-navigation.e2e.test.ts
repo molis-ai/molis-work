@@ -239,7 +239,18 @@ test("UPP-30 B2R-09 capture a task in personal space after confirmation, then fi
   await b.waitFor("!document.querySelector('[data-personal-tasks-body] form')");
   assert.equal(await member(), true);
   await b.web.post("/projects/" + b.projectId + "/api/plugins/io.molis.work.todo/items", { title: "B2 project task" });
-  await visit("/projects/personal/"); await b.click("[data-personal-tasks=overview] summary");
+  await visit("/projects/personal/");
+  const { runningPartitionPlatformServices } = await import("@molis-ai/molis-work-app-local-host");
+  const { installIdentity } = await import("@molis-ai/molis-work-plugin-runtime");
+  const { todoManifest } = await import("@molis-ai/molis-work-plugin-todo");
+  const { refreshedOverview } = await import("./fixtures/overview-read.js");
+  await refreshedOverview(() => b.web.post("/api/runtime/overview/read", { kinds: ["task"] }));
+  const overview = runningPartitionPlatformServices(b.homeDirectory)!.overview;
+  for (const id of ["personal", b.projectId!]) overview.markDirty(id, installIdentity(todoManifest));
+  await b.click("[data-personal-tasks=overview] summary");
+  await b.waitFor("!!document.querySelector('[data-personal-tasks-body] [role=status]')");
+  assert.equal(await b.evaluate("document.querySelectorAll('[data-personal-tasks-body] a').length"), 0);
+
   await b.waitFor("document.querySelector('[data-personal-tasks-body]')?.textContent.includes('B2 project task')");
   const links = await b.evaluate<{ title: string; url: string }[]>("Array.from(document.querySelectorAll('[data-personal-tasks-body] a'), a => ({ title: a.textContent, url: a.href }))");
   assert.equal(new URL(links.find(row => row.title.includes("B2 personal capture"))!.url).pathname, "/projects/personal/");

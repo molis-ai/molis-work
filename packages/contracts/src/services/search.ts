@@ -319,6 +319,7 @@ export interface OverviewIndexPort {
   replace(library: OverviewIndexLibrary, rows: readonly OverviewIndexStoredRow[], sortAt: readonly (string | null)[]): void;
   removeInstall(installId: string, partitionId?: string): void;
   removePartition(partitionId: string): void;
-  rows(query: { readonly partitions: readonly string[]; readonly kinds: readonly string[]; readonly limit: number }): OverviewIndexStoredRow[];
+  rows(query: { readonly partitions: readonly string[]; readonly kinds: readonly string[]; readonly limit: number;
+    readonly ownerRow?: { readonly install_id: string; readonly row_id: string } }): OverviewIndexStoredRow[];
   close(): void;
 }

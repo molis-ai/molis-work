@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-27 第 108 批复核。`overview.read@1` 的响应可带 `updating: true`，表示当前可读来源尚有待刷新的库。返回的每一行都已刷新，并按本次项目与字段授权裁剪。工作台在后台重建期间提示更新并重新读取。投影与提醒仍使用各插件的原业务表。
+
 2026-11-26 主线事件卡新增 `system.mainline` 的 `mainline.line.contains@1`，本人在项目内持 `mainline:read` 可给出 `{ subject, window }`，取得 `{ on_line }`。事件卡每次操作沿用事项线的时间窗口和本人可见的事件登记；已有整线读取及插件事件登记合同保持原形。
 
 2026-11-26 第 112-2 批后续（用户 2026-11-26 选择退役，不另造测试用主人）。Manifest 自报模型选择的路径随最后一个主人 Jelly 退役。`packages/contracts/src/platform/settings.ts` 的 `SettingsDeclaration` 删去 `model_configuration`，`plugin-model-configuration.ts` 删去 `PluginModelConfigurationDeclaration` 与 `PluginModelConfigurationClient.preferences`。SDK 的 `parsePluginManifest` 遇到 `settings_entries.model_configuration` 按未知字段拒绝。Plugin Runtime 删去 `createPluginModelConfigurationClient` 与 `PluginModelConfigurationPort`，错误码 `plugin.model_configuration_action_required` 不再出现。`blueprints.adoption.preview@1`、`blueprints.library.read@1` 的预览项原位删去可选输出 `model_selection`，采用页不再有模型选择器，`/api/settings/models?choices=1` 一并删除。这一字段从未随任何发布写出，金样 Home 里也没有，所以不加升级步骤。Home 包的模型设置（`effects.modelSettings`、`services.model.configuration`、偏好文件 v1）不变。动作与公开 API 快照已刷新。
@@ -180,7 +182,7 @@
 | 记忆账本 1 → 2（2026-11-24 用户确认补齐 `b3429bd1cc` 升级段） | `memory/memory.db` 经 Home 升级链 1 → 2 将 `memory_markers` 中 `b3429bd1cc` 之前仅含 `{ kind: "coding", id, project_id }` 的内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`；助理计划、已有提供方字段、未知场景或损坏计划均保持原样不猜测。普通打开只认 v2，无读时兜底 | `packages/storage`（`MEMORY_LEDGER_BASELINE`）；不再支持从 v1 金样升级时移除该段 |
 | Dataset 库 1 → 2（2026-11-20 用户确认，AC-T2） | 仅由 Home 升级链新增空的问卷来源绑定表，原数据表、快照与回执均保留。Dataset 的普通打开只认 v2；历史无绑定的表不按标题猜测归属 | Dataset owner；不再支持从 v1 升级时移除本段升级。 |
 | Risk 项目表和 Work Brief Home 库 1 → 2（用户批准，M1-B1） | 版本化升级事务创建同步日志和编辑版本表，按归属播种已有个人空间记录。已存在的日志保留，普通打开只认 v2，并由设备和集合授权控制上传。 | 两个插件负责业务数据和版本段，Local Host 负责平台日志。停止支持 v1 金样时移除各自升级段。 |
-| 第 107、108 批前个人插件成员一次性补写（用户 2026-11-25 确认「写一次性修复」「不升级版本，只改代码」，P1-1） | 第 107 批的 Pages、PPT、Form、Dataset、灵光、Workflows，以及 2026-11-26 本人确认追加的第 108 批 Todo、Jelly、Cognia、Images、Issues，在各自随产品发布的登记中写明历史批次（`preservedMembershipBatch`）。现有目录首次缺少 `mark.former-personal-plugins` 时，在一个事务中补齐这些成员并写标记。在该分区曾被排除的插件继续排除，已有成员行保留，写入身份为 `upgrade:former-personal-plugins`。新建目录在创建时就写标记。后来新迁的插件和在标记完成后才同步进来的分区都不会触发补写。第 108 批复核建议收窄到六个，是否改动已定的十一项见[修复验收 B2R-08](../../specs/b108-review-remediation/spec.md)。 | Local Host（`apps/local-host/src/former-personal-plugins.ts`，标记读写在 storage 的 `LocalCatalogMetadata`，成员写入在 Projects 的 `ProjectService.addPluginsWhereShown`）；第 111 批或第一个正式发布时连同标记一并删 |
+| 第 107 批成员一次性补写（2026-11-27 本人确认范围） | Pages、PPT、Form、Dataset、灵光、Workflows 的内置登记声明第 107 批。旧目录缺少一次性标记时，在一个事务内为未排除的分区补这六项并写标记，保留原成员及操作者。新目录在创建时写标记。B2 的 Todo、Jelly、Cognia、Images、Issues 只由场景或本人选择启用。回归见[成员首次补写](../../tests/project-catalog.test.ts)。 | Local Host（`apps/local-host/src/former-personal-plugins.ts`，标记读写在 storage 的 `LocalCatalogMetadata`，成员写入在 Projects 的 `ProjectService.addPluginsWhereShown`）；第 111 批或第一个正式发布时连同标记一并删 |
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
 | 导入文档固定成果 `artifact.io.molis.work.document` 写 2、历史读 1（用户 2026-11-17 批准，QF-15） | 新导入把警告写成翻译键和参数，导入回执由可信 owner 绑定工作台词包。已固定的 schema 1 按原文字展示，原 payload、digest、版本、时间、原件与同步引用原样保存。本人的显式重导可以追加现行版本。预览、下载和继续认 1、2，未知结构拒绝。仅此固定格式准由起点 1 进到 2，无数据原地迁移。项目库和同步 envelope 维持当前版本 | Artifacts 拥有固定数据，导入源提供警告语义，Workbench 按界面语言展示。历史读取保留到没有该格式的固定版本与精确引用为止。复验见[QEA-79/80](../../specs/quality-experience-audit/spec.md#第三十四批导入警告按显示语言呈现固定版本保留原文qf-15) |
@@ -207,6 +209,8 @@
   - `format.jelly.workspace`、`format.jelly.portable`、`prompt.jelly.decompose`。
   - 同步集合 `jelly_workspace`。
 ### 存储版本变更登记
+
+2026-11-27 一骏按决定 66 批准 B2 两处干净 v1 同版变更。Jelly 单次与循环日程增加可空的提前分钟数（`680355108d487208 → 9b2c92e41cbce8aa`），目录库去掉旧排除表（`0691cb9c32e88862 → ad21e98fcc2b70c3`）。含这些库的历史金样原路径就地更新。仅合成 Home 参与回放。[同版登记](../../tooling/gates/schemas/same-version-exceptions.json)
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
 

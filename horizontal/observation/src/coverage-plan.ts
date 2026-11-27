@@ -64,6 +64,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Each start and stop of a per-partition plugin instance, with why (opened, due, push, sync; idle, switched off, partition gone, Host
   // closing) and the error's code when it failed (`PartitionPluginAssembly` lifecycle, batch 108).
   { owner: "service:home", fact: "home.partition_plugin_lifecycle", entries: ["host"], state: "complete" },
+  // A deferred overview rebuild records how many sources refreshed or failed, without rows, fields or grants.
+  { owner: "service:home", fact: "home.overview_rebuild", entries: ["background"], state: "complete" },
   // The background pass that settles a carry a cut left half done (`placement-actions.ts`): the move that started it is the action exit's
   // record, the carries are the ledger's own history; each pass records how many it found and left (batch 108).
   { owner: "service:home", fact: "home.placement_carry_settle", entries: ["background"], state: "complete" },

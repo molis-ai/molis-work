@@ -112,7 +112,7 @@ test("a later scope's Storage acceptance failure keeps prior decisions but start
   }));
   const rename = fs.renameSync;
   const fault = t.mock.method(fs, "renameSync", (source, target) => {
-    if (String(target) === join(f.home, "memory-forgetting-v2.json") && ++accepts === 2)
+    if (String(target) === join(f.home, "memory-forgetting.json") && ++accepts === 2)
       throw Object.assign(new Error("second scope's independent acceptance interrupted"), { code: "EIO" });
     return rename(source, target);
   });

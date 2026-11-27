@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
-import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, REMOVED_HOME_STORES, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, openBaselineHomeSqlite, personalStorageSpace, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import {
   ADD_TAG, BASELINE_V2, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, notesOf, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, storePath, unitOf, upgradeTestHome, useDescriptors, V1, V2, versionOf, writeLedger,
@@ -455,11 +455,10 @@ test("UPG1-05: a resumed round holds the same lock rules: another holder stops i
   } finally { owner.release(); }
 });
 
-test("SKL-41-2: the removed-store list starts empty at the clean v1 origin and a round leaves other stores untouched", t => {
+test("SKL-41-2: an upgrade round leaves other stores untouched and becomes a no-op on the next start", t => {
   const { home } = upgradeTestHome(t);
   const kept = seedStore(home, "first"), bodies = () => notesOf(kept).map(note => note.body), notes = bodies();
   useDescriptors(t, notesDescriptor("first"));
-  assert.deepEqual([...REMOVED_HOME_STORES], []);
   const report = runHomeUpgrade(home);
   assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["first/first.db", "committed"]]);
   assert.deepEqual(bodies(), notes, "a store the build still has keeps its rows");

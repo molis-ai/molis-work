@@ -36,8 +36,10 @@ test('sync: deployment configs and D1 fixtures use the single server baseline', 
     assert.equal(error, undefined);
     assert.equal(config.d1_databases[0].migrations_dir, relative);
     assert.deepEqual(config.build.watch_dir, ['src', '../../server/src/sync']);
-    assert.ok(existsSync(new URL(`apps/sync-worker/${relative}/0001_sync.sql`, root)));
-    assert.ok(existsSync(new URL(`apps/sync-worker/${relative}/0002_sync_heads_revision_index.sql`, root)));
+    assert.deepEqual(
+      readdirSync(new URL(`apps/sync-worker/${relative}`, root)).filter(name => name.endsWith('.sql')).sort(),
+      ['0001_sync.sql'],
+    );
   }
   // The fixtures apply the server's sorted migrations through one reader, which reads only the shared baseline directory.
   assert.ok(read('apps/sync-worker/testing.mjs').includes(`new URL('${relative}/'+file,import.meta.url)`));

@@ -1,6 +1,6 @@
--- Current D1 baseline v6. No in-request schema creation or old-version fallback.
-CREATE TABLE sync_schema (version INTEGER PRIMARY KEY CHECK(version=6));
-INSERT INTO sync_schema(version) VALUES (6);
+-- Current D1 baseline v1. No in-request schema creation or old-version fallback.
+CREATE TABLE sync_schema (version INTEGER PRIMARY KEY CHECK(version=1));
+INSERT INTO sync_schema(version) VALUES (1);
 CREATE TABLE sync_usage (
   space TEXT PRIMARY KEY,
   used_bytes INTEGER NOT NULL CHECK(used_bytes>=0)
@@ -83,6 +83,7 @@ CREATE TABLE sync_heads (
   deleted_at INTEGER,purged_at INTEGER,
   PRIMARY KEY(space, namespace, key)
 );
+CREATE INDEX sync_heads_revision ON sync_heads(space, namespace, revision);
 CREATE TRIGGER sync_events_validate BEFORE INSERT ON sync_events BEGIN
   SELECT CASE WHEN NOT EXISTS (
     SELECT 1 FROM sync_policy p, json_each(p.namespaces) n

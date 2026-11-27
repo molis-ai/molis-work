@@ -13,7 +13,7 @@ const original = fs.fsyncSync, root = fs.lstatSync(home);
 fs.fsyncSync = function(fd) {
   const result = original(fd), current = fs.fstatSync(fd);
   if (current.isDirectory() && current.ino === root.ino && current.dev === root.dev) {
-    const facts = JSON.parse(fs.readFileSync(join(home, "memory-forgetting-v2.json"), "utf8"));
+    const facts = JSON.parse(fs.readFileSync(join(home, "memory-forgetting.json"), "utf8"));
     if (facts.decisions.some(one => one.operation_id === operation_id)) {
       process.stderr.write("forgetting-decision-durable\n");
       process.kill(process.pid, "SIGKILL");

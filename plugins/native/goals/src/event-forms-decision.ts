@@ -76,29 +76,10 @@ export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
   ): string {
     const change = pending.proposed_change;
     if (!change) return "";
-    const byId = new Map((pending.commitment?.requirements ?? []).map((item) => [item.requirement_id, item]));
     const parts: string[] = [];
     if (change.outcome) {
       const from = pending.commitment?.outcome || state.agreement.outcome;
       parts.push(`${uiText.text("goals.event-forms-decision.original-result")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)} → ${uiText.text("goals.event-forms-decision.proposed-result-change")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(change.outcome)}`);
-    }
-    for (const item of change.new_requirements ?? []) parts.push(`${uiText.text("goals.event-forms-decision.new-requirement")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(item.statement)}`);
-    for (const item of change.revise_requirements ?? []) {
-      const previous = byId.get(item.requirement_id);
-      const from = previous?.statement || item.requirement_id;
-      if (item.statement) {
-        parts.push(`${uiText.text("goals.event-forms-decision.original-requirement")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)} → ${uiText.text("goals.event-forms-decision.proposed-requirement-change")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(item.statement)}`);
-      }
-      if (item.human_decision_required === false) {
-        parts.push(`${uiText.text("goals.event-forms-decision.cancel-human-acceptance")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)}`);
-      }
-      if (item.human_decision_required === true) {
-        parts.push(`${uiText.text("goals.event-forms-decision.change-requiring-user-acceptance")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)}`);
-      }
-    }
-    for (const id of change.retire_requirement_ids ?? []) {
-      const previous = byId.get(id);
-      parts.push(`${uiText.text("goals.event-forms-decision.retire-requirement")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(previous?.statement || id)}`);
     }
     return `<div class="reader-lead"><strong>${uiText("goals.event-forms-decision.agreement-change-2")}</strong><ul>${parts.map((part) => `<li>${part}</li>`).join("")}</ul></div>`;
   }

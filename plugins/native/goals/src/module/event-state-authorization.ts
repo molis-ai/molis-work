@@ -3,7 +3,7 @@ import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
   goalEventClosureKinds,
   goalEventConcernActions,
-  goalEventNewDecisionEffectKinds,
+  goalEventDecisionEffectKinds,
   type GoalEventAgreementChange,
   type GoalEventAppliedDecisionView,
   type GoalEventClosureKind,
@@ -156,9 +156,8 @@ export function snapshotCommitment(
   requirements: GoalRequirementTerm[],
   outcome: string,
   scope: GoalEventScope,
-  effects: GoalEventDecisionEffect[],
 ): GoalEventDecisionCommitment {
-  const scoped = commitsToWholeAgreement(scope, effects)
+  const scoped = scopeAppliesToComplete(scope)
     ? requirements
     : scope.requirement_ids.length
       ? requirements.filter((item) => scope.requirement_ids.includes(item.requirement_id))
@@ -169,33 +168,17 @@ export function snapshotCommitment(
   };
 }
 
-/**
- * Completing (and, in a decision recorded before batch 44, accepting requirements) is the person's nod for the agreement as a whole: the
- * project's approval rule counts it for the agreement it was given for, so such a decision commits to every requirement there is now,
- * not only to the ones its scope names.
- */
-function commitsToWholeAgreement(scope: GoalEventScope, effects: GoalEventDecisionEffect[]): boolean {
-  return scopeAppliesToComplete(scope) || effects.some((effect) => effect.kind === "accept_requirements");
-}
-
 /** What approving an agreement change commits to: the outcome it replaces (an agreement is its outcome, §10.9 question 3). */
 export function snapshotAgreementChangeCommitment(currentOutcome: string): GoalEventDecisionCommitment {
   return { outcome: currentOutcome, requirements: [] };
 }
 
-/**
- * Whether what an agreement-change decision committed to still stands: the outcome it replaced is the current one, and the requirements
- * a decision recorded before batch 44 also named (when it changed requirements with the outcome) read now as they did then. `terms` is
- * asked only for such a decision.
- */
+/** Whether what an agreement-change decision committed to still stands: the outcome it replaced is the current one. */
 export function agreementChangeCommitmentCurrent(
   recorded: GoalEventDecisionCommitment | null | undefined,
-  terms: () => GoalRequirementTerm[],
   currentOutcome: string,
 ): boolean {
-  if (!recorded || recorded.outcome !== currentOutcome) return false;
-  if (!recorded.requirements.length) return true;
-  return commitmentsMatch(recorded, currentCommitment(terms(), currentOutcome, recorded.requirements.map((item) => item.requirement_id)));
+  return Boolean(recorded && recorded.outcome === currentOutcome);
 }
 
 function requirementCommitment(requirement: GoalRequirementTerm): GoalEventRequirementCommitment {
@@ -256,7 +239,7 @@ export function scopedRequirementCommitmentsMatch(
   if (!ids.length) return true;
   const current = currentCommitment(requirements, "", ids).requirements;
   // A decision that commits to the whole agreement is reused on the requirements its scope names, not on the rest of it.
-  const recorded = commitsToWholeAgreement(decision.scope, decision.effects)
+  const recorded = scopeAppliesToComplete(decision.scope)
     ? decision.commitment.requirements.filter((item) => ids.includes(item.requirement_id))
     : decision.commitment.requirements;
   if (!recorded.length) {
@@ -271,7 +254,7 @@ function scopeAppliesToComplete(scope: GoalEventScope): boolean {
 
 /** Whether a waiting request holds completion back: one about completing does; whether the requirements are met is the platform's. */
 export function pendingBlocksCompletion(pending: { purpose?: string; scope: GoalEventScope }): boolean {
-  if (pending.purpose === "suggestion" || pending.purpose === "agreement_change" || pending.purpose === "requirement_acceptance") return false;
+  if (pending.purpose === "suggestion" || pending.purpose === "agreement_change") return false;
   return scopeAppliesToComplete(pending.scope);
 }
 
@@ -302,10 +285,6 @@ export function resolveRecordedDecision(
     const proposed = request.proposed_change;
     if (!proposed) {
       throw goalErrors["goals.event_decision.missing_proposed_change"]("约定变更请求必须带有可审阅的具体变化");
-    }
-    // A request made before batch 44 that also changed requirements cannot be approved: requirements are changed on the platform now.
-    if (proposed.new_requirements?.length || proposed.revise_requirements?.length || proposed.retire_requirement_ids?.length) {
-      throw goalErrors["goals.event_decision.stale_commitment"]("这份请求还改了要求；要求现在在平台的要求栏里改，请重新提出只改结果说明的请求");
     }
     const callerEffects = Array.isArray(input.effects) ? input.effects : [];
     const denyAction = request.scope.action || "set_agreement";
@@ -369,7 +348,7 @@ function normalizeEffects(effects: GoalEventDecisionEffect[]): GoalEventDecision
   for (const raw of effects) {
     const kind = requiredEnum(
       raw?.kind,
-      goalEventNewDecisionEffectKinds,
+      goalEventDecisionEffectKinds,
       "goals.event_decision.invalid_effect",
       "决定效果必须是有限的明确授权，不能从结论或选项猜测；认可或退回要求在平台的逐项审阅里做",
     );

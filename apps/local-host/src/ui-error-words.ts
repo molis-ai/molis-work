@@ -306,14 +306,14 @@ function classifyTechnicalMessage(message: string): CommonErrorKey | null {
 
 const QUOTED_SEGMENTS = /「[^」]*」|『[^』]*』|“[^”]*”|《[^》]*》|"[^"]*"|(?<!\w)'[^']*'(?!\w)|`[^`]*`/gu;
 const NEUTRAL_PROPER_NOUNS = /\b(?:Molis Work|Molis|JSON|HTTP|HTTPS|URL|URI|API|MCP|OAuth|ID|MB|KB|GB|UTF-8|CSV|PDF|PNG|SVG|HTML|CSS|DOM|SSE|WS|tokens?|GitHub|Slack|Linear|Notion|Google|OpenAI|Anthropic|Gemini|Claude)\b/giu;
-const ENGLISH_PROSE_WORD = /\b(?:is|are|was|were|be|been|being|has|have|had|do|does|did|can|could|will|would|may|might|must|not|no|can['’]t|couldn['’]t|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|doesn['’]t|didn['’]t|won['’]t|don['’]t|the|a|an|this|that|these|those|your|you|it|its|for|with|from|into|by|to|in|on|of|at|as|or|and|but|if|before|after|already|still|yet|only|cannot|unable|failed|missing|found|updated|changed|deleted|moved|locked|expired|invalid|denied|refused|blocked|closed|stopped|canceled|cancelled|required|available|unavailable|exceeded|reached|try|check|refresh|please)\b/iu;
+const ENGLISH_PROSE_WORD = /\b(?:is|are|was|were|be|been|being|has|have|had|do|does|did|can|could|will|would|may|might|must|not|no|can['’]t|couldn['’]t|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|doesn['’]t|didn['’]t|won['’]t|don['’]t|the|a|an|this|that|these|those|your|you|it|its|for|with|from|into|by|to|in|on|of|at|as|or|and|but|if|while|when|during|before|after|already|still|yet|only|cannot|unable|failed|missing|found|updated|changed|deleted|moved|locked|expired|invalid|denied|refused|blocked|closed|stopped|canceled|cancelled|required|available|unavailable|exceeded|reached|unexpected|try|check|refresh|please)\b/iu;
 
 /**
  * Layer 2 detector: checks whether an unquoted error sentence is written in a different language
  * than the active UI locale (e.g. raw Chinese backend text in en/ja UI, raw English in zh/ja UI),
  * while preserving localized English sentences that embed unquoted CJK user titles (e.g. project or file names).
  */
-function isWrongLanguageForLocale(message: string, locale: string): boolean {
+function isWrongLanguageForLocale(message: string, locale: string, status = 500): boolean {
   const core = message.replace(QUOTED_SEGMENTS, " ").replace(NEUTRAL_PROPER_NOUNS, " ").trim();
   if (!core) return false;
   const hanMatches = core.match(/\p{Script=Han}/gu);
@@ -325,7 +325,15 @@ function isWrongLanguageForLocale(message: string, locale: string): boolean {
   const latinWords = core.match(/\b[A-Za-z][A-Za-z'’]{1,}\b/gu) ?? [];
   const hasLatinWord = latinWords.length > 0;
   const base = baseLanguageOf(locale);
-  if (base === "zh") return hasKana;
+  if (base === "zh") {
+    if (hasKana) return true;
+    // Preserve clean domain/test English 4xx refusals in zh; only localize unexpected 5xx English prose.
+    if (status >= 500 && !hasHan && hasLatinWord) {
+      const hasCjkSentencePunct = /[。！？；，]/u.test(core);
+      return !hasCjkSentencePunct && latinWords.length >= 4 && ENGLISH_PROSE_WORD.test(core);
+    }
+    return false;
+  }
   if (base === "ja") return !hasKana && (hasHan || hasLatinWord);
   if (!hasHan && !hasKana) return false;
   const cjkCount = hanCount + kanaCount;
@@ -386,10 +394,38 @@ export function localizeWebErrorBody(status: number, value: unknown, localeOverr
     return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
   }
 
-  if (locale && isWrongLanguageForLocale(raw, locale)) {
+  if (locale && isWrongLanguageForLocale(raw, locale, status)) {
     return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
   }
 
+  return value;
+}
+
+const GATEWAY_OS_PATH = /(?:\/Users\/|\/home\/|\/var\/|\/tmp\/|\/private\/|\/etc\/|\/opt\/|\/Library\/|file:\/\/\/|[A-Za-z]:\\)[^\s"'`,)\]]+/gu;
+
+/**
+ * Sanitize machine-gateway `{ error, code?, details?, ... }` responses (`R-07`): scrubs raw OS paths,
+ * stack traces, and upstream `account.*` raw English while preserving contract schema hints and
+ * uncoded resident error names (such as `ENOENT`, `W3-02-G1-01`) expected by CLI/MCP forwarding clients.
+ */
+export function sanitizeGatewayErrorBody(status: number, value: unknown, localeOverride?: string | null): unknown {
+  if (status < 400 || typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if (typeof record.error !== "string") return value;
+  const raw = record.error;
+  const trimmed = raw.trim();
+  const code = typeof record.code === "string" ? record.code : undefined;
+  const locale = localeOverride ?? activeLocale() ?? pageLocale();
+  if (shouldAlwaysLocalizeCode(code)) {
+    return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
+  }
+  if (/\n\s*at\s+/u.test(trimmed)) {
+    return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
+  }
+  if (GATEWAY_OS_PATH.test(raw)) {
+    GATEWAY_OS_PATH.lastIndex = 0;
+    return { ...record, error: raw.replace(GATEWAY_OS_PATH, "[path]") };
+  }
   return value;
 }
 
@@ -426,7 +462,7 @@ export function localizeWebErrorMessage(
   if (shouldAlwaysLocalizeCode(code)) {
     return readErrorWord(keyForCodeAndMessage(code, raw, response.status), locale);
   }
-  if (locale && isWrongLanguageForLocale(raw, locale)) {
+  if (locale && isWrongLanguageForLocale(raw, locale, response.status)) {
     const key = code === "actions.execution_failed" ? fallbackKey : keyForCodeAndMessage(code, raw, response.status);
     return readErrorWord(key, locale);
   }

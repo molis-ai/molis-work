@@ -9,7 +9,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, intakeMaterial, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationProviderPort, PluginBackgroundClient, PluginDefinition, PluginJobControl, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
@@ -20,7 +20,7 @@ import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistr
 import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedRunsActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction, missedPullRunId, type FeedDirectorySnapshot } from "@molis-ai/molis-work-plugin-feed";
+import { createConnectionWatch, createFeedContentLedger, createFeedContentLedgerHandlers, createFeedInboxHandlers, createFeedItemHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedRunsActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction, keepFeedReconcile, missedPullRunId, type FeedApplication, type FeedDirectorySnapshot } from "@molis-ai/molis-work-plugin-feed";
 import { nextScheduleDueAt } from "@molis-ai/molis-work-service-scheduler";
 import { artifactsActions, ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
@@ -481,10 +481,10 @@ test("RAC-518 deleting a source that keeps its local history keeps its items, it
   assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [1, 0], "nothing records a release that did not happen");
 });
 
-// FI-C-06 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger is another service's write, so a deletion releases before it commits.
-// A release that fails commits nothing: the source, its rows and with them its references and operation ids stay, and deleting it again
-// finishes and records the deletion once.
-test("FI-C-06 a deletion the Home's ledger fails keeps the source and what it holds; deleting again finishes and records the deletion once", async t => {
+// FI-C-06 & F-pm3-05: deleting local history holds the source's sync lease, commits the project deletion first (so a revoked or failed
+// commit never removes live disk bodies), and only then releases Home holds and disk bodies; a post-commit Home ledger failure preserves
+// extra holds (superset invariant) and records `complete: false`.
+test("FI-C-06 F-pm3-05 deleting local history guards against revoked commits and in-flight syncs, commits before releasing Home holds, and records incomplete post-commit releases", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-06-key" });
   const holds = f.holds(), refs = holds.map(hold => hold.content_ref), bodies = f.bodies();
@@ -493,21 +493,44 @@ test("FI-C-06 a deletion the Home's ledger fails keeps the source and what it ho
   const rows = () => [f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?", f.sourceId)];
   const kept = rows();
   assert.ok(kept[0]! > 0 && kept[1]! > 0);
-  const remove = () => f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "delete_local_history" });
-  f.breakLedger();
-  await assert.rejects(remove());
-  assert.equal(live(), 1, "the source is not deleted");
-  assert.deepEqual(rows(), kept, "its items and runs (the operation ids of its search records) stay");
-  assert.deepEqual(f.holds(), holds, "the ledger still holds what the source's rows point at");
-  for (const ref of refs) assert.ok(bodies.has(ref), "no body went");
-  assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [0, 0], "nothing records a deletion that did not happen");
-  await remove();
-  assert.equal(live(), 0);
-  assert.deepEqual(rows(), [0, 0]);
-  assert.deepEqual(f.holds(), []);
-  for (const ref of refs) assert.ok(!bodies.has(ref), "a body nobody else holds is gone");
-  assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [1, 1], "the deletion is recorded once");
+  const remove = (who = caller(DELETE)) => f.client.invoke(who.context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "delete_local_history" });
 
+  // 1. Caller revoked before commit: neither the project rows nor any Home hold/disk body is removed.
+  await assert.rejects(remove(caller(DELETE, 1)), { code: "actions.forbidden" });
+  assert.equal(live(), 1, "a revoked deletion leaves the source live");
+  assert.deepEqual(rows(), kept, "its items and runs stay");
+  assert.deepEqual(f.holds(), holds, "Home holds are untouched when the commit never happens");
+  for (const ref of refs) assert.ok(bodies.has(ref), "no body went");
+  assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [0, 0], "nothing records a refused deletion");
+
+  // 2. Concurrent pull in flight: delete_local_history acquires the source sync lease and refuses to race the pull.
+  const syncEntered = Promise.withResolvers<void>(), syncRelease = Promise.withResolvers<void>();
+  t.after(() => syncRelease.resolve());
+  f.feeds.set(f.entry.feed_url, feedXml([{ id: "one", title: "First" }, { id: "two", title: "Second" }, { id: "three", title: "Third" }]));
+  f.pauseLedger(() => { syncEntered.resolve(); return syncRelease.promise; });
+  const inFlight = f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-06-concurrent" });
+  await syncEntered.promise;
+  await assert.rejects(remove(), { code: "feed.source_sync_interrupted" });
+  assert.equal(live(), 1, "a concurrent pull keeps the source intact until its lease finishes");
+  syncRelease.resolve();
+  await inFlight;
+  const holdsAfterSync = f.holds(), refsAfterSync = holdsAfterSync.map(hold => hold.content_ref);
+  assert.equal(refsAfterSync.length, 3);
+
+  // 3. Home ledger fails AFTER commit: deletion stays committed, holds/bodies remain intact (superset invariant), and history_released records complete: false.
+  f.breakLedger();
+  await remove();
+  assert.equal(live(), 0, "the deletion committed before releasing Home holds");
+  assert.deepEqual(rows(), [0, 0], "the source's items and runs are gone");
+  assert.deepEqual(f.holds(), holdsAfterSync, "failed post-commit release leaves extra holds rather than dangling references");
+  for (const ref of refsAfterSync) assert.ok(bodies.has(ref), "failed post-commit release keeps every disk body intact");
+  assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [1, 1], "deletion and incomplete release are each recorded once");
+  const releaseEvent = f.store.db.prepare(
+    `SELECT payload_json FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND type = '${FEED_PLUGIN_ID}:feed_source.history_released'`,
+  ).get(f.sourceId) as { payload_json: string } | undefined;
+  assert.ok(releaseEvent);
+  assert.equal((JSON.parse(releaseEvent.payload_json) as { complete?: boolean }).complete, false);
+  await assert.rejects(remove(), { code: "feed.source_not_found" });
 });
 
 /** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */
@@ -548,8 +571,8 @@ test("RAC-509 writing() commits a handler's synchronous part after beforeEffect,
 
 test("RAC-509 writing() does not let a handler write after it awaited; what it did before is already committed, what it tries after fails", async () => {
   const { log, database, ports, write, command, context } = fakes();
-  const [wrapped] = createFeedWriter(database, ports).writing([command], [{ capability_id: "t.command", version: 1, handle: async () => {
-    write("first"); await Promise.resolve(); write("second"); return "unreachable";
+  const [wrapped] = createFeedWriter(database, ports).writing([command], [{ capability_id: "t.command", version: 1, handle: () => {
+    write("first"); return Promise.resolve().then(() => { write("second"); return "unreachable"; });
   } }]);
   await assert.rejects(wrapped!.handle(context, {}), { code: "actions.execution_failed" });
   assert.deepEqual(log, ["before", "begin", "actor:audited", "write:first", "commit"]);
@@ -560,6 +583,48 @@ test("RAC-509 writing() rolls back what a handler wrote when it fails in its syn
   const [wrapped] = createFeedWriter(database, ports).writing([command], [{ capability_id: "t.command", version: 1, handle: () => { write("first"); throw new ActionError("feed.invalid_transition", "refused"); } }]);
   await assert.rejects(wrapped!.handle(context, {}), { code: "feed.invalid_transition" });
   assert.deepEqual(log, ["before", "begin", "actor:audited", "write:first", "rollback"]);
+});
+
+test("F-pm3-07 writing() rejects AsyncFunction command handlers and rolls back synchronous failures in feed.items.inbox and feed.items.admit", async () => {
+  const { log, database, ports, write, command, context } = fakes();
+  assert.throws(
+    () => createFeedWriter(database, ports).writing([command], [{ capability_id: "t.command", version: 1, handle: async () => "bad" }]),
+    { code: "actions.execution_failed" },
+  );
+  const fakeFeed = standIn<FeedApplication>({
+    getFeedItem: () => ({ item_id: "item-1", revision: 1, disposition: "unread" }),
+    ensureInboxEntryForFeedItem: () => {
+      write("ensure");
+      return { entry: { entry_id: "entry-1", status: "done", revision: 1 }, created: false };
+    },
+    setInboxEntryStatus: () => {
+      throw new ActionError("feed.invalid_transition", "reopen refused");
+    },
+    flushPendingInboxJudgments: async () => {
+      assert.fail("judgment must not run after failed admission");
+    },
+  });
+
+  const itemBinding = createFeedItemHandlers(fakeFeed, DEMO_PROJECT_ID, { inboxActive: () => false })
+    .find(binding => binding.capability_id === feedItemActions.inbox.capability_id)!;
+  const [wrappedInbox] = createFeedWriter(database, ports).writing([feedItemActions.inbox], [itemBinding]);
+  await assert.rejects(
+    wrappedInbox!.handle(context, { item_id: "item-1", expected_revision: 1 }),
+    { code: "feed.invalid_transition" },
+  );
+  assert.deepEqual(log, ["before", "begin", "actor:audited", "write:ensure", "rollback"]);
+
+  log.length = 0;
+  const admitBinding = createFeedInboxHandlers(fakeFeed, DEMO_PROJECT_ID, {
+    hydrate: async item => item,
+    authorize: async () => ({ authorized: true }),
+  }).find(binding => binding.capability_id === feedInboxActions.admit.capability_id)!;
+  const [wrappedAdmit] = createFeedWriter(database, ports).writing([feedInboxActions.admit], [admitBinding]);
+  await assert.rejects(
+    wrappedAdmit!.handle(standIn<ActionExecutionContext>({ ...context, audience: "workflow" }), { item_id: "item-1" }),
+    { code: "feed.invalid_transition" },
+  );
+  assert.deepEqual(log, ["before", "begin", "actor:audited", "write:ensure", "rollback"]);
 });
 
 /** Makes a source's next pull due: the tick reads the clock itself, so the plan is moved back instead. */
@@ -622,7 +687,7 @@ test("FI-C-04 an item synced from a research library is read by every read actio
   const snapshot = await f.client.invoke(read(), feedQueryActions.snapshot, {}) as { feed_items: Array<{ item_id: string; body: string | null }> };
   assert.equal(snapshot.feed_items.find(row => row.item_id === itemId)?.body, null, "FBR-02: directory pages never hydrate article bodies; the exact item/content readers above and below retain them");
   assert.ok((await f.client.invoke(read(), feedContentActions.read, { item_id: itemId }) as { body: string }).body.includes(text));
-  assert.ok((await f.client.invoke(read(), feedSubjectAction, { subject_id: itemId })).content.includes(text));
+  assert.ok((await f.client.invoke(read(), feedSubjectAction, { subject_id: itemId }) as { content: string }).content.includes(text));
   const preview = await f.client.invoke(read(), feedRuleActions.preview, { source_id: sourceId, contains: "verifiable" }) as { samples: Array<{ item_id: string; matched: boolean }> };
   assert.deepEqual(preview.samples.map(sample => [sample.item_id, sample.matched]), [[itemId, true]], "the next rule read matches the package's text");
   // Not asking the evidence store does not skip the call's own checks.
@@ -1805,7 +1870,7 @@ for (const { service, fault } of CURRENT_CONNECTOR_FAULTS) test(`RAC-2863 RAC-28
   const f = await openTestHome(t), project = await f.createProject(`T396 ${service} ${fault}`, ["feed", "inbox"]), client = f.host.actionClient(project.reference);
   const person = () => f.host.localPersonContext(project.reference);
   await client.discover(await person());
-  const runtime = await f.host.withProject(project.reference, runtime => runtime), platform = await runningProjectPlatform(runtime.store, project.project_id);
+  const runtime = await f.host.withProject(project.reference, (projectRuntime: { store: LocalProjectDatabase }) => projectRuntime), platform = await runningProjectPlatform(runtime.store, project.project_id);
   assert.ok(platform);
   const install = platform.runtime.list().find(record => record.plugin_id === FEED_PLUGIN_ID)!;
   assert.ok(install.grants.includes("connections:use") && install.grants.includes("sources:pull_connector"));
@@ -2048,4 +2113,220 @@ test("QEA-73 a Runtime Feed pulls a web query through SourcePull and replays wit
   const replay = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, input) as { replayed: boolean; created: number };
   assert.deepEqual([replay.replayed, replay.created], [true, 0]);
   assert.deepEqual(counts(), before);
+});
+
+test("F-pm3-03 Runtime Feed validates Gmail source scopes without throwing not-implemented", async t => {
+  const f = await connecting(t);
+  const added = await f.client.invoke(caller([...WRITE, "sources:pull_connector"]).context, feedSourceActions.add_account, {
+    service: "gmail",
+    name: "Work Gmail",
+  }) as { source: { source_id: string; sync_kind: string; config: Record<string, unknown> } };
+  assert.equal(added.source.sync_kind, "gmail");
+  const update = (scope: string) => f.client.invoke(caller(DESCRIBE).context, feedSourceActions.update, {
+    source_id: added.source.source_id,
+    scope,
+  }) as Promise<{ source: { config: Record<string, unknown> } }>;
+
+  const starred = await update("is:starred");
+  assert.equal(starred.source.config.scope, "is:starred");
+  const important = await update("  IS:IMPORTANT  ");
+  assert.equal(important.source.config.scope, "is:important");
+  const defaulted = await update("");
+  assert.equal(defaulted.source.config.scope, "in:inbox is:unread");
+  await assert.rejects(update("in:trash"), { code: "feed.source_invalid_configuration" });
+  const persisted = f.store.db.prepare("SELECT config_json FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { config_json: string };
+  assert.equal((JSON.parse(persisted.config_json) as { scope?: string }).scope, "in:inbox is:unread");
+});
+
+test("F-pm3-09 notification delivery judges only its own ingested item and entry without draining other queued work", async t => {
+  const f = await delivering(t);
+  await f.rule({ contains: "PR #418" }, "demo-rule");
+  await f.rule({ contains: "judged" }, "notif-rule");
+  await f.client.invoke({
+    actor_id: "demo-seed",
+    audience: "workflow",
+    project_id: DEMO_PROJECT_ID,
+    permissions: ["feed:write", "storage:private", "sources:pull_public_feed", "attention:write", "context-ledger:write", "artifact:write"],
+  }, { capability_id: "feed.demo.seed", version: 1 }, {});
+  assert.deepEqual([f.seen.judged.length, f.seen.inbox.length, f.seen.home.length], [0, 0, 0]);
+
+  const row = await f.send("judged-isolated");
+  assert.ok(row.delivered_at && row.item_id && row.last_error_code === null, JSON.stringify(row));
+  assert.equal(f.seen.judged.length, 1, "only the notification's item is judged");
+  assert.ok(f.seen.judged[0]!.includes("Body of judged-isolated"));
+  const entries = f.entriesOf(row.item_id!);
+  assert.equal(entries.length, 1);
+  assert.deepEqual(f.seen.inbox.flat(), [entries[0]!.entry_id], "only the notification's Inbox entry is judged");
+  assert.deepEqual(
+    f.judgedSubjects(),
+    [`feed_item:${row.item_id}`, `inbox_entry:${entries[0]!.entry_id}`].sort(),
+    "Home judges only the notification's item and entry",
+  );
+});
+
+test("F-pm3-09 feed.items.inbox flushes the exact manual Inbox entry rather than an existing source_rule entry", async t => {
+  const f = await judging(t);
+  await f.client.invoke(caller(RULES).context, feedRuleActions.create, {
+    name: "plain-admit",
+    match: { contains: "manual-target" },
+    admission: "inbox",
+  });
+  const written = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, {
+    request_id: "manual-target-1",
+    title: "manual-target",
+    body: "body of manual target",
+  }).then(itemOf);
+  const initialEntries = f.entriesOf(written.item_id);
+  assert.equal(initialEntries.length, 1);
+  assert.equal(initialEntries[0]!.reason, "source_rule");
+
+  f.seen.inbox.length = 0;
+  const current = await f.client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { revision: number } };
+  await f.client.invoke(caller(JUDGING).context, feedItemActions.inbox, {
+    item_id: written.item_id,
+    expected_revision: current.item.revision,
+  });
+  const manualEntry = f.entriesOf(written.item_id).find(entry => entry.reason === "manual");
+  assert.ok(manualEntry && manualEntry.entry_id !== initialEntries[0]!.entry_id);
+  assert.deepEqual(f.seen.inbox.flat(), [manualEntry.entry_id], "manual admission judges the manual entry, not the older source_rule entry");
+});
+
+test("F-pm3-09 judgeOwn rolls back items and entries queued during a throwing synchronous step", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "feed-judgeown-rollback-"));
+  const file = join(directory, "project.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
+
+  const judgedItems: string[] = [];
+  const judgedEntries: string[] = [];
+  const feed = createLocalFeedApplication(store.db, {
+    homeJudgment: async subject => { judgedItems.push(`${subject.kind}:${subject.id}`); },
+    inboxJudgment: async entry => { judgedEntries.push(entry.entry_id); },
+  });
+  const now = new Date().toISOString();
+  const source = feed.sources.upsert({
+    project_id: DEMO_PROJECT_ID,
+    source_id: "src-judgeown-rollback",
+    kind: "manual",
+    definition_id: null,
+    sync_kind: "manual",
+    name: "Manual",
+    description: "",
+    status: "active",
+    enabled: true,
+    item_count: 0,
+    origin: "molis_work",
+    config: {},
+    schedule: { mode: "manual" },
+    cursor: {},
+    credential_ref: null,
+    account_label: null,
+    last_sync_at: null,
+    last_outcome: null,
+    last_error_code: null,
+    imported_at: now,
+    updated_at: now,
+  });
+  assert.throws(() => {
+    void feed.ingestItemJudged({
+      source,
+      externalId: "rollback-ext-1",
+      title: "Should not linger",
+      summary: "summary",
+      occurredAt: now,
+      attention: { reason: "source_rule" },
+    }, undefined, () => {
+      throw new ActionError("actions.cancelled", "aborted inside step");
+    });
+  }, { code: "actions.cancelled" });
+
+  await feed.flushPendingJudgments();
+  assert.deepEqual(judgedItems, []);
+  assert.deepEqual(judgedEntries, []);
+});
+
+test("F-pm3-10 account reconciliation never resurrects a source retired while connections.describe is suspended", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "feed-reconcile-retired-"));
+  const file = join(directory, "project.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
+
+  const feed = createLocalFeedApplication(store.db);
+  const now = new Date().toISOString();
+  const source = feed.sources.upsert({
+    project_id: DEMO_PROJECT_ID,
+    source_id: "src-reconcile-retired",
+    kind: "github",
+    definition_id: "github",
+    sync_kind: "github",
+    name: "Work GitHub",
+    description: "",
+    status: "disconnected",
+    enabled: true,
+    item_count: 0,
+    origin: "molis_work",
+    config: {},
+    schedule: { mode: "manual" },
+    cursor: {},
+    credential_ref: null,
+    account_label: null,
+    last_sync_at: null,
+    last_outcome: null,
+    last_error_code: "sources.connector_disconnected",
+    imported_at: now,
+    updated_at: now,
+  });
+
+  const describeEntered = Promise.withResolvers<void>();
+  const describeRelease = Promise.withResolvers<void>();
+  const commitDone = Promise.withResolvers<void>();
+  const commitResults: boolean[] = [];
+  let changedCalls = 0;
+  const stop = new AbortController();
+  t.after(() => { describeRelease.resolve(); stop.abort(); });
+
+  let runningJob: Promise<void> | undefined;
+  const background = standIn<PluginBackgroundClient>({
+    keep(_jobId: string, run: (control: PluginJobControl) => Promise<void>) {
+      const control = standIn<PluginJobControl>({ signal: stop.signal, beforeEffect: async () => {} });
+      runningJob = run(control);
+    },
+  });
+  const connections = standIn<NonNullable<Parameters<typeof keepFeedReconcile>[1]["connections"]>>({
+    async describe() {
+      describeEntered.resolve();
+      await describeRelease.promise;
+      return { bound: true, state: "connected", display_name: "Octocat", origin: "oauth" };
+    },
+  });
+
+  keepFeedReconcile(background, {
+    feed,
+    projectId: DEMO_PROJECT_ID,
+    connections,
+    async commit<T>(_control: PluginJobControl, body: () => T) {
+      const result = body();
+      commitResults.push(Boolean(result));
+      commitDone.resolve();
+      return result;
+    },
+    hold: undefined,
+    onSourceStateChanged: () => { changedCalls += 1; },
+  }, createConnectionWatch());
+
+  await describeEntered.promise;
+  feed.sources.retire(DEMO_PROJECT_ID, source.source_id, "retain_history");
+  describeRelease.resolve();
+  await commitDone.promise;
+  stop.abort();
+  await runningJob;
+
+  assert.deepEqual(commitResults, [false]);
+  assert.equal(changedCalls, 0);
+  const persisted = feed.sources.get(DEMO_PROJECT_ID, source.source_id);
+  assert.equal(persisted.status, "disconnected");
+  assert.equal(persisted.enabled, false);
+  assert.ok((persisted.config._molis_work_lifecycle as { deleted_at?: string } | undefined)?.deleted_at);
 });

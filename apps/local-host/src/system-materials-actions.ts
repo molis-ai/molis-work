@@ -15,6 +15,7 @@ import { SqlitePluginPrivateStorage, type PluginInputGraph } from "@molis-ai/mol
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { runningProjectPlatform } from "./project-plugins.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
+import { readWorkbenchText } from "./ui-error-words.js";
 
 /**
  * The platform's materials service (Files retirement, specs/batch-06-shared-tools §3, materials-ui-contract §1, §5): the reading, fixing and
@@ -242,7 +243,7 @@ function materialsReader({ projectId, ports, cursors, folders, read }: Materials
     }
     if (!withText) return answer(`size:${result!.outcome === "too-large" ? result!.bytes : 0}`, {});
     // Too long for one read: in windows, each read again under the caller's authority and from the same file as the one before.
-    if (!ports.windows) throw notText(result!);
+    if (!ports.windows) throw result ? notText(result) : new ActionError("actions.service_unavailable", "这里不能分段读取文件");
     const claim = { p: projectId, a: caller.actor_id, s: workspaceFileSubjectId(named.workspace_id, named.path), w: named.workspace_id };
     const from = cursor === undefined ? null : cursors.open(cursor, claim);
     const window = await ports.windows({ workspace_id: named.workspace_id, path: named.path }, from);
@@ -274,7 +275,11 @@ const SKIPPED = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
 const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", json: "application/json", ts: "text/typescript", tsx: "text/typescript",
   js: "text/javascript", mjs: "text/javascript", css: "text/css", html: "text/html", yml: "application/yaml", yaml: "application/yaml", py: "text/x-python",
   csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
-const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
+const mediaOf = (name: string) => {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  return Object.hasOwn(MEDIA, ext) ? MEDIA[ext]! : "text/plain";
+};
 
 /**
  * The project's folders as a side panel file source (materials-ui-contract §6): every folder listed under its own name, and a file
@@ -316,8 +321,13 @@ function materialsFiles({ ports, nested, folders, read }: MaterialsCore) {
       if (result.outcome === "bytes") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, bytes: Buffer.from(result.data, "base64") });
       if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, text: result.text });
       if (result.outcome === "missing") throw unavailable("文件已不存在");
-      const why = result.outcome === "too-large" ? `文件太大（${Math.round(result.bytes / 1024)} KB），侧栏只预览 ${Math.round(result.limit / 1024)} KB 以内的文件。`
-        : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
+      const why = result.outcome === "too-large"
+        ? readWorkbenchText("workbench.assistant-attachments.file-too-large-bring-only-part-need")
+        : result.outcome === "binary"
+          ? readWorkbenchText("workbench.assistant-conversation.material-has-no-text-preview")
+          : result.outcome === "denied"
+            ? readWorkbenchText("common.presentation.forbidden")
+            : readWorkbenchText("workbench.side-panel-files.cannot-preview-here");
       // A text file too long for one read is named by its size, the revision a windowed read answers to; the reader reads it on.
       return fileContentOf({ subject: input.subject, revision: result.outcome === "too-large" ? `size:${result.bytes}` : "unreadable", title, media_type: "text/plain", text: why });
     }),

@@ -32,6 +32,7 @@ import { KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
@@ -402,6 +403,15 @@ for (const mode of ["callback", "manual"] as const) test(`ASC-09 MCP ${mode} pub
   const temp = home(), publicOrigin = "https://mcp.notion.com";
   const remote = await fixture({ oauth: true, publicOrigin });
   const originalFetch = globalThis.fetch;
+  const forwardPublic = (rawUrl: string, init?: RequestInit) => {
+    const url = new URL(rawUrl);
+    if (url.origin === publicOrigin) {
+      const forwarded = new URL(url.pathname + url.search, remote.localOrigin);
+      return originalFetch(forwarded, init);
+    }
+    throw new Error("Unexpected external request in isolated MCP test");
+  };
+  oauthNetwork(t, (rawUrl, init) => forwardPublic(rawUrl, { method: init.method, headers: init.headers, ...(init.body ? { body: init.body } : {}) }));
   t.mock.method(globalThis, "fetch", (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.origin === publicOrigin) {
@@ -1221,6 +1231,16 @@ function declaredMcpPlugin(serviceId: string, method: PluginMcpMethodDeclaration
 
 function routeDeclaredMcp(t: TestContext, remote: Awaited<ReturnType<typeof fixture>>, allowedLocal: string[] = []) {
   const original = globalThis.fetch, origin = new URL(remote.endpoint).origin, destinations: string[] = [];
+  oauthNetwork(t, (rawUrl, init) => {
+    const url = new URL(rawUrl);
+    if (url.origin === origin) {
+      destinations.push(url.href);
+      const forwarded = new URL(url.pathname + url.search, remote.localOrigin);
+      return original(forwarded, { method: init.method, headers: init.headers, ...(init.body ? { body: init.body } : {}) });
+    }
+    destinations.push(url.href);
+    throw new Error("Unexpected external request in declared MCP fixture: " + url.origin);
+  });
   t.mock.method(globalThis, "fetch", (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.origin === origin) {
@@ -1282,6 +1302,13 @@ test("RAC2885 stable pins survive process restart while old pending and held gen
       held: string; heldConnection: string; origin: string; caller: ActionCallContext };
     const nativeFetch = globalThis.fetch, restore = controlledConnectorEnvironment();
     const destinations: string[] = [];
+    oauthNetwork(t, (rawUrl, init) => {
+      const url = new URL(rawUrl);
+      destinations.push(url.href);
+      if (url.origin !== "https://mcp.notion.com") throw new Error("Unexpected restart-probe request");
+      const forwarded = new URL(url.pathname + url.search, input.localOrigin);
+      return nativeFetch(forwarded, { method: init.method, headers: init.headers, ...(init.body ? { body: init.body } : {}) });
+    });
     t.mock.method(globalThis, "fetch", (request: Parameters<typeof fetch>[0], init?: RequestInit) => {
       const url = new URL(request instanceof Request ? request.url : String(request));
       destinations.push(url.href);
@@ -1926,4 +1953,20 @@ test("CPK-02: a connection's listing counts what changed for the AI kit, keeps t
   } finally {
     directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true });
   }
+});
+
+test("F-hc-07 S-10 remote MCP refuses literal loopback and private/metadata HTTPS endpoints before any network request", async t => {
+  const temp = home();
+  t.after(() => rmSync(temp, { recursive: true, force: true }));
+  let fetched = 0;
+  t.mock.method(globalThis, "fetch", async () => { fetched++; throw new Error("must not fetch private HTTPS MCP endpoint"); });
+  const host = createConnectorMcpHost();
+  for (const endpoint of ["https://127.0.0.1/mcp", "https://169.254.169.254/latest/meta-data/", "https://10.0.0.1/mcp", "https://[::1]/mcp"]) {
+    await assert.rejects(
+      host.startMcpConnection(temp, { serviceId: "figma", displayName: "Blocked", endpoint, clientId: "client-1", origin: callbackOrigin }),
+      { code: "connector.mcp.configuration" },
+      endpoint,
+    );
+  }
+  assert.equal(fetched, 0, "private literal HTTPS MCP endpoints never open a network request");
 });

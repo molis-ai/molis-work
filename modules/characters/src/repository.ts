@@ -27,10 +27,25 @@ export class CharactersRepository {
       .run(record.revision, record.updated_at, JSON.stringify(record), record.character_id, this.actorId, previousRevision).changes === 1;
   }
 
-  /** Freeze a confirmed draft while a synchronous Artifact publisher reads it. */
+  private savepoints = 0;
+
+  /** Freeze a confirmed draft while a synchronous Artifact publisher reads it; re-entrant via SAVEPOINT. */
   immediate<T>(operation: () => T): T {
-    this.db.exec("BEGIN IMMEDIATE");
-    try { const result = operation(); this.db.exec("COMMIT"); return result; }
-    catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
+    const nested = this.db.isTransaction;
+    const name = `_char_tx_${this.savepoints + 1}`;
+    this.db.exec(nested ? `SAVEPOINT ${name}` : "BEGIN IMMEDIATE");
+    this.savepoints += 1;
+    try {
+      const result = operation();
+      this.db.exec(nested ? `RELEASE ${name}` : "COMMIT");
+      return result;
+    } catch (error) {
+      rollbackPreservingError(error, () => {
+        if (this.db.isTransaction) this.db.exec(nested ? `ROLLBACK TO ${name}; RELEASE ${name}` : "ROLLBACK");
+      });
+      throw error;
+    } finally {
+      this.savepoints -= 1;
+    }
   }
 }

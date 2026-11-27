@@ -36,7 +36,7 @@ pub(crate) async fn restore(req: &mut Request, db: &D1Database, space: &str) -> 
         string(&value, "operationId", 150)?,
         integer(&value, "revision")?,
     );
-    let previous=db.prepare("SELECT key,base,action,source_revision FROM sync_receipts WHERE space=? AND namespace=? AND operation=?").bind(&[space.into(),namespace.into(),operation.into()])?.first::<Value>(None).await?;
+    let previous=db.prepare("SELECT key,base,action,source_revision,revision FROM sync_receipts WHERE space=? AND namespace=? AND operation=?").bind(&[space.into(),namespace.into(),operation.into()])?.first::<Value>(None).await?;
     if let Some(previous) = previous {
         require(
             previous["key"] == key
@@ -46,7 +46,7 @@ pub(crate) async fn restore(req: &mut Request, db: &D1Database, space: &str) -> 
             409,
             "IDEMPOTENCY_CONFLICT",
         )?;
-        return Ok(json!({"accepted":true}));
+        return Ok(json!({"accepted":true,"revision":previous["revision"]}));
     }
     let row=db.prepare("SELECT e.value,e.attachments FROM sync_events e WHERE e.space=? AND e.namespace=? AND e.key=? AND e.revision<? AND e.value<>'null' AND e.action<>'archive' AND EXISTS(SELECT 1 FROM sync_events d WHERE d.space=e.space AND d.namespace=e.namespace AND d.key=e.key AND d.revision=? AND d.value='null') ORDER BY e.revision DESC LIMIT 1")
         .bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(revision as f64),JsValue::from_f64(revision as f64)])?.first::<Value>(None).await?.ok_or(Failure(404,"SYNC_RECOVERY_MISSING"))?;

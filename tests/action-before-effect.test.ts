@@ -162,6 +162,81 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
       assert.ok(restored);
     } finally { release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
   });
+
+  test(`F-TEST-08 ${kind}: post-dispatch ${mode} after beforeDispatch refuses beforeEffect with zero SQLite writes and recovers`, { timeout: 15_000 }, async t => {
+    const home = await mkdtemp(join(tmpdir(), `${kind}-post-dispatch-effect-`));
+    const entered = gate();
+    const release = gate();
+    let enabled = true;
+    let allowed = true;
+    let dispatched = 0;
+    const host = new MolisWorkLocalHost({
+      homeDirectory: home,
+      completeText: async (_prompt, options) => {
+        await options?.beforeDispatch?.();
+        dispatched++;
+        if (dispatched === 1) {
+          entered.resolve();
+          await release.promise;
+        }
+        return output[kind];
+      },
+      actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "Disabled" },
+    });
+    const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+    const client = host.actionClient(reference);
+    const context: ActionCallContext = {
+      ...caller,
+      project_id: "a",
+      validate_authority: () => {
+        if (!allowed) throw new ActionError("actions.revoked", "Revoked");
+      },
+    };
+    const bound = bindActionClient(client, () => context);
+    const controller = new AbortController();
+    t.signal.addEventListener("abort", () => {
+      controller.abort();
+      release.resolve();
+    }, { once: true });
+    try {
+      const input = await prepare(kind, bound);
+      const pending = client.invoke({ ...context, signal: controller.signal }, actions[kind], input);
+      const rejected = assert.rejects(
+        pending,
+        mode === "cancelled" ? { name: "AbortError" } : errorCode(mode === "revoked" ? "actions.revoked" : "actions.plugin_disabled"),
+      );
+      await waitForModel(entered.promise, pending);
+      assert.equal(dispatched, 1, "post-dispatch scenario passes beforeDispatch and sends the model request first");
+      const before = persisted(home, kind, input);
+      if (mode === "revoked") allowed = false;
+      if (mode === "disabled") enabled = false;
+      if (mode === "cancelled") controller.abort();
+      release.resolve();
+      await rejected;
+      assert.equal(dispatched, 1, "exactly one model call was dispatched before post-dispatch refusal");
+      assert.deepEqual(persisted(home, kind, input), before, "post-dispatch beforeEffect refusal must leave SQLite untouched");
+      allowed = true;
+      enabled = true;
+      const restored = await client.invoke(context, actions[kind], input);
+      assert.equal(dispatched, 2, "authorized retry dispatches cleanly after recovery");
+      assert.notDeepEqual(persisted(home, kind, input), before);
+      if (kind === "pages") {
+        const store = openPagesStore(home, "a");
+        try {
+          assert.equal(store.list().length, 1);
+          assert.equal(store.generation("request-1")!.status, "completed");
+        } finally {
+          store.close();
+        }
+        assert.equal((await client.invoke(context, actions[kind], input) as { replayed: boolean }).replayed, true);
+      }
+      assert.ok(restored);
+    } finally {
+      release.resolve();
+      await host.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
 }
 
 test("effect guard rechecks the actual Catalog installation after an asynchronous call, then permits reactivation", { timeout: 15_000 }, async () => {

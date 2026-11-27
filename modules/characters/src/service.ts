@@ -3,7 +3,7 @@ import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-t
 import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterMemberSaveInput, CharacterMemberSaveResult, CharacterRoleContent, CharacterState, CharactersCommand, CharactersQuery, PersonalCharacterVersionRef, ProjectCharacterVersionRef } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseCharacterContent, parseCharacterTools, selectCharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharactersRepository } from "./repository.js";
-import type { CharacterRoles } from "./roles.js";
+import { normalizeMemberSections, type CharacterRoles } from "./roles.js";
 import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
 
 export class CharactersService implements CharactersQuery, CharactersCommand {
@@ -78,27 +78,30 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
 
   saveMember(projectId: string, input: CharacterMemberSaveInput): CharacterMemberSaveResult {
     const { member_id, expected_revision, expected_original_version, expected_original_draft_revision, work_style, capabilities } = input;
-    const sections = { work_style, capabilities };
-    if (expected_original_draft_revision === undefined) {
-      return { role: this.roles.saveMember(projectId, member_id, expected_revision, expected_original_version, sections) };
-    }
-    if (!work_style && !capabilities) throw characterErrors.invalid("至少选择一节保存到原件");
-    let original_draft_revision: number | undefined;
-    const role = this.roles.saveMemberFollowing(projectId, member_id, expected_revision, expected_original_version, sections, id => {
-      const current = this.confirmed(id, expected_original_draft_revision);
-      const next = { ...current, ...work_style, ...capabilities };
-      if (capabilities && capabilities.action_tools === undefined) delete next.action_tools;
-      original_draft_revision = this.save(current, next).revision;
-      return this.roles.latestVersion(id)!.version;
+    const sections = normalizeMemberSections({ work_style, capabilities });
+    return this.repository.immediate(() => {
+      if (expected_original_draft_revision === undefined) {
+        return { role: this.roles.saveMember(projectId, member_id, expected_revision, expected_original_version, sections) };
+      }
+      if (!sections.work_style && !sections.capabilities) throw characterErrors.invalid("至少选择一节保存到原件");
+      let original_draft_revision: number | undefined;
+      const role = this.roles.saveMemberFollowing(projectId, member_id, expected_revision, expected_original_version, sections, id => {
+        const current = this.confirmed(id, expected_original_draft_revision);
+        const next = { ...current, ...sections.work_style, ...sections.capabilities };
+        if (sections.capabilities && sections.capabilities.action_tools === undefined) delete next.action_tools;
+        original_draft_revision = this.save(current, next).revision;
+        return this.roles.latestVersion(id)!.version;
+      });
+      return { role, original_draft_revision };
     });
-    return { role, original_draft_revision };
   }
 
   restoreMember(projectId: string, ref: ProjectCharacterVersionRef, expectedRevision: string, expectedOriginalVersion: number, expectedDraftRevision?: number) {
-    return this.roles.restoreMember(projectId, ref, expectedRevision, expectedOriginalVersion, expectedDraftRevision === undefined ? undefined : original => {
-      this.restoreDraft(original, expectedDraftRevision);
-      return this.roles.latestVersion(original.character_id)!.version;
-    });
+    return this.repository.immediate(() =>
+      this.roles.restoreMember(projectId, ref, expectedRevision, expectedOriginalVersion, expectedDraftRevision === undefined ? undefined : original => {
+        this.restoreDraft(original, expectedDraftRevision);
+        return this.roles.latestVersion(original.character_id)!.version;
+      }));
   }
 
   private restoreDraft(ref: PersonalCharacterVersionRef, expectedRevision: number): CharacterDraft {

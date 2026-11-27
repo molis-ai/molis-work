@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -331,4 +331,50 @@ test("QEA-89 unavailable digests never fold different reads; newly available key
   assert.equal(snapshotText(db, keys, result.digest), JSON.stringify({ items: ["new"] }));
   assert.notEqual(result.digest, createHash("sha256").update(JSON.stringify({ items: ["new"] })).digest("hex"));
   assert.deepEqual(records.filter(row => unknown.some(old => old.record_id === row.record_id)), unknown, "old missing evidence is not rewritten when keys become available");
+});
+
+test("F-horiz-runtime-21: enqueue avoids sync DB I/O, open failure backs off, and empty flush preserves last_write_at", t => {
+  let current = new Date("2026-11-26T10:00:00.000Z");
+  const f = fixture(t, { now: () => current });
+  f.layer.observed(agent(), write, done({ step: 1 }, { ok: true }));
+  assert.equal(existsSync(join(f.home, "observation", "observation.db")), false, "enqueue must not synchronously open or create observation.db");
+  f.layer.flush();
+  assert.equal(existsSync(join(f.home, "observation", "observation.db")), true);
+  const firstWrite = (f.db().prepare("SELECT value FROM writer_state WHERE key = 'last_write_at'").get() as { value: string }).value;
+  current = new Date("2026-11-26T10:05:00.000Z");
+  f.layer.flush();
+  const afterEmptyFlush = (f.db().prepare("SELECT value FROM writer_state WHERE key = 'last_write_at'").get() as { value: string }).value;
+  assert.equal(afterEmptyFlush, firstWrite, "empty flush must not advance last_write_at");
+
+  const tempDir = mkdtempSync(join(tmpdir(), "observation-bad-home-"));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+  const badHome = join(tempDir, "not-a-directory");
+  writeFileSync(badHome, "blocked");
+  const secrets = memorySecrets();
+  let keyAttempts = 0;
+  const badLayer = new ObservationLayer({
+    home: badHome,
+    env: { platformVersion: "0.test", now: () => current, projectClass: () => "user" },
+    keys: has => { keyAttempts += 1; return observationKeys(secrets, has); },
+    flushDelayMs: 60_000,
+  });
+  t.after(() => badLayer.close());
+  for (let i = 0; i < 5; i++) badLayer.observed(agent(), write, done({ i }, { ok: true }));
+  assert.equal(keyAttempts, 0, "enqueue on unhealthy home must not attempt synchronous DB open");
+  badLayer.flush();
+  const afterFirstFlush = keyAttempts;
+  badLayer.flush();
+  assert.equal(keyAttempts, afterFirstFlush, "repeated flush during open failure backoff skips immediate reopen");
+});
+
+test("F-horiz-runtime-21: stale read fold target falls back to INSERT when its previous record was deleted", t => {
+  const f = fixture(t);
+  f.layer.observed(agent(), read, done({ q: "fold-fallback" }, { items: ["v1"] }));
+  f.layer.flush();
+  assert.equal(readRecords(f.db()).length, 1);
+  f.db().prepare("DELETE FROM records").run();
+  assert.equal(readRecords(f.db()).length, 0);
+  f.layer.observed(agent(), read, done({ q: "fold-fallback" }, { items: ["v1"] }));
+  f.layer.flush();
+  assert.equal(readRecords(f.db()).length, 1, "stale fold UPDATE with 0 changes must fall back to INSERT");
 });

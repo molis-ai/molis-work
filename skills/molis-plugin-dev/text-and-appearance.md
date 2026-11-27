@@ -29,7 +29,7 @@
 
 按界面受众分两档掌握用词尺度：
 
-- **A 层 · 日常与通用界面（默认标准）**：新手引导、外壳、个人助理、Goals、Inbox、Feed、Schedule、风险、工作简报、待办、灵光、Pages、Forms、PPT、Dataset、Jelly、Cognia、Shelf、图片、Issue、炼金术士、插件创作台、工作流程，以及常规/助理/记忆/同步/角色/插件设置——**零 AI 与工程黑话**，不裸写 `Runtime`、`Agent`、`Prompt`、`上下文`、`快照`、`回执`、`调用方`、`提供方`、`游标`、`落盘`、`能力板`、`替身`、`门禁 G1–G6`、`父子 Contract`、`Thread`、`规格校验`、`进程`、`沙箱`、`Shell`、`Runtime payload`。
+- **A 层 · 日常与通用界面（默认标准）**：新手引导、外壳、个人助理、Goals、Inbox、Feed、Schedule、风险、工作简报、待办、灵光、Pages、Forms、PPT、Dataset、Jelly、Cognia、Shelf、图片、Issue、插件创作台、工作流程，以及常规/助理/记忆/同步/角色/插件设置——**零 AI 与工程黑话**，不裸写 `Runtime`、`Agent`、`Prompt`、`上下文`、`快照`、`回执`、`调用方`、`提供方`、`游标`、`落盘`、`能力板`、`替身`、`门禁 G1–G6`、`父子 Contract`、`Thread`、`规格校验`、`进程`、`沙箱`、`Shell`、`Runtime payload`。
 - **B 层 · 开发者工具界面**：`Coding`、`Git`、`Diff`、模型高级协议、对外接入（`MCP` / `CLI`）与系统诊断——保留开发者主动寻找的标准词（`Git`、`工作树`、`暂存区`、`PR`、`MCP`、`CLI`、`API Key`、`Base URL`），但所有状态解释、风险提示和恢复动作一律用温和直白的人话（如 `原子任务` 统一写 `子任务`，`执行回执` 统一写 `执行记录`）。
 
 ### 内部词与高门槛 AI 术语 → 用户白话转译表
@@ -209,12 +209,12 @@ plugin_state="$(mktemp -d)"
 "$molis_cli" plugin dev "$plugin_project" "$plugin_state" ui:register --allow-unsigned-development --locale zh
 ```
 
-开发状态目录必须是新的、空的，或之前 `dev` 用过且带 `.molis-work-plugin-development.json` 标记。中英文各跑一次可以用同一个目录。普通非空目录会被拒绝，`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」。错误码是 `host.plugin_development_directory_occupied`，目录里原有的东西不动；换一个新目录再跑。
+开发状态目录必须是新的、空的，或之前 `dev` 用过且带 `.molis-work-plugin-development.json` 标记。各声明语言（如 `zh`、`en`、`ja`）分别跑一次预览可以用同一个目录。普通非空目录会被拒绝，`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」。错误码是 `host.plugin_development_directory_occupied`，目录里原有的东西不动；换一个新目录再跑。
 
 **先 `validate`，再 `dev`。** `dev` 只读这次用的语言和默认语言两个文件：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行，报 `plugin.package_invalid`，`message` 和 `validate` 的写法一样。别的语言（没用到的那几种）它不读，所以全部语言的检查仍要靠 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
 
 - `validate` 读 Manifest 旁边声明的语言文件。默认语言缺键（别的语言有、它没有）、参数和默认语言不一样、文字里有那五个字符、文件缺失、`owner` 或 `locale` 和声明不符：都失败，退出码 1，`message` 写哪个文件、哪个键、怎么改。参数不一样时，问题记在非默认语言的文件上，但写错的可能是任何一边：`message` 写出两个文件各用什么参数、哪个是默认语言，改写错的那一边；代码里 `t` 传的参数名以默认语言为准。只是别的语言少几个键不算失败，写进输出的 `locale_notes`（每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`），那种语言暂时显示默认语言的字。
-- `dev` 加 `--locale <语言>` 用那种语言画页面，不写用 `default`。语言不在 `available` 里报 `actions.input_invalid` 并列出可选的；插件没写 `ui.locales` 却传了 `--locale`，同样报错，提示先写 `ui.locales`。中英文各跑一次，看输出 JSON 里 `rendered_ui` 的 HTML。
+- `dev` 加 `--locale <语言>` 用那种语言画页面，不写用 `default`。语言不在 `available` 里报 `actions.input_invalid` 并列出可选的；插件没写 `ui.locales` 却传了 `--locale`，同样报错，提示先写 `ui.locales`。在各声明语言（`locales/<语言>.json`，如 `zh`、`en`、`ja`）下分别跑一次，看输出 JSON 里 `rendered_ui` 的 HTML。
 
 ## 后台工作、报错边界与稍后显示的文字
 

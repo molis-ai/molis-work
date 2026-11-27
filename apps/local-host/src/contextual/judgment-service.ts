@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ContextualCandidate, ContextualJudgeRequest, ContextualJudgeResponse, ContextualJudgment, SurfaceFocus,
@@ -57,6 +58,39 @@ export interface ContextualJudgmentService<Caller> {
 
 const CACHE_LIMIT = 64;
 
+function callerIdentity(caller: unknown): string {
+  if (typeof caller === "string" || typeof caller === "number") return String(caller);
+  if (caller && typeof caller === "object") {
+    const record = caller as { directory?: unknown; scope?: unknown; actor_id?: unknown };
+    if (typeof record.directory === "string") return record.directory;
+    if (typeof record.scope === "string" || typeof record.actor_id === "string") {
+      return JSON.stringify([record.scope ?? null, record.actor_id ?? null]);
+    }
+  }
+  return "";
+}
+
+function raceSignal<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    void work.catch(() => undefined);
+    return Promise.reject(signal.reason);
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      value => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      error => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function createContextualJudgmentService<Caller>(ports: ContextualJudgmentPorts<Caller>): ContextualJudgmentService<Caller> {
   const pending = new Map<string, AbortController>();
   const cache = new Map<string, { judgment: ContextualJudgment; candidates: readonly ContextualCandidate[]; digest: string; screened: readonly string[]; wording: string }>();
@@ -70,10 +104,66 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
       screened: receipt.screened, ...(receipt.fallback ? { fallback: receipt.fallback } : {}) },
   });
 
-  // The same thing in hand judged against another landing is another question.
-  const cacheKey = (request: ContextualJudgeRequest) => request.focus.context_id + "\u0000" + request.focus.object.id
-    + (request.landing ? "\u0000" + JSON.stringify([request.landing.plugin_id, request.landing.object.id, request.landing.position, request.landing.version,
-      request.landing.targets?.map(target => [target.anchor, target.head])]) : "");
+  // Cache entries are isolated by caller directory (Home, project scope, actor) and all judgment-relevant context fields.
+  const cacheKey = (request: ContextualJudgeRequest, caller: Caller, personal: boolean) => {
+    const { focus, landing, recent } = request;
+    return createHash("sha256").update(JSON.stringify({
+      caller: callerIdentity(caller),
+      personal,
+      focus: {
+        context_id: focus.context_id,
+        plugin_id: focus.plugin_id,
+        activity: focus.activity,
+        granularity: focus.granularity,
+        object: [focus.object.kind, focus.object.id, focus.object.version ?? null, focus.object.title ?? null],
+        targets: focus.targets.map(target => [
+          target.kind,
+          target.role ?? null,
+          target.text,
+          Boolean(target.truncated),
+          target.anchor ?? null,
+          target.head ?? null,
+          target.ref ?? null,
+        ]),
+        surroundings: focus.surroundings
+          ? [focus.surroundings.heading_path, focus.surroundings.before ?? null, focus.surroundings.after ?? null]
+          : null,
+        unsaved: Boolean(focus.unsaved),
+        belongs_to: focus.belongs_to
+          ? [
+              focus.belongs_to.plugin_id,
+              focus.belongs_to.kind,
+              focus.belongs_to.id,
+              focus.belongs_to.title,
+              focus.belongs_to.state ?? null,
+              focus.belongs_to.noun ?? null,
+            ]
+          : null,
+        place: focus.place ?? null,
+        side_tab: focus.side_tab ?? null,
+      },
+      landing: landing
+        ? {
+            plugin_id: landing.plugin_id,
+            object: [landing.object.kind, landing.object.id, landing.object.title ?? null],
+            position: landing.position,
+            version: landing.version,
+            targets: landing.targets?.map(target => [
+              target.kind,
+              target.role ?? null,
+              target.text,
+              Boolean(target.truncated),
+              target.anchor ?? null,
+              target.head ?? null,
+            ]) ?? null,
+            surroundings: landing.surroundings
+              ? [landing.surroundings.heading_path, landing.surroundings.before ?? null, landing.surroundings.after ?? null]
+              : null,
+          }
+        : null,
+      recent: recent ?? null,
+    })).digest("hex");
+  };
 
   return {
     async candidates(request, caller) {
@@ -96,7 +186,8 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         // A judgment asked under other words or another locale is not this one's answer: the person may have edited the questions or switched language since.
         const locale = ports.locale?.();
         const wording = `${ports.wording?.revision() ?? ""}\u0000${locale ?? ""}`;
-        const cached = cache.get(cacheKey(request));
+        const key = cacheKey(request, caller, personal);
+        const cached = cache.get(key);
         if (cached && cached.wording === wording && JSON.stringify(cached.candidates.map(item => [item.key, item.available])) === JSON.stringify(candidates.map(item => [item.key, item.available]))) {
           return respond(request, candidates, cached.judgment, { digest: cached.digest, screened: cached.screened });
         }
@@ -108,7 +199,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         if (ports.recall && !personal) {
           const recallSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(ports.recallMs ?? 400)]);
           try {
-            const recalled = await ports.recall(request.focus, caller, recallSignal);
+            const recalled = await raceSignal(ports.recall(request.focus, caller, recallSignal), recallSignal);
             if (recalled.state === "off") screened.push("记忆：使用方已关闭");
             else memory = recalled.items;
           } catch { screened.push("记忆：未取到，判断不带偏好"); }
@@ -132,7 +223,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         if (controller.signal.aborted) return respond(request, candidates, null, { digest, screened, fallback: "aborted" });
         const judgment = readContextualJudgment(evaluation.body, candidates, evaluation.basis, now() - started, evaluation.model);
         if (!Object.keys(judgment.next).length) return respond(request, candidates, null, { digest, screened, fallback: "failed" });
-        cache.set(cacheKey(request), { judgment, candidates, digest, screened, wording });
+        cache.set(key, { judgment, candidates, digest, screened, wording });
         while (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value!);
         return respond(request, candidates, judgment, { digest, screened });
       } finally {

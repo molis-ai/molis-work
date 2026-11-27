@@ -161,9 +161,21 @@ class HostAccountSessions implements AccountSessionManager {
       if (!["createTransaction", "createReauthentication", "getTransaction", "createChallenge", "verifyChallenge", "verifyPassword", "completeTransaction", "startGoogle", "startGitHub", "bindMethod", "replaceMethod", "unlinkMethod", "changePassword"].includes(id)) throw accountErrors.invalid_request("Unknown sensitive account operation");
       const guarded = this.guard({ ...request, assertCurrent: () => { bound.assertCurrent(); request.assertCurrent(); } });
       await this.verified(guarded);
+      const currentSaved = (): ActiveAccount | undefined => {
+        if (this.ending) return undefined;
+        const current = this.state.load();
+        return current.state === "ACTIVE" ? current : this.rotation?.base;
+      };
       const client = createAccountService(this.config, {
-        currentCredential: () => { const saved = this.rotation?.base ?? this.active(); return { secretRef: "current-access", issuer: this.config.authOrigin, environmentId: this.config.environmentId, applicationId: this.config.applicationId, clientId: this.config.clientId, userId: saved.user.userId, sessionId: saved.tokens.session.loginSessionId }; },
-        resolveSecret: async ref => ref === "current-access" ? (this.rotation?.base ?? this.active()).tokens.accessToken : proof?.reference === ref ? proof.value : null, fetch: this.fetcher,
+        currentCredential: () => {
+          const saved = currentSaved();
+          if (!saved) return null;
+          return { secretRef: "current-access", issuer: this.config.authOrigin, environmentId: this.config.environmentId, applicationId: this.config.applicationId, clientId: this.config.clientId, userId: saved.user.userId, sessionId: saved.tokens.session.loginSessionId };
+        },
+        resolveSecret: async ref => {
+          if (ref === "current-access") return currentSaved()?.tokens.accessToken ?? null;
+          return !this.ending && proof?.reference === ref ? proof.value : null;
+        }, fetch: this.fetcher,
       });
       return client.invoke(id, input, { ...guarded, ...(proof ? { initiatorProofRef: proof.reference } : {}) });
     }) };

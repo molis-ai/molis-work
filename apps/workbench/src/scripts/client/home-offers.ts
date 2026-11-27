@@ -79,14 +79,18 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
     state.confirming = null;
     const { availability, ...requestOffer } = offer;
     state.pending = requestOffer; state.busy = true; state.error = ''; state.result = null; persist(state); render();
+    let succeeded = false;
     try {
       state.result = await api('/api/home/actions/execute', 'POST', { subject: state.subject, request_id: state.requestId, offer: requestOffer });
       state.pending = null; persist(state); state.requestId = crypto.randomUUID();
-      state.offers = []; state.busy = false; state.loading = true; render();
+      state.offers = []; state.busy = false; state.loading = true; succeeded = true; render();
       await refresh();
-    } catch(error) { state.error = error instanceof TypeError ? globalThis.t.text("workbench.home-offers.connection-dropped-before-result-arrived-check-item-s") : error; }
+    } catch(error) {
+      if (error?.status >= 400 && error.status < 500) { state.pending = null; persist(state); state.requestId = crypto.randomUUID(); }
+      state.error = error?.code === "ui_host.outcome_unknown" ? globalThis.t.text("workbench.home-offers.connection-dropped-before-result-arrived-check-item-s") : error;
+    }
     finally { state.busy = false; state.loading = false; if (currentState() === state) render(); }
-    if (!state.pending) await load(state);
+    if (succeeded) await load(state);
     function nodeFocus() { root.querySelector('[data-home-offer]:not([disabled])')?.focus(); }
   });
   return { clear() { const state = currentState(); if (state) states.delete(state.key); root.querySelector('[data-home-offers]')?.replaceChildren(); }, refresh() { const state = currentState(); if (!state) return; state.reloadRequested = true; if (!state.loading && !state.busy) void load(state); }, render() { const state = currentState(); if (!state) return; render(); if (!state.loadedAt || Date.now() - state.loadedAt > 30000) load(state); } };

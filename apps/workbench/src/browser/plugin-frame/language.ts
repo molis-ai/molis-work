@@ -66,6 +66,16 @@ export async function batchFrameLanguages(route: string, language: UiFrameLangua
   }));
 }
 
+async function readBatchFor(route: string, batch: readonly { entry: Pending; id: string; owner: string }[], signal: AbortSignal): Promise<ReadonlyMap<string, FrameLanguage>> {
+  let language = displayedLanguage(), result = await batchFrameLanguages(route, language, batch, signal);
+  // A mount that was pending during a switch receives the language actually committed, not its initial request.
+  while (!sameLanguage(language, displayedLanguage())) {
+    language = displayedLanguage();
+    result = await batchFrameLanguages(route, language, batch, signal);
+  }
+  return result;
+}
+
 async function flush(route: string, group: readonly Pending[]): Promise<void> {
   const held = group.map(entry => {
     try {
@@ -74,18 +84,69 @@ async function flush(route: string, group: readonly Pending[]): Promise<void> {
     } catch (error) { entry.refuse(error); return null; }
   });
   const mounts = held.filter(item => item !== null);
+  if (!mounts.length) return;
+  const settled = new Set<Pending>();
+  const refuseOne = (entry: Pending, error: unknown) => {
+    if (settled.has(entry)) return;
+    settled.add(entry);
+    entry.refuse(error);
+  };
+  const acceptOne = (entry: Pending, pack: FrameLanguage) => {
+    if (settled.has(entry)) return;
+    settled.add(entry);
+    try {
+      entry.scope.assertCurrent();
+      entry.accept(pack);
+    } catch (error) {
+      entry.refuse(error);
+    }
+  };
+  const batchAbort = new AbortController();
+  const aliveMounts = (list: typeof mounts) => list.filter(({ entry }) => !settled.has(entry) && entry.scope.alive && !entry.scope.signal.aborted);
+  const unlisten = mounts.map(({ entry }) => {
+    const onAbort = () => {
+      refuseOne(entry, entry.scope.signal.reason ?? new DOMException("View closed", "AbortError"));
+      if (!aliveMounts(mounts).length) batchAbort.abort();
+    };
+    entry.scope.signal.addEventListener("abort", onAbort, { once: true });
+    return () => entry.scope.signal.removeEventListener("abort", onAbort);
+  });
   try {
-    if (!mounts.length) return;
-    const signal = AbortSignal.any(mounts.map(({ entry }) => entry.scope.signal));
-    let language = displayedLanguage(), result = await batchFrameLanguages(route, language, mounts, signal);
-    // A mount that was pending during a switch receives the language actually committed, not its initial request.
-    while (!sameLanguage(language, displayedLanguage())) {
-      language = displayedLanguage(); result = await batchFrameLanguages(route, language, mounts, signal);
+    const deliver = (list: typeof mounts, result: ReadonlyMap<string, FrameLanguage>) => {
+      for (const { entry, id } of list) acceptOne(entry, result.get(id)!);
+    };
+    let batch = mounts;
+    try {
+      deliver(batch, await readBatchFor(route, batch, batchAbort.signal));
+      return;
+    } catch (firstError) {
+      const remaining = aliveMounts(batch);
+      if (!remaining.length) return;
+      if (remaining.length < batch.length) {
+        batch = remaining;
+        try {
+          deliver(batch, await readBatchFor(route, batch, batchAbort.signal));
+          return;
+        } catch (retryError) {
+          firstError = retryError;
+        }
+      }
+      const survivors = aliveMounts(batch);
+      if (survivors.length <= 1) {
+        for (const { entry } of survivors) refuseOne(entry, firstError);
+        return;
+      }
+      // Isolate individual mounts when a single invalid page_id (e.g. 403) poisons the shared batch.
+      await Promise.all(survivors.map(async item => {
+        try {
+          const single = await readBatchFor(route, [item], item.entry.scope.signal);
+          acceptOne(item.entry, single.get(item.id)!);
+        } catch (error) { refuseOne(item.entry, error); }
+      }));
     }
-    for (const { entry, id } of mounts) {
-      try { entry.scope.assertCurrent(); entry.accept(result.get(id)!); } catch (error) { entry.refuse(error); }
-    }
-  } catch (error) { for (const { entry } of mounts) entry.refuse(error); }
+  } finally {
+    for (const stop of unlisten) stop();
+  }
 }
 
 /** One parent-document read for the mounts started in this opening; the child never chooses its owner or requests a pack. */

@@ -321,8 +321,9 @@ export class KnowledgeOrganizer {
       const waiting = this.options.store.get(projectId, queued.subject);
       if (!waiting || waiting.excluded || waiting.state !== "pending" || !piece || piece.revision !== waiting.revision || bare(piece)) continue;
       const state = await this.state(projectId, knowledgeCardSource(waiting), waiting.subject);
-      if (signal.aborted) return;
+      if (signal.aborted || this.closed || this.removed.has(projectId)) return;
       if (state !== undefined && state !== "active") {
+        piece.assertCurrent?.();
         const current = this.options.store.get(projectId, waiting.subject);
         if (current?.revision === waiting.revision && current.state === "pending") this.options.store.put({ ...current, state: "missing" });
         continue;
@@ -346,7 +347,10 @@ export class KnowledgeOrganizer {
       fresh.assertCurrent?.();
       // The owner may have archived or removed the subject while the model wrote: then this draft is for nothing.
       const finalState = await this.state(projectId, knowledgeCardSource(waiting), waiting.subject);
-      if (signal.aborted || finalState !== undefined && finalState !== "active") continue;
+      if (signal.aborted || this.closed || this.removed.has(projectId)) return;
+      if (finalState !== undefined && finalState !== "active") continue;
+      piece.assertCurrent?.();
+      fresh.assertCurrent?.();
       // The person may have queued or excluded it while the model wrote.
       const now = this.options.store.get(projectId, waiting.subject);
       if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;
@@ -358,7 +362,11 @@ export class KnowledgeOrganizer {
   private async state(projectId: string, source: KnowledgeSource, subject: ActionSubject): Promise<KnowledgeSourceState> {
     if (!this.options.sourceState) return undefined;
     try { return await this.options.sourceState(projectId, source, subject); }
-    catch (error) { this.options.onError?.(error, "knowledge.source_state"); return "unknown"; }
+    catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      this.options.onError?.(error, "knowledge.source_state");
+      return "unknown";
+    }
   }
 
   private limits() { return this.options.quota ?? DEFAULT_KNOWLEDGE_QUOTA; }

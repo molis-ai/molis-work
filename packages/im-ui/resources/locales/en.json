@@ -86,6 +86,7 @@
     "im-ui.message.unconfirmed": "Couldn’t confirm delivery. Your draft is safe, and sending again won’t create a duplicate.",
     "im-ui.object.add": "Reference an object",
     "im-ui.object.none": "No objects to reference",
+    "im-ui.object.referenced": "Referenced object",
     "im-ui.object.remove": "Remove reference: {title}",
     "im-ui.object.search": "Search project objects",
     "im-ui.object.unavailable": "Can’t read right now",

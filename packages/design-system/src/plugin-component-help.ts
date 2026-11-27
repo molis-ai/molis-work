@@ -1,12 +1,12 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import { t, type MwHelpSectionView, type MwHelpTopicData } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, type MwHelpSectionView, type MwHelpTopicData, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SandboxOperationContract, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { Kit, State } from "./plugin-component-types.js";
 
 interface FactSpec {
   readonly tone: "warn" | "out";
-  readonly icon: string;
+  readonly icon: PluginIconName;
   readonly text: () => string;
 }
 

@@ -86,6 +86,7 @@
     "im-ui.message.unconfirmed": "送信結果を確認できませんでした。入力内容は残っており、再送信しても重複しません。",
     "im-ui.object.add": "項目を引用",
     "im-ui.object.none": "引用できる項目がありません",
+    "im-ui.object.referenced": "引用中の項目",
     "im-ui.object.remove": "引用を外す：{title}",
     "im-ui.object.search": "プロジェクト項目を検索",
     "im-ui.object.unavailable": "現在読み込めません",

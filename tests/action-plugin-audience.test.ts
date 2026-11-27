@@ -30,7 +30,7 @@ test("generated plugins reach what agents reach, except what cannot be undone or
   assert.deepEqual(service.discover(user).map(view => view.capability_id).sort(),
     ["goals.archive", "goals.list", "goals.note", "goals.secret", "goals.trash", "goals.user-only", "projects.delete"], "the user sees exactly what they saw before");
   assert.deepEqual(await service.invoke(plugin, { capability_id: "goals.note", version: 1 }, {}), { ok: "goals.note" });
-  await assert.rejects(service.invoke(plugin, { capability_id: "goals.trash", version: 1 }, {}), "a plugin can never delete");
+  await assert.rejects(service.invoke(plugin, { capability_id: "goals.trash", version: 1 }, {}), { code: "actions.forbidden" }, "a plugin can never delete");
   // The install grant still decides: with exact grants, only what the person approved can be called.
   const granted = { ...plugin, allowed_actions: [{ capability_id: "goals.list", version: 1 }] };
   assert.deepEqual(service.discover(granted).map(view => view.capability_id), ["goals.list"]);

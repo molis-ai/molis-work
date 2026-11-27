@@ -1,3 +1,4 @@
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -27,7 +28,7 @@ export function workflowsCollection(partition: string): PluginSyncCollectionDefi
   const decode = (key: string): { projectId: string; kind: Kind; id: string } => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
-    if (!Array.isArray(parts) || parts.length !== 3 || parts.some(part => typeof part !== "string" || !part || part.length > 80) ||
+    if (!Array.isArray(parts) || parts.length !== 3 || parts.some(part => typeof part !== "string" || !part || exceedsCharacters(part, 80)) ||
       !["workflow", "instance"].includes(parts[1])) invalid();
     if (parts[0] !== partition) throw syncError("scope", "流程同步标识不属于这个位置");
     return { projectId: parts[0] as string, kind: parts[1] as Kind, id: parts[2] as string };
@@ -65,7 +66,7 @@ export function workflowsCollection(partition: string): PluginSyncCollectionDefi
       const envelope = recordOf(value, ["format", "spaceId", "project", "record"]);
       const project = recordOf(envelope.project, ["id", "title"]);
       if (envelope.format !== /* @version format.workflows.portable */ 1 || envelope.spaceId !== context.spaceId || project.id !== projectId ||
-        typeof project.title !== "string" || project.title.length > 120) invalid();
+        typeof project.title !== "string" || exceedsCharacters(project.title, 120)) invalid();
       const columns = kind === "workflow" ? workflowColumns : instanceColumns;
       const record = recordOf(envelope.record, [...columns]);
       if (record[identity] !== id) invalid();
@@ -92,7 +93,7 @@ function validate(kind: Kind, raw: Record<string, unknown>): void {
   const columns = kind === "workflow" ? workflowColumns : instanceColumns;
   if (Object.keys(raw).length !== columns.length || columns.some(column => !Object.hasOwn(raw, column)) ||
     Object.values(raw).some(value => value !== null && typeof value !== "string" && (typeof value !== "number" || !Number.isFinite(value)))) invalid();
-  if (typeof raw.title !== "string" || !raw.title || raw.title.length > 120 ||
+  if (typeof raw.title !== "string" || !raw.title.trim() || exceedsCharacters(raw.title, 120) ||
     typeof raw.created_at !== "string" || !Number.isFinite(Date.parse(raw.created_at)) ||
     typeof raw.updated_at !== "string" || !Number.isFinite(Date.parse(raw.updated_at))) invalid();
   let chain: unknown;

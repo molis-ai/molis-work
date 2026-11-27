@@ -49,7 +49,7 @@ function mountDraft(page: Page) {
 /** The round's side of the page: reports of a step, the subagents' cards, the usage meter and the model controls. */
 function mountRoundParts(page: Page) {
   const { readText, host, lifetime, q, refs, root, s } = page;
-  refs.integrations = writerIntegration({ lifetime, translate: readText, q, api: s.ports.api, reviews: (box, workspace) => host.showReviews?.(box, [], null, workspace), status: s.ports.status });
+  refs.integrations = writerIntegration({ lifetime, translate: readText, q, api: s.ports.api, reviews: (box, workspace) => showReviews(page, box, [], null, workspace), status: s.ports.status });
   refs.stepReports = stepReports({ ...s.ports, prepareRework: reason => refs.plans.prepareStepRework(reason), receipts: host.receipts });
   refs.subagentCards = subagentCards({
     openConversation: (session, run, child) => host.view.openTask({ session, run, child }),

@@ -20,7 +20,7 @@ import {
   type AdapterSourceContext,
   type SessionsPorts,
 } from "./ports.js";
-import { resolveDerivedSnapshot } from "./runtime-view.js";
+import { isLocationActiveForTool, resolveDerivedSnapshot } from "./runtime-view.js";
 import type { SessionsStore, StoredSourceRow } from "./store.js";
 
 export interface DiscoveryStartState {
@@ -75,6 +75,7 @@ function prepareDiscoveryStart(
     if (isCancelled()) return null;
     const scope = store.decisions.getReadScope(entryId, locationKey);
     if (!scope || !scope.allowed) return null;
+    if (!isLocationActiveForTool(tool, locationKey, ports)) return null;
     if (tool.surface === "cloud") assertCloudConnectionActive(scope.connection_id, ports);
 
     const localInfo = tool.surface === "cloud" ? { root: null, exists: true } : resolveLocalToolRoot(tool, ports);
@@ -139,6 +140,9 @@ function commitDiscoveredBatch(params: {
     if (isCancelled()) return { committed: false, changed: false };
     const currentScope = store.decisions.getReadScope(entryId, locationKey);
     if (!currentScope || !currentScope.allowed || currentScope.connection_id !== startState.connectionId) {
+      return { committed: false, changed: false };
+    }
+    if (!isLocationActiveForTool(tool, locationKey, ports)) {
       return { committed: false, changed: false };
     }
     if (tool.surface === "cloud") assertCloudConnectionActive(currentScope.connection_id, ports);
@@ -224,6 +228,7 @@ function commitDiscoveredBatch(params: {
 }
 
 async function recordFailureIfStillAllowed(
+  tool: ExternalToolEntry,
   entryId: ExternalToolId,
   locationKey: string,
   store: SessionsStore,
@@ -237,7 +242,7 @@ async function recordFailureIfStillAllowed(
     await ports.projects.read(() => {
       if (isCancelled()) return;
       const currentScope = store.decisions.getReadScope(entryId, locationKey);
-      if (!currentScope || !currentScope.allowed) return;
+      if (!currentScope || !currentScope.allowed || !isLocationActiveForTool(tool, locationKey, ports)) return;
       const mapped = sourceStatusFromFailure(error);
       const existing: StoredSourceRow | null = store.getSource(entryId, locationKey);
       store.upsertSource({
@@ -279,7 +284,7 @@ export async function executeDiscoveryJob(params: {
   try {
     startState = await prepareDiscoveryStart(tool, entryId, locationKey, fromStart, store, ports, nowIso(), isCancelled);
   } catch (error) {
-    await recordFailureIfStillAllowed(entryId, locationKey, store, ports, nowIso, isCancelled, error);
+    await recordFailureIfStillAllowed(tool, entryId, locationKey, store, ports, nowIso, isCancelled, error);
     return;
   }
 
@@ -318,6 +323,6 @@ export async function executeDiscoveryJob(params: {
       cursor = batch.next_cursor;
     }
   } catch (error) {
-    await recordFailureIfStillAllowed(entryId, locationKey, store, ports, nowIso, isCancelled, error);
+    await recordFailureIfStillAllowed(tool, entryId, locationKey, store, ports, nowIso, isCancelled, error);
   }
 }

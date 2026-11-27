@@ -18,6 +18,8 @@ export async function handleAccountAuthenticationHttp(request: IncomingMessage, 
   if (["cross-site", "same-site"].includes(String(request.headers["sec-fetch-site"] ?? ""))) throw accountErrors.forbidden("Authentication requires a same-origin request");
   const operation = capabilities ? "get" : login ?? (create ? "create" : reset ? "reset" : reauth ? "reauthenticate" : sensitive ? "mutate" : match![2] ?? "get"), handle = match?.[1] ?? "";
   if (request.method !== (operation === "get" ? "GET" : "POST")) throw accountErrors.invalid_request("Invalid authentication method");
+  // S-unified-account-borrowed-home: the installation entry owns login and switching; a borrowed Home refuses direct login endpoints.
+  if (login && account.borrowedSession) throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
   const stop = new AbortController();
   const disconnected = () => { if (!response.writableEnded) stop.abort(); };
   response.once("close", disconnected);

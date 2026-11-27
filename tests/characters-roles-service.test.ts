@@ -268,3 +268,16 @@ test("ROLE-02 ROLE-13: a member's current version reads the original as it is no
   assert.deepEqual(restored.sections.capabilities, { mode: "follow" });
   assert.deepEqual(service.roles.content(PROJECT, restored.current).content.host_tools, ["read-file", "search"]);
 });
+
+test("F-modules-server-03 saveMember rejects duplicate or unknown host_tools on override", t => {
+  const service = space(t), original = service.create(content), member = service.roles.addMember(PROJECT, original.character_id);
+  const id = member.current.member_id;
+  assert.throws(
+    () => service.roles.saveMember(PROJECT, id, member.revision, 1, { capabilities: { host_tools: ["read-file", "read-file"] } }),
+    refused("characters.invalid"),
+  );
+  assert.throws(
+    () => service.roles.saveMember(PROJECT, id, member.revision, 1, { capabilities: { host_tools: ["BAD TOOL!" as never] } }),
+    refused("characters.invalid"),
+  );
+});

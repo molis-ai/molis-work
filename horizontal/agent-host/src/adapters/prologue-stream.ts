@@ -400,7 +400,13 @@ function noteToolResult(state: PrologueStreamState, event: Extract<PrologueEvent
   if (state.skill_read_calls.delete(event.callId) && event.outcome === "returned") rememberSkillReads(state.skill_reads, event.text);
   state.activity[index] = {
     ...prior,
-    state: event.outcome === "failed" ? "failed" : event.outcome === "returned" ? "completed" : "unknown",
+    state: event.errorCode === "EFFECT_RECONCILE_REQUIRED"
+      ? "unknown"
+      : event.outcome === "failed"
+        ? "failed"
+        : event.outcome === "returned"
+          ? "completed"
+          : "unknown",
     summary: event.errorCode ? `${event.name} · ${event.errorCode}` : event.name,
     output: event.text.slice(0, 16_384),
     output_truncated: event.text.length > 16_384,

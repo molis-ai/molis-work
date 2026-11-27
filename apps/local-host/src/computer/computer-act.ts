@@ -11,7 +11,7 @@ const ROLE_NAMES: Readonly<Record<string, string>> = {
 
 /** The role the tree text shows; a secure or search field keeps its specific name. */
 export function roleName(node: TreeNode): string {
-  if (node.subrole === "AXSecureTextField") return "密码框";
+  if (node.secure || node.subrole === "AXSecureTextField" || node.role === "AXSecureTextField") return "密码框";
   if (node.subrole === "AXSearchField") return "搜索框";
   return ROLE_NAMES[node.role] ?? node.role.replace(/^AX/u, "");
 }

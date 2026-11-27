@@ -294,7 +294,8 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           });
         };
         const applyHash = (hash) => {
-          const raw = decodeURIComponent(String(hash || "").replace(/^#/, ""));
+          let raw = "";
+          try { raw = decodeURIComponent(String(hash || "").replace(/^#/, "")); } catch { return; }
           const match = raw && radios.find((radio) => radio.value === raw);
           if (!match) return;
           match.checked = true;
@@ -341,9 +342,11 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       globalThis.molisWorkBindProjectIdentity?.(root);
       globalThis.molisWorkBindProjectGuidance?.(root);
     };
+    const embedSeq = new WeakMap();
     const resetEmbed = (details) => {
       const target = details.querySelector("[data-settings-embed-target]");
       if (!target || !details.dataset.settingsEmbed) return;
+      embedSeq.set(details, (embedSeq.get(details) || 0) + 1);
       details.open = false;
       target.replaceChildren();
       delete details.dataset.loaded;
@@ -352,25 +355,37 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       root?.querySelectorAll?.("[data-settings-embed][data-loaded]").forEach(resetEmbed);
     };
     const loadEmbed = async (details) => {
-      if (!details.open || details.dataset.loaded === "1" || !details.dataset.settingsEmbed) return;
+      if (!details.open || details.dataset.loaded === "1" || details.dataset.loaded === "pending" || !details.dataset.settingsEmbed) return;
       const target = details.querySelector("[data-settings-embed-target]");
       if (!target) return;
+      const seq = (embedSeq.get(details) || 0) + 1;
+      embedSeq.set(details, seq);
       details.dataset.loaded = "pending";
-      target.innerHTML = "<p class=\\"project-settings-embed-pending\\">" + globalThis.t.text("workbench.project-settings.opening") + "</p>";
+      const pendingNote = document.createElement("p");
+      pendingNote.className = "project-settings-embed-pending";
+      pendingNote.textContent = globalThis.t.text("workbench.project-settings.opening");
+      target.replaceChildren(pendingNote);
       try {
-        target.innerHTML = await molisWorkRequest(details.dataset.settingsEmbed, { as: "text", headers: { Accept: "text/html" } });
+        const html = await molisWorkRequest(details.dataset.settingsEmbed, { as: "text", headers: { Accept: "text/html" } });
+        if (embedSeq.get(details) !== seq || !details.isConnected || !details.open) return;
+        target.innerHTML = html;
         details.dataset.loaded = "1";
         bindEmbedded(details);
-      } catch {
+      } catch (caught) {
+        if (embedSeq.get(details) !== seq || !details.isConnected) return;
         delete details.dataset.loaded;
-        target.innerHTML = "<p class=\\"settings-form-error\\" role=\\"alert\\">" + globalThis.t.text("workbench.project-settings.could-not-open-settings-section") + "</p>";
+        const err = document.createElement("p");
+        err.className = "settings-form-error";
+        err.setAttribute("role", "alert");
+        molisWorkRequest.show(err, caught, globalThis.t.text("workbench.project-settings.could-not-open-settings-section"));
+        target.replaceChildren(err);
       }
     };
     document.querySelectorAll("[data-settings-embed]").forEach((details) => {
       details.addEventListener("toggle", () => {
-        if (details.open) loadEmbed(details);
+        if (details.open) void loadEmbed(details);
       });
-      if (details.open) loadEmbed(details);
+      if (details.open) void loadEmbed(details);
     });
   })();
 `;

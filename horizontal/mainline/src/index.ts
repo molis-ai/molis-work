@@ -8,7 +8,7 @@ import { MAINLINE_ARRANGE_PERMISSION, mainlineErrors, type BackgroundTaskCommand
   type WaitingItem, type WaitingReadResult, type WorkLineContainsRequest, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { checkItemPlacement, itemLineScope, placeInItem, taskBelongsToItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
-import { createExecutionLifetime, isProjectReadQuery } from "@molis-ai/molis-work-plugin-sdk";
+import { compareCodeUnits, createExecutionLifetime, isProjectReadQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { MISSED_RUN_KIND, isRunDecisionOf, isRunsSource, missedRunTasks, missedRunsWindow } from "./missed-runs.js";
 
 export { MAINLINE_BASELINE, MAINLINE_HOME_STORE, MainlineStore, openMainlineDatabase, purgeMainlineProject } from "./store.js";
@@ -175,7 +175,7 @@ export async function readBackgroundTasks(caller: ActionCallContext, client: Act
       return issue(codeOf(error));
     }
   }));
-  return { tasks: answers.flatMap(answer => answer.tasks).sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id)), issues: answers.flatMap(answer => answer.issues) };
+  return { tasks: answers.flatMap(answer => answer.tasks).sort((a, b) => compareCodeUnits(b.updated_at, a.updated_at) || compareCodeUnits(a.id, b.id)), issues: answers.flatMap(answer => answer.issues) };
 }
 
 /**
@@ -321,13 +321,13 @@ export async function readWorkLine(caller: ActionCallContext, client: ActionClie
   });
   const ahead = (event: WorkLineEvent) => event.scheduled_at ?? event.occurred_at;
   const order: Record<WorkLineEvent["wing"], (a: WorkLineEvent, b: WorkLineEvent) => number> = {
-    done: (a, b) => b.occurred_at.localeCompare(a.occurred_at),
-    now: (a, b) => Number(b.waiting) - Number(a.waiting) || b.occurred_at.localeCompare(a.occurred_at),
-    next: (a, b) => ahead(a).localeCompare(ahead(b)),
+    done: (a, b) => compareCodeUnits(b.occurred_at, a.occurred_at),
+    now: (a, b) => Number(b.waiting) - Number(a.waiting) || compareCodeUnits(b.occurred_at, a.occurred_at),
+    next: (a, b) => compareCodeUnits(ahead(a), ahead(b)),
   };
   if (scope?.next) events.push(suggestionOf(scope, window, events));
   for (const wing of ["done", "now", "next"] as const) {
-    events.filter(event => event.wing === wing).sort((a, b) => Number(!!b.suggestion) - Number(!!a.suggestion) || order[wing](a, b) || a.id.localeCompare(b.id)).forEach((event, rank) => { event.rank = rank; });
+    events.filter(event => event.wing === wing).sort((a, b) => Number(!!b.suggestion) - Number(!!a.suggestion) || order[wing](a, b) || compareCodeUnits(a.id, b.id)).forEach((event, rank) => { event.rank = rank; });
   }
   const WINGS = ["done", "now", "next"];
   return { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), table, issues: [...issues, ...table.issues, ...scope?.issues ?? []] };
@@ -408,7 +408,7 @@ export async function readWaiting(caller: ActionCallContext, client: ActionClien
   for (const task of waitingTasks) {
     if (!task.serves.some(served => onLine.has(subjectKey(served)))) items.push({ subject: task.subject, source: "task", task: task.subject, since: task.updated_at, open: task.open });
   }
-  items.sort((a, b) => b.since.localeCompare(a.since) || subjectKey(a.subject).localeCompare(subjectKey(b.subject)));
+  items.sort((a, b) => compareCodeUnits(b.since, a.since) || compareCodeUnits(subjectKey(a.subject), subjectKey(b.subject)));
   return { items, counts: { total: items.length }, issues: line.issues };
 }
 

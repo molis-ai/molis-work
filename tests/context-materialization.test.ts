@@ -77,3 +77,22 @@ test("Rebuild rejects unauthorized roots before content access and retries fresh
     assert.deepEqual(wrongScope.nodes, [{ requested: goal, state: "stale" }]);
   } finally { db.close(); }
 });
+
+test("F-modules-server-11 materializer distinguishes same object id across different plugin_id values", () => {
+  const db = openTestSqlite(":memory:");
+  try {
+    const ledger = createContextLedger(db, { authorize: () => true });
+    const materializer = createContextMaterializer(ledger);
+    const sameIdGoal: ObjectRef = { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "item", id: "shared-1", version: null, scope };
+    const sameIdFeed: ObjectRef = { module: "plugins", plugin_id: "io.molis.work.feed", object_type: "item", id: "shared-1", version: null, scope };
+    ledger.commands.put(access, { key: "cross-plugin", source: sameIdGoal, target: sameIdFeed, type: "test.source", cause: "linked" });
+    const seen: string[] = [];
+    const result = materializer.rebuild(
+      access,
+      { roots: [sameIdGoal], direction: "outgoing", relation_types: ["test.source"], max_depth: 4, max_nodes: 10 },
+      (ref) => { seen.push(`${ref.plugin_id}:${ref.id}`); return { state: "resolved", ref, value: `${ref.plugin_id}:${ref.id}` }; },
+    );
+    assert.deepEqual(seen, ["io.molis.work.goals:shared-1", "io.molis.work.feed:shared-1"]);
+    assert.equal(result.nodes.length, 2);
+  } finally { db.close(); }
+});

@@ -13,6 +13,7 @@ export function installEditor(page: DatasetPage): void {
     clearTimeout(s.saveTimer);
     s.editRev = s.savedRev = 0;
     s.saveError = null;
+    s.saveRun = null;
     page.showNote("", false);
     const seq = ++s.editorSeq;
     const opening = el.workspace.hidden;
@@ -32,6 +33,7 @@ export function installEditor(page: DatasetPage): void {
     clearTimeout(s.saveTimer);
     s.editRev = s.savedRev = 0;
     s.saveError = null;
+    s.saveRun = null;
     s.editorSeq += 1;
     s.selected = null;
     el.bench.setAttribute("data-expanded", "false");
@@ -42,38 +44,49 @@ export function installEditor(page: DatasetPage): void {
   // Preserve edits made while the previous request was in flight.
   const drain = async (): Promise<Dataset | null> => {
     if (s.saveError) throw s.saveError;
+    const seq = s.editorSeq;
     while (s.selected && s.savedRev < s.editRev) {
+      if (seq !== s.editorSeq) return null;
+      const savingId = s.selected.id;
       const revision = s.editRev;
       const draft = page.readDraft();
       try {
-        const payload = await page.request<{ dataset: Dataset }>("POST", `${page.api}/${encodeURIComponent(s.selected.id)}`, { ...draft, expected_version: s.selected.version });
+        const payload = await page.request<{ dataset: Dataset }>("POST", `${page.api}/${encodeURIComponent(savingId)}`, { ...draft, expected_version: s.selected.version });
         scope.assertCurrent();
+        if (seq !== s.editorSeq || s.selected?.id !== savingId) return null;
         const laterDraft = s.editRev > revision ? page.readDraft() : null;
         s.savedRev = revision;
         page.remember(laterDraft ? { ...payload.dataset, ...laterDraft } : payload.dataset, false);
       } catch (error) {
-        if (scope.alive) s.saveError = error;
+        if (scope.alive && seq === s.editorSeq && s.selected?.id === savingId) s.saveError = error;
         throw error;
       }
     }
-    return s.selected;
+    return seq === s.editorSeq ? s.selected : null;
   };
 
   page.save = () => {
     clearTimeout(s.saveTimer);
     if (s.saveRun) return s.saveRun;
-    s.saveRun = drain().finally(() => {
-      s.saveRun = null;
-      if (s.selected) page.paintStatus(s.selected);
+    const run = drain().finally(() => {
+      if (s.saveRun === run) s.saveRun = null;
+      if (scope.alive && s.selected) page.paintStatus(s.selected);
     });
+    s.saveRun = run;
     if (s.selected) page.paintStatus(s.selected);
-    return s.saveRun;
+    return run;
   };
 
   page.queueSave = () => {
+    const seq = s.editorSeq;
     s.editRev += 1;
     if (s.selected) page.paintStatus(s.selected);
     clearTimeout(s.saveTimer);
-    if (!s.saveError) s.saveTimer = setTimeout(() => { void page.save().catch((error: unknown) => page.showNote(messageOf(error) || uiText.text("dataset.save.failed"), true)); }, 400);
+    if (!s.saveError) s.saveTimer = setTimeout(() => {
+      if (!scope.alive || seq !== s.editorSeq) return;
+      void page.save().catch((error: unknown) => {
+        if (scope.alive && seq === s.editorSeq) page.showNote(messageOf(error) || uiText.text("dataset.save.failed"), true);
+      });
+    }, 400);
   };
 }

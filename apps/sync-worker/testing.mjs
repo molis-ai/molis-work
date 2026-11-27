@@ -27,6 +27,8 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
     if(signedAuth&&new URL(request.url).pathname!=='/api/v2/users/me')return signedAuth(request,Response);
     const user=request.headers.get('Authorization')?.replace('Bearer ','');
     if(user==='redirect')return new Response(null,{status:302,headers:{Location:'https://other.example.test/token-leak'}});
+    if(user==='auth-503')return Response.json({error:'upstream'},{status:503});
+    if(user==='auth-429')return Response.json({error:'rate_limit'},{status:429});
     if(!['alice','bob','wrong-app'].includes(user))return Response.json({error:'invalid'},{status:401});
     // Auth V2 identity shape: the Worker reads data.user.{userId,issuer} and data.session.applicationId.
     return Response.json({data:{user:{issuer:new URL(authOrigin).origin,userId:user,displayName:user,email:null},session:{applicationId:user==='wrong-app'?'other':'work'}}});

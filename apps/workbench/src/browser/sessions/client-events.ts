@@ -43,7 +43,31 @@ export interface SessionsClientActions {
   toast(msg: string, isError?: boolean): void;
 }
 
-function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActions, target: HTMLElement): void {
+interface EventGuards {
+  refreshing: boolean;
+  readonly busyAttr: Set<string>;
+}
+
+function runAttributionAction(
+  act: SessionsClientActions,
+  guards: EventGuards,
+  row: ExternalSessionRow,
+  decision: Parameters<SessionsClientActions["applyAttribution"]>[1],
+  control: HTMLElement,
+): void {
+  const button = control instanceof HTMLButtonElement ? control : null;
+  if (guards.busyAttr.has(row.session_key) || button?.disabled) return;
+  guards.busyAttr.add(row.session_key);
+  if (button) button.disabled = true;
+  void act.applyAttribution(row, decision)
+    .catch((err) => act.toast((err as Error)?.message || uiText.text("workbench.sessions.read-failed"), true))
+    .finally(() => {
+      guards.busyAttr.delete(row.session_key);
+      if (button) button.disabled = false;
+    });
+}
+
+function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActions, guards: EventGuards, target: HTMLElement): void {
   const page = target.closest<HTMLElement>("[data-sessions-page]")?.dataset.sessionsPage;
   if (page === "next" || page === "previous") { void act.loadPage(page); return; }
   const viewBtn = target.closest<HTMLElement>("[data-sessions-view]");
@@ -57,8 +81,20 @@ function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActi
     void act.retryList();
     return;
   }
-  if (target.closest("[data-sessions-refresh]")) {
-    void sessionsApi.discoveryRun({}).then(() => { act.kickPoller(); return act.loadList(); });
+  const refreshBtn = target.closest<HTMLButtonElement>("[data-sessions-refresh]");
+  if (refreshBtn) {
+    if (guards.refreshing || refreshBtn.disabled) return;
+    guards.refreshing = true;
+    refreshBtn.disabled = true;
+    void sessionsApi.discoveryRun({}).then(() => {
+      act.kickPoller();
+      return act.loadList();
+    })
+      .catch((err) => act.toast((err as Error)?.message || uiText.text("workbench.sessions.read-failed"), true))
+      .finally(() => {
+        guards.refreshing = false;
+        refreshBtn.disabled = false;
+      });
     return;
   }
   if (target.closest("[data-sessions-droid-run]")) { void act.searchTool(); return; }
@@ -68,22 +104,22 @@ function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActi
     const row = ctx.rows.find((r) => r.session_key === key);
     const card = ctx.root.querySelector<HTMLElement>(`[data-unfiled-card="${CSS.escape(key)}"]`);
     const chosen = ctx.root.querySelector<HTMLSelectElement>(`[data-unfiled-select="${CSS.escape(key)}"]`)?.value;
-    if (row && chosen) void act.applyAttribution(row, { kind: "project", project_id: chosen, suggestion_accepted: card?.dataset.suggestedProject === chosen });
+    if (row && chosen) runAttributionAction(act, guards, row, { kind: "project", project_id: chosen, suggestion_accepted: card?.dataset.suggestedProject === chosen }, fileBtn);
     return;
   }
   const keepBtn = target.closest<HTMLElement>("[data-unfiled-keep]");
   if (keepBtn?.dataset.unfiledKeep) {
     const row = ctx.rows.find((r) => r.session_key === keepBtn.dataset.unfiledKeep);
-    if (row) void act.applyAttribution(row, { kind: "leave_unfiled" });
+    if (row) runAttributionAction(act, guards, row, { kind: "leave_unfiled" }, keepBtn);
     return;
   }
   const rowBtn = target.closest<HTMLElement>("[data-session-key]");
   if (rowBtn?.dataset.sessionKey) { void act.openSession(rowBtn.dataset.sessionKey); return; }
   if (target.closest("[data-sessions-back]")) { act.clearDetail(); return; }
-  handleDetailClick(ctx, act, target);
+  handleDetailClick(ctx, act, guards, target);
 }
 
-function handleDetailClick(ctx: SessionsSurfaceMutable, act: SessionsClientActions, target: HTMLElement): void {
+function handleDetailClick(ctx: SessionsSurfaceMutable, act: SessionsClientActions, guards: EventGuards, target: HTMLElement): void {
   const copyResume = target.closest<HTMLElement>("[data-detail-copy-resume]");
   if (copyResume?.dataset.detailCopyResume) {
     void copyPlainText(copyResume.dataset.detailCopyResume).then((ok) => {
@@ -99,7 +135,7 @@ function handleDetailClick(ctx: SessionsSurfaceMutable, act: SessionsClientActio
   }
   const confirmBtn = target.closest<HTMLElement>("[data-detail-confirm-project]");
   if (confirmBtn?.dataset.detailConfirmProject && detail) {
-    void act.applyAttribution(detail.row, { kind: "project", project_id: confirmBtn.dataset.detailConfirmProject });
+    runAttributionAction(act, guards, detail.row, { kind: "project", project_id: confirmBtn.dataset.detailConfirmProject }, confirmBtn);
     return;
   }
   if (target.closest("[data-detail-load-earlier]")) { void act.loadEarlier(); return; }
@@ -110,9 +146,10 @@ function handleDetailClick(ctx: SessionsSurfaceMutable, act: SessionsClientActio
 }
 
 export function bindSessionsClientEvents(ctx: SessionsSurfaceMutable, act: SessionsClientActions): void {
+  const guards: EventGuards = { refreshing: false, busyAttr: new Set() };
   ctx.root.addEventListener("click", (event) => {
     const target = event.target as HTMLElement | null;
-    if (target) handleSurfaceClick(ctx, act, target);
+    if (target) handleSurfaceClick(ctx, act, guards, target);
   });
 
   ctx.root.addEventListener("change", (event) => {
@@ -161,12 +198,19 @@ export function bindSessionsClientEvents(ctx: SessionsSurfaceMutable, act: Sessi
   ctx.attrDialog.querySelector("[data-sessions-attr-cancel]")?.addEventListener("click", () => ctx.attrDialog.close());
   ctx.attrDialog.querySelector("[data-sessions-attr-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!ctx.detail) return;
+    const detail = ctx.detail;
+    const submitBtn = ctx.attrDialog.querySelector<HTMLButtonElement>("[data-sessions-attr-submit]");
+    if (!detail || guards.busyAttr.has(detail.row.session_key) || submitBtn?.disabled) return;
     const val = ctx.attrDialog.querySelector<HTMLSelectElement>("[data-sessions-attr-select]")?.value || "";
     const decision = val === "__unfiled__" ? { kind: "leave_unfiled" as const } : val === "__clear__" ? { kind: "clear" as const } : { kind: "project" as const, project_id: val };
-    void act.applyAttribution(ctx.detail.row, decision).then(() => ctx.attrDialog.close()).catch((err: Error) => {
+    guards.busyAttr.add(detail.row.session_key);
+    if (submitBtn) submitBtn.disabled = true;
+    void act.applyAttribution(detail.row, decision).then(() => ctx.attrDialog.close()).catch((err: Error) => {
       const errEl = ctx.attrDialog.querySelector<HTMLElement>("[data-sessions-attr-error]");
       if (errEl) { errEl.hidden = false; errEl.textContent = err.message; }
+    }).finally(() => {
+      guards.busyAttr.delete(detail.row.session_key);
+      if (submitBtn) submitBtn.disabled = false;
     });
   });
 

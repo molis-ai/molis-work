@@ -37,7 +37,7 @@ export const MATERIALS_STAGE_FACTORY_SCRIPT = String.raw`(host) => {
     if(!body||!title||!meta)return null;
     const render=(file)=>{
       const type=file.media_type||'text/plain';
-      if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif)$/.test(type)){body.innerHTML='<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
+      if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif)$/.test(type)&&typeof file.data==='string'&&/^[A-Za-z0-9+/=\s]+$/.test(file.data)){const img=document.createElement('img');img.alt=file.title||'';img.src='data:'+type+';base64,'+file.data.replace(/\s+/g,'');body.replaceChildren(img);return;}
       if(file.encoding==='base64'){body.innerHTML='<p class="side-files-note">'+esc(readText("workbench.materials-stage.no-preview",{type}))+'</p>';return;}
       body.innerHTML=renderFilePreview({...file,truncated:false},{escape:esc,text:readText});
     };
@@ -58,13 +58,13 @@ export const MATERIALS_STAGE_FACTORY_SCRIPT = String.raw`(host) => {
         if(!disposed&&current===request&&root.isConnected)render(file);
       }catch(error){
         if(disposed||current!==request||!root.isConnected)return;
-        delete root.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';
+        current='';delete root.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';
         root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));
       }
     };
     const onSelect=(event)=>{
       const detail=event.detail||{};
-      if(!detail.itemId||detail.itemId===current)return;
+      if(!detail.itemId||(!detail.invalidate&&detail.itemId===current))return;
       void show(detail.itemId);
     };
     root.addEventListener('molis-work:select-item',onSelect);

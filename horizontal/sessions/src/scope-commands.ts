@@ -26,6 +26,7 @@ import type { SessionProjectSnapshot, SessionsPorts } from "./ports.js";
 import {
   assertPersonalCaller,
   findTopLevelTool,
+  isLocationActiveForTool,
   isSessionInScopeWithMaps,
   isSourceCurrentlyAllowed,
   materializeFullRow,
@@ -126,7 +127,7 @@ function foldProjectSessionCounts(
 
     const bucket = countsByProject.get(targetProjectId)!;
     const scope = scopeMap.get(`${g.entry_id}\0${g.location_key}`);
-    if (!isSourceCurrentlyAllowed(scope, tool.surface, ports)) {
+    if (!isSourceCurrentlyAllowed(scope, tool, ports)) {
       bucket.blockedByTool.set(g.entry_id, (bucket.blockedByTool.get(g.entry_id) ?? 0) + g.count);
       continue;
     }
@@ -372,11 +373,11 @@ export async function runDiscovery(
     if (!tool || !hasSessionAdapter(tool.id)) {
       throw sessionsErrors.source_unsupported("该外部工具暂不支持自动发现会话");
     }
-    const scopes = store.decisions.readScopes().filter(s => s.entry_id === tool.id && s.allowed);
+    const scopes = store.decisions.readScopes().filter(s => s.entry_id === tool.id && s.allowed && isLocationActiveForTool(tool, s.location_key, ports));
     if (scopes.length === 0) throw sessionsErrors.not_allowed("该外部工具尚未在读取范围中允许读取");
     const queued: ExternalToolId[] = [];
     for (const scope of scopes) {
-      if (!isSourceCurrentlyAllowed(scope, tool.surface, ports)) continue;
+      if (!isSourceCurrentlyAllowed(scope, tool, ports)) continue;
       discovery.enqueue(scope.entry_id, scope.location_key, true);
       if (!queued.includes(scope.entry_id)) queued.push(scope.entry_id);
     }
@@ -387,7 +388,7 @@ export async function runDiscovery(
   for (const scope of store.decisions.readScopes()) {
     const tool = findTopLevelTool(scope.entry_id);
     if (!tool || !hasSessionAdapter(scope.entry_id)) continue;
-    if (!isSourceCurrentlyAllowed(scope, tool.surface, ports)) continue;
+    if (!isSourceCurrentlyAllowed(scope, tool, ports)) continue;
     discovery.enqueue(scope.entry_id, scope.location_key, true);
     if (!queued.includes(scope.entry_id)) queued.push(scope.entry_id);
   }

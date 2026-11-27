@@ -54,7 +54,7 @@ export function localeChain(tag: string): string[] {
 interface Found { readonly message: UiMessage; readonly locale: string }
 
 /** The chosen language and its base keep the chosen tag, whose `Intl` is more exact; the owner's default language formats in that language, so a sentence reads as one. */
-function findMessage(provider: UiTextProvider, owner: string, key: string, locale: string): Found | null {
+export function findMessage(provider: UiTextProvider, owner: string, key: string, locale: string): Found | null {
   for (const tag of localeChain(locale)) {
     const message = provider.message(owner, key, tag);
     if (message !== null) return { message, locale };

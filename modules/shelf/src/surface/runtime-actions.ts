@@ -61,7 +61,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, store: (
     const owned = views.filter(view => view.availability.available && view.provider.plugin_id === record.producer_plugin_id);
     const docAction = owned.find(view => isArtifactDocumentAction(view.action));
     if (docAction) {
-      const document = checkedDocument(await refused(() => dependencies.invoke({ capability_id: docAction.capability_id, version: docAction.version, provider_id: docAction.provider.provider_id }, { reference: ref })));
+      const document = checkedDocument(await refused(() => dependencies.invoke({ capability_id: docAction.capability_id, version: docAction.version, provider_id: docAction.provider.provider_id }, { reference: ref })), record);
       return shelfCopyOf(record, document, { project_id: projectId, project_path: `/projects/${encodeURIComponent(projectId)}` });
     }
     const previewAction = owned.find(view => isArtifactPreviewAction(view.action));

@@ -409,7 +409,7 @@ async function startHomePlatformRuntime(input: {
   })), executor);
   const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
   installationDirectory = openPluginInstallationDirectory(db, repository, pluginId => supervisor.manifest(pluginId));
-  const unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime, input.active));
+  const unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime, input.active, null));
   const platform: HomePluginPlatform = livePlatform = { runtime, supervisor, upgrade: (pluginId, definition, opt) => supervisor.upgrade(pluginId, definition, opt),
     invalidateView: views.invalidateView, viewRevision: views.viewRevision, waitForView: views.waitForView,
     router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {

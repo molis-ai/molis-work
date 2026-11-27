@@ -21,9 +21,7 @@
 tests/assistant-dock-ime.e2e.test.ts
 tests/context-onboarding-blank.e2e.test.ts
 tests/goals-refresh.e2e.test.ts
-tests/memory-formation.test.ts
 tests/project-management-navigation.e2e.test.ts
-tests/prologue-memory-formation.test.ts
 tests/shell-direct-links.e2e.test.ts
 
 # Main flows: the main action or HTTP flow of each product area, and the i18n test (W2-16).
@@ -47,7 +45,6 @@ tests/home-plugin-stage-pages.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
-tests/pages-ai-actions.test.ts
 tests/pages-unicode-actions.test.ts
 tests/plugin-platform-composition.test.ts
 tests/project-plugins.test.ts
@@ -75,7 +72,6 @@ tests/agent-prompt-layers.test.ts
 tests/agent-question-types.test.ts
 tests/agent-reference-questions.test.ts
 tests/agent-review-http.test.ts
-tests/agent-review-authority.test.ts
 tests/agent-review-provenance.test.ts
 tests/agent-review-provenance-node.test.ts
 tests/agent-review-surface.test.ts
@@ -129,6 +125,7 @@ tests/coding-background-tasks.test.ts
 tests/coding-work-events.test.ts
 tests/mainline-line-read.test.ts
 tests/coding-background-wait.test.ts
+tests/coding-batch33-reconcile.test.ts
 tests/coding-changeset-http.test.ts
 tests/coding-checkers-settings.test.ts
 tests/coding-client-scripts.test.ts
@@ -174,7 +171,6 @@ tests/connector-method-directory.test.ts
 tests/connector-oauth-choice.test.ts
 tests/connector-oauth-declarations.test.ts
 tests/connector-provider-contracts.test.ts
-tests/connector-reconnect-regressions.test.ts
 
 # context
 tests/context-ledger.test.ts
@@ -233,7 +229,9 @@ tests/goals-stored-json.test.ts
 tests/goals-tree-ui.test.ts
 
 # memory
+tests/clean-home-memory-baseline.test.ts
 tests/memory-clear-restart.test.ts
+tests/memory-formation.test.ts
 tests/memory-initialization.test.ts
 tests/memory-learning.test.ts
 tests/memory-plugin-save.test.ts
@@ -262,6 +260,7 @@ tests/pages-drag-preview.test.ts
 tests/pages-drag-target.test.ts
 tests/pages-import-content.test.ts
 tests/pages-input-rules.test.ts
+tests/pages-landing-late-authority.test.ts
 tests/pages-plugin.test.ts
 tests/pages-surface-naming.test.ts
 
@@ -295,6 +294,7 @@ tests/plugin-runtime-integration.test.ts
 tests/plugin-tab-groups-multiselect.test.ts
 
 # project
+tests/project-approvals.test.ts
 tests/project-arrival-chooser.test.ts
 tests/project-arrival-http.test.ts
 tests/project-arrival.test.ts
@@ -313,13 +313,13 @@ tests/project-settings-stage.test.ts
 tests/prologue-approval-attachment.test.ts
 tests/prologue-approval-bridge.test.ts
 tests/prologue-checkpoints.test.ts
-tests/prologue-compaction-continue.test.ts
 tests/prologue-compaction.test.ts
 tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
 tests/prologue-input-claims.test.ts
 tests/prologue-materials.test.ts
+tests/prologue-memory-formation.test.ts
 tests/prologue-model-controls.test.ts
 tests/prologue-model-retry.test.ts
 tests/prologue-node-start-order.test.ts
@@ -333,7 +333,6 @@ tests/prologue-step-amend.test.ts
 tests/prologue-stop-review.test.ts
 tests/prologue-storage-claims.test.ts
 tests/prologue-stream.test.ts
-tests/prologue-subagent-turns.test.ts
 tests/prologue-subagents.test.ts
 tests/prologue-taskboard.test.ts
 
@@ -416,8 +415,6 @@ tests/search-references.test.ts
 tests/secret-store-format.test.ts
 tests/personal-goals-sync.test.ts
 tests/personal-goals-sync-refusal.test.ts
-tests/personal-goals-sync-lifecycle.test.ts
-tests/personal-goals-sync-offline.test.ts
 tests/personal-sync-scheduler.test.ts
 tests/sync-device.test.ts
 tests/sync-json-content.test.ts
@@ -427,7 +424,6 @@ tests/workbench-client-compression.test.ts
 tests/builtin-sync-bindings.test.ts
 tests/server-cli.test.ts
 tests/server-database-baseline.test.ts
-tests/shelf-job-runner.test.ts
 # PG-026-S1-S3-8: original registration failure keeps the copy; changed originals refuse processing.
 tests/shelf-original-feedback-http.test.ts
 tests/shelf-settings.test.ts
@@ -447,10 +443,14 @@ tests/typesafe-inference-port.test.ts
 tests/uninstall-catalog.test.ts
 tests/uninstall-receipt.test.ts
 tests/upgrade-chain.test.ts
+tests/upgrade-chain-registry.test.ts
+tests/home-upgrade.test.ts
+tests/observation-coverage-plan.test.ts
+tests/observation-layer.test.ts
+tests/attention-atomic-effects.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
 tests/design-system-giants.test.ts
-tests/ui-audit-2026-09-22.test.ts
 tests/web-mutation-key-settle.test.ts
 tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts

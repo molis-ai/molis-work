@@ -218,26 +218,88 @@ export interface PluginJobView {
  * wants it, this is the platform's account of what it is. A prefix entry (`network:`, `secret:`) names what follows it. Permissions a plugin
  * defines for itself (`issues:write`) are not here, and have no platform meaning.
  */
-const PLATFORM_PERMISSION_MEANINGS: Readonly<Record<string, string>> = {
-  "storage:private": "在这个插件自己的私有空间里保存和读取数据，别的插件读不到",
-  "actions:delegate": "以你的身份去调用动作目录里的动作。这是目前最宽的权限：它能做你能做的事",
-  "model:invoke": "调用你配置的模型来生成内容，可能产生模型费用",
-  "model:read": "查看有哪些模型、能不能用，不调用模型",
-  "surface:browser": "在侧栏浏览器里打开它声明的网站",
-  // A sandboxed package's switches (BL-701): the targets are the exact ones approved at installation, named in its install preview.
-  "network:request": "访问这个插件安装时获准的网站；可以访问哪些网站，以安装时的批准为准",
-  "secret:use": "在已获准的请求中使用为这个插件保存的密钥，插件本身读不到密钥的值",
-  "capabilities:call": "调用安装时获准的那几项平台能力，不能借此调用别的动作",
-  "background:start": "在后台运行安装时获准的工作，不打开插件也会继续",
-  "connections:use": "通过你绑定的服务账号发请求",
-  "network:": "连接到这个网站：",
-  "secret:": "读取你存放的这项密钥：",
+interface PermissionMeaningTable {
+  readonly exact: Readonly<Record<string, string>>;
+  readonly prefixes: Readonly<Record<"network:" | "secret:", string>>;
+}
+
+const PLATFORM_PERMISSION_MEANINGS_BY_LOCALE: Readonly<Record<string, PermissionMeaningTable>> = {
+  zh: {
+    exact: {
+      "storage:private": "在这个插件自己的私有空间里保存和读取数据，别的插件读不到",
+      "actions:delegate": "以你的身份去调用动作目录里的动作。这是目前最宽的权限：它能做你能做的事",
+      "model:invoke": "调用你配置的模型来生成内容，可能产生模型费用",
+      "model:read": "查看有哪些模型、能不能用，不调用模型",
+      "surface:browser": "在侧栏浏览器里打开它声明的网站",
+      // A sandboxed package's switches (BL-701): the targets are the exact ones approved at installation, named in its install preview.
+      "network:request": "访问这个插件安装时获准的网站；可以访问哪些网站，以安装时的批准为准",
+      "secret:use": "在已获准的请求中使用为这个插件保存的密钥，插件本身读不到密钥的值",
+      "capabilities:call": "调用安装时获准的那几项平台能力，不能借此调用别的动作",
+      "background:start": "在后台运行安装时获准的工作，不打开插件也会继续",
+      "connections:use": "通过你绑定的服务账号发请求",
+    },
+    prefixes: {
+      "network:": "连接到这个网站：",
+      "secret:": "读取你存放的这项密钥：",
+    },
+  },
+  en: {
+    exact: {
+      "storage:private": "Store and read data in this plugin's own private space; other plugins cannot read it",
+      "actions:delegate": "Invoke actions in the action catalog as you. This is the broadest permission: it can do what you can do",
+      "model:invoke": "Call your configured models to generate content, which may incur model charges",
+      "model:read": "Check which models are available without calling them",
+      "surface:browser": "Open the websites it declares in the sidebar browser",
+      "network:request": "Access the websites approved when this plugin was installed; allowed sites follow your installation approval",
+      "secret:use": "Use secrets saved for this plugin in approved requests without revealing the secret values to the plugin",
+      "capabilities:call": "Call the specific platform capabilities approved at installation; cannot invoke other actions",
+      "background:start": "Run approved work in the background even when the plugin is not open",
+      "connections:use": "Send requests through the service accounts you bound",
+    },
+    prefixes: {
+      "network:": "Connect to this site: ",
+      "secret:": "Use this saved secret: ",
+    },
+  },
+  ja: {
+    exact: {
+      "storage:private": "このプラグイン専用のプライベート領域にデータを保存・読み取りします（他のプラグインからは読めません）",
+      "actions:delegate": "あなたの権限でアクションカタログの操作を実行します。最も広い権限であり、あなたができる操作を行えます",
+      "model:invoke": "設定済みのモデルを呼び出して内容を生成します（モデル利用料が発生する場合があります）",
+      "model:read": "利用可能なモデルと状態を確認します（モデルの呼び出しは行いません）",
+      "surface:browser": "宣言されたウェブサイトをサイドバーブラウザで開きます",
+      "network:request": "インストール時に承認されたウェブサイトへアクセスします（許可されるサイトはインストール時の承認に従います）",
+      "secret:use": "承認済みリクエストでこのプラグイン向けに保存されたシークレットを使用します（プラグイン本体に値は渡されません）",
+      "capabilities:call": "インストール時に承認されたプラットフォーム機能のみを呼び出します（他の操作は呼び出せません）",
+      "background:start": "インストール時に承認された処理をバックグラウンドで実行します（プラグインを閉じていても継続します）",
+      "connections:use": "紐付けたサービスアカウント経由でリクエストを送信します",
+    },
+    prefixes: {
+      "network:": "このサイトに接続：",
+      "secret:": "保存したシークレットを使用：",
+    },
+  },
 };
 
-export function platformPermissionMeaning(permission: string): string | null {
-  const exact = PLATFORM_PERMISSION_MEANINGS[permission];
-  if (exact !== undefined) return exact;
-  const prefix = permission.slice(0, permission.indexOf(":") + 1);
-  const named = prefix === "network:" || prefix === "secret:" ? PLATFORM_PERMISSION_MEANINGS[prefix] : undefined;
-  return named === undefined ? null : named + permission.slice(prefix.length);
+function meaningTableForLocale(locale: string | undefined): PermissionMeaningTable {
+  if (typeof locale === "string") {
+    const normalized = locale.trim().toLowerCase();
+    const base = normalized.split("-")[0] ?? "";
+    if (Object.hasOwn(PLATFORM_PERMISSION_MEANINGS_BY_LOCALE, normalized)) return PLATFORM_PERMISSION_MEANINGS_BY_LOCALE[normalized]!;
+    if (Object.hasOwn(PLATFORM_PERMISSION_MEANINGS_BY_LOCALE, base)) return PLATFORM_PERMISSION_MEANINGS_BY_LOCALE[base]!;
+  }
+  return PLATFORM_PERMISSION_MEANINGS_BY_LOCALE.zh!;
+}
+
+export function platformPermissionMeaning(permission: string, locale?: string): string | null {
+  if (typeof permission !== "string" || permission.length === 0) return null;
+  const table = meaningTableForLocale(locale);
+  if (Object.hasOwn(table.exact, permission)) return table.exact[permission]!;
+  const colon = permission.indexOf(":");
+  if (colon <= 0) return null;
+  const prefix = permission.slice(0, colon + 1);
+  if (!Object.hasOwn(table.prefixes, prefix)) return null;
+  const target = permission.slice(prefix.length).trim();
+  if (!target) return null;
+  return table.prefixes[prefix as "network:" | "secret:"] + target;
 }

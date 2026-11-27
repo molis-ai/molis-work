@@ -234,7 +234,7 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
     const detail = event.detail;
     if (embedded || !detail || typeof detail !== "object" || typeof detail.pane !== "string" || typeof detail.surface !== "string") return;
     const pane = paneById(detail.pane);
-    detail.answer = Boolean(pane && (pane.viewPlugin === detail.surface || pane.tabs.some((tab) => tab.plugin === detail.surface)));
+    detail.answer = Boolean(pane && (detail.surface === "home" ? !pane.activeTabId && !pane.viewPlugin : pane.viewPlugin === detail.surface || pane.tabs.some((tab) => tab.plugin === detail.surface)));
   });
   /** The page itself moved (a record opened or closed on it): one step of history, outside any history walk. */
   const notePlace = () => {

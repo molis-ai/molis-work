@@ -373,7 +373,7 @@ test("MEM-40: a duplicate linking another original during the final read cannot 
   t.diagnostic(JSON.stringify({ result, decisions: decisions.length, sources: decisions[0]?.source_event_ids, laterSourceAllowed: allowed }));
   assert.ok(decisions.length === 0 || !allowed, "either refuse the changed selection before acceptance or retain every linked original");
   await assert.rejects(service.change(caller("forget"), { action: "remove", memory_id: saved.memory!.memory_id, expected_version: saved.memory!.version }),
-    "an unaccepted retry cannot silently include the later original under the same operation");
+    { code: "memory.conflict" }, "an unaccepted retry cannot silently include the later original under the same operation");
   assert.deepEqual(f.ledger().forgetting.read().decisions, []);
   await service.change(caller("forget-new"), { action: "remove", memory_id: saved.memory!.memory_id, expected_version: saved.memory!.version });
   assert.equal(service.sourceAllowed(LOCAL_PERSON_ACTOR_ID, where.scope, where.owner, [{ event_id: later.event_id, version: "newer" }]), false);
@@ -398,7 +398,7 @@ test("MEM-40: a related candidate completed before the write observation cannot 
   t.diagnostic(JSON.stringify({ result, decisions: decisions.length, selectedCandidates: decisions[0]?.candidates.length, relatedCandidateExposed: exposed }));
   assert.ok(decisions.length === 0 || !exposed, "either reject the changed relation set or clean and hide its current related candidate");
   await assert.rejects(service.change(caller("forget"), { action: "remove", memory_id: saved.memory!.memory_id, expected_version: saved.memory!.version }),
-    "the original empty candidate selection remains empty on retry");
+    { code: "memory.conflict" }, "the original empty candidate selection remains empty on retry");
   assert.deepEqual(f.ledger().forgetting.read().decisions, []);
   await service.change(caller("forget-new"), { action: "remove", memory_id: saved.memory!.memory_id, expected_version: saved.memory!.version });
   assert.equal((await service.candidates(caller("read"))).some(one => one.candidate_id === candidate.candidate_id), false);

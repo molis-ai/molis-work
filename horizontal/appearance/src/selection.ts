@@ -89,6 +89,8 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
     if (!state) return structuredClone(receipt);
     const space = readStorageSpace(home);
     cached = undefined;
+    const withoutSync = (seen: ReturnType<typeof stateFile.read>) =>
+      seen.status === "current" ? { status: seen.status, value: { ...seen.value, sync: null } } : seen;
     try {
       if (space?.kind === 'personal' && space.ownerUserId) {
         appearanceDocument(home, stateFile, space.spaceId, space.ownerUserId, () => {
@@ -98,14 +100,17 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
         }, () => {}).update(previous, state);
       } else atomicWriteFileSync(stateFile.path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, durable: true });
     }
-    catch {
+    catch (error) {
+      if (error instanceof ActionError || (error instanceof Error && error.name === "AbortError") || (caller.signal?.aborted && error === caller.signal.reason)) {
+        throw error;
+      }
       // The error can be after rename. The exact actor, request and effect must have its receipt in the formal file.
       const after = stateFile.read();
       const intended = findApplication(state, caller.actor_id, receipt.request_id);
       const found = after.status === "current" ? findApplication(after.value, caller.actor_id, receipt.request_id) : undefined;
       if (!found || !isDeepStrictEqual(receipt, found[effect]) || !isDeepStrictEqual(intended?.choice, found.choice)) {
         const details = { request_id: receipt.request_id };
-        if (isDeepStrictEqual(before, after)) throw appearanceErrors.write_failed("外观未保存。", details);
+        if (isDeepStrictEqual(withoutSync(before), withoutSync(after))) throw appearanceErrors.write_failed("外观未保存。", details);
         throw new ActionError("actions.outcome_unknown", "无法确认外观是否已保存，请按原请求查询。", { details });
       }
     }

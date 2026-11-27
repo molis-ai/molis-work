@@ -4,6 +4,7 @@ import type { Dataset, DatasetPage, Failure } from "./types.js";
 const uiText = globalThis.t;
 
 const MAX_CSV_BYTES = 2_000_000;
+const MAX_IMPORT_BODY_BYTES = 8_000_000;
 
 /**
  * Importing a CSV file. It holds the same command lock as pasted CSV; `editorSeq` invalidates pending reads and results when
@@ -26,7 +27,9 @@ export function installFileImport(page: DatasetPage): void {
       if (!current() || !target) return;
       const text = (await file.text()).replace(/^﻿/, "");
       if (!current()) return;
-      const payload = await page.request<{ dataset: Dataset }>("POST", `${page.api}/${encodeURIComponent(target.id)}/import-csv`, { csv: text, expected_version: target.version });
+      const body = { csv: text, expected_version: target.version };
+      if (new TextEncoder().encode(JSON.stringify(body)).byteLength > MAX_IMPORT_BODY_BYTES) throw new Error(uiText.text("dataset.import.too-large"));
+      const payload = await page.request<{ dataset: Dataset }>("POST", `${page.api}/${encodeURIComponent(target.id)}/import-csv`, body);
       if (!current()) return;
       const filling = page.fillEditor(payload.dataset);
       seq = s.editorSeq;

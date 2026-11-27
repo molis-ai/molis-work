@@ -85,6 +85,30 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 /** A registered studio instruction as it runs now: the person's edit from the host, or the localized default. */
 const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt, locale?: string): string => ports.instruction?.(prompt) ?? agentBodyIn(prompt, locale);
 const PENDING_CASE = '前置用例失败，尚未执行';
+const MAX_BLOCKED_CHARS = 4_000;
+function normalizeBrowserResult(result: NonNullable<AgentBuild['browserResult']>): NonNullable<AgentBuild['browserResult']> {
+  if (result.blocked === undefined) return result;
+  if (!result.blocked.length) {
+    const { blocked: _blocked, ...rest } = result;
+    return rest;
+  }
+  return result.blocked.length > MAX_BLOCKED_CHARS ? { ...result, blocked: result.blocked.slice(0, MAX_BLOCKED_CHARS) } : result;
+}
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  if (ms <= 0) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
 /** The whole build record is rewritten on every change, so its history must stay bounded. */
 const MAX_STEPS = 200, MAX_RUNS = 100;
 const ACTIVITY = new Set(['file', 'tool', 'check']);
@@ -131,6 +155,20 @@ export class AgentBuilderWorkflow {
     const build = this.store.update(id, this.store.require(id).revision, mutate);
     for (const listener of this.listeners) try { listener(build); } catch { /* view disconnects do not stop execution */ }
     return build;
+  }
+  private changeAt(id: string, expectedRevision: number, mutate: (build: AgentBuild) => void) {
+    if (this.closed) throw new Error('宿主已关闭');
+    const build = this.store.update(id, expectedRevision, mutate);
+    for (const listener of this.listeners) try { listener(build); } catch { /* view disconnects do not stop execution */ }
+    return build;
+  }
+  private async checkActionAuthority(authority?: PluginExecutionControl) {
+    if (this.closed) throw new Error('宿主已关闭');
+    authority?.signal?.throwIfAborted();
+    if (authority?.beforeEffect) await authority.beforeEffect();
+    if (this.closed) throw new Error('宿主已关闭');
+    authority?.signal?.throwIfAborted();
+    authority?.assert_authority_current?.();
   }
   private step(id: string, step: Omit<AgentBuildStep, 'at'>) { this.change(id, build => { const existing = build.steps.findIndex(item => item.id === step.id); const next = { ...step, at: new Date().toISOString() }; if (existing < 0) build.steps.push(next); else build.steps[existing] = next; pruneSteps(build.steps); }); }
   private current(id: string, token: string) { if (this.closed || this.store.require(id).active?.token !== token) throw studioProblem("plugin-builder.request.older-build-discarded", '旧构建结果已作废'); }
@@ -187,13 +225,18 @@ export class AgentBuilderWorkflow {
       // A dropped connection to the model is not the designer's answer: ask again (see RETRY_WAITS) before giving up.
       let record: BuilderAgentRecord | undefined;
       for (let retry = 0; !record; retry++) {
+        signal.throwIfAborted();
+        this.current(id, token);
         try { record = await ask(); }
         catch (error) {
-          signal.throwIfAborted(); this.current(id, token);
+          signal.throwIfAborted();
+        this.current(id, token);
           if (!TRANSIENT.test(message(error))) throw error;
           if (retry >= RETRY_WAITS.length) throw modelUnreachable(error);
           this.step(id, { id: stepId + ':retry:' + attempt + ':' + retry, agent: 'design', action: 'note', label: studioStep('model-retry', { round: retry + 1 }), status: 'done', detail: message(error) });
-          await new Promise(resolve => setTimeout(resolve, RETRY_WAITS[retry]));
+          await abortableDelay(RETRY_WAITS[retry]!, signal);
+          signal.throwIfAborted();
+        this.current(id, token);
         }
       }
       this.current(id, token); this.record(id, record);
@@ -304,7 +347,8 @@ export class AgentBuilderWorkflow {
       for (const [index, capability] of named.entries()) {
         const candidates = capabilityCandidates(catalog, capability, purpose);
         if (candidates.length < 2) continue;
-        signal.throwIfAborted(); this.current(id, token);
+        signal.throwIfAborted();
+        this.current(id, token);
         const stepId = 'capability:' + token + ':' + operation.id + ':' + capability, title = (entry: CatalogEntry) => entry.title ?? entry.id;
         this.step(id, { id: stepId, agent: 'design', action: 'select', label: studioStep('choosing-capability', { purpose: operation.id }), target: operation.id, status: 'active' });
         let selection: NonNullable<AgentBuildStep['selection']> = { source: 'rule', candidates: candidates.map(entry => entry.id), choice: capability };
@@ -314,7 +358,8 @@ export class AgentBuilderWorkflow {
             const answer = await this.ports.choose!({ key: 'builder-' + randomUUID(), instructions: instructionText(this.ports, BUILDER_CHOOSE_CAPABILITY),
               state: JSON.stringify({ title: picked.title, journey: picked.journey, operation: { id: operation.id, description: purpose, kind: operation.kind } }),
               candidates: candidates.map(entry => ({ key: entry.id, description: title(entry) + '（' + (entry.source ?? '平台') + '）：' + entry.description })) });
-            signal.throwIfAborted(); this.current(id, token);
+            signal.throwIfAborted();
+        this.current(id, token);
             if (answer.choice && candidates.some(entry => entry.id === answer.choice)) {
               selection = { source: 'jev', candidates: selection.candidates, choice: answer.choice, model: answer.model, elapsedMs: answer.elapsedMs, confidence: answer.confidence };
             } else refusal = { detail: typeof answer.choice === 'string' ? answer.choice : undefined };
@@ -378,10 +423,12 @@ export class AgentBuilderWorkflow {
     if (code.status === 'rejected') {
       const need = (code.reason as { missingCapability?: { operation: string; capability: string } }).missingCapability;
       if (!need || !(await this.ports.catalog(buildScope(this.store.require(id)))).some(entry => entry.id === need.capability)) throw code.reason;
-      signal.throwIfAborted(); this.current(id, token);
+      signal.throwIfAborted();
+      this.current(id, token);
       // Once: the designer adds the capability the code needs, and the build carries on against the revised contract.
       this.step(id, { id: 'capability-needed:' + token + ':' + need.operation, agent: 'host', action: 'note', label: studioStep('capability-needed', { purpose: need.operation, capability: need.capability }), status: 'done' });
       await this.revise(id, token, signal, '操作 ' + need.operation + ' 的代码需要调用能力 ' + need.capability + '（例如为了返回合同要求的字段），但它的 effects.capabilities 里没有声明。请把 ' + need.capability + ' 加进这个操作的 effects.capabilities，其余保持不变。');
+      if (await this.waitForPlugins(id, token)) return;
       await Promise.all([this.assemble(id, token, signal), this.implement(id, token, signal)]);
     }
     this.current(id, token); const build = this.store.require(id);
@@ -389,7 +436,10 @@ export class AgentBuilderWorkflow {
     const final = await this.check(id, build.design!.contract.operations.map(item => item.id), signal); this.current(id, token);
     this.change(id, value => { value.checks.global = final; value.checksScope = value.runtimeScope; value.scopeCheckPending = undefined; }); if (!final.passed) throw failStudioBuild('build-checks-failed', final.gates.find(gate => !gate.passed)?.detail ?? '');
     const result = await this.repairAcceptance(id, token, signal, await this.acceptance(id, token, signal, 0));
-    if (!result.passed) throw studioAcceptanceFailure(result, this.store.require(id).design!.acceptance);
+    const afterRepair = this.store.require(id);
+    if (afterRepair.pendingPlugins?.length) return;
+    if (afterRepair.pendingPart) { this.current(id, token); this.change(id, value => { value.active = null; value.phase = 'paused'; }); return; }
+    if (!result.passed) throw studioAcceptanceFailure(result, afterRepair.design!.acceptance);
     await this.smoke(id, token, signal);
     await this.reviewPresentation(id, token, signal);
     this.change(id, value => { value.active = null; value.phase = 'ready'; value.error = null; });
@@ -403,9 +453,22 @@ export class AgentBuilderWorkflow {
     const run = async () => {
       for (const operation of this.store.require(id).design!.contract.operations) {
         if (operation.kind !== 'query' || !operation.effects.capabilities?.length) continue;
+        signal.throwIfAborted();
+        this.current(id, token);
         const input = (operation.examples.find(example => example.error === undefined)?.input ?? {}) as SandboxJson;
-        try { await this.ports.call(this.store.require(id), operation.id, input); }
-        catch (error) { return { operation, error: message(error) }; }
+        try {
+          await this.ports.call(this.store.require(id), operation.id, input, {
+            signal,
+            beforeEffect: async () => {
+              signal.throwIfAborted();
+              this.current(id, token);
+            },
+          });
+        } catch (error) {
+          signal.throwIfAborted();
+          this.current(id, token);
+          return { operation, error: message(error) };
+        }
       }
       return null;
     };
@@ -471,7 +534,8 @@ export class AgentBuilderWorkflow {
           const checked = await this.acceptance(id, token, signal, 1);
           if (!checked.passed) throw failStudioBuild('build-visual-checks-failed', checked.blocked ?? checked.cases.find(item => !item.passed)?.detail ?? '');
         } catch (error) {
-          signal.throwIfAborted(); this.current(id, token); if (!inspected.structural) throw error;
+          signal.throwIfAborted();
+        this.current(id, token); if (!inspected.structural) throw error;
           const detail = message(error);
           this.change(id, value => { Object.assign(value, before); value.history = history; value.visualResult!.issues = [...value.visualResult!.issues, detail]; });
           this.step(id, { id: stepId, agent: 'ui', action: 'review', label: studioStep('layout-kept'), status: 'done', detail }); return;
@@ -487,7 +551,8 @@ export class AgentBuilderWorkflow {
     if (this.ports.presentation && !this.store.require(id).design!.presentation) await this.compose(id, token, signal, '按用户旅程设计整页的主次和空间');
     const design = this.store.require(id).design!;
     for (const part of design.parts) {
-      signal.throwIfAborted(); this.current(id, token); if (this.store.require(id).nodes.some(node => node.id === part.id)) continue;
+      signal.throwIfAborted();
+      this.current(id, token); if (this.store.require(id).nodes.some(node => node.id === part.id)) continue;
       const choices = pluginComponentChoices(part, design.contract).map(projectComponentMetadata), stepId = 'part:' + design.contract.revision + ':' + part.id;
       this.step(id, { id: stepId, agent: 'ui', action: 'select', label: studioStep('choosing-component', { purpose: part.purpose }), target: part.id, status: 'active' });
       const preference = design.presentation?.parts[part.id]?.kind;
@@ -495,11 +560,13 @@ export class AgentBuilderWorkflow {
       if (choices.length > 1 && this.ports.choose && this.ports.selectionAvailable?.()) {
         try {
           const answer = await this.ports.choose({ key: 'builder-' + randomUUID(), instructions: instructionText(this.ports, BUILDER_CHOOSE_COMPONENT), state: JSON.stringify({ title: design.title, journey: design.journey, pages: design.contract.pages, presentation: design.presentation, neighbors: design.parts.filter(item => item.pageId === part.pageId), preference, part }), candidates: choices.map(choice => ({ key: choice.kind, description: choice.description })) });
-          signal.throwIfAborted(); this.current(id, token);
+          signal.throwIfAborted();
+        this.current(id, token);
           if (!answer.choice || !choices.some(choice => choice.kind === answer.choice)) throw new Error('Jev 没有返回合法组件');
           selection = { source: 'jev', candidates: choices.map(choice => choice.kind), choice: answer.choice, model: answer.model, elapsedMs: answer.elapsedMs, confidence: answer.confidence };
         } catch (error) {
-          signal.throwIfAborted(); this.current(id, token);
+          signal.throwIfAborted();
+        this.current(id, token);
           if (preference) this.step(id, { id: stepId + ':fallback', agent: 'ui', action: 'note', label: studioStep('using-design-choice'), status: 'done', detail: message(error) });
           else { this.change(id, value => { value.pendingPart = { id: part.id, candidates: choices.map(choice => choice.kind), reason: message(error) }; });
           this.step(id, { id: stepId, agent: 'ui', action: 'select', label: studioStep('waiting-for-component'), target: part.id, status: 'waiting', detail: message(error) }); return;
@@ -570,21 +637,25 @@ export class AgentBuilderWorkflow {
     let record: BuilderAgentRecord | undefined;
     // A dropped connection to the model is not the code's fault: it is asked again (files written so far stay) before the round counts.
     for (let retry = 0; ; retry++) {
+      signal.throwIfAborted();
+      this.current(id, token);
       try {
         record = await agent.run({ role: 'coder', instruction: prompt.text, ...mounted(this.ports, 'code', prompt.version), contractRevision: this.store.require(id).design!.contract.revision, operationIds, ...(writable ? { writable } : {}), signal,
           task: JSON.stringify(task), checks: (ids, checkSignal) => this.check(id, [...ids], checkSignal),
           onActivity: activity => { if (this.store.require(id).active?.token === token) this.step(id, { id: 'activity:' + randomUUID(), agent: 'code', action: activity.type, label: activity.name, operationId: operationIds[0], status: 'done', detail: activity.detail.slice(0, 12_000), ...(activity.path ? { target: activity.path } : {}) }); } });
         break;
       } catch (error) {
-        signal.throwIfAborted(); this.current(id, token);
+        signal.throwIfAborted();
+        this.current(id, token);
         record = (error as { record?: BuilderAgentRecord }).record;
         if (TRANSIENT.test(message(error))) {
           if (record) this.record(id, record);
           // Still unreachable after the retries: the build stops rather than spend its repair rounds on an outage.
           if (retry >= RETRY_WAITS.length) throw modelUnreachable(error);
           this.step(id, { id: noteId + ':retry:' + retry, agent: 'code', action: 'note', label: studioStep('model-retry', { round: retry + 1 }), operationId: operationIds[0], status: 'done', detail: message(error) });
-          await new Promise(resolve => setTimeout(resolve, RETRY_WAITS[retry]));
-          signal.throwIfAborted(); this.current(id, token);
+          await abortableDelay(RETRY_WAITS[retry]!, signal);
+          signal.throwIfAborted();
+        this.current(id, token);
           continue;
         }
         this.step(id, { id: noteId, agent: 'code', action: 'note', label: studioStep('round-unfinished'), operationId: operationIds[0], status: 'done', detail: message(error) });
@@ -598,8 +669,8 @@ export class AgentBuilderWorkflow {
     const stepId = 'browser:' + token + ':' + round;
     this.step(id, { id: stepId, agent: 'host', action: 'verify', label: studioStep(round ? 'rerunning-acceptance' : 'running-acceptance'), status: 'active' });
     let result: NonNullable<AgentBuild['browserResult']>;
-    try { result = await this.ports.browserAcceptance(this.store.require(id), signal); }
-    catch (error) { signal.throwIfAborted(); const blocked = message(error); result = { passed: false, cases: this.store.require(id).design!.acceptance.map(test => ({ id: test.id, passed: false, detail: '尚未执行：' + blocked })), blocked, at: new Date().toISOString() }; }
+    try { result = normalizeBrowserResult(await this.ports.browserAcceptance(this.store.require(id), signal)); }
+    catch (error) { signal.throwIfAborted(); const blocked = message(error).slice(0, MAX_BLOCKED_CHARS) || '界面验收受阻'; result = { passed: false, cases: this.store.require(id).design!.acceptance.map(test => ({ id: test.id, passed: false, detail: '尚未执行：' + blocked })), blocked, at: new Date().toISOString() }; }
     this.current(id, token);
     this.change(id, value => { value.browserResult = result; });
     this.step(id, { id: stepId, agent: 'host', action: 'verify', label: studioStep(result.passed ? 'acceptance-passed' : 'acceptance-failed'), status: result.passed ? 'done' : 'failed', detail: JSON.stringify(result.cases) });
@@ -634,6 +705,7 @@ export class AgentBuilderWorkflow {
           return request;
         });
         await this.revise(id, token, signal, requests.join('\n\n') + '\n本批界面验收的全部实际失败如下，请集中处理属于设计的原因，保留其余原始诊断，不改变被验收的业务行为：\n' + JSON.stringify(acceptanceFailures));
+        if (await this.waitForPlugins(id, token)) return result;
         await this.assemble(id, token, signal); this.current(id, token);
         if (this.store.require(id).pendingPart) return result;
         await this.implement(id, token, signal);
@@ -700,8 +772,18 @@ export class AgentBuilderWorkflow {
       if (body.scope !== 'home' && body.scope !== 'project') throw studioProblem("plugin-builder.request.draft-scope-invalid", '发布范围只能是项目或个人空间');
       if (this.store.versions(id).some(release => releaseScope(release) !== body.scope)) throw studioProblem("plugin-builder.request.published-scope-fixed", '已发布草稿的范围不能改变，请创建新的草稿');
       if (buildScope(build) === body.scope) return build;
-      const changed = this.change(id, value => { value.runtimeScope = body.scope === 'home' ? 'home' : undefined; value.scopeCheckPending = true; value.checksScope = undefined; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.connected = []; value.pendingPlugins = undefined; value.phase = 'paused'; value.error = null; });
-      await this.ports.resetPreview(id, () => { if (this.closed || this.store.require(id).revision !== changed.revision) throw new Error('草稿已改变'); });
+      await this.checkActionAuthority(authority);
+      const current = this.store.require(id);
+      if (current.active) throw studioProblem("plugin-builder.request.draft-locked", '草稿已更新或正在构建，请先暂停并刷新');
+      const changed = this.changeAt(id, build.revision, value => { value.runtimeScope = body.scope === 'home' ? 'home' : undefined; value.scopeCheckPending = true; value.checksScope = undefined; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.connected = []; value.pendingPlugins = undefined; value.phase = 'paused'; value.error = null; });
+      await this.ports.resetPreview(id, () => {
+        if (this.closed) throw new Error('宿主已关闭');
+        authority?.signal?.throwIfAborted();
+        authority?.assert_authority_current?.();
+        const latest = this.store.require(id);
+        if (latest.revision !== changed.revision || latest.active) throw new Error('草稿已改变');
+      });
+      await this.checkActionAuthority(authority);
       return this.store.require(id);
     }
     if (body.action === 'recheck') { this.launch(id, 'check'); return this.store.require(id); }
@@ -721,8 +803,12 @@ export class AgentBuilderWorkflow {
       if (body.action === 'enable-plugins') {
         if (buildScope(build) === 'home') throw new Error('个人空间检查不能通过启用项目插件补齐依赖');
         if (!this.ports.enablePlugins) throw studioProblem("plugin-builder.request.cannot-enable-in-project", '这个项目不能在这里启用插件');
+        await this.checkActionAuthority(authority);
         await this.ports.enablePlugins(pending.map(item => item.pluginId));
-        this.change(id, value => { value.pendingPlugins = undefined; for (const step of value.steps) if (step.agent === 'host' && step.action === 'decide' && step.status === 'waiting') { step.status = 'done'; step.label = studioStep('plugins-enabled'); } });
+        await this.checkActionAuthority(authority);
+        const current = this.store.require(id);
+        if (current.active) throw studioProblem("plugin-builder.request.draft-locked", '草稿已更新或正在构建，请先暂停并刷新');
+        this.changeAt(id, build.revision, value => { value.pendingPlugins = undefined; for (const step of value.steps) if (step.agent === 'host' && step.action === 'decide' && step.status === 'waiting') { step.status = 'done'; step.label = studioStep('plugins-enabled'); } });
         this.launch(id, 'build'); return this.store.require(id);
       }
       this.change(id, value => { value.pendingPlugins = undefined; value.messages.push({ role: 'user', text: '不要使用' + pending.map(item => '「' + item.title + '」').join('、') + '的能力（' + pending.flatMap(item => item.capabilities).join('、') + '），换一种不需要它们的做法' });
@@ -735,8 +821,33 @@ export class AgentBuilderWorkflow {
       this.change(id, value => { value.nodes = inDesignOrder(value.design, [...value.nodes, { ...part, kind: body.kind as AgentBuild['nodes'][number]['kind'] }]); value.pendingPart = undefined; });
       this.step(id, { id: 'part:' + build.design!.contract.revision + ':' + part.id, agent: 'ui', action: 'place', label: studioStep('using-persons-component'), target: part.id, status: 'done', selection: { source: 'user', candidates: pending.candidates, choice: String(body.kind) } }); this.launch(id, 'build'); return this.store.require(id);
     }
-    if (body.action === 'undo' && build.design && build.history.at(-1)?.checks?.global?.bundlePath && build.history.at(-1)?.design?.contract.revision === build.design?.contract.revision) { const previous = build.history.at(-1)!; this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.error = null; value.phase = !value.scopeCheckPending && previous.browserResult?.passed && previous.checksScope === value.runtimeScope ? 'ready' : 'paused'; }); return this.store.require(id); }
-    if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw studioProblem("plugin-builder.request.no-revision-to-undo", '没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
+    if (body.action === 'undo' && build.design && build.history.at(-1)?.checks?.global?.bundlePath && build.history.at(-1)?.design?.contract.revision === build.design?.contract.revision) {
+      const previous = build.history.at(-1)!;
+      await this.checkActionAuthority(authority);
+      if (this.store.require(id).active) throw studioProblem("plugin-builder.request.draft-locked", '草稿已更新或正在构建，请先暂停并刷新');
+      this.changeAt(id, build.revision, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.error = null; value.phase = !value.scopeCheckPending && previous.browserResult?.passed && previous.checksScope === value.runtimeScope ? 'ready' : 'paused'; });
+      return this.store.require(id);
+    }
+    if (body.action === 'undo') {
+      const previous = build.history.at(-1);
+      if (!previous) throw studioProblem("plugin-builder.request.no-revision-to-undo", '没有可撤销的合同修订');
+      await this.checkActionAuthority(authority);
+      const assertUndoCurrent = () => {
+        if (this.closed) throw new Error('宿主已关闭');
+        authority?.signal?.throwIfAborted();
+        authority?.assert_authority_current?.();
+        const current = this.store.require(id);
+        if (current.revision !== build.revision) throw Object.assign(studioProblem("plugin-builder.request.draft-conflict", '草稿已更新，请重试'), { code: 'revision_conflict' });
+        if (current.active) throw studioProblem("plugin-builder.request.draft-locked", '草稿已更新或正在构建，请先暂停并刷新');
+      };
+      assertUndoCurrent();
+      await this.ports.resetPreview(id, assertUndoCurrent);
+      await this.checkActionAuthority(authority);
+      assertUndoCurrent();
+      this.changeAt(id, build.revision, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; });
+      this.launch(id, 'build');
+      return this.store.require(id);
+    }
     if (body.action === 'remove') { this.store.remove(id, build.revision); await this.resetPreview(id); return null; }
     if (body.action === 'publish') return publishAgentBuild(this.store, this.ports, build, authority, () => { if (this.closed) throw new Error('宿主已关闭'); });
     throw studioProblem("plugin-builder.request.unknown-build-operation", '未知构建操作');

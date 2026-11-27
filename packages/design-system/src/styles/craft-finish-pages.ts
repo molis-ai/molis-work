@@ -145,10 +145,8 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {
     transform: scale(.97); filter: none; transition-duration: var(--dur-press);
   }
-  /* Buttons: graphite primary with a small soft shadow; secondary is a wash with no outline; quiet is text. */
+  /* Buttons: graphite primary keeps a flat fill; secondary keeps its paper border and lift from BUTTON_STYLES. */
   ${PAGES} .mw-btn--primary { background-image: none; }
-  ${PAGES} .mw-btn--secondary:not(:disabled) { box-shadow: none; border-color: transparent; }
-  ${PAGES} .mw-btn--secondary:hover:not(:disabled) { box-shadow: none; border-color: transparent; background-color: var(--nav-hover); }
   ${WORKBENCH} .plugin-stage-chrome .tree-create {
     border-color: transparent; background: var(--control-fill); box-shadow: none;
   }

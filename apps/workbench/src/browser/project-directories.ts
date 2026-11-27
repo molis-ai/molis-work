@@ -43,7 +43,7 @@ export function bindProjectDirectories(root: HTMLElement): void {
   const tell = (text: string, tone: "done" | "error" | "" = "") => { status.textContent = text; status.dataset.tone = tone; };
   const fail = (error: unknown, where: HTMLElement = status) => { molisWorkRequest.show(where, error, say.failed); where.dataset.tone = "error"; };
 
-  function draw(): void {
+  function draw(reloadCheckers = true): void {
     if (!state) return;
     const focused = document.activeElement instanceof HTMLElement && root.contains(document.activeElement) ? document.activeElement : null;
     const again = focused?.dataset.act ? `[data-act="${focused.dataset.act}"][data-${focused.dataset.source ? "source" : "workspace"}="${CSS.escape(focused.dataset.source ?? focused.dataset.workspace ?? "")}"]` : "";
@@ -53,8 +53,20 @@ export function bindProjectDirectories(root: HTMLElement): void {
     output.replaceChildren(...list("output"));
     if (again) root.querySelector<HTMLElement>(again)?.focus({ preventScroll: true });
     drawInstructions(reading, readingNote, say, state.instructions);
-    void checkers.load?.(state.directories.filter(item => item.state === "ok"));
+    if (reloadCheckers) void checkers.load?.(state.directories.filter(item => item.state === "ok"));
   }
+  const onLanguageChanged = () => {
+    if (!root.isConnected) {
+      document.removeEventListener("molis-work:language-changed", onLanguageChanged);
+      return;
+    }
+    try {
+      if (root.dataset.say) Object.assign(say, JSON.parse(root.dataset.say) as Say);
+      if (root.dataset.consequence) Object.assign(consequence, JSON.parse(root.dataset.consequence) as Consequence);
+    } catch { /* Keep the last valid language bundle. */ }
+    draw(false);
+  };
+  document.addEventListener("molis-work:language-changed", onLanguageChanged);
 
   async function read(): Promise<void> {
     tell(say.loading);

@@ -108,12 +108,25 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     } finally { w.adopting = false; }
     if (view.workshop === w) draw(w.confirm ? "sk-confirm" : Object.keys(w.errors).length ? "au-error" : "au-failure");
   }
-  async function discard(w: Workshop): Promise<void> {
-    edit.cancel();
-    await discardDraft(project, w.draft.draft_id);
-    await c.reload();
-    if (view.workshop === w) { view.workshop = undefined; draw("detail"); }
-    say(improve("discarded"), "success", { label: readText("workbench.context-bus.undo"), attrs: act("sk-undiscard", w.draft.draft_id) });
+  const discarding = new WeakSet<Workshop>();
+  async function discard(w: Workshop, origin?: HTMLElement): Promise<void> {
+    if (discarding.has(w) || w.adopting) return;
+    discarding.add(w);
+    const button = origin instanceof HTMLButtonElement ? origin : null;
+    if (button) button.disabled = true;
+    try {
+      await edit.cancel(w);
+      await discardDraft(project, w.draft.draft_id);
+      await c.reload();
+      if (view.workshop === w) { view.workshop = undefined; draw("detail"); }
+      say(improve("discarded"), "success", { label: readText("workbench.context-bus.undo"), attrs: act("sk-undiscard", w.draft.draft_id) });
+    } catch (cause) {
+      edit.uncancel(w);
+      throw cause;
+    } finally {
+      discarding.delete(w);
+      if (button) button.disabled = false;
+    }
   }
 
   function resumeEditing(w: Workshop, saved: boolean): void {
@@ -124,7 +137,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
   }
 
   /** One of the open draft's actions; nothing when it is not one. */
-  async function run(w: Workshop, name: string, value: string | undefined): Promise<void> {
+  async function run(w: Workshop, name: string, value: string | undefined, origin?: HTMLElement): Promise<void> {
     if (name === "sk-close") { if (!(await edit.flush(w))) return; view.workshop = undefined; draw("detail"); await c.reload(); return; }
     if (name === "sk-models") { if (await edit.flush(w)) location.href = modelsHref; return; }
     if (name === "sk-retry-save") return resumeEditing(w, await edit.flush(w));
@@ -152,7 +165,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     if (name === "sk-adopt") return adopt(w, false);
     if (name === "sk-adopt-anyway") { w.confirm = false; return adopt(w, true); }
     if (name === "sk-confirm-back") { w.confirm = false; w.tab = "edit"; return draw("au"); }
-    if (name === "sk-discard") return discard(w);
+    if (name === "sk-discard") return discard(w, origin);
   }
 
   return { ask, saveCase, run };

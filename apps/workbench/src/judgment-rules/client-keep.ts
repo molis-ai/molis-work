@@ -230,20 +230,29 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
   };
   /** Keeps what you wrote as a rule of its own: create, then write the rest. Not the original key unless you changed it here. */
   const saveNew = async (button) => {
-    const from = base || sel, mine = phase === "viewing" ? mineDef : formDef(), oldId = sel?.id;
+    const from = base || sel, mine = (phase === "viewing" || (phase === "published" && mineDef)) ? mineDef : formDef(), oldId = sel?.id;
     if (!from || waiting) return;
     busy(button);
     let created;
     try { created = (await req("POST", "/api/functions", { primitive: prim(from), name: mine.name })).function; }
-    catch (error) { enter(phase, withVersion(latestRec)); toBand(); showNote(error, true); return; }
+    catch (error) { if (sel?.id === oldId) { enter(phase, withVersion(latestRec)); toBand(); showNote(error, true); } return; }
     const patch = asRecord({}, mine);
     if (same(mine.function_key, from.function_key)) delete patch.function_key;
     if (oldId) forget(oldId);
+    const sameEditor = () => sel?.id === oldId || sel?.id === created.id;
+    if (!sameEditor()) {
+      rememberRecord(created);
+      try { rememberRecord((await req("POST", "/api/functions/" + encodeURIComponent(created.id), { ...patch, ...revisionOf(created) })).function); }
+      catch { /* User already navigated away; draft copy stays in the list. */ }
+      return;
+    }
     reset(); rememberRecord(created);
     try {
-      remember((await req("POST", "/api/functions/" + encodeURIComponent(created.id), { ...patch, ...revisionOf(created) })).function);
-      dirty = false; enter("saved-new"); toBand();
+      const updated = (await req("POST", "/api/functions/" + encodeURIComponent(created.id), { ...patch, ...revisionOf(created) })).function;
+      if (!sameEditor()) { rememberRecord(updated); return; }
+      remember(updated); dirty = false; enter("saved-new"); toBand();
     } catch (error) {
+      if (!sameEditor()) return;
       // The new rule is the current one; the form still holds what you wrote, and saving again goes to it. The alert the focus was
       // on is gone, so the focus goes to the new rule's name.
       remember(created); fillEditor(asRecord(created, mine)); base = created; dirty = true; enter(""); nameInput.focus(); showNote(error, true);
@@ -261,7 +270,12 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
   const restore = (rec) => {
     let saved = null;
     try { saved = JSON.parse(sessionStorage.getItem(KEEP_STORE + rec.id) || "null"); } catch { saved = null; }
-    if (!saved?.mine || !saved.base || rec.status === "published") return;
+    if (!saved?.mine || !saved.base) return;
+    if (rec.status === "published") {
+      latestRec = rec; base = saved.base; mineDef = saved.mine; dirty = true;
+      enter(saved.phase === "viewing" ? "viewing" : "published", withVersion(rec));
+      return;
+    }
     fillEditor(asRecord({ ...rec, updated_at: saved.base.updated_at }, saved.mine)); base = saved.base;
     mineDef = saved.mine; wasLoaded = saved.phase === "second"; dirty = true;
     enter(wasLoaded ? "second" : "conflict");

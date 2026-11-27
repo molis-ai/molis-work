@@ -88,7 +88,7 @@ test('S-109 PCSYNC-01 a protected owner refuses plaintext, wrong keys and cross-
   assert.throws(()=>createSqliteReplica(db,{...owner,protection:protection(randomBytes(32))}).next());
   replica.acknowledge('first',first.operationId,1);queueReplicaChange(db,'second');replica.next();
   db.prepare('UPDATE replica_outbox SET operation=? WHERE key=?').run(sealed,'second');
-  assert.throws(()=>replica.next(),'ciphertext is bound to the original asset');
+  assert.throws(()=>replica.next(),/Unsupported state or unable to authenticate data/u,'ciphertext is bound to the original asset');
   db.prepare('UPDATE replica_outbox SET operation=? WHERE key=?').run(JSON.stringify({operationId:'forged',key:'second',base:0,value:'plaintext'}),'second');
   assert.throws(()=>replica.next(),/未使用当前本机保护/);
   assert.equal(replica.counts().pending,1);assert.equal(replica.cursor(),0);

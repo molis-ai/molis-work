@@ -9,7 +9,7 @@ import { projectOrNull } from "./catalog-lookup.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
+import { readLocalWebBody, requestAbortSignal, sendLocalWebJson as sendJson } from "./web-http.js";
 
 export const PLUGIN_INSTALL_PATH = "/api/internal/plugin-install";
 /** A sandbox package carries its code as base64, so the body is larger than the 8 MiB code it may hold. */
@@ -26,9 +26,7 @@ export async function handlePluginInstallHttp(request: IncomingMessage, response
   host: MolisWorkLocalHost, withCatalog: LocalWebCatalogRunner, accountCurrent?: () => void): Promise<boolean> {
   if (url.pathname !== PLUGIN_INSTALL_PATH) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "只支持本机 POST 调用" }); return true; }
-  const controller = new AbortController();
-  const disconnected = () => { if (!response.writableFinished) controller.abort(new ActionError("actions.cancelled", "安装调用连接已断开")); };
-  response.once("close", disconnected);
+  const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "安装调用连接已断开"));
   try {
     const body = await readLocalWebBody(request, MAX_BODY);
     const fields = ["home_id", "project_id", "bundle", "confirm", "pin_label"];
@@ -45,7 +43,7 @@ export async function handlePluginInstallHttp(request: IncomingMessage, response
     const client = host.actionClient(reference, false);
     // The person at this computer, by the command they ran: the Host fixes who acts and where it came from. One context serves the
     // whole call (N42); the steps differ only in the provenance stamped on each, and every call still checks the authority it holds.
-    const context = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, controller.signal, { assertCurrent: accountCurrent });
+    const context = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, disconnected.signal, { assertCurrent: accountCurrent });
     const person = (step: string) => ({ ...context,
       user_action: { source: "management" as const, conversation_ref: `management:${reference.project_id}`, message_ref: `management:plugin-install:${step}` } });
     const preview = await client.invoke(person("preview"), ref(pluginInstallActions.preview), { bundle: body.bundle }) as PluginInstallPreviewResult;
@@ -54,6 +52,6 @@ export async function handlePluginInstallHttp(request: IncomingMessage, response
       { preview_id: preview.preview_id, consent: true, ...(typeof body.pin_label === "string" ? { pin_label: body.pin_label } : {}) });
     sendJson(response, 200, { preview, installed });
   } catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, refused.body); }
-  finally { response.off("close", disconnected); }
+  finally { disconnected.dispose(); }
   return true;
 }

@@ -14,7 +14,7 @@
 
 原操作先固定目标、动作与确认版本，完整正文/元数据仍由 SDK 核验原请求。SDK 已提交但 ledger 未记时，原请求可经 SDK 原操作核对后补唯一历史和变更；当前版本加一自身不是成功证明。原确认后尚未提交的到期条目仍拒绝。SDK107 曾在跨到期的已提交改类重试中先拒绝读取；本地采用的 SDK86ad 修正了原提交确认顺序，当前 SDK493 保留该修复，根整合的原失败用例已通过。后来编辑、删除、取消或撤权不能借补账覆盖。这里说明分类编辑的恢复，不代表 Session 管理、续期、分类读/形成限制或固定批量的整体验收；续期对所选新期限的限制见后文。
 
-本片回归：`tests/memory-management-pages.test.ts`、`tests/memory-management-page-authority.test.ts`、`tests/memory-management-page-http.test.ts`、`tests/memory-classification-edit.test.ts`。工程结果与页面实操分别由统筹记录，本节不声明已通过。
+本片回归：`tests/memory-management-pages.test.ts`、`tests/memory-authorize-each.test.ts`、`tests/memory-management-page-http.test.ts`、`tests/memory-classification-edit.test.ts`。工程结果与页面实操分别由统筹记录，本节不声明已通过。
 
 ## 历史恢复与原编辑决定
 

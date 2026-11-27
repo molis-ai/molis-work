@@ -35,6 +35,8 @@ export function isLoopbackHttpOrigin(url: URL, options: LoopbackOptions = {}): b
   return isLoopbackHttpUrl(url, options) && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash;
 }
 
+const LOOPBACK_HOST = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::([1-9]\d{0,4}|0))?$/iu;
+
 /**
  * The `host:port` a request's Host header names when it names this machine, else null (a missing, malformed or foreign
  * Host). A server that answers only these cannot be reached through a DNS name an attacker controls (DNS rebinding).
@@ -42,8 +44,12 @@ export function isLoopbackHttpOrigin(url: URL, options: LoopbackOptions = {}): b
 export function loopbackHost(hostHeader: string | undefined | null): string | null {
   const value = hostHeader?.trim();
   if (!value) return null;
+  const match = LOOPBACK_HOST.exec(value);
+  if (!match) return null;
+  if (match[1] !== undefined && Number(match[1]) > 65535) return null;
   try {
     const parsed = new URL(`http://${value}`);
+    if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
     return isLoopbackHostname(parsed.hostname) ? parsed.host : null;
   } catch {
     return null;

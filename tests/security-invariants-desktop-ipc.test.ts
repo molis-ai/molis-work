@@ -14,10 +14,12 @@
 // What is verified separately on a real macOS desktop build (tracked in docs/system/SECURITY-INVARIANTS.md S5): real WKWebView
 // command reachability for top-level main vs opaque plugin srcdoc iframes and non-blank rendering under the strict static placeholder CSP.
 import assert from "node:assert/strict";
+import { createHmac, randomBytes } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const SHELL = fileURLToPath(new URL("../apps/desktop/src-tauri/", import.meta.url));
 const MAIN_RS = fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/main.rs", import.meta.url));
@@ -104,7 +106,7 @@ test("S-14 the shell's file commands take a page's relative paths and ask the Ho
   const main = readFileSync(MAIN_RS, "utf8");
   const permission = readFileSync(join(SHELL, "permissions", "shelf.toml"), "utf8");
   const client = readFileSync(new URL("../apps/workbench/src/browser/plugin-frame/native-files.ts", import.meta.url), "utf8");
-  for (const old of ["shelf_open_path", "shelf_copy_files", "shelf_drag_out"]) {
+  for (const old of ["shelf_open_path", "shelf_copy_files", "shelf_drag_out", "shelf_admit_paths"]) {
     for (const [where, text] of [["main.rs", main], ["permissions/shelf.toml", permission], ["native-files.ts", client]] as const) assert.equal(text.includes(old), false, `${where} still names ${old}`);
   }
   const allowed = [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(permission)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!);
@@ -142,6 +144,10 @@ test("S-14 the shell's own configuration does not turn on remote IPC for every d
   assert.equal(JSON.stringify(configuration).includes("dangerousRemoteDomainIpcAccess"), false);
   assert.equal(JSON.stringify(configuration).includes("dangerousDisableAssetCspModification"), false);
   assert.equal(configuration.build.frontendDist, "../webview-placeholder");
+  const mainWindow = configuration.app.windows.find(window => window.label === "main") as { create?: boolean } | undefined;
+  assert.equal(mainWindow?.create, false, "F-wb2-33/34: main window is created in setup() with on_new_window attached");
+  const mainSource = readFileSync(MAIN_RS, "utf8");
+  assert.match(mainSource, /\.on_new_window\([\s\S]*?external_links::handle_new_window_request\(&url\)[\s\S]*?NewWindowResponse::Deny/);
 });
 
 test("102-2 S-14 tiered IPC auth enforces main-window active-origin checks and fails closed to fresh HMAC for sensitive commands", () => {
@@ -214,4 +220,33 @@ test("S-desktop-rollback-main-only going back a version is granted to the main w
   const checked = command.indexOf("rollback_source(window.label()"), stopped = command.indexOf("go_back(");
   assert.ok(checked > 0 && checked < stopped, "the window and its address are checked before the Host is stopped");
   assert.match(source, /fn s_desktop_rollback_main_only_refuses_every_other_window_and_origin/u, "the Rust refusal test stays");
+});
+
+// SYS-14 S-14: the production HTTP server proves this Home's identity over the exact bytes.
+test("SYS-14 health answers fresh challenges without disclosing the control token", async t => {
+  const f = await serveHomeRuntime(t);
+  await f.project("Identity probe");
+  const proofs = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const challenge = randomBytes(32).toString("base64url");
+    const response = await fetch(`${f.origin}/health?challenge=${challenge}`);
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    const proof = response.headers.get("x-molis-work-proof");
+    assert.equal(proof, createHmac("sha256", f.token).update(challenge + "\n").update(body).digest("base64url"));
+    assert.equal(Buffer.byteLength(body), Number(response.headers.get("content-length")));
+    assert.equal(body.includes(f.token), false);
+    assert.equal(JSON.parse(body).status, "ok");
+    assert.equal(JSON.parse(body).desktop_tui, true);
+    assert.equal(typeof JSON.parse(body).active_work, "number");
+    assert.ok(JSON.parse(body).active_work >= 0);
+    proofs.push(proof);
+  }
+  assert.notEqual(proofs[0], proofs[1], "a previous response cannot answer the next challenge");
+  const plain = await fetch(`${f.origin}/health`);
+  assert.equal(plain.status, 200);
+  assert.equal(plain.headers.get("x-molis-work-proof"), null);
+  const invalid = await fetch(`${f.origin}/health?challenge=not-a-nonce`);
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.headers.get("x-molis-work-proof"), null);
 });

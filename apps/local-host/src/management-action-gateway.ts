@@ -7,7 +7,7 @@ import { actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { MANAGEMENT_ACTION_PATH, catalogManagementProject } from "./management-action-client.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { recordedCallIdField } from "./call-id-response.js";
-import { readLocalWebBody, sendLocalGatewayJson as sendJson } from "./web-http.js";
+import { readLocalWebBody, requestAbortSignal, sendLocalGatewayJson as sendJson } from "./web-http.js";
 import { invokeProjectReviewManagement } from "./project-review-entry.js";
 
 /** Mounted only after the resident service's Origin/token/one-time-key gate. */
@@ -15,9 +15,7 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
   home: string, host: MolisWorkLocalHost, accountCurrent?: () => void): Promise<boolean> {
   if (url.pathname !== MANAGEMENT_ACTION_PATH) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "只支持本机 POST 调用" }); return true; }
-  const controller = new AbortController();
-  const disconnected = () => { if (!response.writableFinished) controller.abort(new ActionError("actions.cancelled", "管理调用连接已断开")); };
-  response.once("close", disconnected);
+  const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "管理调用连接已断开"));
   try {
     const body = await readLocalWebBody(request, 16 * 1024 * 1024);
     const fields = ["home_id", "database_path", "project_id", "call_id", "capability", "input", "evidence"];
@@ -39,7 +37,7 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
     await withCallId(body.call_id, async () => {
       try {
         if (body.evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
-        const result = await invokeProjectReviewManagement(host, reference, review, body.input, String(body.call_id), controller.signal, accountCurrent);
+        const result = await invokeProjectReviewManagement(host, reference, review, body.input, String(body.call_id), disconnected.signal, accountCurrent);
         if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() });
         else if (!response.writableEnded) {
           response.statusCode = 200;
@@ -49,6 +47,6 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
       catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, { ...refused.body, ...recordedCallIdField() }); }
     });
   } catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, refused.body); }
-  finally { response.off("close", disconnected); }
+  finally { disconnected.dispose(); }
   return true;
 }

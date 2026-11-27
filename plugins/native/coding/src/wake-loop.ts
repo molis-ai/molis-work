@@ -10,9 +10,10 @@ import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actio
 import type { PluginJobControl, PluginKeptJob, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { CodingSessionRecord } from "./store.js";
 import { codingActions, codingActionControl, codingJobWrite, type CodingBeforeWrite } from "./route-entry.js";
-import { holdReason, openWait, waitViewOf, wakeBodyOf, type CodingWaitView } from "./waits.js";
+import { holdReason, isHeldWait, openWait, waitViewOf, wakeBodyOf, type CodingWaitView } from "./waits.js";
 
 type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["actions"]>;
 
@@ -42,8 +43,30 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   const { context } = deps;
   const storage = () => context.services?.storage;
   const noteKey = (waitId: string) => `wake-note:${waitId}`;
-  const noteOf = (waitId: string) => storage()?.get(noteKey(waitId)) ?? undefined;
+  const noteOf = (waitId: string) => {
+    const raw = storage()?.get(noteKey(waitId));
+    if (!raw) return undefined;
+    if (raw.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(raw) as { key?: unknown; reason?: unknown };
+        if (parsed.key === "coding.wait.auto-start-failed" && typeof parsed.reason === "string") {
+          return tryUiText("coding.wait.auto-start-failed", { reason: parsed.reason }) ?? `自动开始没有成功：${parsed.reason}`;
+        }
+      } catch { /* plain text note */ }
+    }
+    return raw;
+  };
   const hold = (waitId: string, note: string) => storage()!.set(noteKey(waitId), note);
+  const holdChecked = async (control: PluginJobControl, waitId: string, note: string): Promise<"held" | "refused"> => {
+    try {
+      await control.beforeEffect();
+      hold(waitId, note);
+      return "held";
+    } catch (error) {
+      if (refused(error, control.signal)) return "refused";
+      throw error;
+    }
+  };
   /** The round the person queued, kept here by the wait that starts it. */
   const queuedOf = (waitId: string) => { const saved = storage()?.get(`queued:${waitId}`); return saved ? JSON.parse(saved) as { body: Record<string, unknown>; work_id: string } : undefined; };
   const hostActions = () => {
@@ -76,21 +99,21 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   const takeUp = async (api: Capabilities, execution: Execution, runtimeId: string, view: CodingWaitView, control: PluginJobControl): Promise<"started" | "held" | "later" | "not-ours" | "refused"> => {
     const found = deps.records(execution).find(entry => entry.runtime_id === runtimeId && entry.runtime_session_id === view.session_id);
     if (!found) return "not-ours";
-    const reason = holdReason(view);
-    if (reason) { hold(view.wait.wait_id, reason); return "held"; }
+    if (isHeldWait(view)) return "held";
     if (deps.busy.has(found.session_id)) return "later";
     deps.busy.add(found.session_id);
     try {
       await deps.startRound(deps.record(execution, found.session_id), wakeBody(found, view), api, execution, codingJobWrite(control));
       storage()?.delete(`queued:${view.wait.wait_id}`);
+      storage()?.delete(noteKey(view.wait.wait_id));
       return "started";
     } catch (error) {
+      const code = (error as { code?: unknown } | undefined)?.code;
       const message = error instanceof Error ? error.message : String(error);
       // The round it waited in may still be closing: try again shortly rather than give up.
-      if (/正在|进行中|still running|session_busy/.test(message)) return "later";
+      if (code === "agent.session_busy" || code === "coding.session_busy" || /still running|session_busy/i.test(message)) return "later";
       if (refused(error, control.signal)) return "refused";
-      hold(view.wait.wait_id, `自动开始没有成功：${message}`);
-      return "held";
+      return holdChecked(control, view.wait.wait_id, JSON.stringify({ key: "coding.wait.auto-start-failed", reason: message }));
     } finally { deps.busy.delete(found.session_id); }
   };
   /** The Host's word that one of this installation's sessions may go on (`host.agent.continuation.ready@1`), by runtime. */
@@ -165,10 +188,11 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     for (const one of view.wait.conditions) if (one.kind === "envelope") await actions.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
     const queued = queuedOf(view.wait.wait_id);
     if (view.wait.by === "app" && queued) await actions.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
-    // An open wait is cancelled; one over whose step is held for the person gives the step back.
-    if (view.wait.state === "waiting" || ["blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
+    // An open wait is cancelled; one over whose step is held or eligible for the person gives the step back.
+    if (view.wait.state === "waiting" || ["eligible", "blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
       await actions.invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" });
     storage()?.delete(`queued:${view.wait.wait_id}`);
+    storage()?.delete(noteKey(view.wait.wait_id));
   };
   /** The person goes on before the wait is over: the continuation is ready at once, and the round started now takes it up. */
   const goOn = async (api: Capabilities, execution: Execution, record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
@@ -176,6 +200,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
       codingActionControl(beforeWrite));
     const started = await deps.startRound(record, wakeBody(record, view, true), api, execution, beforeWrite);
     storage()?.delete(`queued:${view.wait.wait_id}`);
+    storage()?.delete(noteKey(view.wait.wait_id));
     return started;
   };
   /** Keep the round the person queued, by the wait that will start it. */

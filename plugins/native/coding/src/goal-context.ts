@@ -11,7 +11,8 @@ import { agentTextMaterialContent, type AgentTextMaterial, type AgentRunView } f
 /** Coding's immutable copy of the Goal facts used for a task, not a second Goal. */
 import { CODING_GOAL_CONTEXT_TYPE } from "./artifacts.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
-import { codingText } from "./words.js";
+import { codingLocalFailure, codingText } from "./words.js";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 const PREFIX = "coding-goal-context:";
 /** Not `canonicalJsonText`: the digest of this text is the stored artifact id, and a Goal's open fields can hold integer-shaped keys, which it orders differently. */
 function serialize(value: unknown, indent?: number): string {
@@ -36,12 +37,12 @@ export async function currentGoalDirectory(context: PluginStartContext, afterCur
 export async function readCurrentGoalSnapshot(context: PluginStartContext, goalId: string, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   const actions = context.services!.actions!;
   const { goal } = await actions.invoke(GOALS_ACTIONS.contract, { goal_id: goalId }, control);
-  if (!goal || goal.trashed_at || goal.archived_at) throw new Error("这个目标已归档、删除或不属于当前项目，请重新选择");
+  if (!goal || goal.trashed_at || goal.archived_at) throw codingLocalFailure("coding.server.goal-unavailable", "这个目标已归档、删除或不属于当前项目，请重新选择");
   const { observed_event_cursor: _cursor, ...state } = await actions.invoke(GOALS_ACTIONS.state, { goal_id: goalId }, control);
   const snapshot: GoalContextSnapshot = { goal, state, requirements: await goalRequirements(actions, state.acceptance_subject, goalId, control) };
   if (snapshot.goal.project_id !== context.project_id || snapshot.goal.goal_id !== goalId
-    || snapshot.state.goal_id !== goalId || snapshot.state.project_id !== context.project_id) throw new Error("目标上下文归属不一致");
-  if (snapshot.goal.trashed_at || snapshot.goal.archived_at) throw new Error("目标已归档或删除，请重新选择");
+    || snapshot.state.goal_id !== goalId || snapshot.state.project_id !== context.project_id) throw codingLocalFailure("coding.server.goal-owner-mismatch", "目标上下文归属不一致");
+  if (snapshot.goal.trashed_at || snapshot.goal.archived_at) throw codingLocalFailure("coding.server.goal-archived-deleted", "目标已归档或删除，请重新选择");
   return snapshot;
 }
 /**
@@ -51,7 +52,7 @@ export async function readCurrentGoalSnapshot(context: PluginStartContext, goalI
 async function goalRequirements(actions: NonNullable<PluginStartContext["services"]>["actions"] & object, subject: unknown, goalId: string,
   control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">): Promise<GoalRequirementTerms[]> {
   const named = subject as AcceptanceSubject | undefined;
-  if (!named?.provider_id || named.subject?.kind !== "goal" || named.subject.id !== goalId) throw new Error("目标的要求来源不一致");
+  if (!named?.provider_id || named.subject?.kind !== "goal" || named.subject.id !== goalId) throw codingLocalFailure("coding.server.goal-requirements-mismatch", "目标的要求来源不一致");
   const view = (await actions.invoke(acceptanceActions.read, { subjects: [named] }, control)).views[0];
   return (view?.requirements ?? []).map(({ id, version, statement, expected, requires_person }) => ({ id, version, statement, expected, requires_person }));
 }
@@ -64,15 +65,15 @@ export function savedGoalContext(context: PluginStartContext, sessionId: string)
   const value = context.services!.storage!.get(`goal-context:${sessionId}`);
   if (typeof value !== "string") return null;
   const reference = JSON.parse(value) as ArtifactReference;
-  if (typeof reference.artifact_id !== "string" || !reference.artifact_id.startsWith(PREFIX) || reference.version !== 1) throw new Error("已选目标版本无效，请重新关联");
+  if (typeof reference.artifact_id !== "string" || !reference.artifact_id.startsWith(PREFIX) || reference.version !== 1) throw codingLocalFailure("coding.server.goal-version-invalid", "已选目标版本无效，请重新关联");
   return readGoalContext(context, reference);
 }
 function readGoalSnapshot(context: PluginStartContext, reference: ArtifactReference) {
   const record = codingArtifacts(context).read(reference);
   if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== /* @version type.coding.goal-context */ 1
-    || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定目标版本不可读，请重新关联；历史执行不会被替换");
+    || record.availability !== "available" || record.lifecycle_state !== "active") throw codingLocalFailure("coding.server.goal-fixed-unreadable", "固定目标版本不可读，请重新关联；历史执行不会被替换");
   const snapshot = record.payload as unknown as GoalContextSnapshot;
-  if (snapshot?.goal?.project_id !== context.project_id || goalContextReference(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
+  if (snapshot?.goal?.project_id !== context.project_id || goalContextReference(snapshot).artifact_id !== reference.artifact_id) throw codingLocalFailure("coding.server.goal-fixed-mismatch", "固定目标版本与来源不一致");
   return { snapshot, reference };
 }
 function readGoalContext(context: PluginStartContext, reference: ArtifactReference) {
@@ -91,9 +92,9 @@ export function saveGoalContext(context: PluginStartContext, sessionId: string, 
 export async function resolveGoalContext(context: PluginStartContext, sessionId: string, goalId: string | null, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   if (!goalId) return null;
   const saved = savedGoalContext(context, sessionId);
-  if (!saved || saved.snapshot.goal.goal_id !== goalId) throw new Error("关联目标尚未固定上下文，请打开目标并确认版本");
+  if (!saved || saved.snapshot.goal.goal_id !== goalId) throw codingLocalFailure("coding.server.goal-not-fixed", "关联目标尚未固定上下文，请打开目标并确认版本");
   const current = await currentGoalContext(context, goalId, control);
-  if (current.reference.artifact_id !== saved.reference.artifact_id) throw new Error("目标内容或进展已变化，请打开关联目标查看并确认新版本后再发送");
+  if (current.reference.artifact_id !== saved.reference.artifact_id) throw codingLocalFailure("coding.server.goal-context-changed", "目标内容或进展已变化，请打开关联目标查看并确认新版本后再发送");
   return saved;
 }
 /** Reads only this Run's frozen source, never the session's later association. */
@@ -102,7 +103,7 @@ export function runGoalContext(context: PluginStartContext, run: AgentRunView) {
   if (!refs.length) return { goal: null };
   const references = refs.map(ref => ({ artifact_id: ref.source_artifact_id, version: ref.source_version }));
   try {
-    if (refs.length !== 1) throw new Error("本轮目标来源不唯一");
+    if (refs.length !== 1) throw codingLocalFailure("coding.server.goal-source-ambiguous", "本轮目标来源不唯一");
     // Reporting reads historical facts; today's input formatting/size limit must
     // not make an already executed snapshot unavailable.
     const value = readGoalSnapshot(context, references[0]!);
@@ -112,6 +113,6 @@ export function runGoalContext(context: PluginStartContext, run: AgentRunView) {
   } catch (error) {
     // A missing input must not prevent preservation of a finished Run's output.
     // Keep its exact frozen references, without guessing from a later association.
-    return { goal: null, goal_source_error: { references, reason: error instanceof Error ? error.message : "固定目标来源无法读取" } };
+    return { goal: null, goal_source_error: { references, reason: error instanceof Error ? error.message : tryUiText("coding.server.goal-source-unreadable") ?? "固定目标来源无法读取" } };
   }
 }

@@ -57,7 +57,7 @@ test('S-126 PCSYNC-06/12 Goal decode rejects damaged, reordered, relabelled and 
   await assert.rejects(() => f.codec.decode(f.key, f.encoded.value, async ref => { const bytes = Buffer.from(await f.read(ref)); bytes[0] ^= 1; return bytes; }));
   const wire = structuredClone(f.encoded.value) as { content: { parts: SyncBlobReference[] }; project: { title: string } };
   [wire.content.parts[0], wire.content.parts[1]] = [wire.content.parts[1]!, wire.content.parts[0]!];
-  await assert.rejects(() => f.codec.decode(f.key, wire, f.read), 'whole body digest rejects reordered individually valid parts');
+  await assert.rejects(() => f.codec.decode(f.key, wire, f.read), { code: 'host.replica_invalid' }, 'whole body digest rejects reordered individually valid parts');
   const relabelled = structuredClone(f.encoded.value) as { project: { title: string } }; relabelled.project.title = '另一个标题';
   await assert.rejects(() => f.codec.decode(f.key, relabelled, f.read));
   await assert.rejects(() => f.codec.decode(f.key, f.encoded.value, async ref => { const bytes = await f.read(ref); f.revoke(); return bytes; }), /REVOKED/);

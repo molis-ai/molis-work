@@ -405,7 +405,8 @@ export class PluginPageAuthority {
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const pageCurrent = () => {
-      if (this.pages.get(id as string) !== page || surfaceSlot && (page.closing || lapsed(page)) || !this.activations.has(page.activation)) throw refused();
+      if (this.pages.get(id as string) !== page || page.closing || !this.activations.has(page.activation)) throw refused();
+      if (lapsed(page)) throw lapsedPage();
       page.sessionCurrent(); page.activation.assertCurrent(permission);
       page.selection?.assertCurrent();
     };

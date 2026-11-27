@@ -9,6 +9,7 @@ import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { localizeWebErrorMessage } from "./ui-error-words.js";
 
 const PREFIX = "/api/project-guidance";
 const CONFIRMATIONS: Record<string, string> = { edit: "用户在项目说明页面直接提交修改", deactivate: "用户在项目说明页面直接停用", restore: "用户在项目说明页面直接恢复" };
@@ -53,5 +54,5 @@ export async function handleProjectGuidanceHttp(request: IncomingMessage, respon
 /** Saving has committed; a separately refused re-read must not falsify its receipt. */
 async function afterWrite(actions: BoundActionClient) {
   try { return { project_guidance: await actions.invoke(a.read, {}) }; }
-  catch (error) { return { project_guidance: null, project_guidance_error: error instanceof Error ? error.message : String(error) }; }
+  catch (error) { return { project_guidance: null, project_guidance_error: localizeWebErrorMessage(error, "common.error.unavailable") }; }
 }

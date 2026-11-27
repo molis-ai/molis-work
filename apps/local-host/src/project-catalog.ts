@@ -1,8 +1,9 @@
 import type { RuntimeContextBindingPage } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
+import { createModelSecretPort } from "./configured-models.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { assertStorageOwner, assertNoPendingHomeRestore, releaseHeldHomeSqlite, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, assertNoPendingHomeRestore, releaseHeldHomeSqlite, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace } from "@molis-ai/molis-work-storage";
 import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
@@ -208,9 +209,7 @@ export class MolisWorkProjectCatalog {
     };
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
     bindDatabaseSpace(db, ensureStorageSpace(homeDirectory));
-    this.models = new ModelProviderStore({ db, secrets: {
-      get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
-    } });
+    this.models = new ModelProviderStore({ db, secrets: createModelSecretPort(homeDirectory) });
     this.homeDirectory = homeDirectory;
     this.projectsDirectory = path.join(homeDirectory, "projects");
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");

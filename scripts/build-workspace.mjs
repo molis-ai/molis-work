@@ -28,7 +28,11 @@ import { acquireSlot } from "./machine-slot.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // The package directories `pnpm workspace:build` always built (the same filters as `workspace:clean` and `workspace:typecheck`).
 const PACKAGE_ROOTS = ["apps/", "server", "packages/", "modules/", "horizontal/", "plugins/", "tooling/plugin-cli"];
-const SHARED_INPUTS = ["pnpm-lock.yaml", "tsconfig.base.json", "tsconfig.package.json", "tsconfig.json"];
+const SHARED_INPUTS = ["pnpm-lock.yaml", "tsconfig.base.json", "tsconfig.package.json", "tsconfig.json", "scripts/client-literals.mjs"];
+// Subdirectories under a package's dist/ populated by post-build steps (scripts/build-bundled-drafts.mjs) rather than its own build script.
+const EXTERNAL_DIST_SUBDIRS = new Map([
+  ["apps/local-host", new Set(["system-skills", "bundled-plugins"])],
+]);
 const RECORDS = path.join(root, "node_modules", ".cache", "molis-work-build", "records.json");
 const USAGE = "usage: build-workspace.mjs [--clean] [--jobs <n>] [--dry-run]";
 
@@ -106,15 +110,21 @@ const hashFile = (file) => {
 export function distDigest(directory) {
   const dist = path.join(root, directory, "dist");
   if (!existsSync(dist)) return null;
+  const excluded = EXTERNAL_DIST_SUBDIRS.get(directory);
   const lines = [];
-  const walk = (folder) => {
+  const walk = (folder, depth) => {
     for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      if (depth === 0 && excluded?.has(entry.name)) continue;
       const absolute = path.join(folder, entry.name);
-      if (entry.isDirectory()) walk(absolute);
-      else { const stat = statSync(absolute); lines.push(`${relativePath(absolute)} ${stat.size} ${Math.round(stat.mtimeMs)}`); }
+      if (entry.isDirectory()) {
+        walk(absolute, depth + 1);
+      } else {
+        const stat = statSync(absolute);
+        lines.push(`${relativePath(absolute)} ${stat.size} ${Math.round(stat.mtimeMs)}`);
+      }
     }
   };
-  walk(dist);
+  walk(dist, 0);
   return sha(lines.sort().join("\n"));
 }
 

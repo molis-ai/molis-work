@@ -86,6 +86,7 @@
     "im-ui.message.unconfirmed": "暂时没能确认是否发出。原内容已保留，再发一次不会重复。",
     "im-ui.object.add": "引用对象",
     "im-ui.object.none": "没有可引用的对象",
+    "im-ui.object.referenced": "已引用对象",
     "im-ui.object.remove": "移除引用：{title}",
     "im-ui.object.search": "搜索项目对象",
     "im-ui.object.unavailable": "暂时读不到",

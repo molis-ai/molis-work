@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createHomeSnapshot, prologueMemoryBackend, recoverHomeRestore, restoreHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, createOnlineHomeSnapshot, MolisWorkLocalHost, prologueMemoryBackend, recoverHomeRestore, restoreHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot } from "@molis-ai/molis-work-app-desktop";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
@@ -360,5 +360,46 @@ test(`MEM-40-I2: ${phase} keeps the original owner and cleanup capability until 
     closeFault.mock.restore(); commitFault.mock.restore();
     for (const connection of retained) if (connection.isOpen) nativeClose.call(connection);
     await failure?.close();
+  }
+});
+
+test("F-hc-09: online snapshot allows live records.sqlite WAL sidecars while still rejecting orphaned sidecars", async t => {
+  const f = await restoreFixture(t);
+  await seed(f.home);
+  const dbPath = join(f.root, "records.sqlite");
+  const host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  let walConnection: DatabaseSync | undefined;
+  try {
+    walConnection = new DatabaseSync(dbPath);
+    const uv = Number((walConnection.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+    walConnection.exec(`PRAGMA journal_mode = WAL; PRAGMA user_version = ${uv};`);
+    assert.equal(existsSync(dbPath + "-wal") || existsSync(dbPath + "-shm"), true, "WAL sidecar exists during online snapshot");
+    const result = await createOnlineHomeSnapshot(host, { homeDirectory: f.home, destination: f.snapshot });
+    assert.equal(result.status, "created");
+    const manifest = JSON.parse(readFileSync(join(f.snapshot, "manifest.json"), "utf8"));
+    const entry = manifest.stores.flatMap((store: { entries: Array<{ path: string; payload_path?: string; sqlite?: unknown }> }) => store.entries)
+      .find((one: { path: string }) => one.path === "agent-runtime/records.sqlite");
+    assert.ok(entry?.sqlite && typeof entry.payload_path === "string");
+    const archived = readFileSync(join(f.snapshot, entry.payload_path));
+    assert.equal(archived[18], 1);
+    assert.equal(archived[19], 1);
+    for (const suffix of ["-journal", "-wal", "-shm"]) assert.equal(existsSync(join(f.snapshot, entry.payload_path + suffix)), false);
+  } finally {
+    walConnection?.close();
+    await host.close();
+  }
+
+  // An orphaned sidecar without a parent records.sqlite must still be rejected even during online snapshots.
+  const orphan = await restoreFixture(t);
+  const orphanHost = new MolisWorkLocalHost({ homeDirectory: orphan.home, completeText: null });
+  try {
+    writeFileSync(join(orphan.root, "records.sqlite-wal"), "orphaned wal sidecar", { mode: 0o600 });
+    await assert.rejects(
+      createOnlineHomeSnapshot(orphanHost, { homeDirectory: orphan.home, destination: orphan.snapshot }),
+      { code: "host.home_snapshot.unknown_data" },
+    );
+    assert.equal(existsSync(orphan.snapshot), false);
+  } finally {
+    await orphanHost.close();
   }
 });

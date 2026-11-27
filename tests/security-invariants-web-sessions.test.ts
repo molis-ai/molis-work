@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import test from "node:test";
 import { once } from "node:events";
 import { WebSocket } from "ws";
-import { WebSessions, authorizeLocalWebRequest } from "@molis-ai/molis-work-app-local-host";
+import { WebSessions, authorizeLocalWebRequest, bindSocketAuthority, bindWebSocketAuthority, type AuthoritySocket } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const HEADER = "x-molis-work-page-session";
@@ -155,4 +155,51 @@ test("WAS-02 WAS-05 WAS-07 revocation fences a real Runtime action held before i
   release.resolve(); await finished.promise; await pending;
   assert.ok(refusal instanceof Error, "the actual SDK storage effect must reject, not only the HTTP response");
   assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late-effect"), null);
+});
+
+function fakeAuthoritySocket() {
+  const listeners: Array<() => void> = [];
+  return {
+    closes: 0,
+    close() {
+      this.closes += 1;
+    },
+    once(event: "close", listener: () => void) {
+      assert.equal(event, "close");
+      listeners.push(listener);
+    },
+    fireClose() {
+      for (const listener of listeners.splice(0)) listener();
+    },
+  } satisfies AuthoritySocket & { closes: number; fireClose(): void };
+}
+
+test("a refused socket proof binds no authority; the caller answers with its own error and closes the socket", () => {
+  const socket = fakeAuthoritySocket();
+  const authority = bindWebSocketAuthority({ headers: {} }, "control-token", "wrong-proof", socket);
+  assert.equal(authority, null);
+  assert.equal(socket.closes, 0);
+});
+
+test("the control token binds the same authority the page session uses, without an abort source of its own", () => {
+  const socket = fakeAuthoritySocket();
+  const authority = bindWebSocketAuthority({ headers: {} }, "control-token", "control-token", socket);
+  assert.ok(authority);
+  assert.equal(authority.valid(), true);
+  assert.equal(socket.closes, 0);
+});
+
+test("a revoked session closes the bound socket once; a socket that closed first leaves no abort listener behind", () => {
+  const socket = fakeAuthoritySocket();
+  const controller = new AbortController();
+  bindSocketAuthority({ signal: controller.signal, valid: () => !controller.signal.aborted }, socket);
+  controller.abort();
+  assert.equal(socket.closes, 1);
+
+  const closedFirst = fakeAuthoritySocket();
+  const later = new AbortController();
+  bindSocketAuthority({ signal: later.signal, valid: () => true }, closedFirst);
+  closedFirst.fireClose();
+  later.abort();
+  assert.equal(closedFirst.closes, 0, "the socket's own close removed the abort listener");
 });

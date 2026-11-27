@@ -2,6 +2,7 @@ import { renderButton } from "./button.js";
 import { renderBadge } from "./feedback.js";
 import { cx, escapeHtml, renderAttrs, type AttrValue } from "./html.js";
 import { icon } from "./icon.js";
+import { trySharedUiText } from "./text.js";
 
 export function renderSheet(options: {
   labelledBy: string;
@@ -18,7 +19,7 @@ export function renderSheet(options: {
     size: "icon",
     icon: "x",
     iconOnly: true,
-    label: options.closeLabel ?? "关闭",
+    label: options.closeLabel ?? trySharedUiText("common.control.close") ?? "×",
     className: "mw-dialog__close",
     attrs: { "data-dialog-close": true },
   });

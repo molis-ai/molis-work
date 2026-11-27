@@ -252,14 +252,15 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     links.hidden = !count;
     bar.dataset.kind = location ? location.kind : "unknown";
     bar.setAttribute("aria-label", readText("workbench.placement.location-links-named", { where: where.textContent, access: access.textContent }) + (count ? " · " + readText("workbench.placement.link-count", { n: count }) : "") + (saved.textContent ? " · " + saved.textContent : ""));
-    bar.onclick = (event) => { event.stopPropagation(); openPanel(bar, object); };
+    bar.onclick = (event) => { event.stopPropagation(); void openPanel(bar, object); };
   };
-  let panel = null;
-  const closePanel = () => { if (panel) { panel.remove(); panel = null; } };
+  let panel = null, panelSeq = 0;
+  const closePanel = () => { panelSeq += 1; if (panel) { panel.remove(); panel = null; } };
   document.addEventListener("pointerdown", (event) => { if (panel && !panel.contains(event.target) && !event.target.closest(".placement-bar")) closePanel(); }, true);
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && panel) { closePanel(); } });
   const openPanel = async (anchor, object) => {
     closePanel();
+    const seq = ++panelSeq;
     // Measured now: the bar may be repainted (and this node replaced) while the description loads.
     const rect = anchor.getBoundingClientRect();
     let left = rect.left, bottom = rect.bottom, owner = anchor.ownerDocument.defaultView;
@@ -268,7 +269,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       const box = frame.getBoundingClientRect(); left += box.left; bottom += box.top;
       owner = frame.ownerDocument.defaultView;
     }
-    const view = await describe(object, true);
+    let view;
+    try { view = await describe(object, true); }
+    catch (error) { if (seq === panelSeq) card(readText("workbench.placement.couldn-t-do-that-right-now"), error, [], "error"); return; }
+    if (seq !== panelSeq) return;
     panel = node("section", undefined, "placement-panel mw-menu");
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", readText("workbench.placement.where-lives"));
     panel.style.left = Math.max(8, Math.min(left, innerWidth - 400)) + "px";
@@ -298,7 +302,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       const target = link.target;
       if (target.kind === "object" && target.state === "ok" && target.location) {
         const open = ghost(readText("common.control.open"));
-        open.onclick = async () => { closePanel(); const other = await describe(target.object, true); openObject(other.open, other.title); };
+        open.onclick = async () => { closePanel(); try { const other = await describe(target.object, true); openObject(other.open, other.title); } catch (error) { card(readText("workbench.placement.couldn-t-do-that-right-now"), error, [], "error"); } };
         row.append(open);
       } else if (target.kind === "project") {
         const go = ghost(readText("workbench.placement.go-project"));
@@ -306,7 +310,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         row.append(go);
       } else if (target.kind === "attached" && (target.project_id || null) === here()) {
         const open = ghost(readText("common.control.open"));
-        open.onclick = async () => { closePanel(); const other = await describe({ ...target.object, project_id: target.project_id }, true); if (other.open) openObject(other.open, other.title || target.title); };
+        open.onclick = async () => { closePanel(); try { const other = await describe({ ...target.object, project_id: target.project_id }, true); if (other.open) openObject(other.open, other.title || target.title); } catch (error) { card(readText("workbench.placement.couldn-t-do-that-right-now"), error, [], "error"); } };
         row.append(open);
       }
       if (link.removable && link.key) {
@@ -429,7 +433,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const useInProject = async (view) => {
-    const all = await loadSpaces();
+    let all;
+    try { all = await loadSpaces(); } catch (error) { card(readText("workbench.placement.couldn-t-do-that-right-now"), error, [], "error"); return; }
     const used = new Set(view.associations.filter(link => link.type === "used_in").map(link => link.target.project_id));
     const projects = all.filter(space => space.kind === "project" && space.project_id !== view.object.project_id);
     if (!projects.length) { card(readText("workbench.placement.no-project-yet"), readText("workbench.placement.once-have-project-can-use"), [], "error"); return; }
@@ -449,7 +454,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const moveOrCopy = async (view, mode) => {
-    const all = await loadSpaces();
+    let all;
+    try { all = await loadSpaces(); } catch (error) { card(readText("workbench.placement.couldn-t-do-that-right-now"), error, [], "error"); return; }
     const current = view.location ? view.location.project_id || "personal" : view.object.project_id;
     const kept = view.location && view.location.access === "home";
     const targets = all.filter(space => space.project_id !== current);

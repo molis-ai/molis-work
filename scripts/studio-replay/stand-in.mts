@@ -69,7 +69,14 @@ export async function startStandInModel(answers: StandInAnswers): Promise<StandI
   });
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
   const address = `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`;
-  return { address, modes, close: () => new Promise<void>(done => server.close(() => done())) };
+  return {
+    address,
+    modes,
+    close: () => new Promise<void>(done => {
+      server.close(() => done());
+      server.closeAllConnections();
+    }),
+  };
 }
 
 /**

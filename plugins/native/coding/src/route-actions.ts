@@ -32,9 +32,14 @@ const body = (request: PluginRouteRequest) => request.body && typeof request.bod
 const params = (input: Record<string, unknown>) => ({ ...(typeof input.session_id === "string" ? { sessionId: input.session_id } : {}), ...(typeof input.run_id === "string" ? { runId: input.run_id } : {}) });
 const without = (input: Record<string, unknown>, ...keys: string[]) => Object.fromEntries(Object.entries(input).filter(([key]) => !keys.includes(key)));
 const query = (input: Record<string, unknown>, keys: readonly string[]) => Object.fromEntries(keys.flatMap(key => input[key] === undefined ? [] : [[key, String(input[key])]]));
+const NUMERIC_QUERY_KEYS = new Set(["window", "before", "history_before", "limit", "revision"]);
 const fromRequest = (request: PluginRouteRequest, keys: readonly string[] = []) => ({ ...(request.params.sessionId ? { session_id: request.params.sessionId } : {}),
   ...(request.params.runId ? { run_id: request.params.runId } : {}),
-  ...Object.fromEntries(keys.flatMap(key => request.query[key] === undefined ? [] : [[key, key === "window" || key === "before" || key === "limit" || key === "revision" ? Number(request.query[key]) : request.query[key]]])) });
+  ...Object.fromEntries(keys.flatMap(key => {
+    const raw = request.query[key];
+    if (raw === undefined) return [];
+    return [[key, NUMERIC_QUERY_KEYS.has(key) && raw !== "" ? Number(raw) : raw]];
+  })) });
 
 const sessionRecord = closed({ project_id: id, session_id: id, title: { type: "string" }, state: { type: "string" }, archived: { type: "boolean" },
   goal_id: { type: ["string", "null"] }, runtime_id: id, runtime_session_id: { type: ["string", "null"] }, created_at: { type: "string" }, updated_at: { type: "string" },

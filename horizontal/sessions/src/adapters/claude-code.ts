@@ -9,6 +9,7 @@ import {
   buildCliResumeTarget,
   extractJsonlMetadata,
   isValidNativeId,
+  locateJsonlSessionFile,
   paginateAndSearchTranscript,
   parseMessageJsonlLines,
   readJsonlLines,
@@ -102,38 +103,22 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
       throw sessionsErrors.not_found("外部会话不存在或已被移除");
     }
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 3);
-    let matchedRelative: string | null = null, subagent = false;
-    for (const item of walked.files) {
-      const check = isClaudeSessionJsonl(item.relative, item.entry.name);
-      if (check.candidate && check.stem === nativeId) {
-        matchedRelative = item.relative;
-        subagent = check.parent !== undefined;
-        break;
-      }
-    }
-    if (!matchedRelative) {
-      for (const item of walked.files) {
-        const check = isClaudeSessionJsonl(item.relative, item.entry.name);
-        if (!check.candidate || check.parent !== undefined) continue;
-        try {
-          const stream = await context.ports.files.open(context.root, item.relative, signal);
-          const { lines } = await readJsonlLines(stream, signal, 64 * 1024);
-          const meta = extractJsonlMetadata(lines, item.entry.mtime_ms);
-          if (meta.sessionId === nativeId) {
-            matchedRelative = item.relative;
-            break;
-          }
-        } catch (error) {
-          if (signal.aborted) throw error;
-        }
-      }
-    }
-    if (!matchedRelative) {
+    const matched = await locateJsonlSessionFile(
+      context.ports,
+      context.root,
+      walked.files,
+      nativeId,
+      isClaudeSessionJsonl,
+      signal,
+      { allowMetadataFallback: check => check.parent === undefined },
+    );
+    if (!matched) {
       throw sessionsErrors.not_found("外部会话不存在或已被移除");
     }
 
     const root = context.root;
-    const relative = matchedRelative;
+    const relative = matched.relative;
+    const subagent = matched.check.parent !== undefined;
     const parsed = await withFileTranscriptCache(context.ports, root, relative, signal, async () => {
       const stream = await context.ports.files.open(root, relative, signal);
       const { lines, stopped } = await readJsonlLines(stream, signal);

@@ -1,4 +1,5 @@
 /** The timeline of a Goal's event document: the rows a later page of records adds. */
+import { relationWordKey } from "../relation-words.js";
 
 /** One record of the timeline, as `/event-timeline` lists it. */
 export interface TimelineItem {
@@ -10,42 +11,54 @@ export interface TimelineItem {
   readonly received_at?: string;
   readonly title?: string;
   readonly type_label?: string;
+  readonly type_key?: string;
   readonly actor_id?: string;
   readonly status_label?: string;
-  readonly relation?: unknown;
+  readonly status_key?: string | null;
+  readonly relation?: {
+    readonly type?: string;
+    readonly label?: string;
+    readonly from_title?: string;
+    readonly to_title?: string;
+  } | null;
 }
 
 const HISTORY_TYPE_KEYS: Record<string, string> = {
-  "当前进展": "goals.history.type.progress-summary",
-  "补充说明": "goals.history.type.observation-note",
-  "提出问题": "goals.history.type.concern-opened",
-  "解决问题": "goals.history.type.concern-resolved",
-  "接受风险": "goals.history.type.concern-accepted",
-  "撤销问题": "goals.history.type.concern-overturned",
-  "请求决定": "goals.history.type.decision-requested",
-  "用户决定": "goals.history.type.user-decision",
-  "引用决定": "goals.history.type.decision-cited",
-  "调整约定": "goals.history.type.agreement-set",
-  "提交收尾": "goals.history.type.closure-submitted",
-  "继续推进": "goals.history.type.completion-reopened",
-  "重新继续": "goals.history.type.work-resumed",
-  "继续目标": "goals.history.type.event-owner-continued",
-  "回应笔记": "goals.history.type.input-acknowledged",
-  "工作汇报": "goals.history.type.report",
-  "记录配置": "goals.history.type.configuration",
-  "系统记录": "goals.history.type.system",
-  "建立目标": "goals.history.journal.created",
-  "更新目标": "goals.history.journal.updated",
-  "确认目标": "goals.history.journal.accepted",
-  "建立关系": "goals.history.journal.relation-added",
-  "解除关系": "goals.history.journal.relation-deactivated",
-  "记录": "goals.history.type.record",
+  progress_summary: "goals.history.type.progress-summary",
+  observation_note: "goals.history.type.observation-note",
+  concern_opened: "goals.history.type.concern-opened",
+  concern_resolved: "goals.history.type.concern-resolved",
+  concern_accepted: "goals.history.type.concern-accepted",
+  concern_overturned: "goals.history.type.concern-overturned",
+  decision_requested: "goals.history.type.decision-requested",
+  user_decision: "goals.history.type.user-decision",
+  decision_cited: "goals.history.type.decision-cited",
+  agreement_set: "goals.history.type.agreement-set",
+  closure_submitted: "goals.history.type.closure-submitted",
+  completion_reopened: "goals.history.type.completion-reopened",
+  work_resumed: "goals.history.type.work-resumed",
+  event_owner_continued: "goals.history.type.event-owner-continued",
+  input_acknowledged: "goals.history.type.input-acknowledged",
+  report: "goals.history.type.report",
+  configuration: "goals.history.type.configuration",
+  system: "goals.history.type.system",
+  "goal.created": "goals.history.journal.created",
+  "goal.updated": "goals.history.journal.updated",
+  "goal.accepted": "goals.history.journal.accepted",
+  "relation.added": "goals.history.journal.relation-added",
+  "relation.deactivated": "goals.history.journal.relation-deactivated",
+  record: "goals.history.type.record",
 };
 
 const HISTORY_STATUS_KEYS: Record<string, string> = {
-  "已建立": "goals.history.status.created",
-  "已解除": "goals.history.status.removed",
+  created: "goals.history.status.created",
+  removed: "goals.history.status.removed",
 };
+
+const RELATION_TYPES = new Set([
+  "part_of", "depends_on", "conflicts_with", "mitigates", "extends",
+  "replaces", "corrects", "invalidates", "migrates_from",
+]);
 
 export const escapeText = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
@@ -89,11 +102,16 @@ export const appendTimelineItems = (nav: HTMLElement, items: readonly TimelineIt
     button.setAttribute("aria-expanded", "false");
     applyLaneFilter(button, reading.filter);
     const time = validDate ? pad(date.getHours()) + ":" + pad(date.getMinutes()) : "--:--";
-    const typeLabel = item.type_label && HISTORY_TYPE_KEYS[item.type_label] ? globalThis.t.text(HISTORY_TYPE_KEYS[item.type_label]!) : (item.type_label || "");
-    const status = item.type_label === "请求决定"
+    const hasTypeKey = Boolean(item.type_key && Object.hasOwn(HISTORY_TYPE_KEYS, item.type_key));
+    const typeLabel = hasTypeKey ? globalThis.t.text(HISTORY_TYPE_KEYS[item.type_key!]!) : (item.type_label || "");
+    const relationLabel = item.relation?.type && RELATION_TYPES.has(item.relation.type) ? globalThis.t.text(relationWordKey(item.relation.type, "out")) : (item.relation?.label || "");
+    const title = item.relation && item.relation.from_title && item.relation.to_title
+      ? item.relation.from_title + " → " + relationLabel + " → " + item.relation.to_title
+      : (item.source === "journal" && item.title === item.type_label && hasTypeKey ? typeLabel : (item.title || ""));
+    const status = item.type_key === "decision_requested"
       ? pending.has(item.event_id || "") ? globalThis.t.text("goals.event-document-client.needs-decision") : globalThis.t.text("goals.event-document-client.handled")
-      : item.status_label && HISTORY_STATUS_KEYS[item.status_label] ? globalThis.t.text(HISTORY_STATUS_KEYS[item.status_label]!) : item.status_label;
-    button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + markOf(item) + "</span></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(typeLabel) + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
+      : item.status_key && Object.hasOwn(HISTORY_STATUS_KEYS, item.status_key) ? globalThis.t.text(HISTORY_STATUS_KEYS[item.status_key]!) : item.status_label;
+    button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + markOf(item) + "</span></span><span class=timeline-copy><strong>" + escapeText(title) + "</strong><small><b class=timeline-type>" + escapeText(typeLabel) + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
     const stamp = button.querySelector("time");
     if (stamp) {
       stamp.dateTime = received;
@@ -107,6 +125,7 @@ export const appendTimelineItems = (nav: HTMLElement, items: readonly TimelineIt
 export interface EventState {
   readonly agreement?: { readonly outcome?: string; readonly version?: number };
   readonly config?: { readonly version?: number };
+  readonly review_version?: string;
 }
 
 /** The lines a version conflict shows: the current expected result and the two versions it is measured against. */

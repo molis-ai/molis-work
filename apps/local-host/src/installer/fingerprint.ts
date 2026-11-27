@@ -12,19 +12,56 @@ export interface MolisWorkBuildManifest {
 const BUILD_INPUTS = ["package.json", "tsconfig.json"] as const;
 // These are the package levels declared by pnpm-workspace.yaml. Never walk node_modules or build output.
 const WORKSPACE_MANIFESTS = [
-  "apps/*/package.json", "packages/*/package.json", "modules/*/package.json", "horizontal/*/package.json",
-  "plugins/native/*/package.json", "plugins/official-integrations/*/package.json", "tooling/plugin-cli/package.json",
+  "apps/*/package.json",
+  "server/package.json",
+  "packages/*/package.json",
+  "modules/*/package.json",
+  "horizontal/*/package.json",
+  "plugins/native/*/package.json",
+  "plugins/official-integrations/*/package.json",
+  "tooling/plugin-cli/package.json",
 ];
+
+const ROOT_BUILD_INPUTS = [
+  "src",
+  "apps/desktop/launchers",
+  "packages/system-skills",
+  "plugins/content",
+  "pnpm-workspace.yaml",
+  "pnpm-lock.yaml",
+  "tsconfig.base.json",
+  "tsconfig.package.json",
+  "scripts",
+] as const;
+
+const PACKAGE_BUILD_INPUTS = [
+  "src",
+  "tooling",
+  "bin",
+  "tsconfig.json",
+  "tsconfig.browser.json",
+  "tsconfig.editor.json",
+  "resources",
+  "prompts",
+  "locales",
+  "methods",
+  "manifest.json",
+  "fonts",
+  "providers",
+  "public",
+  "native/materials/THIRD-PARTY-NOTICES.md",
+  "native/materials/licenses",
+] as const;
 
 export async function computeBuildSourceDigest(packageRoot: string): Promise<string> {
   const inputs: string[] = [...BUILD_INPUTS];
-  for (const file of ["src", "apps/desktop/launchers", "pnpm-workspace.yaml", "pnpm-lock.yaml", "tsconfig.base.json", "tsconfig.package.json", "scripts"]) {
+  for (const file of ROOT_BUILD_INPUTS) {
     if (await exists(path.join(packageRoot, file))) inputs.push(file);
   }
   for await (const manifest of fs.glob(WORKSPACE_MANIFESTS, { cwd: packageRoot })) {
     const directory = path.dirname(manifest);
     inputs.push(manifest);
-    for (const entry of ["src", "tooling", "bin", "tsconfig.json"]) {
+    for (const entry of PACKAGE_BUILD_INPUTS) {
       const relative = path.join(directory, entry);
       if (await exists(path.join(packageRoot, relative))) inputs.push(relative);
     }
@@ -33,7 +70,7 @@ export async function computeBuildSourceDigest(packageRoot: string): Promise<str
       cwd: path.join(packageRoot, directory), exclude: ["**/.build/**", "**/.swiftpm/**", "**/bin/**"],
     })) inputs.push(path.join(directory, native));
   }
-  return digestPaths(packageRoot, inputs);
+  return digestPaths(packageRoot, [...new Set(inputs)]);
 }
 
 async function exists(file: string): Promise<boolean> {

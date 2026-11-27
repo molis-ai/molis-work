@@ -8,6 +8,8 @@ const PAGE_SIZE = 100;
 
 export async function loadOverview(page: RiskPage, more = false): Promise<void> {
   const { state } = page;
+  const epoch = ++state.overviewEpoch;
+  const current = () => page.scope.alive && state.overviewEpoch === epoch && state.view === "overview";
   const { status, impact, owner_name, linked, linkedSubject } = state.filter;
   state.loading = !more;
   if (!more) page.render();
@@ -16,19 +18,25 @@ export async function loadOverview(page: RiskPage, more = false): Promise<void> 
       status, limit: PAGE_SIZE, ...(impact ? { impact } : {}), ...(owner_name ? { owner_name } : {}),
       ...(linkedSubject ? { linked: linkedSubject } : linked ? { unlinked: linked === "none" } : {}),
       ...(more && state.next ? { cursor: state.next } : {}) });
+    if (!current()) return;
+    // No open risk under the default view is not no risk: a project whose risks are all closed still reaches them (RISK-04).
+    const anyClosed = !more && !answer.risks.length && status === "open" && !impact && !owner_name && !linked && !linkedSubject
+      ? (await page.call<{ risks: RiskRow[] }>("risk.list", { status: "closed", limit: 1 })).risks.length > 0 : false;
+    if (!current()) return;
     state.rows = more ? [...state.rows, ...answer.risks] : answer.risks;
     state.owners = answer.owners;
     state.next = answer.next_cursor;
-    // No open risk under the default view is not no risk: a project whose risks are all closed still reaches them (RISK-04).
-    state.anyClosed = !more && !answer.risks.length && status === "open" && !impact && !owner_name && !linked && !linkedSubject
-      ? (await page.call<{ risks: RiskRow[] }>("risk.list", { status: "closed", limit: 1 })).risks.length > 0 : false;
+    state.anyClosed = anyClosed;
     state.overviewError = "";
   } catch (error) {
+    if (!current()) return;
     if (more) throw error;
     // Not read is not none: the page says it could not read, never that there are no risks.
     state.overviewError = error instanceof Error ? error.message : "";
-  } finally { state.loading = false; }
-  page.render();
+  } finally {
+    if (state.overviewEpoch === epoch) state.loading = false;
+  }
+  if (current()) page.render();
 }
 
 const filtered = (page: RiskPage) => {

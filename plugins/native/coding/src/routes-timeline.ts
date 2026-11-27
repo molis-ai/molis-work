@@ -223,8 +223,19 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.read-runs", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if(request.query?.history_before!==undefined&&request.query.before!==undefined)throw new Error("读取范围无效");
-      if (!record.runtime_session_id||request.query?.history_before!==undefined) return { saved_history:codingSavedHistoryPage(execution,a.projectId,record.session_id,request.query?.history_before??request.query?.before,Number(request.query?.limit??20)), runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
+      if (request.query?.history_before !== undefined && request.query.before !== undefined) throw codingFailure("coding.server.read-range");
+      if (request.query?.history_before !== undefined) {
+        return { saved_history: codingSavedHistoryPage(execution, a.projectId, record.session_id, request.query.history_before, Number(request.query?.limit ?? 20)), runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
+      }
+      if (!record.runtime_session_id) {
+        if (request.query?.before !== undefined) {
+          const before = request.query.before === "" ? Number.NaN : Number(request.query.before);
+          const limit = Number(request.query?.limit ?? SESSION_PAGE);
+          if (!Number.isSafeInteger(before) || before !== 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw codingFailure("coding.server.read-range");
+          return { runs: [], runs_offset: 0, run_count: 0, subagents: [], taskboard_plans: [] };
+        }
+        return { saved_history: codingSavedHistoryPage(execution, a.projectId, record.session_id, undefined, Number(request.query?.limit ?? 20)), runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
+      }
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);

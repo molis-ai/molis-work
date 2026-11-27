@@ -131,7 +131,8 @@ export const NAVIGATION_CLICKS: readonly ClickRule[] = [
   }],
   ["[data-coding-board-expand]", expandBoard],
   ["[data-coding-goal-face-visit]", (page, target) => {
-    if (target.dataset.goalId) page.host.openItem("goals", target.dataset.goalId, target.dataset.goalTitle || "");
+    const surface = typeof page.host.surfaceFor === "function" ? page.host.surfaceFor("goal") : "goals";
+    if (target.dataset.goalId && surface) page.host.openItem(surface, target.dataset.goalId, target.dataset.goalTitle || "");
   }],
   ["[data-coding-latest]", (page, target) => {
     page.s.follow.toLatest();

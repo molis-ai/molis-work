@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import { effectsFromContract, sandboxDerivedPermissions, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";

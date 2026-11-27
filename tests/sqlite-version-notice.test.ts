@@ -82,7 +82,10 @@ test("SQLD-11 the macOS Desktop payload downloads the locked Node, and its smoke
 });
 
 test("SQLD-06 on the locked Node the SQLite is the reviewed one (a machine on another Node has nothing to compare, and says which)", t => {
-  if (process.version !== `v${LOCKED}`) { t.diagnostic(`this Node is ${process.version}, not the locked ${LOCKED}: its SQLite ${process.versions.sqlite} is not compared here`); return; }
+  if (process.version !== `v${LOCKED}`) {
+    t.skip(`this Node is ${process.version}, not the locked ${LOCKED}: its SQLite ${process.versions.sqlite} is not compared here`);
+    return;
+  }
   assert.equal(process.versions.sqlite, PLUGIN_STATEMENT_SQLITE_VERSION,
     "a new patch of Node can bring another SQLite: read the step list against it (project-database-statements.ts) before the pin moves");
 });

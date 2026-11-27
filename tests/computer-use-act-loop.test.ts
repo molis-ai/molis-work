@@ -176,3 +176,9 @@ test("CU-G11: a node can be named by name, role and name, or a part of its name;
   await assert.rejects(() => acted(desk({ nodes }), click("~存")), /2 个/);
   await assert.rejects(() => acted(desk({ nodes }), click("/[/")), /重新观察/);
 });
+
+test("F-host-subsystems-w2-06 AXSecureTextField role without subrole is labeled as 密码框", async () => {
+  const secretField: Node = { role: "AXSecureTextField", name: "主密码", depth: 0, frame: [10, 10, 40, 20] };
+  const receipt = await acted(desk({ nodes: [secretField] }));
+  assert.match(receipt.tree, /密码框/);
+});

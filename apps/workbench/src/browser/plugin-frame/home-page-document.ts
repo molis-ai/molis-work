@@ -63,9 +63,10 @@ function escapeInlineStyle(css: string): string {
 }
 
 /** Fixed platform bridge injected into every generated-page opaque `srcdoc` frame (hashed into `script-src`). */
-function buildBridgeScript(challenge: string, page: { page_id: string; version: number }, isPreview: boolean): string {
+function buildBridgeScript(challenge: string, page: { page_id: string; version: number }, isPreview: boolean, origin: string): string {
   const info = JSON.stringify({
     challenge,
+    origin,
     page,
     mode: isPreview ? "preview" : "live",
     err: {
@@ -73,7 +74,7 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
       script: say("workbench.home-pages.script-error"),
       async: say("workbench.home-pages.async-error"),
     },
-  });
+  }).replaceAll("<", "\\u003c");
   return `(() => {
   const cfg = ${info};
   let port = null;
@@ -81,10 +82,7 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
   const pending = new Map();
   const readyQueue = [];
   function flush(target) {
-    while (readyQueue.length) {
-      const item = readyQueue.shift();
-      target.postMessage(item);
-    }
+    while (readyQueue.length) target.postMessage(readyQueue.shift());
   }
   function rpc(type, payload) {
     const id = ++seq;
@@ -95,9 +93,12 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
       else readyQueue.push(msg);
     });
   }
-  window.addEventListener("message", (event) => {
+  const hello = new MessageChannel();
+  hello.port1.onmessage = (event) => {
     const data = event.data;
-    if (!data || data.type !== "molis-home-page-handshake" || data.challenge !== cfg.challenge || !event.ports || !event.ports[0]) return;
+    if (!data || data.type !== "molis-home-page-connect" || !event.ports || !event.ports[0]) return;
+    hello.port1.onmessage = null;
+    hello.port1.close();
     port = event.ports[0];
     port.onmessage = (msgEvent) => {
       const msg = msgEvent.data;
@@ -138,12 +139,12 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
       const h = Math.max(220, document.documentElement.scrollHeight || document.body.scrollHeight || 320);
       port.postMessage({ type: "resize", height: Math.min(4800, h) });
     };
-    if (typeof ResizeObserver === "function") {
-      new ResizeObserver(reportSize).observe(document.documentElement);
-    }
+    if (typeof ResizeObserver === "function") new ResizeObserver(reportSize).observe(document.documentElement);
     reportSize();
     port.postMessage({ type: "ready" });
-  });
+  };
+  hello.port1.start();
+  window.parent.postMessage({ type: "molis-home-page-hello", challenge: cfg.challenge }, cfg.origin, [hello.port2]);
   window.addEventListener("error", (event) => {
     const message = event.message || cfg.err.script;
     if (port) port.postMessage({ type: "crash", message });
@@ -163,6 +164,16 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
     }),
   });
 })();`;
+}
+
+function stripForbiddenDom(root: ParentNode, nested: boolean): void {
+  const selector = nested
+    ? "iframe, object, embed, base, meta, noscript, script, style, link"
+    : "iframe, object, embed, base, meta, noscript";
+  for (const el of [...root.querySelectorAll(selector)]) el.remove();
+  for (const tpl of [...root.querySelectorAll("template")]) {
+    stripForbiddenDom((tpl as HTMLTemplateElement).content, true);
+  }
 }
 
 const BASE_FRAME_STYLE =
@@ -189,10 +200,8 @@ export async function buildHomePageSrcdoc(options: {
   }
 
   const parsed = new DOMParser().parseFromString(entryFile.text, "text/html");
-  // Strip forbidden elements and any CSP meta tag the draft attempted to inject.
-  for (const el of [...parsed.querySelectorAll("iframe, object, embed, base, meta[http-equiv]")]) {
-    el.remove();
-  }
+  // Strip forbidden elements (including <noscript> mXSS and recursive <template>.content) before serializing into srcdoc.
+  stripForbiddenDom(parsed, false);
 
   const inlinedStyles: string[] = [BASE_FRAME_STYLE];
   const usedCss = new Set<string>();
@@ -247,6 +256,7 @@ export async function buildHomePageSrcdoc(options: {
     options.challenge,
     { page_id: options.loaded.version.page_id, version: options.loaded.version.version },
     options.isPreview,
+    options.origin,
   );
   const normalizeLineEndings = (text: string): string => text.replace(/\r\n?/gu, "\n");
   const allScripts = [bridgeScript, ...orderedScripts].map(normalizeLineEndings);
@@ -405,6 +415,7 @@ export async function mountHomePageFrame(options: {
           signal: abort.signal,
         });
         const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (disposed) return;
         if (!res.ok) {
           channel.port1.postMessage({
             type: "reply",
@@ -466,34 +477,47 @@ export async function mountHomePageFrame(options: {
   const headObserver = new MutationObserver(syncAppearanceSheet);
   if (document.head) headObserver.observe(document.head, { childList: true, attributes: true, subtree: true, attributeFilter: ["href"] });
 
-  // Assign srcdoc BEFORE attaching to DOM so an initial about:blank load cannot consume the { once: true } handshake!
+  let loaded = false;
+  let connected = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    window.removeEventListener("message", onHello);
+    iframe.removeEventListener("load", onLoad);
+    options.signal?.removeEventListener("abort", dispose);
+    abort.abort();
+    themeObserver.disconnect();
+    headObserver.disconnect();
+    try { channel.port1.close(); } catch { /* ignore */ }
+    iframe.remove();
+    void globalThis.molisWorkRequest(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {
+      method: "DELETE", keepalive: true,
+      headers: options.headers(),
+    }).catch(() => undefined);
+  };
+  const onHello = (event: MessageEvent<{ type?: string; challenge?: string }>) => {
+    if (disposed || connected || !event.isTrusted || event.source !== iframe.contentWindow || event.origin !== "null"
+      || event.data?.type !== "molis-home-page-hello" || event.data.challenge !== challenge || event.ports.length !== 1) return;
+    connected = true;
+    window.removeEventListener("message", onHello);
+    const reply = event.ports[0]!;
+    try { reply.postMessage({ type: "molis-home-page-connect" }, [channel.port2]); }
+    finally { reply.close(); }
+  };
+  const onLoad = () => {
+    if (disposed) return;
+    if (loaded) {
+      dispose();
+      options.onCrash?.(say("workbench.home-pages.crashed-in-sandbox"));
+      return;
+    }
+    loaded = true;
+  };
+  window.addEventListener("message", onHello);
+  iframe.addEventListener("load", onLoad);
+  options.signal?.addEventListener("abort", dispose, { once: true });
   iframe.srcdoc = built.html;
-  iframe.addEventListener(
-    "load",
-    () => {
-      if (disposed) return;
-      iframe.contentWindow?.postMessage({ type: "molis-home-page-handshake", challenge }, "*", [channel.port2]);
-    },
-    { once: true },
-  );
-
   options.container.replaceChildren(iframe);
 
-  return {
-    iframe,
-    csp: built.csp,
-    dispose() {
-      if (disposed) return;
-      disposed = true;
-      abort.abort();
-      themeObserver.disconnect();
-      headObserver.disconnect();
-      try { channel.port1.close(); } catch { /* ignore */ }
-      iframe.remove();
-      void globalThis.molisWorkRequest(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {
-        method: "DELETE", keepalive: true,
-        headers: options.headers(),
-      }).catch(() => undefined);
-    },
-  };
+  return { iframe, csp: built.csp, dispose };
 }

@@ -11,19 +11,38 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, stat, mkdir, readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net, { type AddressInfo } from "node:net";
 import os from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 import test, { type TestContext } from "node:test";
+import { buildSync } from "esbuild";
 import { WebSocket } from "ws";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
+import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage } from "@molis-ai/molis-work-app-workbench";
+import {
+  MolisWorkLocalHost,
+  PLUGIN_INSTALL_PERMISSIONS,
+  createLocalHostWorkbenchRenderer,
+  htmlLang,
+  installHostUiText,
+  pluginInstallActions,
+  readText,
+  readUiLocale,
+  runWithLocale,
+  UI_LOCALE_RELATIVE_PATH,
+} from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
 import { PLUGIN_STATEMENT_SQLITE_VERSION } from "@molis-ai/molis-work-plugin-runtime";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
+import { newPublisher, PACKAGE_PLUGIN_ID, signedPackage } from "./fixtures/sandbox-package.js";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "security-invariants-control-token-0123456789abcdef";
@@ -476,7 +495,7 @@ test("S-06 the control token is long and random, written owner-only, and a short
 test("S-21 no answer of the host can be shown in another origin's frame: every route says SAMEORIGIN, and the pages' policy says frame-ancestors 'self'", { timeout: 60_000 }, async t => {
   const host = await startHost(t);
   const routes: Array<[string, string, Record<string, string | undefined>]> = [
-    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/settings/running", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
+    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/settings/running", {}], ["GET", "/settings/appearance", {}], ["GET", "/projects/personal", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
     ["GET", "/no/such/page", {}], ["GET", "/locale?lang=en", {}],
     ["GET", "/api/spaces", {}], ["GET", "/api/sync", {}],
     // Refusals carry it as well: the header is made before any route decides.
@@ -486,9 +505,10 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
   for (const [method, path, headers] of routes) {
     const answer = await send(host, method, path, headers);
     assert.equal(answer.headers["x-frame-options"], "SAMEORIGIN", `${method} ${path} (${answer.status}) can be framed by another site`);
-    if (String(answer.headers["content-type"] ?? "").startsWith("text/html") && answer.headers["content-security-policy"]) {
+    if (String(answer.headers["content-type"] ?? "").startsWith("text/html")) {
       pages++;
-      const policy = String(answer.headers["content-security-policy"]);
+      const policy = String(answer.headers["content-security-policy"] ?? "");
+      assert.ok(policy.length > 0, `${method} ${path} (${answer.status}): every HTML response must carry a Content-Security-Policy header`);
       assert.match(policy, /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
       // FRAME-WEBKIT-01: WebKit does not match 'self' inside a sandboxed srcdoc plugin frame, so the page also names its own origin.
       if (policy.includes("script-src 'self'") && !headers.host) {
@@ -510,5 +530,305 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
   const installation=await startHost(t,{},createMolisWorkWebServer);
   const account = await send(installation, "GET", "/api/personal/status");
   assert.equal(account.headers["x-frame-options"], "DENY", "account responses retain their stricter no-framing policy");
-  assert.ok(pages >= 2, `the sweep looked at pages with a policy (${pages})`);
+  const accountEntryHtml = await send(installation, "GET", "/", { "sec-fetch-site": "cross-site", "sec-fetch-dest": "document" });
+  assert.equal(accountEntryHtml.status, 200);
+  assert.equal(accountEntryHtml.headers["x-frame-options"], "DENY");
+  assert.match(String(accountEntryHtml.headers["content-security-policy"] ?? ""), /(?:^|;\s*)frame-ancestors 'none'(?:;|$)/, "space-web-server HTML responses carry strict CSP");
+  assert.ok(pages >= 3, `the sweep looked at pages with a policy (${pages})`);
+});
+
+test("S-21 F-hc-03 installed plugin hosting page route serves strict Content-Security-Policy", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const project = await f.project("Installed Plugin CSP");
+  const publisher = newPublisher();
+  const person: ActionCallContext = {
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    audience: "user",
+    project_id: project.project_id,
+    permissions: PLUGIN_INSTALL_PERMISSIONS,
+    user_action: { source: "management", conversation_ref: "cli:csp", message_ref: "install" },
+  };
+  const client = f.host.actionClient(project.reference);
+  const preview = await client.invoke(person, pluginInstallActions.preview, { bundle: signedPackage(publisher) }) as { preview_id: string };
+  await client.invoke(person, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "CSP Test" });
+  const response = await f.request(`/projects/${project.project_id}/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html/u);
+  assert.equal(response.headers.get("x-frame-options"), "SAMEORIGIN");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.match(response.headers.get("content-security-policy") ?? "", /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, "installed plugin hosting page carries frame-ancestors 'self' CSP");
+});
+
+test("F-hc2-01 malformed request URLs return 400 and never crash single-Home or installation web servers", { timeout: 60_000 }, async t => {
+  const rawRequest = (port: number, payload: string): Promise<string> => new Promise((resolve, reject) => {
+    const socket = net.connect({ host: "127.0.0.1", port });
+    const chunks: Buffer[] = [];
+    socket.on("data", chunk => chunks.push(chunk));
+    socket.on("error", reject);
+    socket.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    socket.on("close", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    socket.write(payload);
+  });
+
+  for (const [label, host] of [
+    ["single-home web-server", await startHost(t)],
+    ["installation space-web-server", await startHost(t, {}, createMolisWorkWebServer)],
+  ] as const) {
+    for (const target of ["//[", "//[::1", "http://[", "http://127.0.0.1:99999/x"]) {
+      const response = await rawRequest(host.port, `GET ${target} HTTP/1.1\r\nHost: 127.0.0.1:${host.port}\r\nConnection: close\r\n\r\n`);
+      assert.match(response, /^HTTP\/1\.1 400 /u, `${label} ${target}: returns HTTP 400 instead of crashing`);
+    }
+    const upgradeResponse = await rawRequest(
+      host.port,
+      `GET //[::1 HTTP/1.1\r\nHost: 127.0.0.1:${host.port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`,
+    );
+    assert.ok(upgradeResponse.length === 0 || /^HTTP\/1\.1 (?:400|403) /u.test(upgradeResponse), `${label}: malformed upgrade does not crash host`);
+    const health = await send(host, "GET", "/health");
+    assert.equal(health.status, 200, `${label}: host remains healthy after malformed URL requests`);
+  }
+});
+
+// ---- P0-04 / P0-05 / P0-06 (F-wb-01, F-wb-02, F-wb2-01) --------------------------------------------------------
+
+test("P0-04 F-wb-01 inline script JSON in Home plugin pages and side views escapes </script> payloads", () => {
+  installHostUiText();
+  const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+  const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
+  assert.ok(entry, "todo is registered as a Home plugin");
+  const xssName = "</script><script>window.__xss=1</script>&\u2028\u2029";
+  const escapedName = "\\u003c/script\\u003e\\u003cscript\\u003ewindow.__xss=1\\u003c/script\\u003e\\u0026\\u2028\\u2029";
+  const xssProjectId = "p</script><script>window.__xss=2</script>";
+  const escapedProjectId = "p\\u003c/script\\u003e\\u003cscript\\u003ewindow.__xss=2\\u003c/script\\u003e";
+
+  const { homeHtml, homeSideHtml, sideHtml } = runWithLocale("zh", () => ({
+    homeHtml: renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, { readText, htmlLang }, false, false, {
+      project_id: "proj-xss",
+      display_name: xssName,
+    }),
+    homeSideHtml: renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, { readText, htmlLang }, false, true, {
+      project_id: "proj-xss",
+      display_name: xssName,
+    }),
+    sideHtml: renderer.renderSideViewDocument({
+      projectPluginId: "lingguang",
+      viewId: "side",
+      projectId: xssProjectId,
+      routePrefix: `/projects/${xssProjectId}`,
+      enabled: ["lingguang"],
+      controlToken: TOKEN,
+    }),
+  }));
+
+  for (const [label, html] of [["home plugin page", homeHtml], ["home plugin side view", homeSideHtml]] as const) {
+    assert.equal(html.includes("</script><script>window.__xss=1"), false, `${label}: raw </script> breakout must not appear`);
+    assert.equal(html.includes("window.__xss=1</script>"), false, `${label}: raw injected script closing tag must not appear`);
+    assert.equal(html.includes(escapedName), true, `${label}: project display_name is safely escaped inside inline script JSON`);
+  }
+  assert.ok(sideHtml, "side view document rendered");
+  assert.equal(sideHtml.includes("</script><script>window.__xss=2"), false, "side view: raw </script> breakout must not appear");
+  assert.equal(sideHtml.includes(escapedProjectId), true, "side view: projectId and routePrefix are safely escaped inside inline script JSON");
+});
+
+test("P0-05 F-wb-02 settings page escapes third-party manifest.name in <title> and section attributes", () => {
+  installHostUiText();
+  const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+  const webService = {
+    provider: "macos-launchagent" as const,
+    state: "absent" as const,
+    supported: true,
+    owned: false,
+    running: false,
+    label: "Web",
+    plist_path: "",
+    command: [] as string[],
+    stdout_log: "",
+    stderr_log: "",
+    message: "",
+  };
+  const diagnostics = {
+    home_directory: "/tmp",
+    installation_state: "ready" as const,
+    version: "0.2.0",
+    release_directory: "/tmp",
+    project_count: 1,
+    launchers: [],
+  };
+  const maliciousName = "</title><script>window.__xss=1</script>";
+  const maliciousSection = 'com.evil.plugin" onmouseover="window.__xss=2"><script>window.__xss=3</script>';
+
+  const pluginSettingsHtml = runWithLocale("zh", () => renderer.renderMolisWorkSettings({
+    section: "com.evil.plugin",
+    dynamic_plugin_settings: [{ section_id: "com.evil.plugin", plugin_id: "com.evil.plugin", label: maliciousName }],
+    runtimes: [],
+    projects: [],
+    web_service: webService,
+    diagnostics,
+  }, TOKEN));
+  assert.equal(pluginSettingsHtml.includes("</title><script>window.__xss=1</script>"), false, "/settings/<plugin_id> must not emit raw </title><script>");
+  assert.match(pluginSettingsHtml, /<title>&lt;\/title&gt;&lt;script&gt;window\.__xss=1&lt;\/script&gt; · /u, "third-party manifest.name is HTML-escaped inside <title>");
+
+  const rawSectionHtml = runWithLocale("zh", () => renderer.renderMolisWorkSettings({
+    section: maliciousSection,
+    runtimes: [],
+    projects: [],
+    web_service: webService,
+    diagnostics,
+  }, TOKEN));
+  assert.equal(rawSectionHtml.includes("<script>window.__xss=3</script>"), false, "view.section must not inject raw <script>");
+  assert.equal(rawSectionHtml.includes('onmouseover="window.__xss=2"'), false, "view.section must not break out of data-settings-section attribute");
+  assert.ok(
+    rawSectionHtml.includes('data-settings-section="com.evil.plugin&quot; onmouseover=&quot;window.__xss=2&quot;&gt;&lt;script&gt;window.__xss=3&lt;/script&gt;"'),
+    "view.section is HTML-escaped in data-settings-section",
+  );
+});
+
+test("P0-06 F-wb2-01 /locale refuses iframe, object, embed and non-navigation Fetch Metadata without writing config/ui-locale.json", { timeout: 60_000 }, async t => {
+  const host = await startHost(t);
+  const blockedCases: Array<[string, Record<string, string>]> = [
+    ["same-origin iframe navigation (<meta refresh>)", { "sec-fetch-site": "same-origin", "sec-fetch-dest": "iframe", "sec-fetch-mode": "navigate" }],
+    ["same-origin object load", { "sec-fetch-site": "same-origin", "sec-fetch-dest": "object", "sec-fetch-mode": "navigate" }],
+    ["same-origin embed load", { "sec-fetch-site": "same-origin", "sec-fetch-dest": "embed", "sec-fetch-mode": "navigate" }],
+    ["same-origin fetch (empty/cors)", { "sec-fetch-site": "same-origin", "sec-fetch-dest": "empty", "sec-fetch-mode": "cors" }],
+    ["non-navigation mode on document dest", { "sec-fetch-site": "same-origin", "sec-fetch-dest": "document", "sec-fetch-mode": "no-cors" }],
+    ["plugin page header on /locale", { "sec-fetch-site": "same-origin", "sec-fetch-dest": "document", "sec-fetch-mode": "navigate", "x-molis-plugin-page": "page-1" }],
+  ];
+  for (const [what, headers] of blockedCases) {
+    const answer = await send(host, "GET", "/locale?lang=en&next=%2Fhealth", headers);
+    assert.equal(answer.status, 403, `${what}: /locale must be refused with 403`);
+    assertRefusedBody(answer, what);
+    assert.equal(answer.headers["set-cookie"], undefined, `${what}: refused /locale must not emit Set-Cookie`);
+    assert.equal(readUiLocale(host.home), null, `${what}: refused /locale must not write remembered locale`);
+    assert.equal(existsSync(join(host.home, UI_LOCALE_RELATIVE_PATH)), false, `${what}: config/ui-locale.json must not exist`);
+  }
+
+  // Control: legitimate top-level same-origin document navigation still switches and remembers locale.
+  const topLevel = await send(host, "GET", "/locale?lang=en&next=%2F", {
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+  });
+  assert.equal(topLevel.status, 302, "legitimate top-level navigation to /locale succeeds");
+  assert.equal(readUiLocale(host.home), "en", "legitimate top-level navigation persists remembered locale");
+
+  // Subsequent iframe request cannot overwrite the persisted locale.
+  const afterIframe = await send(host, "GET", "/locale?lang=zh&next=%2F", {
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-dest": "iframe",
+    "sec-fetch-mode": "navigate",
+  });
+  assert.equal(afterIframe.status, 403, "subsequent iframe /locale attempt is refused");
+  assert.equal(readUiLocale(host.home), "en", "persisted locale remains untouched after refused iframe attempt");
+});
+
+test("P0-06 F-wb2-01 print document sanitizer strips <meta http-equiv=refresh> and embedding tags and destroys navigated frames", () => {
+  const bundle = buildSync({
+    entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/files.ts", import.meta.url))],
+    bundle: true,
+    write: false,
+    format: "iife",
+    globalName: "Files",
+    platform: "browser",
+    target: "es2022",
+  }).outputFiles[0]!.text;
+
+  const createdFrames: Array<{
+    attrs: Record<string, string>;
+    style: { cssText: string };
+    srcdoc: string;
+    isConnected: boolean;
+    removed: boolean;
+    onload: (() => void) | null;
+    contentWindow: { location: { href: string }; printCalls: number; focusCalls: number; addEventListener(): void; removeEventListener(): void; focus(): void; print(): void };
+    setAttribute(name: string, value: string): void;
+    remove(): void;
+  }> = [];
+
+  const context = vm.createContext({
+    URL,
+    Blob,
+    setTimeout,
+    clearTimeout,
+    window: { addEventListener() {}, removeEventListener() {} },
+    document: {
+      createElement(tag: string) {
+        assert.equal(tag, "iframe");
+        const contentWindow = {
+          location: { href: "about:srcdoc" },
+          printCalls: 0,
+          focusCalls: 0,
+          addEventListener() {},
+          removeEventListener() {},
+          focus() { this.focusCalls += 1; },
+          print() { this.printCalls += 1; },
+        };
+        const frame = {
+          attrs: {} as Record<string, string>,
+          style: { cssText: "" },
+          srcdoc: "",
+          isConnected: true,
+          removed: false,
+          onload: null as (() => void) | null,
+          contentWindow,
+          setAttribute(name: string, value: string) { this.attrs[name] = value; },
+          remove() { this.removed = true; this.isConnected = false; },
+        };
+        createdFrames.push(frame);
+        return frame;
+      },
+      body: { append() {} },
+    },
+  });
+  vm.runInContext(bundle, context);
+  const files = vm.runInContext("Files", context) as {
+    PRINT_DOCUMENT_CSP: string;
+    sanitizePrintHtml(html: string): string;
+    printPageDocument(html: string, scope: { assertCurrent(): void; own(fn: () => void): void }): void;
+  };
+
+  const maliciousPrintHtml = `<h1>Invoice</h1>
+    <meta http-equiv="refresh" content="0;url=/locale?lang=en&next=/health">
+    <META HTTP-EQUIV="Refresh" CONTENT="0; URL=/locale?lang=ja">
+    <base href="http://127.0.0.1:4173/">
+    <iframe src="/locale?lang=en"></iframe>
+    <object data="/locale?lang=en"></object>
+    <embed src="/locale?lang=en">
+    <noscript><meta http-equiv="refresh" content="0;url=/locale?lang=en"></noscript>
+    <template><meta http-equiv="refresh" content="0;url=/locale?lang=en"></template>
+    <script>window.__xss=1</script>
+    <p onclick="evil()">Printable content</p>`;
+
+  const sanitized = files.sanitizePrintHtml(maliciousPrintHtml);
+  assert.ok(sanitized.includes(files.PRINT_DOCUMENT_CSP), "sanitized print HTML carries the restrictive CSP");
+  assert.ok(files.PRINT_DOCUMENT_CSP.includes("navigate-to 'none'"), "CSP blocks navigation");
+  assert.ok(files.PRINT_DOCUMENT_CSP.includes("base-uri 'none'"), "CSP blocks base URI override");
+  assert.ok(sanitized.includes("Invoice") && sanitized.includes("Printable content"), "legitimate printable text is retained");
+  assert.doesNotMatch(sanitized, /http-equiv\s*=\s*["']?refresh/iu, "meta refresh is stripped");
+  assert.equal(sanitized.includes("/locale"), false, "no /locale refresh target survives sanitization");
+  assert.doesNotMatch(sanitized, /<(?:base|iframe|object|embed|script|noscript|template)\b/iu, "embedding and scripting tags are stripped");
+  assert.doesNotMatch(sanitized, /\bonclick\s*=/iu, "inline event handlers are stripped");
+
+  const cleanups: Array<() => void> = [];
+  const scope = { assertCurrent() {}, own(fn: () => void) { cleanups.push(fn); } };
+  files.printPageDocument(maliciousPrintHtml, scope);
+  assert.equal(createdFrames.length, 1);
+  const frame = createdFrames[0]!;
+  assert.equal(frame.attrs.sandbox, "allow-same-origin allow-modals");
+  assert.equal(frame.attrs.referrerpolicy, "no-referrer");
+  assert.equal(frame.srcdoc, sanitized);
+
+  // First load on about:srcdoc prints; a second load event (unexpected navigation) immediately destroys the frame.
+  frame.onload?.();
+  assert.equal(frame.contentWindow.printCalls, 1);
+  assert.equal(frame.removed, false);
+  frame.onload?.();
+  assert.equal(frame.removed, true, "second load event immediately tears down print frame");
+
+  // Navigating away before first load is also rejected without printing.
+  files.printPageDocument("<p>Safe</p>", scope);
+  const navigated = createdFrames[1]!;
+  navigated.contentWindow.location.href = "http://127.0.0.1:4173/locale?lang=en";
+  navigated.onload?.();
+  assert.equal(navigated.contentWindow.printCalls, 0, "navigated print frame must not call print()");
+  assert.equal(navigated.removed, true, "navigated print frame is immediately destroyed");
+  for (const cleanup of cleanups) cleanup();
 });

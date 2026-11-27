@@ -6,16 +6,22 @@ import type { CheckRow, DecisionRow, DeliveryRow, RequirementRow, SubjectRows } 
 type Row = Record<string, unknown>;
 const text = (value: unknown) => (typeof value === "string" ? value : null);
 
+type TransactionalDatabase = SqliteBaselineDatabase & {
+  transaction?<T>(operation: () => T): (() => T) & { immediate(): T };
+};
+
 /** The acceptance tables of one project library. It appends and reads; what the rows mean is in `state.ts` and `service.ts`. */
 export class AcceptanceStore {
   private depth = 0;
   constructor(readonly db: SqliteBaselineDatabase, readonly projectId: string) {}
 
   /**
-   * One write: everything in `work` is saved, or nothing is. A savepoint, so it nests inside a transaction the caller already holds (the
-   * person's decision commits with its trusted-decision record in one transaction, §10.2) and stands alone otherwise.
+   * One write: everything in `work` is saved, or nothing is. Uses `BEGIN IMMEDIATE` (auto-nesting via SAVEPOINT inside an outer
+   * transaction on a `ProjectConnection`) when the connection supports it, and falls back to SAVEPOINT on bare connections.
    */
   write<T>(work: () => T): T {
+    const transactional = this.db as TransactionalDatabase;
+    if (typeof transactional.transaction === "function") return transactional.transaction(work).immediate();
     const name = `acceptance_write_${this.depth}`;
     this.db.exec(`SAVEPOINT ${name}`);
     this.depth += 1;

@@ -27,11 +27,11 @@ T-01 接续记录见文末；已整理提交并进入远端评审。K-06 及首�
 - **WUA-08** 显式活动遵循 30/90 天截止；背景读取/刷新不延期；离线只返回展示资料，不授予管理调用或权益。证明：`tests/account-session.test.ts`、`scripts/central-account.test.mjs`。
 - **WUA-09** 当前登录退出不影响其他独立登录；全局退出向 Auth 撤销全部产品；本地先持久清空，远端未确认须明确返回，同键可取回结果，中央撤销后受保护调用拒绝。证明：上述测试、`tests/security-invariants-account-host.test.ts`、真实 Auth 隔离联调。
 
-- **WUA-29** 未登录首页与退出后直接进入现有登录表单，登录完成在当前页进入工作台。刷新／重开只恢复同一匿名浏览器的在途请求，其他浏览器仍拒绝，过期入口重新开始。证明：`scripts/account-installation.test.mjs`、`tests/personal-http.test.ts`、`tests/account-reconnect.e2e.test.ts`。
+- **WUA-29** 未登录首页与退出后直接进入现有登录表单，登录完成在当前页进入工作台。刷新／重开只恢复同一匿名浏览器的在途请求，其他浏览器仍拒绝，过期入口重新开始。证明：`scripts/account-installation.test.mjs`、`tests/personal-http.test.ts`、`tests/account-cache-isolation.e2e.test.ts`。
 
 - **WUA-30** 建立新的登录会话时，即使用户 ID 相同也撤销旧账号租约与浏览器会话；准备期间的页面导航返回自动恢复的等待页，业务 API 仍拒绝。证明：`tests/personal-auth.test.ts`、`tests/space-surface-account-race.test.ts`、`scripts/account-installation.test.mjs`。
 
-- **WUA-31** 连续快速登录／切换／退出及换号中立即退出不留卡住的准备、旧事件连接或在途弹窗；迟到状态响应不取消后继登录，只有匹配当前请求的完成通知触发交接。尚不可操作的新载体页面等待父页准备结束后加入，已有参与者变化仍取消。证明：`scripts/account-rapid-cycle.test.mjs`、`tests/account-reconnect.e2e.test.ts`、`tests/account-refresh-pages.test.ts`。
+- **WUA-31** 连续快速登录／切换／退出及换号中立即退出不留卡住的准备、旧事件连接或在途弹窗；迟到状态响应不取消后继登录，只有匹配当前请求的完成通知触发交接。尚不可操作的新载体页面等待父页准备结束后加入，已有参与者变化仍取消。证明：`scripts/account-rapid-cycle.test.mjs`、`tests/account-cache-isolation.e2e.test.ts`、`tests/account-refresh-pages.test.ts`。
 
 - **WUA-32** 账号浏览器内容按 Host 提供的租约 scope 隔离；退出清除本 scope 的 local/session/CacheStorage，拒绝旧页迟到写，保留无关设备数据。未提交浏览器草稿在退出前明确确认，取消保留、确认后清除。多窗口全部离开账号，等待中的动作在撤权后不能提交业务效果。证明：`tests/account-cache-isolation.e2e.test.ts`、`tests/account-inflight-effects.test.ts`、`tests/account-refresh-pages.test.ts`、`tests/ui-client-lifecycle.e2e.test.ts`。
 
@@ -488,7 +488,7 @@ K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 3
 - [ASR-09](#account-window-criteria)：已离开的页面保留至原账号租约撤销的离开标记，拒绝晚到状态请求重新登记；离开先于首次状态登记到达也不留下幽灵参与者。确实失联、无法确认已离开的文档仍保留草稿保护，不按超时默认为已保存。
 - [ASR-09](#account-window-criteria)：连接诊断通过 Node `diagnostics_channel` 的 `molis-work.account-pages` 发布登记、连接、断开、离开与取消事件，只含页面 id，不含绑定值、Cookie、身份或业务正文。
 
-证据：`tests/account-refresh-pages.test.ts`、`tests/space-surface-account-race.test.ts` 验证绑定与迟到注销的拒绝；`tests/account-reconnect.e2e.test.ts` 驱动真实浏览器和本地 Host，只模拟中央 Auth，验证断连后原页面恢复、单窗口单消息连接、子页面保存和退出。
+证据：`tests/account-refresh-pages.test.ts`、`tests/space-surface-account-race.test.ts` 验证绑定与迟到注销的拒绝；`tests/account-cache-isolation.e2e.test.ts` 驱动真实浏览器和本地 Host，只模拟中央 Auth，验证断连后原页面恢复、单窗口单消息连接、子页面保存和退出。
 
 
 [ASR-09](#account-window-criteria) 验证结果（2026-11-09）：整体构建通过；11 个账号相关测试文件共 89 个用例均通过（初轮两个夹具按新协议修正：等待重连的新消息流、离开后使用不登记页面的安装状态查询；未删除或放宽安全断言）。最终对最后修改直接影响的 5 文件复核 36/36，包含嵌套页面成员变化取消准备、晚到保存不得恢复退出、子页面保存失败拒绝退出。8 个本轮核心文件 Biome lint 与 diff 空白检查通过。真实本地 Auth 8877 + Work 4307、预览测试账号的浏览器登录及点击退出通过：约 417 毫秒回到登录入口，账号状态为空，无错误提示。此次没有重跑完整全量回归；先前 1,879 文件的完整结果对应修复前源码，不能当作本次改动的全量证据。

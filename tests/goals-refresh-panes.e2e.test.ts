@@ -55,4 +55,31 @@ test("QEA-113 split Goal documents follow actual pane visibility through focus, 
   const after = boardSnapshot(b.store, DEMO_PROJECT_ID);
   await b.setViewport(1440, 1000); await collection("SPLIT-NARROW"); await fresh();
   assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), after, "pane visibility does not change business facts");
+
+  // F-goals-12: when pane 1 is hidden (collectionOnly) and split pane 2 has an open dirty form, background refresh must not wipe it.
+  await b.evaluate(`${panes}[1].querySelector('[data-goal-event-document]').click()`);
+  await b.click('[data-layout-open]'); await b.click('[data-layout-action=solo]');
+  await b.waitFor(`document.querySelector('[data-tab-workspace]').hasAttribute('data-solo') && !${panes}[0].checkVisibility({visibilityProperty:true}) && ${panes}[1].checkVisibility({visibilityProperty:true})`);
+  await b.evaluate(`(() => {
+    const pane = ${panes}[1];
+    const open = pane.querySelector('[data-event-form-open="note"]');
+    if (open) open.click();
+    const field = pane.querySelector('[data-event-form="note"] textarea, [data-event-form="note"] input[name="note"], [data-event-form="note"] input[name="body"]');
+    if (field) {
+      field.focus();
+      field.value = 'unsaved-split-draft';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  })()`);
+  await b.waitFor(`${panes}[1].querySelector('[data-event-form="note"][data-live-dirty="true"]')?.hidden === false`);
+  await mark();
+  await add("SPLIT-DIRTY");
+  await b.waitFor("Boolean(document.querySelector('.tree-node[data-select-goal=\"SPLIT-DIRTY\"]'))", 15_000);
+  const splitDraft = await b.evaluate<{ preserved: boolean; value: string }>(`(() => {
+    const pane = ${panes}[1];
+    const field = pane.querySelector('[data-event-form="note"] textarea, [data-event-form="note"] input[name="note"], [data-event-form="note"] input[name="body"]');
+    return { preserved: ${doc} === pane.__beforeProjection, value: field ? field.value : '' };
+  })()`);
+  assert.equal(splitDraft.preserved, true, "dirty split-pane document must not be replaced by background collectionOnly refresh");
+  assert.equal(splitDraft.value, "unsaved-split-draft", "dirty split-pane form draft must stay intact");
 });

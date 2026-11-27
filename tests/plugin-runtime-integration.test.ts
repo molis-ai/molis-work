@@ -27,7 +27,7 @@ import {
   createGithubIntegrationPlugin,
   githubIntegrationManifest,
 } from "@molis-ai/molis-work-integration-github";
-import { MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-runtime";
+import { advanceReadCheckGeneration, currentReadCheckGeneration, MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-runtime";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -952,4 +952,12 @@ test("PRERR-02: Runtime distinguishes its current refusals from foreign common e
     assert.equal(runtime.get(install.install_id).last_error_code, failure.code);
     assert.equal(runtime.contribution(install.install_id), null);
   }
+});
+
+// BL-read-check-generation: the read cache is keyed by the process generation as well as the microtask turn; a writer that changes
+// authorization, enablement, display or the catalog advances it, so a same-turn continuation cannot keep an answer from the old epoch.
+test("BL-read-check-generation a write generation still advances", () => {
+  const before = currentReadCheckGeneration();
+  advanceReadCheckGeneration();
+  assert.equal(currentReadCheckGeneration(), before + 1);
 });

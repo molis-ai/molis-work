@@ -210,8 +210,16 @@ export class FeedApplication {
    * project's queue while the model answers). It judges the item it ingested and the Inbox entries that ingest created,
    * with the caller's authority, and leaves whatever other producers queued meanwhile to them.
    */
-  ingestItemJudged(input: Parameters<FeedApplication["ingestItem"]>[0], caller?: ActionCallContext): Promise<{ item: FeedItemRecord; created: boolean; updated: boolean }> {
-    return this.judgments.judgeOwn(() => this.ingestItem(input), caller);
+  ingestItemJudged(
+    input: Parameters<FeedApplication["ingestItem"]>[0],
+    caller?: ActionCallContext,
+    afterWrite?: (result: { item: FeedItemRecord; created: boolean; updated: boolean }) => void,
+  ): Promise<{ item: FeedItemRecord; created: boolean; updated: boolean }> {
+    return this.judgments.judgeOwn(() => {
+      const result = this.ingestItem(input);
+      afterWrite?.(result);
+      return result;
+    }, caller);
   }
 
   // Not an `async` method, for the reason `JudgmentQueue.judgeOwn` is not: what the step throws reaches the caller as a throw, so a Runtime that

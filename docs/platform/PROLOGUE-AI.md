@@ -1,6 +1,6 @@
 # Prologue AI 开发手册
 
-状态：2026-09-27 按 main（8b609527）之后的代码整理，此后随功能改动逐段更新（含 2026-10-10 的提示词登记 W3-04、2026-10-12 Runtime 插件 `services.model` 与时限表 W3-06 E、2026-10-16 第二部分「AI 行为设计与质量」[`specs/ai-development-handbook`](../../specs/ai-development-handbook/spec.md)，以及 2026-11-23/24 随第 44B 批 `#2294`［Shelf 纯平台化、旧 Alchemist 删除、`packages/system-skills`］与决定 67 `#2301`［四类 Prompt 统一治理、双缓存域五层动态拼装、逐调用点 AST 门禁、`s1..sN` 全量技能句柄、`instruction_prompt_id` 解析与 `fencedMaterials` 迁移］的同步校准）；示例与文件位置均为实际代码。执行时的步骤清单在 Skill：[`skills/molis-prologue-ai/SKILL.md`](../../skills/molis-prologue-ai/SKILL.md)；本文解释架构、调用链和为什么。插件的通用写法仍以 [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md) 为准。
+状态：2026-09-27 按 main（8b609527）之后的代码整理，此后随功能改动逐段更新（含 2026-10-10 的提示词登记 W3-04、2026-10-12 Runtime 插件 `services.model` 与时限表 W3-06 E、2026-10-16 第二部分「AI 行为设计与质量」[`specs/ai-development-handbook`](../../specs/ai-development-handbook/spec.md)，以及 2026-11-23/24 随第 44B 批 `#2294`［Shelf 纯平台化、旧 Alchemist 删除、`packages/system-skills`］与决定 67 `#2301`［四类 Prompt 统一治理、逐调用点 AST 门禁、`s1..sN` 全量技能句柄、`instruction_prompt_id` 解析与 `fencedMaterials` 迁移］的同步校准；其中第 13.6 节明确区分「已落地现役代码」与「待 `91-2`/`104-1`/`62-1` 换包落地的规划设计」）。除明确标注「规划/需求」的段落外，示例与文件位置均为实际代码。执行时的步骤清单在 Skill：[`skills/molis-prologue-ai/SKILL.md`](../../skills/molis-prologue-ai/SKILL.md)；本文解释架构、调用链和为什么。插件的通用写法仍以 [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md) 为准。
 
 用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Host 本机 OCR（`molis-material`）、外部 CLI Runtime 暂不纳入。
 
@@ -20,7 +20,7 @@
 | 业务插件 / 模块（Pages、灵光、Coding…） | 用户意图、提示词正文、输入材料的选取、结果怎样写回自己的数据、失败时保留什么 | 选模型、拿密钥、直连供应商、构造 Runtime |
 | Local Host（`apps/local-host`） | 给 Runtime 插件提供 `services.model`。宿主用 `hostTextGeneration` 或 `resolvePrologueInference` 承接推理。由 Host 解析模型、凭据、调用者身份及项目，记录动作授权与调用 | 业务提示词、插件数据 |
 | Agent Host（`horizontal/agent-host`） | 唯一直接依赖 `@prologue/sdk` 的包：有界推理、Agent 轮次、角色冻结、目录授权、审查队列、预算、MCP 接入、任务板、子代理、检查点、后台命令 | 业务含义、审批决定本身 |
-| Prologue SDK（`vendor/prologue-sdk/*.tgz`，源码在 `molis-ai/prologue`） | 协议适配、流式事件、用量回执、取消、超时、会话/运行持久化、工具循环 | 产品身份、权限政策、界面 |
+| Prologue SDK（`vendor/prologue-sdk/*.tgz`，源码在 `molis-ai/molis-prologue`） | 协议适配、流式事件、用量回执、取消、超时、会话/运行持久化、工具循环 | 产品身份、权限政策、界面 |
 
 判断一段 AI 相关代码放哪：与业务无关、契约稳定、多个消费者需要的 → Agent Host，再稳定到跨产品的 → 下沉 Prologue；涉及产品身份、领域语义、权限政策或体验 → 留在业务层。
 
@@ -222,7 +222,7 @@ Agent Host 的一轮只收图片引用（`image_materials` 的 `attachment: Mate
 
 - **角色执行等级**（`packages/contracts/src/platform/plugin-agent.ts`）：`read-only`（缺省）、`text-edit`、`workspace-write`（要求 Runtime 支持 text-edit 与 command）。角色不能在启动时自行加宽；`workspace: "none"` 的纯推理角色不能带目录、工具或子任务。
 - **宿主工具**：角色声明 `host_tools`（如 `read-file`、`search`），实现和效果分类归 Host。
-- **用途的方法**（用户 2026-10-16 定）：同一个插件里不同用途（如规划、执行、讨论）是不同的角色，每个角色可以用 `skills: { allowed, default }` 声明这个用途能挑的方法和默认选上的方法。`allowed` 点名 agent 块 `skills` 里的方法，`default` 必须在 `allowed` 里，每个可选方法要的 `tools` 都得在这个角色的 `host_tools` 里。解析 Manifest 时这些都由 SDK 检查（`packages/plugin-sdk/src/agent-declarations.ts`），不合就拒绝安装。宿主那一半还没做：开新一轮时宿主还不按 `default` 选上，也不拒绝 `allowed` 之外的方法，要等宿主那一片（#576 的后续 PR）合入后，宿主开轮时才按它选上；在那之前写了只过解析检查，不生效。不写 `skills` 的角色照旧。
+- **用途与方法**：同一个插件里不同用途（如规划、执行、讨论）定义为不同的角色；原按角色声明的 `skills: { allowed, default }` 已于第 09 批移除（`AgentRoleDeclaration` 不再包含该字段），技能统一由共同技能目录（`agent.skills` / `methods`）与角色工具上限（`host_tools`）管理。
 - **说明怎样处理补充**（`acknowledge-inputs`，`specs/ai-input-receipts` 3e-0）：一轮中途进来的补充，模型用它说自己怎样处理（马上照做、放到后面一步、不采纳、要问清楚……）、指向哪一步。展开 `BUSINESS_HOST_TOOLS` 的业务角色（助理的两个角色、Todo 整理）经这个常量自动带上；有目录的角色要自己在 `host_tools` 里列（Coding 里人直接对话的角色都列了，子任务的角色没列）。SDK 只把它当 AI 的自称记在输入账上，不改账本：不把补充标成做完，做没做看工具回执。补充的编号只在列了这个工具的一轮里给模型看。
 - **动作工具**：`action_tools` 只接受精确引用（capability_id + version + provider_id），调用仍走统一动作服务与逐客户端授权；动作的 `effect`（read/write/irreversible）决定是否要审查、是否对生成插件开放。
 - **审查**：写文件、跑命令、调用写入动作都进 `AgentReviewQueue`，由人批准；批准不等于已发生，执行前再复查授权。
@@ -253,7 +253,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 ## 7. 注册、入口与事件
 
 - AI 能力就是一个动作：注册一次，页面、工作流、内置 Agent、外部 MCP 共用同一处理器和授权（见 `specs/action-architecture/spec.md` §3「基本合同」）。不要另写 MCP 工具表或宿主分支。
-- 只有 Runtime 托管的 app 插件（Coding 家族）有插件事件总线；Native 插件没有。
+- 全部内置插件（第 44B 批起构建期组合已清零）及已安装插件均由 Plugin Runtime 托管，凡在 Manifest 声明 `events` 的插件均接入插件事件总线（不仅限于 Coding 家族）。
 - 长任务用持久记录 + 查询（如 Images 任务、Pages 生成记录），不要把「已启动」返回成「已完成」。
 
 ## 8. 流式、结构化输出、错误、取消、超时、恢复
@@ -396,7 +396,7 @@ prompt 和执行机制「好」，是看得见的：
 | --- | --- | --- |
 | 产品对所有角色都成立的约束 | `layer: "base"` 的提示词 | `AGENT_PROMPT_LAYERS` 依次是 base、role、project、task，`orderPromptsByLayer` 按层排（`packages/contracts/src/platform/plugin-agent.ts`）；Coding 的 `coding-base` 单独一层，角色的措辞不能悄悄换掉它 |
 | 角色的目的与做法 | 角色提示词（`layer` 缺省为 role） | `codingPrompts`、`ASSISTANT_PROMPTS`；用途不同就是不同的角色：助理委派出去的子任务是角色 `assistant-delegated`（base 加一层「你在做另一项工作委托出来的一部分」），不在任务消息里另写一段说明 |
-| 某个工具怎样用、它的结果是什么意思 | 工具描述与参数说明 | 只在这一轮提供那个工具时出现（`prologue-action-gateway.ts`）。助理的委派与长期内容用途写在主工作角色的一层 `assistant-work`：偏好、项目背景和经验是参考记忆；持续项目规矩归 Goals 长期说明；复用步骤归 Skill。通过现有能力目录查找、读取和修改；Skill 创作或更新不可用就如实说未保存，安装不算创作，也不转存记忆。各主人保留确认、版本和真实回执，混合请求分别报告。怎样调用写在 `delegate-work`、`remember` 等的描述里；委派子任务不带主工作这一层和记忆工具；提问卡的选项、推荐与选填写在 Prologue `ask-user` 的参数说明里，base 只留什么时候问（需求书 §9.5 A3①）。工具结果只说发生了什么，不再写「回复里说……」 |
+| 某个工具怎样用、它的结果是什么意思 | 工具描述与参数说明 | 只在这一轮提供那个工具时出现（`prologue-action-gateway.ts`）。助理的委派与长期内容用途写在主工作角色的一层 `assistant-work`：偏好、项目背景和经验是参考记忆；持续项目规矩归平台 `modules/projects` 的项目指导（`projects.guidance.*`，第 44 批迁出 Goals）；复用步骤归 Skill。通过现有能力目录查找、读取和修改；Skill 创作或更新不可用就如实说未保存，安装不算创作，也不转存记忆。各主人保留确认、版本和真实回执，混合请求分别报告。怎样调用写在 `delegate-work`、`remember` 等的描述里；委派子任务不带主工作这一层和记忆工具；提问卡的选项、推荐与选填写在 Prologue `ask-user` 的参数说明里，base 只留什么时候问（需求书 §9.5 A3①）。工具结果只说发生了什么，不再写「回复里说……」 |
 | 一次有界调用的固定要求 | 用 `defineInstructionPrompt` 登记的指令 | 调用传 `instructed(指令, 数据)`；`composeInstructedPrompt` 是指令与数据合成模型正文的唯一写法（`packages/contracts/src/platform/model-prompts.ts`） |
 | 用户这一次的话 | task 层、用户输入 | 包里不能声明 task 层提示词，`inspectAgentDeclaration`（`packages/plugin-sdk/src/agent-declarations.ts`）拒绝：替用户说话不是插件的事 |
 | 会变的事实（时间、范围、页面、对象、目录） | 每一轮的材料 | 助理的 `roundMaterials`，源码注释写着「Changing facts travel here, not in the role」。材料只写事实（状态、名称、版本、原因、在哪里），不写对模型的用法或禁令：「用户撤销的修改」只列撤销了什么，「除非用户再次要求，不再做」写在 base；「用户收回的子任务」「允许记住」关着时怎么办写在 `assistant-work`；能力目录只说三种标记是什么意思，怎样调用在工具描述里（需求书 §9.5 A3②） |
@@ -532,6 +532,10 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 ### 13.6 四类统一 Prompt 治理、双缓存域五层动态拼装与单次双通道（决定 67）
 
+> **现役已落地 vs 规划待换包拆分**：
+> - **已落地现役代码（`#2301`）**：下文四类治理模型（`editable` / `protected` / `platform-fixed` / `user-owned`）、`override_policy: "protected"` 与 `agent_definitions.prompt_override_protected`（`S-protected-prompt-override`）、`WORDING_HISTORY` 锁与逐调用点 AST 检查、`AgentTextMaterial.instruction_prompt_id` 解析、`coding.auto-skill-catalog`、助理 `s1..sN` 短句柄全量技能目录以及主要单次推理的 `fencedMaterials` 迁移。
+> - **规划待换包（`91-2` / `104-1` / `62-1`，尚未随当前 vendored `@prologue/sdk` 落地）**：Coding 动作工具去全集 `scope` 哈希改为 `act__<cap>`、Two-Zone `system` Dynamic 区（Zone 2）与 `heldStepNote`、阶梯分批微压缩 `microCompactObservations`、单次调用 `system`/`user` 双通道拆离与 `reply_language_policy` / `prompt_cache: "best-effort"`。下文对应设计条款请勿当成当前树中已存在的运行时字段。
+
 所有送入模型的提示与指导文本按[决定 67](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-67)归入四类封闭治理模型，不再留游离硬编码或灰色旁路：
 
 | 类别 | 范围 | 登记、版本与 `override_policy` | 安全与同步边界 |
@@ -541,7 +545,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | **`platform-fixed`**（平台机制与安全边界文案） | `reply-language`、`UNTRUSTED_MATERIALS_NOTICE`（`fencedMaterials`）、`<MOLIS_WORK_PROJECT_GUIDANCE>` 包装壳、`SURFACE/DESKTOP_GUIDANCE`、`stepBoards`、`checkpoints`、`UNMARKED_IMAGES_NOTE`、`announce-guard` | 不进用户覆盖表（防止改坏安全边界或回复语言），但须全部双语化并纳入 `frozen.prompts` 与 `OBSERVATION_COVERAGE_PLAN` | 仅 `reply-language` 在 `AgentDefinitions.effective()` 有显式登记例外；`AgentDefinitions.effective()` 与 `resolveModelPrompt()` 对其他未登记或裸字符串调用一律拒绝 |
 | **`user-owned`**（用户业务内容） | `modules/characters`、项目长期指导正文、`modules/judgment-rules` 用户规则、`my-skills.{home,project}`、生成插件 `prompts` | 归各自业务主人管理与版本冻结（`S-character-role-scope`、`S-skill-authoring`），不重复入 `BUILTIN_INSTRUCTIONS` | `109` 按调用分区的已启用插件集过滤内置插件 `methods`/`roles`，防止跨分区泄漏 |
 
-**双缓存域 × 五层冷热动态拼装（严守决定 58 与 S-13）。** 跨轮续聊（`history: "session"`）仅 `tools[] + Static system` 能命中缓存；单轮多步循环（Turn 1→60）才可复用 `opening + turns`。动态拼装按变更频率严格分层、只追加不回改：
+**双缓存域 × 五层冷热动态拼装（决定 58 与 S-13；其中 `s1..sN` 短句柄与 `situation` 锚定已落地，Zone 0 `act__<cap>`、Zone 2 Two-Zone `system` Dynamic / `heldStepNote` 与阶梯微压缩为待 `91-2` 换包规划）。** 跨轮续聊（`history: "session"`）仅 `tools[] + Static system` 能命中缓存；单轮多步循环（Turn 1→60）才可复用 `opening + turns`。动态拼装按变更频率严格分层、只追加不回改：
 
 1. **缓存域 A · 跨轮 + 轮内双命中堡垒**：
    - **Zone 0（极冷静态工具面 `tools[]`）**：固定能力网关（经 MiniMax G1–G4 零回归门后再撤 `parameterBranches`）；Coding 动作工具去全集 `scope` 哈希改为稳定 `act__<cap>`（同步守住 `prologue-review-documents.ts:101,232`、`prologue-checkers.ts:131,167` 等全部 8 处耦合与 `S-28`）；确定性排序 `systemTools → sorted(mcpTools) → sorted(actionTools) → surfaceTools` 与 `S-32` `askUserReferenceKinds`；静态化 `acknowledge-inputs` Schema；出网 JSON 采用确定性键序。**模型侧工具名、副作用标签与描述保持稳定语言（决定 67 ⑤ / `71-2` `FSS-40`），不随 UI 语言切换动态改写**，仅界面展示层本地化，保护 `toolsFingerprint` 与 KV-Cache。
@@ -551,7 +555,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
    - **Zone 3（半静态开场数据区，`opening` 前部，`trust: "data"`）**：紧凑短句柄化全量技能目录（`s1..sN`，仅在轮级 Host/Gateway 边界还原 8 字段严格 `SkillRef` 守 `S-skill-catalog`）、能力目录与项目资料索引摘要；长开场可按预算设条件断点 #2。
    - **Zone 4（热态实时上下文 & 追加式对话尾，`opening` 尾部 + `turns`）**：分钟级时间/时区 `situation`（排在半静态目录之后并锚定防 30 条裁切）、当前页面/选区/所有者重读对象、一次性增量事件卡、动态召回记忆（`memory-recaller`，严禁混入 Zone 1）、永久锚定于原始 `userTask` 的 `start.attachments`（修复首轮错挂与轮中跳动），以及阶梯分批微压缩（同步清理过期 `imageRef`）。Anthropic 滚动断点 #3/#4 仅在 `messages.length >= 2` 时启用，总断点数硬上限 **≤ 4** 且默认 `{ type: "ephemeral" }`（禁默认发 `ttl: "1h"`）；OpenAI 协议保持 `supportsPromptCache: false` 靠字节级前缀稳定与 opt-in `stream_options.include_usage` 回收缓存指标。
 
-**有界单次调用双通道规范（`104-1`）。** 单次推理统一拆成 `system`（`[optionalSystemInstruction, primaryInstruction, optionalReplyLanguage].filter(Boolean).join("\n\n")` 再经 `withUnmarkedImagesNote`）与 `user`（统一经 `fencedMaterials(data)` 封装；`data` 为空时提供安全非空占位）。指令显式声明 `reply_language_policy`（`"follow_locale"` 给用户可读正文 vs `"fixed_schema"` 给结构化 JSON/枚举抽取器，严禁向结构化抽取器盲灌回复语言）；有 Schema 的 JSON 指令优先使用 SDK `structured`（协议支持优先 `native`、否则显式 `local` + 领域校验），并按需启用 `prompt_cache: "best-effort"`；切换时同步更新 `S-13`/`S-66` 断言、`pnpm api:update` 与 `OBSERVATION_COVERAGE_PLAN`。
+**有界单次调用双通道规范（规划待 `104-1` 落地，当前尚未合入现役代码）。** 单次推理计划统一拆成 `system`（`[optionalSystemInstruction, primaryInstruction, optionalReplyLanguage].filter(Boolean).join("\n\n")` 再经 `withUnmarkedImagesNote`）与 `user`（统一经 `fencedMaterials(data)` 封装；`data` 为空时提供安全非空占位）。指令将显式声明 `reply_language_policy`（`"follow_locale"` 给用户可读正文 vs `"fixed_schema"` 给结构化 JSON/枚举抽取器，严禁向结构化抽取器盲灌回复语言）；有 Schema 的 JSON 指令优先使用 SDK `structured`（协议支持优先 `native`、否则显式 `local` + 领域校验），并按需启用 `prompt_cache: "best-effort"`；切换时同步更新 `S-13`/`S-66` 断言、`pnpm api:update` 与 `OBSERVATION_COVERAGE_PLAN`。
 
 ## 14. 基础实现索引
 
@@ -569,8 +573,8 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 助理的技能 | 技能按需读取 | 「可用角色资料与方法」（`assistant-round-materials.ts`，`s1..sN` 短句柄全量目录）→ `skills.body.read@1`（技能）、`assistant.methods.read`（签名角色资料，`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 名字和说明常驻、正文按需；已取消旧 20 条上限，仅在父会话 Host/Gateway 边界还原 `SkillRef`（§13.6） | 超过单份 20,000 UTF-16 单元预算时自动分块，受轮级 30 条材料上限约束（动态安全材料优先） | 确定性：`tests/assistant-methods.test.ts`；真实模型：需求书 §9.6 的 ADH-23 |
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work`，子任务一侧 `report-delivery`（只在交办带了逐条要求时提供） | 任务说明、验收标准、逐条要求（挂在子任务自己的对象上，交回时平台逐条现算状态）、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts`、`tests/assistant-delegation-acceptance.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
-| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
-| 续聊开场与派发 | 旧未知开场不随下一 Run 再发送，旧账仍可查看 | `prologue-session-opening.ts` 读取准确 SessionIndex caller task；`prologue-run.ts` 将 Reader 交 SDK493，history-projected 进现 notice；子任务 `continuation_task` 从原父 attempt 新建事实与 SDK caller-only 账投影；原 beforeDispatch 返回同步闭包，经 Node 紧邻 transport 复核 | 不从 raw 历史、origin 或本人原话猜 caller，不丢同次 fence | 不清洗普通用户/assistant 复述；无同步闭包的独立有界推理通道没有新增保证 | 本地在途：`tests/prologue-session-opening.test.ts`、`tests/prologue-dispatch-fence.test.ts`、`tests/prologue-subagents.test.ts` |
+| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts` |
+| 续聊开场与派发 | 旧未知开场不随下一 Run 再发送，旧账仍可查看 | `prologue-session-opening.ts` 读取准确 SessionIndex caller task；`prologue-run.ts` 将 Reader 交 SDK493，history-projected 进现 notice；子任务 `continuation_task` 从原父 attempt 新建事实与 SDK caller-only 账投影；原 beforeDispatch 返回同步闭包，经 Node 紧邻 transport 复核 | 不从 raw 历史、origin 或本人原话猜 caller，不丢同次 fence | 不清洗普通用户/assistant 复述；无同步闭包的独立有界推理通道没有新增保证 | 确定性 / 真实 SDK（已合入 main）：`tests/prologue-session-opening.test.ts`、`tests/prologue-dispatch-fence.test.ts`、`tests/prologue-subagents.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send` 与 `agent.inputs.withdraw` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
@@ -578,9 +582,9 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 回复语言 | 一轮用哪种语言回复，不靠模型猜（N 语种可扩展，当前支持 `zh` / `en` / `ja`） | `apps/local-host/src/reply-language.ts` 的 `replyLanguagePrompt` 读取 `apps/local-host/prompts/reply-language/{zh,en,ja}.md`；只有宿主放进 `AgentStartAuthority.reply_language`，`composeRolePrompts` 接在各层之后 | **例外：和上一行一样是代码附带的固定语言指令，不登记、不进「设置 › 提示词」。** 业务与插件 Prompt 不写死「用中文回复」也不写二元 `zh`/`en` 分支，统一遵循本轮冻结注入的 `reply-language`（日语用温和克制的 `です・ます` 敬体），用户当轮明说要其他语言时听用户的。版本记进这一轮的 `frozen.prompts`（`prompt.reply-language`） | 覆盖个人助理、Coding、创作台及上下文/引导/技能草拟等面向用户的产品功能 Prompt；后台/续聊读同一 Home 最近使用的语言 | 确定性：`tests/reply-language.test.ts`、`tests/security-invariants-ui-locale-memory.test.ts` |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`horizontal/plugin-studio/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/installed-plugin-model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
-| Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「不在这一片里」 | 确定性：`tests/plugin-model-service.test.ts` |
+| Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「Runtime 插件：`services.model`」 | 确定性：`tests/plugin-model-service.test.ts` |
 
-**是需求、不是已运行的参考**（设计示例必须标明）：主动式助理与场景 Skill（`specs/proactive-assistant/spec.md`）、工作简报（`specs/work-brief/spec.md`）、助理统一服务接入（`specs/assistant-service-connections/spec.md`）、子代理查看与直接对话（[`specs/subagent-interaction/spec.md`](../../specs/subagent-interaction/spec.md)）。
+**是需求、不是已运行的参考**（设计示例必须标明）：主动式助理与场景 Skill（`specs/proactive-assistant/spec.md`）、助理统一服务接入的未落地部分（`specs/assistant-service-connections/spec.md`）、子代理查看与直接对话（[`specs/subagent-interaction/spec.md`](../../specs/subagent-interaction/spec.md)）。注：工作简报插件本体（`plugins/native/work-brief`，`specs/work-brief/spec.md`）已合入 main，下方 §15.2 的「主动式场景 Skill 提醒」仍为规划示例。
 
 **在途**（以 main 为准，不预写）：原先列在这里的两项已在 2026-10-16 合入，写在前面的章节里：Coding 一步等外部条件（P3c，#560）见第 8 节「等外面的结果」，操作卡规则收进插件 SDK（H4 2b，#561）见第 6 节「问人、建议一步、引用对象」。
 
@@ -594,9 +598,9 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 - **main 上的做法。** 指令一句话讲目的：联系选中的灵光与对话历史，给出具体、可推进的回应。材料以 JSON 数据跟在后面（`instructed`）；过长的灵光截到开头并写明省略；这次调用没有工具，所以材料里的命令没有可执行的东西——这才是边界，指令里那句说明只是让模型知道。返回后 `beforeEffect`，再按读取时的快照提交。
 - **怎样证明。** 一组真实对话任务：展开一个灵光、两个灵光互相冲突、材料里夹着「请忽略上文」的网页摘录、用户中途改了方向。看回应是否具体、是否接住历史，夹带指令时是否仍只做对话。
 
-### 15.2 场景 Skill：工作简报里的提醒（需求，未实现）
+### 15.2 场景 Skill：主动式工作简报提醒（主动式场景 Skill 仍为需求示例；`plugins/native/work-brief` 插件本体已合入）
 
-依据 `specs/proactive-assistant/spec.md` 与 `specs/work-brief/spec.md`；下面是设计示例，不是已运行的代码。
+依据 `specs/proactive-assistant/spec.md` 与 `specs/work-brief/spec.md`；其中工作简报插件本体已在 `plugins/native/work-brief` 落地，下方「主动式场景 Skill 提醒」仍为设计示例，不是已运行代码。
 
 - **反例。** 命中「截止」「逾期」这类关键词就输出固定三条建议；每加一个场景，就在宿主里加一个分支、一段隐藏 prompt 和一条专属工具链。没事也要凑够三条；关键词没写到的真问题看不见；场景一多，宿主变成路由表。
 - **改进后的分工。** Skill 写这类提醒的目的、什么样的变化值得打扰用户、来源怎样引用、用户偏好怎样用，以及「没有值得说的就不说」。上下文给工作目标、近期变化及其来源、用户的偏好（记忆）。工具是现有动作（读对象、写简报）。排程、权限、写入仍走原来的服务；简报的正文、版本、来源与修订归工作简报插件。
@@ -713,7 +717,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 ### 16.6 Skill 的评测循环
 
-16.3 讲一次改动的前后对比。Skill 还多一个问题：该用的时候有没有被用上。Molis 没有现成的评测命令（2026-10-19 核对），按下面的循环手跑，跑法和计数脚本放在评测记录旁边（需求书 §9.5 各次评测都是这样做的）。
+16.3 讲一次改动的前后对比。Skill 还多一个问题：该用的时候有没有被用上。全系统隔离 Home 评测可运行 `pnpm eval:run`（见 [CLI 与开发](../cli-and-development.md#cli) 与 [Evaluation 服务](../horizontal/evaluation.md)）；针对单个 Skill 的触发率与结果前后对比，按下面的循环配合脚本运行，跑法和计数脚本放在评测记录旁边（需求书 §9.5 各次评测都是这样做的）。
 
 1. **测试 prompt 3–5 条**，覆盖：该用这个 Skill 的、不该用的、边界上的（说法相近但该用别的）、会失败的（材料不足、工具被拒）。
 2. **每条跑多次**（§9.5 的评测每格 4–8 次），记下次数。真实模型每次答得不同，一次成功不说明稳定。

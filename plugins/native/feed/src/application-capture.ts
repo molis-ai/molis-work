@@ -1,9 +1,28 @@
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { feedErrors, type FeedAttentionReason } from "./contract/feed.js";
 import type { FeedItemRecord, FeedOutRuleRecord, InboxEntryRecord, InboxEntryStatus } from "./projection.js";
 import { callAttention } from "./application-errors.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { captureFeedRules, feedOutRuleMatches, throwIfCallRefused } from "./out-rules.js";
+
+const FAILURE_DETAIL_MAX_ITEMS = 32;
+const FAILURE_DETAIL_MAX_STRING = 500;
+
+function boundedDetailCodes(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const bounded = cutHead(trimmed, FAILURE_DETAIL_MAX_STRING);
+    if (seen.has(bounded)) continue;
+    seen.add(bounded);
+    out.push(bounded);
+    if (out.length >= FAILURE_DETAIL_MAX_ITEMS) break;
+  }
+  return out;
+}
 
 /** What capture needs of the Feed's Inbox: whether the person ignored the item, admitting it, and moving an entry. */
 export interface FeedCaptureInbox {
@@ -34,7 +53,10 @@ export class FeedCapture {
     for (const rule of matched) {
       // A rule does not bring an ignored item back to the Inbox.
       if (rule.admission === "inbox" && !rule.judgment && !this.inbox.isArchived(item.project_id, item.item_id)) {
-        this.inbox.ensureInboxEntryForFeedItem(item.project_id, item.item_id, "source_rule", { rule_id: rule.rule_id, rule_name: rule.name });
+        this.inbox.ensureInboxEntryForFeedItem(item.project_id, item.item_id, "source_rule", {
+          rule_id: rule.rule_id,
+          rule_name: cutHead(rule.name, FAILURE_DETAIL_MAX_STRING),
+        });
       }
     }
     if (!this.ports.artifacts) {
@@ -58,8 +80,12 @@ export class FeedCapture {
     if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))
       && !this.inbox.isArchived(item.project_id, item.item_id)) {
       const admission = this.inbox.ensureInboxEntryForFeedItem(item.project_id, item.item_id, "source_rule", {
-        rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
-        function_key: judgment.function_key, function_version: judgment.function_version, needs_review: judgment.outcome === "needs_review",
+        rule_id: rule.rule_id,
+        rule_name: cutHead(rule.name, FAILURE_DETAIL_MAX_STRING),
+        judgment_id: judgment.judgment_id,
+        function_key: judgment.function_key,
+        function_version: judgment.function_version,
+        needs_review: judgment.outcome === "needs_review",
       });
       if (admission.created) createdEntry = admission.entry.entry_id;
     }
@@ -77,7 +103,10 @@ export class FeedCapture {
         subject_type: "feed_item",
         subject_id: item.item_id,
         reason: "artifact_out_failed",
-        detail: { rule_ids: ruleIds, error_codes: errorCodes },
+        detail: {
+          rule_ids: boundedDetailCodes(ruleIds),
+          error_codes: boundedDetailCodes(errorCodes),
+        },
       }));
       if (entry.status === "done" || entry.status === "dismissed") {
         this.inbox.setInboxEntryStatus(item.project_id, entry.entry_id, "open");

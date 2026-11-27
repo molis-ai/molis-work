@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
-import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, rollbackPreservingError, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /** The Home store of external AI tool sessions: `<Home>/external-sessions/external-sessions.db` (contract-design §9.2). */
 export const EXTERNAL_SESSIONS_STORE = "external-sessions";
@@ -151,7 +151,7 @@ export function clearExternalSessionsProjectFile(home: string, projectId: string
       clearExternalSessionsProjectRows(db, projectId);
       db.exec("COMMIT");
     } catch (error) {
-      db.exec("ROLLBACK");
+      rollbackPreservingError(error, () => db.exec("ROLLBACK"));
       throw error;
     }
   } finally {

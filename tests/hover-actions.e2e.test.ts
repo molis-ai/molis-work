@@ -49,13 +49,15 @@ const WORKFLOW_TAP_TRACE = `
 /** What a surface draws only with content: a Workflows chain of two stations, each with its tools. */
 /** Follow the real tab order from outside the frame to a row that exposes its actions on keyboard focus. */
 async function tabToRow(browser: Page, frame: Awaited<ReturnType<typeof pluginFrameBrowser>>, outer: string, index: number) {
-  await browser.evaluate(`(() => {
+  const outside = await browser.evaluate<boolean>(`(() => {
     const frame = document.querySelector(${JSON.stringify(outer)});
     const stops = [...document.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')];
     const previous = stops.filter(node => node.tabIndex >= 0 && !node.matches(':disabled') && !node.closest('[inert], [hidden]')
       && node.checkVisibility() && (node.compareDocumentPosition(frame) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
     previous?.focus({preventScroll:true});
+    return !!previous && document.hasFocus() && document.activeElement === previous;
   })()`);
+  assert.ok(outside, "the Tab journey starts on an actual shell control outside the plugin");
   for (let presses = 0; presses < 80; presses++) {
     for (const type of ["rawKeyDown", "keyUp"]) await browser.command("Input.dispatchKeyEvent", { type, key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }, browser.sessionId);
     const reached = await frame.evaluate<boolean>(`(() => {

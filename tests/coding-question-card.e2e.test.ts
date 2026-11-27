@@ -436,27 +436,14 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   const position = `(() => { const node = document.querySelector(${JSON.stringify(turns)}); return { top: Math.round(node.scrollTop), latest: node.scrollHeight - node.clientHeight - node.scrollTop < 8 }; })()`;
   const before = await evaluate<{ top: number; latest: boolean }>(position);
   assert.equal(before.latest, false, "the person has scrolled up from the latest");
-  // A session read is complete once the successful response reaches adoptRuns and the page updates the results control.
+  // adoptRuns writes this label only after a successful read of the still-current session.
   await evaluate(`(() => {
-    const original = window.fetch, control = document.querySelector(${JSON.stringify(coding + " [data-coding-results-open]")});
-    let received = false, sessionPath;
+    const label = document.querySelector(${JSON.stringify(coding + " [data-coding-results-label]")});
     window.__reads = 0;
-    const observer = new MutationObserver(() => {
-      if (received) { received = false; window.__reads++; }
-    });
-    observer.observe(control, {attributes:true, attributeFilter:['aria-label']});
-    window.fetch = async (...args) => {
-      const response = await original(...args), url = new URL(String(args[0]), document.baseURI);
-      if (response.ok && url.searchParams.has('window') && url.searchParams.has('known')) {
-        sessionPath ??= url.pathname;
-        if (url.pathname === sessionPath) received = true;
-      }
-      return response;
-    };
-    window.__stopReadProbe = () => { observer.disconnect(); window.fetch = original; };
+    const observer = new MutationObserver(() => { if (++window.__reads === 3) observer.disconnect(); });
+    observer.observe(label, { childList: true });
   })()`);
   await waitFor("window.__reads >= 3", 20_000);
-  await evaluate("window.__stopReadProbe()");
   const after = await evaluate<{ same: boolean; value: string; caret: number[]; focused: boolean }>(`(() => { const input = document.querySelector(${JSON.stringify(field)});
     return { same: document.querySelector(${JSON.stringify(card)}) === window.__card, value: input.value, caret: [input.selectionStart, input.selectionEnd], focused: document.hasFocus() && document.activeElement === input }; })()`);
   assert.deepEqual(after, { same: true, value: "写到一半的话", caret: [3, 3], focused: true }, "three reads later the card is the same node, with the words, the caret and focus where they were");

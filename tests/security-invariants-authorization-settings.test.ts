@@ -74,6 +74,7 @@ test("H1: the unified settings gate keeps original MCP and Assistant tokens and 
   assert.ok(listed.owners.every(owner => owner.state === "complete"), JSON.stringify(listed.owners));
   const entry = listed.entries.find(item => item.owner === "mcp-client" && item.expected === granted.generation)!;
   assert.ok(entry);
+  assert.equal(entry.title, "新建待办", "the granted action carries its project plugin’s title");
   const opened = await get<AuthorizationDetail>({ project: project.project_id, owner: entry.owner, id: entry.id });
   assert.equal(opened.availability, "available");
   assert.ok(!("permissions" in opened));

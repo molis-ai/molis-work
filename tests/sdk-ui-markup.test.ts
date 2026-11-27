@@ -365,7 +365,7 @@ test("F-cf2-11 calendar, field, number, otp, and sheet primitives localize in en
     renderSheet({ labelledBy: "sheet-title", title: "Settings", body: "<p>Body</p>", footer: "" }),
   ].join("\n"));
   assert.doesNotMatch(enHtml, /[\u4e00-\u9fff]/u, "English UI primitives must contain zero hardcoded Chinese");
-  assert.match(enHtml, /Previous|上一|前/u);
+  assert.match(enHtml, /Previous/u);
   assert.doesNotMatch(enHtml, /上个月|下个月|打开日历|选择日期|关闭|必填|减少|增加/u);
 
   const jaHtml = runWithLocale("ja", () => [

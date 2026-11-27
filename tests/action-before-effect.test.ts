@@ -184,10 +184,10 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
       actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "Disabled" },
     });
     const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-    const client = kind === "cognia" ? host.homeActionClient() : host.actionClient(reference);
+    const client = host.actionClient(reference);
     const context: ActionCallContext = {
       ...caller,
-      project_id: kind === "cognia" ? null : "a",
+      project_id: "a",
       validate_authority: () => {
         if (!allowed) throw new ActionError("actions.revoked", "Revoked");
       },

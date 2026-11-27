@@ -154,7 +154,7 @@ test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers whil
   const roundTrip=(ns:string)=>{
     if(!pending){
       waves.push([]);
-      pending=new Promise<void>(resolve=>setImmediate(()=>{pending=null;resolve();}));
+      pending=setImmediate().then(()=>{pending=null;});
     }
     waves.at(-1)!.push(ns);
     return pending;

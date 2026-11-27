@@ -413,7 +413,7 @@ async function until(what: string, ready: () => boolean, ms = 20_000): Promise<v
 // Batch 108 item 2 ④: the same rule on the real Host with the real plugins. Todo's reminder (read from its overview table into the due
 // registry) and Images' generation deadline (its own due entry) fall due while every partition sleeps; each wakes only its own (plugin,
 // partition), opening that partition and no other. Jelly's events join this case when Jelly moves to partitions.
-test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
+test("UPP-32 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("提醒 A", ["todo", "images"]), b = await f.project("提醒 B", ["todo", "images"]), c = await f.project("提醒 C", ["todo", "images"]);
   const host = existingPartitionPluginHost(f.home), services = host?.services;
@@ -440,7 +440,6 @@ test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
 
   const fallen = (p: typeof a, plugin: string) => services.due.entries(p.project_id).filter(entry => entry.plugin_id === plugin && Date.parse(entry.due_at) <= Date.parse(soon));
   t.mock.timers.setTime(Date.parse(soon));
-  services.timer.arm();
   await until("both fallen-due entries are settled", () => fallen(a, todoManifest.plugin_id).length === 0 && fallen(b, imagesManifest.plugin_id).length === 0);
   assert.deepEqual(host.assembly.instances().map(item => `${item.plugin_id}@${item.partition_id}`).sort(),
     [`${imagesManifest.plugin_id}@${b.project_id}`, `${todoManifest.plugin_id}@${a.project_id}`].sort(),

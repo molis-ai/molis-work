@@ -62,7 +62,8 @@ async function actionTitles(ports: AuthorizationManagementPorts, ref: LocalHostP
 }
 
 async function resolveAuthorizationNames(ports: AuthorizationManagementPorts, projectId: string | null | undefined) {
-  const ref = projectId ? ports.projects.get(projectId) : ports.contextProject ? ports.projects.get(ports.contextProject) : undefined;
+  const scope = projectId === undefined ? ports.contextProject : projectId;
+  const ref = scope ? ports.projects.get(scope) : undefined;
   const [owners, actions] = await Promise.all([authorizationOwnerTitles(ports.host, ref).catch(() => new Map<string, string>()), actionTitles(ports, ref)]);
   return { ref, owners, actions };
 }
@@ -92,13 +93,18 @@ async function listAuthorizations(ports: AuthorizationManagementPorts, filter: A
     "session-command": async () => (await rules()).filter(row => row.owner === "session-command"),
     "task-grant": async () => taskEntries(ports, await saved, filter, caller),
     "mcp-client": async () => {
-      const preference = await saved, clientMap = await labels, { ref, actions } = await names();
-      const rows = preference.action_grants.filter(row => !parseTaskGrantSubject(row.client_id) && (!filter.client_id || row.client_id === filter.client_id));
-      // A grant held for one project names an action of that project's catalog, which the Home's catalog no longer lists for a plugin that
-      // runs in each space it is enabled in (batch 108): its title is read where it was granted.
-      const elsewhere = [...new Set(rows.flatMap(row => row.project_id && row.project_id !== ref?.project_id && ports.projects.has(row.project_id) ? [row.project_id] : []))];
-      const catalogs = new Map(await Promise.all(elsewhere.map(async id => [id, await actionTitles(ports, ports.projects.get(id))] as const)));
-      const entries = rows.map(row => mcpAuthorization(row, (catalogs.get(row.project_id ?? "") ?? actions).get(JSON.stringify([row.capability_id, row.version, row.provider_id]))?.title,
+      const preference = await saved, clientMap = await labels;
+      const rows = preference.action_grants.filter(row => !parseTaskGrantSubject(row.client_id)
+        && (!filter.client_id || row.client_id === filter.client_id)
+        && (filter.project_id === undefined || filter.project_id === row.project_id));
+      // Only look up a displayed grant in its own directory. Removed projects still show the recorded action ID.
+      const scopes = [...new Set(rows.map(row => row.project_id))].filter(id => canManage(ports, id));
+      const catalogs = new Map(await Promise.all(scopes.map(async id => {
+        const current = filter.project_id === undefined ? ports.contextProject : filter.project_id;
+        const actions = id === current ? (await names()).actions : await actionTitles(ports, id === null ? undefined : ports.projects.get(id));
+        return [id, actions] as const;
+      })));
+      const entries = rows.map(row => mcpAuthorization(row, catalogs.get(row.project_id)?.get(JSON.stringify([row.capability_id, row.version, row.provider_id]))?.title,
         clientMap.get(row.client_id)));
       if (filter.client_id && filter.project_id !== undefined && clientMap.has(filter.client_id)) entries.push(...await defaultMcpAuthorizations(ports.host,
         preference, filter.project_id ? ports.projects.get(filter.project_id) : undefined, filter.client_id, clientMap.get(filter.client_id)!));
@@ -115,11 +121,15 @@ async function listAuthorizations(ports: AuthorizationManagementPorts, filter: A
   const raw = results.flatMap(item => item.status === "fulfilled" ? [...item.value] : [])
     .filter(row => (row.owner === "mcp-client" || canManage(ports, row.project_id))
       && (filter.project_id === undefined || row.project_id === filter.project_id || row.owner === "assistant-policy"));
-  const { ref, owners: baseOwners } = await names();
-  const extra = [...new Set(raw.flatMap(row => row.owner !== "mcp-client" && row.owner !== "assistant-policy"
-    && !baseOwners.has(row.actor) && row.project_id ? [row.project_id] : []))].flatMap(id => ports.projects.get(id) ?? []);
-  const fullOwners = extra.length ? await authorizationOwnerTitles(ports.host, ref, extra).catch(() => baseOwners) : baseOwners;
-  const entries = raw.map(row => row.owner === "mcp-client" || row.owner === "assistant-policy" ? row : { ...row, actor: fullOwners.get(row.actor) ?? row.actor });
+  const namedRows = raw.filter(row => row.owner !== "mcp-client" && row.owner !== "assistant-policy");
+  let entries = raw;
+  if (namedRows.length) {
+    const { ref, owners: baseOwners } = await names();
+    const extra = [...new Set(namedRows.flatMap(row => !baseOwners.has(row.actor) && row.project_id ? [row.project_id] : []))]
+      .flatMap(id => ports.projects.get(id) ?? []);
+    const fullOwners = extra.length ? await authorizationOwnerTitles(ports.host, ref, extra).catch(() => baseOwners) : baseOwners;
+    entries = raw.map(row => row.owner === "mcp-client" || row.owner === "assistant-policy" ? row : { ...row, actor: fullOwners.get(row.actor) ?? row.actor });
+  }
   const clients = await labels.catch(() => new Map(ports.clientNames.map(row => [row.id, row.title])));
   requireSynchronous(caller.assert_authority_current?.());
   return { entries, owners: results.map((row, index) => ({ owner: owners[index]!, state: row.status === "fulfilled" ? "complete" : "failed" })),

@@ -418,7 +418,6 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   const card = `${coding} [data-coding-question][data-ix-question]`, field = `${card} [data-ix-field="t1"] input`, turns = `${coding} [data-coding-turns]`;
   // A short window, so the thread scrolls and there is something above the card to read back.
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 640, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await evaluate(`(() => { window.__reads = 0; const original = window.fetch; window.fetch = (...args) => { if (String(args[0]).includes('?window=')) window.__reads++; return original(...args); }; })()`);
   await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
   await waitFor(`document.querySelector(${JSON.stringify(card)})?.dataset.answerable === 'true' && document.querySelector(${JSON.stringify(field)})?.matches(':enabled')`);
@@ -437,11 +436,29 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   const position = `(() => { const node = document.querySelector(${JSON.stringify(turns)}); return { top: Math.round(node.scrollTop), latest: node.scrollHeight - node.clientHeight - node.scrollTop < 8 }; })()`;
   const before = await evaluate<{ top: number; latest: boolean }>(position);
   assert.equal(before.latest, false, "the person has scrolled up from the latest");
-  const reads = await evaluate<number>("window.__reads");
-  await waitFor(`window.__reads >= ${reads + 3}`, 20_000);
-  await new Promise(resolve => setTimeout(resolve, 300));
+  // A session read is complete once the successful response reaches adoptRuns and the page updates the results control.
+  await evaluate(`(() => {
+    const original = window.fetch, control = document.querySelector(${JSON.stringify(coding + " [data-coding-results-open]")});
+    let received = false, sessionPath;
+    window.__reads = 0;
+    const observer = new MutationObserver(() => {
+      if (received) { received = false; window.__reads++; }
+    });
+    observer.observe(control, {attributes:true, attributeFilter:['aria-label']});
+    window.fetch = async (...args) => {
+      const response = await original(...args), url = new URL(String(args[0]), document.baseURI);
+      if (response.ok && url.searchParams.has('window') && url.searchParams.has('known')) {
+        sessionPath ??= url.pathname;
+        if (url.pathname === sessionPath) received = true;
+      }
+      return response;
+    };
+    window.__stopReadProbe = () => { observer.disconnect(); window.fetch = original; };
+  })()`);
+  await waitFor("window.__reads >= 3", 20_000);
+  await evaluate("window.__stopReadProbe()");
   const after = await evaluate<{ same: boolean; value: string; caret: number[]; focused: boolean }>(`(() => { const input = document.querySelector(${JSON.stringify(field)});
-    return { same: document.querySelector(${JSON.stringify(card)}) === window.__card, value: input.value, caret: [input.selectionStart, input.selectionEnd], focused: document.activeElement === input }; })()`);
+    return { same: document.querySelector(${JSON.stringify(card)}) === window.__card, value: input.value, caret: [input.selectionStart, input.selectionEnd], focused: document.hasFocus() && document.activeElement === input }; })()`);
   assert.deepEqual(after, { same: true, value: "写到一半的话", caret: [3, 3], focused: true }, "three reads later the card is the same node, with the words, the caret and focus where they were");
   assert.deepEqual(await evaluate(position), before, "and the thread is where the person scrolled it");
   // VUX-26 reading anchor: a read that rewrites an earlier turn above the view (longer now) leaves what the person is reading

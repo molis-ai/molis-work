@@ -62,8 +62,15 @@ test("H1: the unified settings gate keeps original MCP and Assistant tokens and 
   await f.web.post(capability, { ...action, expected: todo.expected, confirm_always: true });
   const grantPath = "/api/settings/mcp/actions";
   const granted = await f.web.post<{ generation: string }>(grantPath, { ...action, client_id: "runtime:test", project_id: project.project_id, enabled: true, expected: { expected_absent: true } });
+  const other = await f.createProject("Other project with its own grant", ["todo"]);
+  const otherCapabilities = await f.web.get<{ capabilities: typeof capabilities }>(`/projects/${other.project_id}/api/assistant/capabilities`);
+  const otherTodo = otherCapabilities.capabilities.find(item => item.capability_id === "todo.items.create")!;
+  await f.web.post(grantPath, { capability_id: otherTodo.capability_id, provider_id: otherTodo.provider_id, version: otherTodo.version,
+    client_id: "runtime:test", project_id: other.project_id, enabled: true, expected: { expected_absent: true } });
+  await f.host.closeProject(other.reference);
   // Todo is a partition plugin since batch 108: the MCP grant names the project its action runs in, and is listed there.
   const listed = await get<AuthorizationList>({ project: project.project_id });
+  assert.ok(!f.host.projects().some(row => row.project_id === other.project_id), "listing one project leaves the other project closed");
   assert.ok(listed.owners.every(owner => owner.state === "complete"), JSON.stringify(listed.owners));
   const entry = listed.entries.find(item => item.owner === "mcp-client" && item.expected === granted.generation)!;
   assert.ok(entry);

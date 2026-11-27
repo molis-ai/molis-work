@@ -43,7 +43,7 @@ test("S-49 UPP-37 services.overview stamps the installation, writes only declare
   await assert.rejects(write(rows => rows.upsert("scheduled_run", { row_id: "r", title: "r", due_at: ROW.updated_at, updated_at: ROW.updated_at })), { code: "actions.forbidden" },
     "a kind the Manifest does not declare is refused");
   await assert.rejects(write(rows => rows.upsert("made-up" as never, ROW as never)), { code: "actions.input_invalid" });
-  await assert.rejects(write(rows => rows.upsert("background_task", { ...ROW, state: "made-up" } as never)), "a row the SDK's check refuses is refused here too");
+  await assert.rejects(write(rows => rows.upsert("background_task", { ...ROW, state: "made-up" } as never)), { code: "actions.input_invalid" }, "a row the SDK's check refuses is refused here too");
 
   // The row and the business write are one commit: a write that fails takes its row with it.
   await assert.rejects(library.transaction(async () => {}, tx => overview!.join(tx, rows => { rows.upsert("background_task", ROW); throw new Error("the business write failed"); })));

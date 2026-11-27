@@ -14,90 +14,86 @@ export function historyReads(sql: FeedSql) {
     refs(projectId: string, sourceId: string, after: string): string[] {
       return sql.all<{ ref: string }>(
         `SELECT ref FROM (
-          SELECT content_ref AS ref
+          SELECT feed_materials.project_id AS project_id, feed_materials.content_ref AS ref
           FROM feed_materials
-          WHERE project_id = ?
-            AND content_ref IS NOT NULL
-            AND item_id IN (SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ?)
+          JOIN feed_items
+            ON feed_items.project_id = feed_materials.project_id
+            AND feed_items.item_id = feed_materials.item_id
+          WHERE feed_materials.content_ref IS NOT NULL
+            AND feed_items.source_id = ?
           UNION
-          SELECT run_refs.value AS ref
+          SELECT feed_source_runs.project_id AS project_id, run_refs.value AS ref
           FROM feed_source_runs
           JOIN json_each(feed_source_runs.receipt_json, '$.content_refs') AS run_refs
-          WHERE feed_source_runs.project_id = ?
-            AND feed_source_runs.source_id = ?
+          WHERE feed_source_runs.source_id = ?
             AND feed_source_runs.receipt_json IS NOT NULL
             AND json_valid(feed_source_runs.receipt_json)
             AND json_type(feed_source_runs.receipt_json, '$.content_refs') = 'array'
             AND run_refs.type = 'text'
           UNION
-          SELECT signal_refs.value AS ref
+          SELECT signals.project_id AS project_id, signal_refs.value AS ref
           FROM signals
           JOIN json_each(signals.content_refs_json) AS signal_refs
-          WHERE signals.project_id = ?
-            AND signals.source_id = ?
+          WHERE signals.source_id = ?
             AND json_valid(signals.content_refs_json)
             AND json_type(signals.content_refs_json) = 'array'
             AND signal_refs.type = 'text'
           UNION
-          SELECT revision_refs.value AS ref
+          SELECT signal_revisions.project_id AS project_id, revision_refs.value AS ref
           FROM signal_revisions
           JOIN signals
             ON signals.project_id = signal_revisions.project_id
             AND signals.signal_id = signal_revisions.signal_id
           JOIN json_each(signal_revisions.draft_json, '$.content_refs') AS revision_refs
-          WHERE signal_revisions.project_id = ?
-            AND signals.source_id = ?
+          WHERE signals.source_id = ?
             AND json_valid(signal_revisions.draft_json)
             AND json_type(signal_revisions.draft_json, '$.content_refs') = 'array'
             AND revision_refs.type = 'text'
         )
-        WHERE ref > ?
+        WHERE project_id = ? AND ref > ?
         ORDER BY ref
         LIMIT 200`,
-        projectId,
-        projectId,
+        sourceId,
+        sourceId,
+        sourceId,
         sourceId,
         projectId,
-        sourceId,
-        projectId,
-        sourceId,
-        projectId,
-        sourceId,
         after,
       ).map((row) => row.ref);
     },
     projectRefs(projectId: string, afterSourceId: string, afterRef: string): ProjectBodyRefRow[] {
       return sql.all<ProjectBodyRefRow>(
         `SELECT source_id, ref FROM (
-          SELECT COALESCE(NULLIF(TRIM(feed_items.source_id), ''), ?) AS source_id,
+          SELECT feed_materials.project_id AS project_id,
+                 COALESCE(NULLIF(TRIM(feed_items.source_id), ''), ?) AS source_id,
                  feed_materials.content_ref AS ref
           FROM feed_materials
           LEFT JOIN feed_items
             ON feed_items.project_id = feed_materials.project_id
             AND feed_items.item_id = feed_materials.item_id
-          WHERE feed_materials.project_id = ?
-            AND feed_materials.content_ref IS NOT NULL
+          WHERE feed_materials.content_ref IS NOT NULL
           UNION
-          SELECT COALESCE(NULLIF(TRIM(feed_source_runs.source_id), ''), ?) AS source_id,
+          SELECT feed_source_runs.project_id AS project_id,
+                 COALESCE(NULLIF(TRIM(feed_source_runs.source_id), ''), ?) AS source_id,
                  run_refs.value AS ref
           FROM feed_source_runs
           JOIN json_each(feed_source_runs.receipt_json, '$.content_refs') AS run_refs
-          WHERE feed_source_runs.project_id = ?
-            AND feed_source_runs.receipt_json IS NOT NULL
+          WHERE feed_source_runs.receipt_json IS NOT NULL
             AND json_valid(feed_source_runs.receipt_json)
             AND json_type(feed_source_runs.receipt_json, '$.content_refs') = 'array'
             AND run_refs.type = 'text'
           UNION
-          SELECT COALESCE(NULLIF(TRIM(signals.source_id), ''), ?) AS source_id,
+          SELECT signals.project_id AS project_id,
+                 COALESCE(NULLIF(TRIM(signals.source_id), ''), ?) AS source_id,
                  signal_refs.value AS ref
           FROM signals
           JOIN json_each(signals.content_refs_json) AS signal_refs
-          WHERE signals.project_id = ?
-            AND json_valid(signals.content_refs_json)
+          WHERE json_valid(signals.content_refs_json)
             AND json_type(signals.content_refs_json) = 'array'
             AND signal_refs.type = 'text'
           UNION
-          SELECT COALESCE(
+          SELECT signal_revisions.project_id AS project_id,
+                 COALESCE(
                    NULLIF(TRIM(signals.source_id), ''),
                    NULLIF(TRIM(CAST(json_extract(signal_revisions.draft_json, '$.source_id') AS TEXT)), ''),
                    ?
@@ -108,20 +104,16 @@ export function historyReads(sql: FeedSql) {
             ON signals.project_id = signal_revisions.project_id
             AND signals.signal_id = signal_revisions.signal_id
           JOIN json_each(signal_revisions.draft_json, '$.content_refs') AS revision_refs
-          WHERE signal_revisions.project_id = ?
-            AND json_valid(signal_revisions.draft_json)
+          WHERE json_valid(signal_revisions.draft_json)
             AND json_type(signal_revisions.draft_json, '$.content_refs') = 'array'
             AND revision_refs.type = 'text'
         )
-        WHERE source_id > ? OR (source_id = ? AND ref > ?)
+        WHERE project_id = ? AND (source_id > ? OR (source_id = ? AND ref > ?))
         ORDER BY source_id, ref
         LIMIT 200`,
         FEED_UNASSIGNED_BODY_HOLDER,
-        projectId,
         FEED_UNASSIGNED_BODY_HOLDER,
-        projectId,
         FEED_UNASSIGNED_BODY_HOLDER,
-        projectId,
         FEED_UNASSIGNED_BODY_HOLDER,
         projectId,
         afterSourceId,

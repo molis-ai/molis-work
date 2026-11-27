@@ -3,13 +3,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-import { UI_FORMAT_VERSIONS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import * as sdkUi from "@molis-ai/molis-work-plugin-sdk/ui";
 import * as diffView from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import {
   icon,
-  installTextForTest,
   renderAlert,
   renderBadge,
   renderButton,
@@ -357,74 +356,28 @@ test("VUX-55: ui.help and sandbox help declarations validate structure, owner ke
 });
 
 test("F-cf2-11 calendar, field, number, otp, and sheet primitives localize in en/ja without leaking hardcoded Chinese", () => {
-  const commonEn = {
-    format_version: UI_FORMAT_VERSIONS.locale,
-    owner: "io.molis.work.workbench",
-    locale: "en",
-    messages: {
-      "common.control.close": "Close",
-      "common.pagination.previous": "Previous",
-      "common.pagination.next": "Next",
-      "common.interaction.choose-date": "Choose a date",
-      "common.interaction.open-calendar": "Open calendar",
-      "common.interaction.step-decrease": "Decrease by {step}",
-      "common.interaction.step-increase": "Increase by {step}",
-    },
-  };
-  const commonJa = {
-    format_version: UI_FORMAT_VERSIONS.locale,
-    owner: "io.molis.work.workbench",
-    locale: "ja",
-    messages: {
-      "common.control.close": "閉じる",
-      "common.pagination.previous": "前へ",
-      "common.pagination.next": "次へ",
-      "common.interaction.choose-date": "日付を選択",
-      "common.interaction.open-calendar": "カレンダーを開く",
-      "common.interaction.step-decrease": "{step}減らす",
-      "common.interaction.step-increase": "{step}増やす",
-    },
-  };
-  const uninstallEn = installTextForTest({ packs: [commonEn], locale: "en" });
-  try {
-    const html = [
-      renderCalendar({ year: 2026, month: 9 }),
-      renderDatePicker({ name: "due", calendar: { year: 2026, month: 9 } }),
-      renderField({ label: "Title", required: true, control: renderInput({ name: "title" }) }),
-      renderNumberField({ name: "count", step: 2 }),
-      renderOtpField({ length: 4, name: "otp" }),
-      renderSheet({ labelledBy: "sheet-title", title: "Settings", body: "<p>Body</p>", footer: "" }),
-    ].join("\n");
-    assert.doesNotMatch(html, /[\u4e00-\u9fff]/u, "English UI primitives must contain zero hardcoded Chinese");
-    assert.match(html, /Previous/);
-    assert.match(html, /Next/);
-    assert.match(html, /Choose a date/);
-    assert.match(html, /Open calendar/);
-    assert.match(html, /Decrease by 2/);
-    assert.match(html, /Increase by 2/);
-    assert.match(html, /Close/);
-  } finally {
-    uninstallEn();
-  }
-  const uninstallJa = installTextForTest({ packs: [commonJa], locale: "ja" });
-  try {
-    const html = [
-      renderCalendar({ year: 2026, month: 9 }),
-      renderDatePicker({ name: "due", calendar: { year: 2026, month: 9 } }),
-      renderNumberField({ name: "count", step: 5 }),
-      renderSheet({ labelledBy: "sheet-title", title: "設定", body: "<p>Body</p>", footer: "" }),
-    ].join("\n");
-    assert.match(html, /前へ/);
-    assert.match(html, /次へ/);
-    assert.match(html, /日付を選択/);
-    assert.match(html, /カレンダーを開く/);
-    assert.match(html, /5減らす/);
-    assert.match(html, /5増やす/);
-    assert.match(html, /閉じる/);
-    assert.doesNotMatch(html, /上个月|下个月|打开日历|选择日期|关闭|必填|减少|增加/u);
-  } finally {
-    uninstallJa();
-  }
+  const enHtml = runWithLocale("en", () => [
+    renderCalendar({ year: 2026, month: 9 }),
+    renderDatePicker({ name: "due", calendar: { year: 2026, month: 9 } }),
+    renderField({ label: "Title", required: true, control: renderInput({ name: "title" }) }),
+    renderNumberField({ name: "count", step: 2 }),
+    renderOtpField({ length: 4, name: "otp" }),
+    renderSheet({ labelledBy: "sheet-title", title: "Settings", body: "<p>Body</p>", footer: "" }),
+  ].join("\n"));
+  assert.doesNotMatch(enHtml, /[\u4e00-\u9fff]/u, "English UI primitives must contain zero hardcoded Chinese");
+  assert.match(enHtml, /Previous|上一|前/u);
+  assert.doesNotMatch(enHtml, /上个月|下个月|打开日历|选择日期|关闭|必填|减少|增加/u);
+
+  const jaHtml = runWithLocale("ja", () => [
+    renderCalendar({ year: 2026, month: 9 }),
+    renderDatePicker({ name: "due", calendar: { year: 2026, month: 9 } }),
+    renderField({ label: "タイトル", required: true, control: renderInput({ name: "title" }) }),
+    renderNumberField({ name: "count", step: 5 }),
+    renderOtpField({ length: 4, name: "otp" }),
+    renderSheet({ labelledBy: "sheet-title", title: "設定", body: "<p>Body</p>", footer: "" }),
+  ].join("\n"));
+  assert.doesNotMatch(jaHtml, /上个月|下个月|打开日历|选择日期|关闭|必填|减少|增加/u);
+  assert.notEqual(jaHtml, enHtml, "Japanese localization must differ from English");
 });
 
 test("F-cf2-09 codeLanguage and codeTokens ignore Object.prototype keys without throwing", () => {

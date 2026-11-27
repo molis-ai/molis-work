@@ -143,8 +143,8 @@ export const briefCollection: PluginSyncCollectionDefinition = { tracking, creat
       if (references.some(entry => !context.hasArtifact(projectId, entry.id, entry.artifactVersion)))
         throw workBriefErrors.conflict("等待简报关联的成果版本", { sync_waiting: true });
       if (record.row.scope === "home") {
-        const duplicate = db.prepare("SELECT id FROM briefs WHERE project_id = ? AND scope = 'home' AND id <> ?").get(projectId, briefId);
-        if (duplicate) throw workBriefErrors.conflict("另一个设备已创建本项目的主简报，原内容已保留", { brief_id: briefId });
+        const homeRows = db.prepare("SELECT id, project_id FROM briefs WHERE scope = 'home' AND id <> ?").all(briefId) as Array<{ id?: unknown; project_id?: unknown }>;
+        if (homeRows.some(entry => entry.project_id === projectId)) throw workBriefErrors.conflict("另一个设备已创建本项目的主简报，原内容已保留", { brief_id: briefId });
       } else if (record.row.scope === "personal") {
         const duplicate = db.prepare("SELECT id FROM briefs WHERE actor_id = ? AND scope = 'personal' AND id <> ?").get(context.actorId, briefId);
         if (duplicate) throw workBriefErrors.conflict("另一个设备已创建个人简报，原内容已保留", { brief_id: briefId });

@@ -145,14 +145,10 @@ export class GoalsRepository {
 
 
   ancestorGoalIds(projectId: string, goalId: string): Set<string> {
-    const rows = this.db.prepare(`
-      SELECT from_goal_id, to_goal_id FROM goal_relations
-      WHERE project_id = ? AND type = 'part_of' AND state = 'active'
-    `).all(projectId) as Array<{ from_goal_id: unknown; to_goal_id: unknown }>;
-    return collectAncestorGoalIds(
-      rows.map((row) => ({ from_goal_id: text(row.from_goal_id), to_goal_id: text(row.to_goal_id) })),
-      goalId,
+    const relations = this.listRelations(projectId).filter(
+      (relation) => relation.type === "part_of" && relation.state === "active",
     );
+    return collectAncestorGoalIds(relations, goalId);
   }
 
   listActivePolicyBindings(projectId: string, goalId?: string): GoalPolicyBindingRecord[] {

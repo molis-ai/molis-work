@@ -246,6 +246,11 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   assert.equal((await home.host.partitions()).length >= 20, true, "twenty projects, the personal space besides");
   const open = home.host.projects().length, instances = existingPartitionPluginHost(home.home)?.assembly.instances().length ?? 0;
   measured.personalOverview = await overviewCounts();
+  // G4 (user decision, batch 108): the owner resolutions are budgeted per partition and overview plugin, so adding a project or an
+  // overview plugin is not read as a regression while a second resolution per pair is.
+  const { PLATFORM_PLUGIN_REGISTRATIONS } = await import("@molis-ai/molis-work-app-local-host");
+  const overviewPairs = (await home.host.partitions()).length * PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.overview_projection).length;
+  assert.ok(overviewPairs > 0, "the personal overview has partitions and overview plugins to resolve");
   // Which plugins each partition has enabled is judged in memory (`ownerResolutions`, one per partition and overview plugin); nothing else grows.
   const { ownerResolutions: _few, ...fewOpens } = withFew, { ownerResolutions: _many, ...manyOpens } = measured.personalOverview;
   assert.deepEqual(manyOpens, fewOpens, "the overview opens, prepares and discovers the same with 20 projects as with 2: nothing per project");
@@ -305,7 +310,8 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   for (const [name, observed] of Object.entries(measured)) {
     assert.deepEqual(Object.keys(budget[name]!).sort(), [...counters].sort(), name);
     for (const key of counters) {
-      assert.ok(observed[key] <= budget[name]![key], `${name} ${key}: ${observed[key]} > ${budget[name]![key]}`);
+      const allowed = name === "personalOverview" && key === "ownerResolutions" ? budget[name]![key] * overviewPairs : budget[name]![key];
+      assert.ok(observed[key] <= allowed, `${name} ${key}: ${observed[key]} > ${allowed}`);
     }
   }
 });

@@ -1,15 +1,14 @@
 -- Frozen complete current baseline of the plugin's library in each partition (<partition>/libraries/images.db, batch 108); test-only schema, no real Home receipt.
 
 CREATE TABLE jobs (
-    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
+    id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE,
     input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
     api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
     size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
     images_json TEXT NOT NULL, error TEXT NOT NULL,
-    created_at TEXT NOT NULL, finished_at TEXT, runner_id TEXT,
-    UNIQUE (project_id, request_id)
+    created_at TEXT NOT NULL, finished_at TEXT, runner_id TEXT
   );
-CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
+CREATE INDEX jobs_created ON jobs(created_at DESC);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
 CREATE INDEX sync_3a28c22289ed28c8fdbe3056c102_replica_changes_key ON sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key);
@@ -19,6 +18,6 @@ CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts (key TEXT PRIMA
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
-CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_insert" AFTER INSERT ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_update" AFTER UPDATE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0;INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'image',OLD."id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_delete" AFTER DELETE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'image',OLD."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_insert" AFTER INSERT ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_update" AFTER UPDATE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0;INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',OLD."id") AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_delete" AFTER DELETE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',OLD."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;

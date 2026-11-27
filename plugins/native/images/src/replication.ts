@@ -19,10 +19,11 @@ export function validateImageValue(value:unknown,spaceId:string,projectId:string
  const ids=new Set<string>();for(const image of w.images){const item=object(image);if(typeof item.id!=='string'||ids.has(item.id))throw imagesErrors.invalid('重复或无效图片标识');ids.add(item.id);validatePortableImage(image as PortableImage);}
  if(Buffer.byteLength(JSON.stringify(value))>100000000)throw imagesErrors.sync_limit('图片记录超过账号容量上限');return value as Wire;
 }
-export const imagesTracking: PluginSyncCollectionDefinition["tracking"] = [{table:"jobs",key:[{column:"project_id"},{literal:"image"},{column:"id"}]}];
-export function imagesCollection(files:PluginOwnerFilesReader):PluginSyncCollectionDefinition {
+export const imagesTracking: PluginSyncCollectionDefinition["tracking"] = [{table:"jobs",key:[{scope:"projectId"},{literal:"image"},{column:"id"}]}];
+/** One partition's images (batch 108): a key names its partition (`[partition, "image", id]`), and a key of another partition is refused here. */
+export function imagesCollection(files:PluginOwnerFilesReader,partition:string):PluginSyncCollectionDefinition {
  return {tracking:imagesTracking,copy:imagesCopy,create(db,context) {
- const local=(projectId:string,id:string)=>{const row=db.prepare('SELECT * FROM jobs WHERE id=?').get(id);if(row&&row.project_id!==projectId)throw imagesErrors.invalid('图片标识属于其他项目');return row;};
+ const local=(projectId:string,id:string)=>{if(projectId!==partition)throw imagesErrors.invalid('图片标识属于其他项目');const row=db.prepare('SELECT * FROM jobs WHERE id=?').get(id);return row&&Object.assign(row,{project_id:partition});};
  return {
   authorizeKey(key){context.project(keyParts(key).projectId);},
   belongsToProject:(key:string,projectId:string)=>keyParts(key).projectId===projectId,
@@ -34,10 +35,11 @@ export function imagesCollection(files:PluginOwnerFilesReader):PluginSyncCollect
   apply(key:string,value:unknown){const {projectId,id}=keyParts(key),row=local(projectId,id);context.project(projectId);if(row?.status==='running')throw imagesErrors.sync_busy('本机正在生成，暂不能覆盖或删除');
    // A synced generation is never running here, and the device that ran it reported its end: it has no row in this partition's overview.
    db.prepare(`DELETE FROM ${OVERVIEW_TABLE} WHERE kind='background_task' AND row_id=?`).run(id);
-   if(value===null){db.prepare('DELETE FROM jobs WHERE id=? AND project_id=?').run(id,projectId);return;}
+   if(value===null){db.prepare('DELETE FROM jobs WHERE id=?').run(id);return;}
    const wire=validateImageValue(value,context.spaceId,projectId,id),images=preparedImages(files,id,wire.images);
    const saved={...wire.record,request_id:'sync:'+id,input_hash:createHash('sha256').update(JSON.stringify(wire.record)).digest('hex'),connection_id:'',runner_id:null,images_json:JSON.stringify(images)};
-   const fields=[...columns,'request_id','input_hash','connection_id','runner_id','images_json'] as const;
+   // The record names its partition for the wire; the row does not keep it (the library is the partition's).
+   const fields=[...columns.filter(c=>c!=='project_id'),'request_id','input_hash','connection_id','runner_id','images_json'] as const;
    db.prepare(`INSERT INTO jobs (${fields.join(',')}) VALUES (${fields.map(()=>'?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${fields.filter(c=>c!=='id').map(c=>c+'=excluded.'+c).join(',')}`).run(...fields.map(c=>saved[c]));
   },
  };

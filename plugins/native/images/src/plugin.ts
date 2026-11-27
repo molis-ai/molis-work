@@ -16,7 +16,8 @@ export function createImagesPlugin(): PluginDefinition {
     const { database, ownerFiles, imageGeneration, background, personSettings, due } = context.services ?? {};
     if (!database || !ownerFiles || !imageGeneration || !background || !personSettings) throw new ActionError("actions.unredeemed", "宿主未提供图片运行服务");
     const connections = new ImagesConnections(personSettings);
-    const current = new ImagesService({ database, connections, ...(due ? { due } : {}), files: ownerFiles, imageGeneration, background, sync:context.sync, syncClient:context.services?.sync });
+    if (!context.project_id) throw new ActionError("actions.unredeemed", "宿主未提供图片运行服务");
+    const current = new ImagesService({ projectId: context.project_id, database, connections, ...(due ? { due } : {}), files: ownerFiles, imageGeneration, background, sync:context.sync, syncClient:context.services?.sync });
     service = current;
     let recovering = true;
     const control = (...needed: string[]) => {

@@ -24,6 +24,8 @@ export const IMAGES_JOB_DEADLINE_MS = 30 * 60_000;
 const dueKey = (id: string) => `job:${id}`;
 
 export interface ImagesServiceOptions {
+  /** The partition this instance serves: its library holds only that partition's jobs. */
+  projectId: string;
   sync?:PluginSyncContext;
   syncClient?:PluginSyncClient;
   database: PluginDatabase;
@@ -46,7 +48,7 @@ export class ImagesService {
   constructor(private readonly options: ImagesServiceOptions) {
     this.store = new ImagesStore({ get: (sql, values) => options.database.get(sql, values), all: (sql, values) => options.database.all(sql, values),
       run: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); },
-      savepoint: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); } });
+      savepoint: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); } }, options.projectId);
   }
 
   /** Jobs a stopped process left running are interrupted; this is the plugin's own database and needs no file grant. */
@@ -74,7 +76,7 @@ export class ImagesService {
   canStartOrReplay(projectId: string | null | undefined): boolean {
     this.assertOpen();
     return this.options.connections.tryList().some(connection => !connection.change && this.publicConnection(connection).available)
-      || (!!projectId && this.store.hasJobs(projectId));
+      || (projectId === this.options.projectId && this.store.hasJobs());
   }
 
   authConnections() { return [...this.options.imageGeneration.connections()]; }
@@ -156,11 +158,12 @@ export class ImagesService {
     return job.status === "running" && stopped ? { ...job, status: "interrupted", error: INTERRUPTED, finished_at: stopped.at } : job;
   }
 
-  listJobs(projectId: string): ImageJob[] { this.assertOpen(); return this.store.listJobs(project(projectId)).map(job => this.executionState(job)); }
-  getJob(projectId: string, id: string): ImageJob { this.assertOpen(); return this.executionState(this.store.getJob(project(projectId), textField(id, "任务 ID", 128))); }
+  listJobs(projectId: string): ImageJob[] { this.assertOpen(); this.partition(projectId); return this.store.listJobs().map(job => this.executionState(job)); }
+  getJob(projectId: string, id: string): ImageJob { this.assertOpen(); this.partition(projectId); return this.executionState(this.store.getJob(textField(id, "任务 ID", 128))); }
 
   async deleteJob(projectId: string, id: string, control: ImagesControl): Promise<void> {
-    const stored = this.store.getJob(project(projectId), textField(id, "任务 ID", 128));
+    this.partition(projectId);
+    const stored = this.store.getJob(textField(id, "任务 ID", 128));
     if (stored.status === "running" && this.interruptions.has(stored.id)) {
       await this.writeWithRecovery(stored.project_id, control, () => undefined);
     }
@@ -169,7 +172,7 @@ export class ImagesService {
       const bytes=this.options.files.read(`${IMAGES_ASSETS}/${image.filename}`);if(!bytes||bytes.byteLength!==image.byte_length)throw imagesErrors.invalid("原图片缺失，删除未执行。");
       const portable={id:image.id,mime_type:image.mime_type,byte_length:image.byte_length,data_base64:Buffer.from(bytes).toString('base64')};validatePortableImage(portable);return portable;
     })}:undefined;
-    const job = await this.write(control, store => store.deleteJob(snapshot.project_id,snapshot.id,retained));
+    const job = await this.write(control, store => store.deleteJob(snapshot.id,retained));
     if (job.images.length) {
       await this.options.files.write(writer => {
         requireSynchronous(control.assert_authority_current?.());
@@ -182,11 +185,11 @@ export class ImagesService {
 
   async start(projectId: string, input: ImageGenerateInput, control: ImagesControl): Promise<ImageJob> {
     this.assertOpen();
-    const projectIdValue = project(projectId), requestId = textField(input.request_id, "请求 ID", 128);
+    const projectIdValue = this.partition(projectId), requestId = textField(input.request_id, "请求 ID", 128);
     const normalized = { connection_id: textField(input.connection_id, "生图服务", 128), prompt: textField(input.prompt, "图片描述", IMAGES_INPUT_LIMITS.prompt),
       size: optionalText(input.size, "尺寸", IMAGES_INPUT_LIMITS.size), aspect_ratio: optionalText(input.aspect_ratio, "宽高比", IMAGES_INPUT_LIMITS.aspect_ratio) };
     const inputHash = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
-    const existing = this.store.findRequest(projectIdValue, requestId, inputHash);
+    const existing = this.store.findRequest(requestId, inputHash);
     if (existing) return this.executionState(existing);
     // An Agent or a workflow may not read the person's services: it starts with the one this instance last read for the person (connections.ts).
     const connection = this.options.connections.tryList().find(item => item.id === normalized.connection_id);
@@ -217,7 +220,7 @@ export class ImagesService {
       const execution = await this.options.background.start(async background => {
         if (!await admitted) return;
         const outcome = await runImageJob({ ...this.options, job, connection, revision: state.revision, control: background, current,
-          read: () => this.store.getJob(job.project_id, job.id), write: (check, apply) => this.write(check, apply) });
+          read: () => this.store.getJob(job.id), write: (check, apply) => this.write(check, apply) });
         recorded = outcome === "recorded";
       }, { signal: controller.signal });
       void execution.result.catch(() => { controller.abort(); }).finally(async () => {
@@ -241,7 +244,7 @@ export class ImagesService {
   async cancel(projectId: string, id: string, control: ImagesControl): Promise<ImageJob> {
     const job = this.getJob(projectId, id);
     if (job.status === "running") {
-      await this.write(control, store => store.finish(job.project_id, job.id, "cancelled", [], "已停止本机等待；厂商可能仍在生成或计费。"));
+      await this.write(control, store => store.finish(job.id, "cancelled", [], "已停止本机等待；厂商可能仍在生成或计费。"));
       this.active.get(job.id)?.abort();
     }
     return this.getJob(job.project_id, job.id);
@@ -267,7 +270,7 @@ export class ImagesService {
       this.options.due?.register({ entry_key: entryKey, due_at: new Date(Date.now() + IMAGES_JOB_DEADLINE_MS).toISOString() });
       return {};
     }
-    await this.write(control, store => store.finish(row.project_id, id, "interrupted", [], INTERRUPTED));
+    await this.write(control, store => store.finish(id, "interrupted", [], INTERRUPTED));
     return { reminder: { title: uiText.text("images.background.interrupted", { prompt: [...row.prompt].slice(0, 120).join("") }), open: { surface: "images", id } } };
   }
 
@@ -277,7 +280,7 @@ export class ImagesService {
   private async writeWithRecovery<T>(projectId: string, control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {
     const stopped = [...this.interruptions].filter(([, entry]) => entry.projectId === projectId);
     const result = await this.write(control, store => {
-      for (const [id, entry] of stopped) store.finish(projectId, id, "interrupted", [], INTERRUPTED, entry.at);
+      for (const [id, entry] of stopped) store.finish(id, "interrupted", [], INTERRUPTED, entry.at);
       return apply(store);
     });
     for (const [id] of stopped) this.interruptions.delete(id);
@@ -299,7 +302,7 @@ export class ImagesService {
       this.assertOpen();
       control.signal?.throwIfAborted();
       requireSynchronous(control.assert_authority_current?.());
-      return apply(new ImagesStore(transaction,this.options.syncClient));
+      return apply(new ImagesStore(transaction,this.options.projectId,this.options.syncClient));
     });
   }
 
@@ -313,6 +316,13 @@ export class ImagesService {
       ...(!state.available ? { unavailable_reason: state.reason || "所选图像连接不可用" } : {}),
       ...(state.connection_id ? { auth_connection_id: state.connection_id } : {}) };
   }
+  /** The caller's project, which is this partition: another partition's jobs are in another library, so none is found here. */
+  private partition(value: unknown): string {
+    const projectId = project(value);
+    if (projectId !== this.options.projectId) throw imagesErrors.not_found("找不到这次图片生成记录。");
+    return projectId;
+  }
+
   private assertOpen(): void { if (this.closed) throw imagesErrors.closed("图片服务已停止。"); }
 }
 

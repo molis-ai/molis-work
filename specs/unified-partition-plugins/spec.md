@@ -125,7 +125,7 @@
 2. **一套装配。** 合并 `HomePluginHost` 与项目平台、`HomeInstalledPlugins` 与 `installed-plugin-host`：按（插件, 分区）启动实例，每个实例的 `services.database`、`services.project_database`、`services.ownerFiles` 绑定它自己分区的文件；**不沿用**今天 `databases.home.partition: "project"` 那种「一个 Home 实例按调用切库」的复用器（它拒绝路由、启停、事件与定时器，`plugin-database-partitions.ts:61-80`，Todo 的提醒路由会坏），复用器整个退役。休眠分区的实例不常驻：分区打开、有到期登记、收到推送或同步写入时才起，闲置按平台策略停（沙箱子进程同样），进程数与打开的分区数成正比而不是与项目总数成正比。**随着 Shelf 在 `44B` 收归纯平台 `modules/shelf`（`system.shelf`），普通插件不再有任何 `HomePluginHost` 或 `dual_instance` 路径**。
 3. **删掉的链路：** `outsideBuild()` → `projectReachablePlugins` → `reachEntry({personal:true})`；`plugin-scope-entries.ts` 的两半配对；`assertScopeKept` 三态；`home-package-admission.ts` 的 Home 包限制；`plugin-declared-services.ts` 的「项目实例不得声明 `owner_files`、`model_configuration`、`image_generation`、`local_tools`」（C8）。`local_tools` 仍只给宿主信任（安全边界，按信任级别，不按插件名）。
 4. **本人级服务（复用 `#2231` 个人配置同步通道）。** 有的插件需要「跟人走、不跟分区走」的设置：Images 的生图连接（今天在 `images.db` 的 `connections` 表）、Jelly 的模型选择（`{home}/jelly/preferences.json`）、Cognia 的目录授权。加平台服务 `services.personSettings`（归 `horizontal/person-settings`）：Home 层、按（安装, 键）存，只给本机本人的调用，不进项目同步、不给其他成员与 Agent；插件的业务数据仍在分区。每个键在 Manifest 声明 `portable`：只有可跨设备的偏好随本人同步，**直接复用 `#2231` 落地的 `personalConfigReplica` + `assertPortableConfig`**（不另造第二套个人配置同步机制），密钥、本机路径与授权一律留在本机（5.1）。
-5. **连接槽。** 不新增「本人默认」范围：现有的按安装绑定 `plugin-installation:<install>`（`horizontal/connector-host/src/plugin-binding-scopes.ts:9`）本来就跨分区，就是「本人默认」。收紧谁能用它：只给本机本人与本人授权过的助理的调用；项目 Agent、外部 MCP、（以后）团队成员在共享项目里一律用不到，要用就在那个分区单独绑定。`per_record`（`…/project:<id>/record:<key>`）不变（S-71）。
+5. **连接槽。** 不新增「本人默认」范围：现有的按安装绑定 `plugin-installation:<install>`（`horizontal/connector-host/src/plugin-binding-scopes.ts:9`）本来就跨分区，就是「本人默认」。收紧谁能用它：只给本机本人、本人授权过的助理、本人建的工作流（用户 2026-11-26「可以，保持现状」）与插件自己的后台的调用；项目 Agent、外部 MCP、（以后）团队成员在共享项目里一律用不到，要用就在那个分区单独绑定。`per_record`（`…/project:<id>/record:<key>`）不变（S-71）。
 6. **密钥与提示词作用域。** 今天按 `HOME_INSTALL_SCOPE` 或项目 id 分；合并后插件密钥按安装（Home 层），提示词按安装登记一次；牵动 S-80、S-84、S-87、S-91，同步改表与拒绝测试。
 
 ## 5. 存储
@@ -539,6 +539,7 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | V16 | 插件叫什么名字（复查发现 SDK 强制所有插件用官方前缀，保留前缀会挡住全部非宿主插件） | 用户定：**别人用自己的名字**——外部插件用自己的反向域名（如 `com.acme.todo`），创作台生成的叫 `studio.<编号>`（从开始做就定下、发布后不变，作者靠签名证明，用户 11-23 定）；SDK `PLUGIN_ID` 放开为通用反向域名形式，`io.molis.work.` 只给宿主自己的包（V16），归 `44B-0` |
 | V15 | 旧 Alchemist 在本机的旧数据 | 用户定：**44B 合入后就把开发机本机的旧 Alchemist 目录搬开（不删）**，其余真实数据仍等 111 之后；动手前再弹窗确认 |
 | V17 | 「定时运行」「后台任务」两张跨项目清单怎么接总览（主库插件 U3 不迁库，原规格没有主库插件出摘要的设计） | 用户定（2026-11-26 弹窗）：**108 批做主库摘要表**——每个分区主库一张平台管、平台盖章写入方的摘要表，主库插件同事务写；总览种类加 `scheduled_run`、`background_task`；108 删 `home-aggregate.ts` 与静息读数（[6.1 主库摘要表](#main-overview-table)） |
+| V18 | 评审后四问（第 108 批，用户 2026-11-26 弹窗） | **G4 改成按比例断言**（`ownerResolutions` 按每分区每总览插件计，其余计数仍常数）；**Todo「所有项目」视图接受缺口、等 `64-3`**；**S-71 已绑定安装槽对工作流放行，保持现状**；**Cognia 目录授权照规格迁进本人设置**（实施情况见批次 108 的「用户拍板与实施记录」） |
 
 ## 15. 使用场景走查
 

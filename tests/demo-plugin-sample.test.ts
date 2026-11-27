@@ -207,7 +207,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(created.status, "created");
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
-        ["coding", "dataset", "feed", "form", "goals", "inbox", "lingguang", "pages", "ppt", "risk", "schedule", "workflows"],
+        ["coding", "cognia", "dataset", "feed", "form", "goals", "images", "inbox", "issues", "jelly", "lingguang", "pages", "ppt", "risk", "schedule", "todo", "workflows"],
       );
       catalog.close();
       await startDemoRuntime(created.project.database_path, created.project.project_id, home);
@@ -231,7 +231,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(reset.status, "reset");
       assert.deepEqual(
         catalog.listProjectPlugins(reset.project.project_id),
-        ["coding", "dataset", "feed", "form", "goals", "inbox", "lingguang", "pages", "ppt", "risk", "schedule", "workflows"],
+        ["coding", "cognia", "dataset", "feed", "form", "goals", "images", "inbox", "issues", "jelly", "lingguang", "pages", "ppt", "risk", "schedule", "todo", "workflows"],
       );
       catalog.close();
       await startDemoRuntime(reset.project.database_path, reset.project.project_id, home);

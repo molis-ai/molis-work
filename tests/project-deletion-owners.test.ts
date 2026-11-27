@@ -79,8 +79,8 @@ function seed(home: string, projectId: string): void {
   lingguang.close();
 
   const images = openImagesDatabase(home, projectId);
-  images.prepare(`INSERT INTO jobs (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(`job-${projectId}`, projectId, "request-1", "hash", "c", "c", "openai-images", "m", "私密提示词", "", "", "succeeded",
+  images.prepare(`INSERT INTO jobs (id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(`job-${projectId}`, "request-1", "hash", "c", "c", "openai-images", "m", "私密提示词", "", "", "succeeded",
     "[]", "", new Date().toISOString(), new Date().toISOString(), null);
   images.close();
 

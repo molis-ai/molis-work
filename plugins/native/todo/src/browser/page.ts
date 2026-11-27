@@ -1,4 +1,3 @@
-import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TodoBatch, TodoCandidate, TodoItem } from "../contract.js";
 import { isoDay, pad } from "./dom.js";
 import { todoRequest } from "./request.js";
@@ -47,11 +46,8 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
     if (!node) throw new Error(`Todo page is missing ${selector}`);
     return node;
   };
-  // The personal space is a location, not a project: there Todo is the personal view (personal and unplaced todos).
-  const projectId = () => {
-    const current = host.projectId();
-    return current === PERSONAL_SPACE_PROJECT_ID ? "" : current;
-  };
+  // The partition this page shows (batch 108: the personal space is one partition like any project).
+  const projectId = () => String(host.projectId() || "");
   const STATUS_KEYS: Record<string, string> = {
     open: "todo.status.open", doing: "todo.status.doing", waiting: "todo.status.waiting", done: "todo.status.done", cancelled: "todo.status.cancelled",
   };

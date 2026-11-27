@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
-import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, REMOVED_HOME_STORES, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, removedHomeStores, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, openBaselineHomeSqlite, personalStorageSpace, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import {
   ADD_TAG, BASELINE_V2, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, notesOf, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, storePath, unitOf, upgradeTestHome, useDescriptors, V1, V2, versionOf, writeLedger,
@@ -461,11 +461,14 @@ test("SKL-41-2: a round removes the Home libraries batch 108 moved into partitio
   useDescriptors(t, notesDescriptor("first"));
   // User 2026-11-26: the old top-level libraries of the five plugins batch 108 moved are not migrated; the upgrade deletes them, so the
   // Home's snapshot, which refuses an entry its registry does not name, works again.
-  assert.deepEqual([...REMOVED_HOME_STORES], ["todo", "jelly", "cognia", "images", "issues"]);
-  for (const name of REMOVED_HOME_STORES) { mkdirSync(join(home, name), { recursive: true }); writeFileSync(join(home, name, `${name}.db`), "old"); }
+  // Read from the declarations: every library a partition keeps, of which the five batch 108 moved are the ones an older Home had.
+  const removed = removedHomeStores();
+  for (const name of ["todo", "jelly", "cognia", "images", "issues"]) assert.ok(removed.includes(name), `${name} is removed`);
+  assert.ok(!removed.includes("feed-content") && !removed.includes("work-brief"), "a library the Home still keeps is not");
+  for (const name of removed) { mkdirSync(join(home, name), { recursive: true }); writeFileSync(join(home, name, `${name}.db`), "old"); }
   const report = runHomeUpgrade(home);
   assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["first/first.db", "committed"]]);
-  for (const name of REMOVED_HOME_STORES) assert.equal(existsSync(join(home, name)), false, `${name}/ is gone`);
+  for (const name of removed) assert.equal(existsSync(join(home, name)), false, `${name}/ is gone`);
   assert.deepEqual(bodies(), notes, "a store the build still has keeps its rows");
   assert.equal(runHomeUpgrade(home).ran, false, "nothing left to do on the next start");
 });

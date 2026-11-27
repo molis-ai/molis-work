@@ -75,7 +75,7 @@ test("RAC-105-S-06 S-07: snapshot refuses confirmed uninstall and purge before r
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
     const project = await catalog.createProject({ display_name: "Retained user project", actor_id: "fixture" });
     catalog.close();
-    await f.file("images/assets/kept.bin");
+    await f.file("plugin-files/install/kept.bin");
     await f.file("bin/molis-work", "#!/usr/bin/env node\n// molis-work-home-launcher-v1\n");
     const originalOwner = acquireStorageOwner(join(f.home, "agent-runtime")); originalOwner.release();
     const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: purge });
@@ -98,7 +98,7 @@ test("RAC-105-S-06 S-07: snapshot refuses confirmed uninstall and purge before r
 
 test("RAC-105-S-07 S-07: purge keeps the original lock directory and inode until all cleanup completes and after release", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t);
-  await f.file("images/assets/kept.bin");
+  await f.file("plugin-files/install/kept.bin");
   const initial = acquireStorageOwner(join(f.home, "agent-runtime")); initial.release();
   await f.file("agent-runtime/records/fixture/item.json", "business payload to purge");
   const lock = join(f.home, "agent-runtime", ".molis-runtime-owner.db");
@@ -122,14 +122,14 @@ test("RAC-105-S-07 S-07: purge keeps the original lock directory and inode until
   assert.equal((await service.confirm({ plan_id: plan.plan_id, decision: "confirmed",
     purge_confirmation: { home_directory: f.home, user_project_count: 0 } })).status, "purged");
   assert.equal(reached, true);
-  assert.equal(existsSync(join(f.home, "images")), false);
+  assert.equal(existsSync(join(f.home, "plugin-files")), false);
   assert.equal(existsSync(join(f.home, "agent-runtime", "records")), false);
   assert.equal((await fs.lstat(lock)).ino, identity.ino);
   assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created");
 });
 
 test("RAC-105-S-08 S-07: an explicitly selected Home CLI fallback refuses while snapshot owns Home, then really runs after release", { timeout: 120_000 }, async t => {
-  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("plugin-files/install/kept.bin");
   // A library in the Home that no catalog lists (the CLI's `init` made one; it was removed with its Goals commands, PEQ-15).
   const database = join(f.home, "projects", "entry-window", "molis-work.db"); await createStandaloneProject(database, "entry-window");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
@@ -146,7 +146,7 @@ test("RAC-105-S-08 S-07: an explicitly selected Home CLI fallback refuses while 
 });
 
 test("ASR-02 RAC-105-S-08: the shipped installation CLI cannot open anonymous Home business before or after snapshot releases ownership", { timeout: 120_000 }, async t => {
-  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("plugin-files/install/kept.bin");
   const database = join(f.home, "projects", "anonymous-refused", "molis-work.db");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   const before = await snapshotBusinessFingerprint(f.home);
@@ -165,7 +165,7 @@ test("ASR-02 RAC-105-S-08: the shipped installation CLI cannot open anonymous Ho
 });
 
 test("RAC-105-S-08 S-07: a real Home CLI write window refuses snapshot before staging and releases with its Host", { timeout: 120_000 }, async t => {
-  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("plugin-files/install/kept.bin");
   const database = join(f.home, "projects", "entry-window", "molis-work.db"); await createStandaloneProject(database, "entry-window");
   const entry = pausedEntry(t, "cli", f.home, database); await entry.ready;
   const peer = snapshotPeer(f.home, f.snapshot);
@@ -178,7 +178,7 @@ test("RAC-105-S-08 S-07: a real Home CLI write window refuses snapshot before st
 });
 
 test("RAC-105-S-08 PG094-CLI-01: an unrelated standalone database still runs while the selected Home is owned by snapshot", { timeout: 120_000 }, async t => {
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await f.file("plugin-files/install/kept.bin");
   const database = join(f.area, "standalone", "project.db"); await createStandaloneProject(database, "standalone");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   const before = await snapshotBusinessFingerprint(f.home);
@@ -191,7 +191,7 @@ test("RAC-105-S-08 PG094-CLI-01: an unrelated standalone database still runs whi
 });
 
 test("RAC-105-S-08 S-07: Home and database aliases retain the same ownership boundary", { timeout: 240_000 }, async t => {
-  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("plugin-files/install/kept.bin");
   const alias = join(f.area, "home-alias"); await fs.symlink(f.home, alias, "dir");
   const database = join(f.home, "projects", "alias", "molis-work.db"); await createStandaloneProject(database, "alias");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
@@ -213,7 +213,7 @@ test("RAC-105-S-08 S-07: a catalog-owned project's never-delivered resident call
   const f = await smallSnapshotHome(t);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   const project = await catalog.createProject({ display_name: "Registered fallback", actor_id: "fixture" }); catalog.close();
-  await f.file("images/assets/kept.bin");
+  await f.file("plugin-files/install/kept.bin");
   assert.equal(existsSync(join(f.home, "config", "web-control-token")), false, "without a control token this call is never sent to a resident");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
@@ -327,7 +327,7 @@ test("RAC-105-S-10 S-07: a committed business WAL invalidates the preview before
 test("RAC-105-S-11 S-07: purge with a live Host stays busy without consuming its plan or touching data", async t => {
   const f = await smallSnapshotHome(t), host = createMolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   try {
-    await f.file("images/assets/kept.bin");
+    await f.file("plugin-files/install/kept.bin");
     const service = uninstaller(f.home, f.area, host), plan = await service.prepare({ purge_user_data: true });
     const before = await snapshotBusinessFingerprint(f.home);
     const input = { plan_id: plan.plan_id, decision: "confirmed" as const,
@@ -342,7 +342,7 @@ test("RAC-105-S-11 S-07: purge with a live Host stays busy without consuming its
 });
 
 test("RAC-105-S-10 S-07: changing a nested business file invalidates the old purge plan while keeping the changed data", async t => {
-  const f = await smallSnapshotHome(t), file = await f.file("images/assets/kept.bin", "before preview");
+  const f = await smallSnapshotHome(t), file = await f.file("plugin-files/install/kept.bin", "before preview");
   const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: true });
   await fs.writeFile(file, "updated business content after preview");
   const before = await snapshotBusinessFingerprint(f.home);
@@ -395,7 +395,7 @@ test("RAC-105-S-11 S-07: successful purge leaves exactly the original empty lock
 
 test("RAC-105-S-11 S-07: unknown Home, config and bin content refuses purge before deleting any owned data", async t => {
   for (const file of ["personal-note.txt", "config/personal-note.txt", "bin/personal-note.txt"]) await t.test(file, async t => {
-    const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+    const f = await smallSnapshotHome(t); await f.file("plugin-files/install/kept.bin");
     await f.file("bin/molis-work", "#!/usr/bin/env node\n// molis-work-home-launcher-v1\n");
     const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: true });
     assert.equal(plan.status, "ready");

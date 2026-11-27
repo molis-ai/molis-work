@@ -10,7 +10,7 @@ export function syncBindings(context: PluginStartContext): PluginSyncBinding[] {
   if(!service)throw new ActionError("actions.unredeemed","个人空间同步服务未提供");
   const files=context.services?.ownerFiles;
   if(!files)throw new ActionError("actions.unredeemed","图片文件服务未提供");
-  const definition=imagesCollection(files);
+  const definition=imagesCollection(files,context.project_id!);
   const content=createImagesSyncContent({spaceId:scope.spaceId,authorize:()=>scope.assertActive()},files);
   return [{collection_id:"saved_images",replica:service.collection("saved_images",definition),
     content,

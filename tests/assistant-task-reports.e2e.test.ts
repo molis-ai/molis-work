@@ -3,10 +3,11 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { attentionChanged } from "@molis-ai/molis-work-app-local-host";
 import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 import { openWork, sendBrowser, waitWork, type SendBrowser } from "./fixtures/assistant-send-journey.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 // Batch 97 (specs/post-anticorruption-roadmap/reference/batches/97.md), as the person sees it: two Images generations
 // no conversation started end together in one project; its main conversation gets one round that only reports, listing both, and
@@ -19,13 +20,20 @@ async function mainConversation(browser: SendBrowser, projectId: string) {
   return sent.work.work_id;
 }
 
+/** Images enabled in the project and started there, so its library in the partition exists (batch 108: each partition keeps its own). */
+async function withImages(browser: SendBrowser, projectId: string) {
+  await addProjectPlugin(browser.web, projectId, "images");
+  const status = await browser.evaluate<number>(`fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.images/jobs`)}, { headers: molisWorkControlHeaders() }).then(r => r.status)`);
+  assert.equal(status, 200, "Images runs in the project");
+}
+
 /** Generations the person started on the Images page, ended now: what Images' own runner writes when a generation settles. */
 function endImages(home: string, projectId: string, jobs: Array<{ id: string; prompt: string; status: "succeeded" | "failed" }>) {
-  const db = new DatabaseSync(join(home, "images", "images.db"));
+  const db = new DatabaseSync(partitionLibraryFile(home, projectId, "images"));
   try {
     const now = new Date().toISOString(), created = new Date(Date.now() - 60_000).toISOString();
-    for (const job of jobs) db.prepare(`INSERT INTO jobs(id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(job.id, projectId, `r-${job.id}`, "h", "c", "厂商", "openai-images", "m1", job.prompt, "1024x1024", "1:1", job.status,
+    for (const job of jobs) db.prepare(`INSERT INTO jobs(id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(job.id, `r-${job.id}`, "h", "c", "厂商", "openai-images", "m1", job.prompt, "1024x1024", "1:1", job.status,
       job.status === "succeeded" ? JSON.stringify([{ id: `${job.id}-1`, mime_type: "image/png", byte_length: 1, filename: `${job.id}.png` }]) : "[]", job.status === "failed" ? "厂商拒绝了这个提示" : "", created, now);
   } finally { db.close(); }
   attentionChanged(projectId);
@@ -34,8 +42,12 @@ function endImages(home: string, projectId: string, jobs: Array<{ id: string; pr
 test("RRC-01 RRC-02 WRB-01 WRB-02 WRB-04: two generations ending together in a project are one report round in its main conversation, each told once; another project's is its own", { timeout: 180_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const { projectId, homeDirectory, web } = browser;
-  const main = await mainConversation(browser, projectId);
+  assert.ok(projectId, "the journey has a project");
+  // Images is in both projects before their main conversations start, as it was when Images ran in the Home (adding it after: BL-task-report-plugin-added-later).
+  await withImages(browser, projectId);
   const other = (await createProject(web, "另一个项目")).project_id;
+  await withImages(browser, other);
+  const main = await mainConversation(browser, projectId);
   const otherMain = await mainConversation(browser, other);
 
   endImages(homeDirectory, projectId, [{ id: "img-a", prompt: "海边的灯塔", status: "succeeded" }, { id: "img-b", prompt: "雪山日出", status: "failed" }]);

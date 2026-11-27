@@ -77,8 +77,8 @@ test("a running Host's owners clear what only they can: pictures being made, the
     writeFileSync(join(assets, "aaaa-0001.png"), "png");
     const images = new DatabaseSync(library);
     images.exec(IMAGES_DATABASE.schema);
-    images.prepare(`INSERT INTO jobs (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
-      VALUES ('job-1',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(project.project_id, "request-1", "hash", "c", "c", "openai-images", "m", "提示词", "", "", "succeeded",
+    images.prepare(`INSERT INTO jobs (id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
+      VALUES ('job-1',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run("request-1", "hash", "c", "c", "openai-images", "m", "提示词", "", "", "succeeded",
       JSON.stringify([{ id: "i", filename: "aaaa-0001.png", mime_type: "image/png", byte_length: 3 }]), "", new Date().toISOString(), new Date().toISOString(), null);
     images.close();
 

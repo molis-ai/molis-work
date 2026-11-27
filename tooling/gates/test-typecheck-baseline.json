@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 4066,
+  "total": 4062,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -101,7 +101,6 @@
     "tests/assistant-strip-narrow.e2e.test.ts": 1,
     "tests/assistant-subtasks.e2e.test.ts": 1,
     "tests/assistant-surroundings.test.ts": 2,
-    "tests/assistant-task-reports.e2e.test.ts": 3,
     "tests/assistant-task-reports.test.ts": 1,
     "tests/assistant-thread-reply.test.ts": 2,
     "tests/assistant-typed-questions.e2e.test.ts": 1,
@@ -704,7 +703,6 @@
     "tests/security-invariants-connection-activation.test.ts": 5,
     "tests/security-invariants-connection-card.test.ts": 1,
     "tests/security-invariants-connection-changed.test.ts": 1,
-    "tests/security-invariants-connection-records.test.ts": 1,
     "tests/security-invariants-connection-refresh.test.ts": 2,
     "tests/security-invariants-connection-switch.test.ts": 2,
     "tests/security-invariants-connector-candidate-key.test.ts": 2,

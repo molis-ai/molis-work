@@ -18,6 +18,7 @@ import {
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { diagnosticId } from "./home-unavailable-owners.js";
+import { shippedParts } from "./plugin-registry.js";
 
 /** What this call did. Nothing to do reads `ran: false`; a store that failed is in `units`, not an exception (§5.2). */
 export interface HomeUpgradeReport {
@@ -386,11 +387,15 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
 
 /**
  * Directories of a Home that held a store this build no longer has. Nothing reads them, and an entry the store registry does not name
- * stops the Home's snapshot, so a round removes them before it lists the stores. Batch 108 moved Todo, Jelly, Cognia, Images and Issues
- * into each partition's own library; their old top-level Home libraries are not migrated and go (user 2026-11-26, CONTRACT-CHANGES
- * 「当前保留机制」).
+ * stops the Home's snapshot, so a round removes them before it lists the stores. A library each partition keeps (`databases.partition`)
+ * has no top-level Home directory: one of its name is what an older Home kept before the plugin moved into the partitions (batch 108),
+ * and it is not migrated but goes (user 2026-11-26, CONTRACT-CHANGES 「当前保留机制」). Read from the declarations, never a list of
+ * plugins; a name a Home library still uses is never one of them.
  */
-export const REMOVED_HOME_STORES: readonly string[] = ["todo", "jelly", "cognia", "images", "issues"];
+export function removedHomeStores(): readonly string[] {
+  const home = new Set(shippedParts().flatMap(entry => entry.manifest.databases?.home?.store_name ?? []));
+  return [...new Set(shippedParts().flatMap(entry => entry.manifest.databases?.partition?.store_name ?? []))].filter(name => !home.has(name)).sort();
+}
 
 /**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that
@@ -414,7 +419,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   if (stamp === fingerprint) return NOTHING;
   const previous = readUpgradeLedger(root);
   removeUpgradeTemporaries(root);
-  for (const path of REMOVED_HOME_STORES) rmSync(join(root, path), { recursive: true, force: true });
+  for (const path of removedHomeStores()) rmSync(join(root, path), { recursive: true, force: true });
   releaseHeldHomeSqlite(root);
   const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [], onUnitDone: options.onUnitDone };
   const resumed = finishInterrupted(round, previous);

@@ -64,7 +64,7 @@ test('S-128 PCSYNC-01/23 image restoration refuses foreign identities, execution
 });
 test('S-128 PCSYNC-12 Images refuses the old structure and a wrong version with original bytes unchanged',async t=>{
  const currentSql=readFileSync(new URL('./fixtures/home-store-schemas/images.sql',import.meta.url),'utf8');
- for(const [version,schema,code] of [[1,currentSql+'; DROP INDEX jobs_project_created;','storage.schema_structure_mismatch'],[2,currentSql,'storage.store_too_new']] as const){
+ for(const [version,schema,code] of [[1,currentSql+'; DROP INDEX jobs_created;','storage.schema_structure_mismatch'],[2,currentSql,'storage.store_too_new']] as const){
   const root=mkdtempSync(join(tmpdir(),'sync-old-schema-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
   const home=join(root,'images'),space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
   // The personal space's library (batch 108: each partition keeps its own), written by hand at the old structure or a newer version.
@@ -77,7 +77,7 @@ test('S-128 PCSYNC-12 Images refuses the old structure and a wrong version with 
 test('S-128 PCSYNC-11 the Images owner refuses a symlinked assets directory before exporting bytes',async t=>{
  const home=mkdtempSync(join(tmpdir(),'images-symlink-refusal'));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
  const runtime=await imageRuntimeFixture(t,{home});const sync=await imageSyncFixture(runtime);t.after(()=>sync.close());const external=join(home,'external');mkdirSync(external);const secret=Buffer.from('not-an-authorized-saved-image');writeFileSync(join(external,'aa.png'),secret);const assets=runtime.assetsDirectory('project');rmSync(assets,{recursive:true,force:true});mkdirSync(dirname(assets),{recursive:true});symlinkSync(external,assets);
- const db=new DatabaseSync(runtime.library('project'));try{db.prepare("INSERT INTO jobs VALUES ('image','project','request','hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(JSON.stringify([{id:'picture',mime_type:'image/png',byte_length:secret.length,filename:'aa.png'}]));}finally{db.close();}
+ const db=new DatabaseSync(runtime.library('project'));try{db.prepare("INSERT INTO jobs VALUES ('image','request','hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(JSON.stringify([{id:'picture',mime_type:'image/png',byte_length:secret.length,filename:'aa.png'}]));}finally{db.close();}
  const r=sync.replica({spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'P'}),hasArtifact:()=>false});assert.throws(()=>r.next(),/不能使用链接/);assert.equal(r.counts().pending,1);assert.deepEqual(readFileSync(join(external,'aa.png')),secret);
 });
 
@@ -89,7 +89,7 @@ test('Images deletion preserves an unfrozen original and bounded GC keeps shared
  const sync=await imageSyncFixture(runtime);t.after(()=>sync.close());const context={spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'P'}),hasArtifact:()=>false},replica=sync.replica(context);
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6L8UAAAAASUVORK5CYII=','base64'),directory=runtime.assetsDirectory('project'),filename='aaaaaaaa.png';mkdirSync(directory,{recursive:true});writeFileSync(join(directory,filename),png);
  const db=new DatabaseSync(runtime.library('project'));t.after(()=>db.close());const image={id:'picture',filename,mime_type:'image/png',byte_length:png.length};
- for(const id of ['first','shared'])db.prepare("INSERT INTO jobs VALUES (?,'project',?,'hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(id,'request-'+id,JSON.stringify([image]));
+ for(const id of ['first','shared'])db.prepare("INSERT INTO jobs VALUES (?,?,'hash','','','openai-images','saved','prompt','','','succeeded',?,'','2026-10-18T00:00:00Z',NULL,NULL)").run(id,'request-'+id,JSON.stringify([image]));
  const old=new Date(Date.now()-172800000);utimesSync(join(directory,filename),old,old);await client.invoke(imagesActions.delete,{id:'first'});assert.equal(existsSync(join(directory,filename)),true,'another live job protects shared bytes');
  await client.invoke(imagesActions.delete,{id:'shared'});assert.equal(existsSync(join(directory,filename)),false,'only old unreferenced bytes are collected after durable preimages');
  const records=replica.recoveries!().filter(row=>row.choice==='local_delete');assert.equal(records.length,2);assert.ok(replica.counts().pending>0);

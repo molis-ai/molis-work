@@ -96,8 +96,10 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   // The project home is in the list under the top strip's first place (§4「底栏第十三版」第 1 条; not a tab); a plugin tab restored from before may be in front of it.
   const projectHome = async (project: string) => {
     await go(`/projects/${project}/`);
-    await waitFor("document.querySelector('[data-top-corner-toggle]')", 15_000);
-    if (!await evaluate<boolean>("Boolean(document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]'))")) await click("[data-corner-home]");
+    // The server initially shows Home while the workbench restores the project's previous tab.
+    // Use the mounted switcher's Home command even when the initial shell already looks like Home.
+    await waitFor("document.querySelector('[data-ml-pick-home]')", 15_000);
+    await click("[data-ml-pick-home]");
     await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')", 15_000);
   };
   const typeInto = (selector: string, value: string) => viewFor(selector).evaluate(`(() => { const input = ${visible(selector)}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -129,9 +131,16 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
 
   // W2-18-DATASET-SCHEMA-02 / S4: inspect the real persisted answers, not just the placement caption.
   const { formId, answerTimes } = createAnswers(homeDirectory, projectId!);
-  await openPlugin("form", projectId!);
-  await press(`[data-form-id="${formId}"]`);
-  await press('[data-form-tab="results"]');
+  const openFormResults = async () => {
+    await openPlugin("form", projectId!);
+    const row = `[data-form-id="${formId}"]`;
+    const back = "[data-form-back]";
+    await views.form.waitFor(`${visible(row)} || ${visible(back)}`, 15_000);
+    if (!await views.form.evaluate(`Boolean(${visible(row)})`)) await press(back);
+    await press(row);
+    await press('[data-form-tab="results"]');
+  };
+  await openFormResults();
   await press("[data-form-to-dataset]");
   await cardButton("已转成《活动报名 · 答卷》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'dataset'", 15_000);
@@ -152,9 +161,7 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   try {
     formStore.submit(formId, { name: "宋三", team: "运营" }, { source: "preview", requestId: "a3" });
   } finally { formStore.close(); }
-  await openPlugin("form", projectId!);
-  await press(`[data-form-id="${formId}"]`);
-  await press('[data-form-tab="results"]');
+  await openFormResults();
   await press("[data-form-to-dataset]");
   await cardButton("已转成《活动报名 · 答卷》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'dataset'", 15_000);

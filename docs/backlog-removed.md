@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-inbox-update-blocks-host | 已完成并删除 | 2026-11-26，#2351（Full suite run `45955228649` 全绿）：`packages/kernel` 增加单调递增 `directoryGeneration()`、单场景 O(1) `sceneViewOne` / `sceneBindingFunction` / `sceneBindingMatches`、冻结 Schema / `allowed_actions` 的 `WeakMap` 复用及非 `subject-offers` 的 `stageMetadataUsage` 窄查询；`apps/local-host` 在 `HostAvailability.check` 引入绑定 `(directoryGeneration, currentReadCheckGeneration)` 的 `VerifiedCheckPlan`（命中时仍逐项实时校验可用性与场景绑定，代际或可用性变化立即回退完整 `resolve`），收窄 `local-host-scenes`（`check` / `runScene`）与 `PluginSceneService.registeredByThis` 单场景点查并预编译 `SqlitePluginRuntimeRepository` / `catalogDataStamp` 语句。20 条固定规则 × 5 样本实测：`evaluate` p50 空闲 `1,686→528 ms`（含读页 `2,067→728 ms`）、`CPU_THROTTLE=3` `2,689→684 ms`（含读页 `3,214→842 ms`），最大事件循环延迟 `381～1,130→127～220 ms`，单样本 `discoverScenes` `305→23`、`usages` `205→3`、`discoverOne` `837→251`、纯单次 POST `discover=0`；中途同步撤权/停用立即拒绝且零落库回归见 `tests/inbox-action-scenes.test.ts` |
 | BL-639 | 不再适用并删除 | 2026-11-25：它问的是 `databases.home` 按项目拆的分区库升级后怎么办；第 107 批删掉了那个复用器，分区库改为每个分区一份 `databases.partition`，版本按库声明的一份现行结构开（[107](../specs/post-anticorruption-roadmap/reference/batches/107.md)） |
 | BL-1055 | 已完成并删除 | SDK 与设计系统共用折叠组件，Images、Goals 已接入，Files 旧面板随 #2009 退役。[SCF-01](../specs/archive/shared-ui-folds/spec.md#验收标准) |
 | BL-1061 | 已完成并删除 | 连接行、原处连接卡和设计系统的自然高度折叠共用选择器函数。[SCF-02](../specs/archive/shared-ui-folds/spec.md#验收标准) |

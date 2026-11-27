@@ -9,7 +9,7 @@ import { MAINLINE_ARRANGE_PERMISSION, WORK_ITEM_KIND, mainlineErrors, type Mainl
   type MainlineSwitchRequest, type WorkItem } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { PlacementRelationCandidates, PlacementRelationCreateInput, PlacementRelationResult, PlacementRelationSubjectInput,
   PlacementRelationTargetInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { MainlineStore } from "./store.js";
+import { nonblankName, type MainlineStore } from "./store.js";
 
 // Work items on the mainline (specs/work-mainline/contract-design.md §2–§5): one person's container of work in one project. What an item
 // is made of and what it holds are references; an object's title, state and body are its owner's and are read as the caller each time.
@@ -138,10 +138,12 @@ function countsOf(mainline: Mainline, held: ReadonlyMap<string, ActionSubject[]>
 
 /** `mainline.subject.read@1`: a light item by its name, one an object became by that object's title as the caller reads it. */
 export async function readItemSubject(caller: ActionExecutionContext, client: ActionClient, ports: MainlineItemPorts, request: SubjectContextRequest): Promise<ActionSubjectContext> {
-  const item = await withStore(caller, ports, store => store.item(request.subject_id));
-  if (!item) throw mainlineErrors.item_missing("主线上没有这件事项");
-  const title = item.name ?? (await readable(caller, client, item.source!)).title;
-  return { subject: asTarget(item.item_id), revision: item.created_at, title, content: "", truncated: false };
+  const current = await withStore(caller, ports, store => store.itemWithRevision(request.subject_id));
+  if (!current) throw mainlineErrors.item_missing("主线上没有这件事项");
+  const { item } = current;
+  const source = item.source && await readable(caller, client, item.source);
+  const revision = source ? JSON.stringify([current.revision, source.revision]) : current.revision;
+  return { subject: asTarget(item.item_id), revision, title: source?.title ?? item.name!, content: "", truncated: false };
 }
 
 /** `mainline.items.contents@1`: what was put in, and the source's own relation asked once as the caller. */
@@ -171,6 +173,7 @@ export async function createItem(caller: ActionExecutionContext, client: ActionC
     source = (await readable(caller, client, request.from, directory)).subject;
   } else if (request.create_as) {
     const { kind, name } = request.create_as;
+    nonblankName(name);
     source = await makeSource(caller, client, sourceOf(await itemSources(caller, client, ports), kind, "create"), name, sourceRequestId(caller, request.request_id, kind, ["name", name]));
   }
   await caller.beforeEffect();

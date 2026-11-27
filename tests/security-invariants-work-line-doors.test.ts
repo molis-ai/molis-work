@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AcceptanceReadResult, AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // S-work-line-person-doors: the workbench's own doors to the work line, the task table and the requirement column answer the
@@ -79,4 +80,40 @@ test("S-work-line-person-doors PWA-144: the person's doors take who is asking fr
   // Without the page's control token there is no door at all.
   const anonymous = await f.request(`/projects/${project.project_id}/api/acceptance/read`, { method: "POST", body: { subjects: [SUBJECT] }, authorized: false });
   assert.ok(anonymous.status >= 400);
+});
+
+test("S-work-line-person-doors WLN-08 N42 every event card operation rechecks the registrant without reading background tasks", { timeout: 120_000 }, async t => {
+  const source = { surface: "example", title: "示例", icon: "list" }, subject = { kind: "homebg_item", id: "on-line" };
+  const plugin = backgroundPlugin(() => ({ source, tasks: [] }));
+  plugin.state.events = () => ({ source, events: [{ event_id: "card", subject, title: "事件", summary: "", content: "", facts: [],
+    category: "personal", placement: "active", occurred_at: new Date().toISOString(), needs_attention: false, open: null }] });
+  let readable = true;
+  const f = await serveHomeRuntime(t, { pluginFixtures: { project: [plugin.definition] },
+    actionAvailability: (_caller, view) => !readable && view.capability_id === "homebg.events"
+      ? { available: false, code: "actions.forbidden", reason: "没有读取权限" } : { available: true } });
+  const project = await f.project("Event card");
+  const post = (body: object) => f.request(`/projects/${project.project_id}/api/mainline/event/surfaces`, { method: "POST", body });
+  const offer = { intent: "cancel", prepared: "00000000-0000-0000-0000-000000000000" };
+  const taskReads = plugin.state.calls.length;
+  const present = await post({ subject, expanded: true });
+  assert.equal(present.status, 200, await present.clone().text());
+  assert.ok(Array.isArray((await present.json()).groups));
+  const before = plugin.state.eventCalls.length;
+  assert.ok(before > 0);
+  readable = false;
+  const denied = await post({ subject });
+  assert.equal((await denied.json()).code, "actions.subject_unavailable");
+  assert.equal(plugin.state.eventCalls.length, before);
+  readable = true;
+  plugin.state.events = () => ({ source, events: [] });
+  for (const operation of [{ expanded: true }, { click: { owner_plugin_id: "com.example.homebg", target: { kind: "open", subject } } }, { correct: { correction: "remove", expected_revision: "0", subject } }, { recovery: subject }, { offer }]) {
+    const absent = await post({ subject, ...operation });
+    assert.ok(absent.status >= 400);
+    assert.equal((await absent.json()).code, "actions.subject_unavailable");
+  }
+  assert.equal(plugin.state.eventCalls.length, before + 5);
+  const unknown = await post({ subject: { kind: "other", id: subject.id } });
+  assert.equal((await unknown.json()).code, "actions.subject_unavailable");
+  assert.equal(plugin.state.eventCalls.length, before + 5, "the registrant does not declare that kind");
+  assert.equal(plugin.state.calls.length, taskReads, "these HTTP requests never ask the task provider");
 });

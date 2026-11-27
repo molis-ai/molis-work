@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionClient, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_LIMITS, MAINLINE_PLACE_PERMISSION, MAINLINE_READ_PERMISSION, WORK_ITEM_KIND, mainlineActions, mainlineItemActions, type Mainline,
@@ -44,6 +45,50 @@ test("MLC-01 the first read gives the three default groups and no items; a named
   const into = await me.invoke(mainlineItemActions.create, { name: "等回复", group_id: "waiting" });
   assert.equal(groupOf(into.mainline, into.item.item_id), "waiting");
   await assert.rejects(me.invoke(mainlineItemActions.create, { name: "x", from: { kind: "note", id: "n" } } as never), code("actions.input_invalid"), "one way of making an item at a time");
+});
+
+test("BL-b36-review-followups item revisions follow renames and conversion; empty names and repeated completion leave the line alone", { timeout: 60_000 }, async t => {
+  const { me, notes } = await rigged(t);
+  const { item, mainline } = await me.invoke(mainlineItemActions.create, { name: "初稿" });
+  const item_id = item.item_id, read = () => me.invoke(mainlineItemActions.subject, { subject_id: item_id });
+  const first = await read();
+  for (const action of [
+    () => me.invoke(mainlineItemActions.create, { name: "  " }),
+    () => me.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "  " } }),
+    () => me.invoke(mainlineItemActions.rename, { item_id, expected_revision: mainline.revision, name: "  " }),
+    () => me.invoke(mainlineItemActions.groups, { op: "add", expected_revision: mainline.revision, name: "  " }),
+  ]) await assert.rejects(action(), code("actions.input_invalid"));
+  assert.deepEqual(notes.state.creates, []);
+  assert.deepEqual(await read(), first);
+  const other = await me.invoke(mainlineItemActions.create, { name: "另一件事项" });
+  const moved = await me.invoke(mainlineItemActions.move, { item_id: other.item.item_id, expected_revision: other.mainline.revision, group_id: "next", index: 0 });
+  const unchanged = await me.invoke(mainlineItemActions.rename, { item_id, expected_revision: moved.mainline.revision, name: " 初稿 " });
+  assert.deepEqual(await read(), first, "unrelated changes and a trimmed, unchanged name preserve this item's revision");
+  const renamed = await me.invoke(mainlineItemActions.rename, { item_id, expected_revision: unchanged.mainline.revision, name: "定稿" });
+  const second = await read();
+  assert.equal(second.title, "定稿");
+  const restored = await me.invoke(mainlineItemActions.rename, { item_id, expected_revision: renamed.mainline.revision, name: first.title });
+  const third = await read();
+  const converted = await me.invoke(mainlineItemActions.convert, { item_id, expected_revision: restored.mainline.revision, kind: "note" });
+  const fourth = await read();
+  assert.equal(fourth.title, first.title);
+  assert.equal(new Set([first, second, third, fourth].map(subject => subject.revision)).size, 4);
+  assert.deepEqual(await read(), fourth);
+  const note = notes.state.notes.get(converted.item.source!.id)!;
+  notes.state.notes.set(note.id, { ...note, title: "笔记里的新标题", revision: "2" });
+  const editedSource = await read();
+  assert.equal(editedSource.title, "笔记里的新标题");
+  assert.notEqual(editedSource.revision, fourth.revision);
+  const complete = (expected_revision: string, completed: boolean, id = item_id) =>
+    me.invoke(mainlineItemActions.complete, { item_id: id, expected_revision, completed });
+  const done = (await complete(converted.mainline.revision, true)).mainline;
+  assert.deepEqual(done.completed, [item_id]);
+  assert.deepEqual((await complete(done.revision, true)).mainline, done);
+  const open = (await complete(done.revision, false)).mainline;
+  assert.deepEqual(open.completed, []);
+  assert.deepEqual((await complete(open.revision, false)).mainline, open);
+  assert.deepEqual((await complete(open.revision, true, "missing")).mainline, open);
+  assert.deepEqual((await me.invoke(mainlineItemActions.read, {})).mainline, open);
 });
 
 test("MLC-02 MLC-03 moving, pinning and regrouping take effect at once and are kept; deleting a group gives its items to the one before it, none lost", { timeout: 60_000 }, async t => {
@@ -362,12 +407,17 @@ test("MLC-13 a 「建成」 retried under the same request makes one object; two
   for (const id of ["t1", "t2", "t3"]) background.state.serves.set(id, id === "t1" ? [N1] : []);
   const { me, as, notes, projectId } = await rigged(t, background);
   notes.state.notes.set("n1", { id: "n1", title: "笔记一", status: "open" });
+  // The @1 source schema counts Unicode code points; these 63 fit its 120-character limit.
+  const name = " " + "𠮷".repeat(61) + " ";
+  // A source may have committed under the original @1 key before the caller received its reply.
+  const originalKey = "mainline:" + createHash("sha256").update(JSON.stringify([LOCAL_PERSON_ACTOR_ID, projectId, "r-1", "note", "name", name])).digest("hex").slice(0, 40);
+  const request = { create_as: { kind: "note", name }, request_id: "r-1" };
   notes.state.failAfterCreate = true;
-  await assert.rejects(me.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "周报" }, request_id: "r-1" }), code("notes.lost"));
+  await assert.rejects(me.invoke(mainlineItemActions.create, request), code("notes.lost"));
   assert.equal((await me.invoke(mainlineItemActions.read, {})).mainline.items.length, 0, "nothing on the mainline after the lost answer");
-  const retried = await me.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "周报" }, request_id: "r-1" });
+  const retried = await me.invoke(mainlineItemActions.create, request);
   assert.deepEqual([retried.item.source, notes.state.made.size], [{ kind: "note", id: "note-1" }, 1], "the same object, made once");
-  assert.equal(new Set(notes.state.creates.map(call => call.request_id)).size, 1);
+  assert.deepEqual(notes.state.creates.map(call => [call.name, call.request_id]), [[name, originalKey], [name, originalKey]]);
   // One operation (one call id) asking for two different objects gets two.
   const operation = as(person(projectId, { call_id: "one-operation" }));
   const a = await operation.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "甲" } }), b = await operation.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "乙" } });

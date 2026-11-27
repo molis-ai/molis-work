@@ -1,0 +1,60 @@
+PRAGMA foreign_keys=OFF;
+BEGIN;
+CREATE TABLE jobs (
+    id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE,
+    input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
+    api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
+    size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
+    images_json TEXT NOT NULL, error TEXT NOT NULL,
+    created_at TEXT NOT NULL, finished_at TEXT, runner_id TEXT
+  );
+CREATE TABLE molis_overview_rows (
+  kind TEXT NOT NULL CHECK (kind IN ('task', 'event', 'notification', 'brief', 'background_task', 'scheduled_run')),
+  row_id TEXT NOT NULL CHECK (length(row_id) BETWEEN 1 AND 200),
+  title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 500),
+  status TEXT CHECK (status IS NULL OR status IN ('open', 'done', 'cancelled')),
+  due_at TEXT,
+  remind_at TEXT,
+  priority INTEGER CHECK (priority IS NULL OR priority BETWEEN 0 AND 3),
+  tags_json TEXT,
+  starts_at TEXT,
+  ends_at TEXT,
+  all_day INTEGER CHECK (all_day IS NULL OR all_day IN (0, 1)),
+  time_zone TEXT,
+  level TEXT CHECK (level IS NULL OR level IN ('info', 'warning', 'urgent')),
+  source TEXT,
+  occurred_at TEXT,
+  summary TEXT,
+  state TEXT,
+  waiting INTEGER CHECK (waiting IS NULL OR waiting IN (0, 1)),
+  started_at TEXT,
+  reports_to TEXT CHECK (reports_to IS NULL OR reports_to = 'assistant'),
+  missed_at TEXT,
+  needs_json TEXT,
+  open_surface TEXT,
+  open_id TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (kind, row_id)
+);
+CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
+INSERT INTO "sync_3a28c22289ed28c8fdbe3056c102_context"("id","project_id") VALUES(1,'goalboard-v1-demo');
+INSERT INTO "sync_3a28c22289ed28c8fdbe3056c102_replica_state"("id","device","cursor","applying") VALUES(1,'13b5a7bdafe0fb48034c0a946478a7dd',0,0);
+DELETE FROM sqlite_sequence;
+INSERT INTO sqlite_sequence(name,seq) VALUES('sync_3a28c22289ed28c8fdbe3056c102_replica_changes',0);
+CREATE INDEX jobs_created ON jobs(created_at DESC);
+CREATE INDEX molis_overview_rows_remind ON molis_overview_rows(remind_at) WHERE remind_at IS NOT NULL;
+CREATE INDEX sync_3a28c22289ed28c8fdbe3056c102_replica_changes_key ON sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key);
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_delete" AFTER DELETE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',OLD."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_insert" AFTER INSERT ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_update" AFTER UPDATE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0;INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',OLD."id") AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_3a28c22289ed28c8fdbe3056c102_context" WHERE id=1),'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+PRAGMA user_version=1;
+COMMIT;

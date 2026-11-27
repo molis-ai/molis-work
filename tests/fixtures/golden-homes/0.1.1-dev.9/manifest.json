@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "golden_version": "0.1.1-dev.9",
-  "commit": "6b6a58093fe0db6c0c5c4745fc4881bd735d50fc",
+  "commit": "0f421ea371e7e9d619ff841b493a39c4d25031bc",
   "node": "v24.15.0",
   "third_party": "generated-list",
   "home_library": "golden-home-library",
@@ -163,10 +163,6 @@
       "mode": 448
     },
     {
-      "path": "cognia",
-      "mode": 448
-    },
-    {
       "path": "computer",
       "mode": 448
     },
@@ -207,19 +203,7 @@
       "mode": 448
     },
     {
-      "path": "images",
-      "mode": 448
-    },
-    {
       "path": "interface",
-      "mode": 448
-    },
-    {
-      "path": "issues",
-      "mode": 448
-    },
-    {
-      "path": "jelly",
       "mode": 448
     },
     {
@@ -236,6 +220,10 @@
     },
     {
       "path": "observation",
+      "mode": 448
+    },
+    {
+      "path": "person-settings",
       "mode": 448
     },
     {
@@ -331,6 +319,14 @@
       "mode": 448
     },
     {
+      "path": "projects/goalboard-v1-demo/plugin-files",
+      "mode": 448
+    },
+    {
+      "path": "projects/goalboard-v1-demo/plugin-files/plugin-install-d8d09cfa256de9600debfd1c3f155a32",
+      "mode": 448
+    },
+    {
       "path": "projects/molis-work-v1-demo",
       "mode": 493
     },
@@ -339,11 +335,27 @@
       "mode": 448
     },
     {
+      "path": "projects/molis-work-v1-demo/plugin-files",
+      "mode": 448
+    },
+    {
+      "path": "projects/molis-work-v1-demo/plugin-files/plugin-install-d8d09cfa256de9600debfd1c3f155a32",
+      "mode": 448
+    },
+    {
       "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b",
       "mode": 493
     },
     {
       "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries",
+      "mode": 448
+    },
+    {
+      "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/plugin-files",
+      "mode": 448
+    },
+    {
+      "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/plugin-files/plugin-install-d8d09cfa256de9600debfd1c3f155a32",
       "mode": 448
     },
     {
@@ -427,10 +439,6 @@
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia",
-      "mode": 448
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors",
       "mode": 448
     },
@@ -451,19 +459,7 @@
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images",
-      "mode": 448
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/interface",
-      "mode": 448
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues",
-      "mode": 448
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly",
       "mode": 448
     },
     {
@@ -480,6 +476,10 @@
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/observation",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/person-settings",
       "mode": 448
     },
     {
@@ -523,6 +523,14 @@
       "mode": 448
     },
     {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/plugin-files",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/plugin-files/plugin-install-d8d09cfa256de9600debfd1c3f155a32",
+      "mode": 448
+    },
+    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/security",
       "mode": 493
     },
@@ -531,19 +539,11 @@
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo",
-      "mode": 448
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/web-search",
       "mode": 448
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/work-brief",
-      "mode": 448
-    },
-    {
-      "path": "todo",
       "mode": 448
     },
     {
@@ -566,7 +566,7 @@
         "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "0f7bc6662d580675e16400d946909bacbde11e538113b180aa1c9891146ca8bb"
+      "sha256": "5b2c42455501cb9a8cf816d6721aa5c60e98d618f84b7fc6ea7ccf9b572878bd"
     },
     {
       "path": "agent-definitions/agent-definitions.db",
@@ -627,7 +627,7 @@
         "context_edges": 0,
         "molis_storage_space": 1
       },
-      "sha256": "b8f76bdfab121b890d0d24847574ee978ae51a558fd3b0071f39ef4d3e19fa01"
+      "sha256": "7fa21ab18edd01c48e49467966526bb191cb4019ea80dadf24656ba88a51db93"
     },
     {
       "path": "characters/characters.sqlite",
@@ -654,32 +654,6 @@
         "sqlite_sequence": 1
       },
       "sha256": "fca8d28aa9cbf60b8ba1c0b51fcc5b440fab7ab212ed35bd3522c16a7d776a75"
-    },
-    {
-      "path": "cognia/cognia.db",
-      "owner": "io.molis.work.cognia",
-      "mode": 384,
-      "payload": "stores/cognia/cognia.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "cognia_domains": 1,
-        "cognia_drafts": 0,
-        "cognia_materials": 1,
-        "cognia_previews": 0,
-        "cognia_sources": 1,
-        "cognia_versions": 2,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
-        "sync_9c148ae77e23da148100ce206111_context": 1,
-        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
-        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_state": 1
-      },
-      "sha256": "f68d8b631ae53f3e2600368d68ae443f8d556b6eb825b5e1241d3a3a6c4564f6"
     },
     {
       "path": "connectors/connectors.db",
@@ -710,7 +684,7 @@
         "journeys": 1,
         "molis_storage_space": 1
       },
-      "sha256": "7e23c88c391ccd3a54213c243f9d6d656b54a41034ab67d8dbecbdd6803c2869"
+      "sha256": "d1addec3620acd77d034567a1637b2bbc651d1726031ae6d8405ff8ce876f3c2"
     },
     {
       "path": "conversation-attachments/conversation-attachments.db",
@@ -732,10 +706,10 @@
       "schema_version": 1,
       "tables": {
         "due_done": 0,
-        "due_entries": 0,
+        "due_entries": 1,
         "molis_storage_space": 1
       },
-      "sha256": "7b355b78dba71329e32bd368fdfa112a0ed0d3bf52ed7a1db77293b0bd4dfb40"
+      "sha256": "c431fce8afea11a35e1664c022be1c66045c061adfd541d1775123d48ac1da03"
     },
     {
       "path": "external-sessions/external-sessions.db",
@@ -790,87 +764,18 @@
       "sha256": "24e9d34aff63c53871d41070800ce6526c951d2c2f712ac83f7d9d8ef51c875c"
     },
     {
-      "path": "images/images.db",
-      "owner": "io.molis.work.images",
-      "mode": 384,
-      "payload": "stores/images/images.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "connection_changes": 0,
-        "connections": 1,
-        "jobs": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
-      },
-      "sha256": "a318dbe5866ef87c8f0320ebfde93bf8acc9b07374fe1aae903a7830e516a941"
-    },
-    {
-      "path": "issues/issues.db",
-      "owner": "io.molis.work.issues",
-      "mode": 384,
-      "payload": "stores/issues/issues.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "issue_editor_versions": 0,
-        "issues": 1,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
-        "sync_547a53110031b73814823e489835_context": 1,
-        "sync_547a53110031b73814823e489835_replica_changes": 0,
-        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
-        "sync_547a53110031b73814823e489835_replica_heads": 0,
-        "sync_547a53110031b73814823e489835_replica_outbox": 0,
-        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
-        "sync_547a53110031b73814823e489835_replica_state": 1
-      },
-      "sha256": "eecde7ad27928dde2ee7bfe80ab9f06d0e645c56eb9a3c23da7859e30921cda8"
-    },
-    {
-      "path": "jelly/jelly.db",
-      "owner": "io.molis.work.jelly",
-      "mode": 384,
-      "payload": "stores/jelly/jelly.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "jelly_categories": 0,
-        "jelly_items": 0,
-        "jelly_notes": 1,
-        "jelly_series": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_context": 1,
-        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
-        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
-      },
-      "sha256": "0ddd049c83666ef32c87bdca89f4d6057655b0cffde992b5f4fc7c4abfef76b6"
-    },
-    {
       "path": "knowledge/knowledge.db",
       "owner": "packages/storage",
       "mode": 384,
       "payload": "stores/knowledge/knowledge.db.sql",
       "schema_version": 1,
       "tables": {
-        "knowledge_cards": 65,
+        "knowledge_cards": 69,
         "knowledge_receipts": 0,
         "knowledge_usage": 0,
         "molis_storage_space": 1
       },
-      "sha256": "f0e708aaee51ea58a48eb0298300f525d5b2c175ebe3804edadc00379ef74ab0"
+      "sha256": "e09cb837418b57d474493ce14f7d84978d52fb1f09ef076385bb1174968c3ebc"
     },
     {
       "path": "mainline/mainline.db",
@@ -904,7 +809,7 @@
         "memory_uses": 1,
         "molis_storage_space": 1
       },
-      "sha256": "41c6e11c24f3f51cc06c17f258efe5a4509910d02f1e3ce69d8d025321c73c3e"
+      "sha256": "cb19ad87660f58e67722331f88757223aa0e5adf915d3d4930f9760d0d3d84d0"
     },
     {
       "path": "observation/observation.db",
@@ -927,75 +832,23 @@
       "sha256": "ccf2bb6abe804fca0e1c2f2ec73bbdd825fa3331b07ef8e8fc0a84cd388ee099"
     },
     {
-      "path": "personal-space/libraries/dataset.db",
-      "owner": "apps/local-host",
+      "path": "person-settings/person-settings.db",
+      "owner": "horizontal/person-settings",
       "mode": 384,
-      "payload": "stores/personal-space/libraries/dataset.db.sql",
+      "payload": "stores/person-settings/person-settings.db.sql",
       "schema_version": 1,
       "tables": {
-        "dataset_receipts": 0,
-        "dataset_source_bindings": 0,
-        "dataset_versions": 0,
-        "datasets": 0,
         "molis_storage_space": 1,
-        "sqlite_sequence": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_context": 1,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_changes": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_conflicts": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_heads": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_outbox": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_state": 1
+        "person_settings": 1,
+        "person_settings_replica_changes": 0,
+        "person_settings_replica_conflicts": 0,
+        "person_settings_replica_heads": 0,
+        "person_settings_replica_outbox": 0,
+        "person_settings_replica_resolutions": 0,
+        "person_settings_replica_state": 1,
+        "sqlite_sequence": 1
       },
-      "sha256": "22ed3706ca221653dade275491725c7f9c9f6c036e5064ebf5ba86f2b0a760d7"
-    },
-    {
-      "path": "personal-space/libraries/form.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/personal-space/libraries/form.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "form_copies": 0,
-        "forms": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 0,
-        "submissions": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_aggregate_editor_versions": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_context": 1,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_changes": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_conflicts": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_heads": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_outbox": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_resolutions": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
-      },
-      "sha256": "3ca5466af451d229a203417fc729dd3efb1e07b65d4344d9410cf88e015d123e"
-    },
-    {
-      "path": "personal-space/libraries/lingguang.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/personal-space/libraries/lingguang.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "conversations": 0,
-        "messages": 0,
-        "molis_storage_space": 1,
-        "spark_requests": 0,
-        "sparks": 0,
-        "sqlite_sequence": 0,
-        "sync_764756c5c01e4432072de4c80de9_aggregate_editor_versions": 0,
-        "sync_764756c5c01e4432072de4c80de9_context": 1,
-        "sync_764756c5c01e4432072de4c80de9_replica_changes": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_conflicts": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_heads": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_outbox": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_resolutions": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_state": 1
-      },
-      "sha256": "5202eb866acfde0c0f8e8cf82b769ae36811d5f065ce3f9ce0da8c3ebdbe78ae"
+      "sha256": "251e859cfbb20c7d5cf2a1272cdccb15da0acfce3b0f1129caa9a8761f3f9f18"
     },
     {
       "path": "personal-space/libraries/pages.db",
@@ -1023,52 +876,6 @@
         "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
       },
       "sha256": "8936e8799faa63b8b59045b15ce7b603076dc2aa0585191a1e82cc4832a6b8ef"
-    },
-    {
-      "path": "personal-space/libraries/ppt.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/personal-space/libraries/ppt.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "presentation_copies": 0,
-        "presentations": 0,
-        "sqlite_sequence": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_aggregate_editor_versions": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_context": 1,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_changes": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_conflicts": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_heads": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_outbox": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_resolutions": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
-      },
-      "sha256": "e42260fc266de33d728323137d3dd5e323020209a8a49823d4d050e5e6a65abf"
-    },
-    {
-      "path": "personal-space/libraries/workflows.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/personal-space/libraries/workflows.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "instances": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 0,
-        "sync_b1502527af2ce1127314acbe774c_aggregate_editor_versions": 0,
-        "sync_b1502527af2ce1127314acbe774c_context": 1,
-        "sync_b1502527af2ce1127314acbe774c_replica_changes": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_conflicts": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_heads": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_outbox": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_resolutions": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_state": 1,
-        "workflow_editor_versions": 0,
-        "workflow_imported_instances": 0,
-        "workflows": 0
-      },
-      "sha256": "61c69b695b97188825ac453b0144b48ba1bf2386c028da6df701c42a96448e50"
     },
     {
       "path": "personal-space/molis-work.db",
@@ -1172,6 +979,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
@@ -1286,8 +1094,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "54517bd3e16c6e7c88f02bfd4fb43030169ac199b2feb712d96530f49ac6f317",
-      "expanded_sha256": "5f7783d2ce30c5531d1351a9a5d3b862b360a8844815e957049be4b7cf0d8897"
+      "sha256": "96f1db51c425b1a2fdc40630d8efc6f9ff8874b06b9519639ea942bfcf208eb7",
+      "expanded_sha256": "d12e1bafa39bbff7976b82fcb826302337a801c0c39def891fd6417d66562343"
     },
     {
       "path": "placement/placement.db",
@@ -1354,8 +1162,8 @@
         "plugin_runtime_installs": 15,
         "plugin_runtime_release_artifacts": 14
       },
-      "sha256": "115745b6462850030f68de476eaffd6965b60caccaaac9c2fc5d335cf4f588b7",
-      "expanded_sha256": "7200446e7ca32c33fd1ed1565f43a01b3e9a22c9622ab0f6290ea5a9582f5f8c"
+      "sha256": "483b0562fe7b93046b4a41756e03be036fc141e1ece21ff9a94774d5810c435e",
+      "expanded_sha256": "62189a2ca90d71853ece4df551666316248566eb217c28f1262ccd6deacab559"
     },
     {
       "path": "projects/catalog.db",
@@ -1368,7 +1176,7 @@
         "context_edges": 0,
         "model_providers": 0,
         "molis_storage_space": 1,
-        "partition_plugins": 49,
+        "partition_plugins": 59,
         "plugin_terminal_panel_aliases": 0,
         "plugin_terminal_panels": 0,
         "project_catalog_replica_changes": 0,
@@ -1379,10 +1187,10 @@
         "project_catalog_replica_state": 1,
         "project_deletion_steps": 0,
         "project_deletions": 0,
-        "project_events": 43,
+        "project_events": 59,
         "project_instruction_settings": 0,
         "project_plugin_exclusions": 0,
-        "project_portable_plugins": 49,
+        "project_portable_plugins": 59,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
         "projects": 4,
@@ -1395,7 +1203,33 @@
         "workspace_source_links": 0,
         "workspaces": 4
       },
-      "sha256": "290fb6eab4db11ea819cd8bb90ac7c1e11abec09708563a93703d6c3c8953778"
+      "sha256": "9b74093ee9a9f4e4f87bfad88bd3d283470a9ea078fc69ece6fa34f603707150"
+    },
+    {
+      "path": "projects/goalboard-v1-demo/libraries/cognia.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/goalboard-v1-demo/libraries/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 0,
+        "cognia_drafts": 0,
+        "cognia_materials": 0,
+        "cognia_previews": 0,
+        "cognia_sources": 0,
+        "cognia_versions": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "fbc141b9642bac4ee33b79d6d5164850d282757db2cb59dbfe8606719b7d75d0"
     },
     {
       "path": "projects/goalboard-v1-demo/libraries/dataset.db",
@@ -1443,6 +1277,75 @@
         "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
       },
       "sha256": "b5ac9ce54332f938f6553dbaff9d836c813bce11b22490114cb86a73702309a0"
+    },
+    {
+      "path": "projects/goalboard-v1-demo/libraries/images.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/goalboard-v1-demo/libraries/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jobs": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "3e62e1bd58194d676a2c32a282214e1334ed27ec00998cfaa8f6c93588502390"
+    },
+    {
+      "path": "projects/goalboard-v1-demo/libraries/issues.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/goalboard-v1-demo/libraries/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "69367058e84e68e7cf18fc9da6dcee15f42fc940630259d5cb77e6904b6e60c9"
+    },
+    {
+      "path": "projects/goalboard-v1-demo/libraries/jelly.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/goalboard-v1-demo/libraries/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 0,
+        "jelly_series": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
+      },
+      "sha256": "8b248bc2f883f1195282c30e1873fec8ab61afd11082598ff2aecd79edd266e9"
     },
     {
       "path": "projects/goalboard-v1-demo/libraries/lingguang.db",
@@ -1516,6 +1419,33 @@
         "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
       },
       "sha256": "d3cf0f051b4f1c1478b58acb2f8eaf9e23f884d5731f6457836ea14c91b84cfa"
+    },
+    {
+      "path": "projects/goalboard-v1-demo/libraries/todo.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/goalboard-v1-demo/libraries/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 0,
+        "todo_editor_versions": 0,
+        "todo_items": 0,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "eb04214d02ad9c8cb27c69e2959f1a6d0bf8b58b1b77349fba179de7bdf2c316"
     },
     {
       "path": "projects/goalboard-v1-demo/libraries/workflows.db",
@@ -1643,6 +1573,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -1757,8 +1688,34 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "59b6c0b8f06be9a4204f9fd34810a037019f4f234292b6a57fac6f097dfdbe78",
-      "expanded_sha256": "2e0255537620c5aae68f99ccd5332992f686b523bc15da3b5cbb1847577f465e"
+      "sha256": "290a0cbcbaab452a3653c144ad4fc9b3b7a5fc9beb458cf84cd4f625c0339fb6",
+      "expanded_sha256": "d9e7b89f26b4a3765be3f358fbf8c62d8e0b8781049ccc44f680e1a34d92959d"
+    },
+    {
+      "path": "projects/molis-work-v1-demo/libraries/cognia.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/molis-work-v1-demo/libraries/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 0,
+        "cognia_drafts": 0,
+        "cognia_materials": 0,
+        "cognia_previews": 0,
+        "cognia_sources": 0,
+        "cognia_versions": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "04700719bffd56026cc3575f877305b777d96e868bead11d7459df94aa09fe4d"
     },
     {
       "path": "projects/molis-work-v1-demo/libraries/dataset.db",
@@ -1806,6 +1763,75 @@
         "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
       },
       "sha256": "c9186de65122909e4e83ecc037d3fe8727434a1df3823bcbd18a1c01afe0e203"
+    },
+    {
+      "path": "projects/molis-work-v1-demo/libraries/images.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/molis-work-v1-demo/libraries/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jobs": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "69cacbd3d4bd96ce04981b5a0a9cff356e03c1b1d3b6dde54926ae27d11f93b3"
+    },
+    {
+      "path": "projects/molis-work-v1-demo/libraries/issues.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/molis-work-v1-demo/libraries/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "2d2e343179db595507f916d3bc55e08aa02e580f391c6f3f00fd9bc5e7f1d890"
+    },
+    {
+      "path": "projects/molis-work-v1-demo/libraries/jelly.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/molis-work-v1-demo/libraries/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 0,
+        "jelly_series": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
+      },
+      "sha256": "408bb646afe729184739718efc6b828fbd9e30006ea74608cacfc52eee5b49c2"
     },
     {
       "path": "projects/molis-work-v1-demo/libraries/lingguang.db",
@@ -1879,6 +1905,33 @@
         "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
       },
       "sha256": "519d3e596641dde175d790860d35c8ef02e4829136bf076151fbe7f5ba828c32"
+    },
+    {
+      "path": "projects/molis-work-v1-demo/libraries/todo.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/molis-work-v1-demo/libraries/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 0,
+        "todo_editor_versions": 0,
+        "todo_items": 0,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "a61af43493d1eedd72913e89181564533be4efa9c0ee5ab3ac9c199a0ec5d56b"
     },
     {
       "path": "projects/molis-work-v1-demo/libraries/workflows.db",
@@ -2006,6 +2059,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -2120,8 +2174,34 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "e33c43ddcc298dec7c176b12674c0c0f4f4399851603e0ae651d8b681baed58f",
-      "expanded_sha256": "db16bf86b8f8b657863db7a18408aff1761386a70226a24e29d9c498fbcdef8a"
+      "sha256": "a686f2ed7ffe040b7e4a834327b37f7b561351a7dda97d0f0c5c729ea188d52a",
+      "expanded_sha256": "89c474ca5c770bff729d5395de030ee81b1df9bdada4858f654b47aec5d33d00"
+    },
+    {
+      "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/cognia.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 1,
+        "cognia_drafts": 0,
+        "cognia_materials": 1,
+        "cognia_previews": 0,
+        "cognia_sources": 1,
+        "cognia_versions": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "a761355553d7fea3156060dea54523e007c4213fd963718c857591bf3bde6fea"
     },
     {
       "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/dataset.db",
@@ -2169,6 +2249,75 @@
         "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
       },
       "sha256": "713a70ea78c06b55c576ade262a1b28552b76591ff2c9834e4807e9180e92298"
+    },
+    {
+      "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/images.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jobs": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "847f78bc117f22603038ae26148f3b58c1cb467b938ddcac3bde9c5f0d32aafa"
+    },
+    {
+      "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/issues.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "dfde49db8609faa7ff53c6044da069532a3f6f06093818cbc120f278d293852a"
+    },
+    {
+      "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/jelly.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 1,
+        "jelly_series": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
+      },
+      "sha256": "be01713910e4154955054ad0572f0ae14532bf02faf0a2665b6ee020183547bb"
     },
     {
       "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/lingguang.db",
@@ -2242,6 +2391,33 @@
         "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
       },
       "sha256": "351e979ec12b09a87a89b718ecebbfa81c57e9a4e088c2fb368d55cad796b34f"
+    },
+    {
+      "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/todo.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_overview_rows": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 3,
+        "todo_editor_versions": 2,
+        "todo_items": 2,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "22ae3c3980446d353ba4b0c735bb11acca4bf67de7a242540c99befc29503879"
     },
     {
       "path": "projects/project-791103fd-73f1-4091-acb6-1281d19bd75b/libraries/workflows.db",
@@ -2369,6 +2545,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 1,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -2483,8 +2660,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "fa98b653f7a15980dd9f94d0c70197cbe16f903e1fc093a125f577749e0e6bfc",
-      "expanded_sha256": "5467ead8a58655dda780c75ea4e81e01e29a0a36696c66753236e2b876e2cd16"
+      "sha256": "13a7f9001b956a2a8fe48bf778b4331c31cd1bb4006e6fa39c18ee65ab9eb492",
+      "expanded_sha256": "d762be937ff040116132d088ef30d3329b5bf838a7af5359f590e3de76dacc89"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -2522,7 +2699,7 @@
         "mw_sessions": 1,
         "sqlite_sequence": 2
       },
-      "sha256": "5ad9bc32f1e9b1142503493faa842314c25dd6a925f51968a0d50a0fdef530d5"
+      "sha256": "9571234bbe5bb163cc13ff03019245dd39c9448494ad8364c35bc8465cd5a790"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db",
@@ -2534,7 +2711,7 @@
         "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "938616e9f5f58173e3f453b09e752a89aa8962245d44c699df41bc37e6c5a6f2"
+      "sha256": "ee43cdef51984474de4bc65873b6d201abaa0afab49a5e530fc7b6b3a30fbac8"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db",
@@ -2601,32 +2778,6 @@
       "sha256": "bab038f9114dbd80ee3ec50c699ec781bb46e6d9512be252bdf70fe5ca57c4b1"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia/cognia.db",
-      "owner": "io.molis.work.cognia",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia/cognia.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "cognia_domains": 1,
-        "cognia_drafts": 0,
-        "cognia_materials": 1,
-        "cognia_previews": 0,
-        "cognia_sources": 1,
-        "cognia_versions": 2,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
-        "sync_9c148ae77e23da148100ce206111_context": 1,
-        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
-        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
-        "sync_9c148ae77e23da148100ce206111_replica_state": 1
-      },
-      "sha256": "2c9a2c06c9a771b833132509d6775d7a3cb4f043d8d4cfb900e309fd10511b7d"
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors/connectors.db",
       "owner": "apps/local-host",
       "mode": 384,
@@ -2653,10 +2804,10 @@
       "schema_version": 1,
       "tables": {
         "due_done": 0,
-        "due_entries": 0,
+        "due_entries": 1,
         "molis_storage_space": 1
       },
-      "sha256": "cff4793383ac3a108b130e1d2ddebde4b32f16c5843b0a1f4ac43dba137c2b6a"
+      "sha256": "cada05db2d32069c3b9e1e3f0589927492c077cdc6a742b18baf6bdbb9af832f"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/external-sessions/external-sessions.db",
@@ -2711,87 +2862,18 @@
       "sha256": "c85fa4b2c67bd9454667c2c4be0a55ecbba927c66440669ff9b012de893884ae"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images/images.db",
-      "owner": "io.molis.work.images",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images/images.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "connection_changes": 0,
-        "connections": 1,
-        "jobs": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
-        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
-      },
-      "sha256": "550e4f2295d229e53ddf1a762f073e8c6738a8697945f68c3a9452263893c50d"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues/issues.db",
-      "owner": "io.molis.work.issues",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues/issues.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "issue_editor_versions": 0,
-        "issues": 1,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
-        "sync_547a53110031b73814823e489835_context": 1,
-        "sync_547a53110031b73814823e489835_replica_changes": 0,
-        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
-        "sync_547a53110031b73814823e489835_replica_heads": 0,
-        "sync_547a53110031b73814823e489835_replica_outbox": 0,
-        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
-        "sync_547a53110031b73814823e489835_replica_state": 1
-      },
-      "sha256": "a5fcbd13879fbaf45bb898c991de56edac4533a2cce4f0daadcaa52a26ae135d"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db",
-      "owner": "io.molis.work.jelly",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "jelly_categories": 0,
-        "jelly_items": 0,
-        "jelly_notes": 1,
-        "jelly_series": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_context": 1,
-        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
-        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
-        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
-      },
-      "sha256": "ae000a54671631473aa40ff4d311cfa66d0dfb194b62a357190ee65037a21f7a"
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db",
       "owner": "packages/storage",
       "mode": 384,
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db.sql",
       "schema_version": 1,
       "tables": {
-        "knowledge_cards": 13,
+        "knowledge_cards": 17,
         "knowledge_receipts": 0,
         "knowledge_usage": 0,
         "molis_storage_space": 1
       },
-      "sha256": "51d7e4f6ddc6be44b3c26eec2c0f9591212621ca539728f539a096d4fcd7f681"
+      "sha256": "59d5df2c4e2db59d60e3e25011e12e2f60d7201ae9edb315f1ebeee2dd0260f1"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/mainline/mainline.db",
@@ -2848,75 +2930,23 @@
       "sha256": "0684df6847bffa0b1a83cc5beff3ff837530267d5ff1c68e096cc8484620a81c"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/dataset.db",
-      "owner": "apps/local-host",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/person-settings/person-settings.db",
+      "owner": "horizontal/person-settings",
       "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/dataset.db.sql",
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/person-settings/person-settings.db.sql",
       "schema_version": 1,
       "tables": {
-        "dataset_receipts": 0,
-        "dataset_source_bindings": 0,
-        "dataset_versions": 0,
-        "datasets": 0,
         "molis_storage_space": 1,
-        "sqlite_sequence": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_context": 1,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_changes": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_conflicts": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_heads": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_outbox": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions": 0,
-        "sync_aa98c46361f294dbb01ea79b1b42_replica_state": 1
+        "person_settings": 1,
+        "person_settings_replica_changes": 0,
+        "person_settings_replica_conflicts": 0,
+        "person_settings_replica_heads": 0,
+        "person_settings_replica_outbox": 0,
+        "person_settings_replica_resolutions": 0,
+        "person_settings_replica_state": 1,
+        "sqlite_sequence": 1
       },
-      "sha256": "044f4f1c7db21f5f96e51c6d502b3b5df0e3f37929f206845132f706c77ff3fe"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/form.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/form.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "form_copies": 0,
-        "forms": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 0,
-        "submissions": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_aggregate_editor_versions": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_context": 1,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_changes": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_conflicts": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_heads": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_outbox": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_resolutions": 0,
-        "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
-      },
-      "sha256": "5d01239f71807be8e3cac0ff1089b9ba1e74c348e38f024a3a64d4ec5e7033a2"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/lingguang.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/lingguang.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "conversations": 0,
-        "messages": 0,
-        "molis_storage_space": 1,
-        "spark_requests": 0,
-        "sparks": 0,
-        "sqlite_sequence": 0,
-        "sync_764756c5c01e4432072de4c80de9_aggregate_editor_versions": 0,
-        "sync_764756c5c01e4432072de4c80de9_context": 1,
-        "sync_764756c5c01e4432072de4c80de9_replica_changes": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_conflicts": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_heads": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_outbox": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_resolutions": 0,
-        "sync_764756c5c01e4432072de4c80de9_replica_state": 1
-      },
-      "sha256": "f603a1e207b10d5f705da22f929fe06db1ad3e1ee9ec207e55699dce7fc8931c"
+      "sha256": "6e2ab15a519a7d9f3e4006edc8f0fc318eeec749a342564ca3ccce089d7b221d"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/pages.db",
@@ -2944,52 +2974,6 @@
         "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
       },
       "sha256": "2a3481505c1b167c8db90a28db42c77bfed2ee7f4a958ff9d68a3c7d55c4eeea"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/ppt.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/ppt.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "presentation_copies": 0,
-        "presentations": 0,
-        "sqlite_sequence": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_aggregate_editor_versions": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_context": 1,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_changes": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_conflicts": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_heads": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_outbox": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_resolutions": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
-      },
-      "sha256": "f585361c12879da1d6f93e83d40b60a8bf9fad5ae15485924cd0fa8165973f1d"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/workflows.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/libraries/workflows.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "instances": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 0,
-        "sync_b1502527af2ce1127314acbe774c_aggregate_editor_versions": 0,
-        "sync_b1502527af2ce1127314acbe774c_context": 1,
-        "sync_b1502527af2ce1127314acbe774c_replica_changes": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_conflicts": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_heads": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_outbox": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_resolutions": 0,
-        "sync_b1502527af2ce1127314acbe774c_replica_state": 1,
-        "workflow_editor_versions": 0,
-        "workflow_imported_instances": 0,
-        "workflows": 0
-      },
-      "sha256": "49f0bd7e8462f95dbce95557b928b8dc2cf74101585483877ed85498a922e2f6"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/molis-work.db",
@@ -3093,6 +3077,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 0,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
@@ -3207,8 +3192,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "1bb022b9c1807e547bd2dc6596e82f08357429891c98215e7525c91fb7b4e73f",
-      "expanded_sha256": "3c78a7c9d8eeefeb16e6d0136977e22080dfb4ec9c1dce0ee34fc8bd094a7fff"
+      "sha256": "ff3d79d006381b00261740a3a9bd0ae3a11956334a70b01ac6d5d99550a8065d",
+      "expanded_sha256": "f4680e591c111c609d0f804f7c1bd48cba88b9b0d7761c5b795d1e0c94a58656"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db",
@@ -3275,8 +3260,8 @@
         "plugin_runtime_installs": 14,
         "plugin_runtime_release_artifacts": 14
       },
-      "sha256": "bf7c4c488fbd0fa8eb9c3fc5d2a605fbe7f9c087ff1630d1064b4222bbdd388f",
-      "expanded_sha256": "98819e1d59fd5642fb56359ee5379eee63de22d329cd7cc38f1bc1dd85076484"
+      "sha256": "a4358063e66f6a6bb91796292198bdfcf37cdb99b52222e6c0c48202c6210b14",
+      "expanded_sha256": "aad61adee9873dc6600397a1cb7001a928d3cf5d4ffe8816c19343bd492483e3"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db",
@@ -3292,7 +3277,7 @@
         "partition_plugins": 22,
         "plugin_terminal_panel_aliases": 0,
         "plugin_terminal_panels": 0,
-        "project_catalog_replica_changes": 15,
+        "project_catalog_replica_changes": 20,
         "project_catalog_replica_conflicts": 0,
         "project_catalog_replica_heads": 0,
         "project_catalog_replica_outbox": 0,
@@ -3300,7 +3285,7 @@
         "project_catalog_replica_state": 1,
         "project_deletion_steps": 0,
         "project_deletions": 0,
-        "project_events": 16,
+        "project_events": 22,
         "project_instruction_settings": 0,
         "project_plugin_exclusions": 0,
         "project_portable_plugins": 22,
@@ -3316,7 +3301,33 @@
         "workspace_source_links": 0,
         "workspaces": 2
       },
-      "sha256": "807a0f359b39574678f43a3b7340d2fc5daf0feffb40527c50a1cb2f47da20ea"
+      "sha256": "a0044e2bf8b96b2883993dbfcfed0963aee44c8591fe9b66b3831ff8b18b2707"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/cognia.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 1,
+        "cognia_drafts": 0,
+        "cognia_materials": 1,
+        "cognia_previews": 0,
+        "cognia_sources": 1,
+        "cognia_versions": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "0a4bcb3865b5a5100c18fa8e2c1cdca165d9d1873bb2ac68c4197b0c764c07c7"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/dataset.db",
@@ -3364,6 +3375,75 @@
         "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
       },
       "sha256": "0a54b654efa6661c9037524345656cff1b8034d82b82658c6a1c7f98b03d5e47"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/images.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jobs": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "9d527a42c0413ed194481e0c72be6c6ad10d480c197c1188da6bbce919c38755"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/issues.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "6dfc0df2580bdab20e7e428e8b69a9e04ecb55d9482d9c09078fc0972ec5abca"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/jelly.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_categories": 0,
+        "jelly_items": 0,
+        "jelly_notes": 1,
+        "jelly_series": 0,
+        "molis_overview_rows": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_78413094886bc34c13f0a35b19c1_aggregate_editor_versions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_context": 1,
+        "sync_78413094886bc34c13f0a35b19c1_replica_changes": 2,
+        "sync_78413094886bc34c13f0a35b19c1_replica_conflicts": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_heads": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_outbox": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_resolutions": 0,
+        "sync_78413094886bc34c13f0a35b19c1_replica_state": 1
+      },
+      "sha256": "da3d16238b6d3ffe792dbd0a07c2479a45a116c5108c3efe3f4395cb1aec2f3b"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/lingguang.db",
@@ -3437,6 +3517,33 @@
         "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
       },
       "sha256": "f05fba0f033595738312c4ee13366d276efd0bcd1f4eefcbbfa9c26b974611ca"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/todo.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_overview_rows": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 3,
+        "todo_editor_versions": 2,
+        "todo_items": 2,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "45bc353b9073c5e19e337218cde564d5a0a4520088b4608beb9f12e2321a2573"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-8e2c4ac4-3923-4645-bf73-4af27ac9a317/libraries/workflows.db",
@@ -3564,6 +3671,7 @@
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
+        "plugin_overview_rows": 1,
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
@@ -3678,8 +3786,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "ffeb2bf384afcf5ef4fd05d9a16f69cb38adc3eda7a25375aa67f27a44847584",
-      "expanded_sha256": "f091e7b9e3f7e38e76688aeb5409f954fa9a74cc6d8d8e816f0078c50bae9447"
+      "sha256": "8d3ff809b7d36ed3205a528135b1c0e9f7cdb06f6f53c3e74bfc2a61ccbf2267",
+      "expanded_sha256": "db95adb34d29537ff9d0149ebd2f907213acc89e8007d6362116b01afd0c1dde"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3698,34 +3806,6 @@
         "sync_stream_cursors": 0
       },
       "sha256": "bcbc8bae65e14388555dacc7e3cab910cfbd294a456ba703de3f52dbd628a4ab"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db",
-      "owner": "io.molis.work.todo",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
-        "todo_batches": 0,
-        "todo_changes": 3,
-        "todo_deleted_projects": 0,
-        "todo_editor_versions": 2,
-        "todo_imported_changes": 0,
-        "todo_items": 2,
-        "todo_requests": 0,
-        "todo_source_memory": 0
-      },
-      "sha256": "ba18d0420a1f1b860f2ae848439a46637c3a07ffbfbf5f7b2d09328911762fd6"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/web-search/web-search.db",
@@ -3766,34 +3846,6 @@
         "sync_99b05d64d7577ed2f59d3aae7365_replica_state": 1
       },
       "sha256": "cdf82ec6028b5330678e7ffb1bf5b5bb888252ff066189b5a6a9716f2fd73f38"
-    },
-    {
-      "path": "todo/todo.db",
-      "owner": "io.molis.work.todo",
-      "mode": 384,
-      "payload": "stores/todo/todo.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "sqlite_sequence": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 3,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
-        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
-        "todo_batches": 0,
-        "todo_changes": 3,
-        "todo_deleted_projects": 0,
-        "todo_editor_versions": 2,
-        "todo_imported_changes": 0,
-        "todo_items": 2,
-        "todo_requests": 0,
-        "todo_source_memory": 0
-      },
-      "sha256": "5b4306e5d2a5308a4f5c2f1e019781b6c35c5bf878b8fbfbfdb4538cf985a9b4"
     },
     {
       "path": "web-search/web-search.db",
@@ -3874,8 +3926,8 @@
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/5-15pzl-0.json",
-      "size": 7969,
-      "sha256": "a8ce31e03bb974c4ebba7827c8cfa7fd5fee90273bdf4aebfd6a2c3c149ffb73"
+      "size": 5185,
+      "sha256": "1ab1614c543b975519d19c047a8cee904fb9e8d9fa0b362a5e85a637893cf77b"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/6-737hg-0.json",
@@ -3931,7 +3983,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/5-15pzl.json",
       "size": 181,
-      "sha256": "101a43b90267ce72849cb52a7a21374f4d67bc06a99f7bb6a8de355fbc08e102"
+      "sha256": "3d9f6069d76923cb9bd56ac182ca9e8be13877e9b29d092e9434e8de7ee1de1b"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/6-737hg.json",
@@ -4003,7 +4055,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~runs/g-8rpte.j-6j08t.json",
       "size": 45728,
-      "sha256": "b82634b9f45af019466a98866cdaa64475aae670b816b91ed6befec201127f9e"
+      "sha256": "fe9659529343d1c30d51ead02194d7343a37badd37047cd4f72e559566b05b1f"
     },
     {
       "path": "agent-runtime/records/io.molis.work~sessions/1-x5gw.json",
@@ -4035,7 +4087,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~taskboards/global.4-7dkjk.v1.json",
       "size": 1245,
-      "sha256": "b5e3c4f312c8b162d62268094b023695494fd281d425c6804133be55e5bb1a9f"
+      "sha256": "3945ad4e70985b244e647a59693a305b1d158b8fc23ae67efd4d0c277cfa1d2b"
     },
     {
       "path": "agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-x5gw.json",
@@ -4051,15 +4103,15 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-2pp5x.json",
       "size": 15822,
-      "sha256": "294a4629fc8dbe092f73190704a719bf251d5832c5da4f6051909b2bc80f62d4"
+      "sha256": "c5714e9124db417be7847068b99abd7c53f839df4788984a3c5f108995506de8"
     },
     {
-      "path": "agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/b1a8d3637746ea822c08351e8bcfa3101853ee98d956baa5897cd8cfacc6981c.json",
+      "path": "agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/2c6e7cee08d06b1b2efcb07a342b7736eb1d057603d6a2c6cf56f59bd77fe8da.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/b1a8d3637746ea822c08351e8bcfa3101853ee98d956baa5897cd8cfacc6981c.json",
+      "payload": "files/agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/2c6e7cee08d06b1b2efcb07a342b7736eb1d057603d6a2c6cf56f59bd77fe8da.json",
       "size": 834,
-      "sha256": "80c4243af30228937fc85dabf8f0925fe4d50bca34b548d57b22e6ac861830c3"
+      "sha256": "46439b185f9251fe0fbc6caa39c71df9cee52de879b4c819105ac6ca025c7644"
     },
     {
       "path": "agent-runtime/storage.key",
@@ -4148,7 +4200,7 @@
       "mode": 384,
       "payload": "files/plugin-builder/project-791103fd-73f1-4091-acb6-1281d19bd75b/runs/a89339f8-357f-4d7a-8be0-168ab62b507d/builder-runs/c07ee99b-e3e0-4485-83bd-fb21b31dc50b.json",
       "size": 46011,
-      "sha256": "82b3a9fbaea10e0cc7afd7f94fd3212207bb15ab481c4e22d86c4cc4dc623cc9"
+      "sha256": "efc9c183d003cb1798b347df05ee6961f63b0fe02678f05861509f6a0178f340"
     },
     {
       "path": "plugin-files/plugin-install-7de07736f8d0991537baa0c377de771e/files/notes.txt",
@@ -4394,34 +4446,24 @@
   "module_sources": [],
   "release_manifests": [
     {
-      "digest": "159d36b4ee53d960ecd966616ca722521f112133b5b2d60af8b78ad27ecb3d96",
-      "payload": "files/release-manifests/159d36b4ee53d960ecd966616ca722521f112133b5b2d60af8b78ad27ecb3d96.br",
-      "bytes": 54504
+      "digest": "04ae5ff840138083297561468fcd0827aade582b8e5e45930ee910dc033fb57e",
+      "payload": "files/release-manifests/04ae5ff840138083297561468fcd0827aade582b8e5e45930ee910dc033fb57e.br",
+      "bytes": 110393
     },
     {
-      "digest": "215d73022305648775cb2e32cd71a52caeb6fe881d34ecc0b21185a8389fe6d4",
-      "payload": "files/release-manifests/215d73022305648775cb2e32cd71a52caeb6fe881d34ecc0b21185a8389fe6d4.br",
-      "bytes": 70300
+      "digest": "0c8f44b4febbe2285d1c9cc0836e91ce6f84acd83cef95182ba07a55e2e82c63",
+      "payload": "files/release-manifests/0c8f44b4febbe2285d1c9cc0836e91ce6f84acd83cef95182ba07a55e2e82c63.br",
+      "bytes": 96175
     },
     {
-      "digest": "24147603a9953ee21e741ab718b4413608b93fa7208b77b40493b88cc91e4dbb",
-      "payload": "files/release-manifests/24147603a9953ee21e741ab718b4413608b93fa7208b77b40493b88cc91e4dbb.br",
-      "bytes": 28942
+      "digest": "0d5de4b1e0a4a2932aca6e03933fb320580c7375d19f27d74758cdbae980d3a4",
+      "payload": "files/release-manifests/0d5de4b1e0a4a2932aca6e03933fb320580c7375d19f27d74758cdbae980d3a4.br",
+      "bytes": 29085
     },
     {
       "digest": "27495aadb3f0b9ea65eec99fa715e7d614dffe5cd76f0b2db619f4658a434677",
       "payload": "files/release-manifests/27495aadb3f0b9ea65eec99fa715e7d614dffe5cd76f0b2db619f4658a434677.br",
       "bytes": 54041
-    },
-    {
-      "digest": "300417a0fea5b7218ab29fa89235bdc9f1f3766fedccf516c406c86e59ed3de0",
-      "payload": "files/release-manifests/300417a0fea5b7218ab29fa89235bdc9f1f3766fedccf516c406c86e59ed3de0.br",
-      "bytes": 110365
-    },
-    {
-      "digest": "4344e8c4e9b62203985f27b6a98c32ed792638ac855129e6f276443adf9bdb78",
-      "payload": "files/release-manifests/4344e8c4e9b62203985f27b6a98c32ed792638ac855129e6f276443adf9bdb78.br",
-      "bytes": 38709
     },
     {
       "digest": "474d3bc6334ae62842cf9572b672df9a851727391fbe4c409217cdc3b2e9c822",
@@ -4439,16 +4481,6 @@
       "bytes": 44980
     },
     {
-      "digest": "5822c59f5286b123395f62b645d00f4f29789d4566589ea5e336b2c3dd4758d4",
-      "payload": "files/release-manifests/5822c59f5286b123395f62b645d00f4f29789d4566589ea5e336b2c3dd4758d4.br",
-      "bytes": 151032
-    },
-    {
-      "digest": "610c0c779f77a56471068f9c6637416bca3b7bab76327c65f8116740e060ae01",
-      "payload": "files/release-manifests/610c0c779f77a56471068f9c6637416bca3b7bab76327c65f8116740e060ae01.br",
-      "bytes": 96145
-    },
-    {
       "digest": "645dd6188694cafebe22d92a760c828c3fb4afe6f1be3ea7cef20475a5ab894c",
       "payload": "files/release-manifests/645dd6188694cafebe22d92a760c828c3fb4afe6f1be3ea7cef20475a5ab894c.br",
       "bytes": 43098
@@ -4464,6 +4496,11 @@
       "bytes": 474769
     },
     {
+      "digest": "7e9719a9321345623d4f447081b5fc03e28b8c86eee3f9664b4f9a259a3938c4",
+      "payload": "files/release-manifests/7e9719a9321345623d4f447081b5fc03e28b8c86eee3f9664b4f9a259a3938c4.br",
+      "bytes": 142772
+    },
+    {
       "digest": "824d408d7f7044e50739b197c87a6b43dfb96fba1bb3c3ec7d91434c32de994b",
       "payload": "files/release-manifests/824d408d7f7044e50739b197c87a6b43dfb96fba1bb3c3ec7d91434c32de994b.br",
       "bytes": 37027
@@ -4472,6 +4509,21 @@
       "digest": "82d7d5d8c4ce86acecdb75c96d3632487e14ac05cba13305139c224c83a37288",
       "payload": "files/release-manifests/82d7d5d8c4ce86acecdb75c96d3632487e14ac05cba13305139c224c83a37288.br",
       "bytes": 28558
+    },
+    {
+      "digest": "84987574feb6175b27dadefb8c83c43931fe5d3a46cd62d97360574fd689584c",
+      "payload": "files/release-manifests/84987574feb6175b27dadefb8c83c43931fe5d3a46cd62d97360574fd689584c.br",
+      "bytes": 71543
+    },
+    {
+      "digest": "8e4271ec5af04eb0038cf5d21241eb7a63cab6a3ff4e61021f6a3be3c811aafa",
+      "payload": "files/release-manifests/8e4271ec5af04eb0038cf5d21241eb7a63cab6a3ff4e61021f6a3be3c811aafa.br",
+      "bytes": 54532
+    },
+    {
+      "digest": "8f3e086de65fa8701fb43ca75659c9226865ce35800b5fed8220d7fdeba42314",
+      "payload": "files/release-manifests/8f3e086de65fa8701fb43ca75659c9226865ce35800b5fed8220d7fdeba42314.br",
+      "bytes": 39292
     },
     {
       "digest": "8f861ef7e0b726664c710a658b81ca32564d4d38d600392baa3481a444fbb265",
@@ -4484,14 +4536,14 @@
       "bytes": 43459
     },
     {
+      "digest": "9a32b1c75a98cb0ca77b0262d564d6bdd047f5b294a20cd95826539f85299c52",
+      "payload": "files/release-manifests/9a32b1c75a98cb0ca77b0262d564d6bdd047f5b294a20cd95826539f85299c52.br",
+      "bytes": 46170
+    },
+    {
       "digest": "9de8b3419f98e20d91d9b8d31a585ccadcc0ec60dbe577ac35ead294e8d5b106",
       "payload": "files/release-manifests/9de8b3419f98e20d91d9b8d31a585ccadcc0ec60dbe577ac35ead294e8d5b106.br",
       "bytes": 43828
-    },
-    {
-      "digest": "ba6a0573c3e25a236b9be4b96072ac54f0b55b63cd54620c35664ab74566be81",
-      "payload": "files/release-manifests/ba6a0573c3e25a236b9be4b96072ac54f0b55b63cd54620c35664ab74566be81.br",
-      "bytes": 46117
     },
     {
       "digest": "e25fed5c0cde93b34a20e0fbf32a16dd0ba95c5ddf8bfc864cbd628793362992",

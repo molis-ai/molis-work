@@ -827,6 +827,35 @@ CREATE TABLE plugin_notifications (
       last_error_code TEXT,
       UNIQUE (sender_install_id, sender_generation, key)
     );
+CREATE TABLE plugin_overview_rows (
+  install_id TEXT NOT NULL CHECK (length(install_id) BETWEEN 1 AND 200),
+  kind TEXT NOT NULL CHECK (kind IN ('task', 'event', 'notification', 'brief', 'background_task', 'scheduled_run')),
+  row_id TEXT NOT NULL CHECK (length(row_id) BETWEEN 1 AND 200),
+  title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 500),
+  status TEXT CHECK (status IS NULL OR status IN ('open', 'done', 'cancelled')),
+  due_at TEXT,
+  remind_at TEXT,
+  priority INTEGER CHECK (priority IS NULL OR priority BETWEEN 0 AND 3),
+  tags_json TEXT,
+  starts_at TEXT,
+  ends_at TEXT,
+  all_day INTEGER CHECK (all_day IS NULL OR all_day IN (0, 1)),
+  time_zone TEXT,
+  level TEXT CHECK (level IS NULL OR level IN ('info', 'warning', 'urgent')),
+  source TEXT,
+  occurred_at TEXT,
+  summary TEXT,
+  state TEXT,
+  waiting INTEGER CHECK (waiting IS NULL OR waiting IN (0, 1)),
+  started_at TEXT,
+  reports_to TEXT CHECK (reports_to IS NULL OR reports_to = 'assistant'),
+  missed_at TEXT,
+  needs_json TEXT,
+  open_surface TEXT,
+  open_id TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (install_id, kind, row_id)
+);
 CREATE TABLE plugin_port_artifact_bindings (
       project_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
@@ -1225,8 +1254,8 @@ INSERT INTO "plugin_project_databases"("plugin_id","publisher_signature","store_
 INSERT INTO "plugin_project_databases"("plugin_id","publisher_signature","store_name","version","tables_json","created_at") VALUES('io.molis.work.inbox','official-inbox-binding','inbox',1,'["inbox_scene_bindings"]','2026-01-15T09:00:00.000Z');
 INSERT INTO "plugin_project_databases"("plugin_id","publisher_signature","store_name","version","tables_json","created_at") VALUES('io.molis.work.risk','official-risk-binding','risk',1,'["risk_editor_versions","risk_events","risk_events_risk_idx","risk_items","risk_items_status_idx","risk_links","risk_links_subject_idx","sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions","sync_57fe6903aad21582fd1bfbdd6011_context","sync_57fe6903aad21582fd1bfbdd6011_replica_changes","sync_57fe6903aad21582fd1bfbdd6011_replica_changes_key","sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts","sync_57fe6903aad21582fd1bfbdd6011_replica_heads","sync_57fe6903aad21582fd1bfbdd6011_replica_outbox","sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions","sync_57fe6903aad21582fd1bfbdd6011_replica_state","sync_57fe6903aad21582fd1bfbdd6011_track_0_delete","sync_57fe6903aad21582fd1bfbdd6011_track_0_insert","sync_57fe6903aad21582fd1bfbdd6011_track_0_update"]','2026-01-15T09:00:00.000Z');
 INSERT INTO "plugin_project_databases"("plugin_id","publisher_signature","store_name","version","tables_json","created_at") VALUES('io.molis.work.schedule','official-schedule-binding','schedule',1,'["schedule_conversation_tasks","schedule_conversation_tasks_enabled_idx","schedule_conversation_turns","schedule_conversation_turns_task_idx","schedule_missed_runs","schedule_operation_occurrences","schedule_operations","schedule_plugin_reminders","schedule_plugin_reminders_owner","sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions","sync_fc44281fa4e6ae1ad919f15bea63_context","sync_fc44281fa4e6ae1ad919f15bea63_replica_changes","sync_fc44281fa4e6ae1ad919f15bea63_replica_changes_key","sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts","sync_fc44281fa4e6ae1ad919f15bea63_replica_heads","sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox","sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions","sync_fc44281fa4e6ae1ad919f15bea63_replica_state","sync_fc44281fa4e6ae1ad919f15bea63_track_0_delete","sync_fc44281fa4e6ae1ad919f15bea63_track_0_insert","sync_fc44281fa4e6ae1ad919f15bea63_track_0_update","sync_fc44281fa4e6ae1ad919f15bea63_track_1_delete","sync_fc44281fa4e6ae1ad919f15bea63_track_1_insert","sync_fc44281fa4e6ae1ad919f15bea63_track_1_update"]','2026-01-15T09:00:00.000Z');
-INSERT INTO "plugin_runtime_installs"("install_id","record_json","publisher_trust") VALUES('plugin-install-da3726a85a96dceede918bef171fbc66','{"install_id":"plugin-install-da3726a85a96dceede918bef171fbc66","installation_generation":"cd1b415f-791c-46b8-b489-401c8fb1d4fc","plugin_id":"io.molis.work.schedule","version":"0.1.0","publisher_id":"molis","publisher_signature":"official-schedule-binding","manifest_digest":"f30bbea664eeb308adcb205e3e7ca3b998db4bd5b877f3727396e30901ac8f37","deployment":"local","selected_entrypoint":"./index.js","grants":["actions:invoke","agent:run","model:read","notifications:write","plugins:read","schedule:read","schedule:write","storage:private"],"execution":"host","publisher_trust":"host","state":"installed","recovery_count":0,"last_error_code":null,"installed_at":"2026-01-15T09:00:00.000Z","updated_at":"2026-01-15T09:00:00.000Z","uninstalled_at":null,"retain_private_data":true}','host');
-INSERT INTO "plugin_runtime_release_artifacts"("plugin_id","publisher_signature","version","manifest_digest","artifact_json") VALUES('io.molis.work.schedule','official-schedule-binding','0.1.0','f30bbea664eeb308adcb205e3e7ca3b998db4bd5b877f3727396e30901ac8f37','{"plugin_id":"io.molis.work.schedule","publisher_signature":"official-schedule-binding","version":"0.1.0","manifest_digest":"f30bbea664eeb308adcb205e3e7ca3b998db4bd5b877f3727396e30901ac8f37","manifest":"sha256:159d36b4ee53d960ecd966616ca722521f112133b5b2d60af8b78ad27ecb3d96"}');
+INSERT INTO "plugin_runtime_installs"("install_id","record_json","publisher_trust") VALUES('plugin-install-da3726a85a96dceede918bef171fbc66','{"install_id":"plugin-install-da3726a85a96dceede918bef171fbc66","installation_generation":"cd1b415f-791c-46b8-b489-401c8fb1d4fc","plugin_id":"io.molis.work.schedule","version":"0.1.0","publisher_id":"molis","publisher_signature":"official-schedule-binding","manifest_digest":"2ba2509fe0f7f164f3b72e7edf98231257a62b85e5ca8856383153e754015bef","deployment":"local","selected_entrypoint":"./index.js","grants":["actions:invoke","agent:run","model:read","notifications:write","plugins:read","schedule:read","schedule:write","storage:private"],"execution":"host","publisher_trust":"host","state":"installed","recovery_count":0,"last_error_code":null,"installed_at":"2026-01-15T09:00:00.000Z","updated_at":"2026-01-15T09:00:00.000Z","uninstalled_at":null,"retain_private_data":true}','host');
+INSERT INTO "plugin_runtime_release_artifacts"("plugin_id","publisher_signature","version","manifest_digest","artifact_json") VALUES('io.molis.work.schedule','official-schedule-binding','0.1.0','2ba2509fe0f7f164f3b72e7edf98231257a62b85e5ca8856383153e754015bef','{"plugin_id":"io.molis.work.schedule","publisher_signature":"official-schedule-binding","version":"0.1.0","manifest_digest":"2ba2509fe0f7f164f3b72e7edf98231257a62b85e5ca8856383153e754015bef","manifest":"sha256:8e4271ec5af04eb0038cf5d21241eb7a63cab6a3ff4e61021f6a3be3c811aafa"}');
 INSERT INTO "process_items_replica_state"("id","device","cursor","applying") VALUES(1,'e5d051e9b8f9f4fb93b50fd7c8c6f2dc',0,0);
 INSERT INTO "project_approvals_replica_state"("id","device","cursor","applying") VALUES(1,'d1877e1a8ca78473f5925ab2a66233d5',0,0);
 INSERT INTO "project_guidance_replica_state"("id","device","cursor","applying") VALUES(1,'102382f8a90849eb3cbd60380d5e5736',0,0);
@@ -1336,6 +1365,7 @@ CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, s
 CREATE INDEX plugin_events_board_type_source
       ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
 CREATE INDEX plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
+CREATE INDEX plugin_overview_rows_remind ON plugin_overview_rows(remind_at) WHERE remind_at IS NOT NULL;
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX process_items_project_idx

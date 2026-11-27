@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -204,11 +205,31 @@ test("F-plugins-rest-w2-14 F-plugins-rest-w2-15: Risk preserves unsaved drafts a
   })()`);
   await evaluate(`(() => { const s = document.querySelector('select[data-rk-filter=impact]'); s.value = 'high'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   await browser.waitFor("window.riskRace.listHigh.ready");
-  await evaluate(`(() => { const s = document.querySelector('select[data-rk-filter=impact]'); s.value = 'low'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-  await waitFor("document.querySelectorAll('[data-risk-row]').length === 1 && document.querySelector('[data-risk-row]').textContent.includes('低影响风险')");
+  // While the first high-impact list read is held in flight, create a newer high-impact risk and trigger the real assistant-effect reload.
+  const pageId = await browser.evaluate<string>("document.querySelector('[data-work-surface=\"risk\"]')?.dataset.pluginPage ?? ''");
+  assert.ok(pageId, "risk plugin page handle must be present");
+  const createResponse = await fetch(`${origin}/projects/${projectId}/api/host/plugin-page-actions`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      origin,
+      "content-type": "application/json",
+      "x-molis-work-control-token": browser.controlToken,
+      "x-molis-work-idempotency-key": randomUUID(),
+      "x-molis-plugin-page": pageId,
+    },
+    body: JSON.stringify({
+      reference: { capability_id: "risk.create", version: 1 },
+      input: { title: "最新高影响风险", statement: "并发刷新期间新增的高影响风险", impact: "high", likelihood: "high" },
+    }),
+  });
+  assert.equal(createResponse.status, 200, `expected risk.create to succeed: ${await createResponse.text()}`);
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { capability_id: 'risk.create' } }))`);
+  await waitFor("document.querySelectorAll('[data-risk-row]').length === 2 && document.querySelector('[data-risk-body]').textContent.includes('最新高影响风险')");
   await browser.evaluate("window.riskRace.listHigh.release()");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.match(await evaluate<string>("document.querySelector('[data-risk-row]').textContent"), /低影响风险/, "late high-filter response must not overwrite low-filter view");
+  assert.equal(await evaluate("document.querySelectorAll('[data-risk-row]').length"), 2, "late stale overview response must not overwrite newer overview rows");
+  assert.match(await evaluate<string>("document.querySelector('[data-risk-body]').textContent"), /最新高影响风险/, "late stale overview response must not drop the newer risk");
 
   await evaluate(`document.querySelector('[data-risk="workbench"]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(ids["高影响风险"])} } }))`);
   await browser.waitFor("window.riskRace.getFirst.ready");

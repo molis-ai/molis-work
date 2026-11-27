@@ -1,6 +1,7 @@
 import type { TodoChange, TodoItem, TodoLink } from "./contract.js";
 import { todoErrors } from "./error.js";
-import { changeFromRow, changeRows, conflict, fromRow, itemRows, toRow, visible, type ItemRow } from "./store-support.js";
+import { writeTodoOverview, removeTodoOverview } from "./overview.js";
+import { changeFromRow, changeRows, conflict, fromRow, itemRows, toRow, type ItemRow } from "./store-support.js";
 import type { TodoAccess, TodoSql } from "./store-types.js";
 
 /** The todo store's connection and plumbing: reading, and the three statements every write is made of. */
@@ -13,29 +14,32 @@ export abstract class TodoStoreBase {
     this.release();
   }
 
-  /** Every todo this caller may see; views and search filter from here. */
-  list(access: TodoAccess): TodoItem[] {
-    return this.visibleRows(access, false);
+  /** Every todo here (the library is this partition's); views and search filter from here. */
+  list(_access: TodoAccess): TodoItem[] {
+    return this.rows(false);
   }
 
-  pendingReminders(access: TodoAccess): TodoItem[] {
-    return this.visibleRows(access, true);
+  pendingReminders(_access: TodoAccess): TodoItem[] {
+    return this.rows(true);
   }
 
-  private visibleRows(access: TodoAccess, remindersOnly: boolean): TodoItem[] {
-    const projects = access.projectId ? [...access.projectIds, access.projectId] : access.projectIds;
+  private rows(remindersOnly: boolean): TodoItem[] {
     const reminders = remindersOnly
-      ? "AND remind_at IS NOT NULL AND reminder_acknowledged_at IS NULL AND archived_at IS NULL AND status IN ('open','doing','waiting')"
+      ? "WHERE remind_at IS NOT NULL AND reminder_acknowledged_at IS NULL AND archived_at IS NULL AND status IN ('open','doing','waiting')"
       : "";
-    return itemRows(this.db.all(`SELECT * FROM todo_items
-      WHERE (project_id IS NULL OR project_id IN (SELECT value FROM json_each(?))) ${reminders}
-      ORDER BY created_at`, [JSON.stringify(projects)])).map(fromRow);
+    return itemRows(this.db.all(`SELECT * FROM todo_items ${reminders} ORDER BY created_at`, [])).map(fromRow);
   }
 
-  get(id: string, access: TodoAccess): TodoItem {
+  get(id: string, _access: TodoAccess): TodoItem {
     const row = this.db.get("SELECT * FROM todo_items WHERE id = ?", [id]) as ItemRow | undefined;
-    if (!row || !visible(row, access)) throw todoErrors.not_found("找不到这件待办，可能已被删除");
+    if (!row) throw todoErrors.not_found("找不到这件待办，可能已被删除");
     return fromRow(row);
+  }
+
+  /** The todo, or null when there is none of that id here (a reminder that fell due after it went). */
+  find(id: string): TodoItem | null {
+    const row = this.db.get("SELECT * FROM todo_items WHERE id = ?", [id]) as ItemRow | undefined;
+    return row ? fromRow(row) : null;
   }
 
   /** Other todos whose links point at this one, so the relation reads from both ends. */
@@ -65,18 +69,26 @@ export abstract class TodoStoreBase {
     return this.now();
   }
 
+  /** Every write of a todo also writes its overview row, in the same transaction (`overview.ts`). */
   protected insert(item: TodoItem): void {
-    this.db.run(`INSERT INTO todo_items (id, title, notes, status, placement, project_id, due_date, due_time, planned_date, remind_at, important,
+    this.db.run(`INSERT INTO todo_items (id, title, notes, status, due_date, due_time, planned_date, remind_at, important,
       waiting_json, sources_json, links_json, edited_fields_json, archived_at, completed_at, created_at, updated_at, revision, reminder_acknowledged_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, toRow(item));
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, toRow(item));
+    writeTodoOverview(this.db, item);
   }
 
   protected write(current: TodoItem, next: TodoItem): void {
     const values = toRow(next);
-    const result = this.db.run(`UPDATE todo_items SET id = ?, title = ?, notes = ?, status = ?, placement = ?, project_id = ?, due_date = ?, due_time = ?,
+    const result = this.db.run(`UPDATE todo_items SET id = ?, title = ?, notes = ?, status = ?, due_date = ?, due_time = ?,
       planned_date = ?, remind_at = ?, important = ?, waiting_json = ?, sources_json = ?, links_json = ?, edited_fields_json = ?, archived_at = ?,
       completed_at = ?, created_at = ?, updated_at = ?, revision = ?, reminder_acknowledged_at = ? WHERE id = ? AND revision = ?`, [...values, current.id, current.revision]);
     if (result.changes !== 1) throw conflict();
+    writeTodoOverview(this.db, next);
+  }
+
+  /** A todo deleted here: its overview row goes with it. */
+  protected overviewGone(id: string): void {
+    removeTodoOverview(this.db, id);
   }
 
   protected record(change: Omit<TodoChange, "reverted_by">): void {

@@ -1,34 +1,19 @@
-import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_TABLE_SQL, type PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
- * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): the todos placed in it go
- * with their history, request receipts, what the organizer remembered about them and its review batches; personal todos name no
- * project and stay.
+ * The Todo library's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are created from it,
+ * existing ones must already be at its version. Each partition (the personal space or a project) has its own copy
+ * (`<partition>/libraries/todo.db`, specs/unified-partition-plugins §4.2, batch 108), so no row names its project and there is no
+ * "where does it belong" to keep: deleting a project takes its whole library. The platform's overview table sits beside the todos and is
+ * written in the same transaction (`overview.ts`); its reminder column is what makes a reminder ring.
  */
-const TODO_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "todo.project-deletion.data" }, order: 60, tables: [
-  { table: "todo_imported_changes", column: "item_id", parent: "todo_items" },
-  { table: "todo_editor_versions", column: "id", parent: "todo_items" },
-  { table: "todo_changes", column: "item_id", parent: "todo_items" },
-  { table: "todo_requests", column: "item_id", parent: "todo_items" },
-  { table: "todo_source_memory", column: "item_id", parent: "todo_items" },
-  { table: "todo_batches", column: "project_id" },
-  { table: "todo_items", column: "project_id" },
-  // Deleting items creates these tombstones; project deletion clears them last.
-  { table: "todo_deleted_projects", column: "project_id" },
-] };
-/**
- * The Todo library's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
- * created from it, existing ones must already be at its version. The Runtime opens it for the plugin; tests and the project's
- * deletion open the same file with their own connection.
- */
-export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO_PROJECT_ROWS, store_name: "todo", version: /* @version database.todo_database */ 1, read_permission: "todo:read", write_permission: "todo:write", schema: `
+export const TODO_DATABASE: PartitionPluginDatabaseDeclaration = { store_name: "todo", deletion: { label: { key: "todo.project-deletion.data" }, order: 60 },
+  version: /* @version database.todo_database */ 1, read_permission: "todo:read", write_permission: "todo:write", schema: `
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     notes TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL,
-    placement TEXT NOT NULL,
-    project_id TEXT,
     due_date TEXT,
     due_time TEXT,
     planned_date TEXT,
@@ -45,14 +30,7 @@ export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO
     revision INTEGER NOT NULL,
     reminder_acknowledged_at TEXT
   );
-  CREATE INDEX todo_items_project ON todo_items (project_id);
-  CREATE TABLE todo_deleted_projects (id TEXT PRIMARY KEY, project_id TEXT);
-  CREATE TRIGGER todo_deleted_project AFTER DELETE ON todo_items BEGIN
-    INSERT INTO todo_deleted_projects(id,project_id) VALUES(OLD.id,OLD.project_id)
-      ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id;
-  END;
   CREATE TABLE todo_editor_versions(id TEXT PRIMARY KEY,revision INTEGER NOT NULL);
-  CREATE TABLE todo_imported_changes(change_id TEXT PRIMARY KEY, item_id TEXT NOT NULL);
   CREATE TABLE todo_changes (
     change_id TEXT PRIMARY KEY,
     item_id TEXT NOT NULL,
@@ -75,7 +53,7 @@ export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO
 
   -- The organizer's review batches and what it remembers about sources (organize.ts).
   CREATE TABLE todo_batches (
-    batch_id TEXT PRIMARY KEY, project_id TEXT, origin TEXT NOT NULL, method TEXT NOT NULL, title TEXT NOT NULL,
+    batch_id TEXT PRIMARY KEY, origin TEXT NOT NULL, method TEXT NOT NULL, title TEXT NOT NULL,
     body_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
     request_id TEXT UNIQUE
   );
@@ -83,4 +61,7 @@ export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO
     source_key TEXT NOT NULL, fingerprint TEXT NOT NULL, decision TEXT NOT NULL, item_id TEXT, reason TEXT NOT NULL, at TEXT NOT NULL,
     PRIMARY KEY (source_key, fingerprint)
   );
+
+  -- The platform's overview table (specs/unified-partition-plugins §6.1): one task row per open todo.
+  ${OVERVIEW_TABLE_SQL}
 ` };

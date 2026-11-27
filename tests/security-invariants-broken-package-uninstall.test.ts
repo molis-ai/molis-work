@@ -1,4 +1,6 @@
 // @requires-platform darwin
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
@@ -129,7 +131,9 @@ test("B27-UN-03 S-94 an old request does not take off the installation that repl
   assert.ok(await r.offered() > 0, "and its actions were not withdrawn");
   assert.ok(valuesOf(r.h.home, second.install_id).length > 0, "nor its data deleted");
   // A plugin's own page is not the person (S-94).
-  const opened = await r.raw("/api/host/plugin-pages", { plugin_id: "io.molis.work.cognia" });
+  // A page of a plugin in the personal space (Cognia runs there once added, batch 108).
+  await addProjectPlugin(r.web, PERSONAL_SPACE_PROJECT_ID, "cognia");
+  const opened = await r.raw(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/host/plugin-pages`, { plugin_id: "io.molis.work.cognia" });
   assert.equal(opened.status, 200, await opened.clone().text());
   const page = { "x-molis-plugin-page": (await opened.json() as { page_id: string }).page_id };
   const refused = await r.raw("/api/settings/plugin-permissions/uninstall", { plugin_id: PACKAGE_PLUGIN_ID, keep_data: false, target: second }, page);

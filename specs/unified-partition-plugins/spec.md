@@ -125,7 +125,7 @@
 2. **一套装配。** 合并 `HomePluginHost` 与项目平台、`HomeInstalledPlugins` 与 `installed-plugin-host`：按（插件, 分区）启动实例，每个实例的 `services.database`、`services.project_database`、`services.ownerFiles` 绑定它自己分区的文件；**不沿用**今天 `databases.home.partition: "project"` 那种「一个 Home 实例按调用切库」的复用器（它拒绝路由、启停、事件与定时器，`plugin-database-partitions.ts:61-80`，Todo 的提醒路由会坏），复用器整个退役。休眠分区的实例不常驻：分区打开、有到期登记、收到推送或同步写入时才起，闲置按平台策略停（沙箱子进程同样），进程数与打开的分区数成正比而不是与项目总数成正比。**随着 Shelf 在 `44B` 收归纯平台 `modules/shelf`（`system.shelf`），普通插件不再有任何 `HomePluginHost` 或 `dual_instance` 路径**。
 3. **删掉的链路：** `outsideBuild()` → `projectReachablePlugins` → `reachEntry({personal:true})`；`plugin-scope-entries.ts` 的两半配对；`assertScopeKept` 三态；`home-package-admission.ts` 的 Home 包限制；`plugin-declared-services.ts` 的「项目实例不得声明 `owner_files`、`model_configuration`、`image_generation`、`local_tools`」（C8）。`local_tools` 仍只给宿主信任（安全边界，按信任级别，不按插件名）。
 4. **本人级服务（复用 `#2231` 个人配置同步通道）。** 有的插件需要「跟人走、不跟分区走」的设置：Images 的生图连接（今天在 `images.db` 的 `connections` 表）、Jelly 的模型选择（`{home}/jelly/preferences.json`）、Cognia 的目录授权。加平台服务 `services.personSettings`（归 `horizontal/person-settings`）：Home 层、按（安装, 键）存，只给本机本人的调用，不进项目同步、不给其他成员与 Agent；插件的业务数据仍在分区。每个键在 Manifest 声明 `portable`：只有可跨设备的偏好随本人同步，**直接复用 `#2231` 落地的 `personalConfigReplica` + `assertPortableConfig`**（不另造第二套个人配置同步机制），密钥、本机路径与授权一律留在本机（5.1）。
-5. **连接槽。** 不新增「本人默认」范围：现有的按安装绑定 `plugin-installation:<install>`（`horizontal/connector-host/src/plugin-binding-scopes.ts:9`）本来就跨分区，就是「本人默认」。收紧谁能用它：只给本机本人与本人授权过的助理的调用；项目 Agent、外部 MCP、（以后）团队成员在共享项目里一律用不到，要用就在那个分区单独绑定。`per_record`（`…/project:<id>/record:<key>`）不变（S-71）。
+5. **连接槽。** 不新增「本人默认」范围：现有的按安装绑定 `plugin-installation:<install>`（`horizontal/connector-host/src/plugin-binding-scopes.ts:9`）本来就跨分区，就是「本人默认」。收紧谁能用它：只给本机本人、本人授权过的助理、本人建的工作流（用户 2026-11-26「可以，保持现状」）与插件自己的后台的调用；项目 Agent、外部 MCP、（以后）团队成员在共享项目里一律用不到，要用就在那个分区单独绑定。`per_record`（`…/project:<id>/record:<key>`）不变（S-71）。
 6. **密钥与提示词作用域。** 今天按 `HOME_INSTALL_SCOPE` 或项目 id 分；合并后插件密钥按安装（Home 层），提示词按安装登记一次；牵动 S-80、S-84、S-87、S-91，同步改表与拒绝测试。
 
 ## 5. 存储
@@ -178,6 +178,16 @@
 今天：Todo「所有项目」读它自己的 Home 库（拆库后不再成立）；Work Brief 个人简报读共用 Home 库；运行总览走 `home_aggregate`，休眠项目要么回内存里的旧读数、要么在后台逐个唤醒（S-49，`apps/local-host/src/home-aggregate.ts:46-60`）。
 
 方案（U4，11-23 按 V11 改）：**插件维护一张平台定格式的「总览表」**。平台按种类定好表结构——待办（标题、状态、截止、提醒时间、优先级、标签）、日程（开始、结束、全天、时区；重复日程由插件展开未来一段时间，如 90 天，到期前滚动续展）、通知（标题、级别、来源、时间）、简报（标题、摘要、更新时间）——插件在自己的分区库里建这张表，并在写业务数据的**同一事务**里顺手更新（SDK 给 `overviewRows.upsert/remove` 帮手与格式校验）。Manifest 只声明 `overview_projection: { kinds: ["task", "event"] }` 与显示名，不写列名映射、不写 SQL。平台用只读连接（`SQLITE_OPEN_READONLY`）读这张表——不运行插件代码；同步写进休眠分区或恢复时，平台把该分区标 `dirty = 1`，打开总览时只对脏分区懒只读刷新，其余休眠分区零唤醒；投影行的分区与安装由平台从可信上下文盖章，插件不能自报；禁用、卸载、删分区时平台立即删掉对应行；每分区每种类有行数上限（如 500，日程按展开窗口计）。**到期提醒也从这张表取**：平台在打开或同步写入分区后按「提醒时间」列更新到期登记（4.1），所以另一台电脑同步来的提醒不会漏响；已合入第 `95-3` 批（`#2151`）「错过执行自 `due_at` 起 7 天自动过期」的语义归到期登记，不归总览索引。平台存在 Home 级、可重建的总览索引里（与搜索索引同类：只是缓存，不是第二份事实，扩展 `horizontal/search` 的存储与查询，不另起库）。个人空间里的 Todo、简报、日历、运行总览与通知（`R13`）只读这个索引；点进某一行才打开那个分区。读取遵循下方的本人及个人助理授权规则。`call-budget` 加「个人空间总览」场景（**门禁 G4**），量开库次数为常数、与项目数无关。**写法要进插件开发文档**：`skills/molis-plugin-dev`（新增「总览表与到期提醒」「推送声明」「分区存储」「依赖与随启用」四节）、Manifest 字段说明与 SDK 类型注释同批写好，创作台生成插件时照此生成，改动跑 `pnpm studio:replay`。
+
+<a id="main-overview-table"></a>
+
+**主库摘要表与运行总览（第 108 批，用户 2026-11-26 定，V17）。** 「定时运行」「后台任务」两张跨项目清单今天靠 `home-aggregate.ts` 逐项目问提供方，休眠项目回 `#2254` 的静息读数。108 批起两张清单也只读总览索引，`home-aggregate.ts`、静息读数与动作合同的 `home_aggregate` 标记一并删除：
+
+1. **两个新种类。** 总览种类加 `background_task`（标题、环状态、是否等你、开始与更新时间、打开位置、结束后是否报给助理）与 `scheduled_run`（标题、到期时间、错过时间、所需条件 `network`/`model`、打开位置）。表里只存数据与平台词表里的值，不存译文；一步一句的说明、可停的命令与待答的决定不进摘要，点进那一行才在它的分区里读全。错过的运行满 7 天算过期、首页说过几条，由 Home 按 `due_at` 与自己记的「上次说到」算，不归插件。
+2. **分区独立库的插件**照旧在自己的库里写 `molis_overview_rows`（6.1）。
+3. **分区主库的插件**（Coding、Schedule、Feed 等，U3 不迁库）写平台在每个分区主库 `molis-work.db` 里建的 `plugin_overview_rows`：与 `molis_overview_rows` 同列，多一列写入方安装 `install_id`，由平台从插件实例的可信身份盖章，插件不能自报、只能改自己那份。插件经 `services.overview.join(tx, rows => …)` 在写业务数据的同一事务里写（与 `services.attention.join` 同一套连接与撤权复核），SDK 的 `overviewRows` 帮手与格式校验两处共用；Manifest 照旧只声明 `overview_projection.kinds`。
+4. **平台只读读取。** 总览索引用只读连接读主库这张表（按安装分开盖章），与读分区主库的「等你 / 通知」（`attention_entries`，R13）同路，休眠分区零唤醒；写入提交后标脏、立即只读刷新；同步写入或恢复时整分区标脏。禁用、卸载、删分区时平台删掉对应行。
+5. **主人的宿主服务**（个人助理的跟进、主线的错过运行等，不是插件）不经摘要表，Home 直接问它们，与今天一样。
 
 <a id="overview-readers"></a>
 
@@ -448,6 +458,7 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | UPP-34 | 同步写进休眠分区后，总览索引更新且不唤醒该分区的监督器；重建索引同样不唤醒 |
 | UPP-35 | 归档项目不能作推送目标、不进总览；项目进回收站后原件侧显示「目标项目已删除」，恢复后回到正常 |
 | UPP-36 | 批量推送逐件独立；引用的对象也推到同一项目时改指副本，否则去掉并在确认框列出 |
+| UPP-37 | 「定时运行」「后台任务」两张跨项目清单只读总览：分区独立库插件写 `molis_overview_rows`，分区主库插件经 `services.overview` 同事务写 `plugin_overview_rows`，安装由平台盖章、只能改自己那份、只写声明的种类；休眠分区零唤醒；禁用、卸载、删分区后行随之消失；`home-aggregate.ts`、静息读数与 `home_aggregate` 标记不再存在（[V17](#main-overview-table)） |
 
 <a id="14-要用户拍板一次列全"></a>
 
@@ -527,6 +538,8 @@ CREATE TABLE push_operations (            -- 只记已完成的操作（V2：不
 | V14 | 排期 | 用户定：**按现在的顺序**（44B、106～111 串行，下游等 111） |
 | V16 | 插件叫什么名字（复查发现 SDK 强制所有插件用官方前缀，保留前缀会挡住全部非宿主插件） | 用户定：**别人用自己的名字**——外部插件用自己的反向域名（如 `com.acme.todo`），创作台生成的叫 `studio.<编号>`（从开始做就定下、发布后不变，作者靠签名证明，用户 11-23 定）；SDK `PLUGIN_ID` 放开为通用反向域名形式，`io.molis.work.` 只给宿主自己的包（V16），归 `44B-0` |
 | V15 | 旧 Alchemist 在本机的旧数据 | 用户定：**44B 合入后就把开发机本机的旧 Alchemist 目录搬开（不删）**，其余真实数据仍等 111 之后；动手前再弹窗确认 |
+| V17 | 「定时运行」「后台任务」两张跨项目清单怎么接总览（主库插件 U3 不迁库，原规格没有主库插件出摘要的设计） | 用户定（2026-11-26 弹窗）：**108 批做主库摘要表**——每个分区主库一张平台管、平台盖章写入方的摘要表，主库插件同事务写；总览种类加 `scheduled_run`、`background_task`；108 删 `home-aggregate.ts` 与静息读数（[6.1 主库摘要表](#main-overview-table)） |
+| V18 | 评审后四问（第 108 批，用户 2026-11-26 弹窗） | **G4 改成按比例断言**（`ownerResolutions` 按每分区每总览插件计，其余计数仍常数）；**Todo「所有项目」视图接受缺口、等 `64-3`**；**S-71 已绑定安装槽对工作流放行，保持现状**；**Cognia 目录授权照规格迁进本人设置**（实施：每分区插件的目录授权改为本人级，留在平台目录授权库、项目为空、各分区可读，见批次 108 的「用户拍板与实施记录」）；**撤权后会话历史里已交出的总览结果记为偏离**（用户 2026-11-27，等 Prologue 上游，见 BL-overview-revoke-model-context） |
 
 ## 15. 使用场景走查
 

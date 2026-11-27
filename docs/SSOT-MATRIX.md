@@ -267,7 +267,7 @@ Agent Host 经 Prologue 的存储读写。工作区授权由 Home 的项目目�
 
 ## Jelly 私人工作区
 
-`plugins/native/jelly` 拥有个人日历（单次与每周重复的日程、分类）和纯文本/Markdown 随手记；唯一写入库 `{home}/jelly/jelly.db`，四张表 `jelly_categories`、`jelly_items`、`jelly_series`、`jelly_notes`，每行带自己的 `revision`（第 112 批瘦身）。收想法、读文件与网页在灵光（[合入后审查 PMR-22](../specs/archive/post-merge-review/spec.md)）。Home Runtime 注册 18 项动作，只提供 database；Jelly 不调用模型，也没有模型设置，AI 排期由个人助理调用公开日历动作完成。Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`plugins/native/jelly/src/contract.ts`；完整复刻范围与未验收项：`specs/archive/jelly-plugin/`。
+`plugins/native/jelly` 拥有每个分区的日历（单次与每周重复的日程、分类）和纯文本/Markdown 随手记；在个人空间或项目里启用就在那里一份库 `<分区>/libraries/jelly.db`（第 108 批），四张表 `jelly_categories`、`jelly_items`、`jelly_series`、`jelly_notes`，每行带自己的 `revision`（第 112 批瘦身）。收想法、读文件与网页在灵光（[合入后审查 PMR-22](../specs/archive/post-merge-review/spec.md)）。每个启用它的分区一个实例，注册 18 项项目范围的动作，只提供 database；还没完成的单次日程在同一事务里写进分区的总览表（`event`，没有提醒时间）；Jelly 不调用模型，也没有模型设置，AI 排期由个人助理调用公开日历动作完成。Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`plugins/native/jelly/src/contract.ts`；完整复刻范围与未验收项：`specs/archive/jelly-plugin/`。
 
 ### 插件创作工作台
 
@@ -275,4 +275,4 @@ Agent Host 经 Prologue 的存储读写。工作区授权由 Home 的项目目�
 
 ## Cognia 个人知识库
 
-`plugins/native/cognia` 拥有领域、来源、资料、不可变版本、导入预览/回执及待审阅知识草稿，唯一事实源 `{home}/cognia/cognia.db`。Local Host 只接安全目录读取、HTTP、默认关闭的只读 MCP 与 Prologue 模型端口；模型配置和凭据归现有 catalog/SecretStore，运行记录位于 `{home}/cognia/runtime/`。Workbench 沿既有 stage shell 装配界面，不修改原 vault，不引入云同步或第二运行时。范围与证据见 `specs/archive/cognia-plugin/spec.md`，格式边界见 `specs/archive/cognia-plugin/compatibility.md`。
+`plugins/native/cognia` 拥有领域、来源、资料、不可变版本、导入预览/回执及待审阅知识草稿，唯一事实源是每个启用它的分区自己的 `<分区>/libraries/cognia.db`（第 108 批）。Local Host 只接安全目录读取、HTTP、默认关闭的只读 MCP 与 Prologue 模型端口；模型配置和凭据归现有 catalog/SecretStore，运行记录位于 `{home}/cognia/runtime/`。Workbench 沿既有 stage shell 装配界面，不修改原 vault，不引入云同步或第二运行时。范围与证据见 `specs/archive/cognia-plugin/spec.md`，格式边界见 `specs/archive/cognia-plugin/compatibility.md`。

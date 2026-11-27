@@ -1,7 +1,6 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { ActionDefinition, InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { withProjectReach } from "./reach.js";
 import {
   ONBOARDING_DRAFT_GET_INPUT_SCHEMA, ONBOARDING_DRAFT_GET_RESULT_SCHEMA, ONBOARDING_DRAFT_INPUT_SCHEMA, ONBOARDING_DRAFT_KEEP_INPUT_SCHEMA,
   ONBOARDING_DRAFT_KEEP_RESULT_SCHEMA, ONBOARDING_DRAFT_RESULT_SCHEMA, type OnboardingDraftBatch, type OnboardingDraftCandidate,
@@ -19,8 +18,8 @@ import type { TodoCandidateDecision } from "./organize.js";
 
 const define = <I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: object, output: object,
   permissions: readonly string[], extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<I, O> =>
-  withProjectReach(createActionDefinition<I, O>(`todo.onboarding.${name}`, operation, { title, description, scope: "home", audiences: ["user"], permissions: [...permissions],
-    subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input as ActionDefinition["action"]["input_schema"], output_schema: output as ActionDefinition["action"]["output_schema"], ...extra }, version));
+  createActionDefinition<I, O>(`todo.onboarding.${name}`, operation, { title, description, scope: "project", audiences: ["user"], permissions: [...permissions],
+    subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input as ActionDefinition["action"]["input_schema"], output_schema: output as ActionDefinition["action"]["output_schema"], ...extra }, version);
 
 const get = { capability_id: "todo.onboarding.get", version: /* @version action.todo.onboarding.get */ 1 } as const;
 const keep = { capability_id: "todo.onboarding.keep", version: /* @version action.todo.onboarding.keep */ 1 } as const;

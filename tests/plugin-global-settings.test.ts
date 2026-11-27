@@ -15,7 +15,7 @@ import {
   defaultShelfHotKeys,
   parseSettingsWriteBody,
 } from "@molis-ai/molis-work-module-shelf";
-import { MolisWorkLocalHost, registeredBuiltinText, runWithLocale, runWithRegisteredText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_SETTINGS_CLIENT_SCRIPT,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
@@ -256,7 +256,7 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   ]);
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
   // The plugins a page shows are the Host's to work out (W5-02 B1); a new project shows its personal plugins.
-  const live = listPluginSettingsNavItems(shownProjectPlugins([]));
+  const live = listPluginSettingsNavItems([]);
   assert.equal(findPluginSettingsNavItem("coding-settings")?.plugin_id, "io.molis.work.coding");
   assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
   assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
@@ -268,7 +268,7 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(shelf?.plugin_id, "system.shelf");
   assert.equal(shelf?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(shelf?.label, "Shelf");
-  assert.deepEqual(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).map((item) => item.section_id), ["shelf"]);
+  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf"]);
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live.some((item) => item.section_id === "functions"), false);
 });
@@ -422,7 +422,7 @@ for (const declared of [true, false]) {
 }
 
 test("workbench settings directory and standalone settings list the same grouped categories", () => {
-  const directory = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins([]));
+  const directory = renderSettingsDirectorySection(directoryPrimitives, []);
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
   assert.doesNotMatch(directory, /data-settings-section="mcp"/);
@@ -431,7 +431,7 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
   assert.doesNotMatch(directory, /data-settings-section="functions"/);
-  const withGoals = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins(["goals"]));
+  const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
   // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 (a Host page since CHR-1) after 助理,
   // other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 and 工作记录 are the
@@ -440,7 +440,7 @@ test("workbench settings directory and standalone settings list the same grouped
   // (specs/capability-pack/spec.md decision 3): 技能 merged into 能力包, and 提示词 is opened from a prompt's detail there.
   // 更新 (upgrade-continuity U3 §5.4) is under 系统; 运行 (resident-runtime-design §5, RES-11) is the desktop app's own and listed only there.
   assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "web-search", "access", "authorizations", "history", "update", "diagnostics", "shelf"]);
-  const inDesktop = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins(["goals"]), true);
+  const inDesktop = renderSettingsDirectorySection(directoryPrimitives, ["goals"], true);
   assert.deepEqual([...inDesktop.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]).slice(16, 19), ["running", "update", "diagnostics"], "RES-11 运行 in the desktop");
   assert.doesNotMatch(withGoals, /data-settings-cover/);
   assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "个人", "AI", "工具与接入", "系统", "插件"]);
@@ -455,7 +455,7 @@ test("workbench settings directory and standalone settings list the same grouped
     projects: [],
     web_service: webService,
     diagnostics,
-    shown_plugins: shownProjectPlugins([]),
+    shown_plugins: [],
   });
   assert.match(html, /data-settings-section="shelf"/);
   assert.match(html, /href="\/settings\/shelf"/);
@@ -468,7 +468,7 @@ test("workbench settings directory and standalone settings list the same grouped
     projects: [],
     web_service: webService,
     diagnostics,
-    shown_plugins: shownProjectPlugins([]),
+    shown_plugins: [],
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/capabilities\/library"/);

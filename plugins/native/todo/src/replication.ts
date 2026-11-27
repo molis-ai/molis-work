@@ -2,6 +2,8 @@ import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { TODO_STATUSES } from "./contract.js";
+import { removeTodoOverview, writeTodoOverview } from "./overview.js";
+import { fromRow, itemRows } from "./store-support.js";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 
@@ -9,7 +11,7 @@ import { isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 
 type Row = Record<string, string | number | null>;
 const itemColumns = [
-  "id", "title", "notes", "status", "placement", "project_id", "due_date", "due_time",
+  "id", "title", "notes", "status", "due_date", "due_time",
   "planned_date", "remind_at", "important", "waiting_json", "sources_json", "links_json",
   "edited_fields_json", "archived_at", "completed_at", "created_at", "updated_at", "revision",
   "reminder_acknowledged_at",
@@ -21,38 +23,40 @@ const changeColumns = [
 const requestColumns = ["request_id", "item_id", "created_at"] as const;
 const LIMIT = 100000000;
 
-export const todoCollection: PluginSyncCollectionDefinition = {
- tracking:[{table:"todo_items",key:[{literal:"todo"},{column:"id"}],revision:{table:"todo_editor_versions",key:[{column:"id",rowColumn:"id"}],column:"revision",rowColumn:"revision"}}],
+const todoTracking: PluginSyncCollectionDefinition["tracking"] = [{table:"todo_items",key:[{scope:"projectId"},{literal:"todo"},{column:"id"}],
+  revision:{table:"todo_editor_versions",key:[{column:"id",rowColumn:"id"}],column:"revision",rowColumn:"revision"}}];
+
+/**
+ * Todo's one collection in one partition (batch 108). Every partition's Todo shares the plugin's sync namespace, so a key names the
+ * partition its todo is in (`[partition, "todo", id]`, as Pages' do) and a key of another partition is refused here.
+ */
+export function todoCollection(projectId: string): PluginSyncCollectionDefinition {
+ return {
+ tracking:todoTracking,
  create(db,context){
   const decode = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
-    if (!Array.isArray(parts) || parts.length !== 2 || parts[0] !== "todo" ||
-      typeof parts[1] !== "string" || !parts[1] || parts[1].length > 100) invalid();
-    return parts[1] as string;
+    if (!Array.isArray(parts) || parts.length !== 3 || typeof parts[0] !== "string" || parts[1] !== "todo" ||
+      typeof parts[2] !== "string" || !parts[2] || parts[2].length > 100) invalid();
+    if (parts[0] !== projectId) throw syncError("scope", "待办同步标识不属于这个位置");
+    return parts[2] as string;
   };
-  const localProject=(id:string)=>db.prepare('SELECT project_id FROM todo_items WHERE id=?').get(id)
-    ?? db.prepare('SELECT project_id FROM todo_deleted_projects WHERE id=?').get(id);
+  // The overview row is written beside the todo, as the store writes it, so a synced reminder rings here too.
+  const overview={get:(sql:string,parameters:readonly (string|number|null)[]=[])=>db.prepare(sql).get(...parameters),run:(sql:string,parameters:readonly (string|number|null)[]=[])=>db.prepare(sql).run(...parameters)};
   return {
-    authorizeKey(key,value){
-      const id=decode(key),current=localProject(id);
+    authorizeKey(key) {
+      decode(key);
       context.authorize();
-      if(current?.project_id)context.project(String(current.project_id));
-      if(value!==undefined&&value!==null){
-        const project=object(value).project;
-        if(project!==undefined&&project!==null){const id=object(project).id;if(typeof id!=='string'||!id||id.length>80)invalid();context.project(id);}
-      }
+      context.project(projectId);
     },
-    canUpload(key){const project=localProject(decode(key))?.project_id;return !project||context.canUploadProject(String(project));},
-    belongsToProject(key,projectId,retained){
-      const id=decode(key);
-      const current=db.prepare('SELECT project_id FROM todo_items WHERE id=?').get(id)
-        ?? db.prepare('SELECT project_id FROM todo_deleted_projects WHERE id=?').get(id);
-      if(current?.project_id===projectId)return true;
-      return retained().some(event=>{
-        if(event.key!==key)invalid('待办保留记录标识不一致');
-        return event.value!==null&&validate(event.value,id,context.spaceId).project?.id===projectId;
-      });
+    belongsToProject: (key, target) => {
+      decode(key);
+      return target === projectId;
+    },
+    canUpload: key => {
+      decode(key);
+      return context.canUploadProject(projectId) !== false;
     },
     read(key) {
       const id = decode(key);
@@ -60,8 +64,7 @@ export const todoCollection: PluginSyncCollectionDefinition = {
       if (!item) return null;
       const changes = db.prepare("SELECT * FROM todo_changes WHERE item_id=? ORDER BY revision_after,at,change_id").all(id) as Row[];
       const requests = db.prepare("SELECT * FROM todo_requests WHERE item_id=? ORDER BY request_id").all(id) as Row[];
-      const project = item.project_id ? { id: item.project_id, title: context.project(String(item.project_id)).title } : null;
-      const value = { format: /* @version format.todo.portable */ 1, spaceId: context.spaceId, project, item, changes, requests };
+      const value = { format: /* @version format.todo.portable */ 1, spaceId: context.spaceId, item, changes, requests };
       validate(value, id, context.spaceId);
       size(value);
       return value;
@@ -69,15 +72,14 @@ export const todoCollection: PluginSyncCollectionDefinition = {
     apply(key, value) {
       const id = decode(key);
       if (value === null) {
-        db.prepare("DELETE FROM todo_imported_changes WHERE change_id IN (SELECT change_id FROM todo_changes WHERE item_id=?)").run(id);
         db.prepare("DELETE FROM todo_changes WHERE item_id=?").run(id);
         db.prepare("DELETE FROM todo_requests WHERE item_id=?").run(id);
         db.prepare("DELETE FROM todo_items WHERE id=?").run(id);
+        removeTodoOverview(overview, id);
         return;
       }
       size(value);
       const wire = validate(value, id, context.spaceId);
-      if (wire.project) context.project(wire.project.id);
       const old = db.prepare("SELECT revision FROM todo_items WHERE id=?").get(id) as { revision: number } | undefined;
       const high = db.prepare("SELECT revision FROM todo_editor_versions WHERE id=?").get(id) as { revision: number } | undefined;
       const sourceRevision = Number(wire.item.revision);
@@ -85,39 +87,30 @@ export const todoCollection: PluginSyncCollectionDefinition = {
       if (!Number.isSafeInteger(revision)) invalid("待办编辑版本超出安全范围");
       // Rebase history with the item: preserve undo eligibility and gaps, while invalidating stale editors.
       const offset = revision - sourceRevision;
-      db.prepare("DELETE FROM todo_imported_changes WHERE change_id IN (SELECT change_id FROM todo_changes WHERE item_id=?)").run(id);
       db.prepare("DELETE FROM todo_changes WHERE item_id=?").run(id);
       db.prepare("DELETE FROM todo_requests WHERE item_id=?").run(id);
       upsert(db, "todo_items", itemColumns, "id", { ...wire.item, revision });
       for (const change of wire.changes) {
         insert(db, "todo_changes", changeColumns, { ...change, revision_after: Number(change.revision_after) + offset });
-        db.prepare("INSERT OR IGNORE INTO todo_imported_changes(change_id,item_id) VALUES (?,?)").run(change.change_id as string,id);
+        db.prepare("INSERT OR IGNORE INTO todo_imported_changes(change_id,item_id) VALUES (?,?)").run(change.change_id as string, id);
       }
       const insertRequest = db.prepare("INSERT OR IGNORE INTO todo_requests (" + requestColumns.join(",") + ") VALUES (" + requestColumns.map(() => "?").join(",") + ")");
       for (const request of wire.requests) insertRequest.run(...requestColumns.map(column => request[column] as string | number | null));
+      for (const row of itemRows([db.prepare("SELECT * FROM todo_items WHERE id=?").get(id)])) writeTodoOverview(overview, fromRow(row));
     },
   };
  }
-};
+ };
+}
 
-function validate(value: unknown, id: string, spaceId: string): {
-  project: { id: string; title: string } | null; item: Row; changes: Row[]; requests: Row[];
-} {
+function validate(value: unknown, id: string, spaceId: string): { item: Row; changes: Row[]; requests: Row[] } {
   const wire = object(value);
-  exact(wire, ["format", "spaceId", "project", "item", "changes", "requests"]);
+  exact(wire, ["format", "spaceId", "item", "changes", "requests"]);
   if (wire.format !== /* @version format.todo.portable */ 1 || wire.spaceId !== spaceId) invalid("同步空间不匹配", "scope");
-  const project = wire.project === null ? null : object(wire.project);
-  if (project) {
-    exact(project, ["id", "title"]);
-    if (typeof project.id !== "string" || !project.id || project.id.length > 80 ||
-      typeof project.title !== "string" || !project.title.trim() || project.title.length > 120) invalid();
-  }
   const item = object(wire.item) as Row;
   exact(item, itemColumns);
   if (item.id !== id || typeof item.title !== "string" || !item.title.trim() || exceedsCharacters(item.title, 200) ||
     typeof item.notes !== "string" || !TODO_STATUSES.includes(item.status as typeof TODO_STATUSES[number]) ||
-    !["personal", "project", "unassigned"].includes(String(item.placement)) ||
-    (item.placement === "project") !== !!project || item.project_id !== (project?.id ?? null) ||
     ![0, 1].includes(item.important as number) || !Number.isSafeInteger(item.revision) ||
     Number(item.revision) < 1 || !stamp(item.created_at) || !stamp(item.updated_at) ||
     !optionalDate(item.due_date) || !optionalDate(item.planned_date) ||
@@ -155,7 +148,7 @@ function validate(value: unknown, id: string, spaceId: string): {
       request.item_id !== id || !stamp(request.created_at)) invalid();
     seenRequests.add(request.request_id);
   }
-  return { project: project as { id: string; title: string } | null, item, changes, requests };
+  return { item, changes, requests };
 }
 
 function insert(db: PluginSyncBusinessDatabase, table: string, columns: readonly string[], row: Row): void {
@@ -194,5 +187,5 @@ function invalid(message = "待办同步数据不合法", code: Parameters<typeo
 
 export const todoSync: PluginSyncDeclaration = {
   protocol_version: /* @version sync.protocol */ 1,
-  collections: [{ id: "todo_items", title: "待办与修改历史", schema_version: /* @version sync.collection.todo.todo_items */ 1, requires: [], tracking: todoCollection.tracking }],
+  collections: [{ id: "todo_items", title: "待办与修改历史", schema_version: /* @version sync.collection.todo.todo_items */ 1, requires: [], tracking: todoTracking }],
 };

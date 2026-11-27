@@ -1,6 +1,6 @@
 import { field, readsBack, type GoldenWriteContext } from "../fixtures/golden-write.ts";
 
-/** cognia/cognia.db */
+/** The partition's `libraries/cognia.db` (batch 108). */
 export default async function ({ call, tag }: GoldenWriteContext) {
   await call("cognia.domain.create", { name: `金样领域 ${tag}` });
   const created = await call("cognia.material.create", { title: `金样材料 ${tag}`, body: "合成的材料正文" });

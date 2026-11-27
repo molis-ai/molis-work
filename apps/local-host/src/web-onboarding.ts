@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PERSONAL_SPACE_PROJECT_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindLocalWebAction, bindLocalWebActions, bindLocalWebProjectAiActions } from "./local-web-actions.js";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/sessions";
+import { placementActions, type PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
 import { onboardingTakers, type OnboardingMaterialKind } from "./onboarding-takers.js";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -35,9 +36,12 @@ function refusedBeforeMaking(response: ServerResponse, homeDirectory: string | u
 function takePorts(ports: OnboardingHttpPorts, localHost: MolisWorkLocalHost) {
   return {
     takers: (kind: OnboardingMaterialKind) => onboardingTakers(kind),
-    take: async (home: string, projectId: string, definition: ActionDefinition) => {
+    take: async (home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
-      return bindLocalWebAction(localHost, molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }), definition);
+      return bindLocalWebAction(localHost, molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }), definition, signal ? { signal } : {});
+    },
+    move: async (_home: string, object: PlacedObject, to: string) => {
+      await bindLocalWebAction(localHost, undefined, placementActions.move).invoke(placementActions.move, { object, to_project_id: to });
     },
   };
 }
@@ -52,7 +56,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     }, sessions: async (home, projectId, signal) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       return bindLocalWebProjectAiActions(localHost, molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }), [SESSIONS_READ_PERMISSION, SESSIONS_HISTORY_PERMISSION], { signal });
-    }, ...takePorts(ports, localHost), takeAtHome: (definition, signal) => bindLocalWebAction(localHost, undefined, definition, { signal }) }, localHost)(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
+    }, ...takePorts(ports, localHost) }, localHost)(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;

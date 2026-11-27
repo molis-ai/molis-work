@@ -36,7 +36,7 @@ export async function openMolisWorkProjectCatalog() {
   };
 }
 `);
-  put("apps/local-host/dist/index.js", "export const PROJECT_SCOPED_PLUGIN_IDS = [];");
+  put("apps/local-host/dist/index.js", "export const BUILTIN_PLUGIN_IDS = [];");
   put("scripts/visual/selected-home-server.mjs", `
 import { createServer } from "node:http";
 import { writeFileSync } from "node:fs";

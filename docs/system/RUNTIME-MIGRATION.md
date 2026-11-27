@@ -66,10 +66,10 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Plugin Runtime；�
 | Pages | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/pages.db`（第 107 批起；之前是 `{home}/pages/pages.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 39、22 |
 | 灵光 | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/lingguang.db`（第 107 批起；之前是 `{home}/lingguang/lingguang.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 30、38 |
 | Workflows | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/workflows.db`（第 107 批起；之前是 `{home}/workflows/workflows.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 30、23 |
-| Todo | 是 | Home 级 | `{home}/todo/todo.db` | 有：条目与批次带可空的 `project_id`，个人待办不带项目（`plugins/native/todo/src/store.ts`） | 26、22 |
-| Jelly | 是 | Home 级 | `{home}/jelly/jelly.db` | 没有（包里没有 `project_id`） | 36、32 |
-| Cognia | 是 | Home 级 | `{home}/cognia/cognia.db` | 没有 | 21、14 |
-| Images | 是 | Home 级 | `{home}/images/images.db`，另有运行锁 | 有：`jobs` 表带 `project_id`（`plugins/native/images/src/store.ts`） | 7、61；另有 `ImagesHostService` |
+| Todo | 是 | 每个分区一个 | 每个分区一份：`<分区根>/libraries/todo.db`（第 108 批起；之前是 `{home}/todo/todo.db`） | 没有：表里不再有 `project_id` | 26、22 |
+| Jelly | 是 | 每个分区一个 | 每个分区一份：`<分区根>/libraries/jelly.db`（第 108 批起；之前是 `{home}/jelly/jelly.db`） | 没有：表里不再有 `project_id` | 36、32 |
+| Cognia | 是 | 每个分区一个 | 每个分区一份：`<分区根>/libraries/cognia.db`（第 108 批起；之前是 `{home}/cognia/cognia.db`） | 没有：表里不再有 `project_id` | 21、14 |
+| Images | 是 | 每个分区一个 | 每个分区一份：`<分区根>/libraries/images.db`（第 108 批起；之前是 `{home}/images/images.db`） | 没有：表里不再有 `project_id` | 7、61；另有 `ImagesHostService` |
 | Inbox | 否 | 每个项目一个 | 项目库，表由 Attention 模块建（`ATTENTION_SCHEMA_SQL`） | 不需要：项目库随项目目录一起移走 | 70、92 |
 | Schedule | 否 | 每个项目一个 | 项目库，表由插件在 Manifest 的 `databases.project` 声明（`plugins/native/schedule/src/database.ts`），宿主开库时按声明建 | 不需要 | 26、92；另有 `scheduleReminderActionProvider` |
 | Feed | 否 | 每个项目一个 | 项目库，12 张表都由插件在 Manifest 的 `databases.project` 声明（`plugins/native/feed/src/database.ts`；FI-5 起条目、来源、信号和 Listener 的表也在这里，原先建它们的 Feed、Sources、Signals 模块已删） | 项目库部分不需要；Home 里的 Feed 安全目录（`resolveHomeSecurityDirectory`，`packages/storage/src/adapters/local-security-paths.ts`）放密钥文件，有没有按项目分区的内容由 Feed 自己的计划核 | 已迁（FI-4～7）：宿主不再有 Feed 的适配文件（`feed-native-plugin-http.ts` 在 `e5d3cdaeb` 删，页面路由进了 Feed 的 Manifest），也不在 `content-action-providers.ts` 的 `nativeContentProviders` 里登记；仍 import Feed 的宿主文件 12 个（`git grep -l "@molis-ai/molis-work-plugin-feed" -- apps/local-host/src`，本表原记 29 个），其中按 Feed 命名的页面投影（`feed_source_catalog`、舞台的 `feedItem` 端口）归 PG-060 |

@@ -2,7 +2,6 @@ import { assertWorkEventWindow, defineWorkEventsAction, type ActionCallContext, 
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoItem } from "./contract.js";
 import { localDate } from "./dates.js";
 import type { TodoAccess, TodoStore } from "./store.js";
-import { todoCallerProject } from "./caller.js";
 import { todoFlags } from "./views.js";
 
 /**
@@ -13,7 +12,6 @@ export const todoWorkEventsAction = defineWorkEventsAction("todo.events", /* @ve
 
 const MAX_EVENTS = 20;
 const open = (item: TodoItem) => ({ kind: "item" as const, surface: TODO_PROJECT_PLUGIN_ID, id: item.id, title: item.title, label: "打开待办" });
-const placementText = (item: TodoItem, projectId: string | null) => item.placement === "project" ? (item.project_id === projectId ? "这个项目" : "其他项目") : item.placement === "personal" ? "个人" : "暂未归类";
 const clock = (iso: string) => { const at = new Date(iso); return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`; };
 
 export function todoWorkEvents(store: TodoStore, access: TodoAccess, now: Date): WorkEvent[] {
@@ -23,7 +21,6 @@ export function todoWorkEvents(store: TodoStore, access: TodoAccess, now: Date):
   const facts = (item: TodoItem): Array<[string, string]> => [
     ...(item.due_date ? [["截止", item.due_date + (item.due_time ? " " + item.due_time : "")] as [string, string]] : []),
     ...(item.planned_date ? [["计划", item.planned_date] as [string, string]] : []),
-    ["放在", placementText(item, access.projectId)],
   ];
   const push = (item: TodoItem, event: Omit<WorkEvent, "subject" | "category" | "title" | "content" | "facts" | "open">) => {
     if (seen.has(item.id) || events.length >= MAX_EVENTS) return;
@@ -53,11 +50,11 @@ export function todoWorkEvents(store: TodoStore, access: TodoAccess, now: Date):
   return events;
 }
 
-export function createTodoHomeEventsHandler(read: <T>(run: (store: TodoStore) => T) => T, now: () => Date = () => new Date()): ActionHandlerBinding {
+export function createTodoWorkEventsHandler(read: <T>(run: (store: TodoStore) => T) => T, now: () => Date = () => new Date()): ActionHandlerBinding {
   return { ...todoWorkEventsAction, handle: (caller: ActionCallContext, value: unknown): WorkEventCollection => {
     const window = value as WorkEventWindow;
     assertWorkEventWindow(window);
-    const access: TodoAccess = { projectId: todoCallerProject(caller), projectIds: [], actor: "other", actorId: caller.actor_id };
+    const access: TodoAccess = { actor: "other", actorId: caller.actor_id };
     return { source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办", icon: "list" }, events: read(store => todoWorkEvents(store, access, now())) };
   } };
 }

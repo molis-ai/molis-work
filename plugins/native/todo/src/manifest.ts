@@ -26,7 +26,6 @@ export const todoManifest: PluginManifest = {
   permissions: [
     { permission: "storage:private", required: true, reason: "在本机保存待办事项和修改记录", reason_text: { key: "todo.permission.storage-private.reason" } },
     ...TODO_ACTION_PERMISSIONS.map(permission => ({ permission, required: permission === "todo:read", reason: "按你的权限读取、新建或整理待办", reason_text: { key: "todo.permission.action.reason" } })),
-    { permission: "projects:reach", required: false, reason: "在个人待办页查看并整理各项目里的待办；关闭时只显示当前项目", reason_text: { key: "todo.permission.projects-reach.reason" } },
   ],
   capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
@@ -34,10 +33,11 @@ export const todoManifest: PluginManifest = {
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   read_groups: [{ group_id: "todo", title: "待办", title_text: { key: "todo.read-group.todo.title" },
     description: "待办事项、它们的日期与到期提醒", description_text: { key: "todo.read-group.todo.description" },
-    actions: ["todo.items.list", "todo.items.get", "todo.item.subject.read", "todo.search.project_entries", "todo.reminders.due", "todo.events"] }],
+    actions: ["todo.items.list", "todo.items.get", "todo.item.subject.read", "todo.search.entries", "todo.reminders.due", "todo.events"] }],
+  // Each partition's own library (specs/unified-partition-plugins §4.2); its open todos are the overview's tasks, their reminders ring from there.
+  databases: { partition: TODO_DATABASE },
+  overview_projection: { kinds: ["task"] },
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
-  runtime: { scope: "home" },
-  databases: { home: TODO_DATABASE },
   routes: [
     { route_id: "todo.list", method: "GET", path: "/items" },
     { route_id: "todo.create", method: "POST", path: "/items", max_body_bytes: TODO_BODY_BYTES },

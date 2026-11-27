@@ -169,14 +169,16 @@ test("W3-09-1-01 T2: an owner refusal preserves its literal error and each page/
   assert.deepEqual(await home.web.get(path), before, "all refused paths leave the owner's persisted tasks unchanged");
 });
 
-test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equally, with no new item or history", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), project = await home.createProject("Home scope caller");
-  await home.grant(clientId, null, [todo.create, todo.get, todo.status]);
+test("W3-09-1-01 T7: stale Todo revisions in a project refuse page and actual MCP equally, with no new item or history", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Home scope caller", ["todo"]);
+  // Todo answers in the partition it is in (batch 108): the page and the MCP client both reach this project's.
+  const items = `/projects/${project.project_id}/api/plugins/io.molis.work.todo/items`;
+  await home.grant(clientId, project.project_id, [todo.create, todo.get, todo.status]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
-  const created = await page(home, "/api/plugins/io.molis.work.todo/items", { title: "本人保留的真实待办" });
+  const created = await page(home, items, { title: "本人保留的真实待办" });
   assert.equal(created.status, 200, JSON.stringify(created.body));
   const item = object(created.body.item); assert.ok(typeof item.id === "string"); assert.ok(typeof item.revision === "number");
-  const path = `/api/plugins/io.molis.work.todo/items/${encodeURIComponent(item.id)}`;
+  const path = `${items}/${encodeURIComponent(item.id)}`;
   const updated = await page(home, path + "/status", { status: "doing", expected_revision: item.revision });
   assert.equal(updated.status, 200, JSON.stringify(updated.body));
   const before = await home.web.get(path), stale = { id: item.id, status: "done", expected_revision: item.revision };
@@ -184,7 +186,7 @@ test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equall
   assert.equal(refusedPage.status, 409); assert.equal(refusedPage.body.code, todo.conflict); assert.equal(refusedPage.callId, refusedPage.body.call_id);
   const refusedMcp = await mcpCall(mcp, todo.status.capability_id, stale);
   assert.equal(refusedMcp.result.isError, true); assert.equal(refusedMcp.body.code, todo.conflict);
-  for (const [id, expectedProject] of [[refusedPage.callId, null], [refusedMcp.body.call_id, project.project_id]]) {
+  for (const [id, expectedProject] of [[refusedPage.callId, project.project_id], [refusedMcp.body.call_id, project.project_id]]) {
     const record = row(home, id, todo.status.capability_id);
     assert.deepEqual([record.ok, record.code, record.project_id, record.refused], [false, todo.conflict, expectedProject, undefined]);
   }
@@ -258,15 +260,17 @@ test("W3-09-2-01: a stopped Runtime removes the MCP tool even with a saved grant
   assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 0, "revoked authority never enters the Host");
 });
 
-test("W3-09-3-01/02: actual Home Todo MCP writes require complete read revisions while the person's page keeps its contract", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), project = await home.createProject("Versioned external caller");
-  await home.grant(clientId, null, [todo.create, todo.get, todo.status, todo.batch]);
+test("W3-09-3-01/02: actual Todo MCP writes in a project require complete read revisions while the person's page keeps its contract", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Versioned external caller", ["todo"]);
+  // Todo answers in the partition it is in (batch 108): the page and the MCP client both reach this project's.
+  const items = `/projects/${project.project_id}/api/plugins/io.molis.work.todo/items`;
+  await home.grant(clientId, project.project_id, [todo.create, todo.get, todo.status, todo.batch]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
-  const first = await page(home, "/api/plugins/io.molis.work.todo/items", { title: "第一个真实待办" }), second = await page(home, "/api/plugins/io.molis.work.todo/items", { title: "第二个真实待办" });
+  const first = await page(home, items, { title: "第一个真实待办" }), second = await page(home, items, { title: "第二个真实待办" });
   assert.equal(first.status, 200); assert.equal(second.status, 200);
   const a = object(first.body.item), b = object(second.body.item);
   assert.ok(typeof a.id === "string" && typeof b.id === "string" && typeof a.revision === "number" && typeof b.revision === "number");
-  const ids = [a.id, b.id], paths = ids.map(id => `/api/plugins/io.molis.work.todo/items/${encodeURIComponent(id)}`), before = await Promise.all(paths.map(path => home.web.get(path)));
+  const ids = [a.id, b.id], paths = ids.map(id => `${items}/${encodeURIComponent(id)}`), before = await Promise.all(paths.map(path => home.web.get(path)));
   for (const expected of [undefined, {}, { [a.id]: a.revision }]) {
     const input = { ids, change: { status: "doing" }, ...(expected === undefined ? {} : { expected_revisions: expected }) };
     const refused = await mcpCall(mcp, todo.batch.capability_id, input);

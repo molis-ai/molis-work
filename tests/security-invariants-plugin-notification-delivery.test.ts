@@ -37,8 +37,8 @@ test("RAC-1010: a notification receiver is one action's intake { accepts: [notif
     delete receiving(manifest).action.intake;
     Object.assign(manifest.actions!.find(action => action.capability_id === id)!.action, { intake: declared });
   };
-  assert.match(parse(onto("feed.items.admission"))!, /收 notification：需要项目里的写动作，受众只有 workflow/u, "a query");
-  assert.match(parse(onto("feed.items.admit"))!, /收 notification：需要项目里的写动作，受众只有 workflow/u, "a command people call too");
+  assert.match(parse(onto("feed.items.admission"))!, /收 notification：需要在分区里运行的写动作，受众只有 workflow/u, "a query");
+  assert.match(parse(onto("feed.items.admit"))!, /收 notification：需要在分区里运行的写动作，受众只有 workflow/u, "a command people call too");
   assert.match(parse(manifest => { intake(manifest).extra = true; })!, /的创建入口有不认识的字段/u);
   assert.match(parse(manifest => { intake(manifest).verb = "收下"; })!, /收平台送来的 notification，不写给人看的入口：verb/u);
   assert.match(parse(manifest => { intake(manifest).accepts = [{ kind: "notification", extra: 1 }]; })!, /材料 notification 形状无效/u);

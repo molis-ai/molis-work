@@ -11,23 +11,27 @@ import type { PluginDefinition, PluginExecutionControl, PluginRouteBinding, Plug
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { streamLines } from "./fixtures/plugin-stream.js";
-import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { grantHomeProbe, homeProbe, partitionInstallation, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
-// Security invariant S-31 (docs/system/SECURITY-INVARIANTS.md): a Home plugin's route runs in a project only when the page's path names
-// it (`/projects/<id>/api/plugins/<plugin>/…`), that project exists and it shows the plugin. The project comes from the path alone: never
-// from the route's query or body, and never from a control the plugin made itself. Without the prefix the route runs in no project.
+// Security invariant S-31 (docs/system/SECURITY-INVARIANTS.md): a plugin's route runs in a partition only when the page's path names it
+// (`/projects/<id>/api/plugins/<plugin>/…`), that partition exists and has the plugin. The partition comes from the path alone: never from
+// the route's query or body, and never from a control the plugin made itself. Issues runs in each partition it is added to (batch 108), so
+// without the prefix there is no Issues to answer. A Home plugin's own route without the prefix runs in no project (the relay probe below).
 
 const issue = { title: "项目里的问题", type: "bug", description: "在项目页面里记下" };
 
-test("S-31 W5-01-STREAM-01 a Home route keeps the Host-issued project's identity while forwarding real action progress", { timeout: 60_000 }, async t => {
+test("S-31 W5-01-STREAM-01 a partition route keeps the Host-issued project's identity while forwarding real action progress", { timeout: 60_000 }, async t => {
   // Give the real Home action a streamed route for this test. Its owner, SQL and Host-issued project control stay unchanged. The route
   // is declared in Issue's own Manifest before the Host starts and hands the definition over: the platform runs on the frozen copy it
   // takes then, so a route changed on the running instance would never be read.
   const declared = issuesManifest.routes!.find(candidate => candidate.route_id === "issues.create")!, originalStream = declared.stream;
   declared.stream = "ndjson";
   t.after(() => { if (originalStream === undefined) delete declared.stream; else declared.stream = originalStream; });
-  const { home, host, request, project } = await serveHomeRuntime(t), current = await project("Stream into this project");
-  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
+  const { home, host, request, project } = await serveHomeRuntime(t), current = await project("Stream into this project", ["issues"]);
+  // The partition's instance starts when its route is first asked for.
+  assert.equal((await request(`/projects/${current.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/list`)).status, 200);
+  const { platform, install } = await partitionInstallation(host, current, ISSUES_PLUGIN_ID);
   assert.equal(platform.supervisor.manifest(ISSUES_PLUGIN_ID)!.routes!.find(candidate => candidate.route_id === "issues.create")!.stream, "ndjson",
     "the running instance was handed the streamed route");
   const action = platform.runtime.contribution(install.install_id)!.actions!.find(candidate => candidate.capability_id === "issues.create")!;
@@ -49,18 +53,19 @@ function createRows(home: string): Array<{ project_id: string | null; ok: boolea
     .filter(row => row.capability_id === "issues.create");
 }
 
-/** Issue's running create route, the very binding the Host dispatches to, so a test can hold it or keep what it was handed. */
-async function issueCreateRoute(host: MolisWorkLocalHost): Promise<PluginRouteBinding> {
-  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
+/** Issue's running create route in a project, the very binding the Host dispatches to, so a test can hold it or keep what it was handed. */
+async function issueCreateRoute(host: MolisWorkLocalHost, request: (path: string) => Promise<Response>, space: { project_id: string; reference: LocalHostProjectReference }): Promise<PluginRouteBinding> {
+  assert.equal((await request(`/projects/${space.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/list`)).status, 200);
+  const { platform, install } = await partitionInstallation(host, space, ISSUES_PLUGIN_ID);
   const contribution = platform.runtime.contribution(install.install_id);
   const route = contribution?.kind === "app" ? contribution.routes?.find(candidate => candidate.route_id === "issues.create") : undefined;
   assert.ok(route, "Issue's create route is running");
   return route;
 }
 
-test("S-31 a Home plugin's route under a project's path runs in that project; without the prefix it runs in none", { timeout: 60_000 }, async t => {
+test("S-31 a partition plugin's route runs in the project its path names; without the prefix there is none to run", { timeout: 60_000 }, async t => {
   const { home, request, project } = await serveHomeRuntime(t);
-  const one = await project("一号项目"), two = await project("二号项目");
+  const one = await project("一号项目", ["issues"]), two = await project("二号项目", ["issues"]);
   const create = (prefix: string, query = "") => request(`${prefix}/api/plugins/${ISSUES_PLUGIN_ID}/create${query}`, { method: "POST", body: issue });
 
   const inOne = await create(`/projects/${one.project_id}`);
@@ -72,9 +77,9 @@ test("S-31 a Home plugin's route under a project's path runs in that project; wi
   assert.equal(forgedQuery.status, 200, await forgedQuery.clone().text());
   assert.equal(createRows(home).at(-1)?.project_id, one.project_id);
 
-  const personal = await create("", `?project_id=${encodeURIComponent(one.project_id)}`);
-  assert.equal(personal.status, 200, await personal.clone().text());
-  assert.equal(createRows(home).at(-1)?.project_id, null, "without the prefix the route runs in no project, whatever the query says");
+  const unprefixed = createRows(home).length, personal = await create("", `?project_id=${encodeURIComponent(one.project_id)}`);
+  assert.notEqual(personal.status, 200, "without the prefix no partition answers, whatever the query says");
+  assert.equal(createRows(home).length, unprefixed, "and nothing ran");
 
   // A project named in the body is the action's input, and Issue's input has no such field: refused, nothing written.
   const before = createRows(home).length;
@@ -82,23 +87,22 @@ test("S-31 a Home plugin's route under a project's path runs in that project; wi
   assert.equal(forgedBody.status, 400);
   assert.equal((await forgedBody.json()).code, "actions.input_invalid");
   assert.ok(createRows(home).slice(before).every(row => !row.ok), "a refused body leaves no record that ran");
-  const listed = await (await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
-  assert.equal(listed.items.length, 3, "only the three accepted creates are kept");
+  const listed = await (await request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
+  assert.equal(listed.items.length, 2, "only the two accepted creates are kept, in the project the path named");
+  const other = await (await request(`/projects/${two.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
+  assert.deepEqual(other.items, [], "the project only the query named has none");
 });
 
-test("S-31 a project that does not exist, or that hides the plugin, refuses the route before it runs", { timeout: 60_000 }, async t => {
+test("S-31 a project that does not exist, or does not have the plugin, refuses the route before it runs", { timeout: 60_000 }, async t => {
   const probe = homeProbe("routeprobe");
   const { home, host, origin, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantHomeProbe(host, probe);
-  const shown = await project("显示 Issue"), hidden = await project("隐藏 Issue");
-  const hide = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
-  assert.equal(hide.status, 200, await hide.clone().text());
-  assert.deepEqual((await hide.json()).hidden, ["issues"]);
+  const shown = await project("显示 Issue", ["issues"]), hidden = await project("没有 Issue");
   const create = (projectId: string) => request(`/projects/${encodeURIComponent(projectId)}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue });
 
   const missing = await create("no-such-project");
   assert.equal(missing.status, 404);
-  assert.equal((await missing.json()).code, "actions.missing");
+  assert.equal((await missing.json()).code, "catalog.project_not_found", "the project chain refuses a partition that does not exist");
   const disabled = await create(hidden.project_id);
   assert.equal(disabled.status, 403);
   assert.equal((await disabled.json()).code, "actions.plugin_disabled");
@@ -144,13 +148,14 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   assert.match(await probePage.text(), new RegExp(`data-home-lifecycle=[\\s\\S]*${probe.id.replaceAll(".", "\\.")}`, "u"));
   assert.equal((await request(`/plugins/com.example.unregistered`)).status, 404, "a key the Home does not register opens no page");
 
-  // The Host's lifecycle operations are the Home's: under a project's path they are not there, and the plugin keeps running.
+  // A Home plugin's lifecycle operations are the Home's: under a project's path they are not there, and the plugin keeps running. (A
+  // partition's plugin has the project's own lifecycle under its path, as every project plugin does.)
   for (const operation of ["disable", "enable", "retry", "restart", "upgrade", "release-quarantine"]) {
-    const refused = await request(`/projects/${shown.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/${operation}`, { method: "POST", body: {} });
+    const refused = await request(`/projects/${shown.project_id}/api/plugins/${probe.id}/${operation}`, { method: "POST", body: {} });
     assert.equal(refused.status, 404, operation);
     assert.equal((await refused.json()).code, "actions.missing", operation);
   }
-  assert.equal(host.homePlugins!.installation(ISSUES_PLUGIN_ID)!.state, "running");
+  assert.equal(host.homePlugins!.installation(probe.id)!.state, "running");
   const allowed = await create(shown.project_id);
   assert.equal(allowed.status, 200, await allowed.clone().text());
   assert.equal(createRows(home).at(-1)?.project_id, shown.project_id);
@@ -184,30 +189,31 @@ test("S-31 a plugin cannot name the project itself: a project on a control the H
   }
 });
 
-test("S-31 a project that hides the plugin while its route waits gets no write", { timeout: 60_000 }, async t => {
+test("S-31 a project that takes the plugin away while its route waits gets no write", { timeout: 60_000 }, async t => {
   const { home, host, origin, request, project } = await serveHomeRuntime(t);
-  const one = await project("等待中隐藏");
-  const route = await issueCreateRoute(host), original = route.handle.bind(route);
+  const one = await project("等待中移除", ["issues"]);
+  const route = await issueCreateRoute(host, request, one), original = route.handle.bind(route);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   // The route waits, as one waiting for a model or a service would, after the Host's checks at the start and before its write.
   route.handle = async routed => { entered.resolve(); await release.promise; return original(routed); };
   const pending = request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue });
   await entered.promise;
-  const hide = await request(`/api/settings/projects/${one.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(origin, one.project_id) } });
-  assert.equal(hide.status, 200, await hide.clone().text());
+  const remove = await request(`/api/settings/projects/${one.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(origin, one.project_id) } });
+  assert.equal(remove.status, 200, await remove.clone().text());
   release.resolve();
   const response = await pending;
-  assert.equal(response.status, 403, await response.clone().text());
-  assert.equal((await response.json()).code, "actions.plugin_disabled");
-  assert.ok(createRows(home).every(row => !row.ok), "the write found the plugin hidden and did not run");
-  const listed = await (await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
-  assert.deepEqual(listed.items, []);
+  assert.notEqual(response.status, 200, await response.clone().text());
+  assert.ok(createRows(home).every(row => !row.ok), "the write found the plugin gone and did not run");
+  const add = await request(`/api/settings/projects/${one.project_id}/plugins`, { method: "POST", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(origin, one.project_id) } });
+  assert.equal(add.status, 200, await add.clone().text());
+  const listed = await (await request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
+  assert.deepEqual(listed.items, [], "added back, the project's Issues has no record of it");
 });
 
 test("S-31 a project's control ends with its request: kept and used later, it is refused, not run as the person's own", { timeout: 60_000 }, async t => {
   const { home, host, request, project } = await serveHomeRuntime(t);
-  const one = await project("请求结束");
-  const route = await issueCreateRoute(host), original = route.handle.bind(route);
+  const one = await project("请求结束", ["issues"]);
+  const route = await issueCreateRoute(host, request, one), original = route.handle.bind(route);
   let kept: PluginExecutionControl | undefined;
   route.handle = async routed => { kept = routed.execution; return original(routed); };
   const first = await request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue });
@@ -219,14 +225,15 @@ test("S-31 a project's control ends with its request: kept and used later, it is
   assert.notEqual(late.status, 200);
   assert.equal((late.body as { code?: string }).code, "actions.cancelled");
   assert.ok(createRows(home).slice(before).every(row => !row.ok), "the late call left no record that ran");
-  const listed = await (await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
+  const listed = await (await request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
   assert.equal(listed.items.length, 1, "only the request's own create is kept");
 });
 
-// Security invariant S-03 (docs/system/SECURITY-INVARIANTS.md): a Home plugin's route reads at most the body its Manifest declares (`max_body_bytes`).
-test("S-03 a Home route's own body limit refuses one byte more before the action runs; Todo declares the 1,000,000 it had", { timeout: 60_000 }, async t => {
-  const { request } = await serveHomeRuntime(t);
-  const items = `/api/plugins/${todoManifest.plugin_id}/items`;
+// Security invariant S-03 (docs/system/SECURITY-INVARIANTS.md): a plugin's route reads at most the body its Manifest declares (`max_body_bytes`).
+// Todo runs in the personal space it is added to since batch 108, and keeps its declared limit there.
+test("S-03 a plugin route's own body limit refuses one byte more before the action runs; Todo declares the 1,000,000 it had", { timeout: 60_000 }, async t => {
+  const { request, personal } = await serveHomeRuntime(t), space = await personal(["todo"]);
+  const items = `/projects/${space.project_id}/api/plugins/${todoManifest.plugin_id}/items`;
   const sized = (bytes: number) => JSON.stringify({ title: "x".repeat(bytes - 12) });
   assert.equal(Buffer.byteLength(sized(1_000_001)), 1_000_001);
   const over = await request(items, { method: "POST", raw: sized(1_000_001) });

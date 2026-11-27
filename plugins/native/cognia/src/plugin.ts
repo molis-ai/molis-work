@@ -10,7 +10,7 @@ import { COGNIA_EVIDENCE, COGNIA_INSTRUCTIONS } from "./prompts.js";
 import { CogniaStore, type CogniaStores } from "./store.js";
 import { cogniaUiContribution } from "./ui.js";
 
-/** The person's one knowledge library, regardless of the project displaying it. */
+/** Cognia in one partition (specs/unified-partition-plugins §4.2, batch 108): the knowledge library of the personal space or of a project it is enabled in. */
 export function createCogniaPlugin(): PluginDefinition {
   return { manifest: cogniaManifest, instructions: COGNIA_INSTRUCTIONS, async start(context) {
     for (const permission of cogniaManifest.permissions) if (permission.required) context.requireGrant(permission.permission);

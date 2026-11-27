@@ -7,10 +7,9 @@ import { JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JE
  */
 export const registration: PluginRegistration = {
   project_plugin_id: JELLY_PROJECT_PLUGIN_ID, catalog_order: 5,
-  runtime: { create: createJellyPlugin,
+  project_runtime: { create: createJellyPlugin,
     package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
   manifest: jellyManifest,
-  personal: true,
   workbench: {
     order: 3,
     contributions: [jellyUiContribution],

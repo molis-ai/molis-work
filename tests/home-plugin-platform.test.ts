@@ -5,20 +5,20 @@ import { join } from "node:path";
 import test from "node:test";
 import { captureHostLog, MolisWorkLocalHost, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { issuesActions, ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { WORK_BRIEF_PLUGIN_ID, workBriefPersonalActions } from "@molis-ai/molis-work-plugin-work-brief";
 import { type ActionDefinition, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AgentHost, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
-import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { deferred, grantHomeProbe, homeProbe, partitionInstallation, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { withLibrary } from "./fixtures/home-library.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home registration and genuine project scopes", { timeout: 60_000 }, async t => {
   const probe = homeProbe(), { host, origin, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
-  const caller = person([...probe.permissions, ...issuesActions.read.action.permissions]);
+  const caller = person([...probe.permissions, ...workBriefPersonalActions.get.action.permissions]);
   await Promise.all([host.homeActionClient().discover(caller), host.sceneClient().discoverScenes(caller), request(`/api/plugins/${probe.id}/state`)]);
   assert.equal(probe.contexts.length, 1, "all entrypoints share one start");
   const initially = host.homePlugins!.installation(probe.id)!;
@@ -33,7 +33,7 @@ test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home
   assert.equal(offered.provider.provider_id, install.install_id);
   assert.equal(offered.provider.plugin_install_id, install.install_id);
   assert.equal(offered.provider.project_id, undefined);
-  assert.equal(directory.find(action => action.capability_id === issuesActions.read.capability_id)!.provider.provider_id, ISSUES_PLUGIN_ID);
+  assert.equal(directory.find(action => action.capability_id === workBriefPersonalActions.get.capability_id)!.provider.provider_id, WORK_BRIEF_PLUGIN_ID);
   await assert.rejects(host.homeActionClient().invoke(person([]), probe.state, {}), { code: "actions.forbidden" });
   await assert.rejects(host.homeActionClient().invoke(caller, probe.project, {}), { code: "actions.project_required" });
   assert.equal(await host.actionClient(one.reference).invoke(person(probe.permissions, one.project_id), probe.project, {}), one.project_id);
@@ -180,11 +180,11 @@ test("W3-06-F-02 a Home database comes from the trusted definition entry, never 
   assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call").map(entry => [entry.fields?.service, entry.fields?.method]), [["database", "transaction"]], "the Host noted the refused write");
 });
 
-test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an invalid or duplicate Home store", async () => {
+test("W3-06-F-02 a fixture cannot take the Host's Work Brief library or declare an invalid or duplicate Home store", async () => {
   // W4-11: a fixture is given a library under a free name (registered as its own); a name the Home registered to another
   // owner stays theirs. A shipped plugin's unregistered library is refused in plugin-project-database.test.ts.
-  for (const [store, message] of [["issues", /登记的主人是 io\.molis\.work\.issues，/u], ["plugin-runtime", /登记的主人是 apps\/local-host，/u],
-    ["todo", /登记的主人是 io\.molis\.work\.todo，/u], ["security", /归 packages\/storage，不是库/u], ["../todo", /一个目录名/u]] as const) {
+  for (const [store, message] of [["work-brief", /登记的主人是 io\.molis\.work\.work-brief，/u], ["plugin-runtime", /登记的主人是 apps\/local-host，/u],
+    ["feed-content", /登记的主人是 io\.molis\.work\.feed，/u], ["security", /归 packages\/storage，不是库/u], ["../feed-content", /一个目录名/u]] as const) {
     const home = mkdtempSync(join(tmpdir(), "home-store-owner-")), probe = homeProbe();
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [{ definition: withLibrary(probe.definition,
       { store_name: store, version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: "homeprobe:read", write_permission: "homeprobe:write" }) }] } });
@@ -250,27 +250,24 @@ test("W3-06-F-07 shared Home operations preserve POST protection, revision and t
   assert.deepEqual(platform.runtime.list(), facts, "lookup and rejected control requests preserve grants, generation, state and install facts");
 });
 
-test("W5-01-HPR-01 Home routes obtain project-only permissions from the resolved project and lose revoked grants", async t => {
-  const f = await serveHomeRuntime(t);
-  const project = await f.project("Project-only route grants");
-  const plugin = "io.molis.work.images";
-  const root = `/api/plugins/${plugin}`;
+// Images ran in the Home and borrowed a project's permissions through the project's path; since batch 108 it runs in each project it is
+// added to, so the project's own instance answers and its grants are that installation's.
+test("W5-01-HPR-01 a partition route answers in the project its path names and loses revoked grants", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Project-only route grants", ["images"]);
+  const plugin = "io.molis.work.images", root = `/api/plugins/${plugin}`;
   const scoped = `/projects/${project.project_id}${root}`;
   const missing = await f.request(scoped + "/jobs", { method: "POST", body: {} });
   assert.equal(missing.status, 400, await missing.clone().text());
   assert.equal((await missing.json()).code, "actions.input_invalid", "the legitimate project route reaches its action input validation");
   const personal = await f.request(root + `/jobs?project_id=${project.project_id}`, { method: "POST", body: {} });
-  assert.equal(personal.status, 400);
-  assert.equal((await personal.json()).code, "actions.project_required", "a query field cannot establish trusted project context");
+  assert.notEqual(personal.status, 200, "a query field cannot establish trusted project context");
+  await personal.text();
   assert.deepEqual(await (await f.request(scoped + "/jobs")).json(), { jobs: [] });
-  const platform = await f.host.homePlugins!.ready();
-  const install = f.host.homePlugins!.installation(plugin)!;
-  await platform.runtime.stop(install.install_id);
-  platform.runtime.grant(install.install_id, install.grants.filter(permission => permission !== "images:generate"));
-  await platform.supervisor.restart(plugin);
+  const { install, regrant } = await partitionInstallation(f.host, project, plugin);
+  await regrant(install.grants.filter(permission => permission !== "images:generate"));
   const denied = await f.request(scoped + "/jobs", { method: "POST", body: {} });
   assert.equal(denied.status, 403);
-  assert.equal((await denied.json()).code, "actions.forbidden", "a live installation cannot lend a revoked project permission");
-  assert.equal((await f.request(root + "/connections")).status, 200, "the remaining Home read grant still works");
+  assert.equal((await denied.json()).code, "actions.forbidden", "a live installation cannot lend a revoked permission");
+  assert.equal((await f.request(scoped + "/connections")).status, 200, "the remaining read grant still works");
   assert.deepEqual(await (await f.request(scoped + "/jobs")).json(), { jobs: [] });
 });

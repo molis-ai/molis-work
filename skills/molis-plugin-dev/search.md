@@ -65,10 +65,10 @@ Agent 问「挂在哪个 Goal 下」这类要人挑对象的题时，候选来�
 
 ## 样例与验证
 
-- 个人与项目两个来源读同一份存储：Todo（`todo.search.entries` 个人、`todo.search.project_entries` 项目）。
+- 每个分区一份存储、一个来源：Todo（`todo.search.entries`，在个人空间和每个项目里各读自己那份）。
 - 项目内容：Form（`plugins/native/form/src/search.ts`）、Pages（`pages.search.entries`）、Goals（版本与读取器一致）。
 - 只给摘要：Feed（`feed.search.entries`，保留正文加密）、Inbox、Sessions。
-- 个人范围：Cognia、Jelly（三种对象、三个读取器）。
+- 按分区读：Cognia、Jelly（三种对象、三个读取器）。
 - 只给本机的人：Shelf 剪贴板（`shelf.clipboard.search.entries`，受众 `user`）。
 - 宿主提供的动作：Characters（不是插件；`modules/characters/src/action-bindings.ts` 的 `bindCharactersActions` 绑定，宿主在 `apps/local-host/src/characters-host.ts` 注册提供方）。
 - Runtime 插件：Coding（路由兑现）。

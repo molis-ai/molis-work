@@ -13,10 +13,9 @@ import { ConnectorConnectionStore, withConnectorConnections } from "../apps/loca
 import { connectorProtocolSecrets } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
-import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
-import { ActionService } from "@molis-ai/molis-work-kernel";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
+import { imageRuntimeFixture } from "./fixtures/images-runtime.js";
+import { realpath } from "node:fs/promises";
+import { imagesActions, imagesManifest } from "@molis-ai/molis-work-plugin-images";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
@@ -78,13 +77,11 @@ test("API and MCP credentials pin their first destination origin and reject a di
   } finally { db.close(); }
 });
 
-test("Images uses the chosen Connector credential for each generation and survives another account disconnect", async () => {
-  const home = mkdtempSync(join(tmpdir(), "molis-image-connector-"));
+test("Images uses the chosen Connector credential for each generation and survives another account disconnect", async t => {
+  const home = await realpath(mkdtempSync(join(tmpdir(), "molis-image-connector-")));
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
-  const registry = new ActionService();
-  const imageHost = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry, client: registry, entries: [{ scope: "home", manifest: imagesManifest, create: createImagesPlugin,
-    project_data: { owner_id: "images" }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
   const seen: string[] = [];
+  // Images runs in each partition (batch 108); this test binds its own Prologue inference for the Home, so the fixture starts no Host.
   const unbind = bindPrologueInference(home, {
     completeText: async () => { throw new Error("Unexpected text inference"); },
     completeTextResult: async () => { throw new Error("Unexpected text inference"); },
@@ -102,10 +99,9 @@ test("Images uses the chosen Connector credential for each generation and surviv
       store.createToken({ serviceId: "image-api", displayName: "图片账号 A", token: "image-token-a" }),
       store.createToken({ serviceId: "image-api", displayName: "图片账号 B", token: "image-token-b" }),
     ]);
-    await imageHost.ready();
-    assert.equal(imageHost.installation(imagesManifest.plugin_id)?.state, "running");
-    const client = (projectId: string | null) => bindActionClient(registry, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: IMAGES_ACTION_PERMISSIONS }));
-    const settings = client(null), images = client("board-one");
+    const runtime = await imageRuntimeFixture(t, { home, inference: false });
+    assert.equal(runtime.supervisor.installation(imagesManifest.plugin_id)?.state, "running");
+    const settings = runtime.client(null), images = runtime.client("board-one");
     const config = { name: "生图服务", api_format: "openai-images" as const, base_url: "https://images.example/v1", model: "image-model" };
     const { connection } = await settings.invoke(imagesActions.saveConnection, { ...config, auth_connection_id: a!.connection_id });
     async function generate(requestId: string) {
@@ -125,12 +121,10 @@ test("Images uses the chosen Connector credential for each generation and surviv
     assert.deepEqual(seen, ["Bearer image-token-a", "Bearer image-token-b"]);
     assert.equal((await settings.invoke(imagesActions.connections, {})).connections[0]?.auth_connection_id, b!.connection_id);
   } finally {
-    await imageHost.close();
     unbind();
     resetSecretStoreCache();
     if (previousBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND;
     else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
-    rmSync(home, { recursive: true, force: true });
   }
 });
 

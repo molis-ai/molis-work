@@ -5,7 +5,7 @@ import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
@@ -29,6 +29,11 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: home.origin },
     { homeDirectory: home.home, webBaseUrl: home.origin, runtimeContext: { runtime_id: "removed-pages", stable_work_context_id: "removed-pages-session", host_declares_stable: true } }, home.host, home.origin);
   t.after(() => mcp.close());
+  // The Assistant panel's own list (its `/` and the switches in its settings) offers only what this project reaches.
+  const panelPath = `/projects/${encodeURIComponent(project.project_id)}/api/assistant/capabilities`;
+  const panelRow = async () => (await home.web.get<{ capabilities: Array<{ capability_id: string; provider_id: string; expected: string }> }>(panelPath))
+    .capabilities.find(row => row.capability_id === pagesActions.list.capability_id);
+  const panelLists = async () => (await panelRow()) !== undefined;
   const mcpTools = async () => ((await mcp.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" }))?.result as { tools: Array<{ name: string }> }).tools.map(tool => tool.name);
 
   const page = (await client.invoke(person, pagesActions.create, { title: "第四季度计划要点", body: doc("预算控制在50万以内") }) as { document: { id: string } }).document;
@@ -37,11 +42,13 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
     assert.deepEqual(pagesHits(await search()), [page.id], "the project's search finds the Pages document");
     assert.ok((await offered()).includes(pagesActions.list.capability_id), "the assistant's directory offers Pages");
     assert.ok((await mcpTools()).includes(pagesListTool), "the project's MCP lists the granted Pages tool");
+    assert.ok(await panelLists(), "the Assistant panel lists Pages' actions");
     const listed = await client.invoke(person, pagesActions.list, {}) as { documents: Array<{ id: string; title: string }> };
     assert.deepEqual(listed.documents.map(document => [document.id, document.title]), [[page.id, "第四季度计划要点"]]);
   };
   await reached();
   const before = await offered();
+  const listedRow = (await panelRow())!;
 
   await home.web.delete(projectPlugins, { plugin_id: "pages", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const removed = await search();
@@ -56,6 +63,10 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   assert.deepEqual(refusals, Object.fromEntries(before.map(id => [id, "actions.plugin_disabled"])), "what it was offered is refused because Pages is off there");
   for (const caller of [person, assistant]) await assert.rejects(client.invoke(caller, pagesActions.list, {}), { code: "actions.plugin_disabled" });
   assert.ok(!(await mcpTools()).includes(pagesListTool), "the grant stays, but the tool is not listed while Pages is off");
+  assert.equal(await panelLists(), false, "the Assistant panel does not list a removed plugin's actions");
+  // Nor does it read or switch one by its reference there: the switch is changed where the plugin is reached.
+  await assert.rejects(home.web.post(panelPath, { capability_id: listedRow.capability_id, version: 1, provider_id: listedRow.provider_id, expected: listedRow.expected, enabled: false }),
+    { code: "assistant.not_found" });
   const called = (await mcp.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: pagesListTool, arguments: {} } }))?.result as { isError: boolean; content: Array<{ text: string }> };
   assert.equal(called.isError, true);
   assert.equal(JSON.parse(called.content[0]!.text).code, "actions.plugin_disabled");
@@ -80,9 +91,9 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     const { projects } = await home.web.get<{ projects: Array<{ project_id: string; plugins: string[]; hidden: string[] }> }>("/api/settings/project-plugins");
     const row = projects.find(entry => entry.project_id === project.project_id);
     assert.ok(row);
-    return shownProjectPlugins(row.plugins, row.hidden);
+    return row.plugins;
   };
-  for (const id of PROJECT_SCOPED_PLUGIN_IDS) if (!(await enabled()).includes(id)) await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+  for (const id of BUILTIN_PLUGIN_IDS) if (!(await enabled()).includes(id)) await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const start = await enabled();
   assert.deepEqual(builtins.filter(id => !start.includes(id)), [], "the project starts with all 20");
   const person = await home.host.localPersonContext(project.reference);

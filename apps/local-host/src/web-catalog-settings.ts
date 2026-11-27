@@ -16,7 +16,6 @@ import { installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { runningProjectPlatform } from "./project-plugins.js";
-import { shownProjectPlugins } from "./plugin-registry.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.js";
@@ -250,14 +249,14 @@ async function projectShownJudge(composition: LocalWebComposition, homeDirectory
   });
 }
 
-/** A project's plugins as the settings show them; what they show is the Host's to say (W5-02 B1): without a project, the personal plugins. */
+/** A project's plugins as the settings show them; what they show is the Host's to say (W5-02 B1): without a project, none. */
 async function pluginMembership(composition: LocalWebComposition, homeDirectory: string | undefined, projectId: string | null): Promise<{
   plugins: readonly string[] | undefined; hidden: readonly string[] | undefined; shown: readonly string[];
 }> {
-  if (!projectId || !homeDirectory) return { plugins: undefined, hidden: undefined, shown: shownProjectPlugins([]) };
+  if (!projectId || !homeDirectory) return { plugins: undefined, hidden: undefined, shown: [] };
   return composition.withCatalog({ homeDirectory }, (catalog) => {
     const { plugins, hidden } = catalog.projectPluginMembership(projectId);
-    return { plugins, hidden, shown: shownProjectPlugins(plugins, hidden) };
+    return { plugins, hidden, shown: plugins };
   });
 }
 

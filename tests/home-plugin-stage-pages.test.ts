@@ -74,11 +74,10 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
   assert.equal(entry(local)?.group, null, "a package a project runs is not the person's own");
   const plus = clientPluginDirectory(directory);
   assert.deepEqual([notes, books, local].map(id => plus.find(item => item.id === id)?.personal === true), [true, true, false], "＋ lists the two Home packages with the person's own");
-  // The built-ins by the same rule, from the Host's own registrations (registered personal and run in the Home), as the coordinator
-  // listed them for 07-1 S4b: Cognia, Images, Issue, Jelly and Todo are the person's own; Goals and Feed (dual, not personal)
-  // and 灵光, Pages, PPT, Dataset, Forms, Workflows (enabled per project since batch 107) and the studio are not.
+  // The built-ins by the same rule: none is the person's own since batch 108. Jelly, Cognia, Images, Issues and Todo run in each partition
+  // they are added to, as 灵光, Pages, PPT, Dataset, Forms and Workflows have since batch 107; Goals and Feed (dual) and the studio are not either.
   const own = builtinMarketDirectory().filter(isPersonalPlugin).map(item => item.id).sort();
-  assert.deepEqual(own, ["cognia", "images", "issues", "jelly", "todo"]);
+  assert.deepEqual(own, []);
 });
 
 test("BL-912 an installed stage tells the tab strip the icon its package picked, and says nothing when it picked none", () => {
@@ -116,7 +115,7 @@ test("RAC-2621.4 a page key nothing registers has no page, framed or not, even a
       }
     }
     // A built-in Home plugin answers with its own page, which has its own page token and frames no package.
-    const builtin = await (await fetch(`${served.origin}/plugins/todo?frame=workbench`)).text();
+    const builtin = await (await fetch(`${served.origin}/plugins/work-brief?frame=workbench`)).text();
     assert.ok(!builtin.includes('"mode":"installed"') && !builtin.includes("?frame=workbench"), "the answer is not an installed package's page");
   } finally { await served.close(); await host.close(); }
 });

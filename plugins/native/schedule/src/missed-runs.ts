@@ -5,12 +5,14 @@ import {
   type ActionExecutionContext, type ActionHandlerBinding, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ScheduleJobRecord, ScheduleRegisterInput, ScheduleWakeupInput, ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { OVERVIEW_TEXT_LIMITS, type OverviewScheduledRunRow, type PluginOverviewRows } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SCHEDULE_OPERATION_WAKEUP, SCHEDULE_REMINDER_WAKEUP, SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
 import { scheduleErrors } from "./error.js";
 import { SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_PLUGIN_ID } from "./manifest.js";
 import { getScheduledOperation, saveScheduledOperation, scheduledOperationForJob } from "./operations.js";
 import { getScheduleReminder } from "./reminders.js";
 import { getScheduleConversationTask, setScheduleConversationTaskEnabled, type ScheduleTaskDatabase } from "./tasks.js";
+import { nextDailyLocalDue } from "./calendar.js";
 
 /**
  * What Schedule missed while Molis Work was not running or the computer slept (resident-runtime-design §2.1): a task, a plugin's
@@ -201,4 +203,58 @@ export function createScheduleRunsHandlers(projectId: string, ports: {
       return ports.write(caller, () => decideMissedRun(ports.db, ports.schedule, projectId, input, ports.now?.() ?? new Date()));
     }),
   ];
+}
+
+/** How many upcoming and missed runs Schedule keeps in the overview at most: well under the platform's limit of rows per kind. */
+const OVERVIEW_UPCOMING_ROWS = 200, OVERVIEW_MISSED_ROWS = 250;
+const OPEN_PART = /^[A-Za-z0-9._:-]{1,200}$/;
+const overviewTitle = (title: string) => [...title.trim()].slice(0, OVERVIEW_TEXT_LIMITS.title).join("") || "-";
+
+/**
+ * Schedule's rows in the overview (specs/unified-partition-plugins §6.1「主库摘要表」, V17, batch 108), written again at the end of every
+ * Schedule write, in its transaction: each job that is on, at its next time after `now`, and each missed run nobody decided on. Every
+ * wakeup is a Schedule write after its time, so a repeating job's next time is written as soon as this one comes; the Home's runs panel
+ * then reads the overview and opens no project. What is expired and what the person was told stays the Home's (`runExpiredUntold`).
+ */
+export function writeScheduleRunRows(rows: PluginOverviewRows, db: ScheduleTaskDatabase, jobs: readonly ScheduleJobRecord[], now: number): void {
+  for (const kind of ["task", "operation", "reminder"] as const) rows.removePrefix("scheduled_run", `${kind}:`);
+  const at = new Date(now).toISOString();
+  const open = (ref: string) => OPEN_PART.test(ref) ? { open: { surface: SCHEDULE_PROJECT_PLUGIN_ID, id: ref } } : {};
+  let upcoming = 0;
+  for (const job of [...jobs].sort((a, b) => Date.parse(a.next_due_at) - Date.parse(b.next_due_at))) {
+    const kind = KIND_BY_CAPABILITY[job.capability_id];
+    if (!kind || job.plugin_id !== SCHEDULE_PLUGIN_ID || !job.enabled) continue;
+    const due = nextTime(job, now) ?? (kind === "task" ? dailyTaskNext(db, job.object_ref, now) : null);
+    const current = due ? target(db, kind, job.job_id, job.object_ref) : null;
+    if (!due || !current) continue;
+    const row: OverviewScheduledRunRow = { row_id: missedRunId(kind, current.ref, due), title: overviewTitle(current.title), due_at: due, updated_at: at,
+      ...(kind === "task" ? { needs: ["model"] } : {}), ...open(current.ref) };
+    rows.upsert("scheduled_run", row);
+    if (++upcoming >= OVERVIEW_UPCOMING_ROWS) break;
+  }
+  // The partition's main database holds this one project, so every undecided row is this project's.
+  const missed = db.prepare("SELECT * FROM schedule_missed_runs WHERE decision IS NULL ORDER BY due_at DESC LIMIT ?").all(OVERVIEW_MISSED_ROWS) as MissedRow[];
+  for (const entry of missed) {
+    rows.upsert("scheduled_run", { row_id: entry.run_id, title: overviewTitle(entry.title), due_at: entry.due_at, missed_at: entry.missed_at, updated_at: entry.missed_at,
+      ...(entry.kind === "task" ? { needs: ["model"] } : {}), ...open(entry.ref) });
+  }
+}
+
+/**
+ * A daily task's next time after `now` when its job is past: the task registers one occurrence at a time and registers the next once that
+ * one has run, so a Home that was off past the time (more than the seven days after which it is not run) still has a next run to show.
+ */
+function dailyTaskNext(db: ScheduleTaskDatabase, taskId: string, now: number): string | null {
+  const task = getScheduleConversationTask(db, taskId);
+  return task?.repeat === "daily" ? nextDailyLocalDue(task.hour, task.minute, new Date(now)).toISOString() : null;
+}
+
+/** A job's next time after `now`: its own when still to come, else the next of a repeating one; null for a one-time job that is due now. */
+function nextTime(job: ScheduleJobRecord, now: number): string | null {
+  const due = Date.parse(job.next_due_at);
+  if (!Number.isFinite(due)) return null;
+  if (due > now) return job.next_due_at;
+  if (job.recurrence.kind !== "interval" || !(job.recurrence.interval_ms > 0)) return null;
+  const interval = job.recurrence.interval_ms;
+  return new Date(due + (Math.floor((now - due) / interval) + 1) * interval).toISOString();
 }

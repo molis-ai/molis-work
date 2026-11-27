@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ledgerDatabase } from "./context-ledger-database.js";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import {
@@ -10,6 +10,7 @@ import { CarrySettling, PlacementService, PLACEMENT_LEDGER_ACCESS, placementRela
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
+import { liveObservation } from "./observation-live.js";
 import { surfacePlacementCallPorts } from "./placement-surface-call.js";
 
 
@@ -106,7 +107,12 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   const carrying = new CarrySettling({
     pendingCarryRecords: () => (closed || !db.isOpen ? [] : service.pendingCarryRecords()),
     settleCarries: () => (closed || !db.isOpen ? Promise.resolve(0) : service.settleCarries()),
-  });
+  }, { settled: pass => {
+    // The pass in the work records (batch 108): the carries themselves are the ledger's own history, so only the counts and how it ended.
+    liveObservation(ports.homeDirectory)?.sink("home").bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null })
+      .record({ fact: "home.placement_carry_settle", outcome: pass.failed ? "failed" : pass.left < pass.pending ? "succeeded" : "no_action",
+        stage: "settle", occurred_at: pass.started_at, detail: { pending: pass.pending, left: pass.left } });
+  } });
   const settleCarries = () => { if (!closed) carrying.kick(); };
   const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
     settleCarries();

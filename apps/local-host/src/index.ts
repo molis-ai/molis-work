@@ -33,7 +33,6 @@ export { hostDependencyCheck, type PluginDependencyCheck } from "./plugin-action
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
-export { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
 export { openPartitionPluginDatabase, openPluginDatabase } from "./plugin-home-database-client.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
@@ -51,7 +50,7 @@ export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { BROWSER_SITES_FILE, BrowserSiteDecisions } from "./browser/browser-surfaces.js";
-export { ensureHomeUpgraded, pendingUpgradeUnits, REMOVED_HOME_STORES, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
+export { ensureHomeUpgraded, pendingUpgradeUnits, removedHomeStores, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
 export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, type HomeUpgradePlan, type UpgradeMaintenanceMessage, type UpgradeMaintenanceOptions } from "./upgrade-maintenance.js";
 export { configuredModelChoices } from "./configured-models.js";
 export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismissUpgradeNotice, rollbackHrefFor, upgradeNoticeFor, upgradeRefusal, type UnavailableOwner, type UnavailableReason } from "./home-unavailable-owners.js";
@@ -99,7 +98,7 @@ export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
-export { personalConfigRegistrations } from './personal-config-sync.js';
+export { personalConfigRegistrations, personSettingsObserved } from './personal-config-sync.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
@@ -121,8 +120,8 @@ export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-del
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { ownerLabel } from "./web-project-deletion.js";
 export {
-  BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
-  availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, requiredCompanions, shownProjectPlugins, type ProjectRuntimeDeclaration,
+  BUILTIN_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS,
+  availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, requiredCompanions, type ProjectRuntimeDeclaration,
 } from "./plugin-registry.js";
 export { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
@@ -181,7 +180,7 @@ export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { installedStageSection } from "./workbench-renderer.js";
-export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { createPluginConnectionsPort, createCallConnectionsPort, mayUseInstallationSlot, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
@@ -298,8 +297,9 @@ export { collectRetained } from "./uninstall-retained.js";
 export { ensureProjectPlugins, projectPluginPlatform, projectPluginProblem, refreshRunningProjectPlugins, releaseProjectPlugins, runningPluginPlatform, runningProjectPlatform, runningProjectPluginState, startPartitionPluginInstance } from "./project-plugins.js";
 export { existingPartitionPluginHost, partitionChanged, type PartitionPluginInstance } from "./partition-plugin-host.js";
 export { pluginInstallRecords } from "./plugin-install-records.js";
-export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginScope, type PartitionWakeReason } from "./partition-plugin-assembly.js";
-export { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, PartitionPlatformServices, partitionOverviewLibraries, personSettingsInstallations, type OverviewInstallation, type PartitionPlatformServicesOptions } from "./partition-platform-services.js";
+export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginLifecycleEvent, type PartitionPluginScope, type PartitionStopReason, type PartitionWakeReason } from "./partition-plugin-assembly.js";
+export { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, mainOverviewLibrary, PartitionPlatformServices, partitionOverviewLibraries, runningPartitionPlatformServices, personSettingsInstallations, type OverviewInstallation, type PartitionPlatformServicesOptions } from "./partition-platform-services.js";
+export { onPartitionReminder, REMINDER_LATE_MS, tellPartitionReminder, type PartitionReminder } from "./partition-reminders.js";
 export { openHomePluginStore } from "./home-plugin-store.js";
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
@@ -415,7 +415,9 @@ export { handleAttentionHttp, type AttentionSources } from "./attention-http.js"
 export { attentionChanged, onAttentionChange, onAttentionChangeOf } from "./attention-changes.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
-export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
+export { forgetMainOverviewRows, pluginOverviewFor } from "./plugin-overview-service.js";
+export { backgroundWorkUnderWay, homeBackgroundTaskOf, homeBackgroundTasks, homeOverviewRows, overviewRowsFor, homeScheduledRuns, hostBackgroundTasks, scheduledRunsOf, type HomeScheduledRuns, hostOverviewSource, REPORTED_ENDED_SHOWN_MS, type HomeOverviewPartition, type HomeOverviewSource, type HomeRun, type HomeRunsOwner } from "./home-overview.js";
+export type { HomeBackgroundTaskRow } from "@molis-ai/molis-work-contracts/services/mainline";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
 export { hostLog, captureHostLog, eachListener, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
@@ -478,6 +480,7 @@ export { attachHostPresence, DEFAULT_HOST_PORT, homeHostUrl, HOST_CANDIDATE_PORT
 export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
 export { createHostObservation, observationPluginDataCleared, scheduleWakeupRecords, type HostObservation } from "./observation-host.js";
+export { dueWakeupRecord, partitionLifecycleRecords } from "./partition-observation.js";
 export { registerEvaluationReplayScenario, type HostEvaluationOwner } from "./evaluation-host.js";
 export type { GrantChangedBy } from "./observation-grants.js";
 export { observationShellDoor } from "./observation-shell-entry.js";
@@ -492,4 +495,7 @@ export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginH
 export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";
 export { imageGeneratorOf } from "./plugin-builder/studio-images.js";
 export { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry } from "./home-page-authority.js";
+export { overviewReadProvider, type OverviewReadPorts } from "./overview-actions.js";
+export { ATTENTION_OVERVIEW_SOURCE, attentionOverviewLibrary } from "./partition-platform-services.js";
+export { assistantSettingActions, assistantSettingOwner } from "./assistant/assistant-settings-actions.js";
 export { HOME_PLATFORM_SURFACE_ROUTES } from "./platform-surface-routes.js";

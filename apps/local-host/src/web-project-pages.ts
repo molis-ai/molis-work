@@ -4,7 +4,7 @@ import { installedPluginStages } from "./installed-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { artifactProducerSources, declaredArtifactTypes } from "./artifact-type-registry.js";
 import { matchPageRoute } from "./page-routes.js";
-import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -71,7 +71,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   // A plugin with a library in each partition runs as its own instance here (batch 107); its entry is that instance's.
   const directory = projectPluginPlatforms(record).flatMap(platform => runningPluginDirectory(platform.supervisor).filter(entry => entry.chosen || !installedPackageOn(platform, entry.plugin_id)));
   const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory()) };
-  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
+  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? [...configuration.plugins],
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins),
     ...(ports.homeDirectory ? { homeDirectory: ports.homeDirectory } : {}) });
   return { html: runtime.html, panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,

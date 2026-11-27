@@ -15,8 +15,7 @@ import { handleUnscopedAgentReviews } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { handleUnscopedComputerFiles } from "./computer/computer-record-source.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
-import { homeBackgroundTasks } from "./home-background-tasks.js";
-import { homeAggregatePorts } from "./home-aggregate.js";
+import { hostBackgroundTasks } from "./home-overview.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebComposition } from "./web-composition.js";
@@ -44,8 +43,8 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
       { localHost, ...(assistant ? { assistantBinding: id => assistantServiceFor(assistant).service.memorySessionBinding(id) } : {}) }) },
   { id: "assistant", handle: async ({ request, response, url, assistant, serverOptions }) =>
     Boolean(assistant) && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant!, serverOptions.assertAccountCurrent) },
-  { id: "attention", handle: async ({ request, response, url, assistant, projects, localHost }) => Boolean(assistant) && await handleAttentionHttp(request, response, url,
-    { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), projects), notices: surface => assistantNotices(assistant!, surface),
+  { id: "attention", handle: async ({ request, response, url, assistant, localHost }) => Boolean(assistant) && await handleAttentionHttp(request, response, url,
+    { backgroundTasks: () => hostBackgroundTasks(localHost), notices: surface => assistantNotices(assistant!, surface),
       changes: listener => onAttentionChange(null, listener) }) },
   { id: "side-files", handle: async ({ request, response, url, serverOptions }) => Boolean(serverOptions.homeDirectory)
     && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory!) },

@@ -12,13 +12,16 @@ import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 // RAC-105-A-16: the resident owns each Home while independent stdio clients exercise the real grants and persistence.
 test("standard Cognia MCP clients share real imports and fixed bytes, isolate Home/read grants, and resume after client restart", { timeout: 45_000 }, async t => {
   const homes = await Promise.all([openTestHome(t), openTestHome(t)]);
+  // Cognia works in a partition (batch 108): each Home's clients are bound to one project that has it.
+  const projects = new Map(await Promise.all(homes.map(async home => [home, await home.createProject("Knowledge", ["cognia"])] as const)));
   const clients: Client[] = [];
   const grant = residentMcpGrants();
   const connect = async (resident: TestHome, access = "write") => {
     const actor = `runtime:fixture-${access}`, permissions = access === "read" ? ["cognia:read"] : COGNIA_ACTION_PERMISSIONS.filter(permission => permission !== "model:invoke");
-    await grant(resident, null, actor, "cognia", permissions);
+    const project = projects.get(resident)!;
+    await grant(resident, project.project_id, actor, "cognia", permissions);
     const client = new Client({ name: "external-cognia", version: "1" }); clients.push(client);
-    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/cognia-mcp-server.ts", import.meta.url)), resident.home, `fixture-${access}`, resident.origin], stderr: "pipe" });
+    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/cognia-mcp-server.ts", import.meta.url)), resident.home, `fixture-${access}`, resident.origin, project.database_path, project.project_id], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
@@ -54,6 +57,6 @@ test("standard Cognia MCP clients share real imports and fixed bytes, isolate Ho
     await call(restarted, "source.delete", { id: receipt.source_id });
     assert.equal((await call(reader, "workspace.get")).materials.length, 0);
     assert.equal((await call(reader, "material.get", { id, revision: 1 })).material.body, "# Evidence\nOriginal bytes");
-    const store = openCogniaStore(homes[0]!.home); try { assert.equal(store.read(id, 1).body, "# Evidence\nOriginal bytes"); assert.equal(store.materials().length, 0); } finally { store.close(); }
+    const store = openCogniaStore(homes[0]!.home, projects.get(homes[0]!)!.project_id); try { assert.equal(store.read(id, 1).body, "# Evidence\nOriginal bytes"); assert.equal(store.materials().length, 0); } finally { store.close(); }
   } finally { await Promise.all(clients.map(client => client.close())); }
 });

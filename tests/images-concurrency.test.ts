@@ -14,6 +14,7 @@ import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-c
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 async function until(check: () => boolean | Promise<boolean>) {
@@ -55,6 +56,8 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
       const result = await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.images${path}`, { method, headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       const value = await result.json() as any; assert.equal(result.status, expected, JSON.stringify(value)); return value;
     };
+    // Images is a partition plugin since batch 108 and a new project starts without it: the person adds it first.
+    await addProjectPlugin(web.web, project.project_id, "images");
     const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
     await withHostCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({
       context: { runtime_id: runtime, stable_work_context_id: `${runtime}-session`, host_declares_stable: true },

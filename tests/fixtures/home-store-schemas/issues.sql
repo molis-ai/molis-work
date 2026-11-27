@@ -1,4 +1,4 @@
--- Frozen complete current baseline; test-only schema, no real Home receipt.
+-- Frozen complete current baseline of the plugin's library in each partition (<partition>/libraries/issues.db, batch 108); test-only schema, no real Home receipt.
 CREATE TABLE issues (
     id TEXT PRIMARY KEY, title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 200),
     type TEXT NOT NULL CHECK(type IN ('bug','experience','feature')), description TEXT NOT NULL CHECK(length(description) <= 100000),

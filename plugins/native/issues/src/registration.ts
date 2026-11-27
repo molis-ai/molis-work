@@ -6,8 +6,9 @@ import { issuesManifest, issuesUiContribution, createIssuesPlugin, ISSUES_CLIENT
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  project_plugin_id: "issues", catalog_order: 1, manifest: issuesManifest, personal: true,
-  runtime: { create: createIssuesPlugin, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
+  project_plugin_id: "issues", catalog_order: 1, manifest: issuesManifest,
+  // ⌘⇧I opens the personal space's Issue from any partition, offering to enable it there first (R14, batch 108).
+  project_runtime: { create: createIssuesPlugin, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
   workbench: { order: 5, contributions: [issuesUiContribution], clientFactory: ISSUES_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-issue-id]", idDataset: "issueId" } },
 };

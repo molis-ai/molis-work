@@ -12,9 +12,6 @@ export const TODO_SUBJECT_KIND = "todo_item";
 export type TodoStatus = "open" | "doing" | "waiting" | "done" | "cancelled";
 export const TODO_STATUSES: readonly TodoStatus[] = ["open", "doing", "waiting", "done", "cancelled"];
 
-/** Where it belongs. `unassigned` is a normal state: recorded first, placed later. */
-export type TodoPlacement = "personal" | "project" | "unassigned";
-
 /** Who is being waited on, for what, and when the person intends to follow up. */
 export interface TodoWaiting {
   readonly who: string;
@@ -57,16 +54,13 @@ export interface TodoLink {
 }
 
 /** Fields the person can edit; the ones they edited by hand are protected from later automatic updates. */
-export type TodoEditableField = "title" | "notes" | "due_date" | "due_time" | "planned_date" | "remind_at" | "placement" | "important" | "waiting";
+export type TodoEditableField = "title" | "notes" | "due_date" | "due_time" | "planned_date" | "remind_at" | "important" | "waiting";
 
 export interface TodoItem {
   readonly id: string;
   readonly title: string;
   readonly notes: string;
   readonly status: TodoStatus;
-  readonly placement: TodoPlacement;
-  /** Set only when placement is "project". */
-  readonly project_id: string | null;
   /** The latest date it must be done by, usually someone else's requirement. YYYY-MM-DD. */
   readonly due_date: string | null;
   /** Optional time of day for the due date, HH:MM; a date alone means all day. */
@@ -157,7 +151,6 @@ export interface TodoCandidate {
   /** A day the organizer suggests working on it; always a suggestion. */
   readonly suggested_date: string | null;
   readonly topic: string | null;
-  readonly placement: TodoPlacement;
   readonly waiting: { readonly who: string; readonly what: string } | null;
   /** Where it comes from: a material and a passage that was found in it. */
   readonly evidence: readonly { readonly material: number; readonly excerpt: string }[];
@@ -186,7 +179,6 @@ export interface TodoBatch {
   readonly batch_id: string;
   readonly title: string;
   readonly origin: "assistant" | "onboarding" | "manual";
-  readonly project_id: string | null;
   readonly method: string;
   readonly materials: readonly TodoBatchMaterial[];
   readonly candidates: readonly TodoCandidate[];

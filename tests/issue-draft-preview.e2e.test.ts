@@ -68,7 +68,7 @@ test("ISSUE-45 image drafts survive full navigation, removal, sending and undo b
   await v.send();
   await v.until("$('[data-issue-toast] span').textContent.startsWith('已记录：')", 25_000);
   const [record] = (await v.list()).items; assert.ok(record);
-  assert.deepEqual(await v.ask(`(async () => { const response = await d.defaultView.fetch('/api/plugins/io.molis.work.issues/read?id=${record.id}', { headers: d.defaultView.molisWorkControlHeaders() }); return ${digestImages}((await response.json()).images); })()`), kept);
+  assert.deepEqual(await v.ask(`(async () => { const response = await d.defaultView.fetch('/projects/personal/api/plugins/io.molis.work.issues/read?id=${record.id}', { headers: d.defaultView.molisWorkControlHeaders() }); return ${digestImages}((await response.json()).images); })()`), kept);
   await v.press('[data-issue-toast-action]');
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 3");
   await v.go("/"); await v.chord(); await v.composerFocused();
@@ -84,7 +84,7 @@ test("ISSUE-45 image drafts survive full navigation, removal, sending and undo b
 test("ISSUE-45 a failed draft write rejects the new image visibly and preserves the previous draft", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const v = await issueView(t, b);
-  await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]'); await v.type('保留这句话与原图');
+  await v.go('/projects/personal/?openPlugin=issues'); await v.press('[data-issue-composer] [name=description]'); await v.type('保留这句话与原图');
   await v.paste('已有图片.png'); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
   const before = await v.ask(thumbnails);
   await b.evaluate("(window.savedPut = Cache.prototype.put, Cache.prototype.put = function() { throw new DOMException('full', 'QuotaExceededError'); }, true)");
@@ -101,7 +101,7 @@ test("ISSUE-45 sending clears immediately without erasing words typed during the
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
   }); if (!b) return;
   const v = await issueView(t, b);
-  await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]');
+  await v.go('/projects/personal/?openPlugin=issues'); await v.press('[data-issue-composer] [name=description]');
   await v.type('记录第一条，后续输入属于下一条'); await v.paste();
   await v.until("!!$('[data-issue-thumbs] img') && !$('[data-issue-submit]').disabled");
   await b.evaluate(`(() => { const w = window, put = w.Cache.prototype.put;
@@ -114,7 +114,7 @@ test("ISSUE-45 sending clears immediately without erasing words typed during the
   await b.evaluate('(window.releaseDraftWrite(), true)');
   await v.until("$('[data-issue-toast] span').textContent.startsWith('已记录：')", 25_000);
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), '下一条的文字不能被上一次保存擦掉');
-  await v.go('/plugins/issues');
+  await v.go('/projects/personal/?openPlugin=issues');
   await v.until("$('[data-issue-composer] [name=description]').value === '下一条的文字不能被上一次保存擦掉'");
   assert.deepEqual(await v.ask(thumbnails), []);
   // Both drops decode while the first write is pending. Each must append to the preceding persisted draft.
@@ -122,14 +122,14 @@ test("ISSUE-45 sending clears immediately without erasing words typed during the
   await v.paste('连续添加一.png'); await v.paste('连续添加二.png');
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 2");
   const original = await v.ask(thumbnails);
-  await v.go('/plugins/issues'); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 2");
+  await v.go('/projects/personal/?openPlugin=issues'); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 2");
   assert.deepEqual(await v.ask(thumbnails), original);
 });
 
 test("ISSUE-46 preview close and zoom stay visible and clickable after two-axis scrolling in every layout", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, 'user', undefined, null); if (!b) return;
   const v = await issueView(t, b, 'issue-draft-preview');
-  for (const path of ['/plugins/issues', '/']) {
+  for (const path of ['/projects/personal/?openPlugin=issues', '/']) {
     await v.go(path); if (path === '/') { await v.chord(); await v.composerFocused(); }
     else { await v.press('[data-issue-composer] [name=description]'); await v.ask(`(async () => {
       const c = d.createElement('canvas'); c.width = c.height = 2400;

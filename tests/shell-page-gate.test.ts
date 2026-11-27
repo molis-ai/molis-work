@@ -7,7 +7,7 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalProjectDatabase, seedDemoGoals, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, seedDemoGoals, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -40,7 +40,7 @@ async function seededHome(t: test.TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-page-gate-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const project = await catalog.createProject({ display_name: "整页门禁", actor_id: "page-gate" });
-  for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "page-gate" });
+  for (const plugin_id of BUILTIN_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "page-gate" });
   catalog.close();
   for (const suffix of ["", "-wal", "-shm"]) await rm(project.database_path + suffix, { force: true });
   await seedDemoGoals(project.database_path, project.project_id);

@@ -24,7 +24,7 @@ export interface DirectorySource {
  *
  * A built-in is the one the catalog names with the same id and publisher; its entry carries the catalog's project key and is
  * chosen by the project's plugin list. Any other plugin is keyed by its Manifest id and is in the project because it runs there.
- * The key is the Host's to give, never read from the Manifest, and so are a built-in's marks (W5-02 B1): `personal` and `companions`
+ * The key is the Host's to give, never read from the Manifest, and so are a built-in's marks (W5-02 B1): `companions`
  * from the platform's own registration, `home` from that registration's own Manifest (its Runtime is the Home's).
  * A platform part the Runtime hosts (Shelf, 44B PR2b) is not in it: the shell frames it from its own surface list in every project.
  */
@@ -45,9 +45,9 @@ function hostedPart(manifest: { readonly plugin_id: string; readonly publisher: 
   return HOSTED_SURFACES.some(surface => surface.manifest.plugin_id === manifest.plugin_id && surface.manifest.publisher.signature === manifest.publisher.signature);
 }
 
-function builtinMarks(builtin: PluginRegistration): Pick<PluginDirectoryEntry, "personal" | "home" | "companions"> {
+function builtinMarks(builtin: PluginRegistration): Pick<PluginDirectoryEntry, "home" | "companions"> {
   const companions = BUILTIN_PLUGIN_REGISTRY.companions(builtin.project_plugin_id);
-  return { ...(builtin.personal === true ? { personal: true as const } : {}), ...(builtin.manifest.runtime?.scope === "home" ? { home: true as const } : {}),
+  return { ...(builtin.manifest.runtime?.scope === "home" ? { home: true as const } : {}),
     ...(companions.length ? { companions } : {}) };
 }
 

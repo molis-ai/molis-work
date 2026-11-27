@@ -18,10 +18,10 @@ const properties = { id, title, type, description, image_count: { type: "integer
     caller: object({ actor_id: text, audience: text }) }),
 };
 const issue = object({ ...properties, images });
-const rules = "个人 Home 的问题记录，切换项目不改变数据。保留用户原话与追问答复，不润色、分析或给解决办法；按描述和截图起简洁标题，类型为 Bug、体验问题或功能需求。新记录可撤销，之后可在详情里修改。只在用户明确要求时修改或删除；先读取当前版本。取消、冲突或提交结果未知时不自动重复写入。";
+const rules = "当前分区（个人空间或项目）的问题记录。保留用户原话与追问答复，不润色、分析或给解决办法；按描述和截图起简洁标题，类型为 Bug、体验问题或功能需求。新记录可撤销，之后可在详情里修改。只在用户明确要求时修改或删除；先读取当前版本。取消、冲突或提交结果未知时不自动重复写入。";
 function action<Input, Output>(name: string, contractVersion: number, label: string, effect: "read" | "write" | "irreversible", input_schema: ActionSchema, output_schema: ActionSchema,
   audiences: ActionDefinition<Input, Output>["action"]["audiences"] = ["user", "agent", "mcp"], extra: Partial<ActionDefinition<Input, Output>["action"]> = {}): ActionDefinition<Input, Output> {
-  return createActionDefinition<Input, Output>(`issues.${name}`, effect === "read" ? "query" : "command", { effect, kind: effect === "read" ? "query" : "operation", scope: "home", audiences, subject_kinds: ["issue"], title: label, description: rules,
+  return createActionDefinition<Input, Output>(`issues.${name}`, effect === "read" ? "query" : "command", { effect, kind: effect === "read" ? "query" : "operation", scope: "project", audiences, subject_kinds: ["issue"], title: label, description: rules,
       permissions: [effect === "read" ? "issues:read" : "issues:write"], input_schema, output_schema, ...extra }, contractVersion);
 }
 // A new record can be taken back while nobody has changed it, so an Assistant asked to record one may save it directly.

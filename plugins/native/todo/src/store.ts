@@ -1,12 +1,13 @@
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { TodoChange, TodoItem } from "./contract.js";
-import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sameCarriedRecord, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addDays } from "./dates.js";
 import { todoErrors } from "./error.js";
 import { TODO_DATABASE } from "./database.js";
 export { TODO_DATABASE };
 import { TodoStoreWrites } from "./store-writes.js";
-import { assertRevision, changeFromRow, changeRows, invalid, restore } from "./store-support.js";
+import { assertRevision, changeFromRow, changeRows, invalid, restore, toRow } from "./store-support.js";
+import { writeTodoOverview } from "./overview.js";
+import { carriedTodo, todoRecord } from "./carry.js";
 import type { TodoAccess, TodoBatchChange, TodoFields } from "./store-types.js";
 
 export { todoRequestKey } from "./store-types.js";
@@ -47,7 +48,9 @@ export class TodoStore extends TodoStoreWrites {
     const at = this.now().toISOString();
     const written = this.db.run("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND remind_at = ? AND revision = ? AND reminder_acknowledged_at IS NULL", [at, id, observedAt, current.revision]);
     if (Number(written.changes) !== 1) throw todoErrors.conflict("提醒已经改变，请刷新后再确认");
-    return { ...current, reminder_acknowledged_at: at };
+    const acknowledged = { ...current, reminder_acknowledged_at: at };
+    writeTodoOverview(this.db, acknowledged);
+    return acknowledged;
   }
 
   /** One change applied to several todos, all or nothing; undone together through its batch id. */
@@ -106,6 +109,7 @@ export class TodoStore extends TodoStoreWrites {
           this.db.run("DELETE FROM todo_changes WHERE item_id = ?", [current.id]);
           this.db.run("DELETE FROM todo_requests WHERE item_id = ?", [current.id]);
           this.db.run("DELETE FROM todo_items WHERE id = ?", [current.id]);
+          this.overviewGone(current.id);
           removed.push(current.id);
           continue;
         }
@@ -122,8 +126,69 @@ export class TodoStore extends TodoStoreWrites {
     });
     return { items, removed_ids: removed };
   }
+
+  /**
+   * One todo as the record placement carries to another partition (`placement.export`): the todo and its history. The revision is the
+   * todo's own, so it can be let go from here only while nobody changed it since (`removeCarried`).
+   */
+  exportRecord(id: string): PlacementExport {
+    const item = this.get(id, { actor: "other", actorId: "" });
+    // As the subject reader says (search.ts): an archived todo is gone from use, so placement neither moves nor copies it.
+    if (item.archived_at) throw todoErrors.not_found("这件待办已归档");
+    const changes = changeRows(this.db.all("SELECT * FROM todo_changes WHERE item_id = ? ORDER BY revision_after, at, rowid", [id])).map(changeFromRow);
+    return { subject: { kind: "todo_item", id }, revision: String(item.revision), record: todoRecord(item, changes) };
+  }
+
+  /**
+   * Writes a carried todo here (`placement.put`). With `targetId` (a move) it keeps its id, dates and history; without (a copy) it is a new
+   * todo of the same words with a history of its own, and the same request makes the same one. Links to other todos stay behind (those
+   * todos are not here).
+   */
+  putRecord(record: PlacementRecord, requestId: string, targetId?: string): TodoItem {
+    const carried = carriedTodo(record, targetId ?? null);
+    if (targetId === undefined) {
+      const access = { actor: "user" as const, actorId: "placement" };
+      const { item } = this.create({ title: carried.item.title, notes: carried.item.notes, status: carried.item.status, due_date: carried.item.due_date,
+        due_time: carried.item.due_time, planned_date: carried.item.planned_date, remind_at: carried.item.remind_at, important: carried.item.important,
+        waiting: carried.item.waiting, sources: carried.item.sources.map(({ source_id: _id, added_at: _at, ...source }) => source), request_id: `copy:${requestId}` }, access);
+      return item;
+    }
+    let result!: TodoItem;
+    this.transaction(() => {
+      const here = this.find(targetId);
+      if (here) {
+        // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept.
+        if (sameCarriedRecord(this.exportRecord(targetId).record, todoRecord(carried.item, carried.changes))) {
+          result = here;
+          return;
+        }
+        throw todoErrors.conflict("目标位置已经有这件待办，而且内容不同；没有覆盖它");
+      }
+      this.db.run(`INSERT INTO todo_items (id, title, notes, status, due_date, due_time, planned_date, remind_at, important,
+        waiting_json, sources_json, links_json, edited_fields_json, archived_at, completed_at, created_at, updated_at, revision, reminder_acknowledged_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, toRow(carried.item));
+      for (const change of carried.changes) this.db.run(`INSERT INTO todo_changes (change_id, item_id, batch_id, kind, actor, at, before_json, after_json, revision_after, reverted_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [change.change_id, change.item_id, change.batch_id, change.kind, change.actor, change.at,
+        change.before === null ? null : JSON.stringify(change.before), JSON.stringify(change.after), change.revision_after, change.reverted_by]);
+      writeTodoOverview(this.db, carried.item);
+      result = carried.item;
+    });
+    return result;
+  }
+
+  /** Lets a todo that went to another partition go from here (`placement.remove`) with its history, only while it is still the one carried. */
+  removeCarried(id: string, revision: string): boolean {
+    let removed = false;
+    this.transaction(() => {
+      const current = this.find(id);
+      if (!current) return;
+      if (String(current.revision) !== revision) throw todoErrors.conflict("这件待办刚被修改，请重新打开后再移动");
+      this.db.run("DELETE FROM todo_changes WHERE item_id = ?", [id]);
+      this.db.run("DELETE FROM todo_requests WHERE item_id = ?", [id]);
+      removed = Number(this.db.run("DELETE FROM todo_items WHERE id = ? AND revision = ?", [id, current.revision]).changes) === 1;
+      this.overviewGone(id);
+    });
+    return removed;
+  }
 }
 
-
-/** This plugin's store in the Home's store registry (W4-11): `todo/todo.db` at its one baseline. */
-export const TODO_HOME_STORE: HomeStoreDeclaration = { path: TODO_DATABASE.store_name, library: { baseline: TODO_DATABASE } };

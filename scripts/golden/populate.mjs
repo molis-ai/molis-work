@@ -94,11 +94,16 @@ function assertGoalHistoryCurrent(databasePath) {
   } finally { db.close(); }
 }
 
+/** What the person turns on in their personal space before the write cases: the placement case makes a Page there. */
+const PERSONAL_SPACE_PLUGINS = ["pages"];
+
 async function createRootProjects(session, step) {
   const web = new LocalHostHttpClient({ origin: session.origin, controlToken: readFileSync(path.join(session.home, "config/web-control-token"), "utf8").trim() });
   await step("projects:primary");
   const primary = await createProject(web, "金样工作项目");
-  for (const plugin_id of local.PROJECT_SCOPED_PLUGIN_IDS) await addProjectPlugin(web, primary.project_id, plugin_id);
+  for (const plugin_id of local.BUILTIN_PLUGIN_IDS) await addProjectPlugin(web, primary.project_id, plugin_id);
+  // A Home made since batch 107 starts its personal space with no partition plugin; the placement case makes its Page there.
+  for (const plugin_id of PERSONAL_SPACE_PLUGINS) await addProjectPlugin(web, "personal", plugin_id);
   await step("projects:demo");
   const demo = await session.http("/api/settings/demo", { body: { action: "create", user_confirmed: true } });
   await step("projects:goal-history");
@@ -117,7 +122,8 @@ async function createAccountProject(home, step) {
   await step("projects:primary");
   return { primary: await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "金样账号项目", actor_id: "owner" });
-    for (const plugin_id of local.PROJECT_SCOPED_PLUGIN_IDS) await catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "owner" });
+    for (const plugin_id of local.BUILTIN_PLUGIN_IDS) await catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "owner" });
+    for (const plugin_id of PERSONAL_SPACE_PLUGINS) await catalog.addProjectPlugin({ project_id: "personal", plugin_id, actor_id: "owner" });
     return created;
   }) };
 }

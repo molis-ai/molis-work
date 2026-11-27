@@ -4,7 +4,7 @@ import { callImageTool as call, openImagesMcp } from "./fixtures/images-mcp.js";
 
 test("Images standard MCP generates and retrieves real bytes, then preserves them across process restart", { timeout: 45_000 }, async t => {
   const { connect, saveConnection, generate, providerCalls } = await openImagesMcp(t);
-  const client = await connect("a");
+  let client = await connect("a");
   const names = (await client.listTools()).tools.map(tool => tool.name).filter(name => name.startsWith("images."));
   // Generating is unavailable until a service exists.
   assert.equal(names.length, 11);
@@ -19,16 +19,22 @@ test("Images standard MCP generates and retrieves real bytes, then preserves the
   assert.ok(names.includes("images.connections.list__v1"));
   assert.equal((await client.callTool({ name: "images.connections.list__v2", arguments: {} })).isError, true, "the superseded connection contract cannot be invoked");
 
-  const connection = await saveConnection(client);
+  await client.close();
+  const connection = await saveConnection();
+  client = await connect("a");
   const configured = (await client.listTools()).tools.map(tool => tool.name).filter(name => name.startsWith("images."));
   assert.equal(configured.length, 12, "the saved service makes generating available");
   assert.ok(configured.includes("images.jobs.start__v1"));
   assert.ok(!configured.includes("images.jobs.start__v2"));
   assert.ok(!configured.includes("images.jobs.start__v3"));
   assert.equal((await client.callTool({ name: "images.jobs.start__v3", arguments: {} })).isError, true, "the superseded generation contract cannot be invoked");
-  // ASC-10: an unauthenticated image configuration is not itself an account connection.
-  assert.deepEqual(await call(client, "connection.usages", { connection_id: connection.id }), { usages: [] });
-  assert.equal((await call<{ connections: Array<{ id: string }> }>(client, "connections.list")).connections[0]!.id, connection.id);
+  // UPP-15 (batch 108): the image services are the person's settings. An MCP client generates with one, but neither reads nor changes them
+  // (what an image configuration uses is reported to the person: ASC-10 in connector-consumer-usages).
+  for (const [name, args] of [["connection.usages", { connection_id: connection.id }], ["connections.list", {}]] as const) {
+    const refused = await client.callTool({ name: `images.${name}__v1`, arguments: args }) as { isError?: boolean; content: Array<{ text: string }> };
+    assert.equal(refused.isError, true, `${name} is the person's`);
+    assert.equal(JSON.parse(refused.content[0]!.text).code, "actions.forbidden", `${name} is refused, not failed on its input`);
+  }
 
   const { jobId, input, query, image } = await generate(client, connection.id);
   await client.close();
@@ -37,14 +43,16 @@ test("Images standard MCP generates and retrieves real bytes, then preserves the
   assert.deepEqual(await call(restarted, "images.read", query), image);
   assert.equal(providerCalls(), 1);
   await call(restarted, "jobs.delete", { id: jobId });
-  await call(restarted, "connections.delete", { id: connection.id });
+  const deleted = await restarted.callTool({ name: "images.connections.delete__v1", arguments: { id: connection.id } }) as { isError?: boolean; content: Array<{ text: string }> };
+  assert.equal(deleted.isError, true, "an MCP client does not delete the person's service");
+  assert.equal(JSON.parse(deleted.content[0]!.text).code, "actions.forbidden", "the delete is refused, not failed");
   assert.deepEqual((await call<{ jobs: unknown[] }>(restarted, "jobs.list")).jobs, []);
 });
 
 test("Images standard MCP hides another project's jobs", { timeout: 45_000 }, async t => {
   const { connect, saveConnection, generate } = await openImagesMcp(t);
+  const connection = await saveConnection();
   const owner = await connect("a");
-  const connection = await saveConnection(owner);
   const { jobId } = await generate(owner, connection.id);
   await owner.close();
 
@@ -55,8 +63,8 @@ test("Images standard MCP hides another project's jobs", { timeout: 45_000 }, as
 
 test("Images standard MCP lets a reader retrieve the bytes and refuses generation", { timeout: 45_000 }, async t => {
   const { connect, saveConnection, generate } = await openImagesMcp(t);
+  const connection = await saveConnection();
   const owner = await connect("a");
-  const connection = await saveConnection(owner);
   const { input, query, image } = await generate(owner, connection.id);
   await owner.close();
 

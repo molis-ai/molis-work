@@ -1,3 +1,4 @@
+import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
@@ -20,6 +21,8 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 import { person as runtimePerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { TODO_ACTION_PERMISSIONS, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, pluginErrors, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
@@ -107,8 +110,9 @@ test("UPP-06 S-partition-isolation a partition never runs a plugin it did not en
 
 test("UPP-21 one instance per (plugin, partition): started on first use, shared by concurrent uses, stopped when idle, disabled, uninstalled or its partition goes", async () => withPartitions(async (home, a, b) => {
   let now = 0;
-  const events: string[] = [];
+  const events: string[] = [], told: string[] = [];
   const assembly = new PartitionPluginAssembly({ home, idleMs: 1000, now: () => now, library: id => id.split(".").pop()!, members: () => [PLUGIN, "com.example.second"],
+    lifecycle: event => told.push(`${event.stage} ${event.scope.plugin_id} ${event.scope.partition_id} ${event.reason} ${event.outcome}`),
     installation: id => ({ install_id: `${id.split(".").pop()}-install` } as PluginInstanceRecord),
     async start(scope, reason) { events.push(`start ${scope.plugin_id} ${scope.partition_id} ${reason}`); return { async stop() { events.push(`stop ${scope.plugin_id} ${scope.partition_id}`); } }; } });
   const [first, second] = await Promise.all([assembly.acquire(PLUGIN, a, "open"), assembly.acquire(PLUGIN, a, "due")]);
@@ -129,6 +133,10 @@ test("UPP-21 one instance per (plugin, partition): started on first use, shared 
   await assembly.stopPartition(a);
   assert.deepEqual(assembly.instances(), [], "the partition going stops every instance in it");
   assert.equal(events.filter(event => event.startsWith("start")).length, 4);
+  // Each start and stop is told with why, for the work records (batch 108).
+  assert.deepEqual(told.slice(0, 6), [`start ${PLUGIN} ${a} open succeeded`, `stop ${PLUGIN} ${a} idle succeeded`, `start ${PLUGIN} ${a} sync succeeded`,
+    `start ${PLUGIN} ${b} sync succeeded`, `start com.example.second ${a} sync succeeded`, `stop ${PLUGIN} ${b} plugin succeeded`]);
+  assert.deepEqual(told.slice(6).sort(), [`stop ${PLUGIN} ${a} partition succeeded`, `stop com.example.second ${a} partition succeeded`].sort());
 }));
 
 test("UPP-21 a use waiting for an instance that is stopped while it starts gets no lease on it", async () => withPartitions(async (home, a) => {
@@ -391,6 +399,52 @@ test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partit
     await timer.fire();
     assert.equal(woken.length, 21);
   } finally { timer.close(); due.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+/** Waits for a condition the Host reaches on its own (a timer firing), reading it again every 50 ms; fails after `ms`. */
+async function until(what: string, ready: () => boolean, ms = 20_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!ready()) {
+    if (Date.now() > end) assert.fail(`timed out waiting: ${what}`);
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
+
+// Batch 108 item 2 ④: the same rule on the real Host with the real plugins. Todo's reminder (read from its overview table into the due
+// registry) and Images' generation deadline (its own due entry) fall due while every partition sleeps; each wakes only its own (plugin,
+// partition), opening that partition and no other. Jelly's events join this case when Jelly moves to partitions.
+test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("提醒 A", ["todo", "images"]), b = await f.project("提醒 B", ["todo", "images"]), c = await f.project("提醒 C", ["todo", "images"]);
+  const host = existingPartitionPluginHost(f.home), services = host?.services;
+  assert.ok(host && services, "the Host started the partition services");
+  const soon = new Date(Date.now() + 3_000).toISOString(), later = new Date(Date.now() + 86_400_000).toISOString();
+  const remind = (p: typeof a, title: string, at: string) => f.host.actionClient(p.reference).invoke(runtimePerson(TODO_ACTION_PERMISSIONS, p.project_id), todoActions.create, { title, remind_at: at });
+  await remind(a, "A 到点", soon);
+  await remind(b, "B 明天", later);
+  await remind(c, "C 明天", later);
+  await until("the reminders are in the due registry", () => [a, b, c].every(p => services.due.entries(p.project_id).length === 1));
+  const imagesInstall = installIdentity(imagesManifest);
+  const deadline = (p: typeof a, key: string, at: string) => services.registerDue({ install_id: imagesInstall, plugin_id: imagesManifest.plugin_id, partition_id: p.project_id }, { entry_key: key, due_at: at });
+  deadline(b, "job:probe", soon);
+  deadline(a, "job:later", later);
+  deadline(c, "job:later", later);
+  // Every project closes and every instance stops before the time comes: the partitions sleep.
+  for (const p of [a, b, c]) await f.host.closeProject(p.reference);
+  await host.assembly.stopPlugin(todoManifest.plugin_id);
+  await host.assembly.stopPlugin(imagesManifest.plugin_id);
+  assert.deepEqual(host.assembly.instances(), [], "no instance runs before the time");
+  assert.deepEqual(f.host.projects(), [], "and no project is open");
+
+  const fallen = (p: typeof a, plugin: string) => services.due.entries(p.project_id).filter(entry => entry.plugin_id === plugin && Date.parse(entry.due_at) <= Date.parse(soon));
+  await until("both fallen-due entries are settled", () => fallen(a, todoManifest.plugin_id).length === 0 && fallen(b, imagesManifest.plugin_id).length === 0);
+  assert.deepEqual(host.assembly.instances().map(item => `${item.plugin_id}@${item.partition_id}`).sort(),
+    [`${imagesManifest.plugin_id}@${b.project_id}`, `${todoManifest.plugin_id}@${a.project_id}`].sort(),
+    "Todo wakes in A and Images in B; Todo in B, Images in A, C and the personal space stay asleep");
+  assert.deepEqual(f.host.projects().map(project => project.project_id).sort(), [a.project_id, b.project_id].sort(), "only the woken partitions are opened; C stays closed");
+  assert.deepEqual(services.due.entries(c.project_id).map(entry => entry.due_at), [later, later], "C's entries still wait");
+  assert.deepEqual(services.due.entries(b.project_id).filter(entry => entry.plugin_id === todoManifest.plugin_id).map(entry => entry.due_at), [later], "B's reminder still waits");
+  assert.deepEqual(services.due.entries(a.project_id).filter(entry => entry.plugin_id === imagesManifest.plugin_id).map(entry => entry.entry_key), ["job:later"]);
 });
 
 // Batch 107-1: the Host's per-partition assembly (`partition-plugin-host.ts`). A plugin with a library in each partition no longer runs on the
@@ -932,4 +986,45 @@ test("F-hc2-18: releasing a partition while refresh is in flight leaves zero lea
   await refreshing;
   assert.deepEqual(partitionHost.assembly.instances().filter(item => item.partition_id === a.project_id), []);
   assert.equal(partitionHost.failure(a.project_id, DATASET), undefined);
+});
+
+test("UPP-06 S-partition-isolation overview.read@1: the person reads every partition's waiting entries, the assistant only what the person granted in its settings, revoked at once; other callers are refused", { timeout: 60_000 }, async t => {
+  const { openTestHome } = await import("./fixtures/test-home.js");
+  const { ATTENTION_OVERVIEW_SOURCE, assistantSettingActions, assistantSettingOwner } = await import("@molis-ai/molis-work-app-local-host");
+  const { OVERVIEW_PROVIDER_ID, overviewReadAction } = await import("@molis-ai/molis-work-contracts/platform/plugin");
+  const home = await openTestHome(t);
+  const a = await home.createProject("总览 A"), b = await home.createProject("总览 B");
+  // Two "waiting on you" entries written where the platform keeps them, one per project, and one already done that is not shown.
+  for (const [project, entry, status] of [[a, "wait-a", "open"], [b, "wait-b", "in_progress"], [a, "done-a", "done"]] as const) {
+    const db = new DatabaseSync(project.database_path);
+    try {
+      db.prepare(`INSERT INTO attention_entries (project_id, entry_id, owner_plugin_id, subject_type, subject_id, reason, status, detail_json, revision, created_at, updated_at)
+        VALUES (?, ?, 'io.molis.work.goals', 'goal', ?, 'needs_decision', ?, '{}', 1, '2026-11-26T09:00:00.000Z', '2026-11-26T09:00:00.000Z')`).run(project.project_id, entry, `subject-${entry}`, status);
+    } finally { db.close(); }
+  }
+  const client = home.host.homeActionClient(), read = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", permissions: [], project_id: null } as ActionCallContext;
+  const assistant = { ...person, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:work-1" } as ActionCallContext;
+  const rows = async (caller: ActionCallContext) => ((await client.invoke(caller, read, { kinds: ["notification"] })) as OverviewReadResult).rows
+    .filter(row => row.install_id === ATTENTION_OVERVIEW_SOURCE).map(row => [row.partition_id, row.row_id, row.fields] as const).sort();
+
+  const byPerson = await rows(person);
+  assert.deepEqual(byPerson.map(([partition, id]) => [partition, id]), [[a.project_id, "wait-a"], [b.project_id, "wait-b"]].sort(),
+    "the person reads both projects' open entries; a done one is not listed");
+  assert.equal(byPerson[0]![2].title, "needs_decision", "the row carries the owner's reason word, not a copy of the object");
+  assert.deepEqual(await rows(assistant), [], "the assistant reads nothing until the person grants it a project");
+
+  const write = (expected_revision: string, grants: unknown) => client.invoke(person, { ...assistantSettingActions.write, provider_id: assistantSettingOwner.provider_id },
+    { key: "assistant.overview_grants", layer: "personal", expected_revision, change: { set: { grants } }, request_id: `grant-${expected_revision}` });
+  await write("0", [{ partition_id: a.project_id, fields: ["title"] }]);
+  assert.deepEqual(await rows(assistant), [[a.project_id, "wait-a", { title: "needs_decision" }]], "granted A's titles: A's entry, only its title, nothing of B");
+  await write("1", []);
+  assert.deepEqual(await rows(assistant), [], "a withdrawn grant takes effect on the next read");
+
+  for (const [label, caller] of [
+    ["an Agent of its own (not the person)", { ...assistant, actor_id: "agent:runtime-1" }],
+    ["an MCP client", { ...person, audience: "mcp", actor_kind: "runtime" }],
+    ["a workflow", { ...person, audience: "workflow", actor_kind: "runtime" }],
+    ["a call handed on by a plugin", { ...person, delegated_by: "some-install" }],
+  ] as const) await assert.rejects(client.invoke(caller as ActionCallContext, read, {}), (error: ActionError) => error.code === "actions.forbidden" || error.code === "actions.unavailable", label);
 });

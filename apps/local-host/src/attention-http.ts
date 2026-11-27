@@ -11,7 +11,7 @@ const attentionPartFailures = repeatingFailure("attention", "part_failed");
 /** Where each part of what waits on the person is read; every reader belongs to the part's owner. */
 export interface AttentionSources {
   /**
-   * Background tasks running or waiting on the person, in open and resting projects, as the plugins that own them say (`home-background-tasks.ts`).
+   * Background tasks running or waiting on the person, in every partition, as their plugins wrote them into the overview (`home-overview.ts`, V17).
    * Only on the Home page, whose title bar lists them; a project page reads its own tasks with its line (specs/work-line §4.5).
    */
   backgroundTasks?(): HomeBackgroundTasksReadResult | Promise<HomeBackgroundTasksReadResult>;

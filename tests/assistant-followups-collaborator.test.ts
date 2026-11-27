@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
+import { RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantRule, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AssistantFollowUpRecords, AssistantFollowUps, AssistantStore, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "@molis-ai/molis-work-app-local-host";
@@ -40,21 +40,19 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
     list: () => [...tasks.values()],
     handle: (kind, run) => { assert.equal(kind, FOLLOW_UP_KIND); runner = run; return () => { runner = null; }; },
   };
-  let homeActions: AssistantFollowUpPorts<Work>["homeActions"];
   const ports: AssistantFollowUpPorts<Work> = {
     actorId: "person", records: new AssistantFollowUpRecords(db, workId => changed.push(workId)), now: () => now, timeZone: options.timeZone ?? "Asia/Shanghai",
     work: id => { const work = works.get(id); if (!work) throw new Error("gone"); return work; },
     notify: (notice, dedupe) => { if (!store.raiseNotice("person", notice, dedupe)) return false; notices.push({ text: notice.text, dedupe }); return true; },
     setting: key => settings.get(key) ?? null, setSetting: (key, value) => { settings.set(key, value); },
     rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
-    get homeActions() { return homeActions; },
     host: async () => ({}) as never, state: async () => workState, executorGone: async () => false,
     send: async (_work, words, requestId) => { sent.push({ words, requestId }); if (options.failSend !== undefined) throw new Error(options.failSend); },
     schedule: async () => schedule,
   };
   return { followUps: new AssistantFollowUps(ports), tasks, sent, notices, changed, settings, works, db, store,
     run: async (key: string) => { assert.ok(runner, "a runner is attached"); await runner!(tasks.get(key)!); },
-    at: (iso: string) => { now = new Date(iso); }, working: (running: boolean) => { workState = running ? "running" : "idle"; }, state: (state: AssistantWorkState) => { workState = state; }, setHome: (actions: typeof homeActions) => { homeActions = actions; } };
+    at: (iso: string) => { now = new Date(iso); }, working: (running: boolean) => { workState = running ? "running" : "idle"; }, state: (state: AssistantWorkState) => { workState = state; } };
 }
 
 test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned instants and long original failures after a restart", async t => {
@@ -148,28 +146,16 @@ test("W4-05-01 a follow-up removed before its time does not run, and archiving s
   assert.equal(h.followUps.pending(), false);
 });
 
-test("W4-05-02 due reminders are told once each, and a Plugin that did not answer is asked about the same stretch again", async () => {
+test("W4-05-02 due reminders are told once each occurrence; the same item at a new time, or in another partition, is told again", () => {
   const h = harness("2026-10-15T08:00:00.000Z");
-  const view = (provider: string) => ({ capability_id: `${provider}.due`, version: 1, provider: { provider_id: provider },
-    action: { input_type: DUE_REMINDERS_INPUT_TYPE, output_type: DUE_REMINDERS_OUTPUT_TYPE }, availability: { available: true } });
-  let todoFails = true;
-  h.setHome(async () => ({
-    discover: async () => [view("todo"), view("schedule")] as never,
-    invoke: async reference => {
-      if (reference.provider_id === "todo" && todoFails) throw new Error("no answer");
-      return { source: { title: reference.provider_id }, reminders: [
-        { reminder_id: "r1", title: "交周报", due_at: "2026-10-15T07:58:00.000Z", project_id: null },
-        { reminder_id: "r2", title: "明天的", due_at: "2026-10-16T07:58:00.000Z", project_id: null },
-      ] };
-    },
-  }));
-  assert.equal(await h.followUps.sweepReminders(), 1, "only the one that came due is told");
-  assert.equal(h.settings.get("reminder_sweep"), undefined, "one Plugin did not answer: the stretch is asked again");
-  todoFails = false;
-  h.at("2026-10-15T08:01:00.000Z");
-  assert.equal(await h.followUps.sweepReminders(), 1, "the Plugin that answered now tells its reminder; the other's is not told twice");
-  assert.equal(h.settings.get("reminder_sweep"), "2026-10-15T08:01:00.000Z");
-  assert.deepEqual(h.notices.map(notice => notice.dedupe).sort(), ["reminder:schedule:r1", "reminder:todo:r1"]);
+  const reminder = (over: object) => ({ partition_id: "personal", plugin_id: "io.molis.work.todo", install_id: "todo", entry_key: "task:r1", due_at: "2026-10-15T07:58:00.000Z",
+    late: false, source_title: "待办", title: "交周报", open: null, ...over });
+  assert.equal(h.followUps.tellReminder(reminder({})), true);
+  assert.equal(h.followUps.tellReminder(reminder({})), false, "a retried wake does not tell it twice");
+  assert.equal(h.followUps.tellReminder(reminder({ due_at: "2026-10-16T07:58:00.000Z" })), true);
+  assert.equal(h.followUps.tellReminder(reminder({ partition_id: "project-a" })), true);
+  assert.deepEqual(h.notices.map(notice => notice.dedupe).sort(),
+    ["reminder:todo:personal:task:r1@2026-10-15T07:58:00.000Z", "reminder:todo:personal:task:r1@2026-10-16T07:58:00.000Z", "reminder:todo:project-a:task:r1@2026-10-15T07:58:00.000Z"]);
 });
 
 test("W4-05-02 attention rules are checked strictly and kept through the rules port", () => {

@@ -1,7 +1,7 @@
 import { createFeedInformationPlanHandler } from "./information-plan.js";
 import { addressedDefinition, isHttpFeedSourceKind } from "./source-request.js";
 import { FEED_INSTRUCTIONS } from "./prompts.js";
-import { createFeedRunsHandlers, feedRunsActions } from "./missed-pulls.js";
+import { createFeedRunsHandlers, feedRunsActions, writeFeedRunRows } from "./missed-pulls.js";
 import { releaseHistoryPages } from "./history-pages.js";
 import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
@@ -110,6 +110,9 @@ export function createFeedPlugin(): PluginDefinition {
       subscribeInboxCreated: ports.subscribeInboxCreated, outRules: new FeedOutRuleStore(ports.sql),
       ...createRuntimeJudgmentTriggers({ projectId, services: judgmentServices, feed: application, hydrate, staging }) });
     assembled = feed;
+    // Its scheduled and missed pulls in the overview, written with every write (V17).
+    const overview = services?.overview;
+    if (overview) ports.summarizeWith(transaction => overview.join(transaction, rows => writeFeedRunRows(rows, feed, projectId, Date.now())));
     const writer = createFeedWriter(database, ports);
     const wakeup = createFeedWakeupCoordinator({
       grants: context.grants, scheduler: services?.scheduler, database, wake: WAKE, feed, projectId,

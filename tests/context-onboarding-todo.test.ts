@@ -5,7 +5,8 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { placementActions, type PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
 import { ONBOARDING_DRAFT_PART_CHARS } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -28,9 +29,9 @@ function test(name: string, options: { timeout?: number } | Body, body?: Body) {
 const MAIL = "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。";
 const TODOS = JSON.stringify({
   candidates: [
-    { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, phrase: null }, placement: "project",
+    { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, phrase: null },
       evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], depends_on: ["c2"] },
-    { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null }, placement: "personal",
+    { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null },
       waiting: { who: "小李", what: "确认预算" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
     { ref: "c3", kind: "suggestion", title: "今天催小李确认预算", why: "预算影响周五交付", owner: { who: "你", stated: false }, due: { date: null, phrase: null },
       evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
@@ -43,6 +44,12 @@ async function fixture(t: TestContext, todoModel: ((input: ModelPromptInput) => 
   const host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: todoModel });
   t.after(async () => { await host.close(); await rm(dir, { recursive: true, force: true }); });
   const withCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
+  // Drafts are made in the personal space (a new project does not exist yet) and kept in the new project (batch 108).
+  const take = async (_home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal) => {
+    const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: [...definition.action.permissions], ...(signal ? { signal } : {}) }));
+  };
   const ports = {
     withCatalog,
     model: async () => ({ completeText: async () => "# 新版方案\n张总要求周五前发新版方案，预算等小李确认。[S1]" }),
@@ -53,16 +60,17 @@ async function fixture(t: TestContext, todoModel: ((input: ModelPromptInput) => 
     },
     // Onboarding's drafts go to the plugin that declares it takes them (contract-design §2.5), each action called with its own permissions.
     takers: onboardingTakers,
-    takeAtHome: (definition: ActionDefinition, signal: AbortSignal) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...definition.action.permissions], signal })),
-    take: async (_home: string, projectId: string, definition: ActionDefinition) => {
-      const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
-      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: [...definition.action.permissions] }));
+    take,
+    // The platform's move of each batch into the new project, as the person.
+    move: async (_home: string, object: PlacedObject, to: string) => {
+      await bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...placementActions.move.action.permissions] }))
+        .invoke(placementActions.move, { object, to_project_id: to });
     },
-    /** Todo's own batches at Home, as its page reads them. */
-    todoBatches: async () => (await bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read"] }))
-      .invoke(todoOrganizeActions.list, {})).batches,
+    /** Todo's own batches in a partition (the personal space unless named), as its page reads them. */
+    todoBatches: async (projectId = PERSONAL_SPACE_PROJECT_ID) => (await (await take(dir, projectId, todoOrganizeActions.list)).invoke(todoOrganizeActions.list, {})).batches,
   };
+  // Todo is in the personal space, where onboarding drafts: the platform adds no plugin there on its own (V6).
+  await withCatalog({ homeDirectory: dir }, catalog => catalog.addProjectPlugin({ project_id: PERSONAL_SPACE_PROJECT_ID, plugin_id: "todo", actor_id: LOCAL_PERSON_ACTOR_ID }));
   const id = randomUUID();
   withContextJourneys(dir, store => store.create(id));
   selectContextSources(dir, id, { sources: [{ kind: "browser", selected: true, text: MAIL }] });
@@ -84,18 +92,19 @@ test("onboarding gives an overview and todo drafts; the kept drafts become the n
   const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, keep: kept }, ports);
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
   assert.equal(adopted.drafts?.added?.length, 2);
-  const store = openTodoStore(dir);
+  // The batch went with the new project: the kept drafts are its todos, and nothing of it is left in the personal space.
+  assert.deepEqual(await ports.todoBatches(), []);
+  const store = openTodoStore(dir, undefined, adopted.project_id);
   try {
-    const items = store.list({ projectId: adopted.project_id, projectIds: [], actor: "user", actorId: "test" });
+    const items = store.list({ actor: "user", actorId: "test" });
     const send = items.find(item => item.title === "发送新版方案")!, wait = items.find(item => item.title === "等待小李确认预算")!;
-    assert.deepEqual([send.placement, send.project_id], ["project", adopted.project_id], "建议放进项目的进了新项目");
-    assert.deepEqual([wait.placement, wait.status], ["personal", "waiting"]);
+    assert.equal(wait.status, "waiting");
     assert.equal(send.sources[0]!.kind, "onboarding");
     assert.deepEqual(send.links.map(link => link.subject.id), [wait.id]);
   } finally { store.close(); }
   await adoptContextJourney(dir, id, { title: "重复请求" }, ports);
-  const again = openTodoStore(dir);
-  try { assert.equal(again.list({ projectId: null, projectIds: adopted.project_id ? [adopted.project_id] : [], actor: "user", actorId: "test" }).length, 2, "重试不重复加入"); } finally { again.close(); }
+  const again = openTodoStore(dir, undefined, adopted.project_id);
+  try { assert.equal(again.list({ actor: "user", actorId: "test" }).length, 2, "重试不重复加入"); } finally { again.close(); }
   assert.equal(calls, 1, "草稿只整理一次");
   const actions = await ports.actions(dir, adopted.project_id);
   const { batches } = await actions.invoke((await import("@molis-ai/molis-work-plugin-todo")).todoOrganizeActions.list, {});
@@ -123,8 +132,9 @@ for (const mode of ["missing", "cancelled"] as const) {
     // missing: the drafting action a taker declares is not one the Home has registered (contract-design §2.5: the platform calls what is declared).
     const takers = (kind: Parameters<typeof onboardingTakers>[0]) => onboardingTakers(kind).map(taker => mode === "missing" && kind === "drafts"
       ? { ...taker, take: { ...taker.take, capability_id: "todo.onboarding.unregistered" } } : taker);
-    startContextJourney(dir, id, { ...ports, takers, takeAtHome: (definition, signal): BoundActionClient => {
-      const client = ports.takeAtHome(definition, AbortSignal.any([signal, cancelled.signal]));
+    startContextJourney(dir, id, { ...ports, takers, take: async (home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal): Promise<BoundActionClient> => {
+      if (definition.capability_id !== "todo.onboarding.draft") return ports.take(home, projectId, definition, signal);
+      const client = await ports.take(home, projectId, definition, AbortSignal.any([signal!, cancelled.signal!]));
       return fakeBoundActionClient({ discover: () => client.discover(), invoke: (action, input, control) => { if (mode === "cancelled") cancelled.abort(); return client.invoke(action, input, control); } });
     } });
     const ready = await waitContextJourney(dir, id);
@@ -134,7 +144,7 @@ for (const mode of ["missing", "cancelled"] as const) {
     assert.equal(calls, 0, "the rejected action never invokes the model");
     assert.equal(ready.drafts!.batches.length, 0);
     assert.equal((await ports.todoBatches()).length, 0);
-    const store = openTodoStore(dir);
+    const store = openTodoStore(dir, undefined, PERSONAL_SPACE_PROJECT_ID);
     try {
       assert.equal(store.database().get("SELECT count(*) AS items FROM todo_items")?.items, 0);
     } finally { store.close(); }
@@ -153,7 +163,7 @@ test("PG031-F01 a retry with every Todo batch checkpointed needs no action clien
     store.save(journey);
   });
   let bindings = 0;
-  startContextJourney(dir, id, { ...ports, takeAtHome: () => { bindings++; throw new Error("No new batch needs an action client"); } });
+  startContextJourney(dir, id, { ...ports, take: async () => { bindings++; throw new Error("No new batch needs an action client"); } });
   const resumed = await waitContextJourney(dir, id);
   assert.equal(resumed.phase, "review", resumed.error ?? "");
   assert.equal(resumed.drafts?.status, "ready", resumed.drafts?.error ?? "");
@@ -171,9 +181,10 @@ test("ONB-LIM-05 todo drafts come in batches of 50 materials, a long one in part
   selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files: files.map(file => ({ path: file.path, staged: file.staged })) }] });
   const summarize = async (input: ModelPromptInput) => `# 新版方案\n要点 [${/"labels":\["(S\d+)"/u.exec(modelPromptText(input))?.[1] ?? "S1"}]`;
   const signals: AbortSignal[] = [], titles: string[] = [];
-  const run = { ...ports, model: async () => ({ completeText: summarize }), takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
-    signals.push(signal);
-    const client = ports.takeAtHome(definition, signal);
+  const run = { ...ports, model: async () => ({ completeText: summarize }), take: async (home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal): Promise<BoundActionClient> => {
+    if (definition.capability_id !== "todo.onboarding.draft") return ports.take(home, projectId, definition, signal);
+    signals.push(signal!);
+    const client = await ports.take(home, projectId, definition, signal!);
     return fakeBoundActionClient({
       discover: () => client.discover(),
       invoke: (action, input, control) => {
@@ -242,8 +253,9 @@ async function journeyOver(t: TestContext, files: [name: string, text: string][]
   selectContextSources(dir, id, { sources: [{ kind: "files", selected: true, files: staged }] });
   const sent: { title: string; text: string }[] = [];
   const summarize = async (input: ModelPromptInput) => `# 新版方案\n要点 [${/"labels":\["(S\d+)"/u.exec(modelPromptText(input))?.[1] ?? "S1"}]`;
-  const run = { ...ports, model: async () => ({ completeText: summarize }), takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
-    const client = ports.takeAtHome(definition, signal);
+  const run = { ...ports, model: async () => ({ completeText: summarize }), take: async (home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal): Promise<BoundActionClient> => {
+    if (definition.capability_id !== "todo.onboarding.draft") return ports.take(home, projectId, definition, signal);
+    const client = await ports.take(home, projectId, definition, signal!);
     return fakeBoundActionClient({
       discover: () => client.discover(),
       invoke: (action, input, control) => {
@@ -357,8 +369,9 @@ const DRAFT_FITS = [
 // A round whose Todo drafts fail where the organizer is called, with `thrown`: the Todo part of the journey as the Host kept it. The overview still comes.
 async function draftsFailing(t: TestContext, thrown: unknown) {
   const { dir, id, ports } = await fixture(t, async () => TODOS);
-  startContextJourney(dir, id, { ...ports, takeAtHome: (definition: ActionDefinition, signal: AbortSignal): BoundActionClient => {
-    const client = ports.takeAtHome(definition, signal);
+  startContextJourney(dir, id, { ...ports, take: async (home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal): Promise<BoundActionClient> => {
+    if (definition.capability_id !== "todo.onboarding.draft") return ports.take(home, projectId, definition, signal);
+    const client = await ports.take(home, projectId, definition, signal!);
     return fakeBoundActionClient({ discover: () => client.discover(), invoke: async () => { throw thrown; } });
   } });
   const ready = await waitContextJourney(dir, id);
@@ -400,9 +413,9 @@ test("onboarding keeps an adopted dependency across choices 80 and 81", { timeou
   const adopted = await adoptContextJourney(dir, id, { title: "分次采用", body: ready.summary!.body, keep: candidates.map(c => c.candidate_id) }, ports);
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
   await adoptContextJourney(dir, id, { title: "重试" }, ports);
-  const reopened = openTodoStore(dir);
+  const reopened = openTodoStore(dir, undefined, adopted.project_id);
   try {
-    const items = reopened.list({ projectId: adopted.project_id, projectIds: [], actor: "user", actorId: "web-user" });
+    const items = reopened.list({ actor: "user", actorId: "web-user" });
     assert.equal(items.length, 81);
     const target = items.find(item => item.title === "等待小李确认预算")!;
     assert.deepEqual(items.find(item => item.title === "发送新版方案")!.links.map(link => [link.relation, link.subject.id]), [["blocked_by", target.id]]);

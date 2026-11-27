@@ -225,6 +225,38 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
     }
     measured[name] = median(runs);
   }
+  // G4 (batch 108, specs/unified-partition-plugins §6.1): the personal overview reads the Home's overview index, never the projects. With
+  // 20 projects of which 19 sleep, it opens no project and starts no plugin instance, and opens as many databases as it does with two.
+  const { OVERVIEW_PROVIDER_ID, overviewReadAction } = await import("@molis-ai/molis-work-contracts/platform/plugin");
+  const { existingPartitionPluginHost } = await import("@molis-ai/molis-work-app-local-host");
+  const overviewRead = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
+  const overviewPerson = { actor_id: "web-user", audience: "user", permissions: [], project_id: null } as const;
+  const readOverview = async () => { assert.ok(Array.isArray((await home.host.homeActionClient().invoke(overviewPerson, overviewRead, {})).rows)); };
+  const overviewCounts = async () => {
+    await readOverview(); // what changed since the last read is read once, read-only; the measured reads find it clean
+    const runs: Counts[] = [];
+    for (let sample = 0; sample < samples; sample++) { t.mock.timers.setTime(now += 60_000); runs.push(await measure(readOverview)); }
+    return median(runs);
+  };
+  const withFew = await overviewCounts();
+  for (let index = 0; index < 18; index++) {
+    const dormant = await home.createProject(`Dormant ${index}`, ["todo"]);
+    await home.host.closeProject(dormant.reference);
+  }
+  assert.equal((await home.host.partitions()).length >= 20, true, "twenty projects, the personal space besides");
+  const open = home.host.projects().length, instances = existingPartitionPluginHost(home.home)?.assembly.instances().length ?? 0;
+  measured.personalOverview = await overviewCounts();
+  // G4 (user decision, batch 108): the owner resolutions are budgeted per partition and overview plugin, so adding a project or an
+  // overview plugin is not read as a regression while a second resolution per pair is.
+  const { PLATFORM_PLUGIN_REGISTRATIONS } = await import("@molis-ai/molis-work-app-local-host");
+  const overviewPairs = (await home.host.partitions()).length * PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.overview_projection).length;
+  assert.ok(overviewPairs > 0, "the personal overview has partitions and overview plugins to resolve");
+  // Which plugins each partition has enabled is judged in memory (`ownerResolutions`, one per partition and overview plugin); nothing else grows.
+  const { ownerResolutions: _few, ...fewOpens } = withFew, { ownerResolutions: _many, ...manyOpens } = measured.personalOverview;
+  assert.deepEqual(manyOpens, fewOpens, "the overview opens, prepares and discovers the same with 20 projects as with 2: nothing per project");
+  assert.equal(measured.personalOverview.sqliteOpens, 0, "the measured reads open no database: the index is read on the Host's own connection");
+  assert.equal(home.host.projects().length, open, "reading the overview opens no sleeping project");
+  assert.equal(existingPartitionPluginHost(home.home)?.assembly.instances().length ?? 0, instances, "and starts no plugin instance in one");
   assert.ok(measured.projectBrief!.actionDirectoryRows > 0 && measured.projectBrief!.sceneDirectoryRows > 0, "the measured brief uses both directories");
   // The brief resolves each provider's owner; since 44B it reads no catalog row of its own (no always-on stamp), so the row probe is
   // checked on the requests that enumerate the catalog.
@@ -278,7 +310,8 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   for (const [name, observed] of Object.entries(measured)) {
     assert.deepEqual(Object.keys(budget[name]!).sort(), [...counters].sort(), name);
     for (const key of counters) {
-      assert.ok(observed[key] <= budget[name]![key], `${name} ${key}: ${observed[key]} > ${budget[name]![key]}`);
+      const allowed = name === "personalOverview" && key === "ownerResolutions" ? budget[name]![key] * overviewPairs : budget[name]![key];
+      assert.ok(observed[key] <= allowed, `${name} ${key}: ${observed[key]} > ${allowed}`);
     }
   }
 });

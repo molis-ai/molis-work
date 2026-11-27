@@ -1,4 +1,4 @@
-import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
 import { attentionContentReplicationDefinition } from '@molis-ai/molis-work-module-attention-resumption';
 import { FUNCTIONS_HOME_STORE, FUNCTIONS_STORE_BASELINE, judgmentConfigReplica } from '@molis-ai/molis-work-module-judgment-rules';
 import { blueprintConfigReplica, BLUEPRINTS_BASELINE, BLUEPRINTS_STORE } from '@molis-ai/molis-work-service-blueprints';
@@ -15,6 +15,7 @@ import { PLATFORM_SYNC_COLLECTIONS } from './platform-sync-catalog.js';
 import { ATTENTION_SYNC_JOURNAL } from './project-database-schema.js';
 import { projectPlatformSyncRegistration } from './personal-project-approval-sync.js';
 import { appearanceForHome } from './ui-locale-memory.js';
+import { liveObservation } from './observation-live.js';
 import type { SyncCatalogReader } from './personal-runtime-sync-authority.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 
@@ -74,7 +75,7 @@ export function personalConfigRegistrations(context: { home: string; spaceId: st
     // Only a preference a plugin installed here declares portable goes out or comes in (S-person-settings-private).
     homeConfig('person-settings', (authorize, run) => own(
       () => openBaselineHomeSqlite(home, PERSON_SETTINGS_STORE, PERSON_SETTINGS_BASELINE),
-      db => run(personSettingsConfigReplica(db, spaceId, authorize, context.personSettings ?? (() => null))))),
+      db => run(personSettingsObserved(home, personSettingsConfigReplica(db, spaceId, authorize, context.personSettings ?? (() => null)))))),
     projectPlatformSyncRegistration({
       owner: 'surfaces', journal: SURFACE_CONFIG_JOURNAL, denied: '呈现组合的同步授权或项目已变化', locate: projectLink,
       replica: (db, id, scope, authorize) => personalConfigReplica(db, SURFACE_CONFIG_JOURNAL, { spaceId: scope, authorize }, surfaceConfigOwner(db, id, actor)),
@@ -108,3 +109,28 @@ export function personalConfigRegistrations(context: { home: string; spaceId: st
 }
 
 const projectLink = (project: string) => '/projects/' + encodeURIComponent(project) + '/';
+
+/**
+ * The person-settings channel in the work records (batch 108): one record per change received from another device and per upload the server
+ * confirmed, with how it ended. Never the setting's key or value: those are the person's, and the synced row is their own history.
+ */
+export function personSettingsObserved(home: string, replica: SyncReplicaAdapter): SyncReplicaAdapter {
+  const record = (stage: 'receive' | 'acknowledge', outcome: 'succeeded' | 'failed') => liveObservation(home)?.sink('home')
+    .bind({ kind: 'background', entry: 'background', actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null })
+    .record({ fact: 'home.person_settings_sync', outcome, stage, occurred_at: new Date().toISOString() });
+  return new Proxy(replica, { get(target, property) {
+    const value = Reflect.get(target, property, target) as unknown;
+    if (typeof value !== 'function') return value;
+    if (property !== 'receive' && property !== 'acknowledge') return value.bind(target);
+    return (...args: unknown[]) => {
+      try {
+        const result = value.apply(target, args);
+        record(property, 'succeeded');
+        return result;
+      } catch (error) {
+        record(property, 'failed');
+        throw error;
+      }
+    };
+  } });
+}

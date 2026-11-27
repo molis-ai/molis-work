@@ -23,7 +23,8 @@ import {
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
-import { isLocalHostHttpError, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, isLocalHostHttpError, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { TODO_ACTION_PERMISSIONS, todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { homePackage, mac, person as installer, ref } from "./fixtures/home-sandbox.js";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { openTestHome, serveTestHost, type TestHostServer, type TestProject } from "./fixtures/test-home.js";
@@ -618,8 +619,13 @@ test("S-task-grant-subjects S-08 a task's subject is no client of 对外接入 a
   assert.equal((await w.records(subject)).length, 1, "its grant stays the task's");
 });
 
-test("S-task-grant-subjects a task reads a Home plugin's items only in its own project: all projects stays the person's (C2, S-74)", { timeout: 120_000 }, async t => {
-  const w = await world(t), a = await w.open("Home reads");
+test("S-task-grant-subjects a task reads a partition plugin's items only in its own project (C2, S-74)", { timeout: 120_000 }, async t => {
+  // Todo is a partition plugin (batch 108): each project keeps its own to-dos, and nothing reads across projects for a task.
+  const w = await world(t), a = await w.open("Partition reads"), b = await w.open("Other partition");
+  for (const project of [a, b]) {
+    await addProjectPlugin(w.served.web, project.project.project_id, "todo");
+    await w.call(project.project, { ...w.person(project.project), permissions: [...TODO_ACTION_PERMISSIONS] }, todoActions.create, { title: `只在 ${project.project.display_name}` });
+  }
   const todo = (await w.list(a.project)).categories.filter(category => category.plugin_id === "io.molis.work.todo");
   assert.ok(todo.length, "Todo offers a category");
   await a.set("daily", todo.map(category => ({ provider_id: category.provider_id, ...(category.group_id ? { group_id: category.group_id } : {}) })));
@@ -627,8 +633,9 @@ test("S-task-grant-subjects a task reads a Home plugin's items only in its own p
     assert.ok(gateway);
     const view = (await gateway.discover()).find(item => item.capability_id === "todo.items.list");
     assert.ok(view, "the to-do list is readable by the task");
-    await gateway.invoke(w.exact(view), {});
-    await assert.rejects(gateway.invoke(w.exact(view), { all_projects: true }), { code: "actions.forbidden" });
+    const { items } = await gateway.invoke(w.exact(view), { view: "all" }) as { items: Array<{ title: string }> };
+    assert.deepEqual(items.map(item => item.title), [`只在 ${a.project.display_name}`], "only its own project's to-dos");
+    await assert.rejects(gateway.invoke(w.exact(view), { view: "all", all_projects: true }), { code: "actions.input_invalid" }, "there is no reading across projects to ask for");
   });
 });
 

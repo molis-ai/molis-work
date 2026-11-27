@@ -50,7 +50,6 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...subjectProtocolProblems(key, raw.operation, action),
     ...offerChoiceProblems(key, action),
     ...homeProtocolProblems(key, raw.operation, action),
-    ...homeAggregateProblems(key, raw.operation, action),
     ...projectReachProblems(key, action),
     ...backgroundJobProblems(key, raw.operation, action),
     ...trustedDecisionProblems(key, raw.operation, action),
@@ -235,16 +234,16 @@ function homeProtocolProblems(key: string, operation: unknown, a: ActionBody): s
   return problems;
 }
 
-// The menu-bar panel's runs (scheduled-runs.ts): an owner's list is a Home query or a project `home_aggregate` query, its decision a command,
-// each in the one contract.
+// The menu-bar panel's runs (scheduled-runs.ts): an owner's list is a Home or project read-only query, its decision a command, each in the
+// one contract. A project owner's runs reach the Home through its overview rows (`scheduled_run`, V17), not through this query.
 function runsProtocolProblems(key: string, operation: unknown, a: ActionBody): string[] {
   const problems: string[] = [];
   if (a.input_type === RUNS_OVERVIEW_INPUT_TYPE || a.output_type === RUNS_OVERVIEW_OUTPUT_TYPE) {
-    if (operation !== "query" || a.kind !== "query" || !(a.scope === "home" ? a.home_aggregate === undefined : a.scope === "project" && a.home_aggregate === true)
+    if (operation !== "query" || a.kind !== "query" || (a.scope !== "home" && !(a.scope === "project" && readOnlyProblems(a) === null))
       || a.input_type !== RUNS_OVERVIEW_INPUT_TYPE || a.output_type !== RUNS_OVERVIEW_OUTPUT_TYPE
       || canonicalSchema(a.input_schema) !== canonicalSchema(RUNS_WINDOW_SCHEMA)
       || canonicalSchema(a.output_schema) !== canonicalSchema(RUNS_OVERVIEW_SCHEMA)) {
-      problems.push(`${key} 运行概况查询必须是 Home 范围，或项目范围的首页聚合查询，并使用完整规范合同`);
+      problems.push(`${key} 运行概况查询必须是 Home 范围，或项目范围的只读查询，并使用完整规范合同`);
     }
   }
   if (a.input_type === RUN_DECISION_INPUT_TYPE || a.output_type === RUN_DECISION_OUTPUT_TYPE) {
@@ -258,15 +257,13 @@ function runsProtocolProblems(key: string, operation: unknown, a: ActionBody): s
   return problems;
 }
 
-// ---- gathered by the Home across projects ------------------------------------------------------------------------------------
+// ---- read by the platform's own panels in a project -------------------------------------------------------------------------
 
-function homeAggregateProblems(key: string, operation: unknown, a: ActionBody): string[] {
-  if (a.home_aggregate === undefined) return [];
-  if (a.home_aggregate !== true || operation !== "query" || a.kind !== "query" || a.scope !== "project" || (a.effect !== undefined && a.effect !== "read")
-    || (a.permissions as string[]).includes("model:invoke") || (isRecord(a.execution) && a.execution.cost === "metered") || !isText(a.output_type)) {
-    return [`能力 ${key} 的首页聚合声明必须是项目范围的只读查询，写明输出类型，不调用模型、不计费`];
-  }
-  return [];
+/** Null when the action only reads: a query that calls no model and costs nothing; otherwise why not. */
+function readOnlyProblems(a: ActionBody): string | null {
+  if (a.kind !== "query" || (a.effect !== undefined && a.effect !== "read") || (a.permissions as string[]).includes("model:invoke")
+    || (isRecord(a.execution) && a.execution.cost === "metered") || !isText(a.output_type)) return "not read-only";
+  return null;
 }
 
 // ---- the person's projects, given by the Host --------------------------------------------------------------------------------
@@ -288,12 +285,13 @@ export function projectReachPermissionProblems(actions: unknown, permissions: Re
 }
 
 /**
- * Whether the Home may gather this action across projects (PG-043): it declares `home_aggregate` and passes the rule its Manifest is
- * checked with. The Host asks again before each call, so a registration that skipped the check is still not called.
+ * Whether a project's own panels (the background-task panel, the line's missed runs) may call this provider as they read: a project
+ * query that only reads, calls no model and costs nothing. The Host asks before each call, so a registration that skipped the
+ * Manifest check is still not called. The Home's lists across partitions read the overview instead (V17).
  */
-export function isHomeAggregateQuery(definition: { readonly operation: string; readonly action: object }): boolean {
+export function isProjectReadQuery(definition: { readonly operation: string; readonly action: object }): boolean {
   const action = definition.action as Record<string, unknown>;
-  return isCompleteBody(action) && action.home_aggregate === true && !homeAggregateProblems("", definition.operation, action).length;
+  return isCompleteBody(action) && definition.operation === "query" && action.scope === "project" && readOnlyProblems(action as ActionBody) === null;
 }
 
 // ---- background jobs and undo -----------------------------------------------------------------------------------------------

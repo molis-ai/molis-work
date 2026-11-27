@@ -25,13 +25,36 @@ import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 // running none of the plugin's code.
 
 const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
-// Pages, PPT, Forms, Dataset, 灵光 and Workflows keep a library in each partition (U2, batch 107), which goes with the partition whole.
-const DECLARING = ["feed", "images", "todo", "work-brief"];
+// Pages, PPT, Forms, Dataset, 灵光 and Workflows (U2, batch 107), and Todo, Issues, Cognia and Images (batch 108) keep a library in each
+// partition, which goes with the partition whole. Feed content ledger and Work Brief are the shipped Home libraries left that declare their
+// project's rows; Work Brief also keeps the person's own brief (no project), and its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).
+const DECLARING = ["feed", "work-brief"];
 /**
- * The libraries all of whose tables are a project's. Images also keeps the person's connections, which belong to no project; RAC-577 is
- * its. Work Brief also keeps the person's own brief (no project); its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).
+ * A Home library whose project rows name files (S-86), shaped as Images' was before its jobs moved into each partition (batch 108): no
+ * shipped library names files now, so these tests give the Images registration this library back for the length of one test.
  */
-const WHOLLY_PROJECT = DECLARING.filter(id => id !== "images" && id !== "work-brief");
+const FILES_LIBRARY: HomePluginDatabaseDeclaration = { store_name: "images", version: 1, upgrades: [], read_permission: "storage:private", write_permission: "storage:private",
+  project_rows: { label: "图片", order: 90, tables: [{ table: "jobs", column: "project_id" }],
+    files: [{ table: "jobs", column: "images_json", key: "filename", directory: "assets" }] },
+  schema: `
+  CREATE TABLE jobs (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
+    input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
+    api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
+    size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
+    images_json TEXT NOT NULL, error TEXT NOT NULL,
+    created_at TEXT NOT NULL, finished_at TEXT, runner_id TEXT,
+    UNIQUE (project_id, request_id)
+  );
+` };
+function filesKeeper(t: TestContext): PluginRegistration {
+  const index = catalog.findIndex(entry => entry.project_plugin_id === "images"), original = catalog[index]!;
+  const { partition: _partition, ...databases } = original.manifest.databases ?? {};
+  const keeper: PluginRegistration = { ...original, manifest: { ...original.manifest, databases: { ...databases, home: FILES_LIBRARY } } };
+  catalog[index] = keeper;
+  t.after(() => { catalog[index] = original; });
+  return keeper;
+}
 
 function withHome(t: TestContext): string {
   const directory = mkdtempSync(join(tmpdir(), "project-rows-"));
@@ -70,6 +93,12 @@ function seed(home: string, library: HomePluginDatabaseDeclaration, projects: re
   } finally { db.close(); }
 }
 
+/** The files keeper's jobs as `seed` writes them name no picture: their `images_json` is made an empty list. */
+function noPictures(home: string, library: HomePluginDatabaseDeclaration): void {
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try { db.exec("UPDATE jobs SET images_json = '[]'"); } finally { db.close(); }
+}
+
 /** How many rows of each table still carry each project's mark in any column. */
 function marks(home: string, library: HomePluginDatabaseDeclaration, projects: readonly string[]): Record<string, Record<string, number>> {
   const db = new DatabaseSync(homeSqlitePath(home, library.store_name), { readOnly: true });
@@ -86,9 +115,11 @@ test("RAC-560 AC-T2-05 deleting a project deletes every row of it in the declari
   const home = withHome(t);
   const declaring = catalog.filter(entry => entry.manifest.databases?.home?.project_rows);
   assert.deepEqual(declaring.map(entry => entry.project_plugin_id).sort(), DECLARING);
-  for (const entry of declaring.filter(item => WHOLLY_PROJECT.includes(item.project_plugin_id))) {
+  // The rows of a library all of whose tables are a project's: the files keeper's jobs (their pictures are RAC-577's).
+  for (const entry of [filesKeeper(t)]) {
     const library = entry.manifest.databases!.home!;
     seed(home, library, ["pa", "pb"]);
+    noPictures(home, library);
     const binding = () => {
       const db = new DatabaseSync(homeSqlitePath(home, library.store_name), { readOnly: true });
       try { return readDatabaseSpace(db); } finally { db.close(); }
@@ -188,17 +219,17 @@ test("FSS-36 the same plugin ID in two Homes keeps each registration's deletion 
 
 test("RAC-561 the platform deletes only from the declaring plugin's own library, and refuses a column its schema does not make", async t => {
   const home = withHome(t);
-  const todo = catalog.find(entry => entry.project_plugin_id === "todo")!, brief = catalog.find(entry => entry.project_plugin_id === "work-brief")!;
-  const todoLibrary = todo.manifest.databases!.home!;
-  seed(home, todoLibrary, ["pa"]);
+  const keeper = filesKeeper(t), brief = catalog.find(entry => entry.project_plugin_id === "work-brief")!;
+  const keeperLibrary = keeper.manifest.databases!.home!;
+  seed(home, keeperLibrary, ["pa"]);
   const borrowing = (rows: PluginProjectRowsDeclaration): PluginRegistration => ({ ...brief, project_plugin_id: "borrowing",
     manifest: { ...brief.manifest, databases: { home: { ...brief.manifest.databases!.home!, project_rows: rows } } } });
-  for (const rows of [{ label: "借别家的表", tables: [{ table: "todo_items", column: "project_id" }] }, { label: "没有的列", tables: [{ table: "briefs", column: "nowhere" }] }]) {
+  for (const rows of [{ label: "借别家的表", tables: [{ table: "jobs", column: "project_id" }] }, { label: "没有的列", tables: [{ table: "briefs", column: "nowhere" }] }]) {
     catalog.push(borrowing(rows));
     try { await assert.rejects(projectDeletedHooksFor(home).clear("borrowing", "pa"), { code: "plugin.declaration_invalid" }); }
     finally { catalog.pop(); }
   }
-  assert.ok(marks(home, todoLibrary, ["pa"]).todo_items!.pa! > 0, "the other plugin's library is untouched");
+  assert.ok(marks(home, keeperLibrary, ["pa"]).jobs!.pa! > 0, "the other plugin's library is untouched");
 });
 
 function rowsProbe(label = ROWS.label, id = "com.example.rowsprobe") {
@@ -362,8 +393,9 @@ test("RAC-563 the label of a plugin the Host did not ship is shown as written be
 });
 
 test("RAC-563 a deletion waits for a write another connection holds on the library, then completes", async t => {
-  const home = withHome(t), todo = catalog.find(entry => entry.project_plugin_id === "todo")!, library = todo.manifest.databases!.home!;
+  const home = withHome(t), library = filesKeeper(t).manifest.databases!.home!;
   seed(home, library, ["pa"]);
+  noPictures(home, library);
   const worker = new Worker(`
     const { DatabaseSync } = require("node:sqlite"); const { parentPort, workerData } = require("node:worker_threads");
     const db = new DatabaseSync(workerData.file); db.exec("BEGIN IMMEDIATE"); parentPort.postMessage("locked");
@@ -373,16 +405,16 @@ test("RAC-563 a deletion waits for a write another connection holds on the libra
   const locked = new Promise<void>(resolve => worker.on("message", message => { events.push(String(message)); if (message === "locked") resolve(); }));
   const exited = new Promise(resolve => worker.on("exit", resolve));
   await locked;
-  assert.equal(await projectDeletedHooksFor(home).clear("todo", "pa"), true);
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
   await exited;
   assert.ok(events.includes("released"), "the deletion ran only once the write was let go");
-  assert.equal(marks(home, library, ["pa"]).todo_items!.pa, 0);
+  assert.equal(marks(home, library, ["pa"]).jobs!.pa, 0);
 });
 
 test("RAC-577 S-86 the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own", async t => {
   const home = withHome(t);
-  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
-  assert.deepEqual(library.project_rows?.files, [{ table: "jobs", column: "images_json", key: "filename", directory: "assets" }], "Images declares its pictures");
+  const images = filesKeeper(t), library = images.manifest.databases!.home!;
+  assert.deepEqual(library.project_rows?.files, [{ table: "jobs", column: "images_json", key: "filename", directory: "assets" }], "the files keeper declares its pictures");
   const root = join(home, "images"), assets = join(root, "assets"), outside = join(home, "outside.png");
   const db = openBaselineHomeSqlite(home, library.store_name, library);
   try {
@@ -410,7 +442,7 @@ test("RAC-577 S-86 the files a project's rows name go with them, and only plain 
 
 test("RAC-577 S-86 a file two projects' rows name stays until the last of them goes, and a removal that fails keeps the rows", async t => {
   const home = withHome(t);
-  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const images = filesKeeper(t), library = images.manifest.databases!.home!;
   const assets = join(home, "images", "assets");
   const db = openBaselineHomeSqlite(home, library.store_name, library);
   try {
@@ -444,7 +476,7 @@ test("RAC-577 S-86 a file two projects' rows name stays until the last of them g
 
 test("RAC-577 S-86 a named file the deletion cannot look at fails the step, and the rows stay for the next attempt", async t => {
   const home = withHome(t);
-  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const images = filesKeeper(t), library = images.manifest.databases!.home!;
   const assets = join(home, "images", "assets");
   const db = openBaselineHomeSqlite(home, library.store_name, library);
   try {
@@ -473,7 +505,7 @@ test("RAC-577 S-86 a named file the deletion cannot look at fails the step, and 
 test("RAC-577 S-86 PG024-RETRY-01 a partial file deletion rolls back rows and retry skips deleted files", async t => {
   const directory = withHome(t);
   mkdirSync(directory, { recursive: true });
-  const home = realpathSync(directory), images = catalog.find(entry => entry.project_plugin_id === "images")!;
+  const home = realpathSync(directory), images = filesKeeper(t);
   const library = images.manifest.databases!.home!, assets = join(home, "images", "assets");
   const db = openBaselineHomeSqlite(home, library.store_name, library);
   try {
@@ -537,7 +569,7 @@ test("RAC-577 S-86 the SDK refuses files that do not hang on a project's own tab
 
 test("RAC-2435 S-86 a declared file is not removed through its directory swapped for a link after the check", async t => {
   const home = withHome(t);
-  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const images = filesKeeper(t), library = images.manifest.databases!.home!;
   const assets = join(home, "images", "assets"), outside = join(home, "outside-assets"), moved = join(home, "images", "assets-moved");
   const db = openBaselineHomeSqlite(home, library.store_name, library);
   try {
@@ -584,7 +616,7 @@ test("RAC-2435 S-86 a declared file is not removed through its directory swapped
 
 test("RAC-2436 S-86 a plain file in the declared directory still goes, and a name already gone is no error", async t => {
   const home = withHome(t);
-  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const images = filesKeeper(t), library = images.manifest.databases!.home!;
   const assets = join(home, "images", "assets");
   const db = openBaselineHomeSqlite(home, library.store_name, library);
   try {
@@ -603,7 +635,7 @@ test("RAC-2435 S-86 a failure to re-read the parent's real path is not a skip: t
   // plugin's (it is left, like a missing file); any other failure to look (EACCES here) is a real error: the removal throws, the rows of
   // the transaction roll back with it, the file stays, and a retry with the fault gone removes both.
   const home = withHome(t);
-  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const images = filesKeeper(t), library = images.manifest.databases!.home!;
   const assets = join(home, "images", "assets");
   const db = openBaselineHomeSqlite(home, library.store_name, library);
   try {

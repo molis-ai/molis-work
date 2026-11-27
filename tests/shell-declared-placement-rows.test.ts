@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, runWithLocale, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, runWithLocale, seedDemoBoard, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
@@ -15,7 +15,7 @@ import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 /** The page as the Host draws it: the plugins it shows and the marked directory are the Host's (W5-02 B1). */
 const draw = (view: MolisWorkWebView, goalId?: string) => renderMolisWorkWeb(withHostPluginFacts(view), goalId);
 
-const EVERYTHING = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
+const EVERYTHING = [...BUILTIN_PLUGIN_IDS];
 
 /** The Demo project's view with the plugins the project shows laid over it. */
 function withView<T>(run: (view: MolisWorkWebView, goalId: string) => T): T {
@@ -37,11 +37,10 @@ function withView<T>(run: (view: MolisWorkWebView, goalId: string) => T): T {
 }
 
 const showing = (view: MolisWorkWebView, enabled: readonly string[]) => ({ ...view, enabled_plugins: [...enabled], hidden_plugins: [] }) as MolisWorkWebView;
-/** A project that shows Goals and `keep` and nothing else: personal plugins are shown unless hidden, so the others are hidden. */
+/** A project that has every plugin but the `hidden` ones (they are listed as hidden as well). */
 const hiding = (view: MolisWorkWebView, hidden: readonly string[]) => ({ ...view, enabled_plugins: EVERYTHING.filter(id => !hidden.includes(id)), hidden_plugins: [...hidden] }) as MolisWorkWebView;
 const only = (view: MolisWorkWebView, keep: readonly string[]) => ({ ...view,
-  enabled_plugins: ["goals", ...keep.filter(id => PROJECT_SCOPED_PLUGIN_IDS.includes(id) && id !== "goals")],
-  hidden_plugins: PERSONAL_PLUGIN_IDS.filter(id => !keep.includes(id)) }) as MolisWorkWebView;
+  enabled_plugins: ["goals", ...keep.filter(id => BUILTIN_PLUGIN_IDS.includes(id) && id !== "goals")], hidden_plugins: [] }) as MolisWorkWebView;
 const creates = (html: string) => [...html.matchAll(/data-placement-create="([^"]*)" data-placement-create-title="([^"]*)"[^>]*>([^<]*)</gu)]
   .map(([, station, title, label]) => ({ station, title, label }));
 
@@ -86,7 +85,7 @@ test("RAC-603 every declared create title is worded in English with its own plug
 
 const CREATING = ["pages", "form", "dataset", "ppt"];
 
-test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden personal plugins and an explicit selection keep their own visible entries", () => {
+test("RAC-600 RAC-602 page defaults, an explicit empty selection, plugins listed as hidden and an explicit selection keep their own visible entries", () => {
   withView((view, goalId) => {
     const defaults = { ...view };
     delete defaults.enabled_plugins;

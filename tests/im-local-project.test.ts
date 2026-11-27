@@ -8,6 +8,8 @@ import {randomUUID} from 'node:crypto';
 import {openServerDatabase} from '@molis-ai/molis-work-server';
 import {createLocalImServer} from '../apps/local-host/dist/im-server.js';
 import {authorizeLocalWebRequest, homeStores, installHostUiText} from '@molis-ai/molis-work-app-local-host';
+import {PERSONAL_SPACE_PROJECT_ID} from '@molis-ai/molis-work-contracts/platform/actions';
+import {serveHomeRuntime} from './fixtures/home-runtime.js';
 
 installHostUiText();
 
@@ -93,4 +95,33 @@ test('the local discussion mount writes only server/server.sqlite into a Home, a
     assert.deepEqual(created,['server']);
     for(const directory of created)assert.ok(homeStores().get(directory),`${directory}/ is written by the discussion mount but not registered for uninstall --purge-user-data`);
   }finally{im.stop();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));im.close();await rm(home,{recursive:true,force:true});}
+});
+
+// UPP-31 R21 (batch 108): the personal space keeps the right panel's discussion. On the real Host it is the same IM as a project's: the
+// person connects with the Host's credential, the space's room is a group whose only member is them, and what they post is kept once.
+// No "talking to yourself" special case: another session is refused as it is in a project.
+test('UPP-31 R21 the personal space\'s right-panel discussion is a group of one on the real Host: connect, open the room, post, read back',async t=>{
+  const {origin,token}=await serveHomeRuntime(t);
+  const session=async(name:string)=>{
+    const opened=await fetch(origin+'/im/api/session');const cookie=opened.headers.get('set-cookie')!.split(';')[0]!;
+    await fetch(origin+'/im/api/session',{method:'POST',headers:{cookie,origin,'Content-Type':'application/json'},body:JSON.stringify({display_name:name,client_id:randomUUID()})});return cookie;
+  };
+  const connect=(cookie:string,credential?:string)=>fetch(origin+`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/im/connect`,{method:'POST',headers:{cookie,origin,'Content-Type':'application/json','x-molis-work-control-token':credential??'','x-molis-work-idempotency-key':randomUUID()},body:'{}'});
+  const me=await session('Me'),other=await session('Other');
+  assert.equal((await connect(me)).status,403,'without the Host\'s credential nobody joins');
+  assert.equal((await connect(me,token)).status,200);
+  const opened=await fetch(origin+`/im/api/projects/${PERSONAL_SPACE_PROJECT_ID}/room`,{method:'POST',headers:{cookie:me,origin,'Content-Type':'application/json'},body:'{}'});
+  assert.equal(opened.status,200);
+  const {room}=await opened.json() as {room:{id:string;project_id:string;member_count:number}};
+  assert.equal(room.project_id,PERSONAL_SPACE_PROJECT_ID);
+  assert.equal(room.member_count,1,'its only member is the person');
+  const post=(cookie:string,clientId:string,body:string)=>fetch(origin+'/im/api/rooms/'+room.id+'/messages',{method:'POST',headers:{cookie,origin,'Content-Type':'application/json'},body:JSON.stringify({client_id:clientId,body})});
+  const once=randomUUID();
+  assert.equal((await post(me,once,'记一下：周五前回邮件')).status,200);
+  assert.equal((await post(me,once,'记一下：周五前回邮件')).status,200,'the same submission again is the same message');
+  const read=await (await fetch(origin+'/im/api/rooms/'+room.id+'/messages',{headers:{cookie:me}})).json() as {messages:{body:string}[]};
+  assert.deepEqual(read.messages.map(message=>message.body),['记一下：周五前回邮件']);
+  assert.equal((await fetch(origin+'/im/api/rooms/'+room.id,{headers:{cookie:other}})).status,403,'another session does not read it');
+  assert.equal((await post(other,randomUUID(),'插话')).status,403,'nor post in it');
+  assert.equal((await connect(other,token)).status,403,'nor take the person\'s place with the credential');
 });

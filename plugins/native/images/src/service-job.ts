@@ -50,7 +50,7 @@ export async function runImageJob(run: JobRun): Promise<"recorded" | "interrupte
       await run.files.write(writer => { requireSynchronous(guarded.assert_authority_current?.()); writer.writeFile(`${IMAGES_ASSETS}/${filename}`, image.bytes, "create"); });
       saved.push({ id, filename, mime_type: image.mime, byte_length: image.bytes.length });
     }
-    await run.write(guarded, store => store.finish(job.project_id, job.id, "succeeded", saved, ""));
+    await run.write(guarded, store => store.finish(job.id, "succeeded", saved, ""));
   } catch (error) {
     // Lost authority, changed connections, cancellation and deleted jobs produce no business write.
     try {
@@ -59,7 +59,7 @@ export async function runImageJob(run: JobRun): Promise<"recorded" | "interrupte
       if (state.revision !== (resultRevision ?? run.revision)) return "interrupted";
       resultRevision = state.revision;
     } catch { return "interrupted"; }
-    await run.write(guarded, store => store.finish(job.project_id, job.id, "failed", [], failureMessage(error)));
+    await run.write(guarded, store => store.finish(job.id, "failed", [], failureMessage(error)));
   } finally { lifetime.dispose(); }
   // Unreferenced files from a partial write are reclaimed during the next authorized plugin start.
   return "recorded";

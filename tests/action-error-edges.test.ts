@@ -42,7 +42,8 @@ function todoHost(t: { after(fn: () => void): void }) {
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
-  const caller = (audience: ActionCallContext["audience"], project_id: string | null = null): ActionCallContext =>
+  // Todo works in a partition (batch 108): these calls are made in the personal space.
+  const caller = (audience: ActionCallContext["audience"], project_id: string | null = "personal"): ActionCallContext =>
     ({ actor_id: audience === "user" ? "web-user" : "mcp-client", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
       // The Host gives the person's own calls the list of projects they may reach (S-74); an Agent's or MCP client's never have one.
       ...(audience === "user" ? { readable_project_ids: ["q4"] } : {}) });
@@ -74,6 +75,8 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "待办 MCP", actor_id: "test" });
+  // Todo answers in the partitions it is added to (batch 108); a new project starts without it.
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "todo", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   let external: LocalMcpServer | undefined;
@@ -88,7 +91,7 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   const origin = `http://127.0.0.1:${address.port}`;
   const grant = await fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", headers: { origin, "content-type": "application/json",
     "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() },
-  body: JSON.stringify({ client_id: "runtime:external", project_id: null, capability_id: todoActions.get.capability_id, version: 1,
+  body: JSON.stringify({ client_id: "runtime:external", project_id: project.project_id, capability_id: todoActions.get.capability_id, version: 1,
     provider_id: todoManifest.plugin_id, enabled: true, expected: { expected_absent: true } }) });
   assert.equal(grant.status, 200, await grant.clone().text());
   changeMcpClientCredential(home, "runtime:external", "connect");
@@ -142,9 +145,9 @@ function placementOver(t: { after(fn: () => void): void }, client: ActionClient,
     text: pageText(language),
   });
 }
-const todoRef = (id: string) => ({ kind: "todo_item", id, project_id: null });
+const todoRef = (id: string) => ({ kind: "todo_item", id, project_id: "personal" });
 
-test("placement: a Todo that is gone or archived reads as 原对象已删除 (the owner's not_found), not as 暂时读不到 (unchanged by W3-02-A)", async t => {
+test("placement: a Todo that is gone or archived reads as 原对象已删除 (the owner's not_found), not as 暂时读不到 (unchanged by W3-02-A); a move is refused by that not_found", async t => {
   // UNCHANGED. Placement tells "deleted" from "unreadable" by whether the owner's reader raised an ActionError ending in `.not_found`. Todo's reader
   // (`todo.search.subject`) raised `new ActionError("todo.not_found", ...)` on origin/main already, for a todo that was deleted and for one that is archived,
   // so this test passes there too: the describe is `missing`, and a move refuses with `placement.missing`. It is pinned because the slice rewrote that
@@ -167,7 +170,8 @@ test("placement: a Todo that is gone or archived reads as 原对象已删除 (th
     for (const gone of [archived, removed]) {
       const described = await reader.describe(todoRef(gone.id));
       assert.deepEqual([described.state, described.reason], ["missing", itemReason], gone.title);
-      await assert.rejects(reader.move(todoRef(gone.id), "q4"), { code: "placement.missing", message: itemReason }, gone.title);
+      // A move between partitions asks the owner to export it first (batch 108): the owner's not_found is the refusal.
+      await assert.rejects(reader.move(todoRef(gone.id), "q4"), { code: "todo.not_found" }, gone.title);
     }
     const fromRemovedProject = await reader.describe({ ...todoRef(live.id), project_id: "removed" });
     assert.deepEqual([fromRemovedProject.state, fromRemovedProject.reason, fromRemovedProject.location], ["missing", projectReason, null]);
@@ -178,13 +182,14 @@ test("placement: a Todo deleted between the read and the move is the owner's not
   // CHANGED. origin/main: `todo.placement.move` raised TodoError (an Error with a code, not an ActionError) for a todo that had gone, so
   // PlacementService.move rejected with a plain Error and handlePlacementHttp answered 500 `placement.failed`. It is `new ActionError("todo.not_found")`
   // now, which handlePlacementHttp answers 409 with that code (any ActionError but actions.forbidden and actions.input_invalid is 409). The race is made
-  // by a client that removes the todo just before it forwards the first `todo.placement.move`, after placement's own read has found it.
+  // by a client that removes the todo just before it forwards the first `todo.placement.export` (a move between partitions is export here, put
+  // there, remove here since batch 108), after placement's own read has found it.
   const { service, person } = todoHost(t);
   let racing = true;
   const client: ActionClient = fakeActionClient({
     discover: caller => service.discover(caller),
     invoke: async (caller, reference, input) => {
-      if (racing && reference.capability_id === todoActions.move.capability_id) {
+      if (racing && reference.capability_id === todoActions.placementExport.capability_id) {
         racing = false;
         await person.invoke(todoActions.remove, { id: (input as { subject: { id: string } }).subject.id });
       }

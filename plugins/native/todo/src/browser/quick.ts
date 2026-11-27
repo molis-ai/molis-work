@@ -33,10 +33,6 @@ export function installQuick(page: TodoPage): void {
     return { title: title.replace(/\s+/g, " ").trim() || text, parts };
   };
 
-  page.quickDefaultPlacement = () => {
-    if (state.placeChoice && (state.placeChoice !== "project" || page.projectId())) return state.placeChoice;
-    return page.projectId() ? "unassigned" : "personal";
-  };
   page.setBusy = (value) => {
     state.busy = value;
     el.bench.setAttribute("aria-busy", String(value));
@@ -68,7 +64,7 @@ export function installQuick(page: TodoPage): void {
   const submitQuick = async () => {
     const current = quickState();
     if (!current || state.busy) return;
-    const input: Record<string, unknown> = { title: current.title, placement: page.quickDefaultPlacement() };
+    const input: Record<string, unknown> = { title: current.title };
     for (const part of current.parts) {
       if (part.field === "due_date") { input.due_date = part.date; if (part.time) input.due_time = part.time; }
       if (part.field === "planned_date") input.planned_date = part.date;

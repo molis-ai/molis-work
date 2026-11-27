@@ -123,11 +123,11 @@ test("Audit #7 plugins.data.sections and plugins.data.export serve built-in and 
     label: "from-third-party", fileBase64: Buffer.from("hello-owner-file", "utf8").toString("base64"),
   }), true);
 
-  // List sections: both built-in Pages (project-partitioned home store) and the installed third-party plugin are discovered.
+  // List sections: both built-in Pages (its partition library) and the installed third-party plugin are discovered.
   const listed = await projectClient.invoke(projectCaller, ref(pluginDataActions.sections), {}) as {
     sections: PluginDataSectionDeclaration[];
   };
-  assert.ok(listed.sections.some(section => section.plugin_id === PAGES_PLUGIN_ID && section.scope === "home"));
+  assert.ok(listed.sections.some(section => section.plugin_id === PAGES_PLUGIN_ID && section.scope === "project"));
   assert.ok(listed.sections.some(section => section.plugin_id === THIRD_PARTY_ID && section.scope === "project" && section.tables.includes("tp_items") && section.files.includes("notes")));
 
   // Export built-in Pages data in the standard format.

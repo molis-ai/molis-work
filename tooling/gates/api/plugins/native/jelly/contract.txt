@@ -49,7 +49,7 @@ export interface JellySchedule {
     start_time: number | null;
     end_time: number | null;
     time_zone: string;
-    reminder_minutes?: number | null;
+    reminder_minutes: number | null;
 }
 
 export interface JellySeries extends Omit<JellyItem, "completed_at"> {

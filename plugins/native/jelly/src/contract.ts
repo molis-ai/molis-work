@@ -3,7 +3,7 @@ export const JELLY_PLUGIN_ID = "io.molis.work.jelly";
 export const JELLY_PROJECT_PLUGIN_ID = "jelly";
 export interface JellyCategory { id: string; name: string; color: string; sort_index: number; revision: number }
 /** An all-day entry has no times. `time_zone` is where its times were meant (an IANA name). */
-export interface JellySchedule { start_date: string; end_date: string; start_time: number | null; end_time: number | null; time_zone: string; reminder_minutes?: number | null }
+export interface JellySchedule { start_date: string; end_date: string; start_time: number | null; end_time: number | null; time_zone: string; reminder_minutes: number | null }
 /** One calendar entry. Every write bumps `revision`; a change names the revision it was made on, so two edits of one entry never overwrite each other silently. */
 export interface JellyItem extends JellySchedule {
   id: string; title: string; kind: "task" | "event"; category_id: string; notes: string;

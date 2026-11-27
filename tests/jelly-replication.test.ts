@@ -12,7 +12,7 @@ import type { JellyItem, JellyNote } from "@molis-ai/molis-work-plugin-jelly";
 const at = "2026-10-01T08:00:00.000Z";
 const note = (id: string, title: string): JellyNote => ({ id, title, body: `${title} 的正文`, day: null, revision: 1, created_at: at, updated_at: at });
 const item = (id: string, title: string): JellyItem => ({ id, title, kind: "event", category_id: "uncategorized", notes: "", start_date: "2026-10-20", end_date: "2026-10-20",
-  start_time: null, end_time: null, time_zone: "Asia/Shanghai", completed_at: null, revision: 1, created_at: at, updated_at: at });
+  start_time: null, end_time: null, time_zone: "Asia/Shanghai", reminder_minutes: null, completed_at: null, revision: 1, created_at: at, updated_at: at });
 
 function fixture(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), "jelly-sync-"));

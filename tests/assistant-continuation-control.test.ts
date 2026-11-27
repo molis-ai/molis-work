@@ -369,12 +369,20 @@ for (const removal of ["project", "title"] as const) test(`B2R-02 the next model
 
   let round = 0;
   const wire: string[][] = [[], []];
-  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => respond(undefined, text), async (_url: unknown, init?: RequestInit) => {
-    assert.equal(typeof init?.body, "string");
-    wire[round]!.push(String(init!.body));
-    return wire[round]!.length === 1 ? respond({ name: "read-capability", input: { capability_id: overviewReadAction.capability_id, version: 1,
-      provider_id: OVERVIEW_PROVIDER_ID, input: { kinds: ["task"] } } }) : respond();
-  }));
+  const asked = [false, false];
+  const reply = answeringEndingReviews(text => respond(undefined, text), async () => {
+    if (asked[round]) return respond();
+    asked[round] = true;
+    return respond({ name: "read-capability", input: { capability_id: overviewReadAction.capability_id, version: 1,
+      provider_id: OVERVIEW_PROVIDER_ID, input: { kinds: ["task"] } } });
+  });
+  t.mock.method(globalThis, "fetch", async (url: RequestInfo | URL, init?: RequestInit) => {
+    assert.ok(String(url).startsWith("https://1.1.1.1/"));
+    const body = init?.body;
+    assert.ok(typeof body === "string" || body instanceof Uint8Array, "the model transport supplied a request body");
+    wire[round]!.push(typeof body === "string" ? body : new TextDecoder().decode(body));
+    return reply(url, init);
+  });
   const queue = new AgentReviewQueue(), agents = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.overview-test", appVersion: "1.0.0" },
     storageRoot: join(home.home, "test-model"), reviewQueue: queue, modelConfiguration: async () => ({

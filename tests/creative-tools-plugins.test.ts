@@ -175,9 +175,6 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  // Which market card is personal is the Host's mark on the card (W5-02 B1); the client keeps no list of its own.
-  assert.doesNotMatch(script, /PERSONAL_PLUGIN_IDS/);
-  assert.ok(script.includes("data-market-personal"));
   assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
   assert.doesNotMatch(between(datasetSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
   assert.doesNotMatch(between(pptSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);

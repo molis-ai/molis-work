@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 4062,
+  "total": 4061,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -879,7 +879,6 @@
     "tests/todo-assistant.e2e.test.ts": 1,
     "tests/todo-from-inbox.test.ts": 4,
     "tests/todo-organize.test.ts": 1,
-    "tests/todo-placement.e2e.test.ts": 1,
     "tests/todo-plugin.test.ts": 1,
     "tests/todo.e2e.test.ts": 2,
     "tests/typed-effect-authority.test.ts": 8,

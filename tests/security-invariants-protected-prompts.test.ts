@@ -389,7 +389,7 @@ test("S-protected-prompt-override: unregistered prompts and raw strings are refu
   let savedKey = "";
   let savedBody = "";
   await goldenWriteAgentDefinitions({
-    tag: "v1-protected-test",
+    home, tag: "v1-protected-test",
     projectId: "proj-1",
     call: async () => { throw new Error("call unused"); },
     http: async (route, options) => {

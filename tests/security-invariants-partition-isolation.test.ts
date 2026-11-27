@@ -24,7 +24,7 @@ import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work
 import { jellyActions, jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
 import { TODO_ACTION_PERMISSIONS, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, pluginErrors, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
 import { bindActionHandler, defineSettingsActions, overviewRows, partitionDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk";
@@ -458,10 +458,10 @@ test("UPP-32 a single Jelly event and a weekly occurrence due in a sleeping part
   const minute = when.getUTCHours() * 60 + when.getUTCMinutes();
   const end = new Date(when.getTime() + 60_000);
   const schedule = { start_date: day, end_date: end.toISOString().slice(0, 10), start_time: minute, end_time: end.getUTCHours() * 60 + end.getUTCMinutes(), time_zone: "UTC", reminder_minutes: 0 };
-  const call = f.host.actionClient(a.reference);
-  const item = (await call.invoke(runtimePerson(jellyActions.createItem.action.permissions, a.project_id), jellyActions.createItem,
+  const call = bindActionClient(f.host.actionClient(a.reference), () => runtimePerson(jellyActions.createItem.action.permissions, a.project_id));
+  const item = (await call.invoke(jellyActions.createItem,
     { item: { ...schedule, title: "Single calendar reminder" } })).item;
-  const series = (await call.invoke(runtimePerson(jellyActions.createSeries.action.permissions, a.project_id), jellyActions.createSeries,
+  const series = (await call.invoke(jellyActions.createSeries,
     { series: { ...schedule, title: "Recurring calendar reminder", weekdays: [when.getUTCDay() || 7] } })).series;
   const keys = ["event:" + item.id, "event:" + series.id + "@" + day].sort();
   const clock = assembly.services;
@@ -1058,7 +1058,7 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
 
   await write("2", [a, b].map(project => ({ partition_id: project.project_id, fields: ["title"] })));
   assert.equal((await rows(assistant)).length, 2);
-  const tasks = async () => (await client.invoke(assistant, read, { kinds: ["task"] })).rows.map(task => task.fields.title).sort();
+  const tasks = async () => ((await client.invoke(assistant, read, { kinds: ["task"] })) as OverviewReadResult).rows.map(task => task.fields.title).sort();
   assert.deepEqual(await tasks(), [a.project_id, b.project_id].sort());
   inaccessible = a.project_id;
   assert.deepEqual(await tasks(), [b.project_id], "the same live deny removes A from plugin summaries as from platform notifications");

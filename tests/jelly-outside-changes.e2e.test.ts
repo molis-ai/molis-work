@@ -27,7 +27,7 @@ test("Jelly shows what the Assistant changed and opens an entry or a note by id"
   const now = new Date(), stamp = now.toISOString();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   write(store => store.insert("item", { id: "budget-sync", title: "和小李对预算", kind: "event", category_id: "uncategorized", notes: "", start_date: today, end_date: today,
-    start_time: 900, end_time: 960, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone, completed_at: null, revision: 1, created_at: stamp, updated_at: stamp }));
+    start_time: 900, end_time: 960, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone, reminder_minutes: null, completed_at: null, revision: 1, created_at: stamp, updated_at: stamp }));
   const shown = "[...document.querySelectorAll('[data-jelly-open]')].some(node => node.textContent.includes('和小李对预算'))";
   assert.equal(await evaluate(shown), false, "the page still shows what it loaded");
   // Another plugin's change is not Jelly's to reread.

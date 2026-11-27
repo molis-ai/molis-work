@@ -1,3 +1,4 @@
+import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { readFileSync } from "node:fs";
@@ -273,7 +274,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   for (const dirty of [1, dormantIds.length]) {
     for (const id of dormantIds.slice(0, dirty)) service.services!.overview.markDirty(id, install);
     const populated = async () => {
-      const { rows } = await home.host.homeActionClient().invoke(overviewPerson, overviewRead, { kinds: ["task"], limit: 100 });
+      const { rows } = await home.host.homeActionClient().invoke(overviewPerson, overviewRead, { kinds: ["task"], limit: 100 }) as OverviewReadResult;
       assert.equal(rows.filter(row => String(row.fields.title).startsWith("G4 ")).length, dormantIds.length);
     };
     const refresh = await measure(populated), cached = await measure(populated);

@@ -60,12 +60,20 @@ function prepareNewInstall(executor: PluginExecutor, installId: string): void {
 }
 
 /**
- * Saves a new installation's row. When the person's word drops the data an uninstall kept (`discard`, `replaced` the uninstalled row that
- * held it), the Host is told once the row is saved, so what it kept beside that data goes too, before anything starts.
+ * A signed package lifecycle can stage an explicit discard before the candidate row is saved, then restore it if starting fails.
+ * A standalone Runtime runs its executor's synchronous cleanup before returning the installation.
  */
-export function saveInstalled(repository: PluginRuntimeRepository, executor: PluginExecutor, record: PluginInstanceRecord, replaced: PluginInstanceRecord | null, discard: boolean): void {
+export function saveInstalled(repository: PluginRuntimeRepository, executor: PluginExecutor, record: PluginInstanceRecord, replaced: PluginInstanceRecord | null, discard: boolean, stageDiscard?: (previous: PluginInstanceRecord) => void): void {
+  const kept = discard && replaced?.state === "uninstalled" && replaced.retain_private_data ? replaced : undefined;
+  if (kept && stageDiscard) stageDiscard(kept);
   repository.save(record);
-  if (discard && replaced?.state === "uninstalled" && replaced.retain_private_data) executor.keptDataDiscarded?.(replaced);
+  if (kept && !stageDiscard) {
+    try { executor.keptDataDiscarded?.(kept); }
+    catch (error) {
+      repository.save(kept);
+      throw error;
+    }
+  }
 }
 
 /**

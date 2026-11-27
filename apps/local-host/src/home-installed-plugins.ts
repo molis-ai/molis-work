@@ -14,6 +14,8 @@ import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
+import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
+import { stageInstalledHomeLibraryDiscard } from "./installed-plugin-libraries.js";
 import { installedLifecycle, type InstalledPluginPlatform, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { installedApprovals, installedCatalog, installedOffers, installedRecords, packagedReleases, installedPackageRecovery } from './installed-plugin-common.js';
 import { HOME_INSTALL_SCOPE, installedVersion, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
@@ -179,6 +181,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   });
   const lifecycleContext: InstalledLifecycleContext = { platform, home, library: null, project_id: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
+    discardDatabase(previous, next) {
+      const schema = (manifest?: PluginManifest) => manifest?.databases?.home && pluginSyncDatabaseDeclaration(manifest, manifest.databases.home);
+      return stageInstalledHomeLibraryDiscard(home, previous, schema(packages.installedManifest(previous)), schema(next), pluginHomeFor(home).stores);
+    },
     async forget(pluginId, installId) {
       declared.release(pluginId);
       forgetHomeInstalledMemoryScene(home, pluginId);

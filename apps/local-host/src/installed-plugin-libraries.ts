@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readdirSync, realpathSync, renameSync, rmdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -296,16 +296,17 @@ export function advanceInstalledLibraryUpgrade(database: ReturnType<typeof openH
  * finishes. Anything else is kept and said so; nothing outside that directory is looked at. The library's process has exited by then.
  */
 export function removeInstalledPluginLibrary(home: string, owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration | undefined,
-  reserved: HomeStoreRegistry): InstalledLibraryKept | undefined {
+  reserved: HomeStoreRegistry, beforeRemove?: (directory: string, created: string) => void): InstalledLibraryKept | undefined {
   if (!existsSync(join(home, INSTALLED_LIBRARIES_HOME_STORE.path))) return undefined;
   const ledger = openBaselineHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path, LEDGER_BASELINE);
   try {
     ledger.exec("PRAGMA busy_timeout = 5000");
     ledger.exec("BEGIN IMMEDIATE");
-    const row = ledger.prepare("SELECT plugin_id, publisher_signature, store_name, version, schema_digest FROM plugin_home_libraries WHERE plugin_id = ?")
-      .get(owner.plugin_id) as LedgerRow | undefined;
+    const row = ledger.prepare("SELECT plugin_id, publisher_signature, store_name, version, schema_digest, created_at FROM plugin_home_libraries WHERE plugin_id = ?")
+      .get(owner.plugin_id) as (LedgerRow & {created_at: string}) | undefined;
     const kept = row && libraryKept(home, row, owner, declaration, reserved);
     if (row && !kept) {
+      beforeRemove?.(join(realpathSync(home), row.store_name), row.created_at);
       removeLibraryDirectory(realpathSync(home), row.store_name);
       ledger.prepare("DELETE FROM plugin_home_libraries WHERE plugin_id = ? AND publisher_signature = ? AND store_name = ?").run(row.plugin_id, row.publisher_signature, row.store_name);
     }
@@ -340,4 +341,52 @@ function removeLibraryDirectory(home: string, name: string): void {
   try { lstatSync(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
   for (const file of libraryFiles(name)) rmSync(join(path, file), { force: true });
   rmdirSync(path);
+}
+
+
+/** Move the verified library on the same volume until the fresh installation settles. */
+export function stageInstalledHomeLibraryDiscard(home: string, owner: InstalledLibraryOwner, previous: HomePluginDatabaseDeclaration | undefined,
+  next: HomePluginDatabaseDeclaration | undefined, reserved: HomeStoreRegistry) {
+  let backup: string | undefined;
+  let created: string | undefined;
+  const refuseKept = (kept: InstalledLibraryKept | undefined) => {
+    if (kept) throw installedLibraryErrors.shape_mismatch("无法确认旧数据库归这个插件所有，已停止安装");
+  };
+  const close = () => {
+    if (backup && previous) {
+      removeLibraryDirectory(backup, previous.store_name);
+      rmdirSync(backup);
+    }
+  };
+  const putBack = () => {
+    if (backup && previous && existsSync(join(backup, previous.store_name))) {
+      renameSync(join(backup, previous.store_name), join(home, previous.store_name));
+    }
+  };
+  try {
+    refuseKept(removeInstalledPluginLibrary(home, owner, previous, reserved, (directory, at) => {
+      created = at;
+      if (!previous || !existsSync(directory)) return;
+      backup = mkdtempSync(join(home, INSTALLED_LIBRARIES_HOME_STORE.path, ".discard-"));
+      renameSync(directory, join(backup, previous.store_name));
+    }));
+  } catch (error) {
+    putBack();
+    close();
+    throw error;
+  }
+  if (!created && !next) return;
+  return {
+    close,
+    restore() {
+      refuseKept(removeInstalledPluginLibrary(home, owner, next, reserved));
+      if (!previous || !created) return;
+      const originalDate = new Date(created);
+      openInstalledPluginLibrary(home, owner, previous, reserved, made => {
+        if (!made) throw installedLibraryErrors.object_taken("原插件库已被重新使用");
+        putBack();
+        return { close() {} };
+      }, () => originalDate);
+    },
+  };
 }

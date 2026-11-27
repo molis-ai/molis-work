@@ -16,7 +16,7 @@ const row = (permission: string, reason: string, more: Partial<PackageInstallPer
 
 function sample(more: Partial<PackageInstallSheet> = {}): PackageInstallSheet {
   const s = uiText.text;
-  return { preview_id: "specimen", plugin_id: "com.example.checkin", name: s("workbench.package-install-specimens.meeting-check-in"), version: "1.0.0", from_version: null,
+  return { preview_id: "specimen", kept_data_incompatible: false, plugin_id: "com.example.checkin", name: s("workbench.package-install-specimens.meeting-check-in"), version: "1.0.0", from_version: null,
     runtime_scope: "project", dual: false, publisher: { label: null, local: true, trusted: true },
     permissions: [row("storage:private", "", { required: true, on: true }), row("capabilities:call", s("workbench.package-install-specimens.note-absences-in-goals")), row("network:request", "")],
     jobs: [{ reason: s("workbench.package-install-specimens.monday-reminder-to-import-the-list") }], secrets: [], network: ["calendar.example.com"], ...more };
@@ -45,6 +45,7 @@ export function renderPackageInstallSection(readText: Say): string {
     [s("workbench.package-install-specimens.into-the-personal-space-nothing-optional"), view("review", home), [720, 375]],
     [s("workbench.package-install-specimens.one-more-step-the-key"), view("keys", keyed, { on: new Set(["network:request", "secret:use"]) }), [720, 375]],
     [s("workbench.package-install-specimens.installing-three-steps"), view("working", first, { on: new Set(["network:request"]), busy: true }), [720, 375]],
+    [s("workbench.package-install-card.cannot-read-kept-data"), view("discard", sample({ kept_data_incompatible: true })), [720, 375]],
     [s("workbench.package-install-specimens.installed"), view("done", first, { on: new Set(["network:request"]), answered: true, openable: true }), [720, 375]],
     [s("workbench.package-install-specimens.not-installed-where-it-stopped"), view("failed", first, { step: 2, failure: s("workbench.package-install-specimens.the-plugin-would-not-start") }), [720, 375]],
     [s("workbench.package-install-specimens.publisher-not-trusted-yet"), view("untrusted", sample({ publisher: { label: null, local: false, trusted: false } })), [720, 375]],

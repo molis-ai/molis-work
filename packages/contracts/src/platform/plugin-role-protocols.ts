@@ -130,9 +130,9 @@ export const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, { readonly i
 
 // The transferable part of a generation job. Providers may keep additional private job and connection fields.
 const imageId = { type: "string", minLength: 1, maxLength: 256 } as const;
-const imageObject = <T extends Record<string, unknown>>(properties: T) =>
+const imageObject = (properties: Record<string, import("./plugin-sandbox.js").SandboxSchema>): import("./plugin-sandbox.js").SandboxSchema =>
   ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false } as const);
-const imageJob = imageObject({ job: imageObject({ id: imageId, connection_id: imageId, status: { enum: ["running", "succeeded", "failed", "cancelled", "interrupted"] },
+const imageJob = imageObject({ job: imageObject({ id: imageId, connection_id: imageId, status: { type: "string", enum: ["running", "succeeded", "failed", "cancelled", "interrupted"] },
   images: { type: "array", items: imageObject({ id: imageId }) }, error: { type: "string" } }) });
 export const IMAGE_GENERATION_SCHEMAS = {
   "services.list": { input: imageObject({}), output: imageObject({ connections: { type: "array", items: imageObject({ id: imageId, available: { type: "boolean" } }) } }) },

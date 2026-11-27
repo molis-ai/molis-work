@@ -696,9 +696,17 @@ function inputFields(schema: Record<string, unknown>, input: unknown): ToolRevie
 export function gatewayReview(input: string, view: ActionView, tool: string = GATEWAY_TOOLS.change) {
   const args = JSON.parse(input) as Record<string, unknown>;
   const parsed = parseCapability(args);
+  return actionToolReview(view, tool, gatewayInput(view, parsed));
+}
+
+/** Both the round's fixed tools and its searchable gateway present the view held for the original proposal. */
+export function actionToolReview(view: ActionView, tool: string, sent: unknown) {
   const effect = actionEffect(view.action, view.capability_id);
-  const sent = gatewayInput(view, parsed);
-  return presentToolReview({ kind: "tool-operation", tool, summary: `${view.provider.title} · ${view.action.title}` }, [
+  const review = view.action.agent_scenario?.review;
+  const proposal = sent && typeof sent === 'object' && !Array.isArray(sent) ? sent as Record<string, unknown> : {};
+  const pluginReview = review && { kind: review.kind, title: review.title, fields: review.fields.flatMap(({ field, label }) =>
+    typeof proposal[field] === 'string' ? [{ label, value: proposal[field] }] : []) };
+  return presentToolReview({ kind: "tool-operation", tool, summary: `${view.provider.title} · ${view.action.title}`, ...(pluginReview ? { plugin_review: pluginReview } : {}) }, [
     reviewField("效果", effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回", "effect",
       { value: [reviewText(effect === "irreversible" ? "value.irreversible" : "value.reversible")] }),
     ...inputFields(view.action.input_schema, sent),

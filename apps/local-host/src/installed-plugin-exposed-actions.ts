@@ -50,7 +50,7 @@ export function exposedOperationPolicies(releases: readonly PublishedOperations[
       for (const permission of sandboxOperationPermissions(operation.effects, !!release.packaged?.manifest.databases?.project)) permissions.add(permission);
       if (operation.effects.networkDomains?.length || operation.effects.connections?.length) costs.push('unknown');
       // The person's model or image account is spent by these, whatever else the operation reaches (BL-491).
-      if (operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate')) costs.push('metered');
+      if (operation.effects.scenes?.length || operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate')) costs.push('metered');
       for (const id of operation.effects.capabilities ?? []) {
         const entry = latestCapability(catalog, id);
         bindings.push([id, entry?.provider_id ?? null, entry?.version ?? null, entry?.scope ?? null, entry?.offered ?? null, entry?.installed ?? null,

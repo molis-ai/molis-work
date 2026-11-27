@@ -118,7 +118,7 @@ export function prologueActionTools(
     // Kept strictly locale-invariant so switching UI/reply language never mutates toolsFingerprint or invalidates KV-Cache (Decision 67 #5).
     const effect = actionEffect(view.action, view.capability_id);
     const label = `${view.provider.title} · ${effect === "read" ? "读取" : effect === "irreversible" ? "不可撤回" : "修改"} · ${view.action.title} [${view.provider.provider_id} / ${view.capability_id}@${view.version}]`;
-    return { executor: name, registration: { name, version: String(view.version), description: label + "\n" + view.action.description,
+    return { executor: name, registration: { name, version: String(view.version), description: [label, view.action.description, view.action.agent_scenario?.title, view.action.agent_scenario?.instructions].filter(Boolean).join("\n"),
       // A copy: the directory's declarations are frozen, and the runtime owns what it is handed.
       parameters: wrapped ? { type: "object", properties: { input: structuredClone(view.action.input_schema) }, required: ["input"], additionalProperties: false } : structuredClone(view.action.input_schema),
       // A read only when both say so: the runtime may start a read before the model has finished speaking.

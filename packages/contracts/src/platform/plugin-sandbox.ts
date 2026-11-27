@@ -33,6 +33,8 @@ export interface SandboxSchema {
 /** All effects default to denied; installation grants must explicitly contain them. */
 export interface SandboxEffects {
   storage?: Array<'read' | 'write'>;
+  /** Local ids of this package's configurable judgment scenes this command may run. */
+  scenes?: string[];
   artifacts?: Array<'read' | 'write'>;
   capabilities?: string[];
   events?: string[];
@@ -259,6 +261,9 @@ export interface SandboxPluginContract {
   /** Optional on-demand help topics shown via the platform's Scheme A help entry (VUX-55, VUX-59). */
   help?: SandboxHelpDeclaration;
   operations: SandboxOperationContract[];
+  agent_scenario?: { id: string; title: string; instructions: string; tools: { operation: string;
+    review?: { kind: string; title: string; fields: { field: string; label: string }[] } }[] };
+  scenes?: { id: string; title: string; description: string; trigger: string; instructions: string; subject_kind: string; options: { key: string; description: string }[] }[];
   presentation?: PresentationDeclaration;
   settings_entries?: SandboxSettingsDeclaration;
   /** A dual-instance application's personal source is redeemed only by its Home installation. */
@@ -464,6 +469,7 @@ export interface SandboxSdk {
     delete(key: string): Promise<void>;
     list(prefix?: string): Promise<Array<{ key: string; value: SandboxJson }>>;
   };
+  scenes: { run(localId: string, input: { content: string }): Promise<SandboxJson> };
   artifacts: {
     get(reference: { artifact_id: string; version: number }): Promise<SandboxJson>;
     put(value: { artifact_id: string; version: number; artifact_type_id: string; schema_version: number; title: string; media_type: string;
@@ -588,7 +594,7 @@ export interface SandboxSdk {
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'projects.exist'
-  | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
+  | 'scenes.run' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release'
   | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction'
   | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage'

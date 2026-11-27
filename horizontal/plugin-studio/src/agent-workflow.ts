@@ -257,7 +257,7 @@ export class AgentBuilderWorkflow {
         const requestId = startNew ? randomUUID() : picture.requestId ?? id + ':' + proposal.id;
         const previous = startNew ? (picture.binding ? { status: 'drawing' as const, binding: picture.binding } : undefined) : proposal.mockup;
         const prompt = previous?.prompt ?? mockupPrompt(proposal, instructions, locale);
-        picture = { ...previous, status: 'drawing', requestId, prompt };
+        picture = { ...previous, status: 'drawing', requestId };
         set(proposal.id, picture);
         const result = await mockups.draw({ key: requestId, prompt, previous,
           checkpoint(value) {

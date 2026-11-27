@@ -69,7 +69,7 @@ export class PrologueActionReviews {
       : { assertCurrent() {}, async beforeEffect() {} };
     const assertCurrent = () => { this.#assertRun(); original.assertCurrent(); this.delegation?.permission.assertCurrent(); };
     const control = { assertCurrent, beforeEffect: async () => { assertCurrent(); await original.beforeEffect(); assertCurrent(); } };
-    const automaticReview = reversible ? this.#reversible(view, client, control) : await this.#automatic(original, view, input, control);
+    const automaticReview = view.action.agent_scenario?.review ? undefined : reversible ? this.#reversible(view, client, control) : await this.#automatic(original, view, input, control);
     let usedAutomatic = false;
     const assertAutomatic = () => {
       if (!automaticReview) throw agentErrors.review_not_permitted("原操作需要本人确认");

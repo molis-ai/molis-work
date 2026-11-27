@@ -22,8 +22,10 @@ import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
-import { handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
+import { pluginInstallActions, handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { signedImageService } from './fixtures/signed-image-service.js';
+import { person as installPerson, ref as actionRef } from './fixtures/home-sandbox.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkills } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../horizontal/plugin-studio/dist/agent-experience.js';
@@ -117,13 +119,14 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   const coded: Array<{ id: string; before: string }> = [];
   let firstRoot = '';
   const actions = f.host.actionRegistry(project.reference);
+  let reverseDirectory = false;
   const options: Parameters<typeof handleAgentStudioHttp>[3] = {
     store, projectId: project.project_id, homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID,
     routePrefix: '/projects/' + project.project_id, parallel: 1,
     models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
     // This existing executable rejects Chrome flags; BuilderBrowser cannot fall back to a personal browser.
     browserExecutable: setup.browserExecutable ?? process.execPath,
-    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: caller => f.host.inspectActions(caller, project.reference), project_id: project.project_id },
+    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: async caller => { const rows = await f.host.inspectActions(caller, project.reference); return reverseDirectory ? [...rows].reverse() : rows; }, project_id: project.project_id },
     choice: { selectionAvailable: () => false, choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }) },
     agents: async build => ({ close: async () => {}, records: async () => [], async run(request) {
       const task = JSON.parse(request.task);
@@ -199,7 +202,9 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   };
   passed(current);
   await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []);
-  return { f, answer, words, coded, helper, nested, send, wait, passed, current, trialKeys,
+  return { f, project, answer, words, coded, helper, nested, send, wait, passed, current, trialKeys,
+    reverseDirectory() { reverseDirectory = !reverseDirectory; }, restartStudio: () => releaseAgentStudio(store, project.project_id),
+    image: (build: string, candidate: string) => fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + build + '/mockups/' + candidate),
     rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
     async revise() { await send('/builds/' + current.id + '/action', { action: 'revise', revision: current.revision, message: '只调整界面' }); current = await wait(current.id); return current; },
   };
@@ -752,6 +757,46 @@ test('after the host restarts mid-build, continuing writes only what was not con
     assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.deepEqual(h.requests.filter(request => request.role === 'coder').slice(before).map(request => request.operationIds![0]), ['notes.latest'], 'only the unfinished operation is written again');
   } finally { await workflow.close(); }
+});
+
+test('44C-06 Studio polls the original installed signed service across restart, directory reordering and withdrawal', { timeout: 120_000 }, async t => {
+  const studio = await revisionHelperStudio(t), { f, project } = studio;
+  const client = f.host.actionClient(project.reference), who = installPerson(project.project_id);
+  const install = async (key: string, version = '1.0.0', incomplete = false) => {
+    const fixture = signedImageService(key, version, incomplete);
+    const preview = await client.invoke(who, actionRef(pluginInstallActions.preview), { bundle: fixture.bundle }) as { preview_id: string };
+    await client.invoke(who, actionRef(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: key });
+    return fixture;
+  };
+  const incomplete = await install('partial', '1.0.0', true);
+  const first = await install('quartz'), second = await install('cobalt');
+  const created = await studio.send<{ build: AgentBuild }>('/builds', { brief: '为签名样例画草图' });
+  async function picture(phase: 'drawing' | 'ready') {
+    const deadline = Date.now() + 25000;
+    while (Date.now() < deadline) {
+      const { build } = await studio.send<{ build: AgentBuild }>('/builds/' + created.build.id);
+      const found = build.candidates.find(item => item.mockup?.status === phase && item.mockup?.jobId);
+      if (found) return found;
+      if (build.candidates.length && build.candidates.every(item => item.mockup?.status === 'failed')) assert.fail(JSON.stringify(build.candidates.map(item => item.mockup)));
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    throw new Error('Studio did not reach ' + phase);
+  }
+  const pending = await picture('drawing'), owner = pending.mockup!.binding!;
+  assert.notEqual(owner.connection_id, incomplete.connection);
+  const selected = [first, second].find(item => item.connection === owner.connection_id)!;
+  assert.ok(selected);
+  studio.reverseDirectory();
+  await studio.restartStudio();
+  const ready = await picture('ready');
+  assert.deepEqual(ready.mockup!.binding, owner);
+  const file = await studio.image(created.build.id, ready.id);
+  assert.equal(file.status, 200); assert.equal(file.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await file.arrayBuffer()), Buffer.from(selected.png, 'base64'));
+  await install(selected.key, '1.0.1');
+  assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'a later release cannot read the previous job through Studio');
+  assert.equal((await f.request('/api/settings/plugin-publishers/revoke', { method: 'POST', body: { key_id: selected.publisher } })).status, 200);
+  assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'the remaining service cannot replace a withdrawn installation');
 });
 
 test('with an image service each proposal gets one picture (never a second try); choosing does not wait for them; without one nothing changes', async () => {

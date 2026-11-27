@@ -7,9 +7,9 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { AuthorizationDetail, AuthorizationList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentTaskGrantActions, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { homeIntegrationRegistry, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { homeAgentDefinitions, homeIntegrationRegistry, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { effectsFromContract, parsePluginManifest, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { effectsFromContract, parsePluginManifest, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import {
   defineArtifactPreviewAction, defineWorkflowContentActions, defineSubjectContextAction, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
@@ -17,14 +17,20 @@ import {
   LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
+import { functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
+import { withFunctionsService } from "../apps/local-host/dist/judgment-rules-host.js";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { connectorControl } from "./fixtures/connector-control.js";
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_OUTPUT_SCHEMA, SETTINGS_WRITE_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mac, person as sandboxPerson, ref } from "./fixtures/home-sandbox.js";
-import { PACKAGE_PLUGIN_ID, fixturePublisher, newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { PACKAGE_PLUGIN_ID, fixturePublisher, newPublisher, packageMethod, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { exerciseReview } from "./fixtures/signed-tool-review.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // PEQ-05 (specs/plugin-equal-standing/contract-design.md §5): the repository's third-party sample uses only contracts and the plugin SDK, and
@@ -204,6 +210,7 @@ function attachedTo(state, key) {
   return { targets: state.items.filter(item => item.bindings.includes(key)).map(item => ({ kind: 'sandbox_card', id: item.id })) };
 }
 export const operations = {
+  'scene.choose': async (input, sdk) => sdk.scenes.run('proofread', input),
   'artifact.save': async (input, sdk) => {
     const receipt = await sdk.artifacts.put({ artifact_id:'standing-card-one', version:1, artifact_type_id:'com.example.standing.note', schema_version:1,
       title:'Notebook record', media_type:'application/json', subject:{kind:'sandbox_card',id:'card-1'}, revision:'1', payload:{special_topic:input.word} });
@@ -307,6 +314,10 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
       version: 1,
       pluginId: manifest.plugin_id,
       revision: "standing-v1",
+      scenes: [{ id: "proofread", title: "Notebook proofreading", description: "Choose an editorial next step", trigger: "When the writer requests a review",
+        instructions: "Choose revise if the note needs corrections", subject_kind: "sandbox_card", options: [{ key: "revise", description: "Revise the note" }, { key: "keep", description: "Keep the note" }] }],
+      agent_scenario: { id: "editing", title: "Notebook editing", instructions: "Present the proposed wording before saving the card.",
+        tools: [{ operation: "artifact.save", review: { kind: "accept-edit", title: "Accept the proposed wording", fields: [{ field: "word", label: "Proposed wording" }] } }] },
       artifact_types: [{ artifact_type_id: "com.example.standing.note", schema_version: 1, title: "Notebook card", preview_operation: "artifact.preview", searchable_fields: ["special_topic"] }],
       home_source: {
         connection_services: [{ service_id: "sample-journal", title: { key: "sandbox-standing.source" }, group_id: "work", summary: "Personal updates", auth_kind: "none",
@@ -322,6 +333,9 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
         write_operation: "settings.write",
       },
       operations: [
+        { id: "scene.choose", kind: "command", input: { type: "object", required: ["content"], properties: { content: { type: "string" } }, additionalProperties: false },
+          output: { type: "object", properties: { status: { type: "string" }, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: ["status", "suggested_behavior_ids"] },
+          effects: { scenes: ["proofread"] }, errors: [], examples: [{ input: { content: "A draft" }, outputIncludes: { status: "ok" } }] },
         { id: "artifact.save", kind: "command", ui_event: "card-saved", input: { type: "object", required: ["word"], properties: { word: { type: "string" } }, additionalProperties: false },
           output: { type: "string" }, effects: { artifacts: ["write"] }, errors: [], examples: [{ input: { word: "example" }, output: "standing-card-one" }] },
         { id: "artifact.preview", kind: "query", read_protocol: { kind: "artifact_preview" }, input: previewArtifact.action.input_schema, output: previewArtifact.action.output_schema!,
@@ -411,6 +425,9 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
     ];
     const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+    Object.assign(manifest, { agent: [{ name: "Notebook reviewer", purpose: "Review notebook cards", body: "agent/reviewer.md" }], methods: [packageMethod("review-role", "Review notebook", "Review a fixed notebook card")] });
+    files["agent/reviewer.md"] = "Inspect the original notebook card before recommending an edit.";
+    files["skills/review-role/SKILL.md"] = "Compare the proposed wording with the original.";
     files[SANDBOX_PACKAGE_FILES.entrypoint] = SANDBOX_CODE;
     files[SANDBOX_PACKAGE_FILES.interface] = JSON.stringify({ parts, nodes });
     files["locales/en.json"] = JSON.stringify({
@@ -421,7 +438,9 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
 }
 
 test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Workbench UI), resume_summary (MCP), placement_relation, and work_terminals (with revokePublisher live-PID kill)", { ...mac, timeout: 90_000 }, async t => {
-  const home = await openTestHome(t);
+  const home = await openTestHome(t, { host: { functions: { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: { async evaluate(_credential, record) {
+    return { primitive: record.primitive, choice: "revise", noul: null, score: null, legend: null, probabilities: {}, confidence: null, model: record.model };
+  } } } } });
   const project = await home.createProject("Signed Sandbox Standing");
   const folder = await realpath(await mkdtemp(join(tmpdir(), "signed-wt-ws-")));
   t.after(() => rm(folder, { recursive: true, force: true }));
@@ -442,7 +461,7 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   const homeInstall = home.host.homePlugins!.installation(SIGNED_SANDBOX_ID)!;
   const overview = await home.web.get<{ plugins: { plugin_id: string; install_id: string }[] }>(`/projects/${project.project_id}/api/plugin-trust/overview`);
   const projectInstall = overview.plugins.find(plugin => plugin.plugin_id === SIGNED_SANDBOX_ID)!;
-  for (const permission of ["artifact:read", "artifact:write"]) {
+  for (const permission of ["artifact:read", "artifact:write", "scenes:use", "model:invoke"]) {
     await home.web.post("/api/settings/plugin-permissions/set", { install_id: homeInstall.install_id, permission, granted: true });
     await home.web.post(`/projects/${project.project_id}/api/plugin-trust/permissions/set`, { install_id: projectInstall.install_id, permission, granted: true });
   }
@@ -459,12 +478,50 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.equal(pulled.events[0]?.provider_dedupe_id, "sample-one");
   assert.equal(pulled.events[0]?.payload.title, "My journal");
 
+  const declared = (await home.host.sceneClient(project.reference).discoverScenes(person)).find(scene => scene.provider.plugin_install_id === projectInstall.install_id && scene.definition.title === "Notebook proofreading");
+  assert.ok(declared?.definition.default_rule);
+  assert.deepEqual(declared.definition.default_rule.options.map(option => option.key), ["revise", "keep"]);
+  const rule = withFunctionsService(home.home, service => service.list().find(item => item.function_key === declared.definition.default_rule!.function_key));
+  assert.ok(rule);
+  const targets = await projectClient.invoke(person, functionContextActions.targets, { id: rule.id }) as { targets: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneTarget[] };
+  const target = targets.targets.find(item => item.scene_id === declared.definition.scene_id)!;
+  assert.ok(target && target.binding === null);
+  await projectClient.invoke(person, functionContextActions.configure, { id: rule.id, scene_id: target.scene_id, scene_version: target.scene_version,
+    provider_id: target.provider_id, binding_id: target.binding_id, expected_revision: target.revision, enabled: true });
+  const choose = byLocal("scene.choose");
+  const judged = await projectClient.invoke(person, { capability_id: choose.capability_id, version: choose.version, provider_id: choose.provider.provider_id }, { content: "Please proofread" });
+  assert.deepEqual((judged as { suggested_behavior_ids: string[] }).suggested_behavior_ids, ["revise"]);
+  const roles = homeAgentDefinitions(home.home), template = roles.signedRoles().find(role => role.owner_id === SIGNED_SANDBOX_ID)!;
+  const material = roles.signedMaterial(template.install_id, template.default_ref)!;
+  assert.equal(material.body, "Inspect the original notebook card before recommending an edit.");
+  await projectClient.invoke(person, characterRoleActions.fromTemplate, { origin: { source: { kind: "package", plugin_id: SIGNED_SANDBOX_ID, version: "1.0.0" }, part_id: "reviewer" },
+    request_id: "standing-reviewer", layer: "project", selection: { kind: "create" }, template: { title: { literal: "Notebook reviewer" }, instructions: material.body, skills: [{ pack: SIGNED_SANDBOX_ID, skill_id: "review-role" }] } });
+  const rolePage = await fetch(home.origin + `/projects/${project.project_id}/api/platform/characters/roles`);
+  assert.equal(rolePage.status, 200); assert.ok((await rolePage.text()).includes("Notebook reviewer"));
+
   const findRecord = () => projectClient.invoke(person, searchActions.query, { query: "mineralogyonereview" }) as Promise<SearchQueryResponse>;
   assert.ok(!JSON.stringify(await findRecord()).includes("standing-card-one"));
   const writer = byLocal("artifact.save");
-  const saveRecord = () => projectClient.invoke(person, { capability_id: writer.capability_id, version: writer.version, provider_id: writer.provider.provider_id }, { word: "mineralogyonereview" });
-  assert.equal(await saveRecord(), "standing-card-one");
+  await exerciseReview(t, home, project.reference, writer, { word: "mineralogyonereview" });
   assert.ok(JSON.stringify(await findRecord()).includes("standing-card-one"), "PSD-03 M12: system search found the immutable output by the producer's payload field");
+  const chrome = locateTestChrome(); assert.ok(chrome, "dedicated test browser");
+  const browser = await ChromeHarness.start(home.home, { executable: chrome }); assert.ok(browser);
+  try {
+    const surface = "app-" + sandboxPackageBuildId(SIGNED_SANDBOX_ID, publisher.identity);
+    const page = await browser.page(), child = await pluginFrameBrowser(t, { sessionId: page.sessionId, command: browser.command.bind(browser),
+      on: browser.on.bind(browser), evaluate: page.evaluate.bind(page) }, surface);
+    await page.command("Page.navigate", { url: home.origin + `/projects/${project.project_id}/?openSurface=${encodeURIComponent(surface)}` });
+    await child.waitFor("globalThis.__molisPluginReady === true && document.querySelector('[data-field=word]')");
+    const eventName = "plugin:" + SIGNED_SANDBOX_ID + "/card-saved";
+    await page.evaluate(`(() => { const stage = document.querySelector('iframe[data-plugin-frame="${surface}"]').closest('[data-work-surface]');
+      const outside = document.createElement('div'); stage.after(outside); window.observed = { local: 0, outside: 0 };
+      stage.addEventListener(${JSON.stringify(eventName)}, () => window.observed.local++);
+      outside.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++);
+      document.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++); })()`);
+    await child.evaluate("(() => { const field = document.querySelector('[data-field=word]'); field.value = 'mineralogyonereview'; field.dispatchEvent(new Event('input', {bubbles:true})); field.form.querySelector('[type=submit]').click(); })()");
+    await page.waitFor("window.observed.local === 1");
+    assert.deepEqual(await page.evaluate("window.observed"), { local: 1, outside: 0 });
+  } finally { await browser.close(); }
   const kinds = await home.web.get<{ kinds: Record<string, string>; glyphs: Record<string, string> }>(`/projects/${project.project_id}/api/assistant/surface-kinds`);
   assert.equal(kinds.kinds[SIGNED_SANDBOX_ID], "sandbox_card");
   assert.equal(kinds.glyphs.sandbox_card, "bookmark");
@@ -479,6 +536,12 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
     subject: { kind: "page", id: "doc-sbx" }, target: { kind: "sandbox_card", id: "card-1" },
   });
   assert.deepEqual(bound, { targets: [{ kind: "sandbox_card", id: "card-1" }] });
+
+  const relation = async (id: string, args: unknown) => { const view = byLocal(id); return projectClient.invoke(person, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, args); };
+  const subject = { kind: "page", id: "doc-sbx" }, targetCard = { kind: "sandbox_card", id: "card-1" };
+  assert.deepEqual(await relation("attach.list", { subject }), bound);
+  assert.deepEqual(await relation("attach.release", { subject, target: targetCard }), { targets: [] });
+  assert.deepEqual(await relation("attach.list", { subject }), { targets: [] });
 
   // 2. settings_entries: discovered in Workbench sidebar, rendered on /settings/<plugin_id>, writable via /api/settings/plugin-entries/write.
   const navRes = await fetch(`${home.origin}/settings/appearance?project=${encodeURIComponent(project.project_id)}`);

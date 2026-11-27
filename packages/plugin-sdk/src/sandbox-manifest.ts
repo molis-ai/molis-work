@@ -14,6 +14,7 @@ import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
 import { assertSandboxUpgradeValidator, sandboxActionId, sandboxOperationActions, sandboxPackageBuildId, sandboxUpgradeOperation } from './sandbox-actions.js';
+import { sandboxScenes } from "./sandbox-scenes.js";
 import { sandboxUiDeclaration } from './sandbox-ui.js';
 import { sandboxStateMachineDeclarations } from './sandbox-state-machines.js';
 import { sandboxLocaleProblems } from './locale-declarations.js';
@@ -22,7 +23,7 @@ import { sandboxLocaleProblems } from './locale-declarations.js';
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
 const MODEL_READ = 'model:read', MODEL_INVOKE = 'model:invoke';
 
-type DerivedEffects = Pick<SandboxEffects, 'artifacts' | 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
+type DerivedEffects = Pick<SandboxEffects, 'scenes' | 'artifacts' | 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 const HOME_READ = 'home-database:read', HOME_WRITE = 'home-database:write', FILE_READ = 'owner-files:read', FILE_WRITE = 'owner-files:write';
 
 /**
@@ -94,6 +95,7 @@ function serviceRows(effects: DerivedEffects | undefined, shape = false): Array<
   if (effects.model?.includes('read') || effects.modelSettings?.includes('read')) add(MODEL_READ, '查看有哪些模型可用，不调用模型');
   if (effects.model?.includes('invoke')) add(MODEL_INVOKE, '调用你配置的模型');
   if (effects.modelSettings?.includes('save')) add(MODEL_INVOKE, '在你启用的模型里选一个给它用');
+  if (effects.scenes?.length) { add('scenes:use', '使用此插件的判断场景'); add(MODEL_INVOKE, '运行所选判断规则可能使用模型'); }
   if (effects.artifacts?.includes('read')) add('artifact:read', '查看此插件已保存的成果版本');
   if (effects.artifacts?.includes('write')) add('artifact:write', '保存此插件声明的成果版本');
   const images = effects.imageGeneration;
@@ -230,8 +232,10 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   const stateMachines = input.contract?.state_machines === undefined ? input.stateMachines : contractStateMachines(input.contract);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actionIdentity = input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 };
-  const actions = input.contract && (input.contract.presentation !== undefined || input.contract.settings_entries !== undefined || input.contract.read_groups !== undefined || input.contract.operations.some(operation =>
-    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.action_protocol !== undefined || operation.trusted_review !== undefined
+  const scenes = input.contract ? sandboxScenes(input.contract, actionIdentity.buildId) : [];
+  if (scenes.length && input.runtime?.scope === "home" && !input.runtime.dual_instance) throw pluginErrors.declaration_invalid("判断场景需要项目实例");
+  const actions = input.contract && (input.contract.agent_scenario !== undefined || input.contract.presentation !== undefined || input.contract.settings_entries !== undefined || input.contract.read_groups !== undefined || input.contract.operations.some(operation =>
+    operation.effects.scenes?.length || operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.action_protocol !== undefined || operation.trusted_review !== undefined
     || operation.start !== undefined || operation.title_text !== undefined || operation.description_text !== undefined))
     ? sandboxOperationActions({ contract: input.contract, ...actionIdentity,
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project', dualInstance: input.runtime?.scope === 'home' && input.runtime.dual_instance === true,
@@ -292,6 +296,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ...source,
     ...sandboxResources({ ...input, effects: appEffects }),
     permissions: withPermissionReasons([{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(appEffects)], permissionReasons),
+    ...(scenes.length ? { action_scenes: scenes } : {}),
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: products, consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],

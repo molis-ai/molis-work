@@ -85,7 +85,7 @@ type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
 export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'projects' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'imageGeneration' | 'artifacts' | 'background'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
-export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
+export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network' | 'scenes'> & {
   /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
   instructions?: readonly InstructionPrompt[];
   /** The lane the activation's background runs go to (a second process of the same package, owned by whoever started the first), PG-017 P3. Without it `background.start` is unavailable. */
@@ -102,6 +102,7 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
   if (!storage) throw new SandboxError('sandbox.storage_unavailable', '插件存储尚未装配');
   return {
     storage: storageTransactions(storage),
+    ...(extras.scenes ? { scenes: extras.scenes } : {}),
     ...(host.artifacts ? { artifacts: sandboxArtifacts(host.artifacts) } : {}),
     ...(host.project_statements ? { projectDatabase: sandboxDatabase(host.project_statements) } : {}),
     ...(host.database_statements ? { homeDatabase: sandboxDatabase(host.database_statements) } : {}),
@@ -144,7 +145,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn', sync: 'refused', savedHistory: 'refused',
   database: 'entry', files: 'entry', imageGeneration: 'given',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'given', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'given', judgments: 'refused', artifacts: 'given', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -205,8 +206,8 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['plugins:read']) },
   { service: 'actions', services: ['actions'], reason: 'Calling the actions of others (actions:delegate) is not given to sandboxed plugins: a sandboxed package is reached as the actions it declares and calls nothing back (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['actions:delegate']) },
-  { service: 'scenes', services: ['scenes'], reason: 'Binding and running the plugin\'s own consumption scenes (scenes:use) is not given to sandboxed plugins: it asks the Host\'s judgment functions as the caller of a running action, which a sandboxed package does not have (PG-032 P1).',
-    declared: (definition, held) => asksFor(definition, held, ['scenes:use']) },
+  { service: 'scenes', services: [], reason: 'Running a judgment requires a signed configurable scene and a command that names it (scenes:use).',
+    declared: (definition, held) => !definition.manifest.action_scenes?.length && asksFor(definition, held, ['scenes:use']) },
   { service: 'judgments', services: ['judgments'], reason: 'Reading and recording the judgment ledger of the plugin\'s own scenes (judgments:read, judgments:write) is not given to sandboxed plugins: the ledger is the Home\'s Functions library, outside a sandboxed package\'s project data (PG-032 P2).',
     declared: (definition, held) => asksFor(definition, held, ['judgments:read', 'judgments:write']) },
   { service: 'artifacts', services: ['processItems', 'events', 'inputs', 'outputs'], reason: 'Sandbox apps publish and read their own declared artifact types. Consuming other types, process items, ports and events are not available (PG-017 BL-494).',

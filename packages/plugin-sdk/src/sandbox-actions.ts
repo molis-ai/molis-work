@@ -7,6 +7,7 @@ import { TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } from '@molis-ai/molis-work-contract
 import { canonicalJsonText, isRecord } from './json-value.js';
 import { sandboxOperationPermissions } from './sandbox-manifest.js';
 import { sandboxActionProtocolAction, sandboxReadProtocolAction } from './sandbox-read-protocol.js';
+import { sandboxAgentTools } from './sandbox-agent-scenario.js';
 import { validTrustedReviewRow } from './action-declarations.js';
 
 /** The package identity already used for installed signed releases. It never depends on the running directory. */
@@ -143,12 +144,13 @@ export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "up
 export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project'; dualInstance?: boolean; upgradeOperation?: string; hasProjectDatabase?: boolean }): ActionDefinition[] {
   const problems = [...sandboxBackgroundProblems(input.contract), ...sandboxStartProblems(input.contract), ...reviewDeclarationProblems(input.contract, input.scope, input.dualInstance)];
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
+  const agentTools = sandboxAgentTools(input.contract, input.buildId);
   const scopeOf = (operation: SandboxOperationContract): 'home' | 'project' => {
     if (operation.action_protocol?.kind === 'workflow_receive') {
       if (input.scope === 'home' && !input.dualInstance) throw pluginErrors.declaration_invalid('workflow_receive needs a project installation or a project instance');
       return 'project';
     }
-    if (operation.effects.artifacts?.length || operation.read_protocol?.kind === 'artifact_preview') return 'project';
+    if (operation.effects.scenes?.length || operation.effects.artifacts?.length || operation.read_protocol?.kind === 'artifact_preview') return 'project';
     if (operation.read_protocol?.kind === 'work_terminal_prompt' || operation.read_protocol?.kind === 'resume_summary'
       || operation.action_protocol?.kind === 'placement_relation') return 'project';
     if (operation.project_instance) {
@@ -186,6 +188,8 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
         input_schema: { ...operation.input }, output_schema: { ...operation.output },
         ...(operation.external === undefined ? {} : { external: operation.external }),
         ...(operation.draft === undefined ? {} : { draft: operation.draft }),
+        ...(operation.effects.scenes?.length ? { execution: { cost: 'metered' as const } } : {}),
+        ...(agentTools.has(operation.id) ? { agent_scenario: agentTools.get(operation.id)! } : {}),
         ...startIntake(operation),
         ...(operation.trusted_review ? { requires_trusted_decision: true as const,
           trusted_decision_row: operation.trusted_review.row,

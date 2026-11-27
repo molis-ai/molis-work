@@ -7,6 +7,8 @@ import { pluginErrors, type PluginAppContribution, type PluginDefinition, type P
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { trustedDecisionSubmitted } from '@molis-ai/molis-work-kernel';
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance, pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
+import { installedPluginScene } from './installed-plugin-scenes.js';
+import { sandboxSceneId } from '@molis-ai/molis-work-plugin-sdk';
 import { exposedActionReference } from './installed-plugin-exposed-actions.js';
 import { rememberInstalledActionSource } from './installed-action-registration.js';
 import { isSandboxSourceOperation, type SandboxEffects, type SandboxIdentity, type SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -110,7 +112,7 @@ function effectsForHalf(effects: SandboxEffects, projectId: string | null | unde
     const { homeDatabase: _h, modelSettings: _m, imageGeneration: _i, ...projectEffects } = effects;
     return projectEffects;
   }
-  const { projectDatabase: _p, artifacts: _a, ...homeEffects } = effects;
+  const { projectDatabase: _p, artifacts: _a, scenes: _s, ...homeEffects } = effects;
   return homeEffects;
 }
 
@@ -168,7 +170,14 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         await beforeEffect();
         return lane.run(operationId, input, { ...control, beforeEffect, locale: host.backgroundLocale?.() });
       } };
-      const services = sandboxServicesFor(context.services, { ...host, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
+      const sceneClient = context.project_id ? context.services?.scenes : undefined;
+      const sceneRunner: SandboxServices['scenes'] = sceneClient && { async run(control, local, input) {
+        const sceneId = sandboxSceneId(release.buildId, local);
+        context.requireGrant('scenes:use');
+        await control.beforeEffect?.();
+        return await sceneClient.runScene({ scene_id: sceneId, version: 1 }, sceneId, input) as SandboxJson;
+      } };
+      const services = sandboxServicesFor(context.services, { ...host, scenes: sceneRunner, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256, contract: release.design.contract, grants: allowed, services,
@@ -185,6 +194,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
           installation: { scope: context.project_id ? 'project' : 'home', install_id: context.install_id,
             installation_generation: context.installation_generation, version: manifest.version, manifest_digest: manifestDigest } }) }],
       };
+      if (context.project_id && manifest.action_scenes?.length) contribution.action_scenes = manifest.action_scenes.map(scene => installedPluginScene(scene, context));
       if (owesSource && host.source) {
         const live = () => { context.requireGrant('storage:private'); host.assertLive?.(identity); };
         contribution.home_source = host.source(release, context, live, async (id, input, control) => {

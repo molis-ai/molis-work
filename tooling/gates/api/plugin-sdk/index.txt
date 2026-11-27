@@ -1262,7 +1262,7 @@ export declare function zonedParts(timeZone: string | undefined, { seconds, shor
 
 type Contract = Pick<SandboxPluginContract, "pluginId" | "operations" | "state_machines">;
 
-type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
+type DerivedEffects = Pick<SandboxEffects, 'artifacts' | 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 
 interface DocumentConflict {
     event: SyncEvent;

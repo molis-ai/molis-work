@@ -322,26 +322,26 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
         write_operation: "settings.write",
       },
       operations: [
-        { id: "artifact.save", kind: "command", input: { type: "object", required: ["word"], properties: { word: { type: "string" } }, additionalProperties: false },
+        { id: "artifact.save", kind: "command", ui_event: "card-saved", input: { type: "object", required: ["word"], properties: { word: { type: "string" } }, additionalProperties: false },
           output: { type: "string" }, effects: { artifacts: ["write"] }, errors: [], examples: [{ input: { word: "example" }, output: "standing-card-one" }] },
         { id: "artifact.preview", kind: "query", read_protocol: { kind: "artifact_preview" }, input: previewArtifact.action.input_schema, output: previewArtifact.action.output_schema!,
           effects: { artifacts: ["read"] }, errors: [], examples: [{ input: { artifact: {} }, outputIncludes: {} }] },
         ...(["health", "poll"] as const).map(name => ({ id: SANDBOX_INTEGRATION_OPERATIONS[name], ...structuredClone(SANDBOX_INTEGRATION_CONTRACT[name]), errors: [],
           examples: [{ input: { source_id: "one", config_json: "{}", has_connection: false, ...(name === "poll" ? { rebuild: false } : {}) }, outputIncludes: {} }] })),
         {
-          id: "settings.read", kind: "query", action_protocol: { kind: "settings", role: "read" },
+          id: "settings.read", project_instance: true, kind: "query", action_protocol: { kind: "settings", role: "read" },
           input: SETTINGS_READ_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
           errors: [], effects: { storage: ["read"] },
           examples: [{ input: { keys: ["greeting"] }, output: { values: [{ key: "greeting", revision: "1", state: "ok", value: "Welcome", source: "project" }] } }],
         },
         {
-          id: "settings.write", kind: "command", action_protocol: { kind: "settings", role: "write" },
+          id: "settings.write", project_instance: true, kind: "command", action_protocol: { kind: "settings", role: "write" },
           input: SETTINGS_WRITE_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
           errors: [{ code: "actions.conflict", description: "revision changed" }], effects: { storage: ["read", "write"] },
           examples: [{ input: { key: "greeting", layer: "project", change: { set: "Hi" }, expected_revision: "1", request_id: "r1" }, output: { values: [{ key: "greeting", revision: "2", state: "ok", value: "Hi", source: "project" }] } }],
         },
         {
-          id: "cards.read", kind: "query", read_protocol: { kind: "subject_context", subject_kind: kind.kind },
+          id: "cards.read", project_instance: true, kind: "query", read_protocol: { kind: "subject_context", subject_kind: kind.kind },
           input: reader.action.input_schema, output: reader.action.output_schema!, errors: [{ code: "actions.missing", description: "Card missing" }], effects: { storage: ["read"] },
           examples: [{ input: { subject_id: "card-1" }, output: { subject: { kind: kind.kind, id: "card-1" }, revision: "1", title: "Card", content: "Card", truncated: false } }],
         },
@@ -351,7 +351,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
           examples: [{ input: { title: "A", body: "Body", request_id: "one" }, output: { subject: { kind: kind.kind, id: "received-1" }, title: "A" } }],
         },
         {
-          id: "cards.search", kind: "query", read_protocol: { kind: "search_entries", kinds: [kind] },
+          id: "cards.search", project_instance: true, kind: "query", read_protocol: { kind: "search_entries", kinds: [kind] },
           input: search.action.input_schema, output: search.action.output_schema!, errors: [], effects: { storage: ["read"] },
           examples: [{ input: { cursor: null, limit: 10 }, output: { collection_revision: "1", next_cursor: null, entries: [] } }],
         },
@@ -398,7 +398,7 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
           examples: [{ input: { subject: { kind: "page", id: "p1" }, name: "New" }, output: { targets: [{ kind: "sandbox_card", id: "card-2" }] } }],
         },
       ],
-      pages: [{ id: "home", title: "沙箱样例", regions: [{ id: "main", title: "主区", operationIds: [] }] }],
+      pages: [{ id: "home", title: "沙箱样例", regions: [{ id: "main", title: "主区", operationIds: ["artifact.save"] }] }],
     };
     Object.assign(manifest, sandboxPluginManifest({
       pluginId: manifest.plugin_id, name: "Signed Sandbox Standing", version: manifest.version,
@@ -406,6 +406,8 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
     }));
     const parts: PluginComponentPlan[] = [
       { id: "title", pageId: "home", regionId: "main", intent: "heading", purpose: "标题", props: { title: "沙箱样例" } },
+      { id: "save", pageId: "home", regionId: "main", intent: "input", purpose: "Save card", props: { submitLabel: "Save card" },
+        submit: { operationId: "artifact.save", input: { word: { source: "form", field: "word" } } } },
     ];
     const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
@@ -437,6 +439,13 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   const preview = await projectClient.invoke(installCaller, ref(pluginInstallActions.preview), { bundle: signedStandingPackage(publisher) }) as { preview_id: string };
   await projectClient.invoke(installCaller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Sandbox Publisher" });
 
+  const homeInstall = home.host.homePlugins!.installation(SIGNED_SANDBOX_ID)!;
+  const overview = await home.web.get<{ plugins: { plugin_id: string; install_id: string }[] }>(`/projects/${project.project_id}/api/plugin-trust/overview`);
+  const projectInstall = overview.plugins.find(plugin => plugin.plugin_id === SIGNED_SANDBOX_ID)!;
+  for (const permission of ["artifact:read", "artifact:write"]) {
+    await home.web.post("/api/settings/plugin-permissions/set", { install_id: homeInstall.install_id, permission, granted: true });
+    await home.web.post(`/projects/${project.project_id}/api/plugin-trust/permissions/set`, { install_id: projectInstall.install_id, permission, granted: true });
+  }
   const person = await home.host.localPersonContext(project.reference);
   const views = (await projectClient.discover(person)).filter(item => item.provider.plugin_id === SIGNED_SANDBOX_ID);
   const byLocal = (localId: string) => views.find(item => item.action.local_id === localId)!;

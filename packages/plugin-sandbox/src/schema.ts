@@ -84,6 +84,8 @@ export function checkSandboxContract(contract: unknown, proposal = false, snapsh
     if (!id(op.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid operation id');
     if (op.kind !== 'query' && op.kind !== 'command') throw new SandboxError('sandbox.invalid_contract', 'Operation kind must be query or command');
     if (op.external !== undefined && op.external !== true) throw new SandboxError('sandbox.invalid_contract', 'Operation external must be true when declared');
+    if (op.project_instance !== undefined && (op.project_instance !== true || op.effects.homeDatabase?.length || op.effects.modelSettings?.length || op.effects.imageGeneration?.length)) throw new SandboxError('sandbox.invalid_contract', 'A project instance cannot declare Home-only effects');
+    if (op.ui_event !== undefined && (op.kind !== 'command' || typeof op.ui_event !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(op.ui_event))) throw new SandboxError('sandbox.invalid_contract', 'A component command may announce one local event name');
     if (op.draft !== undefined && op.draft !== true) throw new SandboxError('sandbox.invalid_contract', 'Operation draft must be true when declared');
     assertEffects(op.effects);
     const validate = operationValidator(op);

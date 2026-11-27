@@ -151,7 +151,10 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
     if (operation.effects.artifacts?.length || operation.read_protocol?.kind === 'artifact_preview') return 'project';
     if (operation.read_protocol?.kind === 'work_terminal_prompt' || operation.read_protocol?.kind === 'resume_summary'
       || operation.action_protocol?.kind === 'placement_relation') return 'project';
-    if (input.dualInstance && input.contract.home_source && !operation.effects.homeDatabase?.length && !operation.effects.modelSettings?.length && !operation.effects.imageGeneration?.length) return 'project';
+    if (operation.project_instance) {
+      if (input.scope === 'home' && !input.dualInstance) throw pluginErrors.declaration_invalid('project_instance requires a project instance');
+      return 'project';
+    }
     return input.dualInstance ? (operation.effects.projectDatabase?.length || operation.trusted_review !== undefined ? 'project' : 'home') : input.scope;
   };
   return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation && !(input.contract.home_source && isSandboxSourceOperation(operation.id))).map(operation => {

@@ -107,6 +107,10 @@ interface SandboxOperationFields {
   effects: SandboxEffects;
   /** Whether the operation sends content outside the Home. Separate from the effects it has permission to use. */
   external?: true;
+  /** Place an otherwise instance-neutral operation in the project half of a dual-instance application. */
+  project_instance?: true;
+  /** Local event name announced on this installation's Workbench stage after its component command succeeds. */
+  ui_event?: string;
   /** Its input is the person's unsent draft: the work records keep that it was saved, not its words (`ActionMetadata.draft`). */
   draft?: true;
   examples: SandboxOperationExample[];

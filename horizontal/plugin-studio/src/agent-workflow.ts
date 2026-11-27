@@ -256,12 +256,13 @@ export class AgentBuilderWorkflow {
         const startNew = requested && (picture.regenerate || !picture.requestId);
         const requestId = startNew ? randomUUID() : picture.requestId ?? id + ':' + proposal.id;
         const previous = startNew ? (picture.binding ? { status: 'drawing' as const, binding: picture.binding } : undefined) : proposal.mockup;
-        picture = { ...previous, status: 'drawing', requestId };
+        const prompt = previous?.prompt ?? mockupPrompt(proposal, instructions, locale);
+        picture = { ...previous, status: 'drawing', requestId, prompt };
         set(proposal.id, picture);
-        const result = await mockups.draw({ key: requestId, prompt: mockupPrompt(proposal, instructions, locale), previous,
+        const result = await mockups.draw({ key: requestId, prompt, previous,
           checkpoint(value) {
             abort.signal.throwIfAborted();
-            picture = { status: 'drawing', requestId, ...value };
+            picture = { status: 'drawing', requestId, prompt, ...value };
             set(proposal.id, picture);
           },
         }, abort.signal).catch(error => ({ reason: message(error) }));

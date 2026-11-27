@@ -57,7 +57,7 @@ export function releasePackages(directory: string, ids: ReadonlySet<string>, loc
         if (raw !== undefined) {
           const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(raw));
           const { manifest } = readKeptPackage(bundle.payload);
-          return manifest.plugin_id === pluginId && key_id === signature;
+          return manifest.kind === 'content' && manifest.plugin_id === pluginId && key_id === signature;
         }
         const draft = readReleaseFile(path.join(directory, pluginId + DRAFT_SUFFIX));
         if (draft === undefined) return false;

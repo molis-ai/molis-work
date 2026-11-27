@@ -128,7 +128,8 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
         ? () => pagePerson(context, project, page.signal) : undefined;
       const control = { project_id: page.project_id, signal: page.signal, assertCurrent: page.assertCurrent, beforeEffect, beforeBackgroundEffect, ...(person ? { person } : {}) };
       const result = submit && typeof component_id === "string"
-        ? await page.invoke({ ...control, mode: "component_submit", component_id, payload: body.payload })
+        ? await page.invoke({ ...control, mode: "component_submit", component_id, payload: body.payload,
+          onEvent: localName => response.setHeader("x-molis-plugin-event", localName) })
         : await page.invoke({ ...control, reference: body.reference as ActionReference, input: body.input, ...(availability ? { mode: "availability" } : {}) });
       sendLocalWebJson(response, 200, result); return true;
     }

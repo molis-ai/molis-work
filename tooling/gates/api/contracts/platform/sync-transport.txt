@@ -7,6 +7,7 @@ export interface PrivateValueReplicationOwner {
     assetKind: string;
     namespacePrefix: string;
     key: string;
+    upgradeStored?(raw: string): string | null;
     journal: readonly {
         array: string;
         id: string;

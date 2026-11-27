@@ -62,7 +62,7 @@ export interface AgentProposal {
   /** Enough contract and parts to render the proposal on the canvas; never built or validated as a plugin. */
   preview: { contract: SandboxPluginContract; parts: PluginComponentPlan[]; presentation?: PluginPresentation };
   /** A picture of the proposal, when an image service is configured (W7): drawn once, never retried. */
-  mockup?: { status: 'drawing' | 'ready' | 'failed'; requestId?: string; jobId?: string; imageId?: string; reason?: string; binding?: StudioImageBinding; regenerate?: true };
+  mockup?: { status: 'drawing' | 'ready' | 'failed'; requestId?: string; prompt?: string; jobId?: string; imageId?: string; reason?: string; binding?: StudioImageBinding; regenerate?: true };
 }
 export interface AgentBuildStep {
   id: string; agent: 'design' | 'ui' | 'code' | 'host'; action: string;

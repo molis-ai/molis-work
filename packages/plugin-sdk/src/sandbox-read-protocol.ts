@@ -143,8 +143,9 @@ function actionProtocolDefinitionOf(protocol: unknown, operation: SandboxProtoco
 export function sandboxActionProtocolAction(operation: SandboxProtocolOperation, identity: Identity = schemaIdentity): ActionDefinition {
   const imageRole = operation.action_protocol?.kind === 'image_generation' ? operation.action_protocol.role : undefined;
   const allowedAccess = operation.kind === 'query' ? ['read'] : ['read', 'write'];
-  if (operation.external !== undefined || operation.background_job !== undefined
+  if (operation.external !== undefined && imageRole !== 'generate' || operation.background_job !== undefined
     || Object.entries(operation.effects).some(([key, values]) => {
+      if (imageRole === 'generate' && key === 'networkDomains' && operation.effects.imageGeneration?.includes('generate')) return false;
       if (imageRole && key === 'imageGeneration') return !Array.isArray(values) || values.some(value => value !== 'read' && !(imageRole === 'generate' && value === 'generate'));
       return !localStores.has(key) || !Array.isArray(values) || values.some(value => !allowedAccess.includes(value));
     })) {
@@ -155,5 +156,5 @@ export function sandboxActionProtocolAction(operation: SandboxProtocolOperation,
     || canonicalJsonText(operation.output) !== canonicalJsonText(definition.action.output_schema)) {
     throw invalid('action_protocol input and output must be the platform schemas');
   }
-  return { ...definition, action: { ...definition.action, scheduling: 'concurrent', execution: { cost: imageRole === 'generate' ? 'metered' : 'none' } } };
+  return { ...definition, action: { ...definition.action, ...(operation.external ? { external: true as const } : {}), scheduling: 'concurrent', execution: { cost: imageRole === 'generate' ? 'metered' : 'none' } } };
 }

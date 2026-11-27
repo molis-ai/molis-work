@@ -82,7 +82,8 @@ export function frameRequestPayload(
 
 interface Active { controller: AbortController; reader?: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>; reading: boolean }
 /** The owner uses its existing request helper; the child's idempotency keys are namespaced to this page. */
-export function frameRequests(port: MessagePort, pageId: string, scope: FrameScope) {
+export function frameRequests(port: MessagePort, pageId: string, scope: FrameScope,
+  stage: { root: HTMLElement; pluginId: string; actionPath: string }) {
   const active = new Map<number, Active>();
   const send = (message: FrameAnswer, transfer: Transferable[] = []) => port.postMessage(message, transfer);
   const fail = (id: number, error: unknown) => { stop(id); if (scope.alive) send({ type: "fetch-error", id, message: error instanceof Error ? error.message : "Request failed" }); };
@@ -129,6 +130,10 @@ export function frameRequests(port: MessagePort, pageId: string, scope: FrameSco
         ...payload, key, as: "response", signal: AbortSignal.any([scope.signal, entry.controller.signal]) });
       scope.assertCurrent();
       if (!active.has(id)) return;
+      const announcement = response.headers.get("x-molis-plugin-event");
+      if (response.ok && method === "POST" && url.pathname === stage.actionPath && announcement && /^[a-z][a-z0-9-]{0,63}$/.test(announcement)) {
+        stage.root.dispatchEvent(new CustomEvent("plugin:" + stage.pluginId + "/" + announcement));
+      }
       entry.reader = response.body?.getReader();
       send({ type: "response", id, status: response.status, statusText: response.statusText, headers: [...response.headers] });
       if (!entry.reader) { active.delete(id); send({ type: "end", id }); }

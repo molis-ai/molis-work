@@ -110,7 +110,7 @@ function effectsForHalf(effects: SandboxEffects, projectId: string | null | unde
     const { homeDatabase: _h, modelSettings: _m, imageGeneration: _i, ...projectEffects } = effects;
     return projectEffects;
   }
-  const { projectDatabase: _p, ...homeEffects } = effects;
+  const { projectDatabase: _p, artifacts: _a, ...homeEffects } = effects;
   return homeEffects;
 }
 

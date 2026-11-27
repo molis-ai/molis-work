@@ -33,6 +33,9 @@ export type SandboxActionProtocol = {
     target?: PlacementRelationTarget;
     subject_kinds?: readonly string[];
 } | {
+    kind: 'image_generation';
+    role: import('./plugin-role-protocols.js').ImageGenerationRole;
+} | {
     kind: 'workflow_receive';
     title: string;
     icon: string;
@@ -440,6 +443,18 @@ export interface SandboxPluginContract {
     operations: SandboxOperationContract[];
     presentation?: PresentationDeclaration;
     settings_entries?: SandboxSettingsDeclaration;
+    artifact_types?: readonly {
+        artifact_type_id: string;
+        schema_version: number;
+        title: string;
+        preview_operation: string;
+        searchable_fields?: readonly string[];
+    }[];
+    home_source?: {
+        readonly integrations: readonly import('./plugin-integrations.js').PluginIntegrationDeclaration[];
+        readonly connection_services: readonly import('./plugin-integrations.js').PluginConnectionServiceDeclaration[];
+        readonly source_presentations?: readonly string[];
+    };
     entities: Array<{
         id: string;
         schema: SandboxSchema;
@@ -508,6 +523,8 @@ export type SandboxReadProtocol = {
 } | {
     kind: 'presentation_overview';
 } | {
+    kind: 'artifact_preview';
+} | {
     kind: 'search_entries';
     kinds: readonly {
         kind: string;
@@ -558,7 +575,20 @@ export interface SandboxSdk {
             artifact_id: string;
             version: number;
         }): Promise<SandboxJson>;
-        put(value: SandboxJson): Promise<SandboxJson>;
+        put(value: {
+            artifact_id: string;
+            version: number;
+            artifact_type_id: string;
+            schema_version: number;
+            title: string;
+            media_type: string;
+            subject: {
+                kind: string;
+                id: string;
+            };
+            revision: string;
+            payload: SandboxJson;
+        }): Promise<SandboxJson>;
     };
     capability: {
         call(id: string, input: SandboxJson): Promise<SandboxJson>;
@@ -696,6 +726,8 @@ export type SandboxWorkerMessage = {
     args: SandboxJson[];
 };
 
+export declare function isSandboxSourceOperation(id: string): boolean;
+
 // Declarations the exports above refer to, which no entry exports itself:
 
 interface SandboxOperationFields {
@@ -709,6 +741,8 @@ interface SandboxOperationFields {
     }>;
     effects: SandboxEffects;
     external?: true;
+    project_instance?: true;
+    ui_event?: string;
     draft?: true;
     examples: SandboxOperationExample[];
 }

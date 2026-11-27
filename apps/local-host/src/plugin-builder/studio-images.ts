@@ -63,7 +63,9 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
       const record = recordOf(scope, provider.plugin_install_id!);
       if (!record || record.state !== 'running') continue;
       const owner = { ...installedStageIdentity(scope, record), provider_id: provider.provider_id, project_id: options.projectId, connection_id: '' };
-      const listed = await invoke<{ connections: Service[] }>(group, 'services.list', {}, owner, signal);
+      let listed: { connections: Service[] };
+      try { listed = await invoke<{ connections: Service[] }>(group, 'services.list', {}, owner, signal); }
+      catch (error) { signal?.throwIfAborted(); if (!(error instanceof ActionError)) throw error; continue; }
       const connection = listed.connections.find(item => item.available !== false);
       if (connection) return { group, owner: { ...owner, connection_id: connection.id } };
     }

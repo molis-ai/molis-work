@@ -21,18 +21,20 @@ function previewWordsAreValid(candidate: AgentProposal): boolean {
   const picture = candidate?.mockup;
   if (picture === undefined) return true;
   if (!isRecord(picture) || !['drawing','failed','ready'].includes(picture.status)
-    || Object.keys(picture).some(key => !['status','jobId','imageId','reason','binding','regenerate','requestId'].includes(key))) return false;
+    || Object.keys(picture).some(key => !['status','jobId','imageId','reason','binding','regenerate','requestId','prompt'].includes(key))) return false;
   const binding = picture.binding;
   if (binding !== undefined && (!isRecord(binding) || !['home','project'].includes(binding.scope)
     || Object.keys(binding).sort().join(',') !== 'connection_id,install_id,installation_generation,manifest_digest,project_id,provider_id,scope,version'
-    || ![binding.install_id,binding.installation_generation,binding.version,binding.manifest_digest,binding.provider_id,binding.project_id,binding.connection_id].every(identity))) return false;
+    || ![binding.install_id,binding.installation_generation,binding.version,binding.manifest_digest,binding.provider_id,binding.project_id].every(identity) || !imageIdentity(binding.connection_id))) return false;
+  if (picture.prompt !== undefined && (typeof picture.prompt !== 'string' || !picture.prompt.length || picture.prompt.length > 32000)) return false;
   if (picture.requestId !== undefined && !identity(picture.requestId) || picture.regenerate !== undefined && picture.regenerate !== true
     || picture.reason !== undefined && typeof picture.reason !== 'string') return false;
-  if (picture.jobId !== undefined && (!binding || !identity(picture.jobId))) return false;
-  if (picture.imageId !== undefined && (!picture.jobId || !identity(picture.imageId))) return false;
+  if (picture.jobId !== undefined && (!binding || !imageIdentity(picture.jobId))) return false;
+  if (picture.imageId !== undefined && (!picture.jobId || !imageIdentity(picture.imageId))) return false;
   return picture.status !== 'ready' || Boolean(picture.binding && picture.requestId && picture.jobId && picture.imageId);
  } catch { return false; }
 }
+const imageIdentity=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=256;
 const identity=(value:unknown):value is string=>typeof value==='string'&&!!value.trim()&&value.length<=200;
 const revision=(value:unknown):value is number=>Number.isSafeInteger(value)&&Number(value)>0;
 export function nextBuilderRevision(value:number):number{

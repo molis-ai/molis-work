@@ -213,7 +213,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-not-ready", '这个方案还没有效果图')); return true; }
       const image = picture.binding && await studio.mockupImage!(picture.jobId, picture.imageId, picture.binding).catch(() => null);
       if (!image) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-unreadable", '效果图读取失败')); return true; }
-      response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
+      response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
     }
     if (route === '/state' && method === 'GET') {
       const raw = studio.storage.get(INSTALLED_MODEL_KEY);

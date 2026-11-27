@@ -3091,6 +3091,202 @@ export declare const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, {
 
 export declare const IMAGE_GENERATION_ROLES: readonly ["services.list", "generate", "generations.get", "image.read"];
 
+export declare const IMAGE_GENERATION_SCHEMAS: {
+    readonly "services.list": {
+        readonly input: {
+            readonly type: "object";
+            readonly properties: {};
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+        readonly output: {
+            readonly type: "object";
+            readonly properties: {
+                connections: {
+                    type: string;
+                    items: {
+                        readonly type: "object";
+                        readonly properties: {
+                            id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                                readonly maxLength: 256;
+                            };
+                            available: {
+                                type: string;
+                            };
+                        };
+                        readonly required: string[];
+                        readonly additionalProperties: false;
+                    };
+                };
+            };
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly generate: {
+        readonly input: {
+            readonly type: "object";
+            readonly properties: {
+                request_id: {
+                    maxLength: number;
+                    type: "string";
+                    minLength: 1;
+                };
+                connection_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 256;
+                };
+                prompt: {
+                    type: string;
+                    minLength: number;
+                    maxLength: number;
+                };
+            };
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+        readonly output: {
+            readonly type: "object";
+            readonly properties: {
+                job: {
+                    readonly type: "object";
+                    readonly properties: {
+                        id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                            readonly maxLength: 256;
+                        };
+                        connection_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                            readonly maxLength: 256;
+                        };
+                        status: {
+                            enum: string[];
+                        };
+                        images: {
+                            type: string;
+                            items: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    id: {
+                                        readonly type: "string";
+                                        readonly minLength: 1;
+                                        readonly maxLength: 256;
+                                    };
+                                };
+                                readonly required: string[];
+                                readonly additionalProperties: false;
+                            };
+                        };
+                        error: {
+                            type: string;
+                        };
+                    };
+                    readonly required: string[];
+                    readonly additionalProperties: false;
+                };
+            };
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly "generations.get": {
+        readonly input: {
+            readonly type: "object";
+            readonly properties: {
+                id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 256;
+                };
+            };
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+        readonly output: {
+            readonly type: "object";
+            readonly properties: {
+                job: {
+                    readonly type: "object";
+                    readonly properties: {
+                        id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                            readonly maxLength: 256;
+                        };
+                        connection_id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
+                            readonly maxLength: 256;
+                        };
+                        status: {
+                            enum: string[];
+                        };
+                        images: {
+                            type: string;
+                            items: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    id: {
+                                        readonly type: "string";
+                                        readonly minLength: 1;
+                                        readonly maxLength: 256;
+                                    };
+                                };
+                                readonly required: string[];
+                                readonly additionalProperties: false;
+                            };
+                        };
+                        error: {
+                            type: string;
+                        };
+                    };
+                    readonly required: string[];
+                    readonly additionalProperties: false;
+                };
+            };
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+    };
+    readonly "image.read": {
+        readonly input: {
+            readonly type: "object";
+            readonly properties: {
+                id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 256;
+                };
+                image_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                    readonly maxLength: 256;
+                };
+            };
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+        readonly output: {
+            readonly type: "object";
+            readonly properties: {
+                base64: {
+                    type: string;
+                };
+                mime_type: {
+                    type: string;
+                };
+            };
+            readonly required: string[];
+            readonly additionalProperties: false;
+        };
+    };
+};
+
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
 export declare const ITEM_DECLARATION_LIMITS: {

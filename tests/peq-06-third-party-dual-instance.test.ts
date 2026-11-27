@@ -2,10 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
-import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { readRecords } from "@molis-ai/molis-work-service-observation";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { attachConversationFile, holdsConversationAttachment, pluginInstallActions, readSandboxPackage, sandboxImageNamespace, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, refused } from "./fixtures/home-sandbox.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -20,7 +27,7 @@ const PROJECT_SCHEMA = "CREATE TABLE dual_tasks (id INTEGER PRIMARY KEY, title T
 const HOME_DB_PERMS = ["storage:private", "home-database:read", "home-database:write"];
 const PROJECT_DB_PERMS = ["storage:private"];
 
-const DUAL_CODE = `export const operations = {
+const dualCode = (network: boolean) => `export const operations = {
   'home.add': async (input, sdk) => {
     await sdk.homeDatabase.transaction([{ sql: 'INSERT INTO home_notes(text) VALUES (?)', parameters: [input.text] }]);
     return true;
@@ -37,13 +44,13 @@ const DUAL_CODE = `export const operations = {
     const rows = await sdk.projectDatabase.all('SELECT CAST(id AS TEXT) AS id, title FROM dual_tasks ORDER BY id');
     return rows.map(row => ({ id: String(row.id), title: String(row.title) }));
   },
-  'project.ping': async () => 'ok',
+  ${network ? "'project.ping': async () => 'ok'," : ""}
 };
 `;
 
 function dualPackage(
   publisher = newPublisher(),
-  options: { pluginId?: string; version?: string; extraOptionalNetwork?: boolean } = {},
+  options: { pluginId?: string; version?: string; extraOptionalNetwork?: boolean; upgradesFrom?: string[]; freshDatabase?: boolean; projectConflict?: boolean } = {},
 ): PluginPackageBundle {
   return signedPackage(publisher, (files: PackageFiles, manifest: PluginManifest) => {
     const contract: SandboxPluginContract = {
@@ -100,10 +107,10 @@ function dualPackage(
       publisher: manifest.publisher,
       presentation: false,
       runtime: { scope: "home", dual_instance: true },
-      upgradesFrom: ["1.0.0"],
+      upgradesFrom: options.upgradesFrom ?? (options.freshDatabase ? [] : ["1.0.0"]),
       effects: effectsFromContract(contract),
-      homeDatabase: { version: 1, schema: HOME_SCHEMA },
-      projectDatabase: { version: 1, schema: PROJECT_SCHEMA },
+      homeDatabase: { version: 1, schema: HOME_SCHEMA + (options.freshDatabase ? "CREATE TABLE new_home_rows(id INTEGER PRIMARY KEY);" : "") },
+      projectDatabase: { version: 1, schema: PROJECT_SCHEMA + (options.projectConflict ? "CREATE TABLE project_root(id INTEGER PRIMARY KEY);" : options.freshDatabase ? "CREATE TABLE new_project_rows(id INTEGER PRIMARY KEY);" : "") },
     });
     Object.assign(manifest, rebuilt);
     const parts: PluginComponentPlan[] = [
@@ -111,7 +118,7 @@ function dualPackage(
     ];
     const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-    files[SANDBOX_PACKAGE_FILES.entrypoint] = DUAL_CODE;
+    files[SANDBOX_PACKAGE_FILES.entrypoint] = dualCode(options.extraOptionalNetwork === true);
     files[SANDBOX_PACKAGE_FILES.interface] = JSON.stringify({ parts, nodes });
   }, { pluginId: options.pluginId ?? DUAL_PLUGIN_ID, version: options.version ?? "1.0.0" });
 }
@@ -260,4 +267,132 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   assert.notEqual(h.host.homePlugins!.installation(DUAL_PLUGIN_ID)?.state, "running");
   assert.deepEqual(await operationsOf(h.homeClient(), homeCaller, DUAL_PLUGIN_ID), []);
   assert.deepEqual(await operationsOf(h.host.actionClient(projectA.reference), projectACaller, DUAL_PLUGIN_ID), []);
+});
+
+test("B47-K4 confirmed dual reinstall clears only its two databases, restoring both if the project cannot start", mac, async t => {
+  const h = await fixture(t), served = await serveTestHost(null, { home: h.home, host: h.host });
+  t.after(() => served.close());
+  const project = (await served.createProject("Reinstall here")).reference;
+  const other = await served.createProject("Other project");
+  const base = (id: string) => "/projects/" + encodeURIComponent(id) + "/api/plugin-trust";
+  const publisher = newPublisher(), original = dualPackage(publisher);
+  const preview = (bundle: PluginPackageBundle, id = project.project_id) =>
+    served.web.post<{preview_id: string; kept_data_incompatible: boolean}>(base(id) + "/install/preview", { bundle });
+  const confirm = (preview_id: string, discard?: boolean, id = project.project_id) =>
+    served.web.post<{retained_cleanup_incomplete?: boolean}>(base(id) + "/install/confirm", { preview_id, consent: true, pin_label: "Dual publisher", discard_kept_data: discard });
+  const homeCaller = {...h.homeCaller(), permissions: HOME_DB_PERMS};
+  const note = async (operation: string, input = {}) =>
+    operate(h.homeClient(), homeCaller, await operationsOf(h.homeClient(), homeCaller, DUAL_PLUGIN_ID), operation, input);
+  const task = async (place: typeof project, operation: string, input = {}) => {
+    const client = h.host.actionClient(place), caller = {...person(place.project_id), permissions: PROJECT_DB_PERMS};
+    return operate(client, caller, await operationsOf(client, caller, DUAL_PLUGIN_ID), operation, input);
+  };
+  const keep = async () => {
+    const primary = await served.web.get<{plugins: PluginInstalledView[]}>(base(project.project_id) + "/overview");
+    const personal = await served.web.post<{plugins: PluginInstalledView[]}>("/api/settings/plugin-permissions/list", {});
+    for (const [url, plugins] of [[base(project.project_id) + "/installed/uninstall", primary.plugins], ["/api/settings/plugin-permissions/uninstall", personal.plugins]] as const) {
+      const target = plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!.uninstall_target;
+      await served.web.post(url, { plugin_id: DUAL_PLUGIN_ID, keep_data: true, target });
+    }
+  };
+  await confirm((await preview(original)).preview_id);
+  await h.switchOn(DUAL_PLUGIN_ID, "home-database:read", "home-database:write");
+  await note("home.add", { text: "Personal notes" });
+  await task(project, "project.add", { title: "Project notes" });
+  await confirm((await preview(original, other.project_id)).preview_id, undefined, other.project_id);
+  await task(other.reference, "project.add", { title: "Other project" });
+  const listHome = async () => (await served.web.post<{plugins: PluginInstalledView[]}>("/api/settings/plugin-permissions/list", {})).plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!;
+  const installId = (await listHome()).install_id;
+  const roots = [h.home, partitionRoot(h.home, project.project_id)].map(root => join(root, "plugin-files", installId));
+  for (const root of roots) {
+    mkdirSync(root, {recursive: true});
+    writeFileSync(join(root, "note"), "Old file");
+  }
+  const layer = h.host.observation!.layer;
+  const fact = DUAL_PLUGIN_ID + ".saved";
+  const ctx = {...person(project.project_id), actor_kind: "runtime" as const, audience: "plugin" as const,
+    host_plugin: {plugin_id: DUAL_PLUGIN_ID, install_id: installId, actor_id: "notes", project_id: project.project_id,
+      declaration: {manifest: readSandboxPackage(original.payload).manifest}, assertActive() {}}};
+  await layer.reportAction(() => {}).handler.handle({...ctx, beforeEffect: async () => {}}, {facts: [{fact, outcome: "succeeded"}]});
+  const oldReports = () => {
+    layer.flush();
+    return readRecords(layer.writer.database()!.db, {fact, project_id: project.project_id}).length;
+  };
+  assert.equal(oldReports(), 1);
+  const image = sandboxImageNamespace(installId);
+  const connection = withConnectorConnections(h.home, store => {
+    const account = store.createToken({serviceId: "image-api", displayName: "Notes", token: "sample-token"});
+    store.bind({scopeId: "home", pluginId: image, slotId: "cover", serviceId: "image-api", connectionId: account.connection_id});
+    return account.connection_id;
+  });
+  const bound = () => withConnectorConnections(h.home, store => store.binding("home", image, "cover")?.connection_id);
+
+  await keep();
+
+  const next = dualPackage(publisher, {version: "3.0.0", freshDatabase: true});
+  const refusedPreview = await preview(next);
+  assert.equal(refusedPreview.kept_data_incompatible, true);
+  await assert.rejects(confirm(refusedPreview.preview_id), { code: "plugin.kept_data_incompatible" });
+  const conflict = dualPackage(publisher, {version: "2.0.0", freshDatabase: true, projectConflict: true});
+  await assert.rejects(confirm((await preview(conflict)).preview_id, true), { code: "actions.execution_failed" });
+  for (const root of roots) assert.equal(readFileSync(join(root, "note"), "utf8"), "Old file");
+  assert.equal(bound(), connection);
+  assert.equal(oldReports(), 1);
+
+  // A protected click still cannot discard data the preview never asked the person to give up.
+  const sameEdition = await preview(original);
+  assert.equal(sameEdition.kept_data_incompatible, false);
+  await assert.rejects(confirm(sameEdition.preview_id, true), { code: "plugin.preview_unknown" });
+  // Reopen the old signed edition through the normal door and read both original records.
+  await confirm((await preview(original)).preview_id);
+  await h.switchOn(DUAL_PLUGIN_ID, "home-database:read", "home-database:write");
+  assert.deepEqual(await note("home.list"), [{id: "1", text: "Personal notes"}]);
+  assert.deepEqual(await task(project, "project.list"), [{id: "1", title: "Project notes"}]);
+  await keep();
+
+  await confirm((await preview(next)).preview_id, true);
+  for (const root of roots) assert.equal(existsSync(join(root, "note")), false);
+  assert.equal(bound(), undefined);
+  assert.equal(oldReports(), 0);
+
+  await h.switchOn(DUAL_PLUGIN_ID, "home-database:read", "home-database:write");
+  assert.deepEqual(await note("home.list"), []);
+  assert.deepEqual(await task(project, "project.list"), []);
+  assert.equal(await note("home.add", {text: "New note"}), true);
+  assert.equal(await task(project, "project.add", {title: "New task"}), true);
+  assert.deepEqual(await h.host.withProject(other.reference, runtime =>
+    runtime.store.db.prepare<[], {title: string}>("SELECT title FROM dual_tasks").all().map(row => row.title)), ["Other project"]);
+
+  // B47-K4: another project kept v1, while the shared Home now runs v3. A bad project replacement must leave v3 serving its notes.
+  const otherBase = base(other.project_id);
+  const old = (await served.web.get<{plugins: PluginInstalledView[]}>(otherBase + "/overview")).plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!;
+  await served.web.post(otherBase + "/installed/uninstall", {plugin_id: DUAL_PLUGIN_ID, keep_data: true, target: old.uninstall_target});
+  const mixed = (version: string, projectConflict: boolean) => dualPackage(publisher, {version, freshDatabase: true, upgradesFrom: ["3.0.0"], projectConflict});
+  const otherPreview = await preview(mixed("4.0.0", true), other.project_id);
+  assert.equal(otherPreview.kept_data_incompatible, true);
+  await assert.rejects(confirm(otherPreview.preview_id, true, other.project_id), { code: "actions.execution_failed" });
+  assert.equal((await listHome()).version, "3.0.0");
+  assert.deepEqual(await note("home.list"), [{id: "1", text: "New note"}]);
+  assert.deepEqual(await h.host.withProject(other.reference, runtime =>
+    runtime.store.db.prepare<[], {title: string}>("SELECT title FROM dual_tasks").all().map(row => row.title)), ["Other project"]);
+  const valid = await preview(mixed("5.0.0", false), other.project_id);
+  // A late failure in an auxiliary owner leaves both new versions installed and reports the incomplete deletion.
+  const owner = {plugin_id: DUAL_PLUGIN_ID, install_id: installId, project_id: other.project_id};
+  const attachment = await attachConversationFile(h.home, owner, {file_name: "old.txt", data_base64: Buffer.from("old attachment").toString("base64")});
+  const attachments = new DatabaseSync(homeSqlitePath(h.home, "conversation-attachments"));
+  try {
+    attachments.exec("CREATE TRIGGER hold_old_attachment BEFORE DELETE ON attachments BEGIN SELECT RAISE(ABORT, 'storage unavailable'); END");
+    assert.equal((await confirm(valid.preview_id, true, other.project_id)).retained_cleanup_incomplete, true);
+    assert.equal(holdsConversationAttachment(h.home, owner, attachment.ref), true);
+    attachments.exec("DROP TRIGGER hold_old_attachment");
+  } finally { attachments.close(); }
+  assert.equal((await listHome()).version, "5.0.0");
+  assert.deepEqual(await note("home.list"), [{id: "1", text: "New note"}]);
+  assert.deepEqual(await task(other.reference, "project.list"), []);
+  const replaced = (await served.web.get<{plugins: PluginInstalledView[]}>(otherBase + "/overview")).plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!;
+  assert.equal(replaced.version, "5.0.0");
+  await served.web.post(otherBase + "/installed/uninstall", {plugin_id: DUAL_PLUGIN_ID, keep_data: false, target: replaced.uninstall_target});
+  assert.equal(holdsConversationAttachment(h.home, owner, attachment.ref), false);
+
+
 });

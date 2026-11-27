@@ -209,12 +209,15 @@ export function forgetInstallationPlatformRecords(home: string, installId: strin
     const index = new OverviewService(openOverviewIndex({ homeDirectory: home }));
     try { index.removeInstall(installId, partition); } finally { index.close(); }
   });
-  if (!options.dataGoes) return;
+  if (options.dataGoes) forgetRetainedPlatformRecords(home, installId, partition, options.installedElsewhere);
+}
+
+export function forgetRetainedPlatformRecords(home: string, installId: string, partition: string | undefined, installedElsewhere: boolean): void {
   ifStore(home, EVIDENCE_STORE, () => {
     const ledger = openEvidenceLedger(home);
     try { ledger.releaseInstall(installId, partition); } finally { ledger.close(); }
   });
-  if (options.installedElsewhere) return;
+  if (installedElsewhere) return;
   ifStore(home, PERSON_SETTINGS_STORE, () => {
     const settings = openPersonSettings(home);
     try { settings.clearInstall(installId); } finally { settings.close(); }

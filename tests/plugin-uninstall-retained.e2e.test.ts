@@ -12,6 +12,9 @@ import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platf
 import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { chooseWithKeyboard, checkDiscardChoice, retainedSheetNotes, switchSettingsLanguage } from "./fixtures/install-sheet.js";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { fixture, homePackage, mac, operate, operationsOf } from "./fixtures/home-sandbox.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
@@ -90,6 +93,26 @@ test("BL-915 B27-UN-02 B27-UN-04 B27-UN-05 the 插件 page shows what an uninsta
   const open = (name: string) => page.evaluate(`[...document.querySelectorAll('[data-plugin-trust-home] details')].find(d => d.querySelector('summary').textContent.includes(${JSON.stringify(name)})).open = true`);
 
   await open("Kept notes");
+  // B47-K3: switch the same open Settings page across all three languages without replacing either installation row.
+  const { plugins } = await served.web.get<{ plugins: { install_id: string; trust: string; state: string }[] }>(`/projects/${project.project_id}/api/plugin-trust/overview`);
+  const shipped = plugins.find(row => row.trust === "host" && (row.state === "running" || row.state === "installed"));
+  assert.ok(shipped);
+  await page.evaluate(`window.projectStatus = document.getElementById(${JSON.stringify("plugin-trust-description-project-" + shipped.install_id)}).querySelector("span");
+    window.keptSummary = document.querySelector('[data-plugin-trust-home] details[open] summary'); window.keptSummary.focus();`);
+  for (const [lang, trust, pinned, running, installed] of [
+    ["en", "Shipped with Molis Work", "A publisher you pinned", "Running", "Installed"],
+    ["ja", "Molis Work同梱", "固定済みの公開者", "実行中", "インストール済み"],
+    ["zh", "随 Molis Work 提供", "你固定的发布者", "运行中", "已安装"],
+  ] as const) {
+    await switchSettingsLanguage(page, lang);
+    const projectText = trust + " · " + (shipped.state === "running" ? running : installed);
+    const homeText = pinned + " · Test publisher · " + running;
+    await page.wait(`document.documentElement.lang.startsWith(${JSON.stringify(lang)}) && window.projectStatus.isConnected &&
+      window.projectStatus.textContent === ${JSON.stringify(projectText)} &&
+      window.keptSummary.querySelector(".setting-copy > span").textContent === ${JSON.stringify(homeText)}`,
+      { describe: '[window.projectStatus?.textContent, window.keptSummary?.textContent, document.documentElement.lang]' });
+    assert.ok(await page.evaluate("document.activeElement === window.keptSummary && window.keptSummary.closest('details').open"));
+  }
   await press("[data-plugin-trust-home]", "卸载并删除数据");
   await press("dialog[open]", "卸载并删除数据");
   await page.wait("document.querySelector('[data-plugin-trust-home] .plugin-trust-result') !== null", { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });
@@ -214,4 +237,37 @@ test("BL-915 B27-UN-02 B27-UN-04 B27-UN-05 the 插件 page shows what an uninsta
   await page.wait(`![...document.querySelectorAll('[data-plugin-trust-list] summary')].some(s => s.textContent.includes(${JSON.stringify(projectName)}))`, { describe: "document.querySelector('[data-plugin-trust-list]')?.innerText" });
   assert.equal(await page.evaluate("document.querySelector('[data-plugin-trust-list] .plugin-trust-result')"), null, "nothing was left in the project, so nothing is listed");
   assert.equal(existsSync(join(projectOutside, projectInstall)), true, "the folder outside the Home was never deleted through the link");
+});
+
+test("B47-K2 B47-K3 importing a signed package in Settings keeps or discards real notes in three languages and widths", { ...mac, timeout: 300_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  const ref = molisWorkHostProjectReference({ projectId: browser.projectId!, databasePath: browser.databasePath });
+  const rig = await retainedSheetNotes(browser.localHost!, ref, browser.web);
+  const panel = "[data-plugin-trust-preview]", discard = panel + " .mw-btn--danger";
+  for (const width of [1440, 1024, 390]) for (const lang of ["zh", "en", "ja"] as const) {
+    await browser.setViewport(width, 960);
+    const { next, before, saved } = await rig.uninstallKeepingNote();
+    // Open Settings after the fixture uninstalls, so its list shows the same state as a person importing the replacement.
+    await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + `/projects/${ref.project_id}/settings/plugins` }, browser.sessionId));
+    await browser.waitFor("document.querySelector('[data-plugin-trust-bound]')");
+    for (const proceed of [false, true]) {
+      // Deliver the selected file to the same file input the system picker uses.
+      await browser.evaluate(`(() => { const input = document.querySelector('[data-plugin-trust-pick]'), files = new DataTransfer();
+        files.items.add(new File([${JSON.stringify(JSON.stringify(next))}], 'notes.json', { type: 'application/json' }));
+        input.files = files.files; input.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+      await browser.waitFor(`document.querySelector('${panel} .mw-btn--primary')`);
+      await browser.click(panel + " .mw-btn--primary");
+      await browser.waitFor(`document.querySelector('${discard}') && document.activeElement.matches('[data-install-focus]')`);
+      if (!proceed) await checkDiscardChoice(browser, lang, width, discard, "settings", next);
+      const choice = proceed ? discard : panel + " .mw-btn--secondary";
+      if (width === 1024 && lang === "en") await chooseWithKeyboard(browser, choice);
+      else await browser.click(choice);
+      await browser.waitFor(`document.querySelector('${panel}').hidden`);
+      if (proceed) assert.deepEqual(await rig.notes("notes.list"), []);
+      else {
+        assert.deepEqual(await saved(), before);
+        assert.ok(await browser.evaluate("document.activeElement.matches('[data-plugin-trust-choose]')"));
+      }
+    }
+  }
 });

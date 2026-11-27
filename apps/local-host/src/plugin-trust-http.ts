@@ -6,7 +6,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp, matchesNativePluginPrefix } from "./native-plugin-http.js";
-import { withPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
+import { withPackageDiscardEntry, withPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -78,7 +78,16 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
       }
       if (route === "bundled/list") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.bundled, {}) };
       if (route === "install/preview") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.preview, body) };
-      if (route === "install/confirm") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.confirm, body) };
+      if (route === "install/confirm") {
+        if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人确认安装");
+        if (body.discard_kept_data === true && typeof body.preview_id === "string") {
+          const caller = await personContext();
+          const { capability_id, version } = pluginInstallActions.confirm;
+          return { status: 200, body: await withPackageDiscardEntry(body.preview_id, user_action =>
+            client.invoke({ ...caller, user_action }, { capability_id, version, provider_id: PLUGIN_INSTALL_PROVIDER_ID }, body)) as object };
+        }
+        return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.confirm, body) };
+      }
       if (route === "installed/disable") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.disable, body) };
       if (route === "installed/enable") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.enable, body) };
       if (route === "installed/uninstall" || route === "installed/repair") {

@@ -4,7 +4,7 @@ import type { PluginDefinition, PluginImageGenerationClient, PluginImageGenerati
 import { createPluginImageGenerationClient, type PluginImageGenerationPort } from "@molis-ai/molis-work-plugin-runtime";
 import { SANDBOX_IMAGE_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { sandboxNotAuthorized, sandboxResponseTooLarge } from "@molis-ai/molis-work-plugin-sandbox";
-import { forgetConnectorPluginBindings, withConnectorConnections } from "./connector-connection-store.js";
+import { forgetConnectorPluginBindings, stageConnectorPluginBindings, withConnectorConnections } from "./connector-connection-store.js";
 import type { PluginPlatformHome } from "./home-side.js";
 import { createPluginImageGenerationPort } from "./plugin-image-generation-service.js";
 import { imageBaseUrl, imageConnectionSnapshot, imagePortErrors } from "./plugin-image-connections.js";
@@ -76,4 +76,8 @@ export function sandboxImageGenerationFor(home: Pick<PluginPlatformHome, "direct
 /** An uninstall that keeps no data: every binding of the package's image slots goes; the person's accounts stay. */
 export function forgetSandboxImageBindings(home: string, installId: string): void {
   forgetConnectorPluginBindings(home, "home", sandboxImageNamespace(installId));
+}
+
+export function stageSandboxImageBindings(home: string, installId: string) {
+  return stageConnectorPluginBindings(home, "home", sandboxImageNamespace(installId));
 }

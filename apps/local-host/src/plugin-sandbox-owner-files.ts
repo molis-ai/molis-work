@@ -1,4 +1,4 @@
-import { lstatSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginDefinition, type PluginOwnerFilesClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -85,6 +85,38 @@ export function partitionOwnerFilesFor(scope: SandboxOwnerFilesScope & { readonl
     throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 的文件只给它在这个分区里的实例`);
   }
   return ownFiles(scope, definition, context, assertActive, true);
+}
+
+/** Hold the previous installation's files out of reach until the signed replacement finishes. */
+export function stageSandboxOwnerFiles(home: string, projectId: string | null, installId: string) {
+  const root = sandboxOwnerFilesRoot(home, projectId);
+  const base = sandboxOwnerFilesBase(home, projectId, installId);
+  const check = () => assertOwnSandboxFilesPath(root, base);
+  check();
+  let backup: string | undefined;
+  if (lstatSync(base, { throwIfNoEntry: false })) {
+    backup = mkdtempSync(join(dirname(base), ".discard-"));
+    try { renameSync(base, join(backup, "files")); }
+    catch (error) {
+      rmSync(backup, { recursive: true, force: true });
+      throw error;
+    }
+  }
+  return {
+    restore() {
+      check();
+      removeSandboxOwnerFiles({ home: { directory: home }, project_id: projectId }, installId);
+      if (backup) {
+        assertOwnSandboxFilesPath(root, backup);
+        renameSync(join(backup, "files"), base);
+      }
+    },
+    close() {
+      if (!backup) return;
+      assertOwnSandboxFilesPath(root, backup);
+      rmSync(backup, { recursive: true, force: true });
+    },
+  };
 }
 
 export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: PluginDefinition,

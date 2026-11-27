@@ -5,10 +5,11 @@ import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { partitionRoot } from '@molis-ai/molis-work-module-projects';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -539,6 +540,15 @@ test('an install that fails over kept data puts the uninstalled record back exac
 
     // The person agreed to drop the old data and the install then failed: the record is the one the question was asked about.
     const v3 = fixture.next(3, undefined, { upgradesFrom: [], code: broken });   // reads no earlier version's data, and cannot start
+    // B47-K4: a synchronous files-owner refusal also leaves the original row, generation and private values intact.
+    const fileRoot = join(partitionRoot(home, fixture.ref.project_id), 'plugin-files');
+    await mkdir(fileRoot, {recursive: true});
+    const root = join(fileRoot, before.install_id), outside = await mkdtemp(join(home, 'unrelated-'));
+    await symlink(outside, root);
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: true }), {code: 'actions.forbidden'});
+    assert.deepEqual(row(installed), before);
+    assert.deepEqual(await rows(), data);
+    await rm(root);
     await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: true }), /安装没有完成/);
     assert.deepEqual(row(installed), before, 'same version, digest, installation generation and kept-data flag');
     assert.deepEqual(await rows(), data, 'and the same data');

@@ -40,7 +40,7 @@ PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新
 
 ## 接入与边界
 
-这是受信任的进程内执行，不是 OS sandbox。包签名验证认证 bytes 与受信公钥，不代表官方审核。普通卸载保留私人数据；成功执行不保留数据的卸载后，Host 还须调用 deleteInstallationData，不能顺手删除交换出的 Artifacts。
+这是受信任的进程内执行，不是 OS sandbox。包签名验证认证 bytes 与受信公钥，不代表官方审核。重新安装读不了旧数据的签名包时，本人可明确同意放弃当前安装的私有数据及业务库。项目库按旧签名包和归属登记清除该项目中它自己的表，个人空间插件按相同归属核对其独立库。普通卸载保留私人数据；成功执行不保留数据的卸载后，Host 还须调用 deleteInstallationData，不能顺手删除交换出的 Artifacts。
 
 清单摘要、签包字节和项目库形状比较共用 SDK 的 `canonicalJsonText(value, "null")`：所有层级的对象键按原始 UTF-16 码元排序，数组保序，未定义的标量沿原协议写成 `null`。签名原文和固定资料不因宿主语言而变化；签名字节能够验证不代表旧 Manifest 还能安装，现行清单版本与内容校验仍由解析器拒绝。
 

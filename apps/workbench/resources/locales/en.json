@@ -3,7 +3,7 @@
   "owner": "workbench",
   "locale": "en",
   "messages": {
-    "workbench.owner-unavailable.structure-mismatch": "The data structure differs from this version. Your file is intact. Back it up, then open it with a matching version or move the old database aside to start fresh.",
+    "workbench.owner-unavailable.structure-mismatch": "The data structure differs from this version. Your file is intact. Back it up and open it with a matching version. To start fresh, move the old database aside, then restart.",
     "workbench.material.article-text": "Only the public page text was read. Embedded media and images were skipped.",
     "workbench.material.video-note-text": "Only the note text was read. The video was not transcribed.",
     "common.error.subtitles-missing": "No usable public subtitles were found. Paste the subtitles to continue.",

@@ -410,12 +410,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
       const stage = button?.closest("[data-work-surface]"), parent = stage?.parentElement;
       const holder = parent?.matches("[data-tab-pane-body]") ? parent.parentElement?.parentElement : parent;
       const operation = button?.dataset.projectPluginRestart, pluginId = button?.dataset.restartPlugin;
+      const homeRecovery = stage?.matches('[data-home-plugin-unavailable="workbench"]') && operation === "restart"
+        && button?.previousElementSibling?.matches('[data-owner-unavailable="structure_mismatch"]');
       if (!button || button.disabled || !pluginId || !["restart", "release-quarantine"].includes(operation)
-        || !stage?.matches('[data-project-plugin-unavailable="workbench"]') || button.parentElement !== stage.firstElementChild
+        || !(homeRecovery || stage?.matches('[data-project-plugin-unavailable="workbench"]')) || button.parentElement !== stage.firstElementChild
         || parent?.closest("[data-work-surface]") || holder?.parentElement !== restartWorkspace
         || !holder?.matches("[data-surface-pool], [data-tab-panes], [data-tab-exclusive]")) return;
       button.disabled = true;
-      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: globalThis.t.text("workbench.initialization.couldn-t-change-plugin-state") }); location.reload(); }
+      const path = "/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation;
+      try { await molisWorkRequest(homeRecovery ? path : route(path), { body: {}, fallback: globalThis.t.text("workbench.initialization.couldn-t-change-plugin-state") }); location.reload(); }
       catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
     });
     document.addEventListener("submit", async (event) => {

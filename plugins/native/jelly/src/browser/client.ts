@@ -211,15 +211,7 @@ export function mountJelly(host: JellyHost): void {
       const other = editor === state.dayNote ? state.note : state.dayNote;
       if (other.note?.id === note.id && !other.dirty && !other.saving) Object.assign(other, { note, body: note.body });
       if (note.day) noteDays.add(note.day);
-      const summary = {
-        id: note.id,
-        title: note.title,
-        day: note.day,
-        revision: note.revision,
-        updated_at: note.updated_at,
-        excerpt: [...note.body.replace(/\s+/gu, " ").trim()].slice(0, 200).join(""),
-      };
-      state.notes = [summary, ...state.notes.filter((row) => row.id !== note.id)];
+      state.notes = [summaryOf(note), ...state.notes.filter(row => row.id !== note.id)];
       if (state.tab === "notes") {
         const list = view!.querySelector(".jelly-nlist");
         if (list && !list.querySelector(`[data-jelly-note="${CSS.escape(note.id)}"]`)) paint();
@@ -233,6 +225,10 @@ export function mountJelly(host: JellyHost): void {
     } finally {
       editor.saving = false;
     }
+  }
+  function summaryOf(note: JellyNote): NoteSummary {
+    return { id: note.id, title: note.title, day: note.day, revision: note.revision, updated_at: note.updated_at,
+      excerpt: [...note.body.replace(/\s+/gu, " ").trim()].slice(0, 200).join("") };
   }
   async function openNote(id: string): Promise<void> {
     await saveNote(state.note);
@@ -535,6 +531,10 @@ export function mountJelly(host: JellyHost): void {
       };
       try {
         await openNote(id);
+        state.noteQuery = "";
+        await loadNotes();
+        const selected = state.note.note;
+        if (selected && !state.notes.some(note => note.id === selected.id)) state.notes.unshift(summaryOf(selected));
         state.tab = "notes";
         paint();
         return;

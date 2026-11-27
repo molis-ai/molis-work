@@ -74,6 +74,7 @@ test("B112-01 editing a series from an exception only propagates fields changed 
   if (!browser) return;
   const frame = await pluginFrameBrowser(t, browser, "jelly");
   const caller = { actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS } as const;
+  assert.ok(browser.localHost);
   const client = bindActionClient(browser.localHost.homeActionClient(), () => caller);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=jelly" }, browser.sessionId));
   await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");

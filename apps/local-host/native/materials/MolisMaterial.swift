@@ -51,10 +51,37 @@ private func recognize(_ image: CGImage, languages: [String]?) throws -> (String
         if abs(left.boundingBox.midY - right.boundingBox.midY) > 0.012 { return left.boundingBox.midY > right.boundingBox.midY }
         return left.boundingBox.minX < right.boundingBox.minX
     }
-    let candidates = observations.compactMap { $0.topCandidates(1).first }
-    let lines = candidates.map { MaterialLine(text: $0.string.trimmingCharacters(in: .whitespacesAndNewlines), confidence: Double($0.confidence)) }.filter { !$0.text.isEmpty }
+    var candidates = observations.map { $0.topCandidates(1).first }
+    func containsKana(_ text: String) -> Bool {
+        text.range(of: #"[\p{Hiragana}\p{Katakana}]"#, options: .regularExpression) != nil
+    }
+    // Vision can assign an entire mixed line to Latin, including its kana, even at full confidence.
+    // A Japanese reading may repair that line only if it agrees on the Latin words and reads kana in the same place.
+    func latinWords(_ text: String) -> Set<Substring> {
+        Set(text.split { !($0.isASCII && $0.isLetter) })
+    }
+    let hasPossibleMixedLine = candidates.compactMap { $0?.string }.contains { !containsKana($0) && !latinWords($0).isEmpty }
+    if request.automaticallyDetectsLanguage, request.recognitionLanguages.contains("ja-JP"),
+       hasPossibleMixedLine {
+        let japanese = VNRecognizeTextRequest()
+        japanese.recognitionLevel = .accurate
+        japanese.recognitionLanguages = ["ja-JP"]
+        // Keep the primary reading if the supplementary request is unavailable.
+        let alternate = VNImageRequestHandler(cgImage: image, options: [:])
+        let matches = (try? alternate.perform([japanese])) == nil ? [] : (japanese.results ?? [])
+        for line in matches {
+            guard let reading = line.topCandidates(1).first, containsKana(reading.string) else { continue }
+            let center = CGPoint(x: line.boundingBox.midX, y: line.boundingBox.midY)
+            guard let index = observations.firstIndex(where: { $0.boundingBox.contains(center) }),
+                  let prior = candidates[index], !containsKana(prior.string), reading.confidence >= prior.confidence else { continue }
+            let words = latinWords(reading.string)
+            if !words.isEmpty && words.isSubset(of: latinWords(prior.string)) { candidates[index] = reading }
+        }
+    }
+    let readings = candidates.compactMap { $0 }
+    let lines = readings.map { MaterialLine(text: $0.string.trimmingCharacters(in: .whitespacesAndNewlines), confidence: Double($0.confidence)) }.filter { !$0.text.isEmpty }
     let text = lines.map(\.text).joined(separator: "\n")
-    let confidence = candidates.isEmpty ? nil : candidates.reduce(0.0) { $0 + Double($1.confidence) } / Double(candidates.count)
+    let confidence = readings.isEmpty ? nil : readings.reduce(0.0) { $0 + Double($1.confidence) } / Double(readings.count)
     return (text, confidence, lines)
 }
 private func extractImage(_ url: URL, languages: [String]?) throws -> MaterialOutput {

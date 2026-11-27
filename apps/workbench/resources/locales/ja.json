@@ -3,7 +3,7 @@
   "owner": "workbench",
   "locale": "ja",
   "messages": {
-    "workbench.owner-unavailable.structure-mismatch": "データ構造が現在のバージョンと一致しません。元のファイルは保持されています。バックアップ後、対応するバージョンで開くか、古いデータベースを別の場所に移して新規に始めてください。",
+    "workbench.owner-unavailable.structure-mismatch": "データ構造が現在のバージョンと一致しません。元のファイルは保持されています。バックアップを取り、対応するバージョンで開いてください。新規に始める場合は、古いデータベースを別の場所に移して再起動してください。",
     "workbench.material.article-text": "公開ページの本文のみ読み取りました。埋め込みの音声・動画・画像は読み取っていません。",
     "workbench.material.video-note-text": "ノート本文のみ読み取りました。動画の文字起こしはしていません。",
     "common.error.subtitles-missing": "利用できる公開字幕がありません。字幕を貼り付けて続けられます。",

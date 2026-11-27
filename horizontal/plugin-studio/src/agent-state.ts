@@ -16,7 +16,22 @@ function wordsAreValid(design: AgentDesign | null | undefined): boolean {
  try { validateFrozenStudioWords(design); return true; } catch { return false; }
 }
 function previewWordsAreValid(candidate: AgentProposal): boolean {
- try { if (candidate?.preview) validateStudioPlainWords(candidate.preview); return true; } catch { return false; }
+ try {
+  if (candidate?.preview) validateStudioPlainWords(candidate.preview);
+  const picture = candidate?.mockup;
+  if (picture === undefined) return true;
+  if (!isRecord(picture) || !['drawing','failed','ready'].includes(picture.status)
+    || Object.keys(picture).some(key => !['status','jobId','imageId','reason','binding','regenerate','requestId'].includes(key))) return false;
+  const binding = picture.binding;
+  if (binding !== undefined && (!isRecord(binding) || !['home','project'].includes(binding.scope)
+    || Object.keys(binding).sort().join(',') !== 'connection_id,install_id,installation_generation,manifest_digest,project_id,provider_id,scope,version'
+    || ![binding.install_id,binding.installation_generation,binding.version,binding.manifest_digest,binding.provider_id,binding.project_id,binding.connection_id].every(identity))) return false;
+  if (picture.requestId !== undefined && !identity(picture.requestId) || picture.regenerate !== undefined && picture.regenerate !== true
+    || picture.reason !== undefined && typeof picture.reason !== 'string') return false;
+  if (picture.jobId !== undefined && (!binding || !identity(picture.jobId))) return false;
+  if (picture.imageId !== undefined && (!picture.jobId || !identity(picture.imageId))) return false;
+  return picture.status !== 'ready' || Boolean(picture.binding && picture.requestId && picture.jobId && picture.imageId);
+ } catch { return false; }
 }
 const identity=(value:unknown):value is string=>typeof value==='string'&&!!value.trim()&&value.length<=200;
 const revision=(value:unknown):value is number=>Number.isSafeInteger(value)&&Number(value)>0;
@@ -42,7 +57,9 @@ export function upgradeBuilderSavedState(raw: string): string | null {
  if (!isRecord(old) || old.format !== 1) return null;
  if (!Array.isArray(old.builds)) return invalid();
  for (const build of old.builds) {
-  if (!isRecord(build) || !Array.isArray(build.candidates)) return invalid();
+  if (!isRecord(build)) return invalid();
+  if (build.candidates === undefined) continue;
+  if (!Array.isArray(build.candidates)) return invalid();
   for (const candidate of build.candidates) {
    if (!isRecord(candidate)) return invalid();
    const picture = candidate.mockup;

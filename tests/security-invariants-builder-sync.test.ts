@@ -1,3 +1,4 @@
+import { studioImageInstallation } from './fixtures/builder-workflow-design.js';
 import { installHostUiText, runBackgroundWork, verifySyncPluginDistribution } from '@molis-ai/molis-work-app-local-host';
 import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { textKeyPrefix } from '@molis-ai/molis-work-plugin-sdk/ui';
@@ -298,10 +299,10 @@ test('S-119 PCSYNC-14 Builder explicit byte projection round-trips exact files a
  await assert.rejects(()=>codec.decode(op.key,encoded.value,async()=>Buffer.from('changed')));
 });
 
-test('S-119 PCSYNC-22 ready mockup references keep the image owner identity without restoring an active drawing job',t=>{
+test('S-119 PCSYNC-22 a copied proposal requires a new image from a connection on its new Home',t=>{
  const f=fixture(t),build=f.create(),design=build.design!;
- f.stores[0]!.update(build.id,build.revision,row=>{row.candidates=[{id:'saved-proposal',title:'Saved proposal',description:'A saved mockup',rationale:'Read-only reference',journey:['Inspect'],effects:effectsFromContract(design.contract),preview:{contract:design.contract,parts:design.parts},mockup:{status:'ready',jobId:'saved-image-job',imageId:'saved-image'}}];});
- f.send();assert.deepEqual(f.stores[1]!.require(build.id).candidates[0]!.mockup,{status:'ready',jobId:'saved-image-job',imageId:'saved-image'});assert.equal(f.stores[1]!.require(build.id).active,null);assert.equal(f.replicas[1]!.next(),null);
+ f.stores[0]!.update(build.id,build.revision,row=>{row.candidates=[{id:'saved-proposal',title:'Saved proposal',description:'A saved mockup',rationale:'Read-only reference',journey:['Inspect'],effects:effectsFromContract(design.contract),preview:{contract:design.contract,parts:design.parts},mockup:{status:'ready',requestId:'saved-request',binding:studioImageInstallation,jobId:'saved-image-job',imageId:'saved-image'}}];});
+ const change=f.send();assert.ok(!JSON.stringify(change.value).includes(studioImageInstallation.connection_id));assert.deepEqual(f.stores[1]!.require(build.id).candidates[0]!.mockup,{status:'failed',regenerate:true});assert.equal(f.stores[1]!.require(build.id).active,null);assert.equal(f.replicas[1]!.next(),null);
 });
 
 test('S-119 PCSYNC-01/14 actual Host rejects malformed authoring items before creating an empty target project',async t=>{
@@ -315,4 +316,26 @@ test('S-119 PCSYNC-01/14 actual Host rejects malformed authoring items before cr
   incoming={...op,value,revision:1};const home=join(f.base,'uninitialized-'+variant);ensureStorageSpace(home,f.space);const client=(await createPersonalSync(home,f.space,lease,withMolisWorkProjectCatalog,check))!;
   try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await client.withCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);assert.equal(existsSync(join(home,'plugin-builder')),false);}finally{await client.close();}
  }
+});
+
+test('44C-06 upgrades a saved v1 image once and preserves the draft without borrowing a local connection', t => {
+  const f = fixture(t), draft = f.create(), current = JSON.parse(f.storage[0]!.get(KEY)!);
+  current.format = 1;
+  const row = current.builds.find((item: AgentBuild) => item.id === draft.id);
+  row.candidates = [{ id: 'legacy', title: 'Saved design', description: 'Existing draft', rationale: '', journey: [], effects: {},
+    mockup: { status: 'ready', jobId: 'old-job', imageId: 'old-image' } }];
+  const raw = JSON.stringify(current);
+  f.storage[0]!.set(KEY, raw);
+  const upgraded = new AgentBuilderStore(f.storage[0]!).require(draft.id);
+  assert.deepEqual(upgraded.candidates[0]!.mockup, { status: 'failed', regenerate: true });
+  assert.equal(upgraded.title, draft.title);
+  assert.deepEqual(upgraded.messages, draft.messages);
+  const saved = f.storage[0]!.get(KEY)!;
+  assert.equal(JSON.parse(saved).format, 2);
+  new AgentBuilderStore(f.storage[0]!).require(draft.id);
+  assert.equal(f.storage[0]!.get(KEY), saved, 'a second open does not repeat migration');
+  const malformed = JSON.parse(saved);
+  malformed.builds[0].candidates[0].mockup = { status: 'ready', requestId: 'one', jobId: 'old-job', imageId: 'old-image' };
+  f.storage[0]!.set(KEY, JSON.stringify(malformed));
+  assert.throws(() => new AgentBuilderStore(f.storage[0]!).require(draft.id));
 });

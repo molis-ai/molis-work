@@ -1,3 +1,4 @@
+import { studioImageInstallation } from './fixtures/builder-workflow-design.js';
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -757,7 +758,7 @@ test('with an image service each proposal gets one picture (never a second try);
   const h = harness([PROPOSALS, detail('快记')]);
   const draws: Array<{ key: string; prompt: string }> = [];
   let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
-  h.ports.mockups = { available: async () => true, async draw(request) { draws.push(request); await gate; return request.key.endsWith(':quick') ? { jobId: 'job-1', imageId: 'img-1' } : { reason: '服务返回 429' }; } };
+  h.ports.mockups = { available: async () => true, async draw(request) { draws.push(request); await gate; return request.key.endsWith(':quick') ? { jobId: 'job-1', imageId: 'img-1', binding: studioImageInstallation } : { reason: '服务返回 429' }; } };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
   try {
     const created = workflow.create('做一个笔记插件');
@@ -766,7 +767,7 @@ test('with an image service each proposal gets one picture (never a second try);
     const seen = build.revision;
     release();
     build = await until(workflow, created.id, value => value.candidates.every(item => item.mockup?.status !== 'drawing'));
-    assert.deepEqual(build.candidates.map(item => item.mockup), [{ status: 'ready', jobId: 'job-1', imageId: 'img-1' }, { status: 'failed', reason: '服务返回 429' }]);
+    assert.deepEqual(build.candidates.map(item => item.mockup), [{ status: 'ready', requestId: draws[0]!.key, jobId: 'job-1', imageId: 'img-1', binding: studioImageInstallation }, { status: 'failed', requestId: draws[1]!.key, reason: '服务返回 429' }]);
     assert.equal(draws.length, 2, 'a failed picture is not asked for again');
     // The person chose from the page they saw before the pictures arrived.
     await workflow.action(created.id, { action: 'choose', revision: seen, candidateId: 'quick' });
@@ -790,7 +791,7 @@ test('with an image service each proposal gets one picture (never a second try);
   const enDraws: string[] = [];
   enHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
   enHarness.ports.instruction = prompt => prompt.prompt_id === 'mockup.generate' ? 'CUSTOM EN UI mockup instructions.' : prompt.body;
-  enHarness.ports.mockups = { available: async () => true, async draw(request) { enDraws.push(request.prompt); return { jobId: 'j-en', imageId: 'img-en' }; } };
+  enHarness.ports.mockups = { available: async () => true, async draw(request) { enDraws.push(request.prompt); return { jobId: 'j-en', imageId: 'img-en', binding: studioImageInstallation }; } };
   const enWorkflow = new AgentBuilderWorkflow(memoryStorage(), enHarness.ports);
   try {
     const created = enWorkflow.create('Build a note plugin');
@@ -804,7 +805,7 @@ test('with an image service each proposal gets one picture (never a second try);
   const defaultEnHarness = harness([PROPOSALS]);
   const defaultEnDraws: string[] = [];
   defaultEnHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
-  defaultEnHarness.ports.mockups = { available: async () => true, async draw(request) { defaultEnDraws.push(request.prompt); return { jobId: 'j-en-2', imageId: 'img-en-2' }; } };
+  defaultEnHarness.ports.mockups = { available: async () => true, async draw(request) { defaultEnDraws.push(request.prompt); return { jobId: 'j-en-2', imageId: 'img-en-2', binding: studioImageInstallation }; } };
   const defaultEnWorkflow = new AgentBuilderWorkflow(memoryStorage(), defaultEnHarness.ports);
   try {
     const created = defaultEnWorkflow.create('Build a note plugin');

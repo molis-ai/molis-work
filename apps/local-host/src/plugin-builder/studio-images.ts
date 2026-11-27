@@ -102,7 +102,7 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
         if (job.id !== jobId || job.connection_id !== owner.connection_id) throw changed();
       }
       return job.status === 'succeeded' && job.images[0] ? { jobId, imageId: job.images[0].id, binding: owner }
-        : { reason: job.error || (job.status === 'running' ? '三分钟内没有画完' : '没有画出来') };
+        : { reason: job.error || (job.status === 'running' ? '三分钟内没有画完' : '没有画出来'), ...(job.status !== 'running' ? { regenerate: true as const } : {}) };
     },
   };
   const mockupImage: NonNullable<Studio['mockupImage']> = async (jobId, imageId, owner) => {

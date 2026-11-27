@@ -150,7 +150,7 @@ async function discoverDynamicSettingsPlugins(
     found.push({
       section_id: manifest.plugin_id + "~" + scope + "~" + record.install_id,
       plugin_id: manifest.plugin_id,
-      label: manifest.name,
+      label: manifest.name + " · " + readText(scope === "home" ? "workbench.settings-assistant.personal" : "workbench.settings-assistant.current-project"),
       manifest,
       declaration: manifest.settings_entries,
       scope,

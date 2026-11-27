@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import type { AuthorizationDetail, AuthorizationList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentTaskGrantActions, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { homeIntegrationRegistry, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -575,7 +576,7 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
         await sdk.storage.set('setting', JSON.stringify(state)); return state;
       },
     };`);
-    return { ...sandboxPluginManifest({ pluginId, version, name: title, publisher: manifest.publisher, presentation: false,
+    return { ...sandboxPluginManifest({ pluginId, version, name: "Shared settings", publisher: manifest.publisher, presentation: false,
       contract: complete, effects: effectsFromContract(complete), ...(scope === "home" ? { runtime: { scope } } : {}) }),
       summary: title, ...(version === "1.0.0" ? {} : { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } }) };
   }, { pluginId, scope, version });
@@ -619,7 +620,20 @@ test("44C-01/02 PSD-04 same-id publishers expose separate settings and task cate
     { plugin_install_id: local.plugin_install_id, key: "sample", categories, expected_revision }) as Promise<TaskGrantSubject>;
   const held = await set([category], "");
   assert.deepEqual(held.categories.map(row => [row.description, row.status]), [["Owner home reads", "granted"]]);
-  await set([], held.revision);
+  const other = categories.find(row => row.description === "Owner project reads")!;
+  await set([category, { provider_id: other.provider_id, group_id: other.group_id, installation: other.installation }], held.revision);
+  const endpoint = "/api/settings/authorizations?project=" + encodeURIComponent(project.project_id);
+  const list = await (await f.request(endpoint)).json() as AuthorizationList;
+  const entry = list.entries.find(item => item.owner === "task-grant" && item.title === "sample");
+  assert.ok(entry);
+  const narrow = { owner: entry.owner, id: entry.id, expected: entry.expected, kind: "narrow", keep: [category] };
+  const reply = await f.request(endpoint, { method: "POST", body: narrow });
+  assert.equal(reply.status, 200);
+  const narrowed = await reply.json() as AuthorizationDetail;
+  assert.deepEqual(narrowed.categories?.filter(row => row.status === "granted").map(row => row.installation), [grant.installation]);
+  assert.equal((await f.request(endpoint, { method: "POST", body: narrow })).status, 409);
+  const kept = (await current()).subjects.find(row => row.key === "sample")!;
+  await set([], kept.revision);
   await assert.rejects(set([category], held.revision), { code: "actions.conflict" });
   await install("project", "1.1.0");
   assert.notEqual((await write(local, "old-release", "2")).status, 200);

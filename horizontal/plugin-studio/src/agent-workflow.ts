@@ -76,7 +76,7 @@ export interface AgentBuilderPorts {
     available(): Promise<boolean>;
     draw(request: { key: string; prompt: string; previous?: AgentProposal['mockup'];
       checkpoint(value: { binding: import('./agent-model.js').StudioImageBinding; jobId?: string }): void },
-      signal: AbortSignal): Promise<{ jobId: string; imageId: string; binding?: import('./agent-model.js').StudioImageBinding } | { reason: string }>;
+      signal: AbortSignal): Promise<{ jobId: string; imageId: string; binding: import('./agent-model.js').StudioImageBinding } | { reason: string; regenerate?: true }>;
   };
   selectionAvailable?(): boolean;
   browserAcceptance(build: AgentBuild, signal: AbortSignal): Promise<NonNullable<AgentBuild['browserResult']>>;
@@ -253,17 +253,20 @@ export class AgentBuilderWorkflow {
           set(proposal.id, { status: 'failed', regenerate: true });
           return;
         }
-        const previous = proposal.mockup;
-        set(proposal.id, { ...picture, status: 'drawing' });
-        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal, instructions, locale), previous,
+        const startNew = requested && (picture.regenerate || !picture.requestId);
+        const requestId = startNew ? randomUUID() : picture.requestId ?? id + ':' + proposal.id;
+        const previous = startNew ? (picture.binding ? { status: 'drawing' as const, binding: picture.binding } : undefined) : proposal.mockup;
+        picture = { ...previous, status: 'drawing', requestId };
+        set(proposal.id, picture);
+        const result = await mockups.draw({ key: requestId, prompt: mockupPrompt(proposal, instructions, locale), previous,
           checkpoint(value) {
             abort.signal.throwIfAborted();
-            picture = { status: 'drawing', ...value };
+            picture = { status: 'drawing', requestId, ...value };
             set(proposal.id, picture);
           },
         }, abort.signal).catch(error => ({ reason: message(error) }));
         if (abort.signal.aborted) return;
-        set(proposal.id, 'jobId' in result ? { status: 'ready', ...result } : { ...picture, status: 'failed', reason: result.reason });
+        set(proposal.id, 'jobId' in result ? { status: 'ready', requestId, ...result } : { ...picture, status: 'failed', ...result });
       }));
     } finally { this.drawing.delete(abort); }
   }

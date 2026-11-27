@@ -241,7 +241,7 @@ test("a start list that declares a library wrongly does not start at all, and no
     await refuse("another probe's", [{ definition: withLibrary(probe({ name: "first" }).definition, DECLARATION), trust: { level: "host" } },
       { definition: withLibrary(probe({ name: "second" }).definition, DECLARATION), trust: { level: "host" } }], /主人/, directory, { [LIBRARY]: idOf("first") });
     const libraries = homeStores().stores.filter(store => store.library).map(store => store.path);
-    assert.ok(["assistant", "memory", "functions", "characters", "server", "feed-content", "work-brief"].every(name => libraries.includes(name)));
+    assert.ok(["assistant", "memory", "functions", "characters", "server", "evidence"].every(name => libraries.includes(name)));
     for (const name of libraries) {
       await refuse(`library ${name}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /主人/);
     }
@@ -335,8 +335,9 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
       ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
       ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: pluginSyncDatabaseDeclaration(entry.manifest, library) }] : []];
   });
-  // Cognia, Images, Issues and Todo keep a library in each partition since batch 108 (databases.partition), not one at Home.
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["feed-content", "jelly", "work-brief"]);
+  // Cognia, Images, Issues, Jelly and Todo keep a library in each partition since batch 108, Work Brief since 109 (databases.partition), not
+  // one at Home; Feed's holds are the platform's evidence ledger's since 109. No shipped plugin keeps a Home library any more.
+  assert.deepEqual(shipped.map(store => store.path).sort(), []);
   assert.equal(homeStores().get("artifacts")?.owner, "modules/artifacts", "the platform's original files retain their Module owner");
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
@@ -428,14 +429,14 @@ test("W4-11-03 a fixture the Host is given registers its library as its own, so 
     const reference = molisWorkHostProjectReference({ databasePath: created.database_path, projectId: created.project_id });
     const plugin = probe({ name: "hostprobe" });
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-      // Work Brief's own name and baseline (its Home half's library): only that it is another owner's can refuse it.
-      pluginFixtures: { project: [{ definition: withLibrary(plugin.definition, { ...DECLARATION, ...homeStores().get("work-brief")!.library!.baseline, store_name: "work-brief" }) }] } });
+      // Functions' own name and baseline (its Home library): only that it is another owner's can refuse it.
+      pluginFixtures: { project: [{ definition: withLibrary(plugin.definition, { ...DECLARATION, ...homeStores().get("functions")!.library!.baseline, store_name: "functions" }) }] } });
     try {
-      // The project's platform refuses its start list whole (the registry finds `work-brief` registered twice), so the fixture's
+      // The project's platform refuses its start list whole (the registry finds `functions` registered twice), so the fixture's
       // action never registers: the same answer a caller gets for any plugin that did not start.
       await assert.rejects(host.actionClient(reference).invoke(asUser(reference.project_id), plugin.note, { text: "写进简报库" }), /能力未注册/);
       assert.equal(plugin.started.length, 0, "the fixture never started");
-      // Work Brief's Home half runs at Home level, so its own instance may already have made its library: that the file is there says
-      // nothing of the fixture, which never started and so never opened it.
+      // Functions' own service may already have made its library: that the file is there says nothing of the fixture, which never
+      // started and so never opened it.
     } finally { await host.close(); }
   }));

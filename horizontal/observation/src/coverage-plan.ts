@@ -29,6 +29,9 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Generated connection cards use the same connector binding and component-submit action exits; Studio icon selection belongs to the designer round.
   // Connector record binding, MCP configuration usage reports and connection list reads use this same action exit.
   // The action exit also covers the work line's `mainline.line.contains` and `background.tasks.decide` and Coding's `agent.reviews.pending-ids` and `agent.write-checks.read`.
+  // A plugin's evidence holds (`services.evidence`, batch 109-1, in place of a plugin's own content-ledger actions) are part of its own
+  // action or kept background job that makes them: releasing and reclaiming run only inside its own action (S-98), and the ledger keeps
+  // references, never content.
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", SCHEDULE_ENTRY, "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },
   // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.

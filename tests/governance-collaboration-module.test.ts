@@ -92,8 +92,8 @@ test("Governance decision provenance and target-owner materialization share one 
       updated_at: "2026-09-02T00:00:00.000Z",
     });
     // The board has no name any more; its update time stands in for "a write by another owner in the same transaction".
-    const beforeUpdatedAt = (store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?")
-      .get(DEMO_PROJECT_ID) as { updated_at: string }).updated_at;
+    const beforeUpdatedAt = (store.db.prepare("SELECT updated_at FROM boards WHERE id = 1")
+      .get() as { updated_at: string }).updated_at;
     const decision = {
       decision_id: "goal-tree-decision-module-test",
       project_id: DEMO_PROJECT_ID,
@@ -121,7 +121,7 @@ test("Governance decision provenance and target-owner materialization share one 
           proposal_id: proposalId, item_id: itemId, state: "applied",
           materialized_objects: decision.materialized_objects, updated_at: decision.created_at,
         });
-        store.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?").run(time, DEMO_PROJECT_ID);
+        store.db.prepare("UPDATE boards SET updated_at = ? WHERE id = 1").run(time);
         complete();
       }));
     const history = projectReviewDecisions(store.db, DEMO_PROJECT_ID);
@@ -130,8 +130,8 @@ test("Governance decision provenance and target-owner materialization share one 
     assert.equal(history.count(), historyBefore);
     assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.decisions.length, 0);
     assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.items[0]?.state, "pending");
-    assert.equal((store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?")
-      .get(DEMO_PROJECT_ID) as { updated_at: string }).updated_at, beforeUpdatedAt);
+    assert.equal((store.db.prepare("SELECT updated_at FROM boards WHERE id = 1")
+      .get() as { updated_at: string }).updated_at, beforeUpdatedAt);
 
     materialize("materialized", () => undefined);
     assert.equal(history.count(), historyBefore + 1);

@@ -494,7 +494,6 @@
     "feed.permission.sources-read-repository.reason": "Read published items from GitHub repositories",
     "feed.permission.schedule-read.reason": "Check whether automatic source fetching is scheduled",
     "feed.permission.schedule-write.reason": "Schedule automatic fetching for due sources",
-    "feed.permission.actions-invoke.reason": "Track and release references to locally saved item text",
     "feed.permission.scenes-use.reason": "Bind and run judgment rules for capture rules",
     "feed.permission.judgments-read.reason": "Read capture rule judgment records",
     "feed.permission.judgments-write.reason": "Save capture rule judgment results",
@@ -605,12 +604,6 @@
     "feed.actions.presentation-values.title": "Feed display fields",
     "feed.actions.presentation-values.description": "Reads display fields for the requested Feed items within your current access, marking unavailable or deleted items without modifying data.",
     "feed.actions.presentation-overview.title": "Feed home overview",
-    "feed.actions.presentation-overview.description": "Reads a brief Feed overview, top items, and quick entry points. Read-only and doesn’t call a model.",
-    "feed.actions.content-hold.title": "Track retained item text",
-    "feed.actions.content-hold.description": "Records which locally saved message bodies a project source references before writing them.",
-    "feed.actions.content-release.title": "Release retained item text",
-    "feed.actions.content-release.description": "Releases a deleted source’s references to saved text and removes bodies no longer referenced anywhere.",
-    "feed.actions.content-reclaim.title": "Reclaim unreferenced item text",
-    "feed.actions.content-reclaim.description": "Reclaims orphaned text references after a failed, canceled, or interrupted fetch and cleans up unreferenced bodies."
+    "feed.actions.presentation-overview.description": "Reads a brief Feed overview, top items, and quick entry points. Read-only and doesn’t call a model."
   }
 }

@@ -51,7 +51,8 @@ function parseApprovalOutcomes(value: unknown, sections: SyncSectionsDeclaration
     exactKeys(subjects, ["section", "table", "column"]);
     if (typeof row.subject_kind !== "string" || !/^[a-z][a-z0-9-]{0,79}$/u.test(row.subject_kind) || kinds.has(row.subject_kind)) invalid();
     kinds.add(row.subject_kind as string);
-    for (const name of [row.decision_column, row.subject_column, "project_id"]) column(row.section, row.table, name);
+    // No partition column is required: in a partition's own main database the platform reads the partition from `project_root` (batch 109-1).
+    for (const name of [row.decision_column, row.subject_column]) column(row.section, row.table, name);
     column(subjects.section, subjects.table, subjects.column);
     return Object.freeze({ subject_kind: row.subject_kind as string, section: row.section as string, table: row.table as string,
       decision_column: row.decision_column as string, subject_column: row.subject_column as string,

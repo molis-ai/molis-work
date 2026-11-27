@@ -1,12 +1,10 @@
-// The Goals tables in a project's library, as the statements GOALS_PROJECT_DATABASE (./project-database.ts) declares in the Manifest.
-// Moved here from modules/goals (S8, PG-020). The statements are as they were in the project library's baseline, except `boards`: it lost
-// its `title` (the Catalog owns the project's name) and its `project_id` points at the library's `project_root` row.
+// The Goals tables in a partition's main database, as the statements GOALS_PROJECT_DATABASE (./project-database.ts) declares in the Manifest.
+// The library holds exactly one partition (U3, batch 109), so no row names it: `boards` is a single row, and nothing else keeps a project id.
 
 /** The Goal tree: Goals, criteria, relations, and trash. */
 export const GOALS_TABLES_SQL = `
   CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     outcome TEXT NOT NULL,
     why TEXT NOT NULL,
@@ -32,10 +30,9 @@ export const GOALS_TABLES_SQL = `
     updated_at TEXT NOT NULL
   );
 
-  CREATE INDEX goals_project_idx ON goals(project_id);
-  CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
-  CREATE INDEX goals_trash_idx ON goals(project_id, trashed_at);
-  CREATE INDEX goals_archive_idx ON goals(project_id, archived_at);
+  CREATE INDEX goals_ready_idx ON goals(definition_state, decomposition_state, validity_state, fulfillment_state);
+  CREATE INDEX goals_trash_idx ON goals(trashed_at);
+  CREATE INDEX goals_archive_idx ON goals(archived_at);
 
   CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
@@ -50,7 +47,6 @@ export const GOALS_TABLES_SQL = `
 
   CREATE TABLE goal_relations (
     relation_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     from_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     to_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     type TEXT NOT NULL,
@@ -60,12 +56,11 @@ export const GOALS_TABLES_SQL = `
     created_at TEXT NOT NULL,
     deactivated_at TEXT
   );
-  CREATE INDEX relations_from_idx ON goal_relations(project_id, from_goal_id, state);
-  CREATE INDEX relations_to_idx ON goal_relations(project_id, to_goal_id, state);
+  CREATE INDEX relations_from_idx ON goal_relations(from_goal_id, state);
+  CREATE INDEX relations_to_idx ON goal_relations(to_goal_id, state);
 
   CREATE TABLE goal_trash_records (
     trash_record_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     trashed_at TEXT NOT NULL,
     trashed_by TEXT NOT NULL,
@@ -75,10 +70,10 @@ export const GOALS_TABLES_SQL = `
     restore_reason TEXT
   );
   CREATE UNIQUE INDEX goal_trash_one_open_per_goal
-    ON goal_trash_records(project_id, goal_id)
+    ON goal_trash_records(goal_id)
     WHERE restored_at IS NULL;
   CREATE INDEX goal_trash_records_goal_idx
-    ON goal_trash_records(project_id, goal_id, restored_at, trashed_at);
+    ON goal_trash_records(goal_id, restored_at, trashed_at);
 
   CREATE TABLE goal_trash_relation_records (
     trash_record_id TEXT NOT NULL REFERENCES goal_trash_records(trash_record_id) ON DELETE CASCADE,
@@ -94,12 +89,12 @@ export const GOALS_TABLES_SQL = `
 `;
 
 /**
- * The board that names a project's current Goal, owned by Goals. The project is the library's `project_root` row, so the board points at
- * it and goes with it; the project's name is the Catalog's, never kept here.
+ * The board that names the partition's current Goal, owned by Goals: one row (`id` 1), as the library holds one partition. The
+ * partition's name is the Catalog's, never kept here.
  */
 export const GOALS_BOARDS_SQL = `
         CREATE TABLE boards (
-          project_id TEXT PRIMARY KEY REFERENCES project_root(project_id) ON DELETE CASCADE,
+          id INTEGER PRIMARY KEY CHECK (id = 1),
           active_goal_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
@@ -110,7 +105,6 @@ export const GOALS_BOARDS_SQL = `
 export const GOALS_INPUT_BINDINGS_SQL = `
   CREATE TABLE input_bindings (
     binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     input_name TEXT NOT NULL,
     source_type TEXT NOT NULL,

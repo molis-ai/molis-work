@@ -37,10 +37,10 @@ export class FeedReads {
     }
   }
 
-  *history(projectId: string, sourceId: string, kind: "refs" | "operations") {
+  *history(_projectId: string, sourceId: string, kind: "refs" | "operations") {
     let after = "";
     for (;;) {
-      const page = this.ports.historyReads[kind](projectId, sourceId, after);
+      const page = this.ports.historyReads[kind](sourceId, after);
       if (!page.length) return;
       yield page;
       after = page.at(-1)!;

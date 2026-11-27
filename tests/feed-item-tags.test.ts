@@ -70,8 +70,8 @@ test("RAC-1185 a pulled Feed item's stored tags carry its source kind and no sou
     assert.ok(item, "the pull leaves one item for its source");
     // The stored column, not the projection: reading the database is what turns red if the write site adds the marker again, even while a
     // projection filter would still hide it.
-    const stored = data.store.db.prepare("SELECT tags_json FROM feed_items WHERE project_id = ? AND item_id = ?")
-      .get(DEMO_PROJECT_ID, item.item_id) as { tags_json: string } | undefined;
+    const stored = data.store.db.prepare("SELECT tags_json FROM feed_items WHERE item_id = ?")
+      .get(item.item_id) as { tags_json: string } | undefined;
     assert.ok(stored, "the item is stored");
     assert.deepEqual(JSON.parse(stored.tags_json), ["custom_rss"], "the stored tags are exactly the source kind");
     assert.deepEqual(item.tags, ["custom_rss"], "the snapshot reads the source kind alone");

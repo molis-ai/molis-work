@@ -7,6 +7,7 @@ import { createPagesPlugin, PAGES_PROJECT_PLUGIN_ID, pagesManifest, PAGES_CLIENT
  */
 export const registration: PluginRegistration = {
   project_plugin_id: PAGES_PROJECT_PLUGIN_ID, catalog_order: 15,
+  formerly_personal: true,
   manifest: pagesManifest,
   project_runtime: { create: createPagesPlugin, package_name: "@molis-ai/molis-work-plugin-pages", factory_export: "createPagesPlugin" },
   workbench: {

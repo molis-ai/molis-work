@@ -46,6 +46,10 @@
       "mode": 448
     },
     {
+      "path": "evidence",
+      "mode": 448
+    },
+    {
       "path": "person-settings",
       "mode": 448
     },
@@ -252,6 +256,18 @@
       "sha256": "7b355b78dba71329e32bd368fdfa112a0ed0d3bf52ed7a1db77293b0bd4dfb40"
     },
     {
+      "path": "evidence/evidence.db",
+      "owner": "horizontal/evidence",
+      "mode": 384,
+      "payload": "stores/evidence/evidence.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "evidence_holds": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "9190c4f9e28d2136e5d1d88211f3f4dde0753cc3c0c043ca99ec9559b76879a2"
+    },
+    {
       "path": "external-sessions/external-sessions.db",
       "owner": "horizontal/sessions",
       "mode": 384,
@@ -269,18 +285,6 @@
         "session_suggestions": 0
       },
       "sha256": "e173f9d457c94edc8514810d844a7a464adeb42a9c6d07acba502a2937cd04df"
-    },
-    {
-      "path": "feed-content/feed-content.db",
-      "owner": "io.molis.work.feed",
-      "mode": 384,
-      "payload": "stores/feed-content/feed-content.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "feed_content_holds": 0,
-        "molis_storage_space": 1
-      },
-      "sha256": "830727b1512b0b18559df902c4daff89f0d67a960722100d2c570266ef43eb29"
     },
     {
       "path": "functions/functions.db",
@@ -756,8 +760,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "fd608f7197f4ac407881d32d13927094cfe25fd24faa96dec9b276bbb5ed7952",
-      "expanded_sha256": "b5999a83bb8e2981d238780ad2b7cf85baa31a7468a455c29bc2383e721afb73"
+      "sha256": "4eea2d90a0270d914db4f847521de417ec809b7259f28b73178580fd096f8f17",
+      "expanded_sha256": "f95795b15e5cfbfb00c6d034cd186d0a38ec4c1fb98b1e24beaec2b25c55739a"
     },
     {
       "path": "placement/placement.db",
@@ -1084,8 +1088,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "9772285549824be71bc532080313bb8129fb7369b7d1abf7dde71011f153813a",
-      "expanded_sha256": "3655e51e81d52ee63e2f3bdce671a85244b2a10529fcaef8f6c5d75c57175438"
+      "sha256": "244594fb973f16dc597fa1ea2a1aaca5f8ff6c2408aeaaf24b6fc7085934ea82",
+      "expanded_sha256": "7dbe0377dba72ed52e6cc516464b569fb19f6eade348f4eff9d762c5a250a041"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1304,8 +1308,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "f58750eb2f42510296f0e5294c12920e3bb9ab2dff532861c22c7a9000927445",
-      "expanded_sha256": "9173e7847812c28ccafe3ff09e4b526f3b6ed635430213438106a633b145b69c"
+      "sha256": "c560b84a0975caac6036373d40cb7886267b6753057b5b0c0672c46c752e9e18",
+      "expanded_sha256": "0222ba1faaf4fe54bd00bd08378a7e0b51ed011f3eef8eec8d424b27b29a1042"
     },
     {
       "path": "projects/project-ae076f4f-3257-40a5-be48-38652812f188/libraries/dataset.db",
@@ -1668,8 +1672,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "ec8c1d8a964aa55b16ef72e6b88ef2f19491d1b50515dfbf46b4465182d1e9b3",
-      "expanded_sha256": "9983bf93b50cfe4220115c7bc3f5409c957dee10e76cb3932b21a0afee23ca28"
+      "sha256": "f63568f037a81ea0585932acadf9c3382fae733d83a1d82c602d1e11935a05c3",
+      "expanded_sha256": "ef2e70f762e8e4cedb73509b2f60ad26b31a02d7e70e488f81f7e0853fb03f3e"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -1721,33 +1725,6 @@
         "web_search_last_use": 0
       },
       "sha256": "45e8678683ce08fabdecda02c8f2cabf1dd30e03b9e640c1b2bf12051c1147e0"
-    },
-    {
-      "path": "work-brief/work-brief.db",
-      "owner": "io.molis.work.work-brief",
-      "mode": 384,
-      "payload": "stores/work-brief/work-brief.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "brief_editor_versions": 0,
-        "brief_edits": 0,
-        "brief_next_marks": 0,
-        "brief_proposals": 0,
-        "brief_requests": 0,
-        "brief_versions": 0,
-        "briefs": 0,
-        "molis_storage_space": 1,
-        "sqlite_sequence": 0,
-        "sync_99b05d64d7577ed2f59d3aae7365_aggregate_editor_versions": 0,
-        "sync_99b05d64d7577ed2f59d3aae7365_context": 1,
-        "sync_99b05d64d7577ed2f59d3aae7365_replica_changes": 0,
-        "sync_99b05d64d7577ed2f59d3aae7365_replica_conflicts": 0,
-        "sync_99b05d64d7577ed2f59d3aae7365_replica_heads": 0,
-        "sync_99b05d64d7577ed2f59d3aae7365_replica_outbox": 0,
-        "sync_99b05d64d7577ed2f59d3aae7365_replica_resolutions": 0,
-        "sync_99b05d64d7577ed2f59d3aae7365_replica_state": 1
-      },
-      "sha256": "885204cd519ba8e23f70ae75e508fa0d43ed2240d62ba6fdab86b0096acdddd4"
     }
   ],
   "files": [

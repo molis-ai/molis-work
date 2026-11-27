@@ -59,6 +59,12 @@ test('existence predicates may inspect only declared owner tables in the same pr
   assert.doesNotThrow(()=>assertPluginSyncDeclarations(declared([{table:'goals',match:[{column:'project_id',rowColumn:'project_id'}]}]),tables));
   assert.throws(()=>assertPluginSyncDeclarations(declared([{table:'foreign_owner',match:[{column:'project_id',rowColumn:'project_id'}]}]),tables));
   assert.throws(()=>assertPluginSyncDeclarations(declared([{table:'goals',match:[{column:'id',rowColumn:'project_id'}]}]),tables),'cross-project existence must not authorize a bootstrap mark');
+  assert.throws(()=>assertPluginSyncDeclarations(declared([{table:'goals',match:[]}]),tables),'an unbound existence must not span the partitions of a shared table');
+  // In a partition's own main database (batch 109-1) neither table has a partition column: "any Goal" is the partition's, so no match is needed.
+  const own=new Map([['boards',new Set(['id'])],['goals',new Set(['goal_id'])]]);
+  const partitionDeclared=(existsAny: import('@molis-ai/molis-work-contracts/platform/plugin-sync').SyncTrackedTable['existsAny']):PluginManifest=>({...manifest,sync:{protocol_version:1,collections:[{id:'records',title:'Records',schema_version:1,requires:[],tracking:[{table:'boards',key:[{scope:'projectId'},{column:'id'}],existsAny}]}]}});
+  assert.doesNotThrow(()=>assertPluginSyncDeclarations(partitionDeclared([{table:'goals',match:[]}]),own));
+  assert.throws(()=>assertPluginSyncDeclarations(partitionDeclared([{table:'foreign_owner',match:[]}]),own));
 });
 
 test('sections reject empty, foreign and duplicate owner declarations and ignore object property insertion order',()=>{
@@ -67,6 +73,10 @@ test('sections reject empty, foreign and duplicate owner declarations and ignore
   const tables=new Map([['records',new Set(['id','project_id','body'])]]);
   const manifestFor=(business:typeof declaration.business|readonly unknown[]):PluginManifest=>({...manifest,sync:{protocol_version:1,collections:[{id:'records',title:'Records',schema_version:1,requires:[],sections:{...declaration,business:business as typeof declaration.business}}]}});
   for(const invalid of [[],[{...section,tables:[{...section.tables[0]!,name:'foreign_owner'}]}],[section,section]])assert.throws(()=>assertPluginSyncDeclarations(manifestFor(invalid),tables));
+  // A partition's own main database (batch 109-1): a table with no partition column is the library's partition, bound by the platform.
+  const whole={...section,tables:[{name:'records',columns:['id','body'],keys:['id']}]},own=new Map([['records',new Set(['id','body'])]]);
+  assert.doesNotThrow(()=>assertPluginSyncDeclarations(manifestFor([whole]),own));
+  assert.throws(()=>assertPluginSyncDeclarations(manifestFor([{...whole,tables:[{...whole.tables[0]!,projectColumn:'project_id'}]}]),own),'a named partition column must exist');
   const port:PluginSyncServicePort={manifest:manifestFor([section]),tables,assertActive(){},sections(){throw new Error('accepted');},aggregate(){throw new Error('unexpected');},copy(){throw new Error('unexpected');},collection(){throw new Error('unexpected');},collectionCopy(){throw new Error('unexpected');},retain(){throw new Error('unexpected');}};
   assert.throws(()=>createPluginSyncService(port).sections('records',{kind:'records',business:[{...section,validate(){}}],platform:[],journal:false}),/accepted/);
 });

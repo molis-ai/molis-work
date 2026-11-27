@@ -14,7 +14,6 @@ const GATE_RULE_TEST_INPUTS = [
   "tests/installer-symlink-dependencies.test.ts", "tests/shell-page-gate.test.ts", "tests/artifact-type-gate.test.ts",
   "tests/artifact-declaration-gate.test.ts", "tests/artifact-host-writers.test.ts", "tests/studio-replay.test.ts",
   "tests/affected-tests.test.ts", "tests/fixtures/ci-workflow.ts", "tests/fixtures/plugin-styles-build.ts",
-  "tests/fixtures/feed-content-home-v1.sql",
 ];
 const STUDIO_INPUTS = [
   ".github/", "skills/molis-plugin-dev/", "horizontal/plugin-studio/",

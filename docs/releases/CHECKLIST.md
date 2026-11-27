@@ -58,9 +58,8 @@
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 低版本升级，高版本拒绝 |
 | 对话附件 | `conversation-attachments/conversation-attachments.db` | 1 | `user_version` | `apps/local-host/src/material-attachments.ts#ATTACHMENTS_BASELINE` | 低版本升级，高版本拒绝（第 35 批新建，从版本 1 起） |
 | Issue | `<partition>/libraries/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝（每个分区一份；第 108 批搬进分区、去掉 `project_id`，版本仍是 1：没有用户，旧库不迁移，旧 Home 顶层的同名目录由升级过程删除（`removedHomeStores()`），金样原地改写） |
-| Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
 | 分区到期登记 | `due-registry/due-registry.db` | 1 | `user_version` | `horizontal/scheduler/src/due-registry.ts#DUE_REGISTRY_BASELINE` | 低版本升级，高版本拒绝（第 106 批新建，从版本 1 起） |
-| 证据正文持有账 | `evidence/evidence.db` | 1 | `user_version` | `horizontal/evidence/src/index.ts#EVIDENCE_BASELINE` | 低版本升级，高版本拒绝（第 106 批新建，从版本 1 起） |
+| 证据正文持有账 | `evidence/evidence.db` | 1 | `user_version` | `horizontal/evidence/src/index.ts#EVIDENCE_BASELINE` | 低版本升级，高版本拒绝（第 106 批新建，从版本 1 起；第 109 批起记 Feed 来源的正文持有，原 Feed 的 Home 库 `feed-content/` 不迁移，由升级过程删除） |
 | 随本人设置 | `person-settings/person-settings.db` | 1 | `user_version` | `horizontal/person-settings/src/index.ts#PERSON_SETTINGS_BASELINE` | 低版本升级，高版本拒绝（第 106 批新建，从版本 1 起） |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 补齐 `b3429bd1cc` 之前内置 Coding 会话清理计划的精确 `plugin_id`／`provider_id`），高版本拒绝；新 Home 创建完整 reviewed 偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
@@ -83,7 +82,7 @@
 | Pages | `<partition>/libraries/pages.db` | 1 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 低版本升级，高版本拒绝（每个分区一份；第 107 批搬进分区、去掉 `project_id`，版本仍是 1：没有用户，旧库不迁移） |
 | PPT | `<partition>/libraries/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 低版本升级，高版本拒绝（每个分区一份；第 107 批搬进分区、去掉 `project_id`，版本仍是 1：没有用户，旧库不迁移） |
 | Todo | `<partition>/libraries/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 低版本升级，高版本拒绝（每个分区一份；第 108 批搬进分区、去掉 `project_id`，版本仍是 1：没有用户，旧库不迁移，旧 Home 顶层的同名目录由升级过程删除（`removedHomeStores()`），金样原地改写） |
-| Work Brief | `work-brief/work-brief.db` | 1 | `user_version` | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE` | 低版本升级，高版本拒绝 |
+| Work Brief | `<partition>/libraries/work-brief.db` | 1 | `user_version` | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE` | 低版本升级，高版本拒绝（每个分区一份；第 109 批搬进分区、去掉 `project_id`，版本仍是 1：没有用户，旧库不迁移，旧 Home 顶层的同名目录由升级过程删除（`removedHomeStores()`），金样原地改写） |
 | Workflows | `<partition>/libraries/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝（每个分区一份；第 107 批搬进分区、去掉 `project_id`，版本仍是 1：没有用户，旧库不迁移） |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝旧结构/旧版本（当前 v1 含 `im_messages.subjects_json`；旧结构在可写打开前拒绝，不转换） |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |

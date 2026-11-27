@@ -21,9 +21,9 @@ export const FEED_FORGET_BATCH = 1_000;
 
 /** The Home's ledger and the platform's search records, as a deletion asks them: each call is one bounded write of another service. */
 export interface FeedHistoryReleasePorts {
-  /** This source's hold on exactly these bodies goes, then each that nobody else holds (`feed.content.reclaim`): every batch but the last. */
+  /** This source's hold on exactly these bodies goes, then each that nobody else holds (`services.evidence.reclaim`): every batch but the last. */
   reclaim(contentRefs: string[]): Promise<FeedContentRelease>;
-  /** Every hold this source has left goes, then each of these bodies nobody else holds (`feed.content.release`): the last batch. */
+  /** Every hold this source has left goes, then each of these bodies nobody else holds (`services.evidence.release`): the last batch. */
   release(contentRefs: string[]): Promise<FeedContentRelease>;
   /** The pulls' search records go; null when the Feed may not forget them, and they stay. */
   forget: ((operationIds: string[]) => Promise<{ records_deleted: number }>) | null;

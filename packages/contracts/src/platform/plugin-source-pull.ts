@@ -15,16 +15,36 @@ export const PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION = "sources:read_repository
  */
 export const SOURCE_PULL_EVIDENCE_KEY_MISSING = "host.source_pull.evidence_key_missing";
 
-/** What a Home instance holds to delete the evidence bodies nothing refers to (`services.evidenceCollector`, S-98 provisional). */
+/** What a plugin holds to keep its references in the platform's evidence ledger and have the bodies nobody holds deleted (`services.evidence`, S-98). */
 export const PLUGIN_EVIDENCE_COLLECT_PERMISSION = "evidence:collect";
 
+/** What one release or reclaim did: the holds this holder gave up, and among the candidates the bodies deleted and those still held elsewhere. */
+export interface PluginEvidenceRelease {
+  readonly holds_released: number;
+  readonly bodies_deleted: number;
+  readonly bodies_kept: number;
+}
+
+/** Most references one hold, release or reclaim names, so each is one bounded write. */
+export const PLUGIN_EVIDENCE_BATCH = 5_000;
+
 /**
- * The Home's evidence store as its reference ledger needs it: deletes, among the candidates, the bodies the owner says nothing refers to.
- * The store cannot see who holds a body, so the owner answers (`isReferenced`); a reference that is not a body of this store is left alone.
- * Only a Home activation is given it, and only the plugin's own running action may use it (S-98 provisional).
+ * The platform's evidence ledger (`horizontal/evidence`) as one plugin instance reaches it, given with `evidence:collect` to a plugin the Host
+ * runs itself. A hold is keyed by the plugin's own `holder_key` (its object, e.g. a source); the partition and the installation are the Host's
+ * stamp from the trusted context, so an instance reaches only its own holds. A body is deleted only when no partition and no installation
+ * holds it any more, whoever asks.
  */
-export interface PluginEvidenceCollectorClient {
-  collect(input: { readonly candidates: Iterable<string>; isReferenced(contentRef: string): boolean }): { deleted: string[]; kept: string[] };
+export interface PluginEvidenceClient {
+  /** Records that this holder holds these bodies. Done before the bodies are written; only after it returns may a write go ahead. */
+  hold(holderKey: string, contentRefs: readonly string[]): Promise<{ readonly held: number }>;
+  /**
+   * This holder's hold on exactly these bodies goes, then each nobody else holds is deleted, in one transaction: for the holds a failed,
+   * cancelled or interrupted write left behind, which the caller vouches none of its rows points at. Only in the plugin's own running action
+   * that declares `evidence:collect`.
+   */
+  reclaim(holderKey: string, contentRefs: readonly string[]): Promise<PluginEvidenceRelease>;
+  /** Every hold this holder has goes, then each candidate nobody else holds is deleted, in one transaction; same conditions as `reclaim`. */
+  release(holderKey: string, candidates: readonly string[]): Promise<PluginEvidenceRelease>;
 }
 
 /** What a plugin holds to pull an account source (GitHub, Gmail, a directory connector) through the person's bound account (`services.sourcePull.connector`). */

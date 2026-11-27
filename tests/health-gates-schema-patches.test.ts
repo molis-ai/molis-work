@@ -126,7 +126,7 @@ test("UPG1-i-patches-08: it reads the source files and the .sql files of the sou
   assert.equal(schemaPatchesWantText("packages/alpha/src/a.sql"), true);
   assert.equal(schemaPatchesWantText("server/migrations/sync/0001_sync.sql"), false);
   assert.equal(schemaPatchesWantText("server/src/a.sql"), true);
-  assert.equal(schemaPatchesWantText("tests/fixtures/feed-content-home-v1.sql"), false);
+  assert.equal(schemaPatchesWantText("tests/fixtures/home-store-schemas/evidence.sql"), false);
   assert.equal(schemaPatchesWantText("apps/sync-worker/fixtures/baseline-v4.sql"), false);
   assert.equal(schemaPatchesWantText("packages/alpha/tests/a.sql"), false);
   assert.equal(schemaPatchesWantText("docs/a.sql"), false);

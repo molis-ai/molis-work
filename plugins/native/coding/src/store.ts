@@ -45,8 +45,7 @@ export interface CreateCodingSessionInput {
 /** The Coding session tables, as one current schema; Coding declares them as its project database (`CODING_PROJECT_DATABASE`). */
 export const CODING_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS coding_sessions (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      session_id TEXT NOT NULL,
+      session_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       state TEXT NOT NULL,
       archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
@@ -58,24 +57,18 @@ export const CODING_SCHEMA_SQL = `
       -- Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
       steps_json TEXT,
       -- Background commands the session left running, as last read: lets the list across projects show and stop them.
-      background_json TEXT,
-      PRIMARY KEY (project_id, session_id)
+      background_json TEXT
     );
-    CREATE INDEX IF NOT EXISTS coding_sessions_project_updated_idx
-      ON coding_sessions(project_id, updated_at DESC, session_id);
+    CREATE INDEX IF NOT EXISTS coding_sessions_updated_idx
+      ON coding_sessions(updated_at DESC, session_id);
     CREATE TABLE IF NOT EXISTS coding_plan_drafts (
-      project_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
+      session_id TEXT PRIMARY KEY REFERENCES coding_sessions(session_id) ON DELETE CASCADE,
       revision INTEGER NOT NULL,
-      draft_json TEXT NOT NULL,
-      PRIMARY KEY (project_id, session_id),
-      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
+      draft_json TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS coding_plan_versions (
-      project_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      revision INTEGER NOT NULL CHECK (revision > 0),
-      PRIMARY KEY (project_id, session_id)
+      session_id TEXT PRIMARY KEY,
+      revision INTEGER NOT NULL CHECK (revision > 0)
     );
 
 
@@ -89,9 +82,9 @@ type Row = Record<string, unknown>;
 /** A background command a session left running. */
 interface CodingRunningCommand { task_id: string; summary: string; started_at_ms: number }
 
-function mapSession(row: Row): CodingSessionRecord {
+function mapSession(row: Row, projectId: string): CodingSessionRecord {
   return {
-    project_id: String(row.project_id),
+    project_id: projectId,
     session_id: String(row.session_id),
     title: String(row.title),
     state: String(row.state) as CodingSessionState,
@@ -117,14 +110,14 @@ export type CodingBeforeEffect = () => Promise<void>;
 export type CodingWriteGuard = () => void;
 
 const sessionIn = (reader: PluginDatabaseReader, projectId: string, sessionId: string): CodingSessionRecord => {
-  const row = reader.get("SELECT * FROM coding_sessions WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
+  const row = reader.get("SELECT * FROM coding_sessions WHERE session_id = ?", [sessionId]);
   if (!row) throw codingStoreErrors.session_unknown(`找不到这条会话：${sessionId}`);
-  return mapSession(row);
+  return mapSession(row, projectId);
 };
 
 const planIn = (reader: PluginDatabaseReader, projectId: string, sessionId: string): CodingPlanDraft | null => {
   sessionIn(reader, projectId, sessionId);
-  const row = reader.get("SELECT draft_json FROM coding_plan_drafts WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
+  const row = reader.get("SELECT draft_json FROM coding_plan_drafts WHERE session_id = ?", [sessionId]);
   return row ? JSON.parse(String(row.draft_json)) as CodingPlanDraft : null;
 };
 
@@ -150,7 +143,7 @@ export class CodingSessionStore {
     this.overview.join(tx, rows => session ? rows.upsert("background_task", codingOverviewRow(session)) : rows.remove("background_task", sessionId));
   }
 
-  savedHistory(projectId:string,sessionId:string):string[] {const record=this.get(projectId,sessionId);return readCodingSavedHistory(this.db,projectId,sessionId,record.runtime_session_id);}
+  savedHistory(projectId:string,sessionId:string):string[] {const record=this.get(projectId,sessionId);return readCodingSavedHistory(this.db,sessionId,record.runtime_session_id);}
 
   plan(projectId: string, sessionId: string): CodingPlanDraft | null {
     return planIn(this.db, projectId, sessionId);
@@ -158,7 +151,7 @@ export class CodingSessionStore {
 
   planRevision(projectId: string, sessionId: string): number {
     this.get(projectId, sessionId);
-    const row=this.db.get("SELECT revision FROM coding_plan_versions WHERE project_id=? AND session_id=?", [projectId,sessionId]) as Row|undefined;
+    const row=this.db.get("SELECT revision FROM coding_plan_versions WHERE session_id=?", [sessionId]) as Row|undefined;
     return row?Number(row.revision):0;
   }
 
@@ -168,16 +161,16 @@ export class CodingSessionStore {
       guard?.();
       sessionIn(tx, projectId, sessionId);
       if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw new Error("计划修订无效");
-      const clock = tx.get("SELECT revision FROM coding_plan_versions WHERE project_id=? AND session_id=?", [projectId,sessionId]);
+      const clock = tx.get("SELECT revision FROM coding_plan_versions WHERE session_id=?", [sessionId]);
       if (Number(clock?.revision ?? 0) !== expected) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
       const exists = planIn(tx, projectId, sessionId);
       const result = !exists
-        ? tx.run("INSERT OR IGNORE INTO coding_plan_drafts (project_id, session_id, revision, draft_json) VALUES (?, ?, ?, ?)",
-          [projectId, sessionId, draft.revision, JSON.stringify(draft)])
-        : tx.run("UPDATE coding_plan_drafts SET revision = ?, draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?",
-          [draft.revision, JSON.stringify(draft), projectId, sessionId, expected]);
+        ? tx.run("INSERT OR IGNORE INTO coding_plan_drafts (session_id, revision, draft_json) VALUES (?, ?, ?)",
+          [sessionId, draft.revision, JSON.stringify(draft)])
+        : tx.run("UPDATE coding_plan_drafts SET revision = ?, draft_json = ? WHERE session_id = ? AND revision = ?",
+          [draft.revision, JSON.stringify(draft), sessionId, expected]);
       if (Number(result.changes) !== 1) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
-      tx.run("INSERT INTO coding_plan_versions VALUES (?,?,?) ON CONFLICT(project_id,session_id) DO UPDATE SET revision=excluded.revision", [projectId,sessionId,draft.revision]);
+      tx.run("INSERT INTO coding_plan_versions VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET revision=excluded.revision", [sessionId,draft.revision]);
       return planIn(tx, projectId, sessionId)!;
     });
   }
@@ -186,8 +179,8 @@ export class CodingSessionStore {
     guard?: CodingWriteGuard): Promise<CodingPlanDraft> {
     return this.db.transaction(beforeEffect, tx => {
       guard?.();
-      const result = tx.run("UPDATE coding_plan_drafts SET draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?",
-        [JSON.stringify(draft), projectId, sessionId, draft.revision]);
+      const result = tx.run("UPDATE coding_plan_drafts SET draft_json = ? WHERE session_id = ? AND revision = ?",
+        [JSON.stringify(draft), sessionId, draft.revision]);
       if (Number(result.changes) !== 1) throw new Error("计划已变化，请重新查看并确认当前修订");
       return planIn(tx, projectId, sessionId)!;
     });
@@ -195,14 +188,14 @@ export class CodingSessionStore {
 
   async create(beforeEffect: CodingBeforeEffect, input: CreateCodingSessionInput): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
-      if (tx.get("SELECT session_id FROM coding_sessions WHERE project_id = ? AND session_id = ?", [input.project_id, input.session_id])) {
+      if (tx.get("SELECT session_id FROM coding_sessions WHERE session_id = ?", [input.session_id])) {
         throw codingStoreErrors.session_duplicate(`会话已存在：${input.session_id}`);
       }
       tx.run(`
         INSERT INTO coding_sessions
-          (project_id, session_id, title, state, goal_id, runtime_id, runtime_session_id, created_at, updated_at)
-        VALUES (?, ?, ?, 'idle', ?, ?, NULL, ?, ?)
-      `, [input.project_id, input.session_id, input.title, input.goal_id ?? null, input.runtime_id, input.at, input.at]);
+          (session_id, title, state, goal_id, runtime_id, runtime_session_id, created_at, updated_at)
+        VALUES (?, ?, 'idle', ?, ?, NULL, ?, ?)
+      `, [input.session_id, input.title, input.goal_id ?? null, input.runtime_id, input.at, input.at]);
       return sessionIn(tx, input.project_id, input.session_id);
     });
   }
@@ -213,13 +206,13 @@ export class CodingSessionStore {
 
   /** The session behind a runtime session, archived or not. */
   byRuntimeSession(projectId: string, runtimeSessionId: string): CodingSessionRecord | null {
-    const row = this.db.get("SELECT * FROM coding_sessions WHERE project_id = ? AND runtime_session_id = ?", [projectId, runtimeSessionId]);
-    return row ? mapSession(row) : null;
+    const row = this.db.get("SELECT * FROM coding_sessions WHERE runtime_session_id = ?", [runtimeSessionId]);
+    return row ? mapSession(row, projectId) : null;
   }
 
   /** Newest first, which is the order the directory shows. */
   list(projectId: string): CodingSessionRecord[] {
-    return this.db.all("SELECT * FROM coding_sessions WHERE project_id = ? AND archived = 0 ORDER BY updated_at DESC, session_id", [projectId]).map(mapSession);
+    return this.db.all("SELECT * FROM coding_sessions WHERE archived = 0 ORDER BY updated_at DESC, session_id").map(row => mapSession(row, projectId));
   }
 
   /** Bounded owner-only directory; its cursor binds scope, archive choice and the original ordering position. */
@@ -234,44 +227,44 @@ export class CodingSessionStore {
         position = [value[2], value[3]];
       } catch { throw codingStoreErrors.session_unknown("会话分页位置不属于当前项目或目录，请刷新"); }
     }
-    const rows = this.db.all(`SELECT * FROM coding_sessions WHERE project_id = ? AND archived = ?
+    const rows = this.db.all(`SELECT * FROM coding_sessions WHERE archived = ?
       ${position ? "AND (updated_at < ? OR (updated_at = ? AND session_id > ?))" : ""}
-      ORDER BY updated_at DESC, session_id LIMIT ?`, [projectId, archived ? 1 : 0,
-      ...(position ? [position[0], position[0], position[1]] : []), limit + 1]).map(mapSession);
+      ORDER BY updated_at DESC, session_id LIMIT ?`, [archived ? 1 : 0,
+      ...(position ? [position[0], position[0], position[1]] : []), limit + 1]).map(row => mapSession(row, projectId));
     const sessions = rows.slice(0, limit), last = sessions.at(-1);
     return { sessions, next_cursor: rows.length > limit && last ? encodeURIComponent(JSON.stringify([projectId, archived, last.updated_at, last.session_id])) : null };
   }
 
   /** The sessions the person may have to come back to, newest first (the Home's background tasks, `home-background.ts`). */
-  backgroundSessions(projectId: string): CodingBackgroundSession[] {
+  backgroundSessions(): CodingBackgroundSession[] {
     return backgroundSessionsOf(this.db.all(`SELECT session_id, runtime_session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
-      WHERE project_id = ? AND archived = 0 AND (state IN (${CODING_ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL)
-      ORDER BY updated_at DESC, session_id`, [projectId, ...CODING_ACTIVE_STATES]));
+      WHERE archived = 0 AND (state IN (${CODING_ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL)
+      ORDER BY updated_at DESC, session_id`, [...CODING_ACTIVE_STATES]));
   }
 
   /** Record who holds the session's unfinished plan steps; null when none are open. Not a change to the session. */
-  async setSteps(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, steps: CodingStepHolders | null): Promise<void> {
+  async setSteps(beforeEffect: CodingBeforeEffect, _projectId: string, sessionId: string, steps: CodingStepHolders | null): Promise<void> {
     await this.db.transaction(beforeEffect, tx => {
-      tx.run("UPDATE coding_sessions SET steps_json = ? WHERE project_id = ? AND session_id = ?", [steps ? JSON.stringify(steps) : null, projectId, sessionId]);
+      tx.run("UPDATE coding_sessions SET steps_json = ? WHERE session_id = ?", [steps ? JSON.stringify(steps) : null, sessionId]);
       this.summed(tx, sessionId);
     });
   }
 
   /** Record the background commands the session has running; null when none. Not a change to the session. */
-  async setBackground(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, running: CodingRunningCommand[] | null): Promise<void> {
+  async setBackground(beforeEffect: CodingBeforeEffect, _projectId: string, sessionId: string, running: CodingRunningCommand[] | null): Promise<void> {
     await this.db.transaction(beforeEffect, tx => {
-      tx.run("UPDATE coding_sessions SET background_json = ? WHERE project_id = ? AND session_id = ?", [running?.length ? JSON.stringify(running) : null, projectId, sessionId]);
+      tx.run("UPDATE coding_sessions SET background_json = ? WHERE session_id = ?", [running?.length ? JSON.stringify(running) : null, sessionId]);
       this.summed(tx, sessionId);
     });
   }
 
-  backgroundOf(projectId: string, sessionId: string): CodingRunningCommand[] | null {
-    const row = this.db.get("SELECT background_json FROM coding_sessions WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
+  backgroundOf(_projectId: string, sessionId: string): CodingRunningCommand[] | null {
+    const row = this.db.get("SELECT background_json FROM coding_sessions WHERE session_id = ?", [sessionId]);
     return typeof row?.background_json === "string" ? JSON.parse(row.background_json) as CodingRunningCommand[] : null;
   }
 
-  stepsOf(projectId: string, sessionId: string): CodingStepHolders | null {
-    const row = this.db.get("SELECT steps_json FROM coding_sessions WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
+  stepsOf(_projectId: string, sessionId: string): CodingStepHolders | null {
+    const row = this.db.get("SELECT steps_json FROM coding_sessions WHERE session_id = ?", [sessionId]);
     return typeof row?.steps_json === "string" ? JSON.parse(row.steps_json) as CodingStepHolders : null;
   }
 
@@ -279,7 +272,7 @@ export class CodingSessionStore {
     return this.db.transaction(beforeEffect, tx => {
       guard?.();
       sessionIn(tx, projectId, sessionId);
-      tx.run("UPDATE coding_sessions SET state = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [state, at, projectId, sessionId]);
+      tx.run("UPDATE coding_sessions SET state = ?, updated_at = ? WHERE session_id = ?", [state, at, sessionId]);
       this.summed(tx, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
@@ -293,8 +286,8 @@ export class CodingSessionStore {
     rename: { readonly from: string; readonly to: string } | null): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
       const record = sessionIn(tx, projectId, sessionId);
-      if (rename && record.title === rename.from) tx.run("UPDATE coding_sessions SET title = ? WHERE project_id = ? AND session_id = ?", [rename.to, projectId, sessionId]);
-      tx.run("UPDATE coding_sessions SET state = 'running', updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
+      if (rename && record.title === rename.from) tx.run("UPDATE coding_sessions SET title = ? WHERE session_id = ?", [rename.to, sessionId]);
+      tx.run("UPDATE coding_sessions SET state = 'running', updated_at = ? WHERE session_id = ?", [at, sessionId]);
       this.summed(tx, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
@@ -303,7 +296,7 @@ export class CodingSessionStore {
   async rename(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, title: string, at: string): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
       sessionIn(tx, projectId, sessionId);
-      tx.run("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [title, at, projectId, sessionId]);
+      tx.run("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE session_id = ?", [title, at, sessionId]);
       this.summed(tx, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
@@ -314,7 +307,7 @@ export class CodingSessionStore {
       guard?.();
       // Archiving an archived session (or restoring an active one) is refused, never a silent success.
       if (sessionIn(tx, projectId, sessionId).archived === archived) throw codingStoreErrors.session_unknown(archived ? "会话已归档" : "会话没有归档");
-      tx.run("UPDATE coding_sessions SET archived = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [archived ? 1 : 0, at, projectId, sessionId]);
+      tx.run("UPDATE coding_sessions SET archived = ?, updated_at = ? WHERE session_id = ?", [archived ? 1 : 0, at, sessionId]);
       this.summed(tx, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
@@ -326,7 +319,7 @@ export class CodingSessionStore {
     return this.db.transaction(beforeEffect, tx => {
       guard?.();
       sessionIn(tx, projectId, sessionId);
-      tx.run("UPDATE coding_sessions SET goal_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [goalId, at, projectId, sessionId]);
+      tx.run("UPDATE coding_sessions SET goal_id = ?, updated_at = ? WHERE session_id = ?", [goalId, at, sessionId]);
       this.summed(tx, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });
@@ -338,7 +331,7 @@ export class CodingSessionStore {
       if (typeof runtimeSessionId !== "string" || !runtimeSessionId.trim() || current.runtime_session_id !== null && current.runtime_session_id !== runtimeSessionId)
         throw codingStoreErrors.session_binding_conflict("原执行会话已经固定，不能改绑或清空");
       if (current.runtime_session_id === runtimeSessionId) return current;
-      tx.run("UPDATE coding_sessions SET runtime_session_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [runtimeSessionId, at, projectId, sessionId]);
+      tx.run("UPDATE coding_sessions SET runtime_session_id = ?, updated_at = ? WHERE session_id = ?", [runtimeSessionId, at, sessionId]);
       this.summed(tx, sessionId);
       return sessionIn(tx, projectId, sessionId);
     });

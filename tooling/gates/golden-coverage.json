@@ -80,10 +80,6 @@
     {
       "path": "home-pages/home-pages.db",
       "reason": "第 37 批新增的项目生成首页 Home 库（按 project_id 分区，首次保存草稿或读写首页版本时按需建库）；现有 0.1.0 金样未保存生成首页，建库、SHA-256 核验、批准恢复、离线快照与删项目由 tests/home-pages-service.test.ts、tests/home-pages-security.e2e.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖。"
-    },
-    {
-      "path": "evidence/evidence.db",
-      "reason": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
     }
   ],
   "writes": {
@@ -98,11 +94,14 @@
         "artifacts.ts",
         "coding.ts",
         "feed.ts",
-        "schedule.ts"
+        "schedule.ts",
+        "work-brief.ts"
       ]
     },
     "personal-space/molis-work.db": {
-      "none": "第 106 批只由 Home 初始化建出个人空间的空库（与项目库同一份基线）；个人空间里的插件写入从第 109 批搬入 IM、待办等起才有，届时在 tests/golden-writes/ 补写入用例"
+      "cases": [
+        "personal-space.ts"
+      ]
     },
     "assistant/assistant.db": {
       "cases": [
@@ -181,17 +180,14 @@
         "todo.ts",
         "issues.ts",
         "cognia.ts",
-        "jelly.ts"
+        "jelly.ts",
+        "work-brief.ts"
       ]
     },
     "personal-space/libraries/<库名>.db": {
-      "none": "第 107、108 批起这些插件的分区独立库在每个分区各一份；金样的写入用例只写主项目，个人空间的同一份库由同一组用例在项目分区里证明能改（与 personal-space/molis-work.db 同理），个人空间里的写入从第 109 批起补用例"
-    },
-    "feed-content/feed-content.db": {
-      "none": "正文只在 Feed 真的拉到内容时写，要联网；金样不联网，这个库只有结构和空间行，没有业务行（feed.ts 写的是项目那一半）"
-    },
-    "work-brief/work-brief.db": {
-      "none": "Work Brief 的库只在插件运行时保存或刷新时写；现有金样不安装 Work Brief，生成时也没有种子简报。首个真实简报的保存路径由 tests/work-brief-plugin.test.ts 覆盖。"
+      "cases": [
+        "personal-space.ts"
+      ]
     },
     "evaluation/evaluation.db": {
       "none": "端到端评测库只在调用 evaluation.*@1 登记样本或执行评测时懒打开写入；现有金样未登记评测样本，读写与删项目由 tests/evaluation-service.test.ts 和 tests/home-snapshot-cli.test.ts 覆盖。"
@@ -232,7 +228,7 @@
       ]
     },
     "evidence/evidence.db": {
-      "none": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"
+      "none": "持有只在 Feed 真的拉到正文时写（`services.evidence.hold`，第 109 批起），拉取要联网；金样不联网，库只有结构。持有、收回与释放由 tests/dual-instance-services.test.ts（S-98）与 tests/feed-evidence-holds.test.ts 覆盖"
     },
     "person-settings/person-settings.db": {
       "cases": [

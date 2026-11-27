@@ -1,9 +1,9 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiClientScope, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { BriefView, PersonalItem, PersonalView } from "../actions.js";
+import type { BriefView } from "../actions.js";
 import type { AttentionItem, BriefChange, BriefProposal, BriefVersion, BriefVersionHead, Cite, Claim, NextMark, NextOption, ProposalConflict, SourceRow } from "../model.js";
 
-export type { ActionSubject, AttentionItem, BriefChange, BriefProposal, BriefVersion, BriefVersionHead, BriefView, Cite, Claim, NextMark, NextOption, PersonalItem, PersonalView, ProposalConflict, SourceRow };
+export type { ActionSubject, AttentionItem, BriefChange, BriefProposal, BriefVersion, BriefVersionHead, BriefView, Cite, Claim, NextMark, NextOption, ProposalConflict, SourceRow };
 
 /** The common request lifetime plus the mounted page's event and timer ownership. */
 export interface Scope extends UiClientScope {
@@ -17,7 +17,6 @@ export type WorkBriefHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogEleme
 };
 
 export interface BriefPageState {
-  mode: "project" | "personal";
   loading: boolean;
   /** The brief could not be read: says so, never shows an empty brief. */
   error: string;
@@ -35,8 +34,6 @@ export interface BriefPageState {
   /** What the last refresh reported, until the page is left or refreshed again. */
   delta: { changed: boolean; version: number; changes: BriefChange[] } | null;
   busy: "" | "refresh" | "write";
-  personal: PersonalView | null;
-  personalError: string;
 }
 
 export interface BriefPage {

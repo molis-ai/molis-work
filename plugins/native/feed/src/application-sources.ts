@@ -20,6 +20,11 @@ export class FeedSources {
     return this.ports.sources.query.list(projectId).map(source => this.record(source));
   }
 
+  /** What each source is, in one read: without its listener's cursor or its item count, which `list` reads source by source. */
+  definitions(projectId: string): readonly SourceRecord[] {
+    return this.ports.sources.query.list(projectId);
+  }
+
   get(projectId: string, sourceId: string): FeedSourceRecord {
     try {
       return this.record(this.ports.sources.query.get(projectId, sourceId));

@@ -130,11 +130,20 @@ export function projectReference(project) {
 
 /** The action client an owner's write case gets: the directory is read once, and the caller holds exactly what the action asks for. */
 export function goldenActions(session, project, tag) {
+  return { ...partitionActions(session, project, tag), personal: partitionActions(session, personalSpace(session.home), tag) };
+}
+
+/** The person's own partition of a Home: its main database sits in `personal-space/` (batch 106), whichever Home the session runs. */
+const personalSpace = home => ({ project_id: "personal", database_path: path.join(home, "personal-space", "molis-work.db") });
+
+function partitionActions(session, project, tag) {
   const ref = projectReference(project), base = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user", permissions: [] };
   let views;
   const call = async (capability, input = {}, { version = 1, user_action, project_owner = false } = {}) => {
     views ??= await session.host.inspectActions(base, ref);
-    const view = views.find(item => item.capability_id === capability && item.version === version);
+    let view = views.find(item => item.capability_id === capability && item.version === version);
+    // A case may turn a plugin on in the partition first (the personal space starts with none): what is offered is read again once.
+    if (!view) view = (views = await session.host.inspectActions(base, ref)).find(item => item.capability_id === capability && item.version === version);
     if (!view) throw goldenFailure("golden.action_not_offered", `${capability}@${version}`);
     const caller = project_owner ? await session.host.localPersonContext(ref)
       : { ...base, permissions: view.action.permissions, ...(user_action ? { user_action } : {}) };

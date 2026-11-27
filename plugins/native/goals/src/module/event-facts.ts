@@ -119,10 +119,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
       SELECT g.goal_id, g.title, g.fulfillment_state
       FROM goal_relations r
       JOIN goals g ON g.goal_id = r.to_goal_id
-      WHERE r.project_id = ? AND r.from_goal_id = ?
+      WHERE r.from_goal_id = ?
         AND r.type = 'depends_on' AND r.state = 'active'
       ORDER BY g.goal_id
-    `).all(projectId, goalId) as Array<{ goal_id: string; title: string; fulfillment_state: string }>;
+    `).all(goalId) as Array<{ goal_id: string; title: string; fulfillment_state: string }>;
     return {
       open_dependencies: openDependencies
         .filter((row) => row.fulfillment_state !== "satisfied")

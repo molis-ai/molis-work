@@ -7,6 +7,7 @@ import { createWorkflowsPlugin, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, 
  */
 export const registration: PluginRegistration = {
   project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID, catalog_order: 20,
+  formerly_personal: true,
   manifest: workflowsManifest,
   project_runtime: { create: createWorkflowsPlugin, package_name: "@molis-ai/molis-work-plugin-workflows", factory_export: "createWorkflowsPlugin" },
   observation: {

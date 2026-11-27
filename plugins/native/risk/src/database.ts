@@ -13,7 +13,6 @@ export const RISK_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   schema: `
     CREATE TABLE IF NOT EXISTS risk_items (
       risk_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       title TEXT NOT NULL,
       statement TEXT NOT NULL,
       impact TEXT NOT NULL CHECK (impact IN ('high', 'medium', 'low')),
@@ -27,7 +26,7 @@ export const RISK_PROJECT_DATABASE: PluginDatabaseDeclaration = {
       updated_at TEXT NOT NULL,
       closed_at TEXT
     );
-    CREATE INDEX IF NOT EXISTS risk_items_status_idx ON risk_items(project_id, status, updated_at);
+    CREATE INDEX IF NOT EXISTS risk_items_status_idx ON risk_items(status, updated_at);
     CREATE TABLE IF NOT EXISTS risk_links (
       risk_id TEXT NOT NULL REFERENCES risk_items(risk_id) ON DELETE CASCADE,
       subject_kind TEXT NOT NULL,

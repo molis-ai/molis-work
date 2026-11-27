@@ -207,7 +207,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const { context, projectId } = a;
   // Pictures the person added in the composer: references to this installation's attachments, which the Agent Host reads again.
   const image_materials = roundImages(body.images);
-  const savedInput=execution.sessions.inputs.read(projectId,record.session_id);
+  const savedInput=execution.sessions.inputs.read(record.session_id);
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const original_input = originalForStart(body, beforeWrite), continued_from = continuedOriginal(body, record.runtime_session_id);
   const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);
@@ -330,7 +330,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     await startDelegation(record, codingActions(context, beforeWrite), session.session_id).catch(() => undefined);
     await beforeWrite(); beforeWrite.assert_current();
     pinCharacter?.();
-    const cleared_input_revision=!plan&&savedInput.draft===body.task&&await execution.sessions.inputs.clearIfUnchanged(beforeWrite,projectId,record.session_id,savedInput.revision)?savedInput.revision+1:undefined;
+    const cleared_input_revision=!plan&&savedInput.draft===body.task&&await execution.sessions.inputs.clearIfUnchanged(beforeWrite,record.session_id,savedInput.revision)?savedInput.revision+1:undefined;
     // A session named by default takes its name from the first task, the way a person would label it.
     // The name and the running state are one write: the directory never shows the new name beside the old state.
     await execution.sessions.roundStarted(beforeWrite, projectId, record.session_id, new Date().toISOString(), firstRound ? { from: DEFAULT_SESSION_TITLE, to: codingSessionTitleFrom(task) } : null);

@@ -16,7 +16,7 @@ import { ActionError, type ActionDefinition, type BoundActionClient } from "@mol
 import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
 import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
-import { workBriefPersonalActions } from "@molis-ai/molis-work-plugin-work-brief";
+import { OVERVIEW_PROVIDER_ID, overviewReadAction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { serveNativeHttp } from "./fixtures/native-http.js";
@@ -214,13 +214,14 @@ for (const leavesRow of [false, true]) {
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
     // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and a Home read may reach the catalog
     // through it: that nested read goes to the real catalog, or the failing read would call itself. (Todo was the Home read until batch 108
-    // moved it into the partitions; Work Brief's Home half refuses an input it does not know, a refusal the Host records.)
+    // moved it into the partitions, and Work Brief's Home half until 109-1; the platform's overview read refuses an input it does not know,
+    // a refusal the Host records.)
     let entered = false;
     const mcp = new hostModule.LocalMcpServer(async (options, operation) => {
       if (entered) return withMolisWorkProjectCatalog(options, operation);
       entered = true;
       if (leavesRow) await assert.rejects(host.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", audience: "user",
-        project_id: null, permissions: ["work-brief:read"] }, workBriefPersonalActions.get, { unexpected: true } as never), { code: "actions.input_invalid" });
+        project_id: null, permissions: [] }, { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID }, { unexpected: true } as never), { code: "actions.input_invalid" });
       throw failure;
     }, "runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "details-reader", stable_work_context_id: null, host_declares_stable: false } }, host);
     t.after(async () => { await mcp.close(); await host.close(); await rm(home, { recursive: true, force: true }); });

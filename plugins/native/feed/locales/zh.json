@@ -446,7 +446,6 @@
     "feed.permission.sources-read-repository.reason": "读取 GitHub 研究库里发布的内容",
     "feed.permission.schedule-read.reason": "查看来源是否已设好定时拉取",
     "feed.permission.schedule-write.reason": "设置按固定间隔自动拉取到期来源",
-    "feed.permission.actions-invoke.reason": "登记和释放本机留存的消息正文引用",
     "feed.permission.scenes-use.reason": "绑定并运行捕捉规则的判断场景",
     "feed.permission.judgments-read.reason": "读取捕捉规则的判断记录",
     "feed.permission.judgments-write.reason": "保存捕捉规则的判断结果",
@@ -557,12 +556,6 @@
     "feed.actions.presentation-values.title": "Feed 摘要字段",
     "feed.actions.presentation-values.description": "按当前权限读取这些 Feed 条目要展示的字段，读不到或已删除的会如实标明，不修改数据。",
     "feed.actions.presentation-overview.title": "Feed 首页概况",
-    "feed.actions.presentation-overview.description": "读取 Feed 的当前概况、靠前的消息和快捷入口；只读，不调用模型。",
-    "feed.actions.content-hold.title": "登记来源持有的正文",
-    "feed.actions.content-hold.description": "写入正文前，登记当前项目来源引用的留存原文，避免清理时误删。",
-    "feed.actions.content-release.title": "释放来源持有的正文",
-    "feed.actions.content-release.description": "删除来源记录后释放它对留存原文的引用，并清理已无人引用的旧正文。",
-    "feed.actions.content-reclaim.title": "收回多余的正文登记",
-    "feed.actions.content-reclaim.description": "在拉取失败、取消或中断后收回未被引用的正文登记，并清理不再需要的旧正文。"
+    "feed.actions.presentation-overview.description": "读取 Feed 的当前概况、靠前的消息和快捷入口；只读，不调用模型。"
   }
 }

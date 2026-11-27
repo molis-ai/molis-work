@@ -19,7 +19,6 @@ import { streamProbe } from "./fixtures/plugin-stream.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 import { FORM_PLUGIN_ID } from "@molis-ai/molis-work-plugin-form";
-import { FEED_PLUGIN_ID, feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
@@ -739,61 +738,9 @@ test("RAC-1744 both halves stopped: one project placeholder; the project half ba
   assert.deepEqual(await stage(), { views: 1, home: [], project: [] });
 });
 
-// Feed is in the build and its view is in its project half. The same Feed with the view offered by its Home half instead is drawn by
-// the Home half: being in the build no longer keeps a dual-instance plugin's stage on its project half.
-test("RAC-1745 a dual-instance plugin in the build is drawn by the half that offers its view, the same rule as one outside the build", { timeout: 60_000 }, async t => {
-  const { home: homeDirectory, host, project, request } = await serveHomeRuntime(t);
-  const one = await project("Feed stage owner");
-  const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
-  await withHostCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: one.project_id, plugin_id: "feed", actor_id: "fixture" }));
-  const page = async () => { const response = await request(`/projects/${one.project_id}`); assert.equal(response.status, 200); return response.text(); };
-  const first = await page();
-  const home = await host.homePlugins!.ready(), install = host.homePlugins!.installation(FEED_PLUGIN_ID);
-  const projectPlatform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
-  assert.ok(install && projectPlatform);
-  assert.equal(install.state, "running");
-  const feed = /<section\b[^>]*data-work-surface="feed"[^>]*data-(?:home|project)-plugin-unavailable[^>]*>/gu;
-  const stageId = "io.molis.work.native.feed.ui.v1";
-  assert.equal(first.match(feed), null, "Feed's own stage, from its project half, has no placeholder");
-  const ownHome = home.runtime.contribution.bind(home.runtime);
-  // A capability has one producer across Home/project scope. Withdraw the project read before the fixture moves it with its view.
-  const projectInstallId = projectPlatform.supervisor.state(FEED_PLUGIN_ID)!.install_id!;
-  await projectPlatform.runtime.stop(projectInstallId);
-  const data = { snapshot: { sources: [], feed_items: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, source_catalog: [],
-    connector_auth: { github: { bound: false }, gmail: { bound: false } }, attention_entries: [], source_messages: {}, source_presentations: {} };
-  let homeReads = 0;
-  const registration = { provider: { provider_id: FEED_PLUGIN_ID, plugin_id: FEED_PLUGIN_ID,
-    plugin_install_id: install.install_id, title: "Feed Home stage", kind: "plugin" as const }, definitions: [feedQueryActions.stage],
-    handlers: [{ ...feedQueryActions.stage, handle(caller) { homeReads++; assert.equal(caller.project_id, one.project_id); return data; } }] };
-  const view = { descriptor: { contribution_id: stageId, kind: "embedded" as const, label: "Feed", surfaces: ["workbench", "source-workbench"]
-    .map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
-    render: request => { assert.deepEqual(request.model.data, data, "the selected Home owner reads its own provider, not the project's Feed");
-      return request.surface === "workbench" ? "<section>feed-home-half</section>" : ""; } };
-  const homeContribution = ownHome(install.install_id);
-  assert.ok(homeContribution?.kind === "app");
-  const movedHome = { ...homeContribution, views: [...homeContribution.views ?? [], view] };
-  const homeHalf = t.mock.method(home.runtime, "contribution", (id: string) => {
-    return id === install.install_id ? movedHome : ownHome(id);
-  });
-  let release: (() => void) | undefined;
-  try {
-    const missing = await page();
-    assert.doesNotMatch(missing + pluginDocuments(missing).join("\n"), /<section\b[^>]*>feed-home-half<\/section>/);
-    assert.match(missing, feed, "a view without its same-owner read cannot borrow the project's data");
-    assert.equal(homeReads, 0);
-    release = host.actionRegistry().registerProvider(registration);
-    const moved = await page();
-    const ownerDocuments = pluginDocuments(moved).join("\n");
-    assert.equal(ownerDocuments.match(/<section\b[^>]*>feed-home-half<\/section>/g)?.length ?? 0, 1, "the Home half that offers the view draws it inside its registered opaque document");
-    assert.equal(homeReads, 1, "its declared data is read once by that same Home half");
-    assert.equal(projectPlatform.runtime.get(projectInstallId).state, "disabled", "the original project producer remains withdrawn");
-    assert.equal(moved.match(feed), null, "and no half answers with a placeholder");
-    release(); release = undefined;
-    const withdrawn = await page();
-    assert.doesNotMatch(withdrawn + pluginDocuments(withdrawn).join("\n"), /<section\b[^>]*>feed-home-half<\/section>/, "withdrawing the Home read cannot revive old data or the catalog");
-    assert.equal(homeReads, 1);
-  } finally { release?.(); homeHalf.mock.restore(); }
-});
+// RAC-1745 (a dual-instance plugin in the build drawn by the half that offers its view) left with batch 109-1: the build ships no
+// dual-instance plugin any more (Feed and Work Brief run per partition). The rule is the one RAC-1740 and RAC-1741 prove above on
+// plugins outside the build, and it goes with the Home runtime in 109-3.
 
 // PG094-STAGE-01: a Home instance without a declared stage adds no Host placeholder; the opaque frame boundary remains enforced.
 test("S-47 RAC-79 W5-06-STAGE-01 the real Form frame stays usable after a stopped stage placeholder and restart; forged unavailable markers stay isolated", { timeout: 90_000 }, async t => {

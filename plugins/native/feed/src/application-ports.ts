@@ -9,8 +9,8 @@ import type { FeedAttentionPort } from "./store/items/types.js";
 
 export interface FeedApplicationPorts {
   readonly historyReads: {
-    refs(projectId: string, sourceId: string, after: string): string[];
-    operations(projectId: string, sourceId: string, after: string): string[];
+    refs(sourceId: string, after: string): string[];
+    operations(sourceId: string, after: string): string[];
   };
   readonly sources: SourcesApi;
   readonly signals: Pick<SignalCommands, "deleteBySource">;

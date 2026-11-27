@@ -91,7 +91,7 @@ import { workTerminalActionProvider } from "./work-terminal-service.js";
 import { pluginDataActionProvider } from "./plugin-data-export.js";
 import { stateMachineRegistryProvider } from "./state-machine-registry.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
-import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins, startPartitionPluginInstance } from "./project-plugins.js";
+import { currentProjectPluginState, projectPluginPlatforms, projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins, startPartitionPluginInstance } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -218,7 +218,7 @@ export class MolisWorkLocalHost {
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
   readonly homePlugins?: HomePluginHost;
-  private readonly callReports = hostCallReports(this);
+  private readonly callReports = hostCallReports(this, () => this.host.openRuntimes());
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     if (options.homeDirectory !== undefined) {
@@ -688,16 +688,34 @@ function hostCatalogOwner(host: MolisWorkLocalHost, home: string) {
   return {canonicalHome, storageOwner: ensureHomeStorageOwner(host, canonicalHome, preflightMemoryHome)};
 }
 
-function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins" | "observation">): Required<CallReports> {
+function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins" | "observation">, openRuntimes: () => readonly MolisWorkProjectRuntime[]): Required<CallReports> {
   return { observed: (caller, action, observation) => host.observation?.observed(caller, action, observation), settled: (caller, action, outcome) => {
     host.callLog?.record(caller, action, outcome);
     // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
     const provider = action.provider_id;
     if (outcome.ok && action.operation === "command" && provider) {
       host.search?.changed(provider, caller.project_id);
-      refreshAfterScheduledAction(caller, action, () => host.homePlugins?.invalidateView(provider));
+      refreshAfterScheduledAction(caller, action, () => {
+        host.homePlugins?.invalidateView(provider);
+        invalidateProjectPluginView(openRuntimes, caller.project_id, provider);
+      });
     }
   } };
+}
+
+/**
+ * A completed command's views in the project it ran for, when that project is open: the provider's installation on the project's platform,
+ * or on its own per-partition one. A plugin that runs in the project (Feed since batch 109-1) is refreshed after its background work as a
+ * Home instance is; opening nothing, starting nothing.
+ */
+function invalidateProjectPluginView(openRuntimes: () => readonly MolisWorkProjectRuntime[], projectId: string | null | undefined, provider: string): void {
+  if (!projectId) return;
+  const runtime = openRuntimes().find(open => open.project_id === projectId);
+  const state = runtime ? currentProjectPluginState(runtime.store, projectId) : null;
+  for (const platform of state ? projectPluginPlatforms(state) : []) {
+    const record = platform.runtime.list().find(row => (row.plugin_id === provider || row.install_id === provider) && row.state !== "uninstalled");
+    if (record) platform.invalidateView(record.plugin_id);
+  }
 }
 
 /** The Host's own providers are `system` and belong to no plugin; this is not a way to hand-register a plugin's actions. */

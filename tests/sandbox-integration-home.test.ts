@@ -233,8 +233,8 @@ test("RAC-2615-QUEUE an old source response cannot write Listener, Signal or Fee
   const source = feed.sources.upsert(accountSourceRecord("github", { source_id: "t141-old-response", status: "active", config: {} }));
   const snapshot = () => ({ feed: feed.snapshot(DEMO_PROJECT_ID),
     signals: new SignalsModule(fromProjectConnection(store.db)).query.list(DEMO_PROJECT_ID, source.source_id),
-    deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE project_id = ? AND source_id = ?").all(DEMO_PROJECT_ID, source.source_id),
-    checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id),
+    deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE source_id = ?").all(source.source_id),
+    checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE source_id = ?").get(source.source_id),
     events: store.db.prepare("SELECT * FROM events WHERE project_id = ? AND object_id = ? ORDER BY event_id").all(DEMO_PROJECT_ID, source.source_id) });
   const caller = { ...h.projectCaller(), permissions: feedSourceActions.sync.action.permissions };
   const client = h.projectClient(), view = (await h.host.inspectActions(caller, h.reference)).find(view => view.capability_id === feedSourceActions.sync.capability_id)!;

@@ -332,7 +332,11 @@ test("S-surface-composition SCS-16 Placement can call into the project while its
   } finally { releasePlacement.resolve(); }
 });
 
-test("S-surface-composition SCS-16 a built-in Home enable waits on the installation line before following the current build", async t => {
+// Skipped since batch 109-1 (user 2026-11-27): it needs a Home plugin the build ships with host trust, and the build ships none (Feed and
+// Work Brief run per partition); a fixture never has host trust (S-75), so it cannot stand in. The path goes with the Home runtime in 109-3,
+// which deletes this case or proves its successor on the per-partition assembly.
+test("S-surface-composition SCS-16 a built-in Home enable waits on the installation line before following the current build",
+  { skip: "no built-in Home plugin in the build since batch 109-1; the Home runtime goes in 109-3" }, async t => {
   const h = await fixture(t), pluginId = "io.molis.work.feed";
   const previousHost = h.host.homePlugins!, platform = await previousHost.ready();
   const installation = previousHost.installation(pluginId), current = previousHost.manifest(pluginId);

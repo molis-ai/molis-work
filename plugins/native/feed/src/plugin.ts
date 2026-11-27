@@ -5,7 +5,7 @@ import { createFeedRunsHandlers, feedRunsActions, writeFeedRunRows } from "./mis
 import { releaseHistoryPages } from "./history-pages.js";
 import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
-import { ActionError, resolveActionSubject, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, resolveActionSubject, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createFeedPresentationHandlers } from "./presentation.js";
 import { feedPresentationRecords } from "./store/presentation.js";
@@ -28,7 +28,6 @@ import { createFeedWriter } from "./runtime-writes.js";
 import { createFeedSourceHandlers, feedSourceActions } from "./source-actions.js";
 import { FeedSourceService } from "./source-service.js";
 import { createFeedSourceSyncLease } from "./source-sync-lease.js";
-import { feedContentLedgerActions } from "./content-ledger-actions.js";
 import { isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
 import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./runtime-actions.js";
 import { createFeedWakeupCoordinator } from "./runtime-wake.js";
@@ -78,7 +77,7 @@ export function createFeedPlugin(): PluginDefinition {
     if (!scenes || !judgments || !directory) throw new ActionError("actions.unredeemed", "Feed 需要场景、判断账与动作目录服务");
     const judgmentServices = { scenes, judgments, directory };
     const ports = createFeedRuntimePorts({ projectId, database, attention, contextLedger, artifacts });
-    const evidence = services?.sourcePull?.evidence;
+    const evidenceBodies = services?.sourcePull?.evidence;
     // A body that is gone, or that cannot be read, is unavailable and never makes the item unreadable; a call that is cancelled or no longer allowed fails.
     // Only the Home's evidence store is asked, and only for its own bodies: a research package's material (`research:<id>`) is its library's,
     // whose text the sync already gave the item and the material's preview, so it stays as synced (FI-C-04).
@@ -86,7 +85,7 @@ export function createFeedPlugin(): PluginDefinition {
       if (!item.materials.some(material => material.content_ref && isFeedBodyRef(material.content_ref))) return item;
       return { ...item, materials: await Promise.all(item.materials.map(async material => {
         if (!material.content_ref || !isFeedBodyRef(material.content_ref)) return material;
-        const content = evidence ? await evidence.read(material.content_ref) : null;
+        const content = evidenceBodies ? await evidenceBodies.read(material.content_ref) : null;
         return content === null ? { ...material, content: null, content_available: false } : { ...material, content, content_available: true };
       })) };
     };
@@ -127,14 +126,22 @@ export function createFeedPlugin(): PluginDefinition {
       youtube: { definitionId: "", normalizeChannel: noVocabulary }, gmail: { defaultScope: "", parseScope: noVocabulary },
       rss: { isSourceKind: isHttpFeedSourceKind, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
     };
-    const sourcePull = services?.sourcePull, dependencies = services?.actions?.dependencies, forget = sourcePull?.forget;
+    const sourcePull = services?.sourcePull, forget = sourcePull?.forget;
     // An account source is read with the account the person bound to it: both services come with the two optional permissions (`connections:use`, `sources:pull_connector`).
     const connections = services?.connections, connector = sourcePull?.connector, signals = new SignalsModule(ports.sql);
-    // The Home's reference ledger is Feed's own Home half, asked as this installation: no body is written before it has been told.
-    const ledger = <T>(definition: ActionDefinition, input: unknown): Promise<T> => {
-      if (!dependencies) throw new ActionError("actions.dependency_missing", "Feed 需要 actions:invoke 才能向引用账登记正文");
-      return dependencies.invoke<T>({ capability_id: definition.capability_id, version: definition.version }, input);
+    // The platform's evidence ledger, with this partition and installation stamped by the Host: no body is written before it has been told.
+    const evidence = services?.evidence;
+    const holdBodies = async (sourceId: string, contentRefs: readonly string[]): Promise<void> => {
+      if (!evidence) throw new ActionError("actions.dependency_missing", "Feed 需要 evidence:collect 才能登记正文");
+      // Only the evidence store's own bodies are held: a research package's material (`research:<id>`) is its library's.
+      const bodies = contentRefs.filter(isFeedBodyRef);
+      if (bodies.length > 0) await evidence.hold(sourceId, bodies);
     };
+    const evidenceOrRefuse = () => {
+      if (!evidence) throw new ActionError("actions.dependency_missing", "Feed 需要 evidence:collect 才能释放正文");
+      return evidence;
+    };
+    const giveBack = (outcome: { bodies_deleted: number; bodies_kept: number }): FeedContentRelease => ({ bodies_deleted: outcome.bodies_deleted, bodies_kept: outcome.bodies_kept, complete: true });
     const lease = createFeedSourceSyncLease();
     const appendEvent = (project: string, sourceId: string, type: string, reason: string, payload: Record<string, unknown> = {}) =>
       ports.appendEvent(project, "feed_source", sourceId, type, reason, payload, new Date().toISOString());
@@ -148,11 +155,11 @@ export function createFeedPlugin(): PluginDefinition {
         return syncResearchLibrary({ feed, read: (request, options) => repository.read(request, options), commit: operation => commitSource(caller, operation) }, source, input);
       },
       sourcePull,
-      holdContent: async (source, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: source.source_id, content_refs: [...contentRefs] }); },
+      holdContent: (source, contentRefs) => holdBodies(source.source_id, contentRefs),
       // A release that fails throws before anything is committed: the source stays with what it holds, and deleting it again finishes.
       releaseHistory: input => releaseHistoryPages(feed, input.project_id, input.source_id, {
-        reclaim: unreferenced => ledger<FeedContentRelease>(feedContentLedgerActions.reclaim, { source_id: input.source_id, unreferenced }),
-        release: candidates => ledger<FeedContentRelease>(feedContentLedgerActions.release, { source_id: input.source_id, candidates }),
+        reclaim: async unreferenced => giveBack(await evidenceOrRefuse().reclaim(input.source_id, unreferenced)),
+        release: async candidates => giveBack(await evidenceOrRefuse().release(input.source_id, candidates)),
         forget: forget ? operationIds => forget(operationIds) : null }) }, projectId);
     const connectorSync = (caller: ActionExecutionContext) => {
       if (!connections || !connector) throw new ActionError("actions.dependency_missing", "Feed 没有使用账号来源的权限");
@@ -180,7 +187,7 @@ export function createFeedPlugin(): PluginDefinition {
       return (await actions.invokeQuery<Record<string, never>, { entries: AttentionEntryRecord[] }>(FEED_STAGE_INBOX_READ, {})).entries;
     };
     const bindings: ActionHandlerBinding[] = [
-      ...createFeedPresentationHandlers(projectId, feedPresentationRecords(ports.sql, projectId), new SourcesModule(ports.sql).query),
+      ...createFeedPresentationHandlers(projectId, feedPresentationRecords(ports.sql), new SourcesModule(ports.sql).query),
       { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version, handle: caller => seedFeedDemo(feed, sourcesFor(caller), projectId) },
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
       ...createFeedRunsHandlers(projectId, { feed: () => feed }), ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
@@ -219,7 +226,7 @@ export function createFeedPlugin(): PluginDefinition {
     // delivery has no action scope of its own, so it only wakes the kept job, which has.
     const watch = createConnectionWatch();
     keepFeedReconcile(services?.background, { feed, projectId, connections, commit: (control, body) => writer.commitAs(control, FEED_RECONCILE_ACTOR, body),
-      hold: dependencies ? async (sourceId, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: sourceId, content_refs: [...contentRefs] }); } : undefined,
+      hold: evidence ? holdBodies : undefined,
       onSourceStateChanged: wakeup.markDirty }, watch);
     // The page's requests only adapt HTTP to Feed's own actions, called as the person who made the request (their authority, not Feed's).
     const person = services?.actions;

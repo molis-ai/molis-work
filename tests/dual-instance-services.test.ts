@@ -17,8 +17,8 @@ import { openTestHome } from "./fixtures/test-home.js";
  * and stops at the next one (or answers), so the refusal is the instance check's and nothing else's.
  *
  * Which half has what: the Host gives the project half the action dependencies, Agent, installations, notifications and scheduler,
- * the Home half its own installations (RAC-495a: which projects hold the plugin) and the evidence collector (S-98 provisional: the
- * Home's evidence store, which only the ledger half deletes from), and both halves an authorized directory and the terminal (S-103).
+ * the Home half its own installations (RAC-495a: which projects hold the plugin), only an instance in a partition the evidence ledger
+ * (S-98, batch 109: holds are recorded per partition and installation), and both halves an authorized directory and the terminal (S-103).
  */
 
 const NAME = "dualservices", PLUGIN = `com.example.${NAME}`;
@@ -165,29 +165,38 @@ test("BL-368, DUAL-16, S-48: a directory granted to the project half is not read
   assert.equal((own.value as { outcome: string }).outcome, "directory", JSON.stringify(own));
 });
 
-test("S-98 (provisional), S-48: only the Home half is given the evidence collector, only inside its own action, and it deletes what the owner says nothing refers to", { timeout: 60_000 }, async t => {
+test("S-98, S-48: only a partition instance is given services.evidence, a release runs only inside its own action, and a body another holder keeps stays", { timeout: 60_000 }, async t => {
   const s = await open(t);
   const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
-  const held = bodies.write("held body").contentRef, free = bodies.write("free body").contentRef, foreign = "research:not-a-body-of-this-store";
-  const collect = (services: Record<Half, PluginHostServices>) => services.home.evidenceCollector!.collect({ candidates: [held, free, foreign, held], isReferenced: ref => ref === held });
-  // A project instance is given none: the store is the Home's and the ledger it answers for is the Home half's.
-  assert.deepEqual(await s.run("project", services => services.project.evidenceCollector === undefined), { outcome: "ok", value: true });
-  assert.ok(otherInstance(await s.run("project", collect)), "the Home half's handle, inside the project half's action");
-  assert.ok(bodies.has(free), "nothing was deleted by the refused call");
-  const answered = await s.run("home", collect);
-  assert.deepEqual(answered, { outcome: "ok", value: { deleted: [free], kept: [held] } }, JSON.stringify(answered));
-  assert.deepEqual([bodies.has(held), bodies.has(free)], [true, false], "the body the owner holds stays, the one nothing refers to goes, the foreign reference is left alone");
-  // The request is closed: a judgment and a bounded list of references.
-  assert.equal((await s.run("home", services => services.home.evidenceCollector!.collect({ candidates: [held], isReferenced: undefined as never }))).outcome, "actions.input_invalid");
-  assert.equal((await s.run("home", services => services.home.evidenceCollector!.collect({ candidates: Array.from({ length: 10_001 }, (_, index) => `x${index}`), isReferenced: () => true }))).outcome, "actions.input_invalid");
+  const shared = bodies.write("shared body").contentRef, mine = bodies.write("only mine").contentRef, foreign = "research:not-a-body-of-this-store";
+  // The Home half runs in no partition, so it is given none (batch 109: the ledger records each partition's holds).
+  assert.deepEqual(await s.run("home", services => services.home.evidence === undefined), { outcome: "ok", value: true });
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-a", [shared, mine])), { outcome: "ok", value: { held: 2 } });
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-b", [shared])), { outcome: "ok", value: { held: 1 } });
+  // Only the store's own body references are taken: a research package's material is its library's, not a body here.
+  assert.equal((await s.run("project", services => services.project.evidence!.release("source-a", [mine, foreign]))).outcome, "actions.input_invalid");
+  assert.ok(bodies.has(mine), "a refused request gives nothing back");
+  const release = (services: Record<Half, PluginHostServices>) => services.project.evidence!.release("source-a", [shared, mine, shared]);
+  assert.ok(otherInstance(await s.run("home", release)), "the project instance's handle, inside the Home half's action");
+  assert.ok(bodies.has(mine), "nothing was deleted by the refused call");
+  assert.deepEqual(await s.run("project", release), { outcome: "ok", value: { holds_released: 2, bodies_deleted: 1, bodies_kept: 1 } });
+  assert.deepEqual([bodies.has(shared), bodies.has(mine)], [true, false], "the body another holder keeps stays, the one nothing holds goes");
+  // Reclaiming gives back only the named holds of one holder; then nothing holds the shared body and it goes.
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.reclaim("source-b", [shared])), { outcome: "ok", value: { holds_released: 1, bodies_deleted: 1, bodies_kept: 0 } });
+  assert.equal(bodies.has(shared), false);
+  // The request is closed: a holder key of 1 to 200 characters and a bounded list of references.
+  assert.equal((await s.run("project", services => services.project.evidence!.release("", []))).outcome, "actions.input_invalid");
+  assert.equal((await s.run("project", services => services.project.evidence!.hold("x".repeat(201), []))).outcome, "actions.input_invalid");
+  assert.equal((await s.run("project", services => services.project.evidence!.release("source-a", Array.from({ length: 5_001 }, (_, index) => `x${index}`)))).outcome, "actions.input_invalid");
 });
 
-test("S-98 (provisional): a collector handle kept past its call is refused outside every action", { timeout: 60_000 }, async t => {
+test("S-98: a services.evidence handle kept past its call is refused outside every action and deletes nothing", { timeout: 60_000 }, async t => {
   const s = await open(t);
   const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
   const body = bodies.write("kept body").contentRef;
-  let kept: PluginHostServices["evidenceCollector"];
-  await s.run("home", services => { kept = services.home.evidenceCollector; return null; });
-  assert.throws(() => kept!.collect({ candidates: [body], isReferenced: () => false }), { code: "actions.forbidden" });
+  let kept: PluginHostServices["evidence"];
+  await s.run("project", services => { kept = services.project.evidence; return null; });
+  await assert.rejects(kept!.release("source-a", [body]), { code: "actions.forbidden" });
+  await assert.rejects(kept!.reclaim("source-a", [body]), { code: "actions.forbidden" });
   assert.ok(bodies.has(body), "a call outside every action deleted nothing");
 });

@@ -7,12 +7,13 @@ import { keptBodyPages } from "./history-pages.js";
 
 // What a Runtime Feed sets right on its own, without a caller (FI-4 step 4e-2f, RAC-493 and RAC-518 of
 // specs/archive/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md): the stored state of its account sources follows the account the
-// person bound to each, and the Home's reference ledger names every body this project's library keeps. Both run in a job the installation
-// keeps, because nothing else of an installation runs without a call: the platform's account and ledger services answer a call or a kept job.
+// person bound to each, and the platform's evidence ledger names every body this partition's library keeps (`services.evidence`, batch 109).
+// Both run in a job the installation keeps, because nothing else of an installation runs without a call: the platform's account and ledger
+// services answer a call or a kept job.
 
 export const FEED_RECONCILE_JOB = "feed-reconcile";
-export const feedReconcileJob: PluginJobDeclaration = { job_id: FEED_RECONCILE_JOB, reason: "让账号来源的状态跟上你的账号，并让 Home 的引用账记全这个项目留着的正文",
-  permissions: ["connections:use", "actions:invoke"] };
+export const feedReconcileJob: PluginJobDeclaration = { job_id: FEED_RECONCILE_JOB, reason: "让账号来源的状态跟上你的账号，并让证据账本记全这个空间留着的正文",
+  permissions: ["connections:use", "evidence:collect"] };
 
 /** The journal's actor for what the installation does on its own: the plugin, not a person. */
 export const FEED_RECONCILE_ACTOR = "io.molis.work.feed";

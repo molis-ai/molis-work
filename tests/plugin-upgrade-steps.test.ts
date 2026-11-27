@@ -14,7 +14,7 @@ import { PLUGIN_UPGRADE_NONDETERMINISTIC_FUNCTIONS } from "@molis-ai/molis-work-
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { registration as riskRegistration } from "@molis-ai/molis-work-plugin-risk/registration";
 import { registration as briefRegistration } from "@molis-ai/molis-work-plugin-work-brief/registration";
-import { openSqliteConnection, readDatabaseSpace } from "@molis-ai/molis-work-storage";
+import { bindDatabaseSpace, openSqliteConnection, readDatabaseSpace, type StorageSpace } from "@molis-ai/molis-work-storage";
 import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import {
   declaration, foreignKeys, ledgerObjects, ledgerRow, libraryState, libraryTemplate, openCode, othersOf, probeManifest, projectLibrary, tracking, upgradeCode,
@@ -214,6 +214,21 @@ const homeCode = (db: ReturnType<typeof openSqliteConnection>, manifest: PluginM
   try { upgradePluginLibrary(db, "library/library.db", manifest); return "ok"; }
   catch (error) { return String((error as { code?: unknown }).code); }
 };
+const partitionCode = (db: ReturnType<typeof openSqliteConnection>, manifest: PluginManifest) => {
+  try { upgradePluginLibrary(db, "personal-space/libraries/library.db", manifest, undefined, "partition"); return "ok"; }
+  catch (error) { return String((error as { code?: unknown }).code); }
+};
+
+/** A plugin's partition library at its declared v1, bound to `space`, as the platform makes it in a partition. */
+function partitionLibrary(t: TestContext, home: string, manifest: PluginManifest, space: StorageSpace, partitionId: string): { file: string; db: ReturnType<typeof openSqliteConnection> } {
+  const file = join(home, `${manifest.databases!.partition!.store_name}.db`), db = openSqliteConnection(file);
+  t.after(() => db.close());
+  bindDatabaseSpace(db, space);
+  db.exec(`${pluginSyncDatabaseDeclaration(manifest, manifest.databases!.partition!).schema}\nPRAGMA user_version = 1;`);
+  // What the platform does when it opens a partition's library (`bindPluginSyncProject`): its changes are keyed to that partition.
+  for (const collection of manifest.sync?.collections ?? []) db.prepare(`UPDATE ${pluginSyncNamespace(manifest, collection.id)}_context SET project_id = ? WHERE id = 1`).run(partitionId);
+  return { file, db };
+}
 
 test("AC-M1-01 AC-M1-02 upgrading saved v1 data seeds each new personal journal once", t => {
   const risk = riskRegistration.manifest, brief = briefRegistration.manifest;
@@ -229,22 +244,23 @@ test("AC-M1-01 AC-M1-02 upgrading saved v1 data seeds each new personal journal 
     return { file, db };
   };
   const riskLibrary = restore("/personal-space/molis-work.db", "personal-project.db");
-  const briefLibrary = restore("/work-brief/work-brief.db", "work-brief.db");
-  const space = readDatabaseSpace(briefLibrary.db);
+  const space = readDatabaseSpace(riskLibrary.db);
   assert.equal(space?.kind, "personal");
-  assert.deepEqual(readDatabaseSpace(riskLibrary.db), space);
   const project = listProjectRoots(riskLibrary.db)[0]!.project_id;
-  riskLibrary.db.prepare(`INSERT INTO risk_items (risk_id, project_id, title, statement, impact, likelihood, treatment, status, revision, created_by, created_at, updated_at)
-    VALUES ('risk-v1', ?, 'Old risk', 'Earlier entry', 'high', 'low', '', 'open', 6, 'alice', '2026-01-01', '2026-01-01')`).run(project);
+  // Since batch 109-1 Work Brief keeps a library in each partition (`databases.partition`), which no golden Home has yet: it starts here
+  // at its v1, in the same personal storage space and bound to the same partition, as the platform opens it.
+  const briefLibrary = partitionLibrary(t, home, brief, space!, project);
+  riskLibrary.db.prepare(`INSERT INTO risk_items (risk_id, title, statement, impact, likelihood, treatment, status, revision, created_by, created_at, updated_at)
+    VALUES ('risk-v1', 'Old risk', 'Earlier entry', 'high', 'low', '', 'open', 6, 'alice', '2026-01-01', '2026-01-01')`).run();
   riskLibrary.db.exec(`INSERT INTO risk_events (event_id, risk_id, kind, detail_json, actor_id, at)
     VALUES ('event-v1', 'risk-v1', 'note', '{"text":"Earlier note"}', 'alice', '2026-01-01');`);
-  briefLibrary.db.prepare(`INSERT INTO briefs (id, actor_id, scope, title, current_version, version, created_at, updated_at)
-    VALUES ('brief-v1', ?, 'personal', 'Old brief', 1, 8, '2026-01-01', '2026-01-01')`).run(space!.ownerUserId!);
+  briefLibrary.db.exec(`INSERT INTO briefs (id, scope, title, current_version, version, created_at, updated_at)
+    VALUES ('brief-v1', 'home', 'Old brief', 1, 8, '2026-01-01', '2026-01-01')`);
   const body = '{"sources":[],"claims":[{"claim_id":"claim-v1","text":"Earlier draft","cites":[],"supplied_by":"owner"}],"attention":[],"next":[]}';
   briefLibrary.db.prepare(`INSERT INTO brief_versions (brief_id, version, as_of, created_at, produced_by_json, body_json)
     VALUES ('brief-v1', 1, '2026-01-01', '2026-01-01', '{"kind":"person"}', ?)`).run(body);
   assert.equal(upgradeCode(riskLibrary.db, risk), "ok");
-  assert.equal(homeCode(briefLibrary.db, brief), "ok");
+  assert.equal(partitionCode(briefLibrary.db, brief), "ok");
   assert.equal(openCode(riskLibrary.db, riskLibrary.file, risk), "ok");
   const changeKey = (db: ReturnType<typeof openSqliteConnection>, manifest: PluginManifest) => {
     const namespace = pluginSyncNamespace(manifest, manifest.sync!.collections[0]!.id);
@@ -252,9 +268,9 @@ test("AC-M1-01 AC-M1-02 upgrading saved v1 data seeds each new personal journal 
   };
   assert.deepEqual(changeKey(riskLibrary.db, risk), [{ key: JSON.stringify([project, "risk", "risk-v1"]) }]);
   const briefChanges = changeKey(briefLibrary.db, brief);
-  assert.deepEqual([...new Set(briefChanges.map(row => row.key))], [JSON.stringify(["", "brief", "brief-v1"])]);
+  assert.deepEqual([...new Set(briefChanges.map(row => row.key))], [JSON.stringify([project, "brief", "brief-v1"])]);
   assert.equal(upgradeCode(riskLibrary.db, risk), "ok");
-  assert.equal(homeCode(briefLibrary.db, brief), "ok");
+  assert.equal(partitionCode(briefLibrary.db, brief), "ok");
   assert.equal(changeKey(riskLibrary.db, risk).length, 1);
   assert.deepEqual(changeKey(briefLibrary.db, brief), briefChanges);
   assert.deepEqual(rows(riskLibrary.db, "SELECT title, revision FROM risk_items"), [{ title: "Old risk", revision: 6 }]);

@@ -1,3 +1,4 @@
+import { libraryPartition } from "../module/library-partition.js";
 import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
@@ -73,13 +74,13 @@ export class GovernanceRepository {
   listGoalTreeProposals(projectId: string): GoalTreeProposalRecord[] {
     const decisionsByProposal = new Map<string, GoalTreeProposalDecisionRecord[]>();
     const latestDecisionByItem = new Map<string, GoalTreeProposalDecisionRecord>();
-    const effects = this.db.prepare("SELECT *, rowid AS stored_row FROM goal_tree_item_effects WHERE project_id = ?").all(projectId) as GovernanceRow[];
+    const effects = this.db.prepare("SELECT *, rowid AS stored_row FROM goal_tree_item_effects").all() as GovernanceRow[];
     const records = effects.map(row => {
       const approval = this.approvals?.read(projectId, text(row.approval_id));
       if (!approval || approval.review.target.subject.kind !== "goal-tree-proposal" || approval.review.target.subject.id !== row.proposal_id) {
         throw new ActionError("actions.conflict", "目标树的物化结果缺少对应的原决定");
       }
-      return mapGoalTreeProposalDecision(row, approval);
+      return mapGoalTreeProposalDecision(row, approval, libraryPartition(this.db));
     });
     for (const decision of records.sort((left, right) => left.created_at.localeCompare(right.created_at)
       || left.decision_id.localeCompare(right.decision_id))) {
@@ -90,14 +91,14 @@ export class GovernanceRepository {
     }
     const itemsByProposal = new Map<string, GoalTreeProposalItemRecord[]>();
     for (const row of this.db.prepare(
-      "SELECT *, rowid AS stored_row FROM goal_tree_proposal_items WHERE project_id = ? ORDER BY proposal_id, ordinal, item_id",
-    ).all(projectId) as GovernanceRow[]) {
-      const item = mapGoalTreeProposalItem(row, latestDecisionByItem.get(text(row.item_id)) ?? null);
+      "SELECT *, rowid AS stored_row FROM goal_tree_proposal_items ORDER BY proposal_id, ordinal, item_id",
+    ).all() as GovernanceRow[]) {
+      const item = mapGoalTreeProposalItem(libraryPartition(this.db), row, latestDecisionByItem.get(text(row.item_id)) ?? null);
       itemsByProposal.set(item.proposal_id, [...(itemsByProposal.get(item.proposal_id) ?? []), item]);
     }
     return (this.db.prepare(
-      "SELECT *, rowid AS stored_row FROM goal_tree_proposals WHERE project_id = ? ORDER BY created_at DESC, proposal_id",
-    ).all(projectId) as GovernanceRow[]).map((row) => mapGoalTreeProposal(
+      "SELECT *, rowid AS stored_row FROM goal_tree_proposals ORDER BY created_at DESC, proposal_id",
+    ).all() as GovernanceRow[]).map((row) => mapGoalTreeProposal(libraryPartition(this.db), 
       row,
       itemsByProposal.get(text(row.proposal_id)) ?? [],
       decisionsByProposal.get(text(row.proposal_id)) ?? [],

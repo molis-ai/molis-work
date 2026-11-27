@@ -3,16 +3,17 @@ import { scriptAnysearchNetwork, scriptRssNetwork } from "./fixtures/source-netw
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, intakeMaterial, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { PluginEvidenceClient } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { captureHostLog, connectorPluginSlotActions, createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, LocalProjectDatabase, runningProjectPlatform, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
@@ -20,7 +21,7 @@ import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistr
 import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedRunsActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction, missedPullRunId, type FeedDirectorySnapshot } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedPlugin, createFeedWriter, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedRunsActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction, missedPullRunId, type FeedDirectorySnapshot } from "@molis-ai/molis-work-plugin-feed";
 import { nextScheduleDueAt } from "@molis-ai/molis-work-service-scheduler";
 import { artifactsActions, ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
@@ -51,42 +52,34 @@ const RECEIVE = [...WRITE, "attention:write", "artifact:write"];
 const RULES = [...WRITE, "attention:write", "judgments:write"];
 
 /**
- * Feed's Home half, stood in for: the same ledger and the same two-and-one actions (`hold`, `release`, `reclaim`), over a library of its own,
- * provided by a plugin of its own, so the project instance asks it through the action directory as it will ask the real one.
+ * The platform's evidence ledger (`services.evidence`, batch 109), as the Host gives it to Feed in this fixture Home, with a seam to make it
+ * fail or wait: the next `broken` calls fail as a ledger that went away would, before anything is recorded; the next call once answered
+ * waits for `paused` before Feed sees the answer. `holds()` reads the ledger's rows in the fixture Home, partition and holder key as the
+ * project and the source.
  */
-async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void;
-  breakWrites(count: number): void; pauseAfterWrite(pause: () => Promise<void>): void }> {
-  const db = openTestSqlite(join(home, "ledger.db"));
-  db.exec(FEED_HOME_DATABASE.schema);
-  const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
-  const reader = { get: (sql: string, parameters?: readonly PluginSqlValue[]) => (db.prepare(sql).get(...bind(parameters)) as Record<string, PluginSqlValue> | undefined) ?? null,
-    all: (sql: string, parameters?: readonly PluginSqlValue[]) => db.prepare(sql).all(...bind(parameters)) as Record<string, PluginSqlValue>[] };
-  // The next `broken` writes fail as a Home that went away would, before anything is written; the next write once committed waits for `paused`.
+function evidenceSeam(home: string) {
   let broken = 0, paused: (() => Promise<void>) | undefined;
-  const store = { read: reader, async write<T>(beforeEffect: () => Promise<void>, body: (tx: typeof reader & { run(sql: string, parameters?: readonly PluginSqlValue[]): { changes: number } }) => T): Promise<T> {
-    await beforeEffect();
-    if (broken > 0) { broken -= 1; throw new Error("the Home's ledger is unavailable"); }
-    db.exec("BEGIN IMMEDIATE");
-    let result: T;
-    try { result = body({ ...reader, run: (sql, parameters) => ({ changes: db.prepare(sql).run(...bind(parameters)).changes }) }); db.exec("COMMIT"); }
-    catch (error) { db.exec("ROLLBACK"); throw error; }
-    const pause = paused;
-    paused = undefined;
-    await pause?.();
-    return result;
-  } };
-  // The collector deletes from this Home's evidence store, as the platform's does (`runWithMolisWorkHome`), never from the process's default Home.
-  const evidence = runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
-  const ledger = createFeedContentLedger(store, { collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)) });
-  const permissions = ["feed:read", "feed:write", "evidence:collect"].map(permission => ({ permission, required: true, reason: "The reference ledger" }));
-  const actions = Object.values(feedContentLedgerActions);
-  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
-    publisher: { publisher_id: "example", signature: "fixture-feed-home" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions,
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
-  async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
-  return { definition, close: () => db.close(), forget: () => { db.exec("DELETE FROM feed_content_holds"); }, breakWrites: count => { broken = count; },
-    pauseAfterWrite: pause => { paused = pause; },
-    holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
+  const seamed = (evidence: PluginEvidenceClient): PluginEvidenceClient => {
+    const call = <T>(run: () => Promise<T>) => async (): Promise<T> => {
+      if (broken > 0) { broken -= 1; throw new Error("the evidence ledger is unavailable"); }
+      const result = await run(), pause = paused;
+      paused = undefined;
+      await pause?.();
+      return result;
+    };
+    return { hold: (key, refs) => call(() => evidence.hold(key, refs))(), reclaim: (key, refs) => call(() => evidence.reclaim(key, refs))(),
+      release: (key, candidates) => call(() => evidence.release(key, candidates))() };
+  };
+  const ledger = () => new DatabaseSync(join(home, "evidence", "evidence.db"));
+  const read = <T>(run: (db: DatabaseSync) => T, empty: T): T => {
+    if (!existsSync(join(home, "evidence", "evidence.db"))) return empty;
+    const db = ledger();
+    try { return run(db); } finally { db.close(); }
+  };
+  return { seamed, breakWrites: (count: number) => { broken = count; }, pauseAfterWrite: (pause: () => Promise<void>) => { paused = pause; },
+    forget: () => read(db => { db.exec("DELETE FROM evidence_holds"); }, undefined),
+    holds: () => read(db => db.prepare("SELECT content_ref, partition_id AS project_id, holder_key AS source_id FROM evidence_holds ORDER BY content_ref").all() as
+      Array<{ content_ref: string; project_id: string; source_id: string }>, []) };
 }
 
 /** What the Goals stand-in was asked to make and to take as input: a promotion's trace on the Goals side. */
@@ -152,34 +145,37 @@ async function platform(t: TestContext, options: { afterPlan?: () => Promise<voi
     ...(options.provider ? { sourcePullIntegrations: () => homeIntegrationRegistry(home, (_integration, binding) => options.provider!(binding)) } : {}),
     ...(options.fetch ? { sourcePullFetch: options.fetch } : {}), ...(options.git ? { sourcePullGit: options.git } : {}),
     ...(options.clock ? { scheduler: scheduleServiceFor(store.db) } : {}) });
-  const homeHalf = options.ledger ? await ledgerStandIn(home) : null;
+  const ledger = options.ledger ? evidenceSeam(home) : null;
   const goalsAsked: GoalsAsked = { created: [], confirmed: [] };
   t.after(async () => {
     try {
       await running.closeCoordination();
       for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
-    } finally { homeHalf?.close(); store.close(); rmSync(home, { recursive: true, force: true }); }
+    } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const trust = { level: "host" as const };
   const definition = createFeedPlugin();
-  const feedDefinition: PluginDefinition = options.afterPlan ? { ...definition, start(context) {
-    const pull = context.services!.sourcePull!;
-    return definition.start({ ...context, services: { ...context.services, sourcePull: { ...pull, async plan(request) {
-      const result = await pull.plan!(request);
-      await options.afterPlan!();
-      return result;
-    } } } });
-  } } : definition;
-  const started = await running.start([{ definition: feedDefinition, trust, dual_instance: true }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : []),
+  // Without `ledger` Feed runs without the evidence ledger, as an instance the Host gave none; with it, through the seam above.
+  const feedDefinition: PluginDefinition = { ...definition, start(context) {
+    const pull = context.services!.sourcePull!, evidence = context.services!.evidence;
+    return definition.start({ ...context, services: { ...context.services,
+      evidence: ledger && evidence ? ledger.seamed(evidence) : undefined,
+      sourcePull: options.afterPlan ? { ...pull, async plan(request) {
+        const result = await pull.plan!(request);
+        await options.afterPlan!();
+        return result;
+      } } : pull } });
+  } };
+  const started = await running.start([{ definition: feedDefinition, trust },
     ...(options.goals ? [{ definition: goalsStandIn(options.goals, goalsAsked), trust }] : [])]);
   // Which plugin the Runtime starts first is its own business; that each one runs is the fixture's.
-  assert.deepEqual([...started.running].sort(), [feedManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])].sort(), JSON.stringify(started));
+  assert.deepEqual([...started.running].sort(), [feedManifest.plugin_id, ...(options.goals ? ["io.molis.work.goals"] : [])].sort(), JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
   const installId = () => running.runtime.list().find(record => record.plugin_id === feedManifest.plugin_id)!.install_id;
   // The bodies the platform keeps are this fixture Home's, sealed with its own key; never the Home the test process would resolve to by default.
   const bodies = () => runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
-  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(),
-    breakLedger: (count = 1) => homeHalf?.breakWrites(count), pauseLedger: (pause: () => Promise<void>) => homeHalf!.pauseAfterWrite(pause),
+  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => ledger?.holds() ?? [], forgetHolds: () => ledger?.forget(),
+    breakLedger: (count = 1) => ledger?.breakWrites(count), pauseLedger: (pause: () => Promise<void>) => ledger!.pauseAfterWrite(pause),
     clock: () => scheduleServiceFor(store.db), installId, bodies, goalsAsked, calls };
 }
 
@@ -320,8 +316,11 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 // and records a source that needs the person in the Inbox.
 const CONNECTOR = ["connections:use", "sources:pull_connector"];
 const SYNC = [...WRITE, "sources:pull_public_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
-/** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
-const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write", "connections:use"];
+/**
+ * Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask; it gives its
+ * bodies back in the platform's evidence ledger, which only an action that declares `evidence:collect` may do (S-98, batch 109).
+ */
+const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write", "connections:use", "evidence:collect"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
@@ -437,7 +436,7 @@ test("RAC-518 a caller revoked at any point leaves every held body named by a ru
 const pullRecords = (f: Awaited<ReturnType<typeof syncing>>) => f.count("SELECT count(*) AS n FROM opaque_blobs WHERE key LIKE 'intent-run/%'");
 
 // The Host's release of a source's history (FI-6 deleted it) was proven in tests/feed-local-history-delete.test.ts; these two cases and the
-// Home ledger's own (tests/feed-content-ledger.test.ts: a body another source or project holds, the holds a failed pull left, a ledger that
+// evidence ledger's own (tests/feed-evidence-holds.test.ts: a body another source or partition holds, the holds a failed pull left, a ledger that
 // cannot tell) now prove it for the Runtime Feed.
 test("D0117 RAC-518 deleting a source with its local history gives its bodies and search records back, and the commit records it", async t => {
   const f = await syncing(t);
@@ -744,8 +743,8 @@ test("BL-feed-precise-wakeup updates the exact wake time on pull failure, connec
   const skippedDue = new Date(Date.now() - 45 * 60_000).toISOString();
   const expiredDue = new Date(Date.now() - 10 * 86_400_000).toISOString();
   for (const due of [skippedDue, expiredDue]) {
-    f.store.db.prepare("INSERT INTO feed_missed_pulls (project_id, run_id, source_id, title, due_at, missed_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(DEMO_PROJECT_ID, missedPullRunId(f.sourceId, due), f.sourceId, "Feed", due, new Date().toISOString());
+    f.store.db.prepare("INSERT INTO feed_missed_pulls (run_id, source_id, title, due_at, missed_at) VALUES (?, ?, ?, ?, ?)")
+      .run(missedPullRunId(f.sourceId, due), f.sourceId, "Feed", due, new Date().toISOString());
   }
   assert.deepEqual(await f.client.invoke(caller(WRITE).context, feedRunsActions.decide, { run_id: missedPullRunId(f.sourceId, skippedDue), decision: "skip" }), { state: "skipped" });
   assert.equal(nextScheduleDueAt(f.store.db), afterRunNow.next_pull_at, "skip keeps the source's future wake time");
@@ -766,9 +765,9 @@ test("BL-feed-precise-wakeup honors connector rate-limit retry_after_at backoff 
   const account = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "RateLimit", token: "secret-rate-limit-token" }));
   const sourceId = "feed-source-github-backoff";
   const now = new Date().toISOString();
-  f.store.db.prepare(`INSERT INTO feed_sources (project_id, source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
+  f.store.db.prepare(`INSERT INTO feed_sources (source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
     credential_ref, account_label, last_sync_at, last_outcome, last_error_code, imported_at, updated_at)
-    VALUES (?, ?, 'github', 'github', 'github', 'GitHub Backoff', '', 'active', 1, 0, 'molis_work', '{}', '{"mode":"manual"}', NULL, NULL, NULL, NULL, NULL, ?, ?)`).run(DEMO_PROJECT_ID, sourceId, now, now);
+    VALUES (?, 'github', 'github', 'github', 'GitHub Backoff', '', 'active', 1, 0, 'molis_work', '{}', '{"mode":"manual"}', NULL, NULL, NULL, NULL, NULL, ?, ?)`).run(sourceId, now, now);
   const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: sourceId });
   withConnectorConnections(f.home, store => store.bind({ scopeId: scope, pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId: account.connection_id }));
   const scheduled = await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
@@ -794,10 +793,10 @@ test("BL-feed-precise-wakeup cleans up a legacy 30s interval wake job on plugin 
     store.db.prepare(`INSERT INTO schedule_jobs (job_id, plugin_id, capability_id, object_ref, title, recurrence_kind, interval_ms, next_due_at, enabled, created_at, updated_at)
       VALUES ('legacy-feed-wake', ?, 'feed.sources.wake', 'sources', '拉取到期的 Feed 来源', 'interval', 30000, ?, 1, ?, ?)`).run(FEED_PLUGIN_ID, now, now, now);
     if (mode === "scheduled-source") {
-      store.db.prepare(`INSERT INTO feed_sources (project_id, source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
+      store.db.prepare(`INSERT INTO feed_sources (source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
         credential_ref, account_label, last_sync_at, last_outcome, last_error_code, imported_at, updated_at)
-        VALUES (?, 'legacy-rss', 'custom_rss', 'custom_rss', 'public_source', 'Legacy RSS', '', 'active', 1, 0, 'molis_work', '{"feed_url":"https://example.com/legacy.xml"}', ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`)
-        .run(DEMO_PROJECT_ID, JSON.stringify({ mode: "interval", enabled: true, interval_minutes: 45, next_pull_at: futureDue }), now, now);
+        VALUES ('legacy-rss', 'custom_rss', 'custom_rss', 'public_source', 'Legacy RSS', '', 'active', 1, 0, 'molis_work', '{"feed_url":"https://example.com/legacy.xml"}', ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`)
+        .run(JSON.stringify({ mode: "interval", enabled: true, interval_minutes: 45, next_pull_at: futureDue }), now, now);
     }
     const actions = pluginActions(store, DEMO_PROJECT_ID);
     const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
@@ -808,7 +807,7 @@ test("BL-feed-precise-wakeup cleans up a legacy 30s interval wake job on plugin 
       home: standIn<NonNullable<Parameters<typeof createPluginPlatform>[0]["home"]>>({ directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) }),
       scheduler: scheduleServiceFor(store.db) });
     try {
-      await running.start([{ definition: createFeedPlugin(), trust: { level: "host" }, dual_instance: true }]);
+      await running.start([{ definition: createFeedPlugin(), trust: { level: "host" } }]);
       const expected = mode === "no-sources" ? null : futureDue;
       for (let waited = 0; nextScheduleDueAt(store.db) !== expected && waited < 3_000; waited += 25) {
         await new Promise(resolve => setTimeout(resolve, 25));
@@ -872,9 +871,9 @@ async function connecting(t: TestContext, options: { sync?: (binding: Integratio
   /** A GitHub source of the project, as the Host's connector flow leaves it (the Runtime Feed has no way to make one before FI-7); `of(id)` is everything about one. */
   const of = (sourceId: string) => {
     const now = new Date().toISOString();
-    f.store.db.prepare(`INSERT INTO feed_sources (project_id, source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
+    f.store.db.prepare(`INSERT INTO feed_sources (source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
       credential_ref, account_label, last_sync_at, last_outcome, last_error_code, imported_at, updated_at)
-      VALUES (?, ?, 'github', 'github', 'github', 'GitHub', '', 'active', 1, 0, 'molis_work', '{}', '{"mode":"manual"}', NULL, NULL, NULL, NULL, NULL, ?, ?)`).run(DEMO_PROJECT_ID, sourceId, now, now);
+      VALUES (?, 'github', 'github', 'github', 'GitHub', '', 'active', 1, 0, 'molis_work', '{}', '{"mode":"manual"}', NULL, NULL, NULL, NULL, NULL, ?, ?)`).run(sourceId, now, now);
     const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: sourceId });
     return { sourceId,
       bind: (connectionId: string, expectedConnectionId?: string) => withConnectorConnections(f.home, store => store.bind({ expectedConnectionId, scopeId: scope, pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId })),
@@ -1058,7 +1057,7 @@ test("RAC-1026 a caller revoked at any point of an account pull leaves at most i
   assert.ok(refused >= 1 && completed >= 1, `the sweep reached both sides (refused ${refused}, completed ${completed})`);
 });
 
-test("RAC-1038 Feed's Manifest declares what its actions, jobs and services use, keeps only Functions management optional, and gives the Home half only the ledger", () => {
+test("RAC-1038 Feed's Manifest declares what its actions, jobs and services use, keeps only Functions management optional, and has no Home half", () => {
   const used = new Set<string>(["storage:private", "plugins:read", "evidence:collect", "connections:observe"]);
   for (const action of feedManifest.actions!) for (const permission of action.action.permissions) used.add(permission);
   for (const job of feedManifest.background!.jobs!) for (const permission of job.permissions) used.add(permission);
@@ -1069,13 +1068,11 @@ test("RAC-1038 Feed's Manifest declares what its actions, jobs and services use,
   const optional = ["goals:read", "goals:write", "functions:manage"];
   assert.deepEqual(feedManifest.permissions.filter(item => !item.required).map(item => item.permission), optional);
   assert.ok(feedManifest.permissions.filter(item => !optional.includes(item.permission)).every(item => item.required === true), "all collection, reading and ledger permissions remain required");
-  assert.equal(feedManifest.runtime?.scope, "home");
-  assert.deepEqual(Object.keys(feedManifest.databases ?? {}).sort(), ["home", "project"]);
-  const ledger = new Set(Object.values(feedContentLedgerActions).map(action => action.capability_id));
-  assert.deepEqual(feedManifest.actions!.filter(action => ledger.has(action.capability_id)).map(action => action.capability_id).sort(), [...ledger].sort());
-  for (const action of Object.values(feedContentLedgerActions).filter(action => action.capability_id !== feedContentLedgerActions.hold.capability_id)) {
-    assert.ok(action.action.permissions.includes("evidence:collect"), `${action.capability_id} deletes bodies, so it declares evidence:collect`);
-  }
+  // Batch 109: the evidence holds are the platform's (`services.evidence`), so Feed has one instance per partition and only its project library.
+  assert.equal(feedManifest.runtime, undefined);
+  assert.deepEqual(Object.keys(feedManifest.databases ?? {}).sort(), ["project"]);
+  // Deleting a source with its local history gives its bodies back, which deletes them: the only action that does declares evidence:collect.
+  assert.deepEqual(feedManifest.actions!.filter(action => action.action.permissions.includes("evidence:collect")).map(action => action.capability_id), [feedSourceActions.delete.capability_id]);
 });
 
 test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the platform can pull for, per source, and each action that uses an account declares what it needs", () => {
@@ -1552,7 +1549,7 @@ test("RAC-510 a sync cancelled after its pull and before its commit leaves no it
   assert.deepEqual([before.items - start.items, before.entries - start.entries, before.captures - start.captures, before.failures], [1, 1, 1, 0]);
   f.feeds.set(f.entry.feed_url, feedXml([{ id: "captured-b", title: "Captured B" }]));
   const call = caller(SYNC), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-  // The pull is done once the Home's ledger holds its bodies; the commit to the project is what is left.
+  // The pull is done once the evidence ledger holds its bodies; the commit to the project is what is left.
   f.pauseLedger(() => { entered.resolve(); return release.promise; });
   const pending = f.client.invoke(call.context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "cancelled-sync-key" })
     .then(() => "written" as const, (error: unknown) => error as { code?: string });
@@ -1561,7 +1558,7 @@ test("RAC-510 a sync cancelled after its pull and before its commit leaves no it
   release.resolve();
   assert.equal((await pending as { code?: string }).code, "actions.cancelled");
   assert.deepEqual(state(), before, "nothing of the cancelled sync's commit is there");
-  assert.ok(f.calls.some(heard => heard.capability_id === feedContentLedgerActions.hold.capability_id && heard.ok), "nested calls are heard: the ledger's hold went through");
+  assert.ok(f.holds().length > 0, "the ledger's hold went through before the cancelled commit");
   assert.deepEqual(published(), [], "no call published a 成果, for the pin that went in or the one cancelled");
 });
 
@@ -1900,7 +1897,7 @@ test("FBR-01 FBR-02 FBR-04 FBR-05 owner pages include later data, facets and ded
   finally { f.store.db.prepare = prepare; }
   assert.ok(prepared.length > 0);
   assert.ok(prepared.every(sql => !/feed_materials/u.test(sql) && (!/feed_items/u.test(sql)
-    || /^SELECT COUNT\(\*\) AS count FROM feed_items WHERE project_id = \? AND source_id = \?$/u.test(sql.trim().replace(/\s+/gu, " ")))),
+    || /^SELECT COUNT\(\*\) AS count FROM feed_items WHERE source_id = \?$/u.test(sql.trim().replace(/\s+/gu, " ")))),
     "FBR-01 source reads retain their scalar count but never load item rows or materials");
   const read = async (offset: number): Promise<FeedDirectorySnapshot> => await f.client.invoke(caller(BODIES).context, feedQueryActions.snapshot, { offset: String(offset), filter: JSON.stringify({ sort: "title" }) }) as FeedDirectorySnapshot;
   const pages = await Promise.all([read(0), read(200), read(400)]);
@@ -1923,7 +1920,7 @@ test("FBR-01 FBR-02 FBR-04 FBR-05 owner pages include later data, facets and ded
   assert.ok(refPages.every(page => page.length <= 200));
   const expected = [...new Set([...refs, ...f.holds().map(row => row.content_ref)])].sort();
   assert.deepEqual(refPages.flat(), expected);
-  assert.deepEqual([...feed.reads.history("foreign-project", source.source_id, "refs")], []);
+  // Since batch 109-1 a partition's library holds one project, so there is no other project in it to keep these references from.
   assert.deepEqual([...feed.reads.history(DEMO_PROJECT_ID, "foreign-source", "refs")], []);
 });
 

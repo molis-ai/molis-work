@@ -26,9 +26,9 @@ import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
 // Pages, PPT, Forms, Dataset, 灵光 and Workflows (U2, batch 107), and Todo, Issues, Cognia and Images (batch 108) keep a library in each
-// partition, which goes with the partition whole. Work Brief is the shipped library left that declares its project's rows; it also keeps the
-// person's own brief (no project), and its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).
-const DECLARING = ["work-brief"];
+// partition, which goes with the partition whole, and so does Work Brief since batch 109 (109-1). No shipped library declares its project's
+// rows any more; the declaration goes with the Home runtime in 109-3, and until then the probes below prove it.
+const DECLARING: string[] = [];
 
 /**
  * A Home library whose project rows name files (S-86), shaped as Images' was before its jobs moved into each partition (batch 108): no
@@ -220,11 +220,14 @@ test("FSS-36 the same plugin ID in two Homes keeps each registration's deletion 
 
 test("RAC-561 the platform deletes only from the declaring plugin's own library, and refuses a column its schema does not make", async t => {
   const home = withHome(t);
-  const keeper = filesKeeper(t), brief = catalog.find(entry => entry.project_plugin_id === "work-brief")!;
+  const keeper = filesKeeper(t), base = catalog.find(entry => entry.project_plugin_id === "work-brief")!;
   const keeperLibrary = keeper.manifest.databases!.home!;
   seed(home, keeperLibrary, ["pa"]);
-  const borrowing = (rows: PluginProjectRowsDeclaration): PluginRegistration => ({ ...brief, project_plugin_id: "borrowing",
-    manifest: { ...brief.manifest, databases: { home: { ...brief.manifest.databases!.home!, project_rows: rows } } } });
+  // A Home library of its own (no shipped plugin keeps one since batch 109), whose declared rows reach past it.
+  const own: HomePluginDatabaseDeclaration = { store_name: "borrowing", version: 1, upgrades: [], read_permission: "storage:private", write_permission: "storage:private",
+    schema: "CREATE TABLE briefs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL);" };
+  const borrowing = (rows: PluginProjectRowsDeclaration): PluginRegistration => ({ ...base, project_plugin_id: "borrowing",
+    manifest: { ...base.manifest, databases: { home: { ...own, project_rows: rows } } } });
   for (const rows of [{ label: "借别家的表", tables: [{ table: "jobs", column: "project_id" }] }, { label: "没有的列", tables: [{ table: "briefs", column: "nowhere" }] }]) {
     catalog.push(borrowing(rows));
     try { await assert.rejects(projectDeletedHooksFor(home).clear("borrowing", "pa"), { code: "plugin.declaration_invalid" }); }

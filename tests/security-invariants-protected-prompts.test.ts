@@ -392,6 +392,7 @@ test("S-protected-prompt-override: unregistered prompts and raw strings are refu
     tag: "v1-protected-test",
     projectId: "proj-1",
     call: async () => { throw new Error("call unused"); },
+    personal: { projectId: "personal-unused", call: async () => { throw new Error("call unused"); } },
     http: async (route, options) => {
       if (route === "/api/agent-definitions/prompts" && options?.method === "GET") {
         return {

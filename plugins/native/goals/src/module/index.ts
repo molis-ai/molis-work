@@ -107,6 +107,7 @@ export class GoalsModule {
 export { GoalLifecycleCommands } from "./lifecycle-commands.js";
 export { GoalEventFacts } from "./event-facts.js";
 export { goalHasEventStateOwner } from "./event-state-owner-records.js";
+export { bindLibraryPartition } from "./library-partition.js";
 export {
   GoalsPlanningEngine,
 } from "./planning/engine.js";

@@ -32,7 +32,6 @@ type Row = Record<string, unknown>;
 /** The out rules table, as one current schema; Feed declares it as its project database (`FEED_PROJECT_DATABASE`). */
 export const FEED_OUT_RULES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_out_rules (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       rule_id TEXT NOT NULL,
       name TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
@@ -42,10 +41,10 @@ export const FEED_OUT_RULES_SCHEMA_SQL = `
       admission TEXT NOT NULL,
       judgment_json TEXT,
       revision TEXT NOT NULL,
-      PRIMARY KEY (project_id, rule_id)
+      PRIMARY KEY (rule_id)
     );
     CREATE INDEX IF NOT EXISTS feed_out_rules_project_enabled_idx
-      ON feed_out_rules(project_id, enabled, created_at, rule_id);
+      ON feed_out_rules(enabled, created_at, rule_id);
 `;
 
 export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
@@ -57,13 +56,13 @@ export class FeedOutRuleStore {
   constructor(private readonly db: FeedSql) {}
 
   list(projectId: string): FeedOutRuleRecord[] {
-    return (this.db.all("SELECT * FROM feed_out_rules WHERE project_id = ? ORDER BY created_at, rule_id", projectId) as Row[]).map(mapOutRule);
+    return (this.db.all("SELECT * FROM feed_out_rules ORDER BY created_at, rule_id") as Row[]).map(row => mapOutRule(row, projectId));
   }
 
   get(projectId: string, ruleId: string): FeedOutRuleRecord {
-    const row = this.db.get("SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?", projectId, ruleId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM feed_out_rules WHERE rule_id = ?", ruleId) as Row | undefined;
     if (!row) throw feedErrors.out_rule_not_found("找不到这条捕捉规则");
-    return mapOutRule(row);
+    return mapOutRule(row, projectId);
   }
 
   prepareCreate(projectId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
@@ -86,10 +85,10 @@ export class FeedOutRuleStore {
   saveCreate(record: FeedOutRuleRecord): FeedOutRuleRecord {
     this.db.run(`
       INSERT INTO feed_out_rules (
-        project_id, rule_id, name, enabled, match_json, created_at, updated_at, admission, judgment_json, revision
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        rule_id, name, enabled, match_json, created_at, updated_at, admission, judgment_json, revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-    record.project_id, record.rule_id, record.name, record.enabled ? 1 : 0, JSON.stringify(record.match), record.created_at, record.updated_at,
+    record.rule_id, record.name, record.enabled ? 1 : 0, JSON.stringify(record.match), record.created_at, record.updated_at,
     record.admission, record.judgment ? JSON.stringify(record.judgment) : null, record.revision);
     return record;
   }
@@ -117,17 +116,17 @@ export class FeedOutRuleStore {
     const result = this.db.run(`
       UPDATE feed_out_rules
       SET name = ?, enabled = ?, match_json = ?, updated_at = ?, admission = ?, judgment_json = ?, revision = ?
-      WHERE project_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
+      WHERE rule_id = ? AND (? IS NULL OR revision = ?)
     `,
     next.name, next.enabled ? 1 : 0, JSON.stringify(next.match), next.updated_at, next.admission, next.judgment ? JSON.stringify(next.judgment) : null, next.revision,
-    next.project_id, next.rule_id, expectedRevision ?? null, expectedRevision ?? null);
+    next.rule_id, expectedRevision ?? null, expectedRevision ?? null);
     if (!result.changes) throw feedErrors.revision_conflict("规则已变化，请刷新后再保存");
     return next;
   }
 
   delete(projectId: string, ruleId: string): FeedOutRuleRecord {
     const current = this.get(projectId, ruleId);
-    this.db.run("DELETE FROM feed_out_rules WHERE project_id = ? AND rule_id = ?", projectId, ruleId);
+    this.db.run("DELETE FROM feed_out_rules WHERE rule_id = ?", ruleId);
     return current;
   }
 }
@@ -307,9 +306,9 @@ function normalizeMatch(match: FeedOutRuleMatch): FeedOutRuleMatch {
   };
 }
 
-function mapOutRule(row: Row): FeedOutRuleRecord {
+function mapOutRule(row: Row, projectId: string): FeedOutRuleRecord {
   return {
-    project_id: String(row.project_id ?? ""),
+    project_id: projectId,
     rule_id: String(row.rule_id ?? ""),
     name: String(row.name ?? ""),
     enabled: Number(row.enabled) === 1,

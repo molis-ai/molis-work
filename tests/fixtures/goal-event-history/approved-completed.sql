@@ -228,7 +228,6 @@ CREATE TABLE plugin_overview_rows (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (install_id, kind, row_id)
 );
-CREATE INDEX plugin_overview_rows_remind ON plugin_overview_rows(remind_at) WHERE remind_at IS NOT NULL;
 CREATE TABLE attention_entries (
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
@@ -370,11 +369,11 @@ CREATE TABLE plugin_project_databases (
       tables_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
-INSERT INTO plugin_project_databases VALUES('io.molis.work.goals','official-goals-binding','goals',1,'["acceptance_criteria","acceptance_goal_idx","boards","goal_event_agreements","goal_event_applied_decisions","goal_event_applied_decisions_goal_idx","goal_event_closures","goal_event_closures_goal_idx","goal_event_concerns","goal_event_concerns_goal_idx","goal_event_config_versions","goal_event_configs","goal_event_decision_requests","goal_event_decision_requests_goal_idx","goal_event_progress_summaries","goal_event_progress_summaries_goal_idx","goal_event_requirement_bindings","goal_event_state_owners","goal_event_state_owners_project_idx","goal_event_types","goal_event_types_goal_idx","goal_event_work_status","goal_relations","goal_requirement_links","goal_trash_one_open_per_goal","goal_trash_records","goal_trash_records_goal_idx","goal_trash_relation_records","goal_trash_relation_records_relation_idx","goal_tree_item_effects","goal_tree_item_effects_proposal_idx","goal_tree_proposal_items","goal_tree_proposal_items_project_idx","goal_tree_proposal_items_proposal_idx","goal_tree_proposals","goal_tree_proposals_project_idx","goal_tree_proposals_supersedes_idx","goal_work_events","goal_work_events_goal_seq_idx","goals","goals_archive_idx","goals_project_idx","goals_ready_idx","goals_trash_idx","input_bindings","relations_from_idx","relations_to_idx","sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions","sync_ebbb9ae341b34cbb8aedd65a41e6_context","sync_ebbb9ae341b34cbb8aedd65a41e6_context_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_context_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_context_update","sync_ebbb9ae341b34cbb8aedd65a41e6_journal","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes_key","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state","sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_update"]','2026-11-03T17:48:08.342Z');
+INSERT INTO plugin_project_databases VALUES('io.molis.work.goals','official-goals-binding','goals',1,'["acceptance_criteria","acceptance_goal_idx","boards","goal_event_agreements","goal_event_applied_decisions","goal_event_applied_decisions_goal_idx","goal_event_closures","goal_event_closures_goal_idx","goal_event_concerns","goal_event_concerns_goal_idx","goal_event_config_versions","goal_event_configs","goal_event_decision_requests","goal_event_decision_requests_goal_idx","goal_event_progress_summaries","goal_event_progress_summaries_goal_idx","goal_event_requirement_bindings","goal_event_state_owners","goal_event_types","goal_event_types_goal_idx","goal_event_work_status","goal_relations","goal_requirement_links","goal_trash_one_open_per_goal","goal_trash_records","goal_trash_records_goal_idx","goal_trash_relation_records","goal_trash_relation_records_relation_idx","goal_tree_item_effects","goal_tree_item_effects_proposal_idx","goal_tree_proposal_items","goal_tree_proposal_items_project_idx","goal_tree_proposal_items_proposal_idx","goal_tree_proposals","goal_tree_proposals_project_idx","goal_tree_proposals_supersedes_idx","goal_work_events","goal_work_events_goal_seq_idx","goals","goals_archive_idx","goals_ready_idx","goals_trash_idx","input_bindings","relations_from_idx","relations_to_idx","sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions","sync_ebbb9ae341b34cbb8aedd65a41e6_context","sync_ebbb9ae341b34cbb8aedd65a41e6_context_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_context_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_context_update","sync_ebbb9ae341b34cbb8aedd65a41e6_journal","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes_key","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions","sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state","sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_update","sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_delete","sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_insert","sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_update"]','2026-11-03T17:48:08.342Z');
 INSERT INTO plugin_project_databases VALUES('io.molis.work.inbox','official-inbox-binding','inbox',1,'["inbox_scene_bindings"]','2026-11-03T17:48:08.342Z');
 INSERT INTO plugin_project_databases VALUES('io.molis.work.schedule','official-schedule-binding','schedule',1,'["schedule_conversation_tasks","schedule_conversation_tasks_enabled_idx","schedule_conversation_turns","schedule_conversation_turns_task_idx","schedule_missed_runs","schedule_operation_occurrences","schedule_operations","schedule_plugin_reminders","schedule_plugin_reminders_owner","sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions","sync_fc44281fa4e6ae1ad919f15bea63_context","sync_fc44281fa4e6ae1ad919f15bea63_replica_changes","sync_fc44281fa4e6ae1ad919f15bea63_replica_changes_key","sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts","sync_fc44281fa4e6ae1ad919f15bea63_replica_heads","sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox","sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions","sync_fc44281fa4e6ae1ad919f15bea63_replica_state","sync_fc44281fa4e6ae1ad919f15bea63_track_0_delete","sync_fc44281fa4e6ae1ad919f15bea63_track_0_insert","sync_fc44281fa4e6ae1ad919f15bea63_track_0_update","sync_fc44281fa4e6ae1ad919f15bea63_track_1_delete","sync_fc44281fa4e6ae1ad919f15bea63_track_1_insert","sync_fc44281fa4e6ae1ad919f15bea63_track_1_update"]','2026-11-03T17:48:08.342Z');
 INSERT INTO plugin_project_databases VALUES('io.molis.work.feed','official-feed-binding','feed',1,'["feed_item_events","feed_item_events_project_item_idx","feed_items","feed_items_project_signal_idx","feed_items_project_source_external_idx","feed_items_project_updated_idx","feed_materials","feed_materials_project_item_idx","feed_missed_pulls","feed_out_rules","feed_out_rules_project_enabled_idx","feed_source_runs","feed_source_runs_project_source_idx","feed_sources","feed_sources_project_updated_idx","listener_deliveries","listener_deliveries_recovery_idx","listener_instances","signal_events","signal_events_project_source_idx","signal_revisions","signals","signals_project_source_observed_idx","source_events","source_events_project_source_idx","sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions","sync_14ff60cd5b3b2f8842d99bea7ef6_context","sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes","sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes_key","sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts","sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads","sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox","sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions","sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state","sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_delete","sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_insert","sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_update","sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_delete","sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_insert","sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_update","sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions","sync_522a4260e0bcbee35d4d9f85406c_context","sync_522a4260e0bcbee35d4d9f85406c_replica_changes","sync_522a4260e0bcbee35d4d9f85406c_replica_changes_key","sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts","sync_522a4260e0bcbee35d4d9f85406c_replica_heads","sync_522a4260e0bcbee35d4d9f85406c_replica_outbox","sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions","sync_522a4260e0bcbee35d4d9f85406c_replica_state","sync_522a4260e0bcbee35d4d9f85406c_track_0_delete","sync_522a4260e0bcbee35d4d9f85406c_track_0_insert","sync_522a4260e0bcbee35d4d9f85406c_track_0_update","sync_522a4260e0bcbee35d4d9f85406c_track_1_delete","sync_522a4260e0bcbee35d4d9f85406c_track_1_insert","sync_522a4260e0bcbee35d4d9f85406c_track_1_update","sync_522a4260e0bcbee35d4d9f85406c_track_2_delete","sync_522a4260e0bcbee35d4d9f85406c_track_2_insert","sync_522a4260e0bcbee35d4d9f85406c_track_2_update","sync_522a4260e0bcbee35d4d9f85406c_track_3_delete","sync_522a4260e0bcbee35d4d9f85406c_track_3_insert","sync_522a4260e0bcbee35d4d9f85406c_track_3_update","sync_522a4260e0bcbee35d4d9f85406c_track_4_delete","sync_522a4260e0bcbee35d4d9f85406c_track_4_insert","sync_522a4260e0bcbee35d4d9f85406c_track_4_update","sync_522a4260e0bcbee35d4d9f85406c_track_5_delete","sync_522a4260e0bcbee35d4d9f85406c_track_5_insert","sync_522a4260e0bcbee35d4d9f85406c_track_5_update","sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions","sync_daec9cf494e58d382d6262de3af9_context","sync_daec9cf494e58d382d6262de3af9_replica_changes","sync_daec9cf494e58d382d6262de3af9_replica_changes_key","sync_daec9cf494e58d382d6262de3af9_replica_conflicts","sync_daec9cf494e58d382d6262de3af9_replica_heads","sync_daec9cf494e58d382d6262de3af9_replica_outbox","sync_daec9cf494e58d382d6262de3af9_replica_resolutions","sync_daec9cf494e58d382d6262de3af9_replica_state","sync_daec9cf494e58d382d6262de3af9_track_0_delete","sync_daec9cf494e58d382d6262de3af9_track_0_insert","sync_daec9cf494e58d382d6262de3af9_track_0_update"]','2026-11-03T17:48:08.342Z');
-INSERT INTO plugin_project_databases VALUES('io.molis.work.coding','official-coding-binding','coding',1,'["coding_input_versions","coding_inputs","coding_plan_drafts","coding_plan_versions","coding_saved_history","coding_sessions","coding_sessions_project_updated_idx","sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions","sync_dd6dd4054975ce4abcd1e12268d3_context","sync_dd6dd4054975ce4abcd1e12268d3_replica_changes","sync_dd6dd4054975ce4abcd1e12268d3_replica_changes_key","sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts","sync_dd6dd4054975ce4abcd1e12268d3_replica_heads","sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox","sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions","sync_dd6dd4054975ce4abcd1e12268d3_replica_state","sync_dd6dd4054975ce4abcd1e12268d3_track_0_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_0_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_0_update","sync_dd6dd4054975ce4abcd1e12268d3_track_1_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_1_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_1_update","sync_dd6dd4054975ce4abcd1e12268d3_track_2_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_2_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_2_update","sync_dd6dd4054975ce4abcd1e12268d3_track_3_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_3_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_3_update"]','2026-11-03T17:48:08.342Z');
+INSERT INTO plugin_project_databases VALUES('io.molis.work.coding','official-coding-binding','coding',1,'["coding_input_versions","coding_inputs","coding_plan_drafts","coding_plan_versions","coding_saved_history","coding_sessions","coding_sessions_updated_idx","sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions","sync_dd6dd4054975ce4abcd1e12268d3_context","sync_dd6dd4054975ce4abcd1e12268d3_replica_changes","sync_dd6dd4054975ce4abcd1e12268d3_replica_changes_key","sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts","sync_dd6dd4054975ce4abcd1e12268d3_replica_heads","sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox","sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions","sync_dd6dd4054975ce4abcd1e12268d3_replica_state","sync_dd6dd4054975ce4abcd1e12268d3_track_0_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_0_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_0_update","sync_dd6dd4054975ce4abcd1e12268d3_track_1_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_1_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_1_update","sync_dd6dd4054975ce4abcd1e12268d3_track_2_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_2_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_2_update","sync_dd6dd4054975ce4abcd1e12268d3_track_3_delete","sync_dd6dd4054975ce4abcd1e12268d3_track_3_insert","sync_dd6dd4054975ce4abcd1e12268d3_track_3_update"]','2026-11-03T17:48:08.342Z');
 INSERT INTO plugin_project_databases VALUES('io.molis.work.risk','official-risk-binding','risk',1,'["risk_editor_versions","risk_events","risk_events_risk_idx","risk_items","risk_items_status_idx","risk_links","risk_links_subject_idx","sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions","sync_57fe6903aad21582fd1bfbdd6011_context","sync_57fe6903aad21582fd1bfbdd6011_replica_changes","sync_57fe6903aad21582fd1bfbdd6011_replica_changes_key","sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts","sync_57fe6903aad21582fd1bfbdd6011_replica_heads","sync_57fe6903aad21582fd1bfbdd6011_replica_outbox","sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions","sync_57fe6903aad21582fd1bfbdd6011_replica_state","sync_57fe6903aad21582fd1bfbdd6011_track_0_delete","sync_57fe6903aad21582fd1bfbdd6011_track_0_insert","sync_57fe6903aad21582fd1bfbdd6011_track_0_update"]','2026-11-03T17:48:08.342Z');
 CREATE TABLE schedule_jobs (
       job_id TEXT PRIMARY KEY,
@@ -679,57 +678,6 @@ CREATE TABLE acceptance_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NO
 CREATE TABLE acceptance_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
 CREATE TABLE acceptance_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE acceptance_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-CREATE TABLE boards (
-          project_id TEXT PRIMARY KEY REFERENCES project_root(project_id) ON DELETE CASCADE,
-          active_goal_id TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-INSERT INTO boards VALUES('goalboard-v1-demo','V1','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.555Z');
-CREATE TABLE goals (
-    goal_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    outcome TEXT NOT NULL,
-    why TEXT NOT NULL,
-    business_logic TEXT NOT NULL,
-    in_scope_json TEXT NOT NULL DEFAULT '[]',
-    out_of_scope_json TEXT NOT NULL DEFAULT '[]',
-    constraints_json TEXT NOT NULL DEFAULT '[]',
-    required_inputs_json TEXT NOT NULL DEFAULT '[]',
-    promised_outputs_json TEXT NOT NULL DEFAULT '[]',
-    decomposition_review_json TEXT,
-    definition_state TEXT NOT NULL CHECK (definition_state IN ('draft', 'accepted')),
-    decomposition_state TEXT NOT NULL CHECK (decomposition_state IN ('abstract', 'frontier_open', 'closed_leaf', 'closed_compound')),
-    validity_state TEXT NOT NULL CHECK (validity_state IN ('valid', 'needs_revalidation', 'invalidated')),
-    fulfillment_state TEXT NOT NULL CHECK (fulfillment_state IN ('unmet', 'satisfied')),
-    trashed_at TEXT,
-    trashed_by TEXT,
-    archived_at TEXT,
-    archived_by TEXT,
-    priority INTEGER NOT NULL DEFAULT 0,
-    accepted_by TEXT,
-    accepted_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-INSERT INTO goals VALUES('ADOPTION','goalboard-v1-demo','让第一次接入从安装走到真实推进','新用户从 README、安装和首次打开一路走到推进第一条 Goal','只把程序装上不等于用户已经理解产品，更不等于完成第一次有效使用','公开文档先解释适用场景，再引导安装、连接 Runtime、选择项目并推进一条可执行 Goal。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,92,'demo-user','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.505Z');
-INSERT INTO goals VALUES('AUTO-CONNECT','goalboard-v1-demo','自动替用户选择最近使用的项目','新对话少做一次项目确认','早期方案希望用历史目录记录缩短首次连接步骤','新对话进入一个以前使用过的目录时，系统直接连接最近的项目，不再询问用户。这个方案可能选错项目，因此已经移入回收站，当前产品只展示候选并让用户决定。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet','2026-09-10T07:03:28.538Z','demo-user',NULL,NULL,10,'demo-user','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.538Z');
-INSERT INTO goals VALUES('CORE','goalboard-v1-demo','让每项工作都有可信的完成依据','用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成','只有进度标签而没有结果、证据和复核，用户仍然无法相信工作真的完成了','Runtime 选择一项已经准备好的工作并标记开始；完成后提交对应验收条件的证据，必要复核通过后，这项工作才会显示为已完成。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','satisfied',NULL,NULL,NULL,NULL,90,'demo-user','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.550Z');
-INSERT INTO goals VALUES('DESKTOP','goalboard-v1-demo','把 Molis Work 作为不切窗口的主工作站','用户在桌面端同时看到 Goal、下一步、完成要求和强绑定的 Runtime','工作在 AI 对话里推进、状态在另一个页面查看，会增加切换成本并削弱人的掌控感','桌面端复用网页事实和 Runtime 能力，将全局控制放进 TitleBar，并为 List、Focus 与 Runtime 保留连续三栏。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,74,'demo-user','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z');
-INSERT INTO goals VALUES('DOCS','goalboard-v1-demo','让用户从 README 进入正确的使用方式','用户先理解长程任务为何会跑偏，再看到 Molis Work 的闭环、桌面端和 Runtime 伴随方式','功能清单无法建立需求感，也无法解释 Molis Work 与 Agent Orchestration 的边界','README 用痛点、核心思路和完整演示组织内容；截图来自 Mock 项目的真实网页与桌面页面。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,56,'demo-user','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.509Z');
-INSERT INTO goals VALUES('GRAPH','goalboard-v1-demo','让复杂 Goal 关系仍然一眼可读','父子层级、前置依赖和当前焦点在复杂网络中仍有清楚的方向与落点','列表适合顺序浏览，但复杂 Goal 的多层结构和跨分支依赖会在列表里变得难以判断','用户在 List 与 Graph 之间切换；Graph 只读取真实父子和依赖关系，以节点、分区和有向连线呈现。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,76,'demo-user','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z');
-INSERT INTO goals VALUES('INTERFACES','goalboard-v1-demo','让不同 AI 对话看到同一项目进度','用户换一个 Runtime 或新开对话后，仍能找到同一个项目的目标、进度和未完成工作','如果每个入口各自记录状态，用户换一次对话就要重新解释整个项目','用户在当前对话明确选择项目后继续推进；其他 Runtime 也通过 Molis Work 读取和更新同一份项目事实，不会各自维护一套进度。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,80,'demo-user','2026-09-10T07:03:28.506Z','2026-09-10T07:03:28.506Z','2026-09-10T07:03:28.506Z');
-INSERT INTO goals VALUES('MIXED-OWNER','goalboard-v1-demo','已有事件 owner 的旧要求','真实结果继续有效','旧 criterion 已有真实事件支持','单向迁移不得丢弃它','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','satisfied',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:29:38.098Z','2026-09-10T08:08:53.178Z');
-INSERT INTO goals VALUES('OLD-HUMAN','goalboard-v1-demo','历史迁移场景 OLD-HUMAN','用户亲自核对付款体验','保留已有明确约定','单向升级后要求和责任仍须可读可改','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:03:28.560Z','2026-09-10T07:03:28.560Z');
-INSERT INTO goals VALUES('OLD-POLICY','goalboard-v1-demo','历史迁移场景 OLD-POLICY','实际付款成功','保留已有明确约定','单向升级后要求和责任仍须可读可改','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:03:28.560Z','2026-09-10T07:03:28.560Z');
-INSERT INTO goals VALUES('OLD-RISK','goalboard-v1-demo','历史迁移场景 OLD-RISK','结果可以打开','保留已有明确约定','单向升级后要求和责任仍须可读可改','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:03:28.561Z','2026-09-10T07:03:28.561Z');
-INSERT INTO goals VALUES('ONBOARDING','goalboard-v1-demo','让用户第一次打开就完成有效操作','用户首次进入后能选择项目、找到可做 Goal，并理解 Runtime 为什么绑定到它','展示很多功能不等于用户知道第一步做什么，首屏需要直接引向一次有效推进','首次体验使用一份明确标记的 Mock 项目，沿着可做 Goal、下一步与 Runtime 归属完成一轮引导。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,58,'demo-user','2026-09-10T07:03:28.508Z','2026-09-10T07:03:28.508Z','2026-09-10T07:03:28.508Z');
-INSERT INTO goals VALUES('PLATFORM','goalboard-v1-demo','让项目事实成为不同 Runtime 的共同底座','不同 AI、会话和工具读取同一份 Goal、关系、决定、进度与完成依据','长程任务最容易在切换对话和 Runtime 后失去共同上下文','Molis Work 保存项目事实；Runtime 只负责读取可做项、执行工作并提交结果，不在各自会话里维护另一套项目记忆。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,96,'demo-user','2026-09-10T07:03:28.490Z','2026-09-10T07:03:28.490Z','2026-09-10T07:03:28.490Z');
-INSERT INTO goals VALUES('RELEASE','goalboard-v1-demo','让新用户安装后知道下一步怎么开始','用户完成安装后知道如何启动页面、连接正在使用的 Runtime，以及为什么需要新开会话','安装成功但不知道服务是否常驻、工具何时生效或下一步说什么，仍然会被理解成产品不可用','安装只放置 Molis Work 自己的程序，不偷偷修改项目或 Runtime；用户随后显式启用常驻服务、预览并确认 Runtime 接入，再在新会话中选择或创建项目开始使用。','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,60,NULL,NULL,'2026-09-10T07:03:28.508Z','2026-09-10T07:03:28.508Z');
-INSERT INTO goals VALUES('V1','goalboard-v1-demo','让第一次使用的人顺利完成一轮目标协作','用户能把一个模糊想法变成清楚的目标树，并知道下一步、阻塞和完成依据','AI 对话结束后容易丢失目标、决定和进度，新用户尤其难判断该从哪里继续','用户先在当前对话说明想做什么，Runtime 通过提问整理目标并请用户确认；确认后，当前或后续 Runtime 从可做项中选择工作，提交结果和证据，Molis Work 持续保存共同进度。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,100,'demo-user','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.489Z');
-INSERT INTO goals VALUES('WEB','goalboard-v1-demo','让用户打开页面就看懂目标和下一步','用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞','底层规则正确并不代表产品容易理解；信息组织混乱会让用户放弃继续使用','用户打开项目后先看到目标树和当前目标，再按结果、完成标准、推进情况、风险和历史阅读；搜索、状态筛选和待决定事项都放在统一导航中。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,70,'demo-user','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z');
-INSERT INTO goals VALUES('WORKSPACE','goalboard-v1-demo','让人能在同一工作台看清并推进 Goal','用户在一个窗口里查看 Goal Tree、Focus、Graph 和 Goal-bound Runtime','频繁切换页面、终端和 AI 对话会打断判断，也让 Goal 与执行 Session 脱节','桌面端把 Goal 导航、当前工作和 Runtime 组合成连续工作面；网页保留同一份项目事实与独立访问方式。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,94,'demo-user','2026-09-10T07:03:28.504Z','2026-09-10T07:03:28.504Z','2026-09-10T07:03:28.504Z');
 CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
@@ -756,47 +704,6 @@ INSERT INTO acceptance_criteria VALUES('RELEASE-C1','RELEASE','安装、接入�
 INSERT INTO acceptance_criteria VALUES('V1-C1','V1','第一次使用的人能从首屏看懂目标、下一步和阻塞','inspection','首次使用者无需阅读协议即可正确复述',NULL,'[]');
 INSERT INTO acceptance_criteria VALUES('WEB-C1','WEB','桌面和移动端关键信息清楚可用','inspection','视觉、响应式和可访问性 QA 通过',NULL,'[]');
 INSERT INTO acceptance_criteria VALUES('WORKSPACE-C1','WORKSPACE','用户不切窗口即可从 Goal 进入对应 Runtime','inspection','桌面主工作流可完成并保持 Goal 绑定',NULL,'[]');
-CREATE TABLE goal_relations (
-    relation_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    from_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    to_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    type TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('proposed', 'active', 'inactive')),
-    reason TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    deactivated_at TEXT
-  );
-INSERT INTO goal_relations VALUES('relation-26184b19-74b6-4509-a239-b2c3d9ef3b67','goalboard-v1-demo','DOCS','ONBOARDING','depends_on','active','README 的演示必须来自已经走通的首次体验','demo-user','2026-09-10T07:03:28.530Z',NULL);
-INSERT INTO goal_relations VALUES('relation-341fe1f6-94a5-4b9d-96d8-1481878e7570','goalboard-v1-demo','ONBOARDING','RELEASE','depends_on','active','首次体验需要建立在可重复的安装与接入路径上','demo-user','2026-09-10T07:03:28.530Z',NULL);
-INSERT INTO goal_relations VALUES('relation-3db70bd7-947c-44d4-b92f-7c794331177d','goalboard-v1-demo','INTERFACES','CORE','depends_on','active','共享项目进度前，必须先保证每项工作的状态和完成依据可靠','demo-user','2026-09-10T07:03:28.528Z',NULL);
-INSERT INTO goal_relations VALUES('relation-46303826-25b2-4b8e-ad5e-b76617d90fc9','goalboard-v1-demo','PLATFORM','V1','part_of','active','共同组成第一次完整的 Molis Work 使用体验','demo-user','2026-09-10T07:03:28.510Z',NULL);
-INSERT INTO goal_relations VALUES('relation-4814cf00-c15c-4d86-b625-15f7c60df9b7','goalboard-v1-demo','ADOPTION','V1','part_of','active','共同组成第一次完整的 Molis Work 使用体验','demo-user','2026-09-10T07:03:28.513Z',NULL);
-INSERT INTO goal_relations VALUES('relation-5e6401d7-b1dc-4a94-8c53-f04539921f6a','goalboard-v1-demo','DESKTOP','CORE','depends_on','active','桌面工作站必须先建立可靠的 Goal 状态与完成依据','demo-user','2026-09-10T07:03:28.530Z',NULL);
-INSERT INTO goal_relations VALUES('relation-6b87504f-8ad9-49a9-acc4-4d75f39eea1d','goalboard-v1-demo','GRAPH','INTERFACES','depends_on','active','关系图必须读取不同 Runtime 共享的同一份 Goal 关系事实','demo-user','2026-09-10T07:03:28.529Z',NULL);
-INSERT INTO goal_relations VALUES('relation-730b96da-261b-4736-9788-7f8f89edcf64','goalboard-v1-demo','GRAPH','WORKSPACE','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.525Z',NULL);
-INSERT INTO goal_relations VALUES('relation-8217b2ac-8515-4f15-82de-c772e6c97a23','goalboard-v1-demo','WEB','WORKSPACE','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.524Z',NULL);
-INSERT INTO goal_relations VALUES('relation-9410d190-8f63-466a-8797-14efb68c326d','goalboard-v1-demo','CORE','PLATFORM','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.514Z',NULL);
-INSERT INTO goal_relations VALUES('relation-a2944b01-48f2-43a4-8215-bb3d5165fec8','goalboard-v1-demo','WEB','INTERFACES','depends_on','active','页面显示必须和不同 Runtime 看到的项目进度一致','demo-user','2026-09-10T07:03:28.529Z',NULL);
-INSERT INTO goal_relations VALUES('relation-d0cedc75-3cc4-4977-a253-247efa2b82fb','goalboard-v1-demo','WORKSPACE','V1','part_of','active','共同组成第一次完整的 Molis Work 使用体验','demo-user','2026-09-10T07:03:28.512Z',NULL);
-INSERT INTO goal_relations VALUES('relation-e62c0749-b7fe-4bd9-9669-e0063c9b289d','goalboard-v1-demo','ONBOARDING','ADOPTION','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.527Z',NULL);
-INSERT INTO goal_relations VALUES('relation-e744e983-eef6-4ea8-ad99-96cd1b73b248','goalboard-v1-demo','INTERFACES','PLATFORM','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.515Z',NULL);
-INSERT INTO goal_relations VALUES('relation-ecd7a888-4fdb-4ff5-8aeb-22b195aa8a45','goalboard-v1-demo','RELEASE','ADOPTION','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.527Z',NULL);
-INSERT INTO goal_relations VALUES('relation-f5af7868-c03c-4486-975b-01f92da14355','goalboard-v1-demo','DESKTOP','WORKSPACE','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.526Z',NULL);
-INSERT INTO goal_relations VALUES('relation-fd86817a-3c4e-41b0-8311-a2c55b7daaed','goalboard-v1-demo','DOCS','ADOPTION','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.528Z',NULL);
-CREATE TABLE goal_trash_records (
-    trash_record_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    trashed_at TEXT NOT NULL,
-    trashed_by TEXT NOT NULL,
-    trash_reason TEXT NOT NULL,
-    restored_at TEXT,
-    restored_by TEXT,
-    restore_reason TEXT
-  );
-INSERT INTO goal_trash_records VALUES('trash-c5c4a4b4-7cc5-45b5-94a4-dcd93556680b','goalboard-v1-demo','AUTO-CONNECT','2026-09-10T07:03:28.538Z','demo-user','这会替用户猜项目；当前方案只展示历史候选，并再次询问用户',NULL,NULL,NULL);
 CREATE TABLE goal_trash_relation_records (
     trash_record_id TEXT NOT NULL REFERENCES goal_trash_records(trash_record_id) ON DELETE CASCADE,
     relation_id TEXT NOT NULL REFERENCES goal_relations(relation_id) ON DELETE CASCADE,
@@ -804,348 +711,6 @@ CREATE TABLE goal_trash_relation_records (
     deactivated_at TEXT NOT NULL,
     restored_at TEXT,
     PRIMARY KEY (trash_record_id, relation_id)
-  );
-CREATE TABLE input_bindings (
-    binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    input_name TEXT NOT NULL,
-    source_type TEXT NOT NULL,
-    source_ref TEXT NOT NULL,
-    source_edge_key TEXT,
-    snapshot_digest TEXT,
-    state TEXT NOT NULL CHECK (state IN ('proposed', 'confirmed', 'inactive')),
-    reason TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_configs (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    current_version INTEGER NOT NULL,
-    updated_at TEXT NOT NULL,
-    updated_by TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id)
-  );
-INSERT INTO goal_event_configs VALUES('goalboard-v1-demo','MIXED-OWNER',1,'2026-09-10T07:29:38.102Z','mixed-runtime');
-CREATE TABLE goal_event_config_versions (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    version INTEGER NOT NULL,
-    actor_id TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    config_event_id TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id, version)
-  );
-INSERT INTO goal_event_config_versions VALUES('goalboard-v1-demo','MIXED-OWNER',1,'mixed-runtime','2026-09-10T07:29:38.102Z','gevt-a47aa75e-722e-41ac-8896-e59373c12681');
-CREATE TABLE goal_event_types (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    type_id TEXT NOT NULL,
-    type_version INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    purpose TEXT NOT NULL,
-    semantic_family TEXT,
-    source_json TEXT NOT NULL,
-    fields_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    created_in_config_version INTEGER NOT NULL,
-    actor_id TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id, type_id, type_version)
-  );
-INSERT INTO goal_event_types VALUES('goalboard-v1-demo','MIXED-OWNER','check',1,'实际核对','保留真实支持',NULL,'{"kind":"local","label":"当前 Goal 局部定义"}','[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]','2026-09-10T07:29:38.102Z',1,'mixed-runtime');
-CREATE TABLE goal_event_requirement_bindings (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    type_id TEXT NOT NULL,
-    requirement_id TEXT NOT NULL,
-    created_in_config_version INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id, type_id, requirement_id)
-  );
-CREATE TABLE goal_work_events (
-    event_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK (kind IN ('configuration', 'report', 'system')),
-    type_id TEXT,
-    type_version INTEGER,
-    title TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    actor_kind TEXT,
-    received_at TEXT NOT NULL,
-    journal_seq INTEGER NOT NULL,
-    config_version INTEGER
-  );
-INSERT INTO goal_work_events VALUES('gevt-5965c521-f7b9-481e-80c8-e51c6a319e69','goalboard-v1-demo','MIXED-OWNER','system',NULL,NULL,'迁入完成阻塞：共享输入记录仍有遗漏','{"operation":"concern_opened","concern_id":"imported-risk:MIXED-OWNER:mixed-shared-risk","title":"共享输入记录仍有遗漏","statement":"共享输入记录仍有遗漏；缺失记录全部补齐","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','migration:36',NULL,'2026-10-04T20:13:22.300Z',54,NULL);
-INSERT INTO goal_work_events VALUES('gevt-75b666e9-56d7-4929-b6d0-7474b5937be3','goalboard-v1-demo','MIXED-OWNER','report','check',1,'结果核对','{"result":"真实结果可以打开"}','mixed-runtime','runtime','2026-09-10T07:29:38.103Z',49,1);
-INSERT INTO goal_work_events VALUES('gevt-a47aa75e-722e-41ac-8896-e59373c12681','goalboard-v1-demo','MIXED-OWNER','configuration',NULL,NULL,'新增记录方式：实际核对','{"config_version":1,"types":[{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]}],"extra_requirements":[],"requirement_bindings":[],"adopted_planning":[]}','mixed-runtime','runtime','2026-09-10T07:29:38.102Z',48,1);
-INSERT INTO goal_work_events VALUES('gevt-c3a48804-b9f3-4b0f-9a75-2393f0881092','goalboard-v1-demo','MIXED-OWNER','system',NULL,NULL,'记录用户决定','{"operation":"user_decision","decision_id":"gdec-83564492-8f53-45d4-9c70-7cd39039fc2a","governance_decision_id":"gedec-fe7294b3-8446-424e-9418-2932bb8027d9","request_id":null,"selected_option_id":null,"conclusion":"我已经核对本 Goal 的当前交付，同意满足人工验收责任；剩余输入遗漏修复后可以完成","accepts_requirements":false,"effects":[{"kind":"authorize_action","action":"complete"}],"scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"authorized_change":null,"config_version":1,"agreement_version":1}','existing-user','user','2026-09-10T08:08:53.175Z',51,1);
-INSERT INTO goal_work_events VALUES('gevt-ea40aa5e-b9de-4fc5-84d9-1e2e837968f7','goalboard-v1-demo','OLD-HUMAN','system',NULL,NULL,'迁入完成阻塞：共享输入记录仍有遗漏','{"operation":"concern_opened","concern_id":"imported-risk:OLD-HUMAN:mixed-shared-risk","title":"共享输入记录仍有遗漏","statement":"共享输入记录仍有遗漏；缺失记录全部补齐","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','migration:36',NULL,'2026-10-04T20:13:22.300Z',55,NULL);
-INSERT INTO goal_work_events VALUES('gevt-fca3466a-5e03-4f25-ac8b-a3ff3948e9b5','goalboard-v1-demo','OLD-RISK','system',NULL,NULL,'迁入完成阻塞：付款记录存在遗漏，结果未确认','{"operation":"concern_opened","concern_id":"imported-risk:OLD-RISK:legacy-completion-risk","title":"付款记录存在遗漏，结果未确认","statement":"付款记录存在遗漏，结果未确认；全部付款记录可读取","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','migration:36',NULL,'2026-10-04T20:13:22.300Z',56,NULL);
-INSERT INTO goal_work_events VALUES('gevt-fff26575-8687-4006-bc0a-652b335c236f','goalboard-v1-demo','MIXED-OWNER','system',NULL,NULL,'显式完成当前 Goal','{"operation":"closure_submitted","kind":"complete","result":"实际结果可读","reason":"保留真实人工批准，核对剩余风险","completion_applied":true,"unmet_reasons":[],"expected_config_version":1,"expected_agreement_version":1,"config_version":1,"agreement_version":1}','existing-runtime','runtime','2026-09-10T08:08:53.178Z',52,1);
-CREATE TABLE goal_requirement_links (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    requirement_id TEXT NOT NULL,
-    origin_json TEXT,
-    created_in_config_version INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id, requirement_id)
-  );
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','ADOPTION','ADOPTION-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"首次使用走查无阻断步骤"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','ADOPTION','imported-policy:ADOPTION','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','AUTO-CONNECT','AUTO-CONNECT-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"进入历史目录后直接显示最近项目"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','AUTO-CONNECT','imported-policy:AUTO-CONNECT','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','CORE','CORE-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"生命周期自动化测试通过"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','CORE','imported-policy:CORE','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','DESKTOP','DESKTOP-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"Goal 选择、Focus 与 Runtime 归属保持同步"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','DESKTOP','imported-policy:DESKTOP','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','DOCS','DOCS-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"目标用户能准确复述产品独特机制"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','DOCS','imported-policy:DOCS','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','GRAPH','GRAPH-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"12 Goal 演示网络在桌面宽度下可读"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','GRAPH','imported-policy:GRAPH','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','INTERFACES','INTERFACES-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"跨入口自动化测试通过"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','INTERFACES','imported-policy:INTERFACES','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','MIXED-OWNER','MIXED-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"打开实际结果"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','MIXED-OWNER','imported-policy:MIXED-OWNER','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','OLD-HUMAN','OLD-HUMAN-C1','{"kind":"imported_acceptance_criterion","decision_method":"human_decision","pass_condition":"用户亲自核对付款体验"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','OLD-HUMAN','imported-policy:OLD-HUMAN','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','OLD-POLICY','OLD-POLICY-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"实际付款成功"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','OLD-POLICY','imported-policy:OLD-POLICY','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human","legacy-explicit-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','OLD-RISK','OLD-RISK-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"结果可以打开"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','OLD-RISK','imported-policy:OLD-RISK','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','ONBOARDING','ONBOARDING-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"首次体验测试完成一条可执行 Goal"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','ONBOARDING','imported-policy:ONBOARDING','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','PLATFORM','PLATFORM-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"跨入口一致性测试通过"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','PLATFORM','imported-policy:PLATFORM','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','RELEASE','RELEASE-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"全新安装端到端验证通过"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','RELEASE','imported-policy:RELEASE','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','V1','V1-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"首次使用者无需阅读协议即可正确复述"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','V1','imported-policy:V1','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','WEB','WEB-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"视觉、响应式和可访问性 QA 通过"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','WEB','imported-policy:WEB','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','WORKSPACE','WORKSPACE-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"桌面主工作流可完成并保持 Goal 绑定"}',0,'2026-10-04T20:13:22.300Z');
-INSERT INTO goal_requirement_links VALUES('goalboard-v1-demo','WORKSPACE','imported-policy:WORKSPACE','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
-CREATE TABLE goal_event_state_owners (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    owner TEXT NOT NULL CHECK (owner = 'event_work'),
-    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
-    adopted_at TEXT NOT NULL,
-    adopted_by TEXT NOT NULL,
-    PRIMARY KEY (goal_id)
-  );
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','ADOPTION','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','AUTO-CONNECT','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','CORE','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','DESKTOP','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','DOCS','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','GRAPH','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','INTERFACES','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','MIXED-OWNER','event_work','configuration','2026-09-10T07:29:38.102Z','mixed-runtime');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-HUMAN','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-POLICY','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-RISK','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','ONBOARDING','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','PLATFORM','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','RELEASE','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','V1','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WEB','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WORKSPACE','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
-CREATE TABLE goal_event_agreements (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    version INTEGER NOT NULL,
-    outcome TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    event_id TEXT,
-    PRIMARY KEY (project_id, goal_id, version)
-  );
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','ADOPTION',1,'新用户从 README、安装和首次打开一路走到推进第一条 Goal','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','AUTO-CONNECT',1,'新对话少做一次项目确认','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','CORE',1,'用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','DESKTOP',1,'用户在桌面端同时看到 Goal、下一步、完成要求和强绑定的 Runtime','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','DOCS',1,'用户先理解长程任务为何会跑偏，再看到 Molis Work 的闭环、桌面端和 Runtime 伴随方式','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','GRAPH',1,'父子层级、前置依赖和当前焦点在复杂网络中仍有清楚的方向与落点','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','INTERFACES',1,'用户换一个 Runtime 或新开对话后，仍能找到同一个项目的目标、进度和未完成工作','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','MIXED-OWNER',1,'真实结果继续有效','mixed-runtime','2026-09-10T07:29:38.102Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','OLD-HUMAN',1,'用户亲自核对付款体验','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','OLD-POLICY',1,'实际付款成功','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','OLD-RISK',1,'结果可以打开','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','ONBOARDING',1,'用户首次进入后能选择项目、找到可做 Goal，并理解 Runtime 为什么绑定到它','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','PLATFORM',1,'不同 AI、会话和工具读取同一份 Goal、关系、决定、进度与完成依据','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','RELEASE',1,'用户完成安装后知道如何启动页面、连接正在使用的 Runtime，以及为什么需要新开会话','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','V1',1,'用户能把一个模糊想法变成清楚的目标树，并知道下一步、阻塞和完成依据','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','WEB',1,'用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞','migration:36','2026-10-04T20:13:22.300Z','');
-INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','WORKSPACE',1,'用户在一个窗口里查看 Goal Tree、Focus、Graph 和 Goal-bound Runtime','migration:36','2026-10-04T20:13:22.300Z','');
-CREATE TABLE goal_event_progress_summaries (
-    summary_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    summary_text TEXT NOT NULL,
-    based_on_cursor INTEGER NOT NULL,
-    next_step TEXT,
-    next_actor TEXT,
-    actor_id TEXT NOT NULL,
-    recorded_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_concerns (
-    concern_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    statement TEXT NOT NULL,
-    scope_json TEXT NOT NULL,
-    blocks_closure INTEGER NOT NULL CHECK (blocks_closure IN (0, 1)),
-    status TEXT NOT NULL CHECK (status IN ('open', 'resolved', 'accepted', 'overturned')),
-    resolution_reason TEXT,
-    resolution_event_id TEXT,
-    cited_decision_id TEXT,
-    previous_status TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    cited_subjects_json TEXT NOT NULL DEFAULT '[]'
-  );
-INSERT INTO goal_event_concerns VALUES('imported-risk:MIXED-OWNER:mixed-shared-risk','goalboard-v1-demo','MIXED-OWNER','gevt-5965c521-f7b9-481e-80c8-e51c6a319e69','共享输入记录仍有遗漏','共享输入记录仍有遗漏；缺失记录全部补齐','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',1,'open',NULL,NULL,NULL,NULL,'2026-10-04T20:13:22.300Z','2026-10-04T20:13:22.300Z','[]');
-INSERT INTO goal_event_concerns VALUES('imported-risk:OLD-HUMAN:mixed-shared-risk','goalboard-v1-demo','OLD-HUMAN','gevt-ea40aa5e-b9de-4fc5-84d9-1e2e837968f7','共享输入记录仍有遗漏','共享输入记录仍有遗漏；缺失记录全部补齐','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',1,'open',NULL,NULL,NULL,NULL,'2026-10-04T20:13:22.300Z','2026-10-04T20:13:22.300Z','[]');
-INSERT INTO goal_event_concerns VALUES('imported-risk:OLD-RISK:legacy-completion-risk','goalboard-v1-demo','OLD-RISK','gevt-fca3466a-5e03-4f25-ac8b-a3ff3948e9b5','付款记录存在遗漏，结果未确认','付款记录存在遗漏，结果未确认；全部付款记录可读取','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',1,'open',NULL,NULL,NULL,NULL,'2026-10-04T20:13:22.300Z','2026-10-04T20:13:22.300Z','[]');
-CREATE TABLE goal_event_decision_requests (
-    request_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    question TEXT NOT NULL,
-    options_json TEXT NOT NULL,
-    scope_json TEXT NOT NULL,
-    purpose TEXT NOT NULL DEFAULT 'suggestion' CHECK (purpose IN ('suggestion', 'requirement_acceptance', 'action', 'agreement_change')),
-    proposed_change_json TEXT,
-    commitment_json TEXT,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'decided')),
-    created_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_applied_decisions (
-    decision_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    governance_decision_id TEXT NOT NULL,
-    request_id TEXT,
-    event_id TEXT NOT NULL,
-    selected_option_id TEXT,
-    conclusion TEXT NOT NULL,
-    accepts_requirements INTEGER NOT NULL CHECK (accepts_requirements IN (0, 1)),
-    effects_json TEXT NOT NULL DEFAULT '[]',
-    scope_json TEXT NOT NULL,
-    commitment_json TEXT NOT NULL DEFAULT '{"outcome":"","requirements":[]}',
-    authorized_change_json TEXT,
-    config_version INTEGER,
-    agreement_version INTEGER,
-    actor_id TEXT NOT NULL,
-    authority_source TEXT NOT NULL CHECK (authority_source IN ('web', 'management')),
-    recorded_at TEXT NOT NULL
-  );
-INSERT INTO goal_event_applied_decisions VALUES('gdec-83564492-8f53-45d4-9c70-7cd39039fc2a','goalboard-v1-demo','MIXED-OWNER','gedec-fe7294b3-8446-424e-9418-2932bb8027d9',NULL,'gevt-c3a48804-b9f3-4b0f-9a75-2393f0881092',NULL,'我已经核对本 Goal 的当前交付，同意满足人工验收责任；剩余输入遗漏修复后可以完成',0,'[{"kind":"authorize_action","action":"complete"}]','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}','{"outcome":"真实结果继续有效","requirements":[{"requirement_id":"MIXED-C1","statement":"结果确实可读","human_decision_required":false,"bound_type_ids":[]},{"requirement_id":"imported-policy:MIXED-OWNER","statement":"本项目完成必须由用户验收","human_decision_required":true,"bound_type_ids":[]}]}',NULL,1,1,'existing-user','web','2026-09-10T08:08:53.175Z');
-CREATE TABLE goal_event_closures (
-    closure_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('complete', 'cancel')),
-    result TEXT,
-    reason TEXT NOT NULL,
-    completion_applied INTEGER NOT NULL CHECK (completion_applied IN (0, 1)),
-    expected_config_version INTEGER NOT NULL,
-    expected_agreement_version INTEGER NOT NULL DEFAULT 0,
-    config_version INTEGER,
-    agreement_version INTEGER,
-    unmet_reasons_json TEXT NOT NULL DEFAULT '[]',
-    superseded INTEGER NOT NULL CHECK (superseded IN (0, 1)),
-    superseded_reason TEXT,
-    recorded_at TEXT NOT NULL,
-    acceptance_round INTEGER
-  );
-INSERT INTO goal_event_closures VALUES('gclo-f5c0d3db-95a0-444f-978e-17060d3f6ab8','goalboard-v1-demo','MIXED-OWNER','gevt-fff26575-8687-4006-bc0a-652b335c236f','complete','实际结果可读','保留真实人工批准，核对剩余风险',1,1,1,1,1,'[]',0,NULL,'2026-09-10T08:08:53.178Z',NULL);
-CREATE TABLE goal_event_work_status (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    work_status TEXT NOT NULL CHECK (work_status IN ('open', 'completed', 'cancelled')),
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (goal_id)
-  );
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','ADOPTION','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','AUTO-CONNECT','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','CORE','completed','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','DESKTOP','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','DOCS','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','GRAPH','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','INTERFACES','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','MIXED-OWNER','completed','2026-09-10T08:08:53.178Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','OLD-HUMAN','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','OLD-POLICY','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','OLD-RISK','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','ONBOARDING','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','PLATFORM','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','RELEASE','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','V1','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','WEB','open','2026-10-04T20:13:22.300Z');
-INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','WORKSPACE','open','2026-10-04T20:13:22.300Z');
-CREATE TABLE goal_tree_proposals (
-    proposal_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
-    submitted_by TEXT NOT NULL,
-    submitted_session_id TEXT,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
-    version INTEGER NOT NULL,
-    supersedes_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    base_event_cursor INTEGER NOT NULL,
-    summary TEXT NOT NULL,
-    narrative_json TEXT,
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    decided_at TEXT
-  );
-CREATE TABLE goal_tree_proposal_items (
-    item_id TEXT PRIMARY KEY,
-    proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    ordinal INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
-    operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
-    payload_json TEXT NOT NULL,
-    source_refs_json TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    explanation_json TEXT,
-    confidence REAL NOT NULL,
-    affected_objects_json TEXT NOT NULL,
-    baseline_versions_json TEXT NOT NULL,
-    requires_user_confirmation INTEGER NOT NULL DEFAULT 1,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'conflict', 'superseded', 'approved', 'applied', 'rejected', 'dismissed')),
-    conflict_json TEXT,
-    materialized_objects_json TEXT NOT NULL DEFAULT '[]',
-    revision_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    supersedes_item_id TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE(proposal_id, ordinal)
-  );
-CREATE TABLE goal_tree_item_effects (
-    effect_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
-    approval_id TEXT NOT NULL,
-    result TEXT NOT NULL CHECK (result IN ('confirmed', 'rejected', 'revised', 'conflict')),
-    runtime_actor_id TEXT,
-    reason TEXT NOT NULL,
-    revision_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    materialized_objects_json TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL
   );
 CREATE TABLE sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
 INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state VALUES(1,'4c462c3d6c49c050d6adeed621891aee',0,0);
@@ -1157,14 +722,6 @@ CREATE TABLE sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions (id INTEGER P
 CREATE TABLE sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE sync_ebbb9ae341b34cbb8aedd65a41e6_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
 INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_context VALUES(1,NULL);
-CREATE TABLE inbox_scene_bindings (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      scene_id TEXT NOT NULL,
-      action_binding_json TEXT NOT NULL,
-      binding_revision TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, scene_id)
-    );
 CREATE TABLE schedule_conversation_tasks (
       task_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -1194,24 +751,6 @@ CREATE TABLE schedule_conversation_turns (
       created_at TEXT NOT NULL,
       FOREIGN KEY (task_id) REFERENCES schedule_conversation_tasks(task_id)
     );
-CREATE TABLE schedule_plugin_reminders (
-    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
-    record_json TEXT NOT NULL
-  );
-CREATE TABLE schedule_operations (
-    project_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
-    PRIMARY KEY (project_id, id)
-  );
-CREATE TABLE schedule_operation_occurrences (
-    project_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
-    PRIMARY KEY (project_id, operation_id, due_at)
-  );
-CREATE TABLE schedule_missed_runs (
-    project_id TEXT NOT NULL, run_id TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('task', 'operation', 'reminder')),
-    ref TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
-    decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT,
-    PRIMARY KEY (project_id, run_id)
-  );
 CREATE TABLE sync_fc44281fa4e6ae1ad919f15bea63_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
 INSERT INTO sync_fc44281fa4e6ae1ad919f15bea63_replica_state VALUES(1,'998f58a495f56285bd5f42e47ad11576',0,0);
 CREATE TABLE sync_fc44281fa4e6ae1ad919f15bea63_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
@@ -1222,204 +761,6 @@ CREATE TABLE sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions (id INTEGER P
 CREATE TABLE sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE sync_fc44281fa4e6ae1ad919f15bea63_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
 INSERT INTO sync_fc44281fa4e6ae1ad919f15bea63_context VALUES(1,NULL);
-CREATE TABLE feed_out_rules (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      rule_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      match_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      admission TEXT NOT NULL,
-      judgment_json TEXT,
-      revision TEXT NOT NULL,
-      PRIMARY KEY (project_id, rule_id)
-    );
-CREATE TABLE feed_items (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      item_id TEXT NOT NULL,
-      source_id TEXT,
-      signal_id TEXT,
-      signal_revision INTEGER,
-      kind TEXT NOT NULL,
-      title TEXT NOT NULL,
-      summary TEXT NOT NULL DEFAULT '',
-      body TEXT,
-      source_kind TEXT NOT NULL,
-      source_label TEXT NOT NULL,
-      external_id TEXT,
-      url TEXT,
-      origin_status TEXT NOT NULL,
-      priority TEXT NOT NULL,
-      tags_json TEXT NOT NULL DEFAULT '[]',
-      author TEXT,
-      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'archived')),
-      read_at TEXT,
-      revision INTEGER NOT NULL DEFAULT 1,
-      source_created_at TEXT NOT NULL,
-      source_updated_at TEXT NOT NULL,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, item_id)
-    );
-CREATE TABLE feed_materials (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      material_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      canonical_url TEXT,
-      title TEXT NOT NULL,
-      source_name TEXT NOT NULL,
-      published_at TEXT,
-      preview TEXT NOT NULL DEFAULT '',
-      content_hash TEXT,
-      content_ref TEXT,
-      content_available INTEGER NOT NULL DEFAULT 0,
-      content_type TEXT,
-      character_count INTEGER,
-      captured_at TEXT,
-      provenance_json TEXT NOT NULL DEFAULT '{}',
-      selected_for_context INTEGER NOT NULL DEFAULT 0,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, material_id),
-      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
-    );
-CREATE TABLE feed_item_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      at TEXT NOT NULL
-    );
-CREATE TABLE feed_sources (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      source_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      definition_id TEXT,
-      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'connector', 'manual')),
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      item_count INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
-      config_json TEXT NOT NULL DEFAULT '{}',
-      schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
-      credential_ref TEXT,
-      account_label TEXT,
-      last_sync_at TEXT,
-      last_outcome TEXT,
-      last_error_code TEXT,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
-);
-CREATE TABLE source_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('source.created', 'source.updated', 'source.status_changed', 'source.retired')),
-      payload_json TEXT NOT NULL,
-      at TEXT NOT NULL
-    );
-CREATE TABLE signals (
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      provider_dedupe_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      occurred_at TEXT NOT NULL,
-      observed_at TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      content_refs_json TEXT NOT NULL DEFAULT '[]',
-      raw_event_id TEXT NOT NULL,
-      adapter_plugin_id TEXT NOT NULL,
-      adapter_version TEXT NOT NULL,
-      provenance_json TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      content_hash TEXT NOT NULL,
-      validation TEXT NOT NULL CHECK (validation = 'accepted'),
-      superseded_by TEXT,
-      withdrawn_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id),
-      UNIQUE (project_id, source_id, provider_dedupe_id)
-    );
-CREATE TABLE signal_revisions (
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      content_hash TEXT NOT NULL,
-      draft_json TEXT NOT NULL,
-      accepted_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id, revision)
-    );
-CREATE TABLE signal_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('signal.accepted', 'signal.changed')),
-      revision INTEGER NOT NULL,
-      at TEXT NOT NULL
-    );
-CREATE TABLE listener_instances (
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      cursor_json TEXT NOT NULL DEFAULT '{}',
-      state TEXT NOT NULL CHECK (state IN ('idle', 'listening', 'retry_wait', 'quarantined')),
-      attempt INTEGER NOT NULL DEFAULT 0,
-      retry_at TEXT,
-      last_error_code TEXT,
-      lease_owner TEXT,
-      lease_expires_at TEXT,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
-    );
-CREATE TABLE listener_deliveries (
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      operation_id TEXT NOT NULL,
-      raw_event_id TEXT NOT NULL,
-      provider_dedupe_id TEXT NOT NULL,
-      raw_event_json TEXT NOT NULL,
-      cursor_after_json TEXT,
-      adapter_plugin_id TEXT NOT NULL,
-      adapter_version TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('pending', 'retry_wait', 'accepted', 'quarantined')),
-      attempt INTEGER NOT NULL DEFAULT 0,
-      signal_id TEXT,
-      last_error_code TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id, raw_event_id)
-    );
-CREATE TABLE feed_source_runs (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      run_id TEXT NOT NULL,
-      operation_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
-      outcome TEXT,
-      empty INTEGER NOT NULL DEFAULT 0,
-      error_code TEXT,
-      receipt_json TEXT,
-      created_count INTEGER NOT NULL DEFAULT 0,
-      deduped_count INTEGER NOT NULL DEFAULT 0,
-      recovery_count INTEGER NOT NULL DEFAULT 0,
-      started_at TEXT NOT NULL,
-      completed_at TEXT,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, run_id),
-      UNIQUE (project_id, operation_id)
-    );
-CREATE TABLE feed_missed_pulls (
-      project_id TEXT NOT NULL, run_id TEXT NOT NULL, source_id TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
-      decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT,
-      PRIMARY KEY (project_id, run_id)
-    );
 CREATE TABLE sync_daec9cf494e58d382d6262de3af9_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
 INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_state VALUES(1,'8f478f20582302b3f50aa34c894cabed',0,0);
 CREATE TABLE sync_daec9cf494e58d382d6262de3af9_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
@@ -1450,49 +791,6 @@ CREATE TABLE sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions (id INTEGER P
 CREATE TABLE sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE sync_522a4260e0bcbee35d4d9f85406c_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
 INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_context VALUES(1,NULL);
-CREATE TABLE coding_sessions (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      session_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      state TEXT NOT NULL,
-      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
-      goal_id TEXT,
-      runtime_id TEXT NOT NULL,
-      runtime_session_id TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      -- Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
-      steps_json TEXT,
-      -- Background commands the session left running, as last read: lets the list across projects show and stop them.
-      background_json TEXT,
-      PRIMARY KEY (project_id, session_id)
-    );
-CREATE TABLE coding_plan_drafts (
-      project_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      draft_json TEXT NOT NULL,
-      PRIMARY KEY (project_id, session_id),
-      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
-    );
-CREATE TABLE coding_plan_versions (
-      project_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      revision INTEGER NOT NULL CHECK (revision > 0),
-      PRIMARY KEY (project_id, session_id)
-    );
-CREATE TABLE coding_inputs (
-  project_id TEXT NOT NULL, session_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
-  draft TEXT NOT NULL, questions_json TEXT NOT NULL,
-  PRIMARY KEY(project_id,session_id),
-  FOREIGN KEY(project_id,session_id) REFERENCES coding_sessions(project_id,session_id) ON DELETE CASCADE
- );
-CREATE TABLE coding_input_versions (
-  project_id TEXT NOT NULL, session_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), PRIMARY KEY(project_id,session_id)
- );
-CREATE TABLE coding_saved_history (
- project_id TEXT NOT NULL,session_id TEXT NOT NULL,source_id TEXT NOT NULL,archive_json TEXT NOT NULL,
- PRIMARY KEY(project_id,session_id,source_id),FOREIGN KEY(project_id,session_id) REFERENCES coding_sessions(project_id,session_id) ON DELETE CASCADE);
 CREATE TABLE sync_dd6dd4054975ce4abcd1e12268d3_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
 INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_state VALUES(1,'28c075b638b944b182be345365e1c4ed',0,0);
 CREATE TABLE sync_dd6dd4054975ce4abcd1e12268d3_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
@@ -1503,22 +801,6 @@ CREATE TABLE sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions (id INTEGER P
 CREATE TABLE sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE sync_dd6dd4054975ce4abcd1e12268d3_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
 INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_context VALUES(1,NULL);
-CREATE TABLE risk_items (
-      risk_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      statement TEXT NOT NULL,
-      impact TEXT NOT NULL CHECK (impact IN ('high', 'medium', 'low')),
-      likelihood TEXT NOT NULL CHECK (likelihood IN ('high', 'medium', 'low')),
-      treatment TEXT NOT NULL,
-      owner_name TEXT,
-      status TEXT NOT NULL CHECK (status IN ('open', 'mitigating', 'accepted', 'closed')),
-      revision INTEGER NOT NULL,
-      created_by TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      closed_at TEXT
-    );
 CREATE TABLE risk_links (
       risk_id TEXT NOT NULL REFERENCES risk_items(risk_id) ON DELETE CASCADE,
       subject_kind TEXT NOT NULL,
@@ -1549,6 +831,688 @@ CREATE TABLE attention_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT
 CREATE TABLE attention_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
 CREATE TABLE attention_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE attention_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE risk_editor_versions (risk_id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
+INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_context VALUES(1,'molis-work-v1-demo');
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_state VALUES(1,'e6bfa7703906c01a7160905510905f00',0,0);
+CREATE TABLE boards (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          active_goal_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+INSERT INTO boards VALUES(1,'V1','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.555Z');
+CREATE TABLE goals (
+    goal_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    why TEXT NOT NULL,
+    business_logic TEXT NOT NULL,
+    in_scope_json TEXT NOT NULL DEFAULT '[]',
+    out_of_scope_json TEXT NOT NULL DEFAULT '[]',
+    constraints_json TEXT NOT NULL DEFAULT '[]',
+    required_inputs_json TEXT NOT NULL DEFAULT '[]',
+    promised_outputs_json TEXT NOT NULL DEFAULT '[]',
+    decomposition_review_json TEXT,
+    definition_state TEXT NOT NULL CHECK (definition_state IN ('draft', 'accepted')),
+    decomposition_state TEXT NOT NULL CHECK (decomposition_state IN ('abstract', 'frontier_open', 'closed_leaf', 'closed_compound')),
+    validity_state TEXT NOT NULL CHECK (validity_state IN ('valid', 'needs_revalidation', 'invalidated')),
+    fulfillment_state TEXT NOT NULL CHECK (fulfillment_state IN ('unmet', 'satisfied')),
+    trashed_at TEXT,
+    trashed_by TEXT,
+    archived_at TEXT,
+    archived_by TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    accepted_by TEXT,
+    accepted_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+INSERT INTO goals VALUES('ADOPTION','让第一次接入从安装走到真实推进','新用户从 README、安装和首次打开一路走到推进第一条 Goal','只把程序装上不等于用户已经理解产品，更不等于完成第一次有效使用','公开文档先解释适用场景，再引导安装、连接 Runtime、选择项目并推进一条可执行 Goal。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,92,'demo-user','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.505Z');
+INSERT INTO goals VALUES('AUTO-CONNECT','自动替用户选择最近使用的项目','新对话少做一次项目确认','早期方案希望用历史目录记录缩短首次连接步骤','新对话进入一个以前使用过的目录时，系统直接连接最近的项目，不再询问用户。这个方案可能选错项目，因此已经移入回收站，当前产品只展示候选并让用户决定。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet','2026-09-10T07:03:28.538Z','demo-user',NULL,NULL,10,'demo-user','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.538Z');
+INSERT INTO goals VALUES('CORE','让每项工作都有可信的完成依据','用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成','只有进度标签而没有结果、证据和复核，用户仍然无法相信工作真的完成了','Runtime 选择一项已经准备好的工作并标记开始；完成后提交对应验收条件的证据，必要复核通过后，这项工作才会显示为已完成。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','satisfied',NULL,NULL,NULL,NULL,90,'demo-user','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.505Z','2026-09-10T07:03:28.550Z');
+INSERT INTO goals VALUES('DESKTOP','把 Molis Work 作为不切窗口的主工作站','用户在桌面端同时看到 Goal、下一步、完成要求和强绑定的 Runtime','工作在 AI 对话里推进、状态在另一个页面查看，会增加切换成本并削弱人的掌控感','桌面端复用网页事实和 Runtime 能力，将全局控制放进 TitleBar，并为 List、Focus 与 Runtime 保留连续三栏。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,74,'demo-user','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z');
+INSERT INTO goals VALUES('DOCS','让用户从 README 进入正确的使用方式','用户先理解长程任务为何会跑偏，再看到 Molis Work 的闭环、桌面端和 Runtime 伴随方式','功能清单无法建立需求感，也无法解释 Molis Work 与 Agent Orchestration 的边界','README 用痛点、核心思路和完整演示组织内容；截图来自 Mock 项目的真实网页与桌面页面。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,56,'demo-user','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.509Z','2026-09-10T07:03:28.509Z');
+INSERT INTO goals VALUES('GRAPH','让复杂 Goal 关系仍然一眼可读','父子层级、前置依赖和当前焦点在复杂网络中仍有清楚的方向与落点','列表适合顺序浏览，但复杂 Goal 的多层结构和跨分支依赖会在列表里变得难以判断','用户在 List 与 Graph 之间切换；Graph 只读取真实父子和依赖关系，以节点、分区和有向连线呈现。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,76,'demo-user','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z');
+INSERT INTO goals VALUES('INTERFACES','让不同 AI 对话看到同一项目进度','用户换一个 Runtime 或新开对话后，仍能找到同一个项目的目标、进度和未完成工作','如果每个入口各自记录状态，用户换一次对话就要重新解释整个项目','用户在当前对话明确选择项目后继续推进；其他 Runtime 也通过 Molis Work 读取和更新同一份项目事实，不会各自维护一套进度。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,80,'demo-user','2026-09-10T07:03:28.506Z','2026-09-10T07:03:28.506Z','2026-09-10T07:03:28.506Z');
+INSERT INTO goals VALUES('MIXED-OWNER','已有事件 owner 的旧要求','真实结果继续有效','旧 criterion 已有真实事件支持','单向迁移不得丢弃它','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','satisfied',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:29:38.098Z','2026-09-10T08:08:53.178Z');
+INSERT INTO goals VALUES('OLD-HUMAN','历史迁移场景 OLD-HUMAN','用户亲自核对付款体验','保留已有明确约定','单向升级后要求和责任仍须可读可改','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:03:28.560Z','2026-09-10T07:03:28.560Z');
+INSERT INTO goals VALUES('OLD-POLICY','历史迁移场景 OLD-POLICY','实际付款成功','保留已有明确约定','单向升级后要求和责任仍须可读可改','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:03:28.560Z','2026-09-10T07:03:28.560Z');
+INSERT INTO goals VALUES('OLD-RISK','历史迁移场景 OLD-RISK','结果可以打开','保留已有明确约定','单向升级后要求和责任仍须可读可改','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,0,NULL,NULL,'2026-09-10T07:03:28.561Z','2026-09-10T07:03:28.561Z');
+INSERT INTO goals VALUES('ONBOARDING','让用户第一次打开就完成有效操作','用户首次进入后能选择项目、找到可做 Goal，并理解 Runtime 为什么绑定到它','展示很多功能不等于用户知道第一步做什么，首屏需要直接引向一次有效推进','首次体验使用一份明确标记的 Mock 项目，沿着可做 Goal、下一步与 Runtime 归属完成一轮引导。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,58,'demo-user','2026-09-10T07:03:28.508Z','2026-09-10T07:03:28.508Z','2026-09-10T07:03:28.508Z');
+INSERT INTO goals VALUES('PLATFORM','让项目事实成为不同 Runtime 的共同底座','不同 AI、会话和工具读取同一份 Goal、关系、决定、进度与完成依据','长程任务最容易在切换对话和 Runtime 后失去共同上下文','Molis Work 保存项目事实；Runtime 只负责读取可做项、执行工作并提交结果，不在各自会话里维护另一套项目记忆。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,96,'demo-user','2026-09-10T07:03:28.490Z','2026-09-10T07:03:28.490Z','2026-09-10T07:03:28.490Z');
+INSERT INTO goals VALUES('RELEASE','让新用户安装后知道下一步怎么开始','用户完成安装后知道如何启动页面、连接正在使用的 Runtime，以及为什么需要新开会话','安装成功但不知道服务是否常驻、工具何时生效或下一步说什么，仍然会被理解成产品不可用','安装只放置 Molis Work 自己的程序，不偷偷修改项目或 Runtime；用户随后显式启用常驻服务、预览并确认 Runtime 接入，再在新会话中选择或创建项目开始使用。','[]','[]','[]','[]','[]',NULL,'draft','abstract','valid','unmet',NULL,NULL,NULL,NULL,60,NULL,NULL,'2026-09-10T07:03:28.508Z','2026-09-10T07:03:28.508Z');
+INSERT INTO goals VALUES('V1','让第一次使用的人顺利完成一轮目标协作','用户能把一个模糊想法变成清楚的目标树，并知道下一步、阻塞和完成依据','AI 对话结束后容易丢失目标、决定和进度，新用户尤其难判断该从哪里继续','用户先在当前对话说明想做什么，Runtime 通过提问整理目标并请用户确认；确认后，当前或后续 Runtime 从可做项中选择工作，提交结果和证据，Molis Work 持续保存共同进度。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,100,'demo-user','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.489Z');
+INSERT INTO goals VALUES('WEB','让用户打开页面就看懂目标和下一步','用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞','底层规则正确并不代表产品容易理解；信息组织混乱会让用户放弃继续使用','用户打开项目后先看到目标树和当前目标，再按结果、完成标准、推进情况、风险和历史阅读；搜索、状态筛选和待决定事项都放在统一导航中。','[]','[]','[]','[]','[]',NULL,'accepted','closed_leaf','valid','unmet',NULL,NULL,NULL,NULL,70,'demo-user','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z','2026-09-10T07:03:28.507Z');
+INSERT INTO goals VALUES('WORKSPACE','让人能在同一工作台看清并推进 Goal','用户在一个窗口里查看 Goal Tree、Focus、Graph 和 Goal-bound Runtime','频繁切换页面、终端和 AI 对话会打断判断，也让 Goal 与执行 Session 脱节','桌面端把 Goal 导航、当前工作和 Runtime 组合成连续工作面；网页保留同一份项目事实与独立访问方式。','[]','[]','[]','[]','[]',NULL,'accepted','closed_compound','valid','unmet',NULL,NULL,NULL,NULL,94,'demo-user','2026-09-10T07:03:28.504Z','2026-09-10T07:03:28.504Z','2026-09-10T07:03:28.504Z');
+CREATE TABLE goal_relations (
+    relation_id TEXT PRIMARY KEY,
+    from_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
+    to_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
+    type TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('proposed', 'active', 'inactive')),
+    reason TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    deactivated_at TEXT
+  );
+INSERT INTO goal_relations VALUES('relation-26184b19-74b6-4509-a239-b2c3d9ef3b67','DOCS','ONBOARDING','depends_on','active','README 的演示必须来自已经走通的首次体验','demo-user','2026-09-10T07:03:28.530Z',NULL);
+INSERT INTO goal_relations VALUES('relation-341fe1f6-94a5-4b9d-96d8-1481878e7570','ONBOARDING','RELEASE','depends_on','active','首次体验需要建立在可重复的安装与接入路径上','demo-user','2026-09-10T07:03:28.530Z',NULL);
+INSERT INTO goal_relations VALUES('relation-3db70bd7-947c-44d4-b92f-7c794331177d','INTERFACES','CORE','depends_on','active','共享项目进度前，必须先保证每项工作的状态和完成依据可靠','demo-user','2026-09-10T07:03:28.528Z',NULL);
+INSERT INTO goal_relations VALUES('relation-46303826-25b2-4b8e-ad5e-b76617d90fc9','PLATFORM','V1','part_of','active','共同组成第一次完整的 Molis Work 使用体验','demo-user','2026-09-10T07:03:28.510Z',NULL);
+INSERT INTO goal_relations VALUES('relation-4814cf00-c15c-4d86-b625-15f7c60df9b7','ADOPTION','V1','part_of','active','共同组成第一次完整的 Molis Work 使用体验','demo-user','2026-09-10T07:03:28.513Z',NULL);
+INSERT INTO goal_relations VALUES('relation-5e6401d7-b1dc-4a94-8c53-f04539921f6a','DESKTOP','CORE','depends_on','active','桌面工作站必须先建立可靠的 Goal 状态与完成依据','demo-user','2026-09-10T07:03:28.530Z',NULL);
+INSERT INTO goal_relations VALUES('relation-6b87504f-8ad9-49a9-acc4-4d75f39eea1d','GRAPH','INTERFACES','depends_on','active','关系图必须读取不同 Runtime 共享的同一份 Goal 关系事实','demo-user','2026-09-10T07:03:28.529Z',NULL);
+INSERT INTO goal_relations VALUES('relation-730b96da-261b-4736-9788-7f8f89edcf64','GRAPH','WORKSPACE','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.525Z',NULL);
+INSERT INTO goal_relations VALUES('relation-8217b2ac-8515-4f15-82de-c772e6c97a23','WEB','WORKSPACE','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.524Z',NULL);
+INSERT INTO goal_relations VALUES('relation-9410d190-8f63-466a-8797-14efb68c326d','CORE','PLATFORM','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.514Z',NULL);
+INSERT INTO goal_relations VALUES('relation-a2944b01-48f2-43a4-8215-bb3d5165fec8','WEB','INTERFACES','depends_on','active','页面显示必须和不同 Runtime 看到的项目进度一致','demo-user','2026-09-10T07:03:28.529Z',NULL);
+INSERT INTO goal_relations VALUES('relation-d0cedc75-3cc4-4977-a253-247efa2b82fb','WORKSPACE','V1','part_of','active','共同组成第一次完整的 Molis Work 使用体验','demo-user','2026-09-10T07:03:28.512Z',NULL);
+INSERT INTO goal_relations VALUES('relation-e62c0749-b7fe-4bd9-9669-e0063c9b289d','ONBOARDING','ADOPTION','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.527Z',NULL);
+INSERT INTO goal_relations VALUES('relation-e744e983-eef6-4ea8-ad99-96cd1b73b248','INTERFACES','PLATFORM','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.515Z',NULL);
+INSERT INTO goal_relations VALUES('relation-ecd7a888-4fdb-4ff5-8aeb-22b195aa8a45','RELEASE','ADOPTION','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.527Z',NULL);
+INSERT INTO goal_relations VALUES('relation-f5af7868-c03c-4486-975b-01f92da14355','DESKTOP','WORKSPACE','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.526Z',NULL);
+INSERT INTO goal_relations VALUES('relation-fd86817a-3c4e-41b0-8311-a2c55b7daaed','DOCS','ADOPTION','part_of','active','在 Mock 项目中形成可追溯的产品目标层级','demo-user','2026-09-10T07:03:28.528Z',NULL);
+CREATE TABLE goal_trash_records (
+    trash_record_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    trashed_at TEXT NOT NULL,
+    trashed_by TEXT NOT NULL,
+    trash_reason TEXT NOT NULL,
+    restored_at TEXT,
+    restored_by TEXT,
+    restore_reason TEXT
+  );
+INSERT INTO goal_trash_records VALUES('trash-c5c4a4b4-7cc5-45b5-94a4-dcd93556680b','AUTO-CONNECT','2026-09-10T07:03:28.538Z','demo-user','这会替用户猜项目；当前方案只展示历史候选，并再次询问用户',NULL,NULL,NULL);
+CREATE TABLE input_bindings (
+    binding_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
+    input_name TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_ref TEXT NOT NULL,
+    source_edge_key TEXT,
+    snapshot_digest TEXT,
+    state TEXT NOT NULL CHECK (state IN ('proposed', 'confirmed', 'inactive')),
+    reason TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+CREATE TABLE goal_event_configs (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    current_version INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    PRIMARY KEY (goal_id)
+  );
+INSERT INTO goal_event_configs VALUES('MIXED-OWNER',1,'2026-09-10T07:29:38.102Z','mixed-runtime');
+CREATE TABLE goal_event_config_versions (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    actor_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    config_event_id TEXT NOT NULL,
+    PRIMARY KEY (goal_id, version)
+  );
+INSERT INTO goal_event_config_versions VALUES('MIXED-OWNER',1,'mixed-runtime','2026-09-10T07:29:38.102Z','gevt-a47aa75e-722e-41ac-8896-e59373c12681');
+CREATE TABLE goal_event_types (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    type_id TEXT NOT NULL,
+    type_version INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    semantic_family TEXT,
+    source_json TEXT NOT NULL,
+    fields_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_in_config_version INTEGER NOT NULL,
+    actor_id TEXT NOT NULL,
+    PRIMARY KEY (goal_id, type_id, type_version)
+  );
+INSERT INTO goal_event_types VALUES('MIXED-OWNER','check',1,'实际核对','保留真实支持',NULL,'{"kind":"local","label":"当前 Goal 局部定义"}','[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]','2026-09-10T07:29:38.102Z',1,'mixed-runtime');
+CREATE TABLE goal_event_requirement_bindings (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    type_id TEXT NOT NULL,
+    requirement_id TEXT NOT NULL,
+    created_in_config_version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (goal_id, type_id, requirement_id)
+  );
+CREATE TABLE goal_work_events (
+    event_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('configuration', 'report', 'system')),
+    type_id TEXT,
+    type_version INTEGER,
+    title TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    actor_kind TEXT,
+    received_at TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    config_version INTEGER
+  );
+INSERT INTO goal_work_events VALUES('gevt-5965c521-f7b9-481e-80c8-e51c6a319e69','MIXED-OWNER','system',NULL,NULL,'迁入完成阻塞：共享输入记录仍有遗漏','{"operation":"concern_opened","concern_id":"imported-risk:MIXED-OWNER:mixed-shared-risk","title":"共享输入记录仍有遗漏","statement":"共享输入记录仍有遗漏；缺失记录全部补齐","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','migration:36',NULL,'2026-10-04T20:13:22.300Z',54,NULL);
+INSERT INTO goal_work_events VALUES('gevt-75b666e9-56d7-4929-b6d0-7474b5937be3','MIXED-OWNER','report','check',1,'结果核对','{"result":"真实结果可以打开"}','mixed-runtime','runtime','2026-09-10T07:29:38.103Z',49,1);
+INSERT INTO goal_work_events VALUES('gevt-a47aa75e-722e-41ac-8896-e59373c12681','MIXED-OWNER','configuration',NULL,NULL,'新增记录方式：实际核对','{"config_version":1,"types":[{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]}],"extra_requirements":[],"requirement_bindings":[],"adopted_planning":[]}','mixed-runtime','runtime','2026-09-10T07:29:38.102Z',48,1);
+INSERT INTO goal_work_events VALUES('gevt-c3a48804-b9f3-4b0f-9a75-2393f0881092','MIXED-OWNER','system',NULL,NULL,'记录用户决定','{"operation":"user_decision","decision_id":"gdec-83564492-8f53-45d4-9c70-7cd39039fc2a","governance_decision_id":"gedec-fe7294b3-8446-424e-9418-2932bb8027d9","request_id":null,"selected_option_id":null,"conclusion":"我已经核对本 Goal 的当前交付，同意满足人工验收责任；剩余输入遗漏修复后可以完成","accepts_requirements":false,"effects":[{"kind":"authorize_action","action":"complete"}],"scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"authorized_change":null,"config_version":1,"agreement_version":1}','existing-user','user','2026-09-10T08:08:53.175Z',51,1);
+INSERT INTO goal_work_events VALUES('gevt-ea40aa5e-b9de-4fc5-84d9-1e2e837968f7','OLD-HUMAN','system',NULL,NULL,'迁入完成阻塞：共享输入记录仍有遗漏','{"operation":"concern_opened","concern_id":"imported-risk:OLD-HUMAN:mixed-shared-risk","title":"共享输入记录仍有遗漏","statement":"共享输入记录仍有遗漏；缺失记录全部补齐","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','migration:36',NULL,'2026-10-04T20:13:22.300Z',55,NULL);
+INSERT INTO goal_work_events VALUES('gevt-fca3466a-5e03-4f25-ac8b-a3ff3948e9b5','OLD-RISK','system',NULL,NULL,'迁入完成阻塞：付款记录存在遗漏，结果未确认','{"operation":"concern_opened","concern_id":"imported-risk:OLD-RISK:legacy-completion-risk","title":"付款记录存在遗漏，结果未确认","statement":"付款记录存在遗漏，结果未确认；全部付款记录可读取","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','migration:36',NULL,'2026-10-04T20:13:22.300Z',56,NULL);
+INSERT INTO goal_work_events VALUES('gevt-fff26575-8687-4006-bc0a-652b335c236f','MIXED-OWNER','system',NULL,NULL,'显式完成当前 Goal','{"operation":"closure_submitted","kind":"complete","result":"实际结果可读","reason":"保留真实人工批准，核对剩余风险","completion_applied":true,"unmet_reasons":[],"expected_config_version":1,"expected_agreement_version":1,"config_version":1,"agreement_version":1}','existing-runtime','runtime','2026-09-10T08:08:53.178Z',52,1);
+CREATE TABLE goal_requirement_links (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    requirement_id TEXT NOT NULL,
+    origin_json TEXT,
+    created_in_config_version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (goal_id, requirement_id)
+  );
+INSERT INTO goal_requirement_links VALUES('ADOPTION','ADOPTION-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"首次使用走查无阻断步骤"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('ADOPTION','imported-policy:ADOPTION','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('AUTO-CONNECT','AUTO-CONNECT-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"进入历史目录后直接显示最近项目"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('AUTO-CONNECT','imported-policy:AUTO-CONNECT','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('CORE','CORE-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"生命周期自动化测试通过"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('CORE','imported-policy:CORE','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('DESKTOP','DESKTOP-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"Goal 选择、Focus 与 Runtime 归属保持同步"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('DESKTOP','imported-policy:DESKTOP','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('DOCS','DOCS-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"目标用户能准确复述产品独特机制"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('DOCS','imported-policy:DOCS','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('GRAPH','GRAPH-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"12 Goal 演示网络在桌面宽度下可读"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('GRAPH','imported-policy:GRAPH','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('INTERFACES','INTERFACES-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"跨入口自动化测试通过"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('INTERFACES','imported-policy:INTERFACES','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('MIXED-OWNER','MIXED-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"打开实际结果"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('MIXED-OWNER','imported-policy:MIXED-OWNER','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('OLD-HUMAN','OLD-HUMAN-C1','{"kind":"imported_acceptance_criterion","decision_method":"human_decision","pass_condition":"用户亲自核对付款体验"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('OLD-HUMAN','imported-policy:OLD-HUMAN','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('OLD-POLICY','OLD-POLICY-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"实际付款成功"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('OLD-POLICY','imported-policy:OLD-POLICY','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human","legacy-explicit-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('OLD-RISK','OLD-RISK-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"结果可以打开"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('OLD-RISK','imported-policy:OLD-RISK','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('ONBOARDING','ONBOARDING-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"首次体验测试完成一条可执行 Goal"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('ONBOARDING','imported-policy:ONBOARDING','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('PLATFORM','PLATFORM-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"跨入口一致性测试通过"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('PLATFORM','imported-policy:PLATFORM','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('RELEASE','RELEASE-C1','{"kind":"imported_acceptance_criterion","decision_method":"automated_check","pass_condition":"全新安装端到端验证通过"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('RELEASE','imported-policy:RELEASE','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('V1','V1-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"首次使用者无需阅读协议即可正确复述"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('V1','imported-policy:V1','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('WEB','WEB-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"视觉、响应式和可访问性 QA 通过"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('WEB','imported-policy:WEB','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('WORKSPACE','WORKSPACE-C1','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"桌面主工作流可完成并保持 Goal 绑定"}',0,'2026-10-04T20:13:22.300Z');
+INSERT INTO goal_requirement_links VALUES('WORKSPACE','imported-policy:WORKSPACE','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',0,'2026-10-04T20:13:22.300Z');
+CREATE TABLE goal_event_state_owners (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    owner TEXT NOT NULL CHECK (owner = 'event_work'),
+    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
+    adopted_at TEXT NOT NULL,
+    adopted_by TEXT NOT NULL,
+    PRIMARY KEY (goal_id)
+  );
+INSERT INTO goal_event_state_owners VALUES('ADOPTION','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('AUTO-CONNECT','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('CORE','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('DESKTOP','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('DOCS','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('GRAPH','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('INTERFACES','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('MIXED-OWNER','event_work','configuration','2026-09-10T07:29:38.102Z','mixed-runtime');
+INSERT INTO goal_event_state_owners VALUES('OLD-HUMAN','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('OLD-POLICY','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('OLD-RISK','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('ONBOARDING','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('PLATFORM','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('RELEASE','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('V1','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('WEB','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('WORKSPACE','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
+CREATE TABLE goal_event_agreements (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    outcome TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    event_id TEXT,
+    PRIMARY KEY (goal_id, version)
+  );
+INSERT INTO goal_event_agreements VALUES('ADOPTION',1,'新用户从 README、安装和首次打开一路走到推进第一条 Goal','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('AUTO-CONNECT',1,'新对话少做一次项目确认','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('CORE',1,'用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('DESKTOP',1,'用户在桌面端同时看到 Goal、下一步、完成要求和强绑定的 Runtime','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('DOCS',1,'用户先理解长程任务为何会跑偏，再看到 Molis Work 的闭环、桌面端和 Runtime 伴随方式','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('GRAPH',1,'父子层级、前置依赖和当前焦点在复杂网络中仍有清楚的方向与落点','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('INTERFACES',1,'用户换一个 Runtime 或新开对话后，仍能找到同一个项目的目标、进度和未完成工作','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('MIXED-OWNER',1,'真实结果继续有效','mixed-runtime','2026-09-10T07:29:38.102Z','');
+INSERT INTO goal_event_agreements VALUES('OLD-HUMAN',1,'用户亲自核对付款体验','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('OLD-POLICY',1,'实际付款成功','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('OLD-RISK',1,'结果可以打开','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('ONBOARDING',1,'用户首次进入后能选择项目、找到可做 Goal，并理解 Runtime 为什么绑定到它','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('PLATFORM',1,'不同 AI、会话和工具读取同一份 Goal、关系、决定、进度与完成依据','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('RELEASE',1,'用户完成安装后知道如何启动页面、连接正在使用的 Runtime，以及为什么需要新开会话','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('V1',1,'用户能把一个模糊想法变成清楚的目标树，并知道下一步、阻塞和完成依据','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('WEB',1,'用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞','migration:36','2026-10-04T20:13:22.300Z','');
+INSERT INTO goal_event_agreements VALUES('WORKSPACE',1,'用户在一个窗口里查看 Goal Tree、Focus、Graph 和 Goal-bound Runtime','migration:36','2026-10-04T20:13:22.300Z','');
+CREATE TABLE goal_event_progress_summaries (
+    summary_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    event_id TEXT NOT NULL,
+    summary_text TEXT NOT NULL,
+    based_on_cursor INTEGER NOT NULL,
+    next_step TEXT,
+    next_actor TEXT,
+    actor_id TEXT NOT NULL,
+    recorded_at TEXT NOT NULL
+  );
+CREATE TABLE goal_event_concerns (
+    concern_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    event_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    statement TEXT NOT NULL,
+    scope_json TEXT NOT NULL,
+    blocks_closure INTEGER NOT NULL CHECK (blocks_closure IN (0, 1)),
+    status TEXT NOT NULL CHECK (status IN ('open', 'resolved', 'accepted', 'overturned')),
+    resolution_reason TEXT,
+    resolution_event_id TEXT,
+    cited_decision_id TEXT,
+    previous_status TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    cited_subjects_json TEXT NOT NULL DEFAULT '[]'
+  );
+INSERT INTO goal_event_concerns VALUES('imported-risk:MIXED-OWNER:mixed-shared-risk','MIXED-OWNER','gevt-5965c521-f7b9-481e-80c8-e51c6a319e69','共享输入记录仍有遗漏','共享输入记录仍有遗漏；缺失记录全部补齐','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',1,'open',NULL,NULL,NULL,NULL,'2026-10-04T20:13:22.300Z','2026-10-04T20:13:22.300Z','[]');
+INSERT INTO goal_event_concerns VALUES('imported-risk:OLD-HUMAN:mixed-shared-risk','OLD-HUMAN','gevt-ea40aa5e-b9de-4fc5-84d9-1e2e837968f7','共享输入记录仍有遗漏','共享输入记录仍有遗漏；缺失记录全部补齐','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',1,'open',NULL,NULL,NULL,NULL,'2026-10-04T20:13:22.300Z','2026-10-04T20:13:22.300Z','[]');
+INSERT INTO goal_event_concerns VALUES('imported-risk:OLD-RISK:legacy-completion-risk','OLD-RISK','gevt-fca3466a-5e03-4f25-ac8b-a3ff3948e9b5','付款记录存在遗漏，结果未确认','付款记录存在遗漏，结果未确认；全部付款记录可读取','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',1,'open',NULL,NULL,NULL,NULL,'2026-10-04T20:13:22.300Z','2026-10-04T20:13:22.300Z','[]');
+CREATE TABLE goal_event_decision_requests (
+    request_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    event_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    options_json TEXT NOT NULL,
+    scope_json TEXT NOT NULL,
+    purpose TEXT NOT NULL DEFAULT 'suggestion' CHECK (purpose IN ('suggestion', 'requirement_acceptance', 'action', 'agreement_change')),
+    proposed_change_json TEXT,
+    commitment_json TEXT,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'decided')),
+    created_at TEXT NOT NULL
+  );
+CREATE TABLE goal_event_applied_decisions (
+    decision_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    governance_decision_id TEXT NOT NULL,
+    request_id TEXT,
+    event_id TEXT NOT NULL,
+    selected_option_id TEXT,
+    conclusion TEXT NOT NULL,
+    accepts_requirements INTEGER NOT NULL CHECK (accepts_requirements IN (0, 1)),
+    effects_json TEXT NOT NULL DEFAULT '[]',
+    scope_json TEXT NOT NULL,
+    commitment_json TEXT NOT NULL DEFAULT '{"outcome":"","requirements":[]}',
+    authorized_change_json TEXT,
+    config_version INTEGER,
+    agreement_version INTEGER,
+    actor_id TEXT NOT NULL,
+    authority_source TEXT NOT NULL CHECK (authority_source IN ('web', 'management')),
+    recorded_at TEXT NOT NULL
+  );
+INSERT INTO goal_event_applied_decisions VALUES('gdec-83564492-8f53-45d4-9c70-7cd39039fc2a','MIXED-OWNER','gedec-fe7294b3-8446-424e-9418-2932bb8027d9',NULL,'gevt-c3a48804-b9f3-4b0f-9a75-2393f0881092',NULL,'我已经核对本 Goal 的当前交付，同意满足人工验收责任；剩余输入遗漏修复后可以完成',0,'[{"kind":"authorize_action","action":"complete"}]','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}','{"outcome":"真实结果继续有效","requirements":[{"requirement_id":"MIXED-C1","statement":"结果确实可读","human_decision_required":false,"bound_type_ids":[]},{"requirement_id":"imported-policy:MIXED-OWNER","statement":"本项目完成必须由用户验收","human_decision_required":true,"bound_type_ids":[]}]}',NULL,1,1,'existing-user','web','2026-09-10T08:08:53.175Z');
+CREATE TABLE goal_event_closures (
+    closure_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    event_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('complete', 'cancel')),
+    result TEXT,
+    reason TEXT NOT NULL,
+    completion_applied INTEGER NOT NULL CHECK (completion_applied IN (0, 1)),
+    expected_config_version INTEGER NOT NULL,
+    expected_agreement_version INTEGER NOT NULL DEFAULT 0,
+    config_version INTEGER,
+    agreement_version INTEGER,
+    unmet_reasons_json TEXT NOT NULL DEFAULT '[]',
+    superseded INTEGER NOT NULL CHECK (superseded IN (0, 1)),
+    superseded_reason TEXT,
+    recorded_at TEXT NOT NULL,
+    acceptance_round INTEGER
+  );
+INSERT INTO goal_event_closures VALUES('gclo-f5c0d3db-95a0-444f-978e-17060d3f6ab8','MIXED-OWNER','gevt-fff26575-8687-4006-bc0a-652b335c236f','complete','实际结果可读','保留真实人工批准，核对剩余风险',1,1,1,1,1,'[]',0,NULL,'2026-09-10T08:08:53.178Z',NULL);
+CREATE TABLE goal_event_work_status (
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
+    work_status TEXT NOT NULL CHECK (work_status IN ('open', 'completed', 'cancelled')),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (goal_id)
+  );
+INSERT INTO goal_event_work_status VALUES('ADOPTION','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('AUTO-CONNECT','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('CORE','completed','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('DESKTOP','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('DOCS','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('GRAPH','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('INTERFACES','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('MIXED-OWNER','completed','2026-09-10T08:08:53.178Z');
+INSERT INTO goal_event_work_status VALUES('OLD-HUMAN','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('OLD-POLICY','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('OLD-RISK','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('ONBOARDING','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('PLATFORM','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('RELEASE','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('V1','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('WEB','open','2026-10-04T20:13:22.300Z');
+INSERT INTO goal_event_work_status VALUES('WORKSPACE','open','2026-10-04T20:13:22.300Z');
+CREATE TABLE goal_tree_proposals (
+    proposal_id TEXT PRIMARY KEY,
+    root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
+    submitted_by TEXT NOT NULL,
+    submitted_session_id TEXT,
+    state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
+    version INTEGER NOT NULL,
+    supersedes_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
+    base_event_cursor INTEGER NOT NULL,
+    summary TEXT NOT NULL,
+    narrative_json TEXT,
+    decision_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    decided_at TEXT
+  );
+CREATE TABLE goal_tree_proposal_items (
+    item_id TEXT PRIMARY KEY,
+    proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
+    operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
+    payload_json TEXT NOT NULL,
+    source_refs_json TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    explanation_json TEXT,
+    confidence REAL NOT NULL,
+    affected_objects_json TEXT NOT NULL,
+    baseline_versions_json TEXT NOT NULL,
+    requires_user_confirmation INTEGER NOT NULL DEFAULT 1,
+    state TEXT NOT NULL CHECK (state IN ('pending', 'conflict', 'superseded', 'approved', 'applied', 'rejected', 'dismissed')),
+    conflict_json TEXT,
+    materialized_objects_json TEXT NOT NULL DEFAULT '[]',
+    revision_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
+    supersedes_item_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(proposal_id, ordinal)
+  );
+CREATE TABLE goal_tree_item_effects (
+    effect_id TEXT PRIMARY KEY,
+    proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
+    approval_id TEXT NOT NULL,
+    result TEXT NOT NULL CHECK (result IN ('confirmed', 'rejected', 'revised', 'conflict')),
+    runtime_actor_id TEXT,
+    reason TEXT NOT NULL,
+    revision_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
+    materialized_objects_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+  );
+CREATE TABLE inbox_scene_bindings (
+      scene_id TEXT PRIMARY KEY,
+      action_binding_json TEXT NOT NULL,
+      binding_revision TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+CREATE TABLE schedule_plugin_reminders (
+    id TEXT PRIMARY KEY, plugin_id TEXT NOT NULL, installation_id TEXT,
+    record_json TEXT NOT NULL
+  );
+CREATE TABLE schedule_operations (
+    id TEXT PRIMARY KEY, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL
+  );
+CREATE TABLE schedule_operation_occurrences (
+    operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
+    PRIMARY KEY (operation_id, due_at)
+  );
+CREATE TABLE schedule_missed_runs (
+    run_id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('task', 'operation', 'reminder')),
+    ref TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
+    decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT
+  );
+CREATE TABLE feed_out_rules (
+      rule_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      match_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      admission TEXT NOT NULL,
+      judgment_json TEXT,
+      revision TEXT NOT NULL,
+      PRIMARY KEY (rule_id)
+    );
+CREATE TABLE feed_items (
+      item_id TEXT NOT NULL,
+      source_id TEXT,
+      signal_id TEXT,
+      signal_revision INTEGER,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      body TEXT,
+      source_kind TEXT NOT NULL,
+      source_label TEXT NOT NULL,
+      external_id TEXT,
+      url TEXT,
+      origin_status TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      author TEXT,
+      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'archived')),
+      read_at TEXT,
+      revision INTEGER NOT NULL DEFAULT 1,
+      source_created_at TEXT NOT NULL,
+      source_updated_at TEXT NOT NULL,
+      imported_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (item_id)
+    );
+CREATE TABLE feed_materials (
+      material_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      canonical_url TEXT,
+      title TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      published_at TEXT,
+      preview TEXT NOT NULL DEFAULT '',
+      content_hash TEXT,
+      content_ref TEXT,
+      content_available INTEGER NOT NULL DEFAULT 0,
+      content_type TEXT,
+      character_count INTEGER,
+      captured_at TEXT,
+      provenance_json TEXT NOT NULL DEFAULT '{}',
+      selected_for_context INTEGER NOT NULL DEFAULT 0,
+      imported_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (material_id),
+      FOREIGN KEY (item_id) REFERENCES feed_items(item_id) ON DELETE CASCADE
+    );
+CREATE TABLE feed_item_events (
+      event_id TEXT PRIMARY KEY,
+      item_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      at TEXT NOT NULL
+    );
+CREATE TABLE feed_sources (
+      source_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      definition_id TEXT,
+      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'connector', 'manual')),
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
+      config_json TEXT NOT NULL DEFAULT '{}',
+      schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
+      credential_ref TEXT,
+      account_label TEXT,
+      last_sync_at TEXT,
+      last_outcome TEXT,
+      last_error_code TEXT,
+      imported_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (source_id)
+);
+CREATE TABLE source_events (
+      event_id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('source.created', 'source.updated', 'source.status_changed', 'source.retired')),
+      payload_json TEXT NOT NULL,
+      at TEXT NOT NULL
+    );
+CREATE TABLE signals (
+      signal_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      provider_dedupe_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      occurred_at TEXT NOT NULL,
+      observed_at TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      content_refs_json TEXT NOT NULL DEFAULT '[]',
+      raw_event_id TEXT NOT NULL,
+      adapter_plugin_id TEXT NOT NULL,
+      adapter_version TEXT NOT NULL,
+      provenance_json TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      content_hash TEXT NOT NULL,
+      validation TEXT NOT NULL CHECK (validation = 'accepted'),
+      superseded_by TEXT,
+      withdrawn_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (signal_id),
+      UNIQUE (source_id, provider_dedupe_id)
+    );
+CREATE TABLE signal_revisions (
+      signal_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      content_hash TEXT NOT NULL,
+      draft_json TEXT NOT NULL,
+      accepted_at TEXT NOT NULL,
+      PRIMARY KEY (signal_id, revision)
+    );
+CREATE TABLE signal_events (
+      event_id TEXT PRIMARY KEY,
+      signal_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('signal.accepted', 'signal.changed')),
+      revision INTEGER NOT NULL,
+      at TEXT NOT NULL
+    );
+CREATE TABLE listener_instances (
+      source_id TEXT NOT NULL,
+      cursor_json TEXT NOT NULL DEFAULT '{}',
+      state TEXT NOT NULL CHECK (state IN ('idle', 'listening', 'retry_wait', 'quarantined')),
+      attempt INTEGER NOT NULL DEFAULT 0,
+      retry_at TEXT,
+      last_error_code TEXT,
+      lease_owner TEXT,
+      lease_expires_at TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (source_id)
+    );
+CREATE TABLE listener_deliveries (
+      source_id TEXT NOT NULL,
+      operation_id TEXT NOT NULL,
+      raw_event_id TEXT NOT NULL,
+      provider_dedupe_id TEXT NOT NULL,
+      raw_event_json TEXT NOT NULL,
+      cursor_after_json TEXT,
+      adapter_plugin_id TEXT NOT NULL,
+      adapter_version TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('pending', 'retry_wait', 'accepted', 'quarantined')),
+      attempt INTEGER NOT NULL DEFAULT 0,
+      signal_id TEXT,
+      last_error_code TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (source_id, raw_event_id)
+    );
+CREATE TABLE feed_source_runs (
+      run_id TEXT NOT NULL,
+      operation_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
+      outcome TEXT,
+      empty INTEGER NOT NULL DEFAULT 0,
+      error_code TEXT,
+      receipt_json TEXT,
+      created_count INTEGER NOT NULL DEFAULT 0,
+      deduped_count INTEGER NOT NULL DEFAULT 0,
+      recovery_count INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (run_id),
+      UNIQUE (operation_id)
+    );
+CREATE TABLE feed_missed_pulls (
+      run_id TEXT NOT NULL, source_id TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
+      decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT,
+      PRIMARY KEY (run_id)
+    );
+CREATE TABLE coding_sessions (
+      session_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      state TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
+      goal_id TEXT,
+      runtime_id TEXT NOT NULL,
+      runtime_session_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      -- Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
+      steps_json TEXT,
+      -- Background commands the session left running, as last read: lets the list across projects show and stop them.
+      background_json TEXT
+    );
+CREATE TABLE coding_plan_drafts (
+      session_id TEXT PRIMARY KEY REFERENCES coding_sessions(session_id) ON DELETE CASCADE,
+      revision INTEGER NOT NULL,
+      draft_json TEXT NOT NULL
+    );
+CREATE TABLE coding_plan_versions (
+      session_id TEXT PRIMARY KEY,
+      revision INTEGER NOT NULL CHECK (revision > 0)
+    );
+CREATE TABLE coding_inputs (
+  session_id TEXT PRIMARY KEY REFERENCES coding_sessions(session_id) ON DELETE CASCADE, revision INTEGER NOT NULL CHECK(revision>0),
+  draft TEXT NOT NULL, questions_json TEXT NOT NULL
+ );
+CREATE TABLE coding_input_versions (
+  session_id TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision>0)
+ );
+CREATE TABLE coding_saved_history (
+ session_id TEXT NOT NULL REFERENCES coding_sessions(session_id) ON DELETE CASCADE,source_id TEXT NOT NULL,archive_json TEXT NOT NULL,
+ PRIMARY KEY(session_id,source_id));
+CREATE TABLE risk_items (
+      risk_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      statement TEXT NOT NULL,
+      impact TEXT NOT NULL CHECK (impact IN ('high', 'medium', 'low')),
+      likelihood TEXT NOT NULL CHECK (likelihood IN ('high', 'medium', 'low')),
+      treatment TEXT NOT NULL,
+      owner_name TEXT,
+      status TEXT NOT NULL CHECK (status IN ('open', 'mitigating', 'accepted', 'closed')),
+      revision INTEGER NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      closed_at TEXT
+    );
+INSERT INTO sqlite_sequence VALUES('events',56);
 INSERT INTO sqlite_sequence VALUES('events',56);
 INSERT INTO sqlite_sequence VALUES('sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes',0);
 INSERT INTO sqlite_sequence VALUES('events',56);
@@ -1598,78 +1562,6 @@ CREATE TRIGGER acceptance_requirements_mark AFTER INSERT ON acceptance_requireme
 CREATE TRIGGER acceptance_deliveries_mark AFTER INSERT ON acceptance_deliveries BEGIN INSERT INTO acceptance_replica_changes(key) SELECT (SELECT json_array(s.project_id,'acceptance',s.provider_id,s.subject_kind,s.subject_id) FROM acceptance_subjects s WHERE s.subject_no=NEW.subject_no) WHERE (SELECT applying FROM acceptance_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER acceptance_checks_mark AFTER INSERT ON acceptance_checks BEGIN INSERT INTO acceptance_replica_changes(key) SELECT (SELECT json_array(s.project_id,'acceptance',s.provider_id,s.subject_kind,s.subject_id) FROM acceptance_subjects s WHERE s.subject_no=NEW.subject_no) WHERE (SELECT applying FROM acceptance_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER acceptance_decisions_mark AFTER INSERT ON acceptance_decisions BEGIN INSERT INTO acceptance_replica_changes(key) SELECT (SELECT json_array(s.project_id,'acceptance',s.provider_id,s.subject_kind,s.subject_id) FROM acceptance_subjects s WHERE s.subject_no=NEW.subject_no) WHERE (SELECT applying FROM acceptance_replica_state WHERE id=1)=0 AND (1=1); END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_insert" AFTER INSERT ON "boards" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists WHERE sync_exists."project_id"=NEW."project_id"))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_update" AFTER UPDATE ON "boards" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists WHERE sync_exists."project_id"=NEW."project_id"))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists WHERE sync_exists."project_id"=OLD."project_id")) EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists WHERE sync_exists."project_id"=NEW."project_id"))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_delete" AFTER DELETE ON "boards" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists WHERE sync_exists."project_id"=OLD."project_id"))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_insert" AFTER INSERT ON "goals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_update" AFTER UPDATE ON "goals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_delete" AFTER DELETE ON "goals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_insert" AFTER INSERT ON "acceptance_criteria" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goals" AS sync_parent WHERE 1=1 AND sync_parent."goal_id"=NEW."goal_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_update" AFTER UPDATE ON "acceptance_criteria" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goals" AS sync_parent WHERE 1=1 AND sync_parent."goal_id"=NEW."goal_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goals" AS sync_parent WHERE 1=1 AND sync_parent."goal_id"=OLD."goal_id" EXCEPT SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goals" AS sync_parent WHERE 1=1 AND sync_parent."goal_id"=NEW."goal_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_delete" AFTER DELETE ON "acceptance_criteria" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goals" AS sync_parent WHERE 1=1 AND sync_parent."goal_id"=OLD."goal_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_insert" AFTER INSERT ON "goal_relations" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_update" AFTER UPDATE ON "goal_relations" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_delete" AFTER DELETE ON "goal_relations" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_insert" AFTER INSERT ON "goal_trash_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_update" AFTER UPDATE ON "goal_trash_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_delete" AFTER DELETE ON "goal_trash_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_insert" AFTER INSERT ON "goal_trash_relation_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goal_trash_records" AS sync_parent WHERE 1=1 AND sync_parent."trash_record_id"=NEW."trash_record_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_update" AFTER UPDATE ON "goal_trash_relation_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goal_trash_records" AS sync_parent WHERE 1=1 AND sync_parent."trash_record_id"=NEW."trash_record_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goal_trash_records" AS sync_parent WHERE 1=1 AND sync_parent."trash_record_id"=OLD."trash_record_id" EXCEPT SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goal_trash_records" AS sync_parent WHERE 1=1 AND sync_parent."trash_record_id"=NEW."trash_record_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_delete" AFTER DELETE ON "goal_trash_relation_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(sync_parent."project_id",'project_goals',sync_parent."project_id") AS key FROM "goal_trash_records" AS sync_parent WHERE 1=1 AND sync_parent."trash_record_id"=OLD."trash_record_id") WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_insert" AFTER INSERT ON "goal_event_configs" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_update" AFTER UPDATE ON "goal_event_configs" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_delete" AFTER DELETE ON "goal_event_configs" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_insert" AFTER INSERT ON "goal_event_config_versions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_update" AFTER UPDATE ON "goal_event_config_versions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_delete" AFTER DELETE ON "goal_event_config_versions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_insert" AFTER INSERT ON "goal_event_types" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_update" AFTER UPDATE ON "goal_event_types" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_delete" AFTER DELETE ON "goal_event_types" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_insert" AFTER INSERT ON "goal_event_requirement_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_update" AFTER UPDATE ON "goal_event_requirement_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_delete" AFTER DELETE ON "goal_event_requirement_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_insert" AFTER INSERT ON "goal_work_events" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_update" AFTER UPDATE ON "goal_work_events" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_delete" AFTER DELETE ON "goal_work_events" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_insert" AFTER INSERT ON "goal_requirement_links" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_update" AFTER UPDATE ON "goal_requirement_links" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_delete" AFTER DELETE ON "goal_requirement_links" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_insert" AFTER INSERT ON "goal_event_state_owners" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_update" AFTER UPDATE ON "goal_event_state_owners" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_delete" AFTER DELETE ON "goal_event_state_owners" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_insert" AFTER INSERT ON "goal_event_agreements" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_update" AFTER UPDATE ON "goal_event_agreements" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_delete" AFTER DELETE ON "goal_event_agreements" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_insert" AFTER INSERT ON "goal_event_progress_summaries" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_update" AFTER UPDATE ON "goal_event_progress_summaries" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_delete" AFTER DELETE ON "goal_event_progress_summaries" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_insert" AFTER INSERT ON "goal_event_concerns" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_update" AFTER UPDATE ON "goal_event_concerns" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_delete" AFTER DELETE ON "goal_event_concerns" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_insert" AFTER INSERT ON "goal_event_decision_requests" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_update" AFTER UPDATE ON "goal_event_decision_requests" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_delete" AFTER DELETE ON "goal_event_decision_requests" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_insert" AFTER INSERT ON "goal_event_applied_decisions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_update" AFTER UPDATE ON "goal_event_applied_decisions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_delete" AFTER DELETE ON "goal_event_applied_decisions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_insert" AFTER INSERT ON "goal_event_closures" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_update" AFTER UPDATE ON "goal_event_closures" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_delete" AFTER DELETE ON "goal_event_closures" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_insert" AFTER INSERT ON "goal_event_work_status" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_update" AFTER UPDATE ON "goal_event_work_status" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_delete" AFTER DELETE ON "goal_event_work_status" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_insert" AFTER INSERT ON "input_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_update" AFTER UPDATE ON "input_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_delete" AFTER DELETE ON "input_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_insert" AFTER INSERT ON "goal_tree_proposals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_update" AFTER UPDATE ON "goal_tree_proposals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_delete" AFTER DELETE ON "goal_tree_proposals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_insert" AFTER INSERT ON "goal_tree_proposal_items" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_update" AFTER UPDATE ON "goal_tree_proposal_items" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_delete" AFTER DELETE ON "goal_tree_proposal_items" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_insert" AFTER INSERT ON "goal_tree_item_effects" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_update" AFTER UPDATE ON "goal_tree_item_effects" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_goals',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_delete" AFTER DELETE ON "goal_tree_item_effects" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_goals',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
 CREATE TRIGGER sync_ebbb9ae341b34cbb8aedd65a41e6_context_insert AFTER INSERT ON context_edges WHEN NEW.scope_kind='personal' AND ((json_extract(NEW.source_json,'$.module')='plugins' AND json_extract(NEW.source_json,'$.plugin_id')='io.molis.work.goals') OR (json_extract(NEW.target_json,'$.module')='plugins' AND json_extract(NEW.target_json,'$.plugin_id')='io.molis.work.goals')) BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT json_array(NEW.scope_id,'project_goals',NEW.scope_id) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER sync_ebbb9ae341b34cbb8aedd65a41e6_context_update AFTER UPDATE ON context_edges WHEN NEW.scope_kind='personal' AND ((json_extract(NEW.source_json,'$.module')='plugins' AND json_extract(NEW.source_json,'$.plugin_id')='io.molis.work.goals') OR (json_extract(NEW.target_json,'$.module')='plugins' AND json_extract(NEW.target_json,'$.plugin_id')='io.molis.work.goals')) BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT json_array(NEW.scope_id,'project_goals',NEW.scope_id) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER sync_ebbb9ae341b34cbb8aedd65a41e6_context_delete BEFORE DELETE ON context_edges WHEN OLD.scope_kind='personal' AND ((json_extract(OLD.source_json,'$.module')='plugins' AND json_extract(OLD.source_json,'$.plugin_id')='io.molis.work.goals') OR (json_extract(OLD.target_json,'$.module')='plugins' AND json_extract(OLD.target_json,'$.plugin_id')='io.molis.work.goals')) BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT json_array(OLD.scope_id,'project_goals',OLD.scope_id) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0 AND (1=1); END;
@@ -1680,45 +1572,6 @@ CREATE TRIGGER "sync_fc44281fa4e6ae1ad919f15bea63_track_0_delete" AFTER DELETE O
 CREATE TRIGGER "sync_fc44281fa4e6ae1ad919f15bea63_track_1_insert" AFTER INSERT ON "schedule_conversation_turns" BEGIN INSERT INTO sync_fc44281fa4e6ae1ad919f15bea63_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_fc44281fa4e6ae1ad919f15bea63_context" WHERE id=1),'schedule_task',NEW."task_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_fc44281fa4e6ae1ad919f15bea63_replica_state WHERE id=1)=0; END;
 CREATE TRIGGER "sync_fc44281fa4e6ae1ad919f15bea63_track_1_update" AFTER UPDATE ON "schedule_conversation_turns" BEGIN INSERT INTO sync_fc44281fa4e6ae1ad919f15bea63_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_fc44281fa4e6ae1ad919f15bea63_context" WHERE id=1),'schedule_task',NEW."task_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_fc44281fa4e6ae1ad919f15bea63_replica_state WHERE id=1)=0;INSERT INTO sync_fc44281fa4e6ae1ad919f15bea63_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_fc44281fa4e6ae1ad919f15bea63_context" WHERE id=1),'schedule_task',OLD."task_id") AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_fc44281fa4e6ae1ad919f15bea63_context" WHERE id=1),'schedule_task',NEW."task_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_fc44281fa4e6ae1ad919f15bea63_replica_state WHERE id=1)=0; END;
 CREATE TRIGGER "sync_fc44281fa4e6ae1ad919f15bea63_track_1_delete" AFTER DELETE ON "schedule_conversation_turns" BEGIN INSERT INTO sync_fc44281fa4e6ae1ad919f15bea63_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_fc44281fa4e6ae1ad919f15bea63_context" WHERE id=1),'schedule_task',OLD."task_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_fc44281fa4e6ae1ad919f15bea63_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_insert" AFTER INSERT ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_update" AFTER UPDATE ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0;INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'feed_rule',OLD."rule_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_delete" AFTER DELETE ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'feed_rule',OLD."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_insert" AFTER INSERT ON "feed_sources" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_sources',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_update" AFTER UPDATE ON "feed_sources" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_sources',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0;INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_sources',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_sources',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_delete" AFTER DELETE ON "feed_sources" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_sources',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_insert" AFTER INSERT ON "source_events" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_sources',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_update" AFTER UPDATE ON "source_events" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_sources',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0;INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_sources',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_sources',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_delete" AFTER DELETE ON "source_events" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_sources',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_0_insert" AFTER INSERT ON "signals" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_0_update" AFTER UPDATE ON "signals" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_0_delete" AFTER DELETE ON "signals" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_1_insert" AFTER INSERT ON "signal_revisions" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_1_update" AFTER UPDATE ON "signal_revisions" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_1_delete" AFTER DELETE ON "signal_revisions" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_2_insert" AFTER INSERT ON "signal_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_2_update" AFTER UPDATE ON "signal_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_2_delete" AFTER DELETE ON "signal_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_3_insert" AFTER INSERT ON "feed_items" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_3_update" AFTER UPDATE ON "feed_items" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_3_delete" AFTER DELETE ON "feed_items" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_4_insert" AFTER INSERT ON "feed_materials" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_4_update" AFTER UPDATE ON "feed_materials" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_4_delete" AFTER DELETE ON "feed_materials" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_5_insert" AFTER INSERT ON "feed_item_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_5_update" AFTER UPDATE ON "feed_item_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'project_feed',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_5_delete" AFTER DELETE ON "feed_item_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'project_feed',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_0_insert" AFTER INSERT ON "coding_sessions" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_0_update" AFTER UPDATE ON "coding_sessions" WHEN ((OLD."title" IS NOT NEW."title" OR OLD."archived" IS NOT NEW."archived" OR OLD."goal_id" IS NOT NEW."goal_id")) OR ((OLD."state" IS NOT NEW."state") AND NEW."state" IN ('done','failed','stopped','cancelled') AND NEW."runtime_session_id" IS NOT NULL) BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_0_delete" AFTER DELETE ON "coding_sessions" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_1_insert" AFTER INSERT ON "coding_plan_drafts" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_1_update" AFTER UPDATE ON "coding_plan_drafts" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_1_delete" AFTER DELETE ON "coding_plan_drafts" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_2_insert" AFTER INSERT ON "coding_saved_history" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_2_update" AFTER UPDATE ON "coding_saved_history" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_2_delete" AFTER DELETE ON "coding_saved_history" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_3_insert" AFTER INSERT ON "coding_inputs" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_3_update" AFTER UPDATE ON "coding_inputs" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'coding_content',NEW."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_3_delete" AFTER DELETE ON "coding_inputs" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'coding_content',OLD."project_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
 CREATE TRIGGER surface_corrections_insert AFTER INSERT ON surface_corrections BEGIN INSERT INTO surface_corrections_replica_changes(key) SELECT json_array((SELECT project_id FROM project_root),'surface_corrections',(SELECT project_id FROM project_root)) WHERE (SELECT applying FROM surface_corrections_replica_state WHERE id=1)=0 AND ((SELECT count(*) FROM project_root)=1); END;
 CREATE TRIGGER surface_corrections_update AFTER UPDATE ON surface_corrections BEGIN INSERT INTO surface_corrections_replica_changes(key) SELECT json_array((SELECT project_id FROM project_root),'surface_corrections',(SELECT project_id FROM project_root)) WHERE (SELECT applying FROM surface_corrections_replica_state WHERE id=1)=0 AND ((SELECT count(*) FROM project_root)=1); END;
 CREATE TRIGGER surface_corrections_delete AFTER DELETE ON surface_corrections BEGIN INSERT INTO surface_corrections_replica_changes(key) SELECT json_array((SELECT project_id FROM project_root),'surface_corrections',(SELECT project_id FROM project_root)) WHERE (SELECT applying FROM surface_corrections_replica_state WHERE id=1)=0 AND ((SELECT count(*) FROM project_root)=1); END;
@@ -1728,6 +1581,121 @@ CREATE TRIGGER attention_attention_entries_delete AFTER DELETE ON attention_entr
 CREATE TRIGGER attention_attention_events_insert AFTER INSERT ON attention_events BEGIN INSERT INTO attention_replica_changes(key) SELECT json_array(NEW.project_id,'project_attention',NEW.project_id) WHERE (SELECT applying FROM attention_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER attention_attention_events_update AFTER UPDATE ON attention_events BEGIN INSERT INTO attention_replica_changes(key) SELECT json_array(NEW.project_id,'project_attention',NEW.project_id) WHERE (SELECT applying FROM attention_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER attention_attention_events_delete AFTER DELETE ON attention_events BEGIN INSERT INTO attention_replica_changes(key) SELECT json_array(OLD.project_id,'project_attention',OLD.project_id) WHERE (SELECT applying FROM attention_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_insert" AFTER INSERT ON "boards" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_update" AFTER UPDATE ON "boards" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists)) EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_0_delete" AFTER DELETE ON "boards" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE (1=1) AND (EXISTS (SELECT 1 FROM "goals" AS sync_exists))) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_insert" AFTER INSERT ON "goals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_update" AFTER UPDATE ON "goals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_1_delete" AFTER DELETE ON "goals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_insert" AFTER INSERT ON "goal_relations" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_update" AFTER UPDATE ON "goal_relations" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_3_delete" AFTER DELETE ON "goal_relations" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_insert" AFTER INSERT ON "goal_trash_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_update" AFTER UPDATE ON "goal_trash_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_4_delete" AFTER DELETE ON "goal_trash_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_insert" AFTER INSERT ON "input_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_update" AFTER UPDATE ON "input_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_20_delete" AFTER DELETE ON "input_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_insert" AFTER INSERT ON "goal_event_configs" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_update" AFTER UPDATE ON "goal_event_configs" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_6_delete" AFTER DELETE ON "goal_event_configs" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_insert" AFTER INSERT ON "goal_event_config_versions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_update" AFTER UPDATE ON "goal_event_config_versions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_7_delete" AFTER DELETE ON "goal_event_config_versions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_insert" AFTER INSERT ON "goal_event_types" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_update" AFTER UPDATE ON "goal_event_types" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_8_delete" AFTER DELETE ON "goal_event_types" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_insert" AFTER INSERT ON "goal_event_requirement_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_update" AFTER UPDATE ON "goal_event_requirement_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_delete" AFTER DELETE ON "goal_event_requirement_bindings" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_insert" AFTER INSERT ON "goal_work_events" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_update" AFTER UPDATE ON "goal_work_events" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_10_delete" AFTER DELETE ON "goal_work_events" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_insert" AFTER INSERT ON "goal_requirement_links" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_update" AFTER UPDATE ON "goal_requirement_links" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_11_delete" AFTER DELETE ON "goal_requirement_links" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_insert" AFTER INSERT ON "goal_event_state_owners" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_update" AFTER UPDATE ON "goal_event_state_owners" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_12_delete" AFTER DELETE ON "goal_event_state_owners" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_insert" AFTER INSERT ON "goal_event_agreements" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_update" AFTER UPDATE ON "goal_event_agreements" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_13_delete" AFTER DELETE ON "goal_event_agreements" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_insert" AFTER INSERT ON "goal_event_progress_summaries" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_update" AFTER UPDATE ON "goal_event_progress_summaries" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_14_delete" AFTER DELETE ON "goal_event_progress_summaries" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_insert" AFTER INSERT ON "goal_event_concerns" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_update" AFTER UPDATE ON "goal_event_concerns" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_15_delete" AFTER DELETE ON "goal_event_concerns" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_insert" AFTER INSERT ON "goal_event_decision_requests" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_update" AFTER UPDATE ON "goal_event_decision_requests" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_16_delete" AFTER DELETE ON "goal_event_decision_requests" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_insert" AFTER INSERT ON "goal_event_applied_decisions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_update" AFTER UPDATE ON "goal_event_applied_decisions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_17_delete" AFTER DELETE ON "goal_event_applied_decisions" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_insert" AFTER INSERT ON "goal_event_closures" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_update" AFTER UPDATE ON "goal_event_closures" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_18_delete" AFTER DELETE ON "goal_event_closures" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_insert" AFTER INSERT ON "goal_event_work_status" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_update" AFTER UPDATE ON "goal_event_work_status" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_19_delete" AFTER DELETE ON "goal_event_work_status" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_insert" AFTER INSERT ON "goal_tree_proposals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_update" AFTER UPDATE ON "goal_tree_proposals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_21_delete" AFTER DELETE ON "goal_tree_proposals" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_insert" AFTER INSERT ON "goal_tree_proposal_items" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_update" AFTER UPDATE ON "goal_tree_proposal_items" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_22_delete" AFTER DELETE ON "goal_tree_proposal_items" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_insert" AFTER INSERT ON "goal_tree_item_effects" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_update" AFTER UPDATE ON "goal_tree_item_effects" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_23_delete" AFTER DELETE ON "goal_tree_item_effects" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_insert" AFTER INSERT ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_daec9cf494e58d382d6262de3af9_context" WHERE id=1),'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_update" AFTER UPDATE ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_daec9cf494e58d382d6262de3af9_context" WHERE id=1),'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0;INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_daec9cf494e58d382d6262de3af9_context" WHERE id=1),'feed_rule',OLD."rule_id") AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_daec9cf494e58d382d6262de3af9_context" WHERE id=1),'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_delete" AFTER DELETE ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_daec9cf494e58d382d6262de3af9_context" WHERE id=1),'feed_rule',OLD."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_3_insert" AFTER INSERT ON "feed_items" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_3_update" AFTER UPDATE ON "feed_items" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_3_delete" AFTER DELETE ON "feed_items" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_4_insert" AFTER INSERT ON "feed_materials" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_4_update" AFTER UPDATE ON "feed_materials" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_4_delete" AFTER DELETE ON "feed_materials" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_5_insert" AFTER INSERT ON "feed_item_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_5_update" AFTER UPDATE ON "feed_item_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_5_delete" AFTER DELETE ON "feed_item_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_insert" AFTER INSERT ON "feed_sources" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_update" AFTER UPDATE ON "feed_sources" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0;INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_0_delete" AFTER DELETE ON "feed_sources" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_insert" AFTER INSERT ON "source_events" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_update" AFTER UPDATE ON "source_events" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0;INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_14ff60cd5b3b2f8842d99bea7ef6_track_1_delete" AFTER DELETE ON "source_events" BEGIN INSERT INTO sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1),'project_sources',(SELECT project_id FROM "sync_14ff60cd5b3b2f8842d99bea7ef6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_0_insert" AFTER INSERT ON "signals" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_0_update" AFTER UPDATE ON "signals" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_0_delete" AFTER DELETE ON "signals" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_1_insert" AFTER INSERT ON "signal_revisions" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_1_update" AFTER UPDATE ON "signal_revisions" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_1_delete" AFTER DELETE ON "signal_revisions" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_2_insert" AFTER INSERT ON "signal_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_2_update" AFTER UPDATE ON "signal_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0;INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_522a4260e0bcbee35d4d9f85406c_track_2_delete" AFTER DELETE ON "signal_events" BEGIN INSERT INTO sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1),'project_feed',(SELECT project_id FROM "sync_522a4260e0bcbee35d4d9f85406c_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_522a4260e0bcbee35d4d9f85406c_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_0_insert" AFTER INSERT ON "coding_sessions" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_0_update" AFTER UPDATE ON "coding_sessions" WHEN ((OLD."title" IS NOT NEW."title" OR OLD."archived" IS NOT NEW."archived" OR OLD."goal_id" IS NOT NEW."goal_id")) OR ((OLD."state" IS NOT NEW."state") AND NEW."state" IN ('done','failed','stopped','cancelled') AND NEW."runtime_session_id" IS NOT NULL) BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_0_delete" AFTER DELETE ON "coding_sessions" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_1_insert" AFTER INSERT ON "coding_plan_drafts" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_1_update" AFTER UPDATE ON "coding_plan_drafts" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_1_delete" AFTER DELETE ON "coding_plan_drafts" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_3_insert" AFTER INSERT ON "coding_inputs" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_3_update" AFTER UPDATE ON "coding_inputs" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_3_delete" AFTER DELETE ON "coding_inputs" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_2_insert" AFTER INSERT ON "coding_saved_history" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_2_update" AFTER UPDATE ON "coding_saved_history" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0;INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_dd6dd4054975ce4abcd1e12268d3_track_2_delete" AFTER DELETE ON "coding_saved_history" BEGIN INSERT INTO sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1),'coding_content',(SELECT project_id FROM "sync_dd6dd4054975ce4abcd1e12268d3_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_dd6dd4054975ce4abcd1e12268d3_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_57fe6903aad21582fd1bfbdd6011_track_0_insert" AFTER INSERT ON "risk_items" BEGIN INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_57fe6903aad21582fd1bfbdd6011_context" WHERE id=1),'risk',NEW."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0;INSERT INTO "risk_editor_versions" ("risk_id","revision") SELECT NEW."risk_id",NEW."revision" WHERE 1=1 ON CONFLICT ("risk_id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
+CREATE TRIGGER "sync_57fe6903aad21582fd1bfbdd6011_track_0_update" AFTER UPDATE ON "risk_items" BEGIN INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_57fe6903aad21582fd1bfbdd6011_context" WHERE id=1),'risk',NEW."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0;INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_57fe6903aad21582fd1bfbdd6011_context" WHERE id=1),'risk',OLD."risk_id") AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_57fe6903aad21582fd1bfbdd6011_context" WHERE id=1),'risk',NEW."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0;INSERT INTO "risk_editor_versions" ("risk_id","revision") SELECT NEW."risk_id",NEW."revision" WHERE 1=1 ON CONFLICT ("risk_id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
+CREATE TRIGGER "sync_57fe6903aad21582fd1bfbdd6011_track_0_delete" AFTER DELETE ON "risk_items" BEGIN INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_57fe6903aad21582fd1bfbdd6011_context" WHERE id=1),'risk',OLD."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_insert" AFTER INSERT ON "acceptance_criteria" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_update" AFTER UPDATE ON "acceptance_criteria" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_2_delete" AFTER DELETE ON "acceptance_criteria" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_insert" AFTER INSERT ON "goal_trash_relation_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_update" AFTER UPDATE ON "goal_trash_relation_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0;INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1 EXCEPT SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_5_delete" AFTER DELETE ON "goal_trash_relation_records" BEGIN INSERT INTO sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key) SELECT key FROM (SELECT json_array((SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1),'project_goals',(SELECT project_id FROM "sync_ebbb9ae341b34cbb8aedd65a41e6_context" WHERE id=1)) AS key WHERE 1=1) WHERE (SELECT applying FROM sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state WHERE id=1)=0; END;
+CREATE INDEX plugin_overview_rows_remind ON plugin_overview_rows(remind_at) WHERE remind_at IS NOT NULL;
 CREATE INDEX library_artifacts_project_idx
     ON library_artifacts(project_id, created_at DESC, artifact_id);
 CREATE INDEX library_artifact_versions_type_idx
@@ -1770,102 +1738,85 @@ CREATE INDEX project_guidance_replica_changes_key ON project_guidance_replica_ch
 CREATE INDEX acceptance_checks_by_subject ON acceptance_checks (subject_no, requirement_id, clock);
 CREATE INDEX acceptance_decisions_by_subject ON acceptance_decisions (subject_no, requirement_id, clock);
 CREATE INDEX acceptance_replica_changes_key ON acceptance_replica_changes(key);
-CREATE INDEX goals_project_idx ON goals(project_id);
-CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
-CREATE INDEX goals_trash_idx ON goals(project_id, trashed_at);
-CREATE INDEX goals_archive_idx ON goals(project_id, archived_at);
 CREATE INDEX acceptance_goal_idx ON acceptance_criteria(goal_id);
-CREATE INDEX relations_from_idx ON goal_relations(project_id, from_goal_id, state);
-CREATE INDEX relations_to_idx ON goal_relations(project_id, to_goal_id, state);
-CREATE UNIQUE INDEX goal_trash_one_open_per_goal
-    ON goal_trash_records(project_id, goal_id)
-    WHERE restored_at IS NULL;
-CREATE INDEX goal_trash_records_goal_idx
-    ON goal_trash_records(project_id, goal_id, restored_at, trashed_at);
 CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
-CREATE INDEX goal_event_types_goal_idx
-    ON goal_event_types(project_id, goal_id, type_id, type_version);
-CREATE INDEX goal_work_events_goal_seq_idx
-    ON goal_work_events(project_id, goal_id, journal_seq);
-CREATE INDEX goal_event_state_owners_project_idx
-    ON goal_event_state_owners(project_id, goal_id);
-CREATE INDEX goal_event_progress_summaries_goal_idx
-    ON goal_event_progress_summaries(project_id, goal_id, recorded_at);
-CREATE INDEX goal_event_concerns_goal_idx
-    ON goal_event_concerns(project_id, goal_id, status);
-CREATE INDEX goal_event_decision_requests_goal_idx
-    ON goal_event_decision_requests(project_id, goal_id, status);
-CREATE INDEX goal_event_applied_decisions_goal_idx
-    ON goal_event_applied_decisions(project_id, goal_id, recorded_at);
-CREATE INDEX goal_event_closures_goal_idx
-    ON goal_event_closures(project_id, goal_id, recorded_at);
-CREATE INDEX goal_tree_proposals_project_idx
-    ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
-CREATE INDEX goal_tree_proposals_supersedes_idx
-    ON goal_tree_proposals(supersedes_proposal_id);
-CREATE INDEX goal_tree_proposal_items_proposal_idx
-    ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
-CREATE INDEX goal_tree_proposal_items_project_idx
-    ON goal_tree_proposal_items(project_id, state, item_id);
-CREATE INDEX goal_tree_item_effects_proposal_idx ON goal_tree_item_effects(project_id, proposal_id, item_id, created_at, effect_id);
 CREATE INDEX sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes_key ON sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes(key);
 CREATE INDEX schedule_conversation_tasks_enabled_idx
       ON schedule_conversation_tasks(enabled, updated_at);
 CREATE INDEX schedule_conversation_turns_task_idx
       ON schedule_conversation_turns(task_id, created_at);
-CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
 CREATE INDEX sync_fc44281fa4e6ae1ad919f15bea63_replica_changes_key ON sync_fc44281fa4e6ae1ad919f15bea63_replica_changes(key);
-CREATE INDEX feed_out_rules_project_enabled_idx
-      ON feed_out_rules(project_id, enabled, created_at, rule_id);
-CREATE INDEX feed_items_project_updated_idx
-      ON feed_items(project_id, disposition, source_updated_at DESC);
-CREATE UNIQUE INDEX feed_items_project_source_external_idx
-      ON feed_items(project_id, source_id, external_id)
-      WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
-CREATE INDEX feed_materials_project_item_idx
-      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
-CREATE INDEX feed_item_events_project_item_idx
-      ON feed_item_events(project_id, item_id, at, event_id);
-CREATE UNIQUE INDEX feed_items_project_signal_idx
-      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
-CREATE INDEX feed_sources_project_updated_idx
-      ON feed_sources(project_id, updated_at DESC, source_id);
-CREATE INDEX source_events_project_source_idx
-      ON source_events(project_id, source_id, at, event_id);
-CREATE INDEX signals_project_source_observed_idx
-      ON signals(project_id, source_id, observed_at DESC, signal_id);
-CREATE INDEX signal_events_project_source_idx
-      ON signal_events(project_id, source_id, at, event_id);
-CREATE INDEX listener_deliveries_recovery_idx
-      ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
-CREATE INDEX feed_source_runs_project_source_idx
-      ON feed_source_runs(project_id, source_id, started_at DESC);
 CREATE INDEX sync_daec9cf494e58d382d6262de3af9_replica_changes_key ON sync_daec9cf494e58d382d6262de3af9_replica_changes(key);
 CREATE INDEX sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes_key ON sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes(key);
 CREATE INDEX sync_522a4260e0bcbee35d4d9f85406c_replica_changes_key ON sync_522a4260e0bcbee35d4d9f85406c_replica_changes(key);
-CREATE INDEX coding_sessions_project_updated_idx
-      ON coding_sessions(project_id, updated_at DESC, session_id);
 CREATE INDEX sync_dd6dd4054975ce4abcd1e12268d3_replica_changes_key ON sync_dd6dd4054975ce4abcd1e12268d3_replica_changes(key);
-CREATE INDEX risk_items_status_idx ON risk_items(project_id, status, updated_at);
 CREATE INDEX risk_links_subject_idx ON risk_links(subject_kind, subject_id);
 CREATE INDEX risk_events_risk_idx ON risk_events(risk_id, at);
 CREATE INDEX surface_corrections_replica_changes_key ON surface_corrections_replica_changes(key);
 CREATE INDEX attention_replica_changes_key ON attention_replica_changes(key);
-CREATE TABLE risk_editor_versions (risk_id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-PRAGMA user_version=1;
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-CREATE TABLE sync_57fe6903aad21582fd1bfbdd6011_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-INSERT INTO "sync_57fe6903aad21582fd1bfbdd6011_context"("id","project_id") VALUES(1,'molis-work-v1-demo');
-INSERT INTO "sync_57fe6903aad21582fd1bfbdd6011_replica_state"("id","device","cursor","applying") VALUES(1,'e6bfa7703906c01a7160905510905f00',0,0);
 CREATE INDEX sync_57fe6903aad21582fd1bfbdd6011_replica_changes_key ON sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key);
-CREATE TRIGGER "sync_57fe6903aad21582fd1bfbdd6011_track_0_delete" AFTER DELETE ON "risk_items" BEGIN INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'risk',OLD."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_57fe6903aad21582fd1bfbdd6011_track_0_insert" AFTER INSERT ON "risk_items" BEGIN INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'risk',NEW."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0;INSERT INTO "risk_editor_versions" ("risk_id","revision") SELECT NEW."risk_id",NEW."revision" WHERE 1=1 ON CONFLICT ("risk_id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
-CREATE TRIGGER "sync_57fe6903aad21582fd1bfbdd6011_track_0_update" AFTER UPDATE ON "risk_items" BEGIN INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'risk',NEW."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0;INSERT INTO sync_57fe6903aad21582fd1bfbdd6011_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'risk',OLD."risk_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'risk',NEW."risk_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_57fe6903aad21582fd1bfbdd6011_replica_state WHERE id=1)=0;INSERT INTO "risk_editor_versions" ("risk_id","revision") SELECT NEW."risk_id",NEW."revision" WHERE 1=1 ON CONFLICT ("risk_id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
+CREATE INDEX goals_ready_idx ON goals(definition_state, decomposition_state, validity_state, fulfillment_state);
+CREATE INDEX goals_trash_idx ON goals(trashed_at);
+CREATE INDEX goals_archive_idx ON goals(archived_at);
+CREATE INDEX relations_from_idx ON goal_relations(from_goal_id, state);
+CREATE INDEX relations_to_idx ON goal_relations(to_goal_id, state);
+CREATE UNIQUE INDEX goal_trash_one_open_per_goal
+    ON goal_trash_records(goal_id)
+    WHERE restored_at IS NULL;
+CREATE INDEX goal_trash_records_goal_idx
+    ON goal_trash_records(goal_id, restored_at, trashed_at);
+CREATE INDEX goal_event_types_goal_idx
+    ON goal_event_types(goal_id, type_id, type_version);
+CREATE INDEX goal_work_events_goal_seq_idx
+    ON goal_work_events(goal_id, journal_seq);
+CREATE INDEX goal_event_progress_summaries_goal_idx
+    ON goal_event_progress_summaries(goal_id, recorded_at);
+CREATE INDEX goal_event_concerns_goal_idx
+    ON goal_event_concerns(goal_id, status);
+CREATE INDEX goal_event_decision_requests_goal_idx
+    ON goal_event_decision_requests(goal_id, status);
+CREATE INDEX goal_event_applied_decisions_goal_idx
+    ON goal_event_applied_decisions(goal_id, recorded_at);
+CREATE INDEX goal_event_closures_goal_idx
+    ON goal_event_closures(goal_id, recorded_at);
+CREATE INDEX goal_tree_proposals_project_idx
+    ON goal_tree_proposals(root_goal_id, state, created_at DESC, proposal_id);
+CREATE INDEX goal_tree_proposals_supersedes_idx
+    ON goal_tree_proposals(supersedes_proposal_id);
+CREATE INDEX goal_tree_proposal_items_proposal_idx
+    ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
+CREATE INDEX goal_tree_proposal_items_project_idx
+    ON goal_tree_proposal_items(state, item_id);
+CREATE INDEX goal_tree_item_effects_proposal_idx ON goal_tree_item_effects(proposal_id, item_id, created_at, effect_id);
+CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(plugin_id, installation_id);
+CREATE INDEX feed_out_rules_project_enabled_idx
+      ON feed_out_rules(enabled, created_at, rule_id);
+CREATE INDEX feed_items_project_updated_idx
+      ON feed_items(disposition, source_updated_at DESC);
+CREATE UNIQUE INDEX feed_items_project_source_external_idx
+      ON feed_items(source_id, external_id)
+      WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
+CREATE UNIQUE INDEX feed_items_project_signal_idx
+      ON feed_items(signal_id) WHERE signal_id IS NOT NULL;
+CREATE INDEX feed_materials_project_item_idx
+      ON feed_materials(item_id, updated_at DESC, material_id);
+CREATE INDEX feed_item_events_project_item_idx
+      ON feed_item_events(item_id, at, event_id);
+CREATE INDEX feed_sources_project_updated_idx
+      ON feed_sources(updated_at DESC, source_id);
+CREATE INDEX source_events_project_source_idx
+      ON source_events(source_id, at, event_id);
+CREATE INDEX signals_project_source_observed_idx
+      ON signals(source_id, observed_at DESC, signal_id);
+CREATE INDEX signal_events_project_source_idx
+      ON signal_events(source_id, at, event_id);
+CREATE INDEX listener_deliveries_recovery_idx
+      ON listener_deliveries(source_id, state, updated_at, raw_event_id);
+CREATE INDEX feed_source_runs_project_source_idx
+      ON feed_source_runs(source_id, started_at DESC);
+CREATE INDEX coding_sessions_updated_idx
+      ON coding_sessions(updated_at DESC, session_id);
+CREATE INDEX risk_items_status_idx ON risk_items(status, updated_at);
+PRAGMA user_version=1;
 COMMIT;

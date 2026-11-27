@@ -48,7 +48,8 @@ async function itemWithTwoActiveEntries(feed: FeedApp, externalId = "x1") {
   const source = feed.snapshot(DEMO_PROJECT_ID).sources.find(row => row.source_id === "src-1") ?? workflowSource(feed, "src-1");
   const { item } = feed.ingestItem({ source, externalId, title: `Quarterly budget ${externalId}`, summary: "s", occurredAt: new Date().toISOString(), attention: false });
   feed.addToInbox(DEMO_PROJECT_ID, item.item_id, item.revision);
-  if (feed.outRules.list(DEMO_PROJECT_ID).length === 0) feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
+  // The demo project already holds Feed's own sample rule, so this looks for the budget rule by name.
+  if (!feed.outRules.list(DEMO_PROJECT_ID).some(rule => rule.name === "budget")) feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
   await feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]);
   assert.deepEqual(entriesOf(feed, item.item_id), ["manual:open", "source_rule:open"]);
   return item;
@@ -223,7 +224,8 @@ test("retiring a source keeps its history but closes its source-fault Inbox entr
     feed.createInboxEntry({ projectId: DEMO_PROJECT_ID, subjectType: "source_fault", subjectId: "src-f", reason: "source_fault",
       detail: { error_code: "feed_parse_failed", user_action: "fix_configuration" } });
     feed.sources.retire(DEMO_PROJECT_ID, "src-f", "retain_history");
-    const faults = feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => entry.subject_type === "source_fault");
+    // Only this source's fault: the demo project's own sample has a Gmail source waiting for authorisation.
+    const faults = feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => entry.subject_type === "source_fault" && entry.subject_id === "src-f");
     assert.deepEqual(faults.map(entry => `${entry.subject_id}:${entry.status}`), ["src-f:dismissed"], "a retired source can never sync, so its fault is no longer pending");
     assert.deepEqual(entriesOf(feed, kept.item.item_id), ["source_rule:open"], "retained items keep their own Inbox references");
   });
@@ -236,7 +238,7 @@ test("retiring a source with its local history removes the source-fault entry to
     feed.createInboxEntry({ projectId: DEMO_PROJECT_ID, subjectType: "source_fault", subjectId: "src-f", reason: "source_fault",
       detail: { error_code: "feed_parse_failed", user_action: "fix_configuration" } });
     feed.sources.retire(DEMO_PROJECT_ID, "src-f", "delete_local_history");
-    assert.deepEqual(feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => entry.subject_type === "source_fault"), []);
+    assert.deepEqual(feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => entry.subject_type === "source_fault" && entry.subject_id === "src-f"), []);
   });
 });
 
@@ -392,7 +394,7 @@ test("RAC-1214 a scheduled pull that fails judging after it committed spends its
     assert.equal(nextPull(), "2026-08-30T09:30:00.000Z", "the slot is spent");
     const runs = service.feed.snapshot(DEMO_PROJECT_ID).runs.filter(run => run.source_id === source.source_id);
     assert.deepEqual(runs.map(run => run.phase), ["terminal"], "the pull's own result is the only run");
-    assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
+    assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id).length, 1);
     // A person's edit during the pull is still a refusal, and still keeps the slot.
     renaming = source.source_id;
     now = new Date("2026-08-30T09:30:00.000Z");

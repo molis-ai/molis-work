@@ -34,21 +34,21 @@ export class GoalEventDecisionRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_decision_requests (
-        request_id, project_id, goal_id, event_id, question, options_json, scope_json,
+        request_id, goal_id, event_id, question, options_json, scope_json,
         purpose, proposed_change_json, commitment_json, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
     `).run(
-      input.requestId, input.projectId, input.goalId, input.eventId, input.question,
+      input.requestId, input.goalId, input.eventId, input.question,
       sqliteJson(input.options), sqliteJson(input.scope), input.purpose,
       input.proposedChange == null ? null : sqliteJson(input.proposedChange),
       input.commitment == null ? null : sqliteJson(input.commitment), input.at,
     );
   }
 
-  getDecisionRequest(projectId: string, goalId: string, requestId: string): GoalEventDecisionRequestView | null {
+  getDecisionRequest(_projectId: string, goalId: string, requestId: string): GoalEventDecisionRequestView | null {
     const row = this.db.prepare(
-      "SELECT *, rowid AS stored_row FROM goal_event_decision_requests WHERE request_id = ? AND project_id = ? AND goal_id = ?",
-    ).get(requestId, projectId, goalId) as Row | undefined;
+      "SELECT *, rowid AS stored_row FROM goal_event_decision_requests WHERE request_id = ? AND goal_id = ?",
+    ).get(requestId, goalId) as Row | undefined;
     return row ? mapDecisionRequest(row) : null;
   }
 
@@ -57,11 +57,11 @@ export class GoalEventDecisionRecords {
       .run(requestId);
   }
 
-  listDecisionRequests(projectId: string, goalId: string): GoalEventDecisionRequestView[] {
+  listDecisionRequests(_projectId: string, goalId: string): GoalEventDecisionRequestView[] {
     return (this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM goal_event_decision_requests WHERE project_id = ? AND goal_id = ?
+      SELECT *, rowid AS stored_row FROM goal_event_decision_requests WHERE goal_id = ?
       ORDER BY created_at ASC, request_id ASC
-    `).all(projectId, goalId) as Row[]).map(mapDecisionRequest);
+    `).all(goalId) as Row[]).map(mapDecisionRequest);
   }
 
   insertAppliedDecision(input: {
@@ -86,12 +86,12 @@ export class GoalEventDecisionRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_applied_decisions (
-        decision_id, project_id, goal_id, governance_decision_id, request_id, event_id,
+        decision_id, goal_id, governance_decision_id, request_id, event_id,
         selected_option_id, conclusion, accepts_requirements, effects_json, scope_json,
         commitment_json, authorized_change_json, config_version, agreement_version, actor_id, authority_source, recorded_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      input.decisionId, input.projectId, input.goalId, input.governanceDecisionId, input.requestId,
+      input.decisionId, input.goalId, input.governanceDecisionId, input.requestId,
       input.eventId, input.selectedOptionId, input.conclusion, input.acceptsRequirements ? 1 : 0,
       sqliteJson(input.effects), sqliteJson(input.scope), sqliteJson(input.commitment),
       input.authorizedChange == null ? null : sqliteJson(input.authorizedChange),
@@ -99,38 +99,38 @@ export class GoalEventDecisionRecords {
     );
   }
 
-  getAppliedDecision(projectId: string, goalId: string, decisionId: string): GoalEventAppliedDecisionView | null {
+  getAppliedDecision(_projectId: string, goalId: string, decisionId: string): GoalEventAppliedDecisionView | null {
     const row = this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_event_applied_decisions
-      WHERE decision_id = ? AND project_id = ? AND goal_id = ?
-    `).get(decisionId, projectId, goalId) as Row | undefined;
+      WHERE decision_id = ? AND goal_id = ?
+    `).get(decisionId, goalId) as Row | undefined;
     return row ? mapAppliedDecision(row) : null;
   }
 
-  getAppliedDecisionByGovernanceId(projectId: string, goalId: string, governanceDecisionId: string): GoalEventAppliedDecisionView | null {
+  getAppliedDecisionByGovernanceId(_projectId: string, goalId: string, governanceDecisionId: string): GoalEventAppliedDecisionView | null {
     const row = this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_event_applied_decisions
-      WHERE governance_decision_id = ? AND project_id = ? AND goal_id = ?
-    `).get(governanceDecisionId, projectId, goalId) as Row | undefined;
+      WHERE governance_decision_id = ? AND goal_id = ?
+    `).get(governanceDecisionId, goalId) as Row | undefined;
     return row ? mapAppliedDecision(row) : null;
   }
 
-  listAppliedDecisions(projectId: string, goalId: string): GoalEventAppliedDecisionView[] {
+  listAppliedDecisions(_projectId: string, goalId: string): GoalEventAppliedDecisionView[] {
     return (this.db.prepare(`
       SELECT d.*, d.rowid AS stored_row FROM goal_event_applied_decisions d
-      JOIN goal_work_events e ON e.event_id = d.event_id AND e.project_id = d.project_id AND e.goal_id = d.goal_id
-      WHERE d.project_id = ? AND d.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = d.event_id AND e.goal_id = d.goal_id
+      WHERE d.goal_id = ?
       ORDER BY e.journal_seq ASC, d.decision_id ASC
-    `).all(projectId, goalId) as Row[]).map(mapAppliedDecision);
+    `).all(goalId) as Row[]).map(mapAppliedDecision);
   }
 }
 
 /** A decision of the Goal, marked with whether it was recorded in the round of work the Goal is in now. */
 export type AppliedDecisionWithRound = GoalEventAppliedDecisionView & { in_current_round: boolean };
 
-export function goalForDecisionRequest(db: GoalsSqliteDatabase, projectId: string, requestId: string): string | null {
-  const row = db.prepare("SELECT goal_id FROM goal_event_decision_requests WHERE project_id = ? AND request_id = ?")
-    .get(projectId, requestId) as { goal_id: string } | undefined;
+export function goalForDecisionRequest(db: GoalsSqliteDatabase, requestId: string): string | null {
+  const row = db.prepare("SELECT goal_id FROM goal_event_decision_requests WHERE request_id = ?")
+    .get(requestId) as { goal_id: string } | undefined;
   return row?.goal_id ?? null;
 }
 
@@ -139,18 +139,18 @@ export function goalForDecisionRequest(db: GoalsSqliteDatabase, projectId: strin
  * now: after the latest time it was reopened or resumed. A completed or cancelled Goal works again only through one of those two
  * events, so what was decided before the latest of them belongs to a round that is over.
  */
-export function listDecisionsByRound(db: GoalsSqliteDatabase, projectId: string, goalId: string): AppliedDecisionWithRound[] {
+export function listDecisionsByRound(db: GoalsSqliteDatabase, goalId: string): AppliedDecisionWithRound[] {
   return (db.prepare(`
     SELECT d.*, d.rowid AS stored_row, e.journal_seq > COALESCE((
       SELECT MAX(r.journal_seq) FROM goal_work_events r
-      WHERE r.project_id = ? AND r.goal_id = ? AND r.kind = 'system'
+      WHERE r.goal_id = ? AND r.kind = 'system'
         AND json_extract(r.payload_json, '$.operation') IN ('completion_reopened', 'work_resumed')
     ), 0) AS in_current_round
     FROM goal_event_applied_decisions d
-    JOIN goal_work_events e ON e.event_id = d.event_id AND e.project_id = d.project_id AND e.goal_id = d.goal_id
-    WHERE d.project_id = ? AND d.goal_id = ?
+    JOIN goal_work_events e ON e.event_id = d.event_id AND e.goal_id = d.goal_id
+    WHERE d.goal_id = ?
     ORDER BY e.journal_seq ASC, d.decision_id ASC
-  `).all(projectId, goalId, projectId, goalId) as Row[]).map((row) => ({
+  `).all(goalId, goalId) as Row[]).map((row) => ({
     ...mapAppliedDecision(row),
     in_current_round: Number(row.in_current_round) === 1,
   }));

@@ -1,10 +1,58 @@
 [
   {
-    "store": "<partition>/molis-work.db",
+    "store": "<partition>/molis-work.db#io.molis.work.coding",
     "version": 1,
-    "from": "ef7b23560ff7e149",
-    "to": "e887a7ecc3f08e62",
-    "approved": "user 2026-11-26 (Batch 108 V17「108 做主库摘要表」; goal prompt: goldens and same-version registration; U13/V7 Clean v1, no migration)",
-    "reason": "Batch 108 adds the platform's plugin_overview_rows summary table to the clean pre-release v1 partition main database (specs/unified-partition-plugins §6.1 主库摘要表); the goldens are rewritten in place, and the entry goes in the next PR that touches this file."
+    "from": "7554f5bd7e17b35e",
+    "to": "09029864d738ebb8",
+    "approved": "user 2026-11-25 (Batch 109 split into 109-1..3; goal prompt 109-1: drop project_id from the six main-database plugins and move Work Brief to databases.partition; U13/V7 Clean v1, no migration)",
+    "reason": "Batch 109-1 drops the redundant project_id column (and its WHERE project_id filters) from io.molis.work.coding's tables in the clean pre-release v1 partition main database (specs/unified-partition-plugins §8); a partition database holds one project_root, and the goldens are rewritten in place."
+  },
+  {
+    "store": "<partition>/molis-work.db#io.molis.work.feed",
+    "version": 1,
+    "from": "a2446b1f1b0d700d",
+    "to": "6e8fdb86b050a2e9",
+    "approved": "user 2026-11-25 (Batch 109 split into 109-1..3; goal prompt 109-1: drop project_id from the six main-database plugins and move Work Brief to databases.partition; U13/V7 Clean v1, no migration)",
+    "reason": "Batch 109-1 drops the redundant project_id column (and its WHERE project_id filters) from io.molis.work.feed's tables in the clean pre-release v1 partition main database (specs/unified-partition-plugins §8); a partition database holds one project_root, and the goldens are rewritten in place."
+  },
+  {
+    "store": "<partition>/molis-work.db#io.molis.work.goals",
+    "version": 1,
+    "from": "423b08698498fad5",
+    "to": "b625dcaace7a4c3f",
+    "approved": "user 2026-11-25 (Batch 109 split into 109-1..3; goal prompt 109-1: drop project_id from the six main-database plugins and move Work Brief to databases.partition; U13/V7 Clean v1, no migration)",
+    "reason": "Batch 109-1 drops the redundant project_id column (and its WHERE project_id filters) from io.molis.work.goals's tables in the clean pre-release v1 partition main database (specs/unified-partition-plugins §8); a partition database holds one project_root, and the goldens are rewritten in place."
+  },
+  {
+    "store": "<partition>/molis-work.db#io.molis.work.inbox",
+    "version": 1,
+    "from": "56acddfd14f308b1",
+    "to": "7aaf99ef1a1e6108",
+    "approved": "user 2026-11-25 (Batch 109 split into 109-1..3; goal prompt 109-1: drop project_id from the six main-database plugins and move Work Brief to databases.partition; U13/V7 Clean v1, no migration)",
+    "reason": "Batch 109-1 drops the redundant project_id column (and its WHERE project_id filters) from io.molis.work.inbox's tables in the clean pre-release v1 partition main database (specs/unified-partition-plugins §8); a partition database holds one project_root, and the goldens are rewritten in place."
+  },
+  {
+    "store": "<partition>/molis-work.db#io.molis.work.risk",
+    "version": 1,
+    "from": "2598fbcecb5c9e39",
+    "to": "56b90e3542649641",
+    "approved": "user 2026-11-25 (Batch 109 split into 109-1..3; goal prompt 109-1: drop project_id from the six main-database plugins and move Work Brief to databases.partition; U13/V7 Clean v1, no migration)",
+    "reason": "Batch 109-1 drops the redundant project_id column (and its WHERE project_id filters) from io.molis.work.risk's tables in the clean pre-release v1 partition main database (specs/unified-partition-plugins §8); a partition database holds one project_root, and the goldens are rewritten in place."
+  },
+  {
+    "store": "<partition>/molis-work.db#io.molis.work.schedule",
+    "version": 1,
+    "from": "60eee1da661a2c2a",
+    "to": "d4d289f6ceb6b0f2",
+    "approved": "user 2026-11-25 (Batch 109 split into 109-1..3; goal prompt 109-1: drop project_id from the six main-database plugins and move Work Brief to databases.partition; U13/V7 Clean v1, no migration)",
+    "reason": "Batch 109-1 drops the redundant project_id column (and its WHERE project_id filters) from io.molis.work.schedule's tables in the clean pre-release v1 partition main database (specs/unified-partition-plugins §8); a partition database holds one project_root, and the goldens are rewritten in place."
+  },
+  {
+    "store": "<partition>/libraries/work-brief.db",
+    "version": 1,
+    "from": "c065145ca5603109",
+    "to": "bcd72223a4f968c9",
+    "approved": "user 2026-11-25 (Batch 109 split into 109-1..3; goal prompt 109-1: drop project_id from the six main-database plugins and move Work Brief to databases.partition; U13/V7 Clean v1, no migration)",
+    "reason": "Batch 109-1 moves Work Brief from the Home library work-brief/work-brief.db to each partition's own library (databases.partition) without its project_id column, at the clean pre-release v1; the old Home library is not migrated and the upgrade removes it (removedHomeStores)."
   }
 ]

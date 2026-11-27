@@ -464,7 +464,9 @@ test("SKL-41-2: a round removes the Home libraries batch 108 moved into partitio
   // Read from the declarations: every library a partition keeps, of which the five batch 108 moved are the ones an older Home had.
   const removed = removedHomeStores();
   for (const name of ["todo", "jelly", "cognia", "images", "issues"]) assert.ok(removed.includes(name), `${name} is removed`);
-  assert.ok(!removed.includes("feed-content") && !removed.includes("work-brief"), "a library the Home still keeps is not");
+  // Batch 109: Work Brief moved into the partitions, and Feed's body-reference ledger went to the platform evidence service.
+  for (const name of ["work-brief", "feed-content"]) assert.ok(removed.includes(name), `${name} is removed`);
+  assert.ok(!removed.includes("evidence"), "the evidence service's own library stays");
   for (const name of removed) { mkdirSync(join(home, name), { recursive: true }); writeFileSync(join(home, name, `${name}.db`), "old"); }
   const report = runHomeUpgrade(home);
   assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["first/first.db", "committed"]]);

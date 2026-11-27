@@ -1,3 +1,4 @@
+import { libraryPartition } from "./library-partition.js";
 import { storedJson } from "../stored-json.js";
 import { goalApprovalBindings, goalApprovalHistory, type GoalApprovalRules } from "./policy-projection.js";
 import type {
@@ -65,29 +66,29 @@ export class GoalsRepository {
     return this.db.transaction(operation).immediate();
   }
 
-  boardExists(projectId: string): boolean {
-    return Boolean(this.db.prepare("SELECT project_id FROM boards WHERE project_id = ?").get(projectId));
+  boardExists(_projectId: string): boolean {
+    return Boolean(this.db.prepare("SELECT 1 AS found FROM boards").get());
   }
 
-  createBoard(projectId: string, at: string): void {
-    this.db.prepare("INSERT INTO boards (project_id, active_goal_id, created_at, updated_at) VALUES (?, NULL, ?, ?)")
-      .run(projectId, at, at);
+  createBoard(_projectId: string, at: string): void {
+    this.db.prepare("INSERT INTO boards (id, active_goal_id, created_at, updated_at) VALUES (1, NULL, ?, ?)")
+      .run(at, at);
   }
 
-  setActiveGoal(projectId: string, goalId: string | null, at: string): void {
-    this.db.prepare("UPDATE boards SET active_goal_id = ?, updated_at = ? WHERE project_id = ?")
-      .run(goalId, at, projectId);
+  setActiveGoal(_projectId: string, goalId: string | null, at: string): void {
+    this.db.prepare("UPDATE boards SET active_goal_id = ?, updated_at = ?")
+      .run(goalId, at);
   }
 
-  clearActiveGoalIfMatches(projectId: string, goalId: string, at: string): boolean {
-    return this.db.prepare("UPDATE boards SET active_goal_id = NULL, updated_at = ? WHERE project_id = ? AND active_goal_id = ?")
-      .run(at, projectId, goalId).changes > 0;
+  clearActiveGoalIfMatches(_projectId: string, goalId: string, at: string): boolean {
+    return this.db.prepare("UPDATE boards SET active_goal_id = NULL, updated_at = ? WHERE active_goal_id = ?")
+      .run(at, goalId).changes > 0;
   }
 
   getBoard(projectId: string): GoalsBoardRecord | null {
-    const row = this.db.prepare("SELECT * FROM boards WHERE project_id = ?").get(projectId) as Row | undefined;
+    const row = this.db.prepare("SELECT * FROM boards").get() as Row | undefined;
     return row ? {
-      project_id: text(row.project_id),
+      project_id: projectId,
       active_goal_id: nullableText(row.active_goal_id),
       created_at: text(row.created_at),
       updated_at: text(row.updated_at),
@@ -106,24 +107,23 @@ export class GoalsRepository {
     const criteria = this.db
       .prepare("SELECT *, rowid AS stored_row FROM acceptance_criteria WHERE goal_id = ? ORDER BY criterion_id")
       .all(goalId) as Row[];
-    return mapGoal(row, criteria);
+    return mapGoal(row, criteria, libraryPartition(this.db));
   }
 
   listGoals(projectId: string): GoalRecord[] {
     const rows = this.db
-      .prepare("SELECT *, rowid AS stored_row FROM goals WHERE project_id = ? ORDER BY priority DESC, created_at, goal_id")
-      .all(projectId) as Row[];
+      .prepare("SELECT *, rowid AS stored_row FROM goals ORDER BY priority DESC, created_at, goal_id")
+      .all() as Row[];
     const criteria = this.db.prepare(`
       SELECT ac.*, ac.rowid AS stored_row FROM acceptance_criteria ac
-      JOIN goals g ON g.goal_id = ac.goal_id
-      WHERE g.project_id = ? ORDER BY ac.criterion_id
-    `).all(projectId) as Row[];
+      JOIN goals g ON g.goal_id = ac.goal_id ORDER BY ac.criterion_id
+    `).all() as Row[];
     const byGoal = new Map<string, Row[]>();
     for (const criterion of criteria) {
       const goalId = text(criterion.goal_id);
       byGoal.set(goalId, [...(byGoal.get(goalId) ?? []), criterion]);
     }
-    return rows.map((row) => mapGoal(row, byGoal.get(text(row.goal_id)) ?? []));
+    return rows.map((row) => mapGoal(row, byGoal.get(text(row.goal_id)) ?? [], projectId));
   }
 
   listTrashedGoals(projectId: string): GoalRecord[] {
@@ -133,14 +133,14 @@ export class GoalsRepository {
   listRelations(projectId: string, goalId?: string): GoalRelationRecord[] {
     const rows = goalId == null
       ? this.db
-        .prepare("SELECT * FROM goal_relations WHERE project_id = ? ORDER BY created_at, relation_id")
-        .all(projectId)
+        .prepare("SELECT * FROM goal_relations ORDER BY created_at, relation_id")
+        .all()
       : this.db.prepare(`
           SELECT * FROM goal_relations
-          WHERE project_id = ? AND (from_goal_id = ? OR to_goal_id = ?)
+          WHERE (from_goal_id = ? OR to_goal_id = ?)
           ORDER BY created_at, relation_id
-        `).all(projectId, goalId, goalId);
-    return (rows as Row[]).map(mapRelation);
+        `).all(goalId, goalId);
+    return (rows as Row[]).map(row => mapRelation(row, projectId));
   }
 
 
@@ -152,9 +152,9 @@ export class GoalsRepository {
 
   getRelation(projectId: string, relationId: string): GoalRelationRecord | null {
     const row = this.db
-      .prepare("SELECT * FROM goal_relations WHERE project_id = ? AND relation_id = ?")
-      .get(projectId, relationId) as Row | undefined;
-    return row ? mapRelation(row) : null;
+      .prepare("SELECT * FROM goal_relations WHERE relation_id = ?")
+      .get(relationId) as Row | undefined;
+    return row ? mapRelation(row, projectId) : null;
   }
 
   eventCursor(projectId: string): number {
@@ -182,10 +182,10 @@ export function rowText(value: unknown): string {
   return text(value);
 }
 
-function mapGoal(row: Row, criteria: Row[]): GoalRecord {
+function mapGoal(row: Row, criteria: Row[], projectId: string): GoalRecord {
   return {
     goal_id: text(row.goal_id),
-    project_id: text(row.project_id),
+    project_id: projectId,
     title: text(row.title),
     outcome: text(row.outcome),
     why: text(row.why),
@@ -225,10 +225,10 @@ function mapAcceptanceCriterion(row: Row): GoalAcceptanceCriterion {
   };
 }
 
-function mapRelation(row: Row): GoalRelationRecord {
+function mapRelation(row: Row, projectId: string): GoalRelationRecord {
   return {
     relation_id: text(row.relation_id),
-    project_id: text(row.project_id),
+    project_id: projectId,
     from_goal_id: text(row.from_goal_id),
     to_goal_id: text(row.to_goal_id),
     type: text(row.type) as GoalRelationRecord["type"],

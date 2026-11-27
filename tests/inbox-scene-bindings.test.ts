@@ -35,23 +35,22 @@ test("RAC-518: Inbox declares the table and the permission it stores with, and n
 
 test("RAC-518: a binding is saved, read back with its revision, and replaced only by the revision that was read", () => {
   const { bindings: store } = bindings();
-  assert.equal(store.get(PROJECT, SCENE), null);
-  const first = store.save(PROJECT, binding(), null);
-  assert.deepEqual(store.get(PROJECT, SCENE), first);
+  assert.equal(store.get(SCENE), null);
+  const first = store.save(binding(), null);
+  assert.deepEqual(store.get(SCENE), first);
   assert.ok(first.revision);
-  assert.throws(() => store.save(PROJECT, binding(), null), { code: "inbox.revision_conflict" }, "creating over an existing binding is a conflict");
-  const second = store.save(PROJECT, binding({ enabled: false }), first.revision);
+  assert.throws(() => store.save(binding(), null), { code: "inbox.revision_conflict" }, "creating over an existing binding is a conflict");
+  const second = store.save(binding({ enabled: false }), first.revision);
   assert.notEqual(second.revision, first.revision);
-  assert.equal(store.get(PROJECT, SCENE)?.enabled, false);
-  assert.throws(() => store.save(PROJECT, binding({ title: "late" }), first.revision), { code: "inbox.revision_conflict" }, "a revision that was replaced is stale");
-  assert.equal(store.get(PROJECT, SCENE)?.title, "Inbox 下一步", "and the refused write changed nothing");
-  assert.equal(store.save(PROJECT, binding({ title: "unconditional" })).title, "unconditional", "no expected revision replaces");
+  assert.equal(store.get(SCENE)?.enabled, false);
+  assert.throws(() => store.save(binding({ title: "late" }), first.revision), { code: "inbox.revision_conflict" }, "a revision that was replaced is stale");
+  assert.equal(store.get(SCENE)?.title, "Inbox 下一步", "and the refused write changed nothing");
+  assert.equal(store.save(binding({ title: "unconditional" })).title, "unconditional", "no expected revision replaces");
 });
 
-test("RAC-518: only the fields of a binding are stored, and another project's row is not this project's", () => {
+test("RAC-518: only the fields of a binding are stored; another project's bindings are in its own partition's database (batch 109-1)", () => {
   const { db, bindings: store } = bindings();
-  const saved = store.save(PROJECT, { ...binding(), revision: "forged", extra: "dropped" } as ActionSceneBinding);
+  const saved = store.save({ ...binding(), revision: "forged", extra: "dropped" } as ActionSceneBinding);
   assert.notEqual(saved.revision, "forged");
   assert.equal("extra" in (JSON.parse((db.prepare("SELECT action_binding_json AS json FROM inbox_scene_bindings").get() as { json: string }).json) as object), false);
-  assert.equal(store.get("other-project", SCENE), null);
 });

@@ -64,10 +64,12 @@ test("44B approval outcomes name declared section tables and columns, one subjec
   assert.throws(() => parsePluginSyncDeclaration({ ...declaration, collections: [bare] }), ActionError, "outcomes need the collection's sections");
   // The same rows give the same digest from the library and from synced facts; row order does not change it, a missing row does.
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE goal_tree_item_effects (effect_id TEXT, project_id TEXT, proposal_id TEXT, item_id TEXT, approval_id TEXT, result TEXT, runtime_actor_id TEXT, reason TEXT, revision_proposal_id TEXT, materialized_objects_json TEXT, created_at TEXT)");
-  const row = (effect_id: string, item_id: string) => ({ effect_id, project_id: "p", proposal_id: "tree", item_id, approval_id: "decision", result: "applied",
+  // Since batch 109-1 the table has no partition column: the library's one `project_root` row says which partition it holds.
+  db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('p');
+    CREATE TABLE goal_tree_item_effects (effect_id TEXT, proposal_id TEXT, item_id TEXT, approval_id TEXT, result TEXT, runtime_actor_id TEXT, reason TEXT, revision_proposal_id TEXT, materialized_objects_json TEXT, created_at TEXT)`);
+  const row = (effect_id: string, item_id: string) => ({ effect_id, proposal_id: "tree", item_id, approval_id: "decision", result: "applied",
     runtime_actor_id: null, reason: null, revision_proposal_id: null, materialized_objects_json: "[]", created_at: "2026-11-23T00:00:00.000Z" });
-  for (const value of [row("e2", "b"), row("e1", "a")]) db.prepare("INSERT INTO goal_tree_item_effects VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(...Object.values(value));
+  for (const value of [row("e2", "b"), row("e1", "a")]) db.prepare("INSERT INTO goal_tree_item_effects VALUES (?,?,?,?,?,?,?,?,?,?)").run(...Object.values(value));
   const read = readApprovalOutcome(db, collection, "p", "decision", { kind: "goal-tree-proposal", id: "tree" })!;
   assert.match(read.digest, /^sha256:[a-f0-9]{64}$/u);
   const facts = { goals: { goal_event_applied_decisions: [] }, governance: { goal_tree_item_effects: [row("e1", "a"), row("e2", "b")] } };

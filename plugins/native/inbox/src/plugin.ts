@@ -103,9 +103,9 @@ export function createInboxPlugin(): PluginDefinition {
     const subjects: ActionClient = { discover: () => directory.discover(), discoverOne: (_caller, reference) => directory.discoverOne(reference), invoke: (_caller, reference, input) => directory.invoke(reference, input) };
     const sceneRuntime = createInboxSceneRuntime({ projectId, scenes, judgments,
       bindings: {
-        get: () => bindings.get(projectId, INBOX_NEXT_SCENE_ID),
+        get: () => bindings.get(INBOX_NEXT_SCENE_ID),
         save: (caller, binding, options) => database.transaction(() => caller.beforeEffect(), tx => {
-          new InboxSceneBindings(sqlOf(tx)).save(projectId, binding, options?.expected_revision);
+          new InboxSceneBindings(sqlOf(tx)).save(binding, options?.expected_revision);
         }),
       },
       judgmentActions: () => directory.discover(),

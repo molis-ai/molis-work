@@ -1,7 +1,6 @@
 import { arraySchema as array, createActionDefinition, nullableSchema, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { ACTION_SUBJECT_SCHEMA, type ActionAudience, type ActionSchema, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BRIEF_KIND } from "./identity.js";
-import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BRIEF_LIMITS, type BriefChange, type BriefEdit, type BriefProposal, type BriefRecord, type BriefVersion, type BriefVersionHead, type NextMark } from "./model.js";
 
 export const WORK_BRIEF_READ = ["work-brief:read"], WORK_BRIEF_WRITE = ["work-brief:read", "work-brief:write"];
@@ -24,7 +23,7 @@ const draft = object({
 
 const stamp = { type: "string" } as const;
 /** The brief's head: `brief_id` and `revision` are what a command's result points at. */
-const brief = object({ brief_id: id, project_id: { type: "string" }, scope: { enum: ["home", "topic", "personal"] }, title: { type: "string" }, current_version: { type: "integer", minimum: 0 },
+const brief = object({ brief_id: id, project_id: { type: "string" }, scope: { enum: ["home", "topic"] }, title: { type: "string" }, current_version: { type: "integer", minimum: 0 },
   revision, created_at: stamp, updated_at: stamp, fixed: loose });
 const version = loose, changes = array(loose);
 
@@ -33,11 +32,10 @@ const PEOPLE_AND_TOOLS: Audiences = ["user", "agent", "plugin", "mcp"], WRITERS:
 
 /** `define<Output>()(…)`: the input type comes from the schema, so no handler writes an input type of its own. */
 const define = <O>() => <const S extends ActionSchema>(name: string, version: number, title: string, description: string, operation: "query" | "command",
-  audiences: Audiences, input: S, output: ActionSchema, extra: { concurrent?: true; result?: true; scope?: "home"; reach?: true; artifact?: true } = {}) =>
+  audiences: Audiences, input: S, output: ActionSchema, extra: { concurrent?: true; result?: true; artifact?: true } = {}) =>
   createActionDefinition<InferActionInput<S>, O>(`work-brief.${name}`, operation, {
-    title, description, audiences: [...audiences], subject_kinds: extra.scope ? [] : [BRIEF_KIND], input_schema: input, output_schema: output,
+    title, description, audiences: [...audiences], subject_kinds: [BRIEF_KIND], input_schema: input, output_schema: output,
     permissions: [...(operation === "query" ? WORK_BRIEF_READ : WORK_BRIEF_WRITE), ...(extra.artifact ? ["artifact:write"] : [])], ...(extra.concurrent ? { scheduling: "concurrent" as const } : {}),
-    ...(extra.scope ? { scope: extra.scope } : {}), ...(extra.reach ? { project_reach: "person" as const } : {}),
     ...(extra.result ? { result_subject: { id: "brief.brief_id", revision: "brief.revision" } } : {}),
   }, version);
 
@@ -91,29 +89,4 @@ export const workBriefActions = {
   setNext: define<{ marks: NextMark[] }>()("next.set", /* @version action.work-brief.next.set */ 1, "处置简报的下一步",
     "标一条下一步「暂不」（later）、记下已交给助理（handed），或撤回这个标记（state 为 null）。已执行过的不能改；结果未确认的（unknown）只能在本人到原处核对后撤回。只记这条下一步在这份简报里怎么处置了，不改任何业务对象。",
     "command", PERSON, object({ brief_id: id, option_id: id, state: nullableSchema({ enum: ["later", "handed"] }) }), object({ marks: array(loose) })),
-};
-
-/** One line of the personal brief: something that waits for the person, with where it is from. */
-export interface PersonalItem {
-  label: "project" | "personal";
-  kind: "attention" | "next" | "source";
-  text: string;
-  why?: string;
-  /** For a project's line: the project and the brief it is in. The page links to that project's home; the shell opens it (S-47), nothing of the project is read from here. */
-  project_id?: string;
-  brief_id?: string;
-  subject?: { kind: string; id: string };
-  owner_plugin_id?: string;
-  owner_name?: OwnedTextRef;
-  blocked?: true;
-}
-export interface PersonalView { as_of: string | null; version: number; items: PersonalItem[]; sources: BriefVersion["sources"]; projects_complete: boolean }
-
-export const workBriefPersonalActions = {
-  get: define<PersonalView>()("personal.get", /* @version action.work-brief.personal.get */ 1, "读取个人简报",
-    "个人事项的汇总：本人够得到的各项目简报里要你处理的和还没处置的下一步（每项带「项目」标签、所在项目与简报），加上个人范围的插件上次刷新时读到的事项（带「个人」标签）。只读已保存的内容，不重读来源。",
-    "query", PERSON, object({}), loose, { scope: "home", reach: true, concurrent: true }),
-  refresh: define<PersonalView & { changed: boolean; changes: BriefChange[] }>()("personal.refresh", /* @version action.work-brief.personal.refresh */ 1, "刷新个人简报",
-    "不调用模型：以本人身份重读个人范围的各来源；有变化才存成个人简报新的一版，changes 只报变化。读不到的标过期或缺口。",
-    "command", PERSON, object({}), loose, { scope: "home", reach: true, concurrent: true }),
 };

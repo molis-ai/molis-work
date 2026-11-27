@@ -7,7 +7,7 @@ const uiText = globalThis.t;
 /** The style sheet, minified: the package's build script defines it (`--define:WORK_BRIEF_CSS`, from src/styles.ts). */
 declare const WORK_BRIEF_CSS: string;
 
-/** Work Brief's own actions the page calls, by the versions the Manifest declares. */
+/** The actions the page calls, by their versions, as Work Brief's Manifest declares them. */
 const VERSIONS: Readonly<Record<string, number>> = {
   "work-brief.briefs.get": /* @version action.work-brief.briefs.get */ 1,
   "work-brief.briefs.refresh": /* @version action.work-brief.briefs.refresh */ 1,
@@ -16,15 +16,13 @@ const VERSIONS: Readonly<Record<string, number>> = {
   "work-brief.versions.fix": /* @version action.work-brief.versions.fix */ 1,
   "work-brief.next.run": /* @version action.work-brief.next.run */ 1,
   "work-brief.next.set": /* @version action.work-brief.next.set */ 1,
-  "work-brief.personal.get": /* @version action.work-brief.personal.get */ 1,
-  "work-brief.personal.refresh": /* @version action.work-brief.personal.refresh */ 1,
 };
 
 export const failureOf = (error: unknown) => error as Partial<UiRequestFailure> & { details?: Record<string, unknown> };
 export const isAbort = (error: unknown) => error instanceof Error && error.name === "AbortError";
 
 function initialState(): BriefPageState {
-  return { mode: "project", loading: true, error: "", head: null, old: null, thenNow: "then", pop: "", editing: "", picks: {}, delta: null, busy: "", personal: null, personalError: "" };
+  return { loading: true, error: "", head: null, old: null, thenNow: "then", pop: "", editing: "", picks: {}, delta: null, busy: "" };
 }
 
 /** The page the parts share, on the root the server drew; null when this view is not on the page. */

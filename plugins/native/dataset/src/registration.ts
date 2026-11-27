@@ -8,6 +8,7 @@ import { createDatasetPlugin, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASE
 export const registration: PluginRegistration = {
   project_plugin_id: DATASET_PROJECT_PLUGIN_ID, catalog_order: 17,
   manifest: datasetManifest,
+  formerly_personal: true,
   project_runtime: { create: createDatasetPlugin, package_name: "@molis-ai/molis-work-plugin-dataset", factory_export: "createDatasetPlugin" },
   workbench: {
     order: 11,

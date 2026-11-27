@@ -239,19 +239,19 @@ function addProjectFeedItem(
   try {
     store.db.prepare(`
       INSERT INTO feed_sources (
-        project_id, source_id, kind, name, description, status, enabled, item_count,
+        source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-      ) VALUES (?1, ?2, ?3, ?4, '测试来源', 'active', 1, 1,
+      ) VALUES (?2, ?3, ?4, '测试来源', 'active', 1, 1,
         'molis_work', ?5, 'completed', NULL, ?5, ?5)
     `).run(project.project_id, inbox ? "source-test-inbox" : "source-test", inbox ? "github" : "rss", inbox ? "GitHub" : "测试 RSS", now);
     store.db.prepare(`
       INSERT INTO feed_items (
-        project_id, item_id, source_id, kind, title, summary, body,
+        item_id, source_id, kind, title, summary, body,
         source_kind, source_label, external_id, url, origin_status, priority,
         tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        ?1, ?2, ?3, ?4, ?5,
+        ?2, ?3, ?4, ?5,
         '验证升格、绑定和终端上下文', '正文里包含需要核对的事实\nAuthorization: Bearer runtime-secret-token', ?6, ?7,
         ?8, 'https://example.com/feed-item?access_token=url-secret-value', 'inbox', 'high', '["rss"]',
         '测试作者', 'inbox', 1, ?9, ?9, ?9, ?9
@@ -277,11 +277,11 @@ function addProjectFeedItem(
     }
     store.db.prepare(`
       INSERT INTO feed_materials (
-        project_id, material_id, item_id, canonical_url, title, source_name,
+        material_id, item_id, canonical_url, title, source_name,
         published_at, preview, content_hash, provenance_json, selected_for_context,
         imported_at, updated_at
       ) VALUES (
-        ?1, 'material-test', ?2, 'https://example.com/material',
+        'material-test', ?2, 'https://example.com/material',
         ?3, ?4, ?5, '资料预览会进入上下文\nclient_secret=material-secret-value', 'sha256:test',
         '{"provider":"rss"}', 1, ?5, ?5
       )
@@ -1225,8 +1225,8 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     try {
       const binding = store.db.prepare(`
         SELECT source_type, source_ref, state FROM input_bindings
-        WHERE project_id = ? AND goal_id = ?
-      `).get(fixture.project.project_id, promotedBody.goal_id) as {
+        WHERE goal_id = ?
+      `).get(promotedBody.goal_id) as {
         source_type: string;
         source_ref: string;
         state: string;
@@ -1241,8 +1241,8 @@ test("Feed Item actions create one bound Goal and expose its source context to T
       assert.equal(receipt?.source_ref, "feed-item:feed-item-test");
       assert.equal(receipt?.state, "confirmed");
       const item = store.db.prepare(`
-        SELECT disposition, read_at FROM feed_items WHERE project_id = ? AND item_id = ?
-      `).get(fixture.project.project_id, "feed-item-test") as {
+        SELECT disposition, read_at FROM feed_items WHERE item_id = ?
+      `).get("feed-item-test") as {
         disposition: string;
         read_at: string | null;
       };
@@ -1805,19 +1805,19 @@ test("Inbox Message save and promote survives a Web restart without duplicating 
   try {
     const item = store.db.prepare(`
       SELECT disposition, read_at FROM feed_items
-      WHERE project_id = ? AND item_id = ?
-    `).get(fixture.project.project_id, itemId) as {
+      WHERE item_id = ?
+    `).get(itemId) as {
       disposition: string;
       read_at: string | null;
     };
     const goal = store.db.prepare(`
-      SELECT title FROM goals WHERE project_id = ? AND goal_id = ?
-    `).get(fixture.project.project_id, goalId) as { title: string };
+      SELECT title FROM goals WHERE goal_id = ?
+    `).get(goalId) as { title: string };
     const bindings = new GoalProjectApplication(store).goalInputs.list(fixture.project.project_id)
       .filter((input) => input.goal_id === goalId && input.source_type === "feed_item" && input.source_ref === `feed-item:${itemId}`);
     const materialCount = store.db.prepare(`
-      SELECT COUNT(*) AS count FROM feed_materials WHERE project_id = ? AND item_id = ?
-    `).get(fixture.project.project_id, itemId) as { count: number };
+      SELECT COUNT(*) AS count FROM feed_materials WHERE item_id = ?
+    `).get(itemId) as { count: number };
     assert.deepEqual(item, { disposition: "promoted", read_at: null });
     assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.project_id, goalId, itemId)?.linked_goal_id, goalId);
     assert.equal(goal.title, "处理 Feed Item：需要处理的 Inbox Message");

@@ -6,9 +6,10 @@ import { GOAL_CONCERN_CITED_SUBJECT_LIMIT } from '../contract/goal-event-state.j
 
 const errors = defineErrorCodes('goals', { replica_invalid: 'invalid' });
 
-export function validateGoalReplication(rows: ProjectReplicaRows, projectId: string): void {
+export function validateGoalReplication(rows: ProjectReplicaRows, _projectId: string): void {
+  // The board is its library's one row (`id` 1, batch 109-1): the library is one project's, so the row names no project to check.
   const roots = rows.boards!;
-  if (roots.length !== 1 || roots[0]!.project_id !== projectId) invalid();
+  if (roots.length !== 1 || roots[0]!.id !== 1) invalid();
   const goals = new Map(rows.goals!.map(row => [row.goal_id, row]));
   if (roots[0]!.active_goal_id !== null && !goals.has(roots[0]!.active_goal_id)) invalid();
   const events = new Map(rows.goal_work_events!.map(row => [row.event_id, row]));

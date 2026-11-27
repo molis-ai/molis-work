@@ -21,6 +21,11 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
     try {
       const feed = createLocalFeedApplication(store.db);
       const now = "2026-08-30T00:00:00.000Z";
+      // A new demo project already holds Feed's own sample (the platform seeds it like any project plugin's), so the counts below are of
+      // the fixtures' rows only.
+      const seeded = feed.snapshot(DEMO_PROJECT_ID);
+      const sampleItems = new Set(seeded.feed_items.map(item => item.item_id)), sampleEntries = new Set(seeded.attention_entries.map(entry => entry.entry_id));
+      const fixtureItems = () => feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => !sampleItems.has(item.item_id));
       const ingested = PROVIDER_CONTRACT_FIXTURES.map((fixture) => {
         const source: FeedSourceRecord = feed.sources.upsert({
           project_id: DEMO_PROJECT_ID,
@@ -57,9 +62,9 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       });
       assert.equal(ingested.every((result) => result.created), true);
       const snapshot = feed.snapshot(DEMO_PROJECT_ID);
-      assert.equal(snapshot.feed_items.length, 3);
+      assert.equal(fixtureItems().length, 3);
       assert.equal(snapshot.feed_items.every((item) => item.item_type === "feed"), true);
-      assert.equal(snapshot.attention_entries.length, 2);
+      assert.equal(snapshot.attention_entries.filter(entry => !sampleEntries.has(entry.entry_id)).length, 2);
       assert.equal("items" in snapshot, false);
       assert.equal(snapshot.attention_entries.every((entry) => !Object.hasOwn(entry, "body")), true);
       // Feed has no Goal facts: a Goal's decision reminder is Goals' to open, so Feed refuses to.
@@ -94,7 +99,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         occurredAt: now,
       });
       assert.equal(replay.created, false);
-      assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 3);
+      assert.equal(fixtureItems().length, 3);
 
       const secondGithubSource = feed.sources.upsert({
         ...githubSource,
@@ -111,7 +116,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         occurredAt: now,
       });
       assert.equal(sameProviderIdDifferentSource.created, true);
-      assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 4);
+      assert.equal(fixtureItems().length, 4);
 
       const resolved = feed.setDisposition(
         DEMO_PROJECT_ID,

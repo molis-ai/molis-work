@@ -347,19 +347,19 @@ function insertFeedItem(project: { database_path: string; project_id: string }, 
   try {
     store.db.prepare(`
       INSERT OR IGNORE INTO feed_sources (
-        project_id, source_id, kind, name, description, status, enabled, item_count,
+        source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-      ) VALUES (?1, 'source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
-        'molis_work', ?2, 'completed', NULL, ?2, ?2)
-    `).run(project.project_id, now);
+      ) VALUES ('source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
+        'molis_work', ?1, 'completed', NULL, ?1, ?1)
+    `).run(now);
     store.db.prepare(`
       INSERT INTO feed_items (
-        project_id, item_id, source_id, kind, title, summary, body,
+        item_id, source_id, kind, title, summary, body,
         source_kind, source_label, external_id, url, origin_status, priority,
         tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        ?1, ?2, 'source-inbox-plugin', 'article',
+        ?2, 'source-inbox-plugin', 'article',
         '确认对象边界', '摘要不应被 Inbox 复制', '正文里包含需要核对的事实',
         'rss', '测试 RSS', ?3, 'https://example.com/item',
         'inbox', 'normal', '[]', '测试作者', 'inbox', 1, ?4, ?4, ?4, ?4

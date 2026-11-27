@@ -181,8 +181,8 @@ test("Listener persists a failed provider pull, retains the cursor and replays w
     const run = listener.listRuns(DEMO_PROJECT_ID)[0]!;
     const interrupted = { ...run, run_id: "interrupted-owner-run", operation_id: "interrupted-owner-operation", phase: "running" as const, outcome: null, error_code: null, completed_at: null };
     listener.saveRun(interrupted);
-    store.db.prepare("UPDATE listener_instances SET state = 'listening', lease_owner = ?, lease_expires_at = ? WHERE project_id = ? AND source_id = ?")
-      .run("old-process", "2026-09-02T08:10:00.000Z", DEMO_PROJECT_ID, sourceId);
+    store.db.prepare("UPDATE listener_instances SET state = 'listening', lease_owner = ?, lease_expires_at = ? WHERE source_id = ?")
+      .run("old-process", "2026-09-02T08:10:00.000Z", sourceId);
     const restarted = new ListenerHost(fromProjectConnection(store.db), connectorWith(driver), new SignalsModule(fromProjectConnection(store.db)).commands);
     assert.equal(restarted.recoverInterruptedRuns(DEMO_PROJECT_ID), 1);
     assert.equal(restarted.getRunByOperationId(DEMO_PROJECT_ID, interrupted.operation_id)?.error_code, "listener.process_interrupted");
@@ -505,6 +505,7 @@ test("Listener Host's run ledger keeps no foreign key into the Sources table", (
   const store = new LocalProjectDatabase(join(directory, "project.sqlite"));
   try {
     const references = (store.db.prepare("SELECT \"table\" FROM pragma_foreign_key_list('feed_source_runs')").all() as Array<{ table: string }>).map(row => row.table);
-    assert.deepEqual([...new Set(references)], ["project_root"]);
+    // Since batch 109-1 the runs carry no project column either (a partition's library holds one project), so they reference nothing.
+    assert.deepEqual([...new Set(references)], []);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

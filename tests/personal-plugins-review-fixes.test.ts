@@ -105,12 +105,13 @@ async function listenDispatcher(
 // Batch 61: the web search service's Home library `web-search/` (the default source and its last use; never a key).
 // BL-b44-feed-home-dir-and-styles: the platform's secrets and evidence bodies sit in `security/` (once `feed/`).
 // Batch 106: the due registry, the evidence ledger and the settings that follow the person, each a Home library of its own.
-// Batch 108: Todo, Issues, Cognia, Images and Jelly keep a library in each partition (under `personal-space/` and `projects/`), none in the Home.
+// Batch 108: Todo, Issues, Cognia, Images and Jelly keep a library in each partition (under `personal-space/` and `projects/`), none in the Home;
+// batch 109: Work Brief too, and Feed's body holds are the evidence ledger's.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.ok(homeStores().get("config/native-session-token")?.snapshot.omit, "本机账号桥接凭据必须排除在离线快照之外");
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "config/mcp-client-credentials", "sync", "projects", "personal-space", "outputs", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
-    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "blueprints", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "memory-forgetting-v2.json", "observation", "evaluation", "external-sessions", "conversation-attachments", "mainline", "home-pages", "materials", "web-search", "search", "knowledge", "security", "feed-content", "server",
-    "work-brief", "artifacts", "agent-runtime", "runtime-config-backups",
+    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "blueprints", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "memory-forgetting-v2.json", "observation", "evaluation", "external-sessions", "conversation-attachments", "mainline", "home-pages", "materials", "web-search", "search", "knowledge", "security", "server",
+    "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/automation-recommendations.json", "config/automation-offers.json", "config/onboarding.json", "config/plugin-publisher.json",
     "config/project-arrival.json", "config/ui-locale.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "due-registry", "evidence", "person-settings", "interface", "upgrade", "run", "config/desktop.json"].sort());
 });

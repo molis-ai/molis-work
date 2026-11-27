@@ -95,7 +95,7 @@ test("PLIB-12 opening the same declaration again opens normally and changes noth
   } finally { db.close(); }
 });
 
-test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business fixture and its board is keyed to the project root", () => {
+test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business fixture and its board is the library's one row", () => {
   const db = emptyLibrary();
   // The frozen history (tests/fixtures/goal-event-history) at the v1 project-library baseline (batch 44
   // hands the requirements to the platform): what the upgrade leaves must be exactly what the declaration makes on an empty library.
@@ -109,10 +109,11 @@ test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business 
       assert.deepEqual(declared[table], current[table], `${table}: complete columns, checks, keys and indexes`);
     }
     assert.deepEqual(declared.goal_tree_item_effects?.columns.map(column => column.name),
-      ["effect_id", "project_id", "proposal_id", "item_id", "approval_id", "result", "runtime_actor_id", "reason", "revision_proposal_id", "materialized_objects_json", "created_at"]);
+      ["effect_id", "proposal_id", "item_id", "approval_id", "result", "runtime_actor_id", "reason", "revision_proposal_id", "materialized_objects_json", "created_at"]);
     for (const name of ["policy_bindings", "goal_event_trusted_decisions", "goal_tree_proposal_decisions"]) assert.equal(declared[name], undefined);
-    assert.deepEqual(declared.boards!.columns.map(column => column.name), ["project_id", "active_goal_id", "created_at", "updated_at"]);
-    assert.deepEqual(declared.boards!.foreign_keys, [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }]);
+    // Since batch 109-1 a partition's library holds one project (its `project_root` row), so its board is the one row `id = 1`.
+    assert.deepEqual(declared.boards!.columns.map(column => column.name), ["id", "active_goal_id", "created_at", "updated_at"]);
+    assert.deepEqual(declared.boards!.foreign_keys, []);
     assert.deepEqual(Object.keys(describeSqliteBaseline(GOALS_PROJECT_DATABASE).tables).sort(), GOALS_TABLES);
   } finally { expected.close(); db.close(); rmSync(upgraded.directory, { recursive: true, force: true }); }
 });

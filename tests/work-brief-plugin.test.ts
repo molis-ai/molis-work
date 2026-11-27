@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
-import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
+import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPresentationActions, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
 import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { join } from "node:path";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { OVERVIEW_PROVIDER_ID, overviewReadAction, type OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { syncOwnerPair } from "./fixtures/runtime-personal-sync.js";
 
 // Work Brief in a project that has no Goals: its sources are whatever the directory offers (here Risk), read as the caller.
@@ -46,7 +49,7 @@ async function fixture(t: Parameters<typeof serveHomeRuntime>[0]) {
 let request = 0;
 const once = () => "request-" + ++request;
 
-test("AC-M1-02 project and personal briefs restore content and retain concurrent edits without execution", { timeout: 90_000 }, async t => {
+test("AC-M1-02 a partition's brief restores its content and retains concurrent edits without execution", { timeout: 90_000 }, async t => {
   const { owner, source, target, requests } = await syncOwnerPair(t, ["risk", "work-brief"]);
   const caller = { ...person([...RISK_WRITE, ...WORK_BRIEF_WRITE], source.project().project_id), actor_id: owner };
   const call = <T>(device: typeof source, definition: Parameters<typeof ref>[0], input: unknown) => device.actions().invoke(caller, ref(definition), input) as Promise<T>;
@@ -60,10 +63,9 @@ test("AC-M1-02 project and personal briefs restore content and retain concurrent
   } });
   const briefId = saved.brief.brief_id, options = saved.version!.next;
   await call(source, workBriefActions.setNext, { brief_id: briefId, option_id: options[1]!.option_id, state: "later" });
-  const homeCall = (device: typeof source, definition: Parameters<typeof ref>[0]) => device.host.homeActionClient().invoke({ ...caller, project_id: null }, ref(definition), {});
-  await homeCall(source, workBriefPersonalActions.refresh);
+  // Since batch 109 the brief lives in each partition's own library (`databases.partition`), with no project column.
   const sql = <T>(device: typeof source, run: (db: ReturnType<typeof openSqliteConnection>) => T) => {
-    const db = openSqliteConnection(homeSqlitePath(device.home, "work-brief"));
+    const db = openSqliteConnection(join(partitionRoot(device.home, device.project().project_id), "libraries", "work-brief.db"));
     try { return run(db); } finally { db.close(); }
   };
   const count = (query: string, ...parameters: string[]) => sql(target, db => (db.prepare(query).get(...parameters) as { n: number }).n);
@@ -86,8 +88,9 @@ test("AC-M1-02 project and personal briefs restore content and retain concurrent
   };
   const first = await syncOne();
   assert.doesNotMatch(JSON.stringify(first.value), /local card input|pending dispatch|card_json|"running"/);
-  await syncOne();
-  assert.equal(count("SELECT COUNT(*) AS n FROM briefs WHERE scope='personal' AND actor_id=?", owner), 1);
+  // The brief row carries no partition and no owner of its own (the target stamps its partition); its edits and next-step marks keep who made them.
+  assert.doesNotMatch(JSON.stringify(first.value), /project_id/, "the brief carries no partition of its own; the target stamps its partition");
+  assert.doesNotMatch(JSON.stringify(first.value), /"brief":\{[^{}]*"actor_id"/, "the brief row has no owner of its own");
   const view = () => call<BriefView>(target, workBriefActions.get, { brief_id: briefId });
   const restored = await view();
   assert.equal(restored.version!.claims[0]!.text, "Saved project topic");
@@ -122,7 +125,7 @@ test("AC-M1-02 project and personal briefs restore content and retain concurrent
   assert.equal((await syncOne()).value, null);
   await assert.rejects(view, { code: "work_brief.not_found" });
   assert.equal(count("SELECT COUNT(*) AS n FROM brief_versions WHERE brief_id=?", briefId), 0);
-  assert.equal(count("SELECT COUNT(*) AS n FROM briefs WHERE scope='personal'"), 1);
+  assert.equal(count("SELECT COUNT(*) AS n FROM briefs"), 0);
 });
 
 test("WBR-10 WBR-12 a refresh reads the sources without a model, saves a version only when something changed and reports only the change", { timeout: 90_000 }, async t => {
@@ -398,35 +401,31 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   assert.equal(astral, astralClaim, "lede sentence keeps all 600 code points instead of UTF-16 slicing or splitting a surrogate pair");
 });
 
-test("WBR-24 the personal brief gathers what waits in the briefs of the projects the person reaches, each labelled with its project; deleting a project takes only its rows", { timeout: 120_000 }, async t => {
+// WBR-24, batch 109: the person's briefs across partitions are the platform's overview (`overview.read@1`), not a personal brief of Work
+// Brief's own: each partition's home brief keeps one overview row in the same commit as its version, its title and its next sentences.
+test("WBR-24 each partition's brief is one row of the person's overview, read across partitions; deleting a project takes only its row", { timeout: 120_000 }, async t => {
   const { f, host, open, call, risk, here } = await fixture(t);
   const second = await open("另一个项目");
   const a = await risk("供应商延期"), b = await second.risk("汇率波动");
-  const save = (via: typeof call, cite: { kind: string; id: string }, why: string) => via<BriefSaved>(workBriefActions.save, { request_id: once(), draft: {
-    claims: [{ text: "有一件事要定。", cites: [cite] }], attention: [{ subject: cite, why }], next: [{ text: "让助理跟进", why: "还没人跟", act: { kind: "assistant" } }] } });
-  const first = await save(call, { kind: "risk", id: a.risk_id }, "要决定是否换供应商");
-  await save(second.call, { kind: "risk", id: b.risk_id }, "要决定是否对冲");
-  const me = person([...WORK_BRIEF_WRITE], null);
-  const personal = () => host.homeActionClient().invoke(me, ref(workBriefPersonalActions.get), {}) as Promise<PersonalView>;
-  const lines = (view: PersonalView) => view.items.map(item => [item.label, item.kind, item.project_id, item.text]).sort();
-  const before = await personal();
-  assert.equal(before.projects_complete, true);
-  assert.deepEqual(lines(before), [
-    ["project", "attention", here.project_id, "要决定是否换供应商"], ["project", "attention", second.here.project_id, "要决定是否对冲"],
-    ["project", "next", here.project_id, "让助理跟进"], ["project", "next", second.here.project_id, "让助理跟进"]].sort());
-  assert.ok(before.items.every(item => item.brief_id), "each line says which brief it is from, so the page can open it there");
-  // A next step the person dealt with is no longer waiting.
-  await call(workBriefActions.setNext, { brief_id: first.brief.brief_id, option_id: first.version!.next[0]!.option_id, state: "later" });
-  assert.equal((await personal()).items.filter(item => item.kind === "next").length, 1);
-  // Reading the personal brief starts nothing and saves nothing; a refresh reads the Home-level sources only.
-  const refreshed = await host.homeActionClient().invoke(me, ref(workBriefPersonalActions.refresh), {}) as PersonalView & { changed: boolean };
-  assert.equal(refreshed.items.filter(item => item.label === "project").length, 3);
-  // Deleting one project removes its briefs and nothing of the other's.
+  const save = (via: typeof call, cite: { kind: string; id: string }, opening: string) => via<BriefSaved>(workBriefActions.save, { request_id: once(), draft: {
+    claims: [{ text: opening, cites: [cite] }, { text: "还没有人跟进。", cites: [cite] }], next: [{ text: "让助理跟进", why: "还没人跟", act: { kind: "assistant" } }] } });
+  await save(call, { kind: "risk", id: a.risk_id }, "要决定是否换供应商。");
+  await save(second.call, { kind: "risk", id: b.risk_id }, "要决定是否对冲。");
+  const me = person([], null);
+  const briefs = async () => ((await host.homeActionClient().invoke(me, { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID }, { kinds: ["brief"] })) as OverviewReadResult).rows
+    .map(row => [row.partition_id, row.plugin_id, row.fields.title, row.fields.summary]).sort();
+  assert.deepEqual(await briefs(), [
+    [here.project_id, WORK_BRIEF_PLUGIN_ID, "要决定是否换供应商。", "还没有人跟进。"], [second.here.project_id, WORK_BRIEF_PLUGIN_ID, "要决定是否对冲。", "还没有人跟进。"]].sort(),
+    "one row per partition's brief: its opening sentence and the ones after it, nothing of the cited object");
+  // A new version of one brief changes only that partition's row, in the same commit.
+  await call<BriefSaved>(workBriefActions.save, { request_id: once(), brief_id: (await call<BriefView>(workBriefActions.get, {})).brief!.brief_id, base_version: 1,
+    draft: { claims: [{ text: "已换供应商。", cites: [{ kind: "risk", id: a.risk_id }] }] } });
+  assert.deepEqual((await briefs()).find(([partition]) => partition === here.project_id), [here.project_id, WORK_BRIEF_PLUGIN_ID, "已换供应商。", undefined]);
+  // Deleting one project removes its row and nothing of the other's.
   const deleted = await f.request(`/api/settings/projects/${here.project_id}/delete`, { method: "POST", body: { delete_confirmed: true, idempotency_key: "wb-delete" } });
   assert.equal(deleted.status, 200, await deleted.clone().text());
-  const after = await personal();
-  assert.deepEqual(lines(after), [["project", "attention", second.here.project_id, "要决定是否对冲"], ["project", "next", second.here.project_id, "让助理跟进"]].sort());
-  assert.equal((await second.call<BriefView>(workBriefActions.get, {})).version!.claims.length, 1);
+  assert.deepEqual(await briefs(), [[second.here.project_id, WORK_BRIEF_PLUGIN_ID, "要决定是否对冲。", "还没有人跟进。"]]);
+  assert.equal((await second.call<BriefView>(workBriefActions.get, {})).version!.claims.length, 2);
 });
 
 

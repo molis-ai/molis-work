@@ -13,14 +13,15 @@ store	owner	version	structure	upgrades
 <partition>/libraries/pages.db	io.molis.work.pages	1	955d3684f92605b9	-
 <partition>/libraries/ppt.db	io.molis.work.ppt	1	650579fc784ea1cf	-
 <partition>/libraries/todo.db	io.molis.work.todo	1	25d782ddde438717	-
+<partition>/libraries/work-brief.db	io.molis.work.work-brief	1	bcd72223a4f968c9	-
 <partition>/libraries/workflows.db	io.molis.work.native.workflows	1	e231158fb0bb7d54	-
 <partition>/molis-work.db	apps/local-host	1	e887a7ecc3f08e62	-
-<partition>/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
-<partition>/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	a2446b1f1b0d700d	-
-<partition>/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	423b08698498fad5	-
-<partition>/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
-<partition>/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	2598fbcecb5c9e39	-
-<partition>/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	60eee1da661a2c2a	-
+<partition>/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	09029864d738ebb8	-
+<partition>/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	6e8fdb86b050a2e9	-
+<partition>/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	b625dcaace7a4c3f	-
+<partition>/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	7aaf99ef1a1e6108	-
+<partition>/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	56b90e3542649641	-
+<partition>/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	d4d289f6ceb6b0f2	-
 agent-declarations/agent-declarations.db	apps/local-host	1	90aa329cbf64815e	-
 agent-definitions/agent-definitions.db	apps/local-host	1	abad6100076206e5	-
 assistant/assistant.db	apps/local-host	1	81eb1ed879d29fa5	-
@@ -33,7 +34,6 @@ due-registry/due-registry.db	horizontal/scheduler	1	b0109b6eb51cc01e	-
 evaluation/evaluation.db	horizontal/evaluation	1	c45a6b323aed5968	-
 evidence/evidence.db	horizontal/evidence	1	b14a81417d3c4898	-
 external-sessions/external-sessions.db	horizontal/sessions	1	eabec6a25b46795b	-
-feed-content/feed-content.db	io.molis.work.feed	1	0a6d43d10416d5ee	-
 functions/functions.db	modules/functions	1	e8e455da5a281ae8	-
 home-pages/home-pages.db	horizontal/home	1	b9566d6fb909a746	-
 knowledge/knowledge.db	packages/storage	1	2adbf0ecde034d1b	-
@@ -50,4 +50,3 @@ projects/catalog.db	apps/local-host	1	0691cb9c32e88862	-
 server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	1	4ffa2f326552fc84	-
 web-search/web-search.db	apps/local-host	1	8cc2e4721c5a1e6e	-
-work-brief/work-brief.db	io.molis.work.work-brief	1	c065145ca5603109	-

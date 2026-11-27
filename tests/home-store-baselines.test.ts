@@ -20,20 +20,12 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
  * remembered Agent declarations (agent-declarations, PG-051 2026-10-23) and the local directories the person granted plugins
  * (plugin-directories, PG-049 2026-10-25) are new, so no Home has them yet. A new library either
  * comes with a fixture or is named here.
- * Feed's Home reference ledger (feed-content, FI-6) is new with the Feed Home half, so no Home has it either; its v1 is frozen below.
  */
-const WITHOUT_REAL_HOME_FIXTURE = ["plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "feed-content"];
+const WITHOUT_REAL_HOME_FIXTURE = ["plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server"];
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
 test("every library in the Home's store registry has a schema fixture or is named as having none", () => {
   const fixtures = new Set(readdirSync(new URL("./fixtures/home-store-schemas/", import.meta.url)).filter(file => file.endsWith(".sql")).map(file => file.slice(0, -4)));
   assert.deepEqual(libraries.map(([name]) => name).filter(name => !fixtures.has(name)), WITHOUT_REAL_HOME_FIXTURE);
-});
-
-test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no real-Home receipt implied", () => {
-  const ledger = homeStores().stores.find(store => store.path === "feed-content");
-  assert.equal(ledger?.owner, "io.molis.work.feed");
-  assert.equal(ledger?.library?.baseline.version, 1);
-  assert.deepEqual(shape(ledger!.library!.baseline.schema), shape(readFileSync(new URL("./fixtures/feed-content-home-v1.sql", import.meta.url), "utf8")));
 });
 
 // Frozen fixtures describe each owner's complete current schema (repository-anti-corruption §4.1). Some began as

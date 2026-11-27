@@ -396,8 +396,16 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
 export function removedHomeStores(): readonly string[] {
   const home = new Set([...homeStores().stores.map(store => store.path.split("/")[0]!),
     ...shippedParts().flatMap(entry => entry.manifest.databases?.home?.store_name ?? [])]);
-  return [...new Set(shippedParts().flatMap(entry => entry.manifest.databases?.partition?.store_name ?? []))].filter(name => !home.has(name)).sort();
+  return [...new Set([...shippedParts().flatMap(entry => entry.manifest.databases?.partition?.store_name ?? []), ...RETIRED_HOME_LIBRARIES])]
+    .filter(name => !home.has(name)).sort();
 }
+
+/**
+ * Home libraries whose records a platform service took over and which no plugin declares any more, so no declaration names them:
+ * Feed's body-reference ledger, whose holds `horizontal/evidence` keeps since batch 109 (`evidence/evidence.db`). Not migrated (C11, U13).
+ * Same kept mechanism as the partition libraries above (CONTRACT-CHANGES 「当前保留机制」), removed with it.
+ */
+const RETIRED_HOME_LIBRARIES = ["feed-content"] as const;
 
 /**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that

@@ -40,7 +40,7 @@ async function fixture(t:TestContext){
 
 test('S-116 PCSYNC-22/23 Coding saved metadata and complete plans travel through their real owner without runtime authority or echo',async t=>{
  const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));
- (await f.stores[0]!.inputs.write(noEffect,p,'session',0,{draft:'Complete unsent input',question_drafts:{question:'An unsent answer'}}));
+ (await f.stores[0]!.inputs.write(noEffect,'session',0,{draft:'Complete unsent input',question_drafts:{question:'An unsent answer'}}));
  (await f.stores[0]!.setRuntimeSession(noEffect,p,'session','source-only-sdk-session','2026-10-19T00:01:00Z'));
  (await f.stores[0]!.setState(noEffect,p,'session','running','2026-10-19T00:02:00Z'));
  (await f.stores[0]!.setBackground(noEffect,p,'session',[{task_id:'source-only-command',summary:'do not dispatch',started_at_ms:10}]));
@@ -49,7 +49,7 @@ test('S-116 PCSYNC-22/23 Coding saved metadata and complete plans travel through
  assert.equal(copied.title,'Saved session');assert.equal(copied.goal_id,'unresolved-goal');assert.equal(copied.state,'idle');assert.equal(copied.runtime_session_id,null);assert.equal(copied.runtime_id,'source-runtime','metadata keeps the declared Runtime instead of selecting an engine');
  assert.equal(f.stores[1]!.backgroundOf(p,'session'),null);assert.equal(f.stores[1]!.stepsOf(p,'session'),null);
  assert.equal(draft.source.task,'Original complete request');assert.equal(draft.source.workspace_path,'');assert.equal(draft.confirmed,null);assert.equal(draft.revision,1);
- assert.deepEqual(f.stores[1]!.inputs.read(p,'session'),{draft:'Complete unsent input',question_drafts:{question:'An unsent answer'},revision:1});
+ assert.deepEqual(f.stores[1]!.inputs.read('session'),{draft:'Complete unsent input',question_drafts:{question:'An unsent answer'},revision:1});
  assert.equal(f.replicas[1]!.next(),null);assert.deepEqual(f.replicas[1]!.conflicts(),[]);
  (await f.stores[0]!.setSteps(noEffect,p,'session',{mine:1,subtasks:0,unowned:0}));(await f.stores[0]!.setBackground(noEffect,p,'session',[]));
  (await f.stores[0]!.setState(noEffect,p,'session','done','2026-10-19T00:03:00Z'));
@@ -57,13 +57,13 @@ test('S-116 PCSYNC-22/23 Coding saved metadata and complete plans travel through
 });
 
 test('S-116 PCSYNC-12/22 saved input clocks reject old editors after adoption and accepted runs never clear newer typing',async t=>{
- const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.stores[0]!.inputs.write(noEffect,p,'session',0,{draft:'First input'}));f.send();
- (await f.stores[1]!.inputs.write(noEffect,p,'session',1,{draft:'My concurrent typing'}));(await f.stores[0]!.inputs.write(noEffect,p,'session',1,{draft:'Other device input',question_drafts:{q:'All answer text'}}));const event=f.send(2);
- f.replicas[1]!.resolve(event.key,'remote',2);assert.deepEqual(f.stores[1]!.inputs.read(p,'session'),{draft:'Other device input',question_drafts:{q:'All answer text'},revision:3});
- (await assert.rejects(async ()=>(await f.stores[1]!.inputs.write(noEffect,p,'session',2,{draft:'Stale text'})),{code:'coding.inputs_changed'}));
- const next=(await f.stores[1]!.inputs.write(noEffect,p,'session',3,{draft:'Typing after accepted run'}));assert.equal(next.revision,4);
- assert.equal((await f.stores[1]!.inputs.clearIfUnchanged(noEffect,p,'session',3)),false);assert.equal(f.stores[1]!.inputs.read(p,'session').draft,'Typing after accepted run');
- assert.equal((await f.stores[1]!.inputs.clearIfUnchanged(noEffect,p,'session',4)),true);assert.deepEqual(f.stores[1]!.inputs.read(p,'session'),{draft:'',question_drafts:{q:'All answer text'},revision:5});
+ const f=await fixture(t);(await f.create(0));(await f.stores[0]!.inputs.write(noEffect,'session',0,{draft:'First input'}));f.send();
+ (await f.stores[1]!.inputs.write(noEffect,'session',1,{draft:'My concurrent typing'}));(await f.stores[0]!.inputs.write(noEffect,'session',1,{draft:'Other device input',question_drafts:{q:'All answer text'}}));const event=f.send(2);
+ f.replicas[1]!.resolve(event.key,'remote',2);assert.deepEqual(f.stores[1]!.inputs.read('session'),{draft:'Other device input',question_drafts:{q:'All answer text'},revision:3});
+ (await assert.rejects(async ()=>(await f.stores[1]!.inputs.write(noEffect,'session',2,{draft:'Stale text'})),{code:'coding.inputs_changed'}));
+ const next=(await f.stores[1]!.inputs.write(noEffect,'session',3,{draft:'Typing after accepted run'}));assert.equal(next.revision,4);
+ assert.equal((await f.stores[1]!.inputs.clearIfUnchanged(noEffect,'session',3)),false);assert.equal(f.stores[1]!.inputs.read('session').draft,'Typing after accepted run');
+ assert.equal((await f.stores[1]!.inputs.clearIfUnchanged(noEffect,'session',4)),true);assert.deepEqual(f.stores[1]!.inputs.read('session'),{draft:'',question_drafts:{q:'All answer text'},revision:5});
 });
 
 test('S-116 PCSYNC-23 active or uncertain local execution blocks remote overwrite and explicit adoption, then preserves its local binding',async t=>{
@@ -103,7 +103,7 @@ test('S-116 PCSYNC-23 explicit conflict adoption still checks local execution an
 });
 
 test('S-116 PCSYNC-01/14 malformed Coding owner content cannot create a project, leak native fields or lower local counters',async t=>{
- const f=await fixture(t);(await f.create(0));(await f.plan(0));(await f.stores[0]!.inputs.write(noEffect,f.project.project_id,'session',0,{draft:'Complete saved input'}));const event={...f.replicas[0]!.next()!,revision:1};
+ const f=await fixture(t);(await f.create(0));(await f.plan(0));(await f.stores[0]!.inputs.write(noEffect,'session',0,{draft:'Complete saved input'}));const event={...f.replicas[0]!.next()!,revision:1};
  const previous=process.env.MOLIS_WORK_SYNC_ORIGIN;process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';
  t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_ORIGIN;else process.env.MOLIS_WORK_SYNC_ORIGIN=previous;});
  const collection=codingManifest.sync!.collections[0]!,selection={plugin_id:codingManifest.plugin_id,publisher_id:codingManifest.publisher.publisher_id,publisher_signature:codingManifest.publisher.signature,collection_id:collection.id,schema_version:collection.schema_version};
@@ -135,13 +135,13 @@ test('S-116 PCSYNC-01/14 malformed Coding owner content cannot create a project,
 });
 
 test('S-116 PCSYNC-06 late revocation rolls back imported rows and high-water marks together',async t=>{
- const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));(await f.stores[0]!.inputs.write(noEffect,p,'session',0,{draft:'Keep this input'}));f.send();const before=f.stores[1]!.plan(p,'session');
+ const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));(await f.stores[0]!.inputs.write(noEffect,'session',0,{draft:'Keep this input'}));f.send();const before=f.stores[1]!.plan(p,'session');
  (await f.stores[0]!.rename(noEffect,p,'session','Must roll back','2026-10-19T00:01:00Z'));const event={...f.replicas[0]!.next()!,revision:2};
  f.databases[1]!.db.function('revoke_coding_sync',()=>{f.revoke();return 1;});
  f.databases[1]!.db.exec('CREATE TRIGGER revoke_coding_import AFTER INSERT ON coding_sessions BEGIN SELECT revoke_coding_sync(); END;');
  assert.throws(()=>f.replicas[1]!.receive(event),/REVOKED/);f.allow();
  assert.equal(f.stores[1]!.get(p,'session').title,'Saved session');assert.deepEqual(f.stores[1]!.plan(p,'session'),before);assert.equal(f.stores[1]!.planRevision(p,'session'),1);
- assert.deepEqual(f.stores[1]!.inputs.read(p,'session'),{draft:'Keep this input',question_drafts:{},revision:1});
+ assert.deepEqual(f.stores[1]!.inputs.read('session'),{draft:'Keep this input',question_drafts:{},revision:1});
 });
 
 // PCSYNC-22/23: real SDK event ledgers, not fabricated session-view metadata.
@@ -159,9 +159,9 @@ test('canonical saved SDK conversations round-trip through the Coding owner with
   // Match the production start-round receipt (start-round.ts): acknowledge each accepted SDK run through its owner before observing termination.
   await f.stores[0]!.roundStarted(noEffect,p,'conversation',new Date().toISOString(),null);
   for(;;){const run=await adapter.read(handle.ref);if(['completed','failed','stopped','cancelled'].includes(run.phase)){assert.equal(run.phase,'completed');break;}assert.ok(Date.now()<deadline);await new Promise(resolve=>setTimeout(resolve,5));}
-  if(index===0){await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:01:00Z');await refreshCodingSavedHistory(f.owners[0]!.client,p,(_runtime,id)=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);f.send(++revision);assert.equal(f.replicas[0]!.counts().pending,0);}else{(await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:02:00Z'));assert.ok(f.replicas[0]!.counts().pending>0,'a newly completed SDK round protects the project until exported and acknowledged');}
+  if(index===0){await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:01:00Z');await refreshCodingSavedHistory(f.owners[0]!.client,(_runtime,id)=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);f.send(++revision);assert.equal(f.replicas[0]!.counts().pending,0);}else{(await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:02:00Z'));assert.ok(f.replicas[0]!.counts().pending>0,'a newly completed SDK round protects the project until exported and acknowledged');}
  }
- await refreshCodingSavedHistory(f.owners[0]!.client,p,(_runtime,id)=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);
+ await refreshCodingSavedHistory(f.owners[0]!.client,(_runtime,id)=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);
  assert.equal(calls,2,'exporting saved history must not call the model');
  const event=f.send(++revision),wire=JSON.stringify(event.value);assert.match(wire,/Original first request/);assert.match(wire,/后续问题/);assert.match(wire,/Actual SDK reply 2/);
  const target=f.stores[1]!.get(p,'conversation');assert.equal(target.runtime_session_id,null);assert.equal(target.state,'idle');
@@ -182,7 +182,7 @@ test('Coding history passes the stored Runtime identity and retains pending hist
  await f.stores[0]!.setRuntimeSession(noEffect,p,'session','same-session-id','2026-10-19T00:01:00Z');
  await f.stores[0]!.setState(noEffect,p,'session','done','2026-10-19T00:02:00Z');
  const calls:string[][]=[];
- await assert.rejects(refreshCodingSavedHistory(f.owners[0]!.client,p,async(runtime,id)=>{calls.push([runtime,id]);throw new Error('UNSUPPORTED_RUNTIME');},()=>{},readSavedAgentHistory),/UNSUPPORTED_RUNTIME/);
+ await assert.rejects(refreshCodingSavedHistory(f.owners[0]!.client,async(runtime,id)=>{calls.push([runtime,id]);throw new Error('UNSUPPORTED_RUNTIME');},()=>{},readSavedAgentHistory),/UNSUPPORTED_RUNTIME/);
  assert.deepEqual(calls,[['source-runtime','same-session-id']]);
  assert.deepEqual(f.stores[0]!.savedHistory(p,'session'),[]);
  assert.ok(f.replicas[0]!.counts().pending>0);

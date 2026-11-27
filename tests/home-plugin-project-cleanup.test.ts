@@ -4,26 +4,41 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { HomePluginHost, pluginPagesFor, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { HomePluginHost, PLATFORM_PLUGIN_REGISTRATIONS, pluginPagesFor, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 
+/** The shipped list, which a test extends the way `project-rows-deletion.test.ts` does (`shippedParts` reads it at each use). */
+type Shipped = (typeof PLATFORM_PLUGIN_REGISTRATIONS)[number];
+const shipped = () => PLATFORM_PLUGIN_REGISTRATIONS as Shipped[];
+
 // A Home plugin's part of deleting a project is what its Manifest declares (`databases.home.project_rows`, PG-024), deleted by the
 // platform: the plugin is called for none of it (PG-106). Its background work in the project is stopped by the platform (PG-038;
-// tests/security-invariants-plugin-background.test.ts). Work Brief's Home half is the shipped Home plugin whose library declares its rows
-// (Todo's library moved into each partition in batch 108, where deleting a partition deletes the file).
+// tests/security-invariants-plugin-background.test.ts). No shipped plugin keeps a Home library since Work Brief moved into partitions
+// (batch 109-1), where deleting a partition deletes the file; a Home probe declares the rows here until the Home runtime retires (109-3).
+
+const PROBE = homeProbe("cleanupprobe");
+const LIBRARY: HomePluginDatabaseDeclaration = { store_name: "cleanup-probe", version: 1, read_permission: "cleanupprobe:read", write_permission: "cleanupprobe:write",
+  schema: "CREATE TABLE brief_editor_versions (id TEXT NOT NULL, project_id TEXT NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (id, project_id));",
+  project_rows: { label: "Probe versions", order: 45, tables: [{ table: "brief_editor_versions", column: "project_id" }] } };
+const BASE = { project_plugin_id: "cleanup-probe", manifest: { ...PROBE.definition.manifest, databases: { home: LIBRARY } },
+  runtime: { create: (): PluginDefinition => ({ ...PROBE.definition, manifest: { ...PROBE.definition.manifest, databases: { home: LIBRARY } } }),
+    package_name: "@example/cleanup-probe", factory_export: "createCleanupProbe" } };
 
 function fixture(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "home-project-cleanup-"));
+  // The probe's Home library is registered the way a shipped one is: from the shipped list, which a test may extend (`shippedParts`).
+  const registration: Shipped = { ...BASE, package_name: BASE.runtime.package_name, catalog_order: Number.MAX_SAFE_INTEGER, workbench: { order: 0, contributions: [] },
+    manifest: { ...BASE.manifest, runtime: { scope: "home" } } };
+  shipped().push(registration);
+  t.after(() => { shipped().splice(shipped().indexOf(registration), 1); });
   pluginPagesFor(home); // Include the Host's page authority before comparing the plugin owner's lifecycle.
   const hooks = projectDeletedHooksFor(home), trace: string[] = [];
-  const base = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "work-brief");
-  const library = base?.manifest.databases?.home;
-  assert.ok(base?.runtime && library?.project_rows);
+  const base = BASE, library = LIBRARY;
+  assert.ok(library.project_rows);
   const ownerId = base.project_plugin_id, runtime = base.runtime;
   /** A batch of the project's in the plugin's own library, written beside the plugin's connection, and one of another project's. */
   const batches = (project: string) => {

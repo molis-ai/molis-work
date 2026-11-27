@@ -9,6 +9,8 @@ export interface GoldenWriteContext {
   readonly projectId: string;
   /** Differs between generating and replaying, so the same case makes a new record each time rather than a duplicate. */
   readonly tag: string;
+  /** The same calls in the person's own partition, the personal space (batch 109-1), for the libraries each partition keeps a copy of. */
+  readonly personal: Pick<GoldenWriteContext, "call" | "projectId">;
 }
 
 /** The first `key` anywhere in an answer: the owners wrap the record they return differently, and a write case only needs its id or revision. */

@@ -1132,8 +1132,8 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
       } finally { db.close(); }
     };
     const before = facts();
-    // Exactly the eleven: the fix takes them by declaration (databases.partition, no plugin names in platform source), so a later batch
-    // that moves another plugin to a partition library fails here and has to decide what this one-time fix does with it.
+    // Exactly the eleven: the fix takes them by their registrations' `formerly_personal` mark (no plugin names in platform source). Work
+    // Brief, which moved to a partition library in batch 109 but was a project plugin before, is not among them (user 2026-11-27).
     assert.deepEqual([...new Set((before.rows as { plugin_id: string; enabled_by: string }[])
       .filter(row => row.enabled_by === "upgrade:former-personal-plugins").map(row => row.plugin_id))].sort(), six,
       "the one-time fix writes exactly the eleven former personal plugins, nothing a later batch moved");

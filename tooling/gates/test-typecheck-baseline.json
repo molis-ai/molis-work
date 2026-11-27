@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 4062,
+  "total": 4060,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -415,7 +415,7 @@
     "tests/host-log-listeners.test.ts": 3,
     "tests/host-pages-error-model.test.ts": 1,
     "tests/host-ui-text.test.ts": 5,
-    "tests/hover-actions.e2e.test.ts": 20,
+    "tests/hover-actions.e2e.test.ts": 18,
     "tests/im-domain.test.ts": 2,
     "tests/images-client-bundle.test.ts": 1,
     "tests/images-service.test.ts": 2,

@@ -173,9 +173,6 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const children = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
     id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
-  const frameOwner = (id: string) => id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null";
-  const focusFrame = (id: string) => `(()=>{const owner=${frameOwner(id)};owner?.focus();
-    (owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]')?.focus();})()`;
   const childShown = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
     return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
   const found = new Map<string, string>(), cleared = new Set<string>();
@@ -184,6 +181,8 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
   // The workbench (with every plugin's styles), the component board and settings carry the three stylesheets.
   for (const path of ["/__ui/catalog", `/projects/${projectId}/settings`, `/projects/${projectId}/`, ...PLUGINS.map((id) => `/projects/${projectId}/?openPlugin=${id}`)]) {
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
+    // A tab another browser job put behind it runs no frames, and Workflows draws its editor in one.
+    await command("Page.bringToFront", {}, sessionId);
     await waitFor("document.readyState === 'complete'", 20_000);
     await pause(800);
     const name = new URL(path,origin).searchParams.get("openPlugin") ?? "";

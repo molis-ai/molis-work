@@ -10,7 +10,7 @@ import type { sceneReviewPage, renderSceneReview } from "./scene-review-view.js"
 export function sceneOnboarding(request: UiRequest, readStream: typeof readEventStream,
   words: (key: string, args?: Record<string, string | number>) => string, say: (ref: OwnedTextRef) => string, makePage: typeof sceneReviewPage, renderReview: typeof renderSceneReview,
   settingValues: typeof sceneSettingValues) {
-  const page = makePage(words, say, action, settingValues(words, request));
+  const page = makePage(words, say, action, settingValues(words));
   const { frame, project, error, t, button, pageUrl, sceneContext } = page;
   const api = (project ? "/projects/" + encodeURIComponent(project) : "") + "/api/blueprints/";
   const params = new URLSearchParams(location.search);

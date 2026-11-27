@@ -119,11 +119,11 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
     if (part.summary) main.append(node("p", name(part.summary)));
     const current = part.candidates.find(c => c.kind === "owner")?.current, details = node("dl");
     const key = part.proposal.kind === "setting" ? part.proposal.key : "";
-    field(details, t("current"), current?.state === "present" ? page.values.describe(key, current.value, part.model_selection) : current?.state === "unavailable" ? current.reason : t("unavailable"));
+    field(details, t("current"), current?.state === "present" ? page.values.describe(key, current.value) : current?.state === "unavailable" ? current.reason : t("unavailable"));
     if (current?.state === "present" && current.setting_source) field(details, t("source"), t(current.setting_source));
     if (current?.state === "present" && current.value_unavailable) field(details, t("status"), current.value_unavailable);
     if (part.decision === "reuse" || part.decision === "update") field(details, t("action"), t(part.decision));
-    if (part.proposal.kind === "setting") field(details, t("proposed"), page.values.describe(part.proposal.key, part.proposal.value, part.model_selection));
+    if (part.proposal.kind === "setting") field(details, t("proposed"), page.values.describe(part.proposal.key, part.proposal.value));
     field(details, t("scope"), t(part.device_only ? "device-only" : part.layer));
     for (const consequence of part.consequences) field(details, t("impact"), t(consequence));
     main.append(details);
@@ -133,10 +133,7 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
       const proposal = part.proposal, edit = node("details");
       const type = part.correction_type ?? typeof proposal.value;
       edit.append(node("summary", t("edit")));
-      if (part.model_selection) {
-        const save = button(t("refresh"), () => controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: selected() } }));
-        const selected = page.values.modelEditor(edit, proposal.value, save);
-      } else if (type === "boolean") {
+      if (type === "boolean") {
         const choice = page.values.options(t("proposed"), "scene-boolean",
           [true, false].map(value => ({ value: String(value), label: printable(value) })), String(proposal.value));
         const save = button(t("refresh"), () => controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: choice.value() === "true" } }));
@@ -183,7 +180,7 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
       if (step?.state === "skipped") row.append(node("p", t(step.reason)));
       if (step?.state === "pending_verification" && step.current)
         row.append(node("p", t(step.current === "owner_replaced" ? "pending-owner-replaced" : "pending-owner-unavailable")));
-      if (part.proposal.kind === "setting") row.append(node("p", t("proposed") + " · " + page.values.describe(part.proposal.key, part.proposal.value, part.model_selection)));
+      if (part.proposal.kind === "setting") row.append(node("p", t("proposed") + " · " + page.values.describe(part.proposal.key, part.proposal.value)));
       main.append(row);
     }
     if (targetProject && project !== targetProject && adopted) {

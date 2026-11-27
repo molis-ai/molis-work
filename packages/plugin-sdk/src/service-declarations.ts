@@ -1,16 +1,13 @@
 import { isRecord } from "./json-value.js";
-// The shape of a Manifest's `model_configuration`, `image_generation` (PG-102), `local_tools` (PG-112) and `runtime` (PG-011): the settings of
-// the model a plugin uses, the image connections it uses, the command-line tools it looks for and where it runs. Only the shape is checked here. Whether the Home's store registry holds the directory or namespace as
-// this plugin's own, and that the two settings actions are the plugin's own, is for the Host to check when it starts the plugin.
+// The shape of a Manifest's `image_generation` (PG-102), `local_tools` (PG-112) and `runtime` (PG-011):
+// the image connections a plugin uses, the command-line tools it looks for and where it runs. Only the shape is checked here. Whether the Home's store registry holds the directory or namespace as
+// this plugin's own is for the Host to check when it starts the plugin.
 // `parsePluginManifest` is the one caller.
 
 import { PLUGIN_LOCAL_TOOLS_LIMITS, PLUGIN_LOCAL_TOOLS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** The name a plugin's store goes by, the same rule as a library in the Home. */
 const STORE_NAME = /^[a-z][a-z0-9-]*$/u;
-const PREFERENCE_FILE = /^[a-z][a-z0-9-]*\.json$/u;
-const PROVIDER_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
-const MODEL_FIELDS = new Set(["key", "preference", "custom_provider", "actions"]);
 const LOCAL_TOOLS_FIELDS = new Set(["tools", "directories", "custom_executables"]);
 const LOCAL_TOOL_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 /** A bare file name: no separator, no leading dot, no spaces. */
@@ -19,34 +16,6 @@ const LOCAL_BINARY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 const LOCAL_DIRECTORY = /^(?:~\/|\/)[A-Za-z0-9._\/ -]{1,300}$/u;
 const RUNTIME_FIELDS = new Set(["scope", "dual_instance"]);
 const IMAGE_FIELDS = new Set(["store_name", "read_permission", "write_permission", "generate_permission"]);
-
-export function modelConfigurationDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
-  if (value === undefined) return [];
-  if (!isRecord(value)) return ["model_configuration 必须为对象"];
-  const problems: string[] = [];
-  const unknown = Object.keys(value).filter(field => !MODEL_FIELDS.has(field));
-  if (unknown.length > 0) problems.push(`model_configuration 不认这些字段：${unknown.join("、")}`);
-  const preference = value.preference, provider = value.custom_provider, actions = value.actions;
-  if (!isRecord(preference) || typeof preference.store_name !== "string" || !STORE_NAME.test(preference.store_name)
-    || typeof preference.file_name !== "string" || !PREFERENCE_FILE.test(preference.file_name)) {
-    problems.push("model_configuration.preference 必须写出库名（小写字母开头的普通名字）和单层的 JSON 文件名");
-  }
-  if (!isRecord(provider) || typeof provider.provider_id !== "string" || !PROVIDER_ID.test(provider.provider_id)
-    || typeof provider.display_name !== "string" || provider.display_name.trim().length === 0) {
-    problems.push("model_configuration.custom_provider 必须写出专用供应商的 ID 和显示名");
-  }
-  for (const kind of ["read", "save"] as const) {
-    const reference = isRecord(actions) ? actions[kind] : undefined;
-    if (!isRecord(reference) || typeof reference.capability_id !== "string" || !reference.capability_id
-      || typeof reference.version !== "number" || !Number.isSafeInteger(reference.version) || reference.version < 1) {
-      problems.push(`model_configuration.actions.${kind} 必须指向一个动作（capability_id 和正整数 version）`);
-    }
-  }
-  for (const permission of ["storage:private", "model:invoke"]) {
-    if (!permissions.has(permission)) problems.push(`model_configuration 需要这份 Manifest 在 permissions 里声明 ${permission}`);
-  }
-  return problems;
-}
 
 export function imageGenerationDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
   if (value === undefined) return [];

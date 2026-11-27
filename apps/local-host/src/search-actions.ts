@@ -94,11 +94,9 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     { ...searchActions.rebuild, handle: (caller, input) => service.rebuild(access(caller), input as SearchRebuildRequest) },
   ];
   // Project knowledge reads through this search, so it is registered and withdrawn with it (specs/project-knowledge).
-  // A partition plugin writes while its project is not open (batch 107/108): like the index, its knowledge then waits for the next
-  // search or listing there, which opens the project, instead of waking it.
   const ownerContext = async (projectId: string) => {
     const reference = ports.project(projectId);
-    if (!reference) throw new ActionError("search.project_closed", "项目未打开，稍后在该项目里搜索时再更新");
+    if (!reference) throw new ActionError("actions.scope_mismatch", "项目资料缺少当前项目运行环境");
     return ports.ownerContext(reference);
   };
   const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, index, clientFor, ownerContext, backgroundReady: projectId => Boolean(backgroundProject(projectId)), sessionLifecycle: ports.sessionLifecycle,

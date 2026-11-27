@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingInputs } from "../inputs.js";
 import { draftKey } from "./helpers.js";
-import { sessionPath, status } from "./request.js";
+import { sessionPath } from "./request.js";
 import { renderRuns } from "./runs.js";
 import type { Page } from "./page.js";
 
@@ -20,13 +20,12 @@ export function mountInputEditor(page: Page) {
     if (raw === null) return undefined;
     try {
       const value: unknown = JSON.parse(raw);
-      if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid");
-      return value as Record<string, unknown>;
+      if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
     } catch {
-      try { sessionStorage.removeItem(key); } catch { /* storage closed */ }
-      if (id === s.current) status(page, uiText.text("coding.input-editor.draft-unreadable"), true);
-      return undefined;
+      /* An unreadable draft is handled below, including malformed JSON. */
     }
+    // Stop the refresh before it can replace this window's draft with the server's copy.
+    throw new Error(uiText.text("coding.input-editor.draft-unreadable"));
   };
   refs.inputEditor = codingInputs({
     ...s.ports, root, path: sessionPath, storageKey: id => draftKey(page, id),

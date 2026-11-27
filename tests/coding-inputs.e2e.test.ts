@@ -95,5 +95,6 @@ test('Coding compares another writer against the original editor premise before 
  await reloadPage();await hostClick('[data-plugin-strip] [data-plugin-id="coding"]');await waitFor(`document.querySelector('[data-coding-session="${id}"]')`);
  await click(`[data-coding-session="${id}"]`);await waitFor("document.querySelector('[data-coding-status]').textContent.includes('原内容已保留')");
  assert.equal(await evaluate(`sessionStorage.getItem('molis-coding-draft:'+document.querySelector('[data-coding-workbench]').dataset.codingPrefix+':'+${JSON.stringify(id)}+':questions')`),'[]');
- assert.equal((await request()).draft,'own later input');
+ const afterReload=await request();
+ assert.equal(afterReload.draft,final.draft);assert.equal(afterReload.input_revision,final.input_revision);
 });

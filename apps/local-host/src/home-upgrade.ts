@@ -19,6 +19,7 @@ import {
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { diagnosticId } from "./home-unavailable-owners.js";
 import { shippedParts } from "./plugin-registry.js";
+import { homeStores } from "./home-stores.js";
 
 /** What this call did. Nothing to do reads `ran: false`; a store that failed is in `units`, not an exception (§5.2). */
 export interface HomeUpgradeReport {
@@ -390,10 +391,11 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
  * stops the Home's snapshot, so a round removes them before it lists the stores. A library each partition keeps (`databases.partition`)
  * has no top-level Home directory: one of its name is what an older Home kept before the plugin moved into the partitions (batch 108),
  * and it is not migrated but goes (user 2026-11-26, CONTRACT-CHANGES 「当前保留机制」). Read from the declarations, never a list of
- * plugins; a name a Home library still uses is never one of them.
+ * plugins; a name the Home still registers (any store's top-level directory, `homeStores()`) or a Home library still uses is never one of them.
  */
 export function removedHomeStores(): readonly string[] {
-  const home = new Set(shippedParts().flatMap(entry => entry.manifest.databases?.home?.store_name ?? []));
+  const home = new Set([...homeStores().stores.map(store => store.path.split("/")[0]!),
+    ...shippedParts().flatMap(entry => entry.manifest.databases?.home?.store_name ?? [])]);
   return [...new Set(shippedParts().flatMap(entry => entry.manifest.databases?.partition?.store_name ?? []))].filter(name => !home.has(name)).sort();
 }
 

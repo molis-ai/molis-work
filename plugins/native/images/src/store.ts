@@ -99,14 +99,14 @@ export class ImagesStore {
   }
 
   private jobFromRow(row: Row): ImageJob {
-  return {
-    id: String(row.id), project_id: this.partition, request_id: String(row.request_id),
-    connection_id: String(row.connection_id), connection_name: String(row.connection_name),
-    api_format: row.api_format as ImageJob["api_format"], model: String(row.model), prompt: String(row.prompt),
-    size: String(row.size), aspect_ratio: String(row.aspect_ratio), status: row.status as ImageJob["status"],
-    images: JSON.parse(String(row.images_json)) as GeneratedImage[], error: String(row.error),
-    created_at: String(row.created_at), finished_at: row.finished_at === null ? null : String(row.finished_at),
-  };
+    return {
+      id: String(row.id), project_id: this.partition, request_id: String(row.request_id),
+      connection_id: String(row.connection_id), connection_name: String(row.connection_name),
+      api_format: row.api_format as ImageJob["api_format"], model: String(row.model), prompt: String(row.prompt),
+      size: String(row.size), aspect_ratio: String(row.aspect_ratio), status: row.status as ImageJob["status"],
+      images: JSON.parse(String(row.images_json)) as GeneratedImage[], error: String(row.error),
+      created_at: String(row.created_at), finished_at: row.finished_at === null ? null : String(row.finished_at),
+    };
   }
 }
 

@@ -67,6 +67,8 @@ test("ASC-10 ASC-21: real model and image bindings are reported without keys, an
   // The image services are the person's own settings: the person's connections page reads where they are used; an Agent is given none.
   const scoped: ActionCallContext = { ...caller, actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id }, projectClient = home.host.actionClient(project.reference);
   const { connection } = await projectClient.invoke(scoped, imagesActions.saveConnection, input);
+  // Images' own reporter, read as the person: an image service names an account; its own id is not one, so no use is reported for it.
+  assert.deepEqual(await projectClient.invoke(scoped, imagesActions.connectionUsages, { connection_id: connection.id }), { usages: [] });
   const agent = await read(projectClient, first!.connection_id, { ...caller, project_id: project.project_id });
   assert.deepEqual(agent.usages, []); assert.equal(agent.issues.length, 1, "an Agent learns only that the use could not be read, not the person's services");
   const result = await read(projectClient, first!.connection_id, scoped), image = result.usages.find(usage => usage.usage_id === connection.id)!;

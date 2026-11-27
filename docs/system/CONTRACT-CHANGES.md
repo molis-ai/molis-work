@@ -172,7 +172,7 @@
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
-| 删掉第 108 批迁走的五个 Home 顶层库（用户 2026-11-26「直接删，不管存量」） | Todo、Jelly、Cognia、Images、Issues 搬进各分区自己的库后，旧 Home 还留着 `{home}/todo|jelly|cognia|images|issues/`；没有代码读它们，而 Home 快照遇到未登记的条目就拒绝（`host.home_snapshot.unknown_data`），备份与恢复会失败。升级过程在扫描各库前删掉这五个目录（`apps/local-host/src/home-upgrade.ts` 的 `removedHomeStores()`，按声明取：各分区库的库名，Home 仍在用的库名除外，不写插件名），不迁移、不读其中数据 | Home 升级链 owner；`tests/home-upgrade.test.ts`「SKL-41-2」证明；阶段二起点之前随下一次清理升级链移除 |
+| 删掉第 108 批迁走插件的 Home 顶层库（用户 2026-11-26「直接删，不管存量」） | Todo、Jelly、Cognia、Images、Issues 搬进各分区自己的库后，旧 Home 还留着 `{home}/todo|jelly|cognia|images|issues/`；没有代码读它们，而 Home 快照遇到未登记的条目就拒绝（`host.home_snapshot.unknown_data`），备份与恢复会失败。升级过程在扫描各库前删掉这些目录（`apps/local-host/src/home-upgrade.ts` 的 `removedHomeStores()`，按声明取：各分区库的库名，Home 仍登记的顶层目录与 Home 库名除外，不写插件名；所以不止这五个名字，以后迁进分区的插件同名顶层目录也会删），不迁移、不读其中数据 | Home 升级链 owner；`tests/home-upgrade.test.ts`「SKL-41-2」证明；阶段二起点之前随下一次清理升级链移除 |
 | 退役的 `materials/` Home 条目（第 112-1 批，用户 2026-11-26 选择） | 本机语音转写删除后没有代码创建或读写 `{home}/materials`；旧 Home 可能还留着 `materials/models/`。`homeStores()` 保留一条只排除、不建目录的登记（不随快照备份、恢复时重置、卸载时清除），只为让旧 Home 照常做快照，不读其中任何内容 | `apps/local-host`；第 90 批 v1 封板时删除 |
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |

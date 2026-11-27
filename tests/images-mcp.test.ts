@@ -31,7 +31,9 @@ test("Images standard MCP generates and retrieves real bytes, then preserves the
   // UPP-15 (batch 108): the image services are the person's settings. An MCP client generates with one, but neither reads nor changes them
   // (what an image configuration uses is reported to the person: ASC-10 in connector-consumer-usages).
   for (const [name, args] of [["connection.usages", { connection_id: connection.id }], ["connections.list", {}]] as const) {
-    assert.equal((await client.callTool({ name: `images.${name}__v1`, arguments: args })).isError, true, `${name} is the person's`);
+    const refused = await client.callTool({ name: `images.${name}__v1`, arguments: args }) as { isError?: boolean; content: Array<{ text: string }> };
+    assert.equal(refused.isError, true, `${name} is the person's`);
+    assert.equal(JSON.parse(refused.content[0]!.text).code, "actions.forbidden", `${name} is refused, not failed on its input`);
   }
 
   const { jobId, input, query, image } = await generate(client, connection.id);
@@ -41,6 +43,8 @@ test("Images standard MCP generates and retrieves real bytes, then preserves the
   assert.deepEqual(await call(restarted, "images.read", query), image);
   assert.equal(providerCalls(), 1);
   await call(restarted, "jobs.delete", { id: jobId });
-  assert.equal((await restarted.callTool({ name: "images.connections.delete__v1", arguments: { id: connection.id } })).isError, true, "an MCP client does not delete the person's service");
+  const deleted = await restarted.callTool({ name: "images.connections.delete__v1", arguments: { id: connection.id } }) as { isError?: boolean; content: Array<{ text: string }> };
+  assert.equal(deleted.isError, true, "an MCP client does not delete the person's service");
+  assert.equal(JSON.parse(deleted.content[0]!.text).code, "actions.forbidden", "the delete is refused, not failed");
   assert.deepEqual((await call<{ jobs: unknown[] }>(restarted, "jobs.list")).jobs, []);
 });

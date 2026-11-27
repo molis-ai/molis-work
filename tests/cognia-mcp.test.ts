@@ -9,6 +9,7 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 
+// Allow the loaded Linux shard time for two Homes and four real stdio connections.
 // RAC-105-A-16: the resident owns each Home while independent stdio clients exercise the real grants and persistence.
 test("standard Cognia MCP clients share real imports and fixed bytes, isolate Home/read grants, and resume after client restart", { timeout: 90_000 }, async t => {
   const homes = await Promise.all([openTestHome(t), openTestHome(t)]);

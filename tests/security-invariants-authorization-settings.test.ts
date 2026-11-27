@@ -35,7 +35,9 @@ test("H1: an old Assistant settings page cannot overwrite the person's newer con
 });
 
 test("H1: the unified settings gate keeps original MCP and Assistant tokens and reports a failed owner", { timeout: 50_000 }, async t => {
-  const f = await openTestHome(t), project = await f.createProject("Unified authorizations", ["todo"]);
+  const openedProjects: string[] = [];
+  const f = await openTestHome(t, { host: { onRuntimeOpen: ref => { openedProjects.push(ref.project_id); } } });
+  const project = await f.createProject("Unified authorizations", ["todo"]);
   const endpoint = "/api/settings/authorizations";
   const get = async <Output>(query: Record<string, string> = {}) => {
     return new Promise<Output>((resolve, reject) => {
@@ -63,13 +65,23 @@ test("H1: the unified settings gate keeps original MCP and Assistant tokens and 
   await f.web.post(capability, { ...action, expected: todo.expected, confirm_always: true });
   const grantPath = "/api/settings/mcp/actions";
   const granted = await f.web.post<{ generation: string }>(grantPath, { ...action, client_id: "runtime:test", project_id: project.project_id, enabled: true, expected: { expected_absent: true } });
-  const other = await f.createProject("Other project with its own grant", ["todo"]);
-  const otherCapabilities = await f.web.get<{ capabilities: typeof capabilities }>(`/projects/${other.project_id}/api/assistant/capabilities`);
-  const otherTodo = otherCapabilities.capabilities.find(item => item.capability_id === "todo.items.create")!;
-  await f.web.post(grantPath, { capability_id: otherTodo.capability_id, provider_id: otherTodo.provider_id, version: otherTodo.version,
-    client_id: "runtime:test", project_id: other.project_id, enabled: true, expected: { expected_absent: true } });
-  await f.host.closeProject(other.reference);
   // Todo is a partition plugin since batch 108: the MCP grant names the project its action runs in, and is listed there.
+  // B112-11: the same action has two independent grants. Looking up their names never opens the other project.
+  const other = await f.createProject("Sleeping authorization owner", ["todo"]);
+  const second = await f.web.post<{ generation: string }>(grantPath, { ...action, client_id: "runtime:test",
+    project_id: other.project_id, enabled: true, expected: { expected_absent: true } });
+  await f.host.closeProject(other.reference);
+  await f.host.closeProject(project.reference);
+  openedProjects.length = 0;
+  const filtered = await get<AuthorizationList>({ owner: "mcp-client", project: project.project_id });
+  assert.deepEqual(filtered.entries.map(row => row.expected), [granted.generation]);
+  assert.ok(!openedProjects.includes(other.project_id));
+  await f.host.closeProject(project.reference);
+  openedProjects.length = 0;
+  const across = await get<AuthorizationList>({ owner: "mcp-client" });
+  assert.deepEqual(across.entries.map(row => [row.project_id, row.title]).sort(),
+    [[project.project_id, "新建待办"], [other.project_id, "新建待办"]].sort());
+  assert.equal(openedProjects.length, 0);
   const listed = await get<AuthorizationList>({ project: project.project_id });
   const openProjects: LocalHostStatus["projects"] = f.host.projects();
   assert.ok(openProjects.every(row => row.project_id !== other.project_id), "listing one project leaves the other project closed");
@@ -85,6 +97,8 @@ test("H1: the unified settings gate keeps original MCP and Assistant tokens and 
   await assert.rejects(f.web.post(endpoint, { owner: entry.owner, id: entry.id, expected: entry.expected, kind: "revoke" }), { code: "actions.conflict" });
   const original = await f.web.get<{ grants: { enabled: boolean; generation: string }[] }>(grantPath + "?" + new URLSearchParams({ client_id: "runtime:test", project_id: project.project_id }));
   assert.deepEqual(original.grants.map(({ enabled, generation }) => [enabled, generation]), [[false, changed.expected]]);
+  const untouched = (await get<AuthorizationList>({ owner: "mcp-client" })).entries.find(row => row.project_id === other.project_id);
+  assert.deepEqual([untouched?.expected, untouched?.status, openedProjects.includes(other.project_id)], [second.generation, "active", false]);
   await writeFile(join(f.home, "config", "mcp-tools.json"), "{malformed");
   const partial = await get<AuthorizationList>();
   assert.ok(partial.entries.some(item => item.owner === "assistant-policy"));

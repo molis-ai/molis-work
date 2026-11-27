@@ -29,6 +29,8 @@
     "jelly.cap.item-subject-read.title": "予定の内容を読む",
     "jelly.cap.item-update.description": "単発の予定を変更、または完了にします",
     "jelly.cap.item-update.title": "予定を変更",
+    "jelly.cap.note-days.description": "指定した期間のうち、メモのある日を一覧にします",
+    "jelly.cap.note-days.title": "メモのある日を表示",
     "jelly.cap.note-delete.description": "メモを削除します（元に戻せます）",
     "jelly.cap.note-delete.title": "メモを削除",
     "jelly.cap.note-get.description": "メモの全文を読みます",
@@ -160,6 +162,7 @@
     "jelly.tone.purple": "紫",
     "jelly.tone.red": "赤",
     "jelly.tone.teal": "青緑",
+    "jelly.undo.partial": "{restored} 件を復元しました。後で変更された {skipped} 件はスキップしました。",
     "jelly.undo.changed": "元に戻せませんでした。削除後に変更されています"
   }
 }

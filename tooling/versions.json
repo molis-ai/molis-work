@@ -638,6 +638,7 @@
     "action.jelly.item.get": 1,
     "action.jelly.item.subject.read": 1,
     "action.jelly.item.update": 1,
+    "action.jelly.note.days": 1,
     "action.jelly.note.delete": 1,
     "action.jelly.note.get": 1,
     "action.jelly.note.list": 1,

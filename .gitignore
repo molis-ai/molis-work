@@ -52,7 +52,7 @@ apps/sync-worker/target/
 apps/sync-worker/.wrangler/
 apps/sync-worker/.dev.vars
 
-# Jelly's native helper build output (swift build; generated locally, not source).
+# Generated output left by builds preceding batch 112.
 /plugins/native/jelly/native/
 
 /secrets/

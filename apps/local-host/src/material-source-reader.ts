@@ -36,6 +36,7 @@ export const materialSourceErrors = defineErrorCodes("material.source", {
   cancelled: "cancelled",
   dns_unavailable: "invalid",
   domain_not_allowed: "forbidden",
+  subtitles_missing: "invalid",
   insufficient: "invalid",
   interrupted: "invalid",
   invalid_encoding: "invalid",

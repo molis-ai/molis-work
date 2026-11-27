@@ -57,10 +57,10 @@ test("S-upgrade-too-new-untouched: a plugin's model preference one version ahead
   const file = place(home, relative, { schema_version: versionAt("plugin-files/*/.model-settings/preference.json") + 1, provider_id: "later", model_id: "later" });
   // A sandbox plugin's declaration (apps/local-host/src/sandbox-model-settings.ts); Jelly's own was retired in batch 112-2.
   const configuration = createConsumerModelConfiguration(home, { preference: { store_name: folder, file_name: "preference.json" },
-    custom_provider: { provider_id: "probe-text", display_name: "探针模型" } });
+    reserved_provider_id: "probe-text" });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "还没有地址", token: "too-new-preference-fixture" }));
-  // The save that does the most before its file: a provider of the plugin's own, and the first address the connection is pinned to.
-  const save = () => configuration.save({ base_url: "https://unwritten.example/v1", model_id: "unwritten", connection_id: connection.connection_id });
+  // B112-09: the file gate refuses the write before resolving the selection.
+  const save = () => configuration.save({ provider_id: "existing", model_id: "unwritten" });
   for (const [contents, code] of [[null, "storage.store_too_new"], ["{", "storage.schema_version_mismatch"]] as const) {
     if (contents !== null) place(home, relative, contents);
     const before = sha256(file);

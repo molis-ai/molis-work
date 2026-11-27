@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, fork, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
@@ -163,9 +163,21 @@ function live(pid: number): boolean {
   catch { return false; }
 }
 
-function cpuTime(pid: number): number {
-  const parts = execFileSync("ps", ["-o", "time=", "-p", String(pid)], { encoding: "utf8" }).trim().split(":").map(Number);
-  return parts.reduce((total, part) => total * 60 + part, 0);
+function childCpuClock(pid: number): () => number {
+  if (process.platform === "linux") {
+    // procps displays whole seconds; this test waits for one tenth of a CPU second.
+    const ticksPerSecond = Number(execFileSync("getconf", ["CLK_TCK"], { encoding: "utf8" }));
+    return () => {
+      const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+      // After the parenthesized command name, fields start at 3. utime and stime are fields 14 and 15.
+      const fields = stat.slice(stat.lastIndexOf(")") + 2).split(/\s+/u);
+      return (Number(fields[11]) + Number(fields[12])) / ticksPerSecond;
+    };
+  }
+  return () => {
+    const parts = execFileSync("ps", ["-o", "time=", "-p", String(pid)], { encoding: "utf8" }).trim().split(":").map(Number);
+    return parts.reduce((total, part) => total * 60 + part, 0);
+  };
 }
 
 test("S-59 RAC-209 killing the Host during native SQL also ends its child and releases the write lock", { timeout: 15_000 }, async t => {
@@ -179,11 +191,11 @@ test("S-59 RAC-209 killing the Host during native SQL also ends its child and re
   parent.send({ file, manifest, sql: SLOW_WRITE });
   const [message] = await ready;
   pid = (message as { pid: number }).pid; assert.ok(pid);
-  const first = cpuTime(pid);
+  const cpuTime = childCpuClock(pid), first = cpuTime();
   parent.send("run");
   const warming = Date.now();
-  while (cpuTime(pid) < first + 0.1 && Date.now() - warming < 1000) await sleep(30);
-  assert.ok(cpuTime(pid) >= first + 0.1, "the statement is executing native SQL before the Host is killed");
+  while (cpuTime() < first + 0.1 && Date.now() - warming < 1000) await sleep(30);
+  assert.ok(cpuTime() >= first + 0.1, "the statement is executing native SQL before the Host is killed");
   const ended = once(parent, "exit"); parent.kill("SIGKILL"); await ended;
   const killed = Date.now();
   while (live(pid) && Date.now() - killed < 3000) await sleep(25);

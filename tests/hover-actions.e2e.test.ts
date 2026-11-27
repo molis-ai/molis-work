@@ -46,7 +46,6 @@ const WORKFLOW_TAP_TRACE = `
     window.removeEventListener(type, bubble); } return { before, events, after: snapshot() }; };
   }
 `;
-/** What a surface draws only with content: a Workflows chain of two stations, each with its tools. */
 /** Follow the real tab order from outside the frame to a row that exposes its actions on keyboard focus. */
 async function tabToRow(browser: Page, frame: Awaited<ReturnType<typeof pluginFrameBrowser>>, outer: string, index: number) {
   const outside = await browser.evaluate<boolean>(`(() => {
@@ -70,6 +69,7 @@ async function tabToRow(browser: Page, frame: Awaited<ReturnType<typeof pluginFr
   return "";
 }
 
+/** What a surface draws only with content: a Workflows chain of two stations, each with its tools. */
 async function prepare(name: string, { evaluate, waitFor }: Pick<Page,"evaluate"|"waitFor">) {
   if (name !== "workflows") return;
   await waitFor("document.querySelector('[data-wf-action=new]')", 15_000);
@@ -127,7 +127,7 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       const rowFrame = page !== browser && (name === "workflows" || name === "shelf");
       const how = rowFrame
         ? await tabToRow(browser, children[name]!, name === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : 'iframe[data-plugin-frame="workflows"]', item.index)
-        : await evaluate<string>(hoverFocus(item.index));
+        : page === browser ? await evaluate<string>(hoverFocus(item.index)) : await children[name]!.evaluate<string>(hoverFocus(item.index), undefined, "person");
       await pause(350);
       const alpha = await evaluate<number>(hoverShown(item.index));
       if (!how) found.push(`${name}: ${kind} "${item.name}" can't be reached by keyboard`);

@@ -24,6 +24,7 @@ import {
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { addProjectPlugin, isLocalHostHttpError, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { JELLY_ACTION_PERMISSIONS, JELLY_PLUGIN_ID, jellyActions } from "@molis-ai/molis-work-plugin-jelly";
 import { TODO_ACTION_PERMISSIONS, todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { homePackage, mac, person as installer, ref } from "./fixtures/home-sandbox.js";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
@@ -245,6 +246,29 @@ test("S-task-grant-subjects a task's grant subject is the Host's: no default act
     await assert.rejects(gateway!.invoke({ capability_id: notes.capability_id, version: 1, provider_id: a.providerId }, {}), { code: "mcp.action_revoked" });
   });
   assert.equal(w.reader.handled.length, 1, "the refused call did not run");
+});
+
+test("B112-13 the calendar task grant reads events while only the notes grant reads marked dates", { timeout: 120_000 }, async t => {
+  const w = await world(t), task = await w.open("Calendar and notes");
+  const project = task.project, date = "2026-09-07", range = { start: date, end: date };
+  await addProjectPlugin(w.served.web, project.project_id, "jelly");
+  await w.call(project, { ...w.person(project), permissions: JELLY_ACTION_PERMISSIONS }, jellyActions.saveNote, { body: "Pinned note", day: date });
+  const calendar = { capability_id: jellyActions.calendar.capability_id, version: jellyActions.calendar.version, provider_id: JELLY_PLUGIN_ID };
+  const days = { capability_id: jellyActions.noteDays.capability_id, version: jellyActions.noteDays.version, provider_id: JELLY_PLUGIN_ID };
+  await task.set("daily", [{ provider_id: JELLY_PLUGIN_ID, group_id: "calendar" }]);
+  await task.run({ grant_subject: "daily" }, async gateway => {
+    assert.ok(gateway);
+    const result = await gateway.invoke(calendar, range);
+    assert.ok(result && typeof result === "object");
+    assert.deepEqual(Object.keys(result).sort(), ["categories", "items"]);
+    await assert.rejects(gateway.invoke(days, range), { code: "mcp.action_revoked" });
+  });
+  await task.set("daily", [{ provider_id: JELLY_PLUGIN_ID, group_id: "notes" }]);
+  await task.run({ grant_subject: "daily" }, async gateway => {
+    assert.ok(gateway);
+    assert.deepEqual(await gateway.invoke(days, range), { days: [date] });
+    await assert.rejects(gateway.invoke(calendar, range), { code: "mcp.action_revoked" });
+  });
 });
 
 test("S-task-grant-subjects a task's grants are not the built-in Agent's or an MCP client's, and not another project's or installation's", { timeout: 120_000 }, async t => {

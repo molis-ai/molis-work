@@ -31,7 +31,7 @@ test("BL-491 RAC-2631 the derived names are 32 hex digits of the installation id
   const first = sandboxModelDeclaration("install-one"), second = sandboxModelDeclaration("install-two");
   assert.notEqual(first.preference.store_name, second.preference.store_name, "another installation reads another choice");
   assert.equal(first.preference.store_name, join("plugin-files", "install-one", ".model-settings"));
-  assert.equal(first.custom_provider.provider_id, sandboxProviderId("install-one"), "the choice and the provider id are keyed by the same installation id");
+  assert.equal(first.reserved_provider_id, sandboxProviderId("install-one"), "the choice and the provider id are keyed by the same installation id");
   assert.equal(reservedHomeName(sandboxImageNamespace(INSTALL)) && reservedHomeName(sandboxProviderId(INSTALL)) && !reservedHomeName("notes"), true);
 
   // The path that opens a library: the ledger's `holderOf` refuses the reserved prefixes.

@@ -1,10 +1,11 @@
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 import { HomePluginHost, LocalMcpServer, MolisWorkLocalHost, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
@@ -93,6 +94,7 @@ for (const revoke of [false, true]) {
     probe.behavior.work = async () => { entered.resolve(); await release.promise; return "MCP result"; };
     const f = await openTestHome(t, { host: { pluginFixtures: { home: [probe.definition] } } });
     await grantHomeProbe(f.host, probe);
+    await addProjectPlugin(f.web, PERSONAL_SPACE_PROJECT_ID, probe.id);
     const actor = "runtime:background-client";
     await f.grant(actor, null, [probe.start]);
     const { client, caller } = await f.mcp(actor, null);
@@ -187,7 +189,9 @@ for (const revoked of [false, true]) {
     const probe = backgroundProbe(), entered = deferred(), release = deferred();
     probe.behavior.work = async () => { entered.resolve(); await release.promise; return "after MCP close"; };
     const f = await openTestHome(t, { host: { pluginFixtures: { home: [probe.definition] } } });
-    await grantHomeProbe(f.host, probe); await f.grant("runtime:background-direct", null, [probe.start]);
+    await grantHomeProbe(f.host, probe);
+    await addProjectPlugin(f.web, PERSONAL_SPACE_PROJECT_ID, probe.id);
+    await f.grant("runtime:background-direct", null, [probe.start]);
     const server = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, { homeDirectory: f.home,
       runtimeContext: { runtime_id: "background-direct", stable_work_context_id: null, host_declares_stable: false } }, f.host);
     try {

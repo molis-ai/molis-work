@@ -9,9 +9,8 @@ export type StoredConnection = Pick<ImageConnection, "id" | "name" | "model" | "
 };
 
 /**
- * The person's image services follow the person, not the partition (specs/unified-partition-plugins §4.2 第 4 条, batch 108): one
- * `person_settings` key, kept in the Home for this installation and never synced (it names a connection of this machine). Every partition
- * Images is enabled in sees the same services; the jobs and pictures stay in each partition's own library.
+ * Service descriptions follow the person across devices. Pending account changes refer to local credentials and stay on this device.
+ * Every partition where Images is enabled sees the same services; jobs and pictures belong to that partition.
  */
 export const IMAGES_CONNECTIONS_SETTING = "connections";
 const LOCAL_CHANGES = "binding_changes";
@@ -88,7 +87,7 @@ export class ImagesConnections {
     const updates = [];
     if (JSON.stringify(record?.value) !== JSON.stringify({ services }))
       updates.push({ key: IMAGES_CONNECTIONS_SETTING, value: { services }, expected_revision: record?.revision ?? null });
-    if (Object.keys(changes).length || privateRecord)
+    if (JSON.stringify(privateRecord?.value ?? {}) !== JSON.stringify(changes))
       updates.push({ key: LOCAL_CHANGES, value: changes, expected_revision: privateRecord?.revision ?? null });
     this.settings.setMany(updates);
     this.list();

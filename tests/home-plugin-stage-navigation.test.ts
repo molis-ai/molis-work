@@ -242,6 +242,7 @@ test("RAC-2621.3 the framed page carries the Home page's policy and a project op
     const browser = await ChromeHarness.start(h.home.home, { executable: chrome });
     try {
       const page = await browser.page();
+      await page.viewport(1440, 900);
       const child = await pluginFrameBrowser(check, { sessionId: page.sessionId, command: browser.command.bind(browser),
         on: browser.on.bind(browser), evaluate: page.evaluate.bind(page) }, stage.surface);
       await page.command("Page.navigate", { url: `${h.home.origin}${h.projectPath}?openSurface=${encodeURIComponent(stage.surface)}` });
@@ -255,6 +256,13 @@ test("RAC-2621.3 the framed page carries the Home page's policy and a project op
       const openMembership = async () => {
         if (await page.evaluate("document.querySelector('[data-plugin-picker-toggle]')?.getAttribute('aria-expanded') !== 'true'")) await page.click("[data-plugin-picker-toggle]");
         if (!await page.evaluate(`${button}?.getClientRects().length`)) await page.click("[data-rail-tools-toggle]");
+        const point = await page.evaluate<{ x: number; y: number }>(`(() => {
+          const tile = ${button}.closest('[data-plugin-tile]');
+          tile.scrollIntoView({ block: 'center', behavior: 'instant' });
+          const { x, y, width, height } = tile.getBoundingClientRect();
+          return { x: x + width / 2, y: y + height / 2 };
+        })()`);
+        await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
       };
       await openMembership();
       await page.click(toggle);

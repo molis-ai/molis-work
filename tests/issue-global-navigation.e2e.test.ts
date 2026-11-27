@@ -69,20 +69,38 @@ async function beside(b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>,
   assert.equal(await v.ask("d.documentElement.scrollWidth <= d.documentElement.clientWidth"), true, `${name} panel content fits at ${width}`);
 }
 
-test("ISSUE-35 in a project the chord and the button summon Issue from the page and from inside other frames, and put it away from inside", { timeout: 120_000 }, async t => {
+test("ISSUE-35 UPP-30 the project chord requests personal membership before opening Issues and works inside other frames", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
   }); if (!b) return;
-  const v = await issueView(t, b, "issue-global-navigation");
+  const v = await issueView(t, b, "issue-global-navigation", { enablePersonal: false });
   const requests = captureRequests(b);
   await v.viewport(1440); await v.go(`/projects/${b.projectId}/?desktop=1`);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(entry)}).getAttribute('aria-keyshortcuts')`), "Meta+Shift+I");
   assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(entry)}).parentElement.title`), /Issue (⌘⇧I|Ctrl\+Shift\+I)/);
   await expectClosedCapture(b, requests);
   const url = await b.evaluate<string>("location.href");
-  await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
+  await v.chord(); await b.waitFor(open);
+  const documentInPanel = `document.querySelector(${JSON.stringify(ISSUE_FRAME)})?.contentDocument`;
+  const confirm = `${documentInPanel}?.querySelector('[data-side-enable-confirm]')`;
+  const hasIssues = async () => (await b.web.get<{ projects: Array<{ project_id: string; plugins: string[] }> }>("/api/settings/project-plugins"))
+    .projects.find(project => project.project_id === "personal")?.plugins.includes("issues");
+  await b.waitFor(confirm);
+  assert.equal(await hasIssues(), false);
+  await b.command("Network.enable", {}, b.sessionId);
+  await b.command("Network.setBlockedURLs", { urls: [b.origin + "/api/settings/projects/personal/plugins"] }, b.sessionId);
+  try {
+    await b.evaluate(`${confirm}.click()`);
+    await b.waitFor(`${documentInPanel}?.querySelector('[data-side-enable-error]:not([hidden])')?.textContent && !${confirm}.disabled`);
+    assert.equal(await hasIssues(), false, "a failed confirmation leaves the plugin disabled");
+  } finally {
+    await b.command("Network.setBlockedURLs", { urls: [] }, b.sessionId);
+  }
+  await b.evaluate(`${confirm}.click()`);
+  await composerFocused(t, b, v);
+  assert.equal(await hasIssues(), true, "retrying the confirmation enables Issues");
   // The chord opens the personal space's Issues wherever it is pressed (R14, batch 108).
-  assert.deepEqual(requests, ["/projects/personal/side/issues/capture"]);
+  assert.deepEqual(requests, ["/projects/personal/side/issues/capture", "/projects/personal/side/issues/capture"]);
   assert.equal(await b.evaluate("location.href"), url, "the work stays where it was");
   await beside(b, v, 1440, "project");
   // From inside the tool the chord puts it away and the keyboard goes back to the page.

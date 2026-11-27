@@ -142,11 +142,6 @@ export function projectFixtureEntries(homeDirectory: string | undefined): Plugin
   return pluginFixtureEntries(fixtureDeclarationsFor(homeDirectory, "project"));
 }
 
-/** The same Home's fixtures, for comparing the actual two start lists. */
-export function homeFixtureEntries(homeDirectory: string): PluginPlatformEntry[] {
-  return pluginFixtureEntries(fixtureDeclarationsFor(homeDirectory, "home"));
-}
-
 /** Pure projection for cross-scope declaration checks; unrelated execution checks stay at the original startup entry. */
 export function pluginFixtureDeclarations(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
   return fixtures.map(fixture => "manifest" in fixture ? { definition: fixture } : { ...fixture });

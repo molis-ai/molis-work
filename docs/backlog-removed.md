@@ -6,6 +6,10 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-delegated-overview-read、BL-overview-revoke-model-context | 已修复 | [B2R-01／02](../specs/b108-review-remediation/spec.md)覆盖插件转托、逐字段撤权及后续模型输入。 |
+| BL-due-delivery-after-listener | 已修复 | [B2R-03](../specs/b108-review-remediation/spec.md)覆盖助理写入失败、中断和重投。 |
+| BL-side-enable-browser-test | 已补浏览器回归 | [Issues 侧窗用例](../tests/issue-global-navigation.e2e.test.ts)覆盖确认前、失败重试和启用后的录入。 |
+| BL-g4-dormant-data-sample | 工程已验证，体验合并验收 | [20 项目实测](../tests/call-budget.test.ts)覆盖真实待办与全脏刷新，更新中界面进入[本人验收第八项](../specs/backlog/BL-b108-acceptance.md)。 |
 | BL-sdk-home-aggregate-query-export | 已完成并删除 | 2026-11-26：第 108 批（V17）删除首页聚合与 `home_aggregate` 标记，SDK 不再导出 `isHomeAggregateQuery`；接替它的 `isProjectReadQuery` 是项目面板与事项线（`horizontal/mainline`）共用的只读项目查询判定，随 SDK 根入口导出（[108](../specs/post-anticorruption-roadmap/reference/batches/108.md)） |
 | BL-jelly-command-readers | 已完成并删除 | 2026-11-26：它留着 Jelly 表驱动处理器的读值函数与 `store` 那层的 `as`，因为全部命令共用一个 `JellyCommand`（值是 `unknown`）。第 112-2 批删掉了 `JellyCommand` 与共用处理器，18 个动作各自由 schema 推导输入（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-closeout)，[#2338](https://github.com/molis-ai/molis-work/pull/2338)） |
 | BL-b36-review-followups | 已完成并删除 | 2026-11-26。主线按事项保存修订号，新事项从 1 起算。改名、转换及来源版本变化会更新读取修订号。空名字统一报错，重复完成保留排列版本，两处共用下一步合同。两处提供方身份已由 [44C #2333](https://github.com/molis-ai/molis-work/pull/2333) 统一。[事项合同](../specs/work-mainline/contract-design.md) |

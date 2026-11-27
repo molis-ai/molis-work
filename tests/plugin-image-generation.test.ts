@@ -182,12 +182,12 @@ test("ARF-4 an unfinished account switch or deletion survives restart and refuse
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   let failWrite = 0;
-  // The services follow the person (batch 108): each change to them is one write of Images' person setting, which fails here on cue.
+  // Fail one production transaction, including both the portable service and its device-local binding intent.
   const f = await imageRuntimeFixture(t, { context(context) {
     const settings = context.services!.personSettings!;
-    return { ...context, services: { ...context.services!, personSettings: { ...settings, set(key, value, options) {
+    return { ...context, services: { ...context.services!, personSettings: { ...settings, setMany(updates) {
       if (failWrite > 0 && --failWrite === 0) throw new Error("injected settings failure");
-      return settings.set(key, value, options);
+      return settings.setMany(updates);
     } } } };
   } });
   const account = (name: string) => withConnectorConnections(f.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: name + "-test-token" }).connection_id);

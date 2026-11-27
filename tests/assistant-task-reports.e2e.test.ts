@@ -43,11 +43,11 @@ test("RRC-01 RRC-02 WRB-01 WRB-02 WRB-04: two generations ending together in a p
   const browser = await sendBrowser(t); if (!browser) return;
   const { projectId, homeDirectory, web } = browser;
   assert.ok(projectId, "the journey has a project");
-  // Images is in both projects before their main conversations start, as it was when Images ran in the Home (adding it after: BL-task-report-plugin-added-later).
+  // Exercise both orders: an existing main conversation must notice a newly added provider.
+  const main = await mainConversation(browser, projectId);
   await withImages(browser, projectId);
   const other = (await createProject(web, "另一个项目")).project_id;
   await withImages(browser, other);
-  const main = await mainConversation(browser, projectId);
   const otherMain = await mainConversation(browser, other);
 
   endImages(homeDirectory, projectId, [{ id: "img-a", prompt: "海边的灯塔", status: "succeeded" }, { id: "img-b", prompt: "雪山日出", status: "failed" }]);

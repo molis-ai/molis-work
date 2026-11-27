@@ -16,7 +16,7 @@ import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 // 07-1 S4b removed the titlebar's and the arrival page's personal-tool slot, and with it `HomePluginHost.navigation()` and
 // `renderHomePluginNavigation`: a Home package is offered by the plugin directory the Host gives every page, as every plugin is, in the
-// switcher's 个人 group and ＋'s 「个人 · 所有项目共用」 (口径 9). The cases below read that directory instead.
+// switcher. Projects decide which installed Home packages appear alongside their own stages.
 
 /** The Home directory's entry for a plugin, or none. */
 const homeEntry = async (host: MolisWorkLocalHost, pluginId: string) => (await homePluginDirectory(host.homePlugins)).find(entry => entry.plugin_id === pluginId);
@@ -52,7 +52,7 @@ test("RAC-2682 a dual plugin is never offered as the person's own, whichever hal
   });
 });
 
-test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installation, and Home packages keep their personal directory entry and icon", () => {
+test("RAC-2620.1 SCS-11 installed stages defer the exact installation, and only enabled Home packages appear with their declared icon", () => {
   const pluginId = "studio.00000000-0000-4000-8000-000000000000";
   const installation = { scope: "project", install_id: "install", installation_generation: "generation", version: "1.0.0", manifest_digest: "digest" } as const;
   const stage = installedStageSection({ pluginId, surface: "app-b1", label: "Notes & <Tasks>", prefix: "/projects/p", installation });
@@ -62,12 +62,14 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
   assert.deepEqual(pluginDocuments(stage), [
     '<link rel="stylesheet" href="/assets/molis-work-plugins/installed-plugin.css"><main class="installed-plugin-page" data-installed-plugin="' + pluginId + '"></main>',
   ]);
-  // The Host's directory entries for two packages installed in the Home (marked personal and home) and one a project runs.
+  // Two packages installed in the Home and a third supplied by the project.
   const pkg = (id: string, name: string, marks: Partial<PluginDirectoryEntry>, glyph?: string): PluginDirectoryEntry => ({ id, plugin_id: id, name, chosen: false, ...marks,
     ui: { views: [{ view_id: "app", slot: "stage", title: name, ...glyph ? { icon: glyph } : {} }] } } as PluginDirectoryEntry);
   const notes = "com.example.notes", books = "com.example.books", local = "com.example.local";
   const directory = pluginDirectoryFor([pkg(notes, "Notes <1>", { home: true }), pkg(books, "Books", { home: true }, "book"), pkg(local, "Local", {})]);
-  const rail = railEntries([], directory), entry = (id: string) => rail.find(item => item.id === id);
+  const available = railEntries([], directory).map(item => item.id);
+  assert.ok(available.includes(local) && !available.includes(notes) && !available.includes(books));
+  const rail = railEntries([notes, books], directory), entry = (id: string) => rail.find(item => item.id === id);
   assert.deepEqual({ group: entry(notes)?.group, glyph: entry(notes)?.glyph, label: entry(notes)?.label, surface: entry(notes)?.surface },
     { group: null, glyph: "package", label: "Notes <1>", surface: notes }, "the default icon; the name is escaped where the switcher writes it");
   assert.deepEqual({ group: entry(books)?.group, glyph: entry(books)?.glyph }, { group: null, glyph: "book" }, "the icon the package picked");

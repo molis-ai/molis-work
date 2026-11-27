@@ -5,10 +5,9 @@ import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { assistantAuthority, assistantServiceFor, ensureSystemAgentService, LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
-import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -134,10 +133,15 @@ test("PSD-01 taking out any one built-in plugin leaves the Home page, the projec
     }
   }
   for (const clientId of [runtimeId, agentId]) await home.grant(clientId, project.project_id, [pagesActions.list, pagesActions.create]);
-  const agentCaller: ActionCallContext = { actor_id: "agent:prologue", actor_kind: "runtime", audience: "agent", project_id: project.project_id, permissions: [] };
+  const engine = ensureSystemAgentService(home.host, home.home);
+  const { store } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: engine.agentHost,
+    agentReady: () => engine.ready, projectTitle: async () => project.display_name, pages: enabled });
+  const work = store.create({ actor_id: person.actor_id, title: "Removal verification", origin: null,
+    scope: { kind: "project", project_id: project.project_id }, project_ref: project.reference });
   const callAsAgent = async (ref: { capability_id: string; provider_id: string; version: number }, args: object) => {
-    const auth = await authorizeMcpActions(home.host, agentCaller, home.home, project.reference);
-    return auth.service.invoke(auth.context, ref, args);
+    const authority = assistantAuthority(home.host, work, () => store.disabledActions(person.actor_id));
+    const actions = await authority.actions!("prologue");
+    return actions.invoke(ref, args);
   };
   const left: Record<string, string[]> = {}, back: Record<string, string[]> = {};
   for (const id of builtins) {

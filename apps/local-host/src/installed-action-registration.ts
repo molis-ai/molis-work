@@ -142,7 +142,7 @@ export function registerInstalledActions(definition: PluginDefinition, contribut
     const grants = dualBound ? dualBound.effectiveGrants() : record.grants;
     return operationGrantAvailability(release.design.contract, id, grants)
       ?? registration.handlers.find(item => item.capability_id === exposedActionId(release, id))?.availability?.(caller) ?? { available: true };
-  });
+  }, registration);
   const publish = () => { resolved = true; };
   // A disabled project package is still under its enable request. Ordinary starts, including a regrant's
   // start from installed, complete when their live catalog policies have been restored as usual.
@@ -150,17 +150,6 @@ export function registerInstalledActions(definition: PluginDefinition, contribut
   else {
     const refresh = exposed.refresh;
     exposed.refresh = policies => { const changed = refresh(policies); publish(); return changed; };
-  }
-  // Component operations have individual policies. The Runtime's scene handlers already carry the installation's grant checks.
-  if (registration.scenes?.length) {
-    const disposeOperations = exposed.dispose;
-    try {
-      const disposeScenes = actions.registry.registerProvider({ ...registration, definitions: [], handlers: [] });
-      exposed.dispose = () => { try { disposeScenes(); } finally { disposeOperations(); } };
-    } catch (error) {
-      disposeOperations();
-      throw error;
-    }
   }
   rememberInstalledExposure(actions, record, exposed);
   return exposed.dispose;

@@ -120,7 +120,10 @@ export const installedArtifacts = new InstalledArtifactDirectory();
 export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: PluginRuntime, alive: () => boolean): InstalledArtifactView {
   return {
     alive,
-    providerId: pluginId => { const install = supervisor.installation(pluginId); return install ? resolveActionProviderId(runtime.get(install.install_id)) : undefined; },
+    providerId: pluginId => {
+      const install = supervisor.installation(pluginId);
+      return install ? resolveActionProviderId(runtime.get(install.install_id)) : undefined;
+    },
     effectiveManifests: () => supervisor.enabledPluginIds().flatMap(pluginId => {
       const manifest = supervisor.manifest(pluginId);
       return manifest && supervisor.installation(pluginId) && (supervisor.state(pluginId)?.status ?? "running") === "running" ? [manifest] : [];

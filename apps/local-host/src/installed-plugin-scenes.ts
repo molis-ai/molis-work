@@ -11,7 +11,10 @@ export function installedPluginScene(scene: ActionSceneDefinition, context: Plug
   const conflict = () => new ActionError('actions.conflict', '这个场景的设置已经变化，请重新打开');
   return {
     scene_id: scene.scene_id, version: scene.version,
-    bindings: () => { const { binding } = current(); return binding ? [binding] : []; },
+    bindings: () => {
+      const { binding } = current();
+      return binding ? [binding] : [];
+    },
     targets: () => [{ binding_id: scene.scene_id, title: scene.title, revision: current().binding?.revision ?? null }],
     async bind(caller, binding, options) {
       if (!storage?.compareAndSet || binding.binding_id !== scene.scene_id || binding.scene_id !== scene.scene_id || binding.scene_version !== scene.version

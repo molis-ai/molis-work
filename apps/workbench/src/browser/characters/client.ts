@@ -132,8 +132,12 @@ class RolesPage {
       case "import": this.imports.open(false); return;
       case "add": void this.act(async () => {
         ui.add = !ui.add;
-        if (ui.add) { ui.templates = []; ui.templates = (await this.request<{ templates: SignedCharacterTemplate[] }>("GET", "/roles/templates")).templates; }
-      }, '[data-roles-act="add"]'); return;
+        if (ui.add) {
+          ui.templates = [];
+          ui.templates = (await this.request<{ templates: SignedCharacterTemplate[] }>("GET", "/roles/templates")).templates;
+        }
+      }, '[data-roles-act="add"]');
+      return;
       case "adopt-template": void this.act(async () => {
         const selected = ui.templates?.[Number(arg)];
         if (!selected) return;
@@ -142,8 +146,10 @@ class RolesPage {
         this.adoptionRequests.set(key, request_id);
         await this.request("POST", "/roles/templates/adopt", { install_id, generation, role_id, request_id });
         await this.load();
-        this.adoptionRequests.delete(key); ui.add = false;
-      }, '[data-roles-act="add"]'); return;
+        this.adoptionRequests.delete(key);
+        ui.add = false;
+      }, '[data-roles-act="add"]');
+      return;
       case "more": ui.menu = ui.menu === arg ? null : arg; this.render(ui.menu ? `#roles-menu-${CSS.escape(arg)} [role=menuitem]` : undefined); return;
       case "stop-ask": ui.menu = null; ui.stopAsk = arg; this.render(`#roles-stop-${CSS.escape(arg)}`); return;
       case "stop-cancel": ui.stopAsk = null; this.render(`[data-roles-act="more"][data-roles-arg="${CSS.escape(arg)}"]`); return;

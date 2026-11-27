@@ -95,7 +95,10 @@ function serviceRows(effects: DerivedEffects | undefined, shape = false): Array<
   if (effects.model?.includes('read') || effects.modelSettings?.includes('read')) add(MODEL_READ, '查看有哪些模型可用，不调用模型');
   if (effects.model?.includes('invoke')) add(MODEL_INVOKE, '调用你配置的模型');
   if (effects.modelSettings?.includes('save')) add(MODEL_INVOKE, '在你启用的模型里选一个给它用');
-  if (effects.scenes?.length) { add('scenes:use', '使用此插件的判断场景'); add(MODEL_INVOKE, '运行所选判断规则可能使用模型'); }
+  if (effects.scenes?.length) {
+    add('scenes:use', '使用此插件的判断场景');
+    add(MODEL_INVOKE, '运行所选判断规则可能使用模型');
+  }
   if (effects.artifacts?.includes('read')) add('artifact:read', '查看此插件已保存的成果版本');
   if (effects.artifacts?.includes('write')) add('artifact:write', '保存此插件声明的成果版本');
   const images = effects.imageGeneration;

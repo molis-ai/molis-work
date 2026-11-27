@@ -209,7 +209,10 @@ function roleHandlers(drafts: CharactersService, projectId: string, validate: Va
         request_id: input.request_id, template: { title: { literal: selected.name }, instructions: selected.body } };
       const problems = inspectCharacterTemplateAdoption(adopted);
       if (problems.length) throw characterErrors.invalid(problems.map(problem => problem.reason).join("；"));
-      return write(() => { selected.assertCurrent(); return roles.adopt(requireProject(projectId), adopted, content => drafts.insertSaved(content)); });
+      return write(() => {
+        selected.assertCurrent();
+        return roles.adopt(requireProject(projectId), adopted, content => drafts.insertSaved(content));
+      });
     },
     fromTemplate: async (input: CharacterTemplateAdoptionInput) => {
       const problems = inspectCharacterTemplateAdoption(input);

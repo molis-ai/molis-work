@@ -196,9 +196,16 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       };
       if (context.project_id && manifest.action_scenes?.length) contribution.action_scenes = manifest.action_scenes.map(scene => installedPluginScene(scene, context));
       if (owesSource && host.source) {
-        const live = () => { context.requireGrant('storage:private'); host.assertLive?.(identity); };
+        const live = () => {
+          context.requireGrant('storage:private');
+          host.assertLive?.(identity);
+        };
         contribution.home_source = host.source(release, context, live, async (id, input, control) => {
-          const beforeEffect = async () => { await control.beforeEffect?.(); control.signal?.throwIfAborted(); live(); };
+          const beforeEffect = async () => {
+            await control.beforeEffect?.();
+            control.signal?.throwIfAborted();
+            live();
+          };
           await beforeEffect();
           const pending = open('quick');
           try {

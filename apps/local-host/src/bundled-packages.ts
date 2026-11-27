@@ -72,7 +72,10 @@ export function releasePackages(directory: string, ids: ReadonlySet<string>, loc
 function readReleaseFile(file: string): string | undefined {
   let fd: number;
   try { fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw error; }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.size > MAX_PACKAGE_BYTES) throw pluginErrors.package_invalid('随包文件无效');

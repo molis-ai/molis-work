@@ -351,9 +351,12 @@ export class SandboxBroker {
     }
     switch (method) {
       case 'scenes.run': {
-        count(2); permit('scenes', string(0)); await context.beforeEffect?.();
+        count(2);
+        permit('scenes', string(0));
+        await context.beforeEffect?.();
         const result = this.services.scenes ? await this.services.scenes.run(context, string(0), args[1]!) : missing();
-        await context.beforeEffect?.(); return result;
+        await context.beforeEffect?.();
+        return result;
       }
       case 'artifacts.get': {
         count(1); permit('artifacts', 'read');

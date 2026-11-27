@@ -8,7 +8,7 @@ import { tryOwnedTextRef } from '@molis-ai/molis-work-plugin-sdk/ui';
  *
  * A call runs the installed operation in its sandbox, as the plugin, exactly like a click on its page.
  */
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ExactActionReference } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ActionProviderRegistration, type ExactActionReference } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { InstalledRelease as AgentRelease } from './installed-release.js';
 import { runInPluginAction, pluginActionBeforeEffect, reservePluginInvocationPlace, sandboxProviderId, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
@@ -98,8 +98,9 @@ export interface InstalledPluginActions {
 }
 
 export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: (context: ActionCallContext) => ActionAvailability, plugin?: PluginInstance,
-  operationAvailability?: (operationId: string, context: ActionCallContext) => ActionAvailability): InstalledPluginActions {
-  const providerId = sandboxProviderId(release.pluginId), title = release.design.title;
+  operationAvailability?: (operationId: string, context: ActionCallContext) => ActionAvailability,
+  redeemed?: Pick<ActionProviderRegistration, 'provider' | 'scenes' | 'scene_handlers'>): InstalledPluginActions {
+  const providerId = redeemed?.provider.provider_id ?? sandboxProviderId(release.pluginId), title = release.design.title;
   const upgradeOperation = sandboxUpgradeOperation(release.packaged?.manifest);
   const dualInstance = release.packaged?.manifest.runtime?.scope === 'home' && release.packaged.manifest.runtime.dual_instance === true;
   const halfScope: 'home' | 'project' = actions.project_id === null ? 'home' : 'project';
@@ -149,6 +150,8 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         list.push(item);
         groups.set(item.groupKey, list);
       }
+      // The scene bindings keep the Runtime's permission checks and live for the whole activation, independently of per-operation cost changes.
+      if (redeemed?.scenes?.length) groups.set('scenes', []);
       for (const [groupKey, groupItems] of groups) {
         const previous = registrations.get(groupKey);
         const groupPolicies = new Map<string, ExposedOperationPolicy>();
@@ -189,6 +192,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
           provider: { provider_id: providerId, title, ...(titleText ? { title_text: titleText } : {}), kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
           definitions: finalDefinitions,
           handlers: finalHandlers,
+          ...(groupKey === 'scenes' ? { scenes: redeemed!.scenes, scene_handlers: redeemed!.scene_handlers } : {}),
           ...(availability ? { availability } : {}),
         });
         registrations.set(groupKey, { binding, policies: groupPolicies, dispose: unregister });

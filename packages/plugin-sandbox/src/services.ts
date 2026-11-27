@@ -49,7 +49,8 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 function sandboxArtifacts(owner: NonNullable<PluginHostServices['artifacts']>): NonNullable<SandboxServices['artifacts']> {
   return {
     async get(context, reference) {
-      await context.beforeEffect?.(); context.signal.throwIfAborted();
+      await context.beforeEffect?.();
+      context.signal.throwIfAborted();
       const item = owner.readOwn(reference);
       return item ? { artifact_id: item.artifact_id, version: item.version, title: item.title, payload: item.payload } : null;
     },
@@ -62,7 +63,8 @@ function sandboxArtifacts(owner: NonNullable<PluginHostServices['artifacts']>): 
         || typeof value.subject.kind !== 'string' || typeof value.subject.id !== 'string' || !Object.hasOwn(value, 'payload')) {
         throw new SandboxError('sandbox.invalid_input', '保存成果需要声明的类型、原对象、版本和正文');
       }
-      await context.beforeEffect?.(); context.signal.throwIfAborted();
+      await context.beforeEffect?.();
+      context.signal.throwIfAborted();
       const { artifact, replayed } = owner.publish({ artifact_id: value.artifact_id, version: value.version,
         artifact_type_id: value.artifact_type_id, schema_version: value.schema_version, title: value.title, media_type: value.media_type,
         origin: { kind: 'pinned', subject: { kind: value.subject.kind, id: value.subject.id }, revision: value.revision },

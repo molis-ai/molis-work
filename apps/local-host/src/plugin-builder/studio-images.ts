@@ -50,7 +50,10 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
     const view = group.roles[role];
     if (view.provider.plugin_install_id !== owner.install_id || view.provider.provider_id !== owner.provider_id
       || (view.provider.project_id ?? null) !== (owner.scope === 'project' ? owner.project_id : null)) throw changed();
-    const check = () => { signal?.throwIfAborted(); assertOwner(owner); };
+    const check = () => {
+      signal?.throwIfAborted();
+      assertOwner(owner);
+    };
     check();
     const result = await actions.client.invoke({ ...person(view.action.permissions, signal), validate_authority: check, assert_authority_current: check },
       { capability_id: view.capability_id, version: view.version, provider_id: owner.provider_id }, input);
@@ -66,7 +69,11 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
       const owner = { ...installedStageIdentity(scope, record), provider_id: provider.provider_id, project_id: options.projectId, connection_id: '' };
       let listed: { connections: Service[] };
       try { listed = await invoke<{ connections: Service[] }>(group, 'services.list', {}, owner, signal); }
-      catch (error) { signal?.throwIfAborted(); if (!(error instanceof ActionError)) throw error; continue; }
+      catch (error) {
+        signal?.throwIfAborted();
+        if (!(error instanceof ActionError)) throw error;
+        continue;
+      }
       for (const connection of listed.connections.filter(item => item.available !== false)) {
         const binding = { ...owner, connection_id: connection.id };
         const key = createHash('sha256').update(JSON.stringify(binding)).digest('hex');
@@ -93,7 +100,10 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
   }
   const mockups: NonNullable<AgentBuilderPorts['mockups']> = {
     available: async () => Boolean(await choose().catch(() => undefined)),
-    async select(key) { for await (const item of choices()) if (item.key === key) return item.owner; throw changed(); },
+    async select(key) {
+      for await (const item of choices()) if (item.key === key) return item.owner;
+      throw changed();
+    },
     async draw(request, signal) {
       const previous = request.previous;
       const chosen = previous?.binding ? { group: await bound(previous.binding, signal), owner: previous.binding } : await choose(signal);

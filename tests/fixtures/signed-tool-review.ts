@@ -42,7 +42,7 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
     work = await current();
   }
   const review = work.reviews[0];
-  assert.ok(review, "the real Assistant must hold the proposal: " + JSON.stringify({ state: work.work.state, turn, readRule, rounds: work.rounds.slice(-1).map(round => round.round_id) }));
+  assert.ok(review, "the real Assistant must hold the proposal: " + JSON.stringify({ state: work.work.state, turn, readRule, rounds: work.rounds.slice(-1).map(round => round.run_id) }));
   assert.ok(readRule, "the scripted model received the signed scenario and instructions from the assistant's directory");
   const queue = ensureSystemAgentService(served.host, served.home).agentHost.reviews;
   const held = queue.list(project.project_id, "pending").find(item => item.review_id === review.review_id);

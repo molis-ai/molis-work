@@ -238,7 +238,7 @@ export class PartitionPluginHost {
       ? { title: row.fields.title } : null;
   }
 
-  /** The enabled plugins of a partition: every plugin this Host runs per partition that the partition reaches (lists, or did not hide). */
+  /** Resolve the enabled plugins through the membership policy for this partition. */
   private async members(partitionId: string): Promise<readonly string[]> {
     return partitionPluginMembers(this.home, partitionId, this.plugins());
   }

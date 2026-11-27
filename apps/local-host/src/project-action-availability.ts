@@ -84,7 +84,7 @@ export function pluginReachable(entry: { readonly project_plugin_id: string }, r
 }
 
 /**
- * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a personal Home plugin outside the build, the same
+ * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a registered Home plugin outside the build, the same
  * shape keyed by its plugin id. Anything else (a project's own Runtime plugin) is not the catalog's to judge.
  */
 export function reachEntry(homeDirectory: string | undefined, pluginId: string): ReachEntry | undefined {
@@ -112,7 +112,7 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
   const entryOf = (action: Pick<ActionView, "provider">) => {
     const entry = action.provider.plugin_id ? reachEntry(homeDirectory, action.provider.plugin_id) : undefined;
     // A Home plugin outside the build has no project half: a project's own provider under its id is another publisher's plugin (BL-586),
-    // whose grants are its own, not the Home one the project's list shows or hides.
+    // whose grants and membership are independent of the Home registration.
     return entry && !("manifest" in entry) && action.provider.project_id !== undefined ? undefined : entry;
   };
   const read = async (caller: ActionCallContext): Promise<ReadonlySet<string> | null> => {

@@ -175,7 +175,6 @@ export class GoalEventConcerns {
       if (
         decisionHasEffect(cited, "reject_concerns")
         || decisionHasEffect(cited, "deny_action")
-        || decisionHasEffect(cited, "reject_requirements")
       ) {
         throw goalErrors["goals.event_decision.invalid_effect"]("拒绝或驳回性质的决定不能用于解决或推翻 Concern");
       }

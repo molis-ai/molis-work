@@ -671,6 +671,7 @@ export function eventDocumentClient(host: EventDocumentHost) {
 
   return {
     dispose,
+    isDisposed: () => lifecycle.signal.aborted,
     openEventReader(name: string) { showForm(name); },
     bindGoalEventDocument(restore?: EventRestore | null) {
       const article = root();

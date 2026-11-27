@@ -208,6 +208,7 @@ export function goalsPageClient(host: PageHost) {
       }
       if (tracked.mounted) {
         activeCopies.delete(pane);
+        copiedDocuments.delete(pane);
         tracked.dispose();
       }
     }
@@ -223,11 +224,12 @@ export function goalsPageClient(host: PageHost) {
     copyObserver = new MutationObserver(pruneDisconnectedCopies);
     copyObserver.observe(container, { childList: true, subtree: true });
   };
-  const loadGoalDocumentInto = (targetPane: HTMLElement, goalId: string): Promise<boolean | null> => {
-    if (targetPane === documentPane) return loadGoalDocument(goalId);
+  const ensureCopiedDocument = (targetPane: HTMLElement) => {
     pruneDisconnectedCopies();
     let entry = copiedDocuments.get(targetPane);
-    if (!entry) {
+    let createdNow = false;
+    if (!entry || entry.events.isDisposed()) {
+      createdNow = true;
       let pendingRestore: EventRestore | null = null;
       const events = eventDocumentClient({
         documentPane: targetPane, route, isAbortError,
@@ -260,7 +262,23 @@ export function goalsPageClient(host: PageHost) {
       const tracked = activeCopies.get(targetPane);
       if (tracked) tracked.mounted = true;
     }
-    return entry.load(goalId);
+    return { entry, createdNow };
+  };
+  const ensureCopiedEventDocument = (targetPane: HTMLElement): void => {
+    if (targetPane === documentPane) return;
+    const { entry, createdNow } = ensureCopiedDocument(targetPane);
+    if (createdNow) entry.events.bindGoalEventDocument();
+  };
+  const bindCopiedEventDocument = (targetPane: HTMLElement): void => {
+    if (targetPane === documentPane) {
+      bindGoalEventDocument();
+      return;
+    }
+    ensureCopiedDocument(targetPane).entry.events.bindGoalEventDocument();
+  };
+  const loadGoalDocumentInto = (targetPane: HTMLElement, goalId: string): Promise<boolean | null> => {
+    if (targetPane === documentPane) return loadGoalDocument(goalId);
+    return ensureCopiedDocument(targetPane).entry.load(goalId);
   };
   const navigation = navigationClient({
     trashView, archiveView, documentPane,
@@ -278,7 +296,7 @@ export function goalsPageClient(host: PageHost) {
       restoreTreeCollapsed: tree.restoreTreeCollapsed, syncGoalCollectionFolds: tree.syncGoalCollectionFolds,
       setSelectedStatuses: tree.setSelectedStatuses, filterTree: tree.filterTree, selectTreeGoal: tree.selectTreeGoal,
       updateAllRelationFormPreviews: relation.updateAllRelationFormPreviews, bindGoalEventDocument: () => bindGoalEventDocument(),
-      bindCopiedEventDocument: (pane: HTMLElement) => copiedDocuments.get(pane)?.events.bindGoalEventDocument(),
+      bindCopiedEventDocument: (pane: HTMLElement) => bindCopiedEventDocument(pane),
       openEventReader, setGoalFactor,
     }),
   });
@@ -385,7 +403,7 @@ export function goalsPageClient(host: PageHost) {
   });
   return pageHooks({
     host, page, goalData, documentPane, treeScroll, collectionView, documentCollection, directGoalRequested, storageKey, goalMoveReceiptKey,
-    frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument, loadGoalDocumentInto,
+    frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument, loadGoalDocumentInto, ensureCopiedEventDocument,
     announceSelection, eventDocument, panels, dialogs, lifecycle, momentum, tree, relation, navigation, refresh,
   });
 }

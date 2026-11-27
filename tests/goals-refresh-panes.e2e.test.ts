@@ -71,7 +71,7 @@ test("QEA-113 split Goal documents follow actual pane visibility through focus, 
       field.dispatchEvent(new Event('input', { bubbles: true }));
     }
   })()`);
-  await b.waitFor(`${panes}[1].querySelector('[data-event-form="note"][data-live-dirty="true"]') != null`);
+  await b.waitFor(`${panes}[1].querySelector('[data-event-form="note"][data-live-dirty="true"]')?.hidden === false`);
   await mark();
   await add("SPLIT-DIRTY");
   await b.waitFor("Boolean(document.querySelector('.tree-node[data-select-goal=\"SPLIT-DIRTY\"]'))", 15_000);

@@ -15,7 +15,7 @@ for (const width of [1440, 390]) test(`SYS-15 Cognia ${width}px: directory previ
   const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }, undefined, undefined, { chooseDirectory: async prompt => { picks++; pickerPrompt = prompt ?? ""; return chosen ? { status: "picked", path: chosen } : { status: "cancelled" }; } }); if (!browser) return;
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "cognia");
-  const read = () => { const store = openCogniaStore(homeDirectory); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };
+  const read = () => { const store = openCogniaStore(homeDirectory, projectId!); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };
   const vault = join(homeDirectory, "chosen-vault"); await mkdir(vault); await writeFile(join(vault, "原始资料.md"), "# 原始资料\nORIGINAL_EVIDENCE\n<script>window.untrustedExecuted=true</script>");
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -50,7 +50,7 @@ for (const width of [1440, 390]) test(`SYS-15 Cognia ${width}px: directory previ
   await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-dialog]').open && document.querySelector('[data-cognia-heading]').textContent === '已核对的知识'");
   assert.equal(read().materials.length, 2); assert.ok(read().drafts[0]!.saved_id);
   // Another importer updates the current source while the saved knowledge still references v1.
-  const changed = openCogniaStore(homeDirectory);
+  const changed = openCogniaStore(homeDirectory, projectId!);
   try { changed.commit(changed.preview({ kind: "markdown", source_id: source.source_id, name: "same vault", locator: changed.sources().find(item => item.id === source.source_id)!.locator, files: [{ path: source.path, data: Buffer.from("# 原始资料\nUPDATED_EVIDENCE").toString("base64") }] }).id); } finally { changed.close(); }
   assert.equal(read().materials.length, 2); assert.equal(read().materials.find(item => item.id === source.id)!.revision, 2);
   await click('[data-cognia-reading] [data-cognia-action=reference]'); await waitFor("document.querySelector('[data-cognia-heading]').textContent === '原始资料'");
@@ -117,7 +117,7 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "cognia");
 
-  const read = () => { const store = openCogniaStore(homeDirectory); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };
+  const read = () => { const store = openCogniaStore(homeDirectory, projectId!); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const open = async () => {

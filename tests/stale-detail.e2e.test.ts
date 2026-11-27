@@ -27,7 +27,7 @@ const CASES: Case[] = [
   { plugin: "cognia", ready: "document.querySelectorAll('[data-cognia-id]').length >= 2", pick: (id) => `document.querySelector('[data-cognia-id="${id}"]').click()`,
     shown: "document.querySelector('[data-cognia-heading]').textContent", back: "document.querySelector('[data-cognia-action=back]').click()",
     closed: "document.querySelector('[data-cognia-workspace]').hidden", path: (id) => `*io.molis.work.cognia/library/materials/${id}`,
-    items: async ({ homeDirectory }) => { const store = openCogniaStore(homeDirectory); try { return ["甲资料", "乙资料"].map((title) => ({ id: store.createMaterial({ title, body: title + "的正文" }).id, title })); } finally { store.close(); } } },
+    items: async ({ homeDirectory, projectId }) => { const store = openCogniaStore(homeDirectory, projectId); try { return ["甲资料", "乙资料"].map((title) => ({ id: store.createMaterial({ title, body: title + "的正文" }).id, title })); } finally { store.close(); } } },
 ];
 
 for (const item of CASES) test(`VUX-31: ${item.plugin} shows what was picked last when an earlier pick answers late, and stays on the list after going back`, { timeout: 120_000 }, async (t) => {

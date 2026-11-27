@@ -219,8 +219,8 @@ async function seedMainProjectCases(
     .bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id })
     .record({ fact: "assistant.work", stage: "opportunity.prepared", outcome: "no_action", occurred_at: new Date().toISOString(), work: { work_ref: unexposedWorkRef } });
 
-  const createdTodo = await mainClient.invoke(todoActions.create, { title: "核对留存豁免快照", placement: "project" });
-  const otherTodo = await mainClient.invoke(todoActions.create, { title: "穿插支线记录", placement: "project" });
+  const createdTodo = await mainClient.invoke(todoActions.create, { title: "核对留存豁免快照" });
+  const otherTodo = await mainClient.invoke(todoActions.create, { title: "穿插支线记录" });
   const primaryWorkRef = "work-eval-primary";
   const secondaryWorkRef = "work-eval-secondary";
   assistantSink

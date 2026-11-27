@@ -7,7 +7,8 @@ import { join } from "node:path";
 import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, BUILTIN_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { acquireUpgradedHomeOwner, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer } from "./local-web-core.js";
@@ -17,6 +18,13 @@ import { boardSnapshot } from "./goal-application.js";
 const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
+/** A new Home's personal space starts with Schedule only (batch 108, decision 66): a journey that works there adds the plugin first, as the person does. */
+export async function enablePersonalPlugin(web: LocalHostHttpClient, pluginId: string): Promise<void> {
+  const { projects } = await web.get<{ projects: Array<{ project_id: string; plugins?: string[] }> }>("/api/settings/project-plugins");
+  if (projects.find(project => project.project_id === PERSONAL_SPACE_PROJECT_ID)?.plugins?.includes(pluginId)) return;
+  await addProjectPlugin(web, PERSONAL_SPACE_PROJECT_ID, pluginId);
+}
+
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
   webOptions: Pick<WebServerOptions, "chooseDirectory"> & { prepareHome?: (homeDirectory: string) => void | Promise<void>; projectPlugins?: readonly string[] } = {},

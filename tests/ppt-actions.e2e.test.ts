@@ -129,7 +129,7 @@ test("F-plugins-rest-w2-13: a delayed PPT autosave after placement move does not
     const original = window.molisWorkRequest;
     window.molisWorkRequest = Object.assign(async (url, init) => {
       const response = await original(url, init);
-      const path = new URL(url, location.origin).pathname;
+      const path = new URL(url, ${JSON.stringify(origin)}).pathname;
       if (init?.method === "POST" && path.endsWith("/ppt/${deckA.id}") && !window.heldPptSave) {
         window.heldPptSave = true;
         await new Promise(resolve => { window.releasePptMoveSave = resolve; });

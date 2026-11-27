@@ -80,7 +80,8 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   await expectClosedCapture(b, requests);
   const url = await b.evaluate<string>("location.href");
   await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
-  assert.deepEqual(requests, [`/projects/${b.projectId}/side/issues/capture`]);
+  // The chord opens the personal space's Issues wherever it is pressed (R14, batch 108).
+  assert.deepEqual(requests, ["/projects/personal/side/issues/capture"]);
   assert.equal(await b.evaluate("location.href"), url, "the work stays where it was");
   await beside(b, v, 1440, "project");
   // From inside the tool the chord puts it away and the keyboard goes back to the page.
@@ -118,7 +119,7 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   await v.viewport(1440);
   await b.click("[data-layout-open]"); await b.click("[data-layout-action=side]"); await b.waitFor(closed);
   const title = "Cold-open destination", description = "Issue selected before the panel document loads";
-  const record = await v.api<{ id: string }>("/api/plugins/io.molis.work.issues/create", { title, description, type: "bug" });
+  const record = await v.api<{ id: string }>("/projects/personal/api/plugins/io.molis.work.issues/create", { title, description, type: "bug" });
   await v.go(`/projects/${b.projectId}/?desktop=1`);
   await b.waitFor(closed);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).getAttribute('src')`), null);
@@ -136,12 +137,12 @@ test("ISSUE-31 ISSUE-35 on Home the draft survives closing and a full navigation
   await v.go("/onboarding");
   await expectClosedCapture(b, requests);
   await b.click(entry); await composerFocused(t, b, v);
-  assert.deepEqual(requests, ["/plugins/issues?side=capture"]);
+  assert.deepEqual(requests, ["/projects/personal/side/issues/capture"]);
   requests.length = 0;
   await v.go("/");
   await expectClosedCapture(b, requests);
   await b.click(entry); await b.waitFor(open); await composerFocused(t, b, v);
-  assert.deepEqual(requests, ["/plugins/issues?side=capture"]);
+  assert.deepEqual(requests, ["/projects/personal/side/issues/capture"]);
   await beside(b, v, 1440, "home");
   await v.type("首页写到一半，");
   await v.escape(); await b.waitFor(closed);

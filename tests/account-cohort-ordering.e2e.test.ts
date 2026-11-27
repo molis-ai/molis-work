@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {openGoalBrowser} from './fixtures/goal-browser.js';
+import {personalIssues} from './fixtures/issue-browser.js';
 
 for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed start ${delivery} cannot revive an old preparation or cancel a newer one`, {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
   const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
   await setViewport(1280,900);
+  // The side view below is the personal space's Issues, which the person has added there (batch 108: nothing is added on its own).
+  await personalIssues(browser);
   // Exercise the real bundled account controller; only HTTP/SSE delivery ordering is controlled here.
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window),Source=window.EventSource;

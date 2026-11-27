@@ -26,7 +26,7 @@ export async function exerciseReview(t: TestContext, served: Awaited<ReturnType<
       return response("change-capability", { ...ref, input });
     }
     return response();
-  });
+  }, served.withCatalog);
   await served.grant("agent:prologue", project.project_id, [view]);
   const page = await browser.page();
   await page.command("Page.navigate", { url: served.origin + "/projects/" + project.project_id + "/" });

@@ -403,6 +403,9 @@ const pages: Record<string, Draw> = {
 // Batch 108 (#2348): the Issues side capture lives in the personal space, so the 16 page-* records' side tab names
 // `/projects/personal/side/issues/capture` instead of the project's (+2 each). Token-diffed against a draw of the code before batch 108:
 // that address is the only batch 108 change; re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset.
+// B2R-08 (#2358, base 8a47e73f): the personal Todo disclosure and the declared planning group change the 16 full pages
+// (+666 zh / +694 en). Compared with the rendered base, Lingguang, Todo, Jelly and Cognia retain their original tiles.
+// The remaining page markup and all 36 fragment and settings records match the base byte for byte.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

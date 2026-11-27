@@ -27,7 +27,7 @@ W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍
 
 ## 2. 总览
 
-Home 里有 46 种 SQLite 文件：权威库 42 种（Home 级 35 种，按分区 7 种：分区主库，和第 107 批起从 Home 级搬到每个分区的 6 种分区独立库）、派生库 1 种、锁库 3 种。42 种权威库按版本方案分：
+Home 里有 46 种 SQLite 文件。42 种权威库中，30 种按 Home 保存，12 种按分区保存（分区主库及 11 种插件独立库）。其余为 1 种派生库和 3 种锁库。
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
@@ -87,11 +87,11 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 
 各库的表（除注明的外都归该库的 owner）：assistant（12 张，2026-11-19 v1 复位移除死表 `assistant_jobs`）：`assistant_works`、`assistant_rounds`、`assistant_cards`、`assistant_settings`、`assistant_notices`、`assistant_followups`、`assistant_undos`、`assistant_usage`、`assistant_unsettled`、`assistant_observed`、`assistant_requests`，以及来自 `modules/context-ledger` 的 `context_edges`（`apps/local-host/src/assistant/assistant-store.ts:63` 把 `CONTEXT_LEDGER_SCHEMA` 拼进基线）。memory：`memory_revisions`、`memory_candidates`、`memory_changes`、`memory_prefs`、`memory_signal_events`、`memory_uses`、`memory_owners`、`memory_pairs`、`memory_markers`。placement：`context_edges`（来自 `modules/context-ledger`）、`placement_titles`。agent-definitions：`prompt_overrides`、`prompt_history`、`prompt_uses`、`skill_settings`、`skill_uses`、`skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage`。agent-declarations：`install_declarations`。connectors：`connector_connections`、`connector_bindings`、`connector_connection_targets`、`connector_protocols`、`connector_authorization_sessions` 归 `horizontal/connector-host`，`connector_authorization_results` 由宿主定义（`apps/local-host/src/connectors-store.ts:9-12`）。context-onboarding：`journeys`。web-search：`web_search_default`、`web_search_last_use`。blueprints：`blueprint_drafts`、`adoptions`、`adoption_steps`。functions：`functions`、`function_judgments`、`function_scene_bindings`。characters：`character_drafts`、`character_runs`（原生执行记录：谁、哪个项目、哪个版本、任务、目录、是否派发成功；不存终端输出）、`character_versions`、`character_origins`、`character_members`、`character_member_versions`、`character_defaults`、`character_adoptions`。mainline：`mainline_items`、`mainline_arrangements`、`mainline_holds`。home-pages：`home_selections`、`home_page_versions`、`home_page_blobs`、`home_page_approvals`、`home_page_receipts`、`home_page_pruned`。observation：`records`、`evidence_blobs`、`record_evidence`、`coverage`、`coverage_gaps`、`report_quota`、`writer_state`、`evaluation_holds`、`evaluation_hold_records`。evaluation：`evaluation_samples`、`evaluation_runs`、`evaluation_reviews`。external-sessions：`external_sessions`、`session_directories`、`session_sources`、`session_read_scopes`、`session_project_ai_reads`、`session_attributions`、`session_suggestions`、`session_meta`。due-registry：`due_entries`、`due_done`。evidence：`evidence_holds`。person-settings：`person_settings`、`person_settings_replica_state`、`person_settings_replica_changes`、`person_settings_replica_heads`、`person_settings_replica_outbox`、`person_settings_replica_conflicts`、`person_settings_replica_resolutions`。sync：`sync_policy`、`sync_partition_cursors`、`sync_blob_parts`、`sync_payload_modes`、`sync_blob_uploads`、`sync_stream_cursors`、`sync_failures`。
 
-### 3.3 个人插件库（Home 级，`{home}/<名>/<名>.db`）
+### 3.3 Home 级插件库
 
 路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts`），目录权限 0700、文件 0600。备份都是必备份，卸载都是 purge（每个库都登记在 `homeStores()`，由它的 owner 声明：插件的 `<插件>_HOME_STORE`，经插件自己 `registration` 的 `home_store` 带进登记（目录由 `registration` 生成）；插件的库是它 Manifest 的 `databases.home`，登记从 Manifest 推出）。项目里或 Home 里的 Runtime 插件在 Manifest 里声明的库（`databases.home`，PG-022；W3-06 D），必须是登记里**这个插件自己**的库、基线与声明相同（`apps/local-host/src/plugin-database-entries.ts`）：宿主、模块或别的插件的库，以及登记里不是库的条目，都拒绝；测试夹具的库按夹具自己的 id 登记，不能占用已登记的名字（`apps/local-host/src/home-side.ts`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。旧 Home 的 `lingguang/` 目录里历史曾留有 `imports/`（见 6.2）；音视频转写模型缓存曾于第 44 批迁至独立平台目录 `materials/models/`，第 112 批删除本机语音转写后不再使用。
 
-**按项目分开的库**：原先 Home 库按项目分开的复用器（`databases.home` 的 `partition: "project"`）已随第 107 批删除；每个分区自己一份的库现在是分区独立库（`databases.partition`，见 3.1）。Pages、PPT、Form、Dataset、灵光、Workflows 第 107 批从这一节搬到 3.1，开发前阶段不迁移旧开发库，旧开发 Home 直接删除并干净重建。
+Pages、PPT、Form、Dataset、灵光、Workflows 在第 107 批改用分区独立库。Todo、Jelly、Cognia、Images、Issues 在第 108 批改用同一机制。两批插件都按 `databases.partition` 在启用的分区内读写，路径见本页 §3.1。以下两种库仍按 Home 登记。
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |

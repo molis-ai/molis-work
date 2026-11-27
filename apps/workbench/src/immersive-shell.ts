@@ -70,11 +70,7 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[]) {
   }));
 }
 
-/**
- * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
- * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
- * specs/archive/plugin-e2e-review/spec.md §3.1.
- */
+/** The Host names these navigation groups. A view declares its group independently of the partition where it is enabled. */
 const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "workbench.immersive-shell.advance", make: "workbench.immersive-shell.write-make", personal: "workbench.immersive-shell.personal", code: "workbench.immersive-shell.coding" };
 const RAIL_HOME_HINT = "workbench.immersive-shell.today-s-work-day-s-events-things-hand";
 

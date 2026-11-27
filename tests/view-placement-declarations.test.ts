@@ -213,7 +213,7 @@ test("RAC-75 W5-06-PLACE-01 every bundled Manifest's placement declarations pass
 // ---- the rail -----------------------------------------------------------------------------------------------------------
 
 const PROJECT = "project-view-placement";
-const HEADINGS: Readonly<Record<(typeof UI_VIEW_GROUPS)[number], string>> = { advance: "推进", make: "写与做", personal: "个人", code: "编码" };
+const HEADINGS: Readonly<Record<(typeof UI_VIEW_GROUPS)[number], string>> = { advance: "推进", make: "写与做", personal: "计划与整理", code: "编码" };
 const BACKBONE = new Set(["goals", "inbox", "feed", "sessions"]);
 
 function projectView(enabled: readonly string[]): MolisWorkWebView {
@@ -267,7 +267,7 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   assert.deepEqual(members(bare, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
   assert.equal(bare.some(section => section.heading === "研究"), false, "the 研究 group left with the old Alchemist (44B): no view names it");
   assert.deepEqual(members(bare, "编码"), ["coding"]);
-  for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, "个人").includes(id), `${id} names 个人 and is not marked the person's own: under 更多`);
+  for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, HEADINGS.personal).includes(id), `${id} declares the planning group in this project`);
   // Files, the former example, is retired (batch 06); Diff's view names no group either.
   assert.equal(declaredGroups.get("diff"), null, "Diff's rail view names no group");
   assert.ok(members(bare, "更多").includes("diff"), "a plugin whose view names no group is under 更多");

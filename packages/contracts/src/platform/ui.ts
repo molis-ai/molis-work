@@ -215,9 +215,8 @@ export const UI_VIEW_SLOTS = ["navigator", "stage", "settings", "island", "side"
 export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 
 /**
- * The rail's groups, in the order the shell lists them. They read as what a person wants to do, not as kinds of software
- * (specs/archive/plugin-e2e-review §3.1): 推进, 写与做, 个人, 研究, 编码. The Host owns their names and their order; a view
- * that opens its plugin from the rail names the group it belongs to, and one that names none is listed under 更多.
+ * The rail lists functional groups in this order. The Host supplies their labels. Views for planning and organizing
+ * can declare `personal` in any partition. A view that omits its group is listed under 更多.
  */
 export const UI_VIEW_GROUPS = ["advance", "make", "personal", "code"] as const;
 

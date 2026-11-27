@@ -126,11 +126,12 @@ function plusRow(_readText: Say, pid: PluginId, where = "", warn = false): strin
 }
 
 function plusMenu(readText: Say, id: string, hidden = false, wrong = false): string {
-  const label = (text: string, items: string) => renderMenuGroup({ label: text, items });
+  const plugins = plusRow(readText, "roadmap", uiText.text("workbench.navigation-specimens.pane")) + plusRow(readText, "notebook", uiText.text("workbench.navigation-specimens.pane"))
+    + plusRow(readText, "workshop") + plusRow(readText, "talk", uiText.text("workbench.navigation-specimens.right"))
+    + plusRow(readText, "agenda") + plusRow(readText, "checklist") + plusRow(readText, "reader") + (wrong ? plusRow(readText, "receipts", "", true) : "");
   return `<div class="mw-menu tab-menu" id="${id}" data-nav-popover${hidden ? " hidden" : ""}>${find(uiText.text("workbench.navigation-specimens.find-plugin-tab-just-closed"))}<div role="menu" aria-label="${escapeHtml(uiText.text("common.control.open"))}">`
-    + label(uiText.text("workbench.navigation-specimens.project"), plusRow(readText, "roadmap", uiText.text("workbench.navigation-specimens.pane")) + plusRow(readText, "notebook", uiText.text("workbench.navigation-specimens.pane")) + plusRow(readText, "workshop") + plusRow(readText, "talk", uiText.text("workbench.navigation-specimens.right")))
-    + label(uiText.text("workbench.navigation-specimens.personal-every-project"), plusRow(readText, "agenda") + plusRow(readText, "checklist") + plusRow(readText, "reader") + (wrong ? plusRow(readText, "receipts", "", true) : ""))
-    + label(uiText.text("workbench.navigation-specimens.recently-closed"), renderMenuItem({ label: sample(readText).feed1, iconName: "rss", shortcut: "⌘⇧T", attrs: { style: hueVars(P.digest.hue) } }))
+    + renderMenuGroup({ items: plugins })
+    + renderMenuGroup({ label: uiText.text("workbench.navigation-specimens.recently-closed"), items: renderMenuItem({ label: sample(readText).feed1, iconName: "rss", shortcut: "⌘⇧T", attrs: { style: hueVars(P.digest.hue) } }) })
     + `</div><p class="tab-menu-foot" aria-hidden="true">${escapeHtml(uiText.text("workbench.navigation-specimens.opens-here-opens-beside"))}</p></div>`;
 }
 

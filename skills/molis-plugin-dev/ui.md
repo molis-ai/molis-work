@@ -63,7 +63,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 - 声明：`ui.views` 里写 `{ view_id, slot: "side", title, contribution_id, icon }`；contribution 的 surface 目标是 `workbench.side`（格式 `declarative-html`）。插件在项目里启用才出现，停用或卸载就撤下，不留空标签。
 - Host 在 `/projects/<id>/side/<project_plugin_id>/<view_id>` 用独立文档渲染它，侧栏用同源 iframe 装载：引用工作台同一份样式表（随页面缓存，插件在舞台上怎样显示，这里就怎样显示），并运行插件的 `clientFactory`（多一个 `side: true`）。contribution 收到的 model 只有位置：`{ project_id, route_prefix, view_id }`，数据仍经插件自己的动作与路由读取。
-- 复用舞台外壳（`renderPluginStageShell`）没问题：外壳默认 `hidden`，侧栏文档作为宿主会在挂载客户端前显示它。个人插件（不按项目存的，如灵光）同样出现。
+- 侧栏可以复用舞台外壳（`renderPluginStageShell`）。外壳默认 `hidden`，侧栏文档在挂载客户端前显示它。灵光等分区插件使用当前分区的实例。
 - Home Runtime 插件的侧栏使用 `/plugins/<project_plugin_id>?side=<view_id>`，仅接受 Manifest 声明的 `side` 视图，并从正在运行的 contribution 渲染。首页和项目共用同一 Home 实例；首页侧栏只放 Home 工具。客户端同样收到 `side: true`，可决定初次进入时的内容，不决定侧栏位置。
 - 位置、宽度、打开与收起归 Host：插件不能自己定位、不能改侧栏尺寸，也不能借侧栏拿到别的权限。要让侧栏切到自己的标签，页面发 `molis:side-open { tab: "plugin", view: "<project_plugin_id>/<view_id>" }`（同源 iframe 用 `postMessage` 同名消息）。
 - 只想让侧栏的“文件”标签列出你的文件，不需要 `side` 视图：声明一个文件来源即可，见 [files.md](files.md)。

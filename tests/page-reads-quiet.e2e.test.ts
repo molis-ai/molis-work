@@ -177,6 +177,7 @@ test("07-2a N54 WLN-27: a stream of what waits on the person that never answers 
 test("07-2a N53 request counts: loading the chooser and a project page, switching a tab and opening the side", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, click, origin, projectId } = browser;
+  await browser.setViewport(1440, 900);
   // N53 measures an already-read Home. Wait for the chooser's cross-project index to finish its first refresh (G4).
   await t.waitFor(async () => {
     const { background_tasks } = await browser.web.get<{ background_tasks: { updating?: boolean } }>(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/attention?view=home`);
@@ -212,7 +213,8 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals` }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelectorAll('[data-titlebar-tabs] .tab-item').length >= 2", 30_000); await settle();
   phase = "tab";
-  await click("[data-titlebar-tabs] .tab-item:not([aria-current]) .tab-item-trigger");
+  await click('[data-titlebar-tabs] .tab-item[data-tab-kind="plugin"][data-plugin="todo"] .tab-item-trigger');
+  await waitFor("document.body.dataset.desktopSurface === 'todo'");
   await settle();
   phase = "side";
   await click("[data-side-tabs] [data-side-tab][aria-selected=true]");

@@ -249,7 +249,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 | --- | --- |
 | Goal、注意事项、Feed 消息 | 分别归 Goals 插件、Attention 服务和 Feed 插件。其他调用方走各自公开 API，见[事实归属表](../../docs/SSOT-MATRIX.md)。 |
 | 供人留存或引用的固定版本、导入文件 | 成果库（Artifact）。交给其他插件继续处理的数据用 Manifest 的 `process_items.produces` 声明。 |
-| 本机文档、问卷、数据表、灵光 | 各插件的 Home 数据库，按项目隔离。当前库名、路径及例外见[个人插件库](../../docs/system/HOME-DATA.md#33-个人插件库home-级home名名db)。 |
+| 本机文档、问卷、数据表、灵光，以及 Todo、Jelly、Cognia、Images、Issues | 插件声明 `databases.partition`，宿主打开当前分区 `libraries/` 下的库。路径见[项目、会话与目录](../../docs/system/HOME-DATA.md#31-项目会话与目录)，示例见[分区存储](partitions.md)。 |
 | 个人置物架的材料副本与任务 | 平台部件 `modules/shelf` 拥有 Home 下的 `shelf/catalog.json`、`files/` 和 `jobs/`，经[文件客户端](../../modules/shelf/src/surface/owner-files.ts)读写。 |
 | 凭据 | secret 引用 |
 | 给别的插件的瞬时协调 | 事件总线（仅经 Plugin Runtime 启动的插件，≤16 KiB） |

@@ -1,5 +1,6 @@
 import { refreshedOverview } from "./fixtures/overview-read.js";
 import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { readFileSync } from "node:fs";
@@ -250,7 +251,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   const withFew = await overviewCounts();
   // Seed the real owner databases while the projects sleep. Bringing up 19 workbenches just to
   // arrange the sample dominated this read-budget test on Linux runners.
-  await home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home.home }, async catalog => {
+  await home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home.home }, async (catalog: MolisWorkProjectCatalog) => {
     for (let index = 0; index < 19; index++) {
       const { project_id } = await catalog.createProject({ display_name: `Dormant ${index}`, actor_id: overviewPerson.actor_id });
       catalog.addProjectPlugin({ project_id, plugin_id: "todo", actor_id: overviewPerson.actor_id });

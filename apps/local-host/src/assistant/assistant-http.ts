@@ -143,8 +143,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   if (existing && existing.home === ports.homeDirectory) return existing;
   const store = ports.localHost.assistantStore?.();
   if (!store) throw assistantErrors.executor_unavailable("宿主未装配助理工作存储");
-  const { personContext, personClient, personBound } = assistantPersonActions(ports.localHost, (reference, decision) =>
-    localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS, decision?.signal, decision));
+  const currentPersonContext = (reference: LocalHostProjectReference | undefined, decision?: AssistantPersonDecision) =>
+    localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS, decision?.signal, decision);
+  const { personContext, personClient, personBound } = assistantPersonActions(ports.localHost, currentPersonContext);
   const definitions = () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations);
   // The shared Skill catalog, read as the person for an Assistant round: the Host's own entry freezes what the person named (§2.3).
   const skillReader = async (reference: LocalHostProjectReference | undefined, named: readonly SkillRef[]) => {
@@ -260,7 +261,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   });
   // A plugin can join after the conversation started. Read the task providers with the person's current grants on each table read.
   const taskTable = personTaskTable(ports.projectReference, reference => ({
-    invoke: async (action, input) => ports.localHost.actionClient(reference).invoke(await ports.localHost.localPersonContext(reference), action, input),
+    invoke: async (action, input) => ports.localHost.actionClient(reference).invoke(await currentPersonContext(reference), action, input),
   }));
   const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports: watchTaskReports(ports, taskTable, service.reports) };
   services.set(ports.localHost, entry);

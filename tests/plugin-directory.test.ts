@@ -374,7 +374,7 @@ test("RAC-607 the rail lists an installed plugin under the group its view names,
   const html = renderMolisWorkWeb(view([installed("makes", { group: "make" }, "Makes"), installed("plain", {}, "Plain")]));
   const sections = railSections(html);
   // B2: the rail groups come from the views of the enabled plugins.
-  const headings = ["推进", "写与做", "个人", "编码"].slice(0, UI_VIEW_GROUPS.length);
+  const headings = ["推进", "写与做", "计划与整理", "编码"].slice(0, UI_VIEW_GROUPS.length);
   assert.deepEqual(sections.map(section => section.heading), [...headings, "更多"]);
   assert.equal(headingOf(html, "makes"), "写与做");
   assert.equal(headingOf(html, "plain"), "更多");
@@ -382,7 +382,7 @@ test("RAC-607 the rail lists an installed plugin under the group its view names,
   const marked = renderMolisWorkWeb(view([own, installed("named", { group: "personal" }, "Named")]));
   assert.deepEqual(railSections(marked).map(section => section.heading), [...headings, "更多"]);
   assert.equal(headingOf(marked, "own"), "写与做", "a Home installation keeps its declared group");
-  assert.equal(headingOf(marked, "named"), "个人", "the navigator uses the declared 个人 group");
+  assert.equal(headingOf(marked, "named"), "计划与整理", "the navigator uses its declared planning group within the project");
   assert.match(html, /data-plugin-tile="makes"[^>]*>[^]*?data-plugin-id="makes"/u, "it opens its own surface");
   assert.doesNotMatch(html, /data-plugin-toggle="makes"/u, "taking it out is not this list's");
   assert.deepEqual(railSections(renderMolisWorkWeb(view([installed("order-a", { order: 5 }), installed("order-b", { order: 1 })]))).find(s => s.heading === "更多")!.tiles.filter(id => id.startsWith("order-")),

@@ -160,6 +160,7 @@
     "jelly.tone.purple": "Purple",
     "jelly.tone.red": "Red",
     "jelly.tone.teal": "Teal",
+    "jelly.undo.partial": "Restored {restored}. Skipped {skipped} because they changed afterwards.",
     "jelly.undo.changed": "Couldn’t undo: it was changed after it was deleted"
   }
 }

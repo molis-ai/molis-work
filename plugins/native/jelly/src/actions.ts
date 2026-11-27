@@ -23,16 +23,18 @@ const changed = (key: "item" | "series" | "note") => ({ result_subject: { id: `$
 const expected = { expected_revision: s.revision } as const;
 export type JellyRestoreRows = { categories?: JellyCategory[]; items?: JellyItem[]; series?: JellySeries[]; notes?: JellyNote[] };
 
+type RestoreInput = JellyRestoreRows & { series_modified?: boolean };
+
 export const jellyActions = {
-  calendar: define<{ categories: JellyCategory[]; items: JellyOccurrence[] }>()("calendar.list", /* @version action.jelly.calendar.list */ 1, "读取日历",
-    "按日期范围（含两端，最长 400 天）展开单次日程和每一次重复日程，各带自己的 revision；附全部分类。重复日程的一次的 id 是「系列 id@原日期」", "query", JELLY_ITEM_SUBJECT_KIND,
-    object({ start: s.date, end: s.date }), object({ categories: array(s.category), items: array(s.occurrence) })),
+  calendar: define<{ categories: JellyCategory[]; items: JellyOccurrence[]; note_days: string[] }>()("calendar.list", /* @version action.jelly.calendar.list */ 1, "读取日历",
+    "按日期范围（含两端，最长 400 天）展开单次日程和每一次重复日程，各带自己的 revision；附全部分类及区间内有随手记的日期。重复日程的一次的 id 是「系列 id@原日期」", "query", JELLY_ITEM_SUBJECT_KIND,
+    object({ start: s.date, end: s.date }), object({ categories: array(s.category), items: array(s.occurrence), note_days: array(s.date) })),
   item: define<{ item?: JellyItem; series?: JellySeries }>()("item.get", /* @version action.jelly.item.get */ 1, "读取一条日程",
     "按 id 读取单次日程（item）或重复系列及其规则（series）；传重复日程某一次的 id 时读它所属的系列", "query", JELLY_ITEM_SUBJECT_KIND,
     object({ id: s.id }), object({ item: s.item, series: s.series }, [])),
   notes: define<{ notes: Array<Pick<JellyNote, "id" | "title" | "day" | "revision" | "updated_at"> & { excerpt: string }> }>()("note.list", /* @version action.jelly.note.list */ 1, "列出随手记",
     "列出随手记（最近改过的在前，最多 500 篇），可只看某一天的（day）、没挂日期的（day 为 null）或含某段文字的（query）；只给开头一段，正文用 jelly.note.get 读", "query", JELLY_NOTE_SUBJECT_KIND,
-    object({ day: nullable(s.date), query: s.text }, []), object({ notes: array(s.noteSummary) })),
+    object({ day: nullable(s.date), query: s.text, limit: { type: "integer", minimum: 1, maximum: 500 } }, []), object({ notes: array(s.noteSummary) })),
   note: define<{ note: JellyNote }>()("note.get", /* @version action.jelly.note.get */ 1, "读取一篇随手记", "按 id 读取一篇随手记的全文（纯文本或 Markdown）与 revision", "query", JELLY_NOTE_SUBJECT_KIND,
     object({ id: s.id }), object({ note: s.note })),
 
@@ -48,9 +50,9 @@ export const jellyActions = {
   updateSeries: define<{ series: JellySeries; ended: JellySeries | null }>()("series.update", /* @version action.jelly.series.update */ 1, "修改重复日程",
     "按读到的 revision 修改重复日程的某一次（original_date）：只这一次、这次和以后（拆出新系列，结果是新系列，ended 是到前一天为止的原系列）或整个系列；只标完成时只能是这一次", "command", JELLY_ITEM_SUBJECT_KIND,
     object({ id: s.id, ...expected, original_date: s.date, scope: s.scope, patch: s.seriesPatch }), object({ series: s.series, ended: nullable(s.series) }), changed("series")),
-  deleteSeries: define<{ series: JellySeries | null; restore: JellyRestoreRows }>()("series.delete", /* @version action.jelly.series.delete */ 1, "删除重复日程",
+  deleteSeries: define<{ series: JellySeries | null; restore: RestoreInput }>()("series.delete", /* @version action.jelly.series.delete */ 1, "删除重复日程",
     "按读到的 revision 删除重复日程的某一次、这次和以后或整个系列；series 是删后剩下的系列（全删了是 null）；可用 jelly.restore 撤销", "command", JELLY_ITEM_SUBJECT_KIND,
-    object({ id: s.id, ...expected, original_date: s.date, scope: s.scope }), object({ series: nullable(s.series), restore: s.rows }), { effect: "write", undo: restoreUndo }),
+    object({ id: s.id, ...expected, original_date: s.date, scope: s.scope }), object({ series: nullable(s.series), restore: s.restoreInput }), { effect: "write", undo: restoreUndo }),
   saveCategory: define<{ category: JellyCategory }>()("category.save", /* @version action.jelly.category.save */ 1, "新建或修改分类",
     "不带 id 或 id 不存在时新建（要名字，expected_revision 填 0）；改已有分类要带读到的 revision，可改名字、颜色（#RRGGBB）和排序。「未分类」只能改颜色", "command", JELLY_CATEGORY_SUBJECT_KIND,
     object({ id: s.id, name: { type: "string", minLength: 1, maxLength: 100, pattern: "\\S" }, color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }, sort_index: s.revision, ...expected }, []), object({ category: s.category })),
@@ -64,7 +66,7 @@ export const jellyActions = {
     object({ id: s.id, ...expected }), object({ restore: s.rows }), { effect: "write", undo: restoreUndo }),
   restore: define<{ rows: Required<JellyRestoreRows>; skipped: string[] }>()("restore", /* @version action.jelly.restore */ 1, "撤销删除",
     "把删除命令返回的 restore 原样传入，放回删除或移动前的行；只放回已经不在、或仍是删除命令留下样子的行。之后又被改过的行不放回，id 列在 skipped 里；「未分类」不经这里改", "command", JELLY_ITEM_SUBJECT_KIND,
-    object({ rows: s.rows }), object({ rows: s.rows, skipped: array(s.id) }), { effect: "write" }),
+    object({ rows: s.restoreInput }), object({ rows: s.rows, skipped: array(s.id) }), { effect: "write" }),
 };
 export const JELLY_ACTIONS: readonly ActionDefinition[] = [...Object.values(jellyActions), ...Object.values(jellySearchActions), ...Object.values(jellyContentActions)];
 export const JELLY_ACTION_PERMISSIONS = [...new Set(JELLY_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -89,14 +91,14 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
     return stores.write(caller, store => run(store, new Date().toISOString()));
   };
   return [
-    bindActionHandler(jellyActions.calendar, input => stores.read(store => ({ categories: store.categories(), items: jellyOccurrences(store.items(input.start, input.end), store.series(), input.start, input.end) }))),
+    bindActionHandler(jellyActions.calendar, input => stores.read(store => ({ categories: store.categories(), items: jellyOccurrences(store.items(input.start, input.end), store.series(), input.start, input.end), note_days: store.noteDays(input.start, input.end) }))),
     bindActionHandler(jellyActions.item, input => stores.read(store => {
       const id = input.id.split("@")[0]!;
       const item = store.get("item", id); if (item) return { item };
       const series = store.get("series", id); if (series) return { series };
       throw jellyErrors.not_found("日程不存在");
     })),
-    bindActionHandler(jellyActions.notes, input => stores.read(store => ({ notes: store.notes({ ...(input.day !== undefined ? { day: input.day } : {}), ...(input.query ? { query: input.query } : {}) })
+    bindActionHandler(jellyActions.notes, input => stores.read(store => ({ notes: store.notes({ ...(input.day !== undefined ? { day: input.day } : {}), ...(input.query ? { query: input.query } : {}), ...(input.limit ? { limit: input.limit } : {}) })
       .map(note => ({ id: note.id, title: note.title, day: note.day, revision: note.revision, updated_at: note.updated_at, excerpt: excerpt(note.body) })) }))),
     bindActionHandler(jellyActions.note, input => stores.read(store => ({ note: store.require("note", input.id, "随手记") }))),
 
@@ -135,7 +137,7 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
       const before = current(store, "series", input.id, input.expected_revision, "重复日程");
       const change = changeJellySeries(before, input.original_date, input.scope, null, now, randomUUID());
       if (change.series) store.replace("series", change.series, before.revision); else store.delete("series", before.id, before.revision);
-      return { series: change.series, restore: { series: [before] } };
+      return { series: change.series, restore: { series: [before], ...(change.series ? { series_modified: true } : {}) } };
     })),
     bindActionHandler(jellyActions.saveCategory, (input, caller) => write(caller, store => {
       const categories = store.categories(), before = input.id ? categories.find(category => category.id === input.id) : undefined;
@@ -179,7 +181,7 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
       // Each row goes back only if it is gone or still exactly as the removing command left it (one revision on); any other row stays as it
       // is now and is named in `skipped`, and the rest still go back. 「未分类」 is never removed, so it is never put back here.
       const skipped: string[] = [];
-      const put = <K extends JellyRowKind>(kind: K, row: JellyRows[K]): JellyRows[K][] => {
+      const put = <K extends JellyRowKind>(kind: K, row: JellyRows[K], updated = false): JellyRows[K][] => {
         if (kind === "category" && row.id === JELLY_UNCATEGORIZED_ID) {
           skipped.push(row.id);
           return [];
@@ -192,8 +194,11 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
           return [];
         }
         try {
-          if (!now) return [store.insert(kind, { ...row, revision: row.revision + 1 })];
-          if (now.revision !== row.revision + 1) store.conflict(kind, row.id);
+          if (!updated && !now) return [store.insert(kind, { ...row, revision: row.revision + 1 })];
+          if (!updated || !now || now.revision !== row.revision + 1) {
+            skipped.push(row.id);
+            return [];
+          }
           return [store.replace(kind, { ...row, revision: now.revision + 1 }, now.revision)];
         } catch (error) {
           // Checks run before any statement, so a refused row wrote nothing: a row changed since, or one whose category did not come back.
@@ -203,7 +208,9 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
         }
       };
       const categories = (rows.categories ?? []).flatMap(row => put("category", row));
-      return { rows: { categories, items: (rows.items ?? []).flatMap(row => put("item", row)), series: (rows.series ?? []).flatMap(row => put("series", row)),
+      const reclassified = Boolean(rows.categories?.length);
+      return { rows: { categories, items: (rows.items ?? []).flatMap(row => put("item", row, reclassified)),
+        series: (rows.series ?? []).flatMap(row => put("series", row, reclassified || rows.series_modified)),
         notes: (rows.notes ?? []).flatMap(row => put("note", row)) }, skipped };
     })),
     ...createJellySearchHandlers(stores.read),

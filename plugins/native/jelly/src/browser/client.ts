@@ -45,7 +45,7 @@ export function mountJelly(host: JellyHost): void {
     load: "loading",
     error: "",
     draft: null,
-    dayNote: blankNote(today),
+    dayNote: blankNote(),
     note: blankNote(),
     notes: [],
     noteQuery: "",
@@ -114,18 +114,16 @@ export function mountJelly(host: JellyHost): void {
       seq = ++calendarSeq;
     state.load = state.loaded ? state.load : "loading";
     try {
-      const [calendar, dated] = await Promise.all([
-        call<{ categories: JellyCategory[]; items: JellyOccurrence[] }>(host, "jelly.calendar.list", range),
-        call<{ notes: NoteSummary[] }>(host, "jelly.note.list", {}),
-      ]);
+      const calendar = await call<{ categories: JellyCategory[]; items: JellyOccurrence[]; note_days: string[] }>(
+        host, "jelly.calendar.list", range,
+      );
       if (seq !== calendarSeq) return;
       state.categories = calendar.categories;
       state.occurrences = calendar.items;
       state.loaded = range;
       state.load = "ready";
       state.error = "";
-      noteDays = new Set(dated.notes.map((note) => note.day).filter((day): day is string => !!day));
-      state.notes = dated.notes;
+      noteDays = new Set(calendar.note_days);
     } catch (error) {
       if (seq !== calendarSeq) return;
       state.load = "failed";
@@ -134,9 +132,8 @@ export function mountJelly(host: JellyHost): void {
   }
   async function loadDayNote(): Promise<void> {
     const day = state.selected;
-    if (state.dayNote.dirty && state.dayNote.day !== day) await saveNote(state.dayNote);
     const editor = state.dayNote;
-    const { notes } = await call<{ notes: NoteSummary[] }>(host, "jelly.note.list", { day });
+    const { notes } = await call<{ notes: NoteSummary[] }>(host, "jelly.note.list", { day, limit: 1 });
     const first = notes[0];
     const note = first ? (await call<{ note: JellyNote }>(host, "jelly.note.get", { id: first.id })).note : null;
     // Typing meanwhile wins: the editor the person is writing in stays, and its own save carries on.
@@ -178,9 +175,20 @@ export function mountJelly(host: JellyHost): void {
       box.dataset.mwState = editor.saving ? "saving" : editor.dirty ? "unsaved" : "saved";
     }
   }
+  const saves = new WeakMap<NoteEditor, Promise<void>>();
   async function saveNote(editor: NoteEditor): Promise<void> {
+    while (editor.dirty || saves.has(editor)) {
+      if (editor.conflict) return;
+      let pending = saves.get(editor);
+      if (!pending) {
+        pending = writeNote(editor).finally(() => saves.delete(editor));
+        saves.set(editor, pending);
+      }
+      await pending;
+    }
+  }
+  async function writeNote(editor: NoteEditor): Promise<void> {
     clearTimeout(editor.timer);
-    if (!editor.dirty || editor.saving || editor.conflict) return;
     if (!editor.note && !editor.body.trim()) {
       editor.dirty = false;
       return;
@@ -225,10 +233,10 @@ export function mountJelly(host: JellyHost): void {
     } finally {
       editor.saving = false;
     }
-    if (editor.dirty && !editor.conflict) queueSave(editor);
   }
   async function openNote(id: string): Promise<void> {
     await saveNote(state.note);
+    if (state.note.conflict) return;
     const { note } = await call<{ note: JellyNote }>(host, "jelly.note.get", { id });
     state.note = { ...blankNote(note.day), note, body: note.body };
     state.noteRead = Boolean(note.body.trim());
@@ -295,12 +303,11 @@ export function mountJelly(host: JellyHost): void {
     if (!entry) return;
     state.draft = draftFor(entry);
     if (entry.series_id) {
-      const { series } = await call<{ series?: JellySeries }>(host, "jelly.item.get", { id: entry.series_id }).catch(
-        () => ({ series: undefined }),
-      );
+      const { series } = await call<{ series: JellySeries }>(host, "jelly.item.get", { id: entry.series_id });
       if (series && state.draft?.occurrence?.id === id) {
         state.draft.weekdays = series.weekdays;
         state.draft.until = series.until ?? "";
+        state.draft.originalRule = { weekdays: [...series.weekdays], until: state.draft.until };
       }
     }
   }
@@ -365,16 +372,25 @@ export function mountJelly(host: JellyHost): void {
           await call(host, "jelly.series.create", { series: { ...fields, ...rule, time_zone: homeZone() } });
         } else await call(host, "jelly.item.create", { item: { ...fields, time_zone: homeZone() } });
       } else if (entry.series_id) {
-        await call(host, "jelly.series.update", {
+        const patch: Record<string, unknown> = Object.fromEntries(Object.entries(fields).filter(([key, value]) => entry[key as keyof typeof fields] !== value));
+        if (patch.start_date !== undefined) patch.end_date = fields.end_date;
+        const originalRule = draft.originalRule;
+        if (draft.scope !== "onlyThis" && originalRule) {
+          if (draft.weekdays.join() !== originalRule.weekdays.join()) patch.weekdays = draft.weekdays;
+          if (draft.until !== originalRule.until) patch.until = rule.until;
+        }
+        if (Object.keys(patch).length) await call(host, "jelly.series.update", {
           id: entry.series_id,
           expected_revision: entry.revision,
           original_date: entry.original_date,
           scope: draft.scope,
-          patch: draft.scope === "onlyThis" ? fields : { ...fields, ...rule },
+          patch,
         });
       } else await call(host, "jelly.item.update", { id: entry.id, expected_revision: entry.revision, patch: fields });
       state.draft = null;
-      state.selected = draft.start_date;
+      if (!state.dayNote.dirty && !state.dayNote.saving) {
+        state.selected = draft.start_date;
+      }
       await refresh();
     } catch (error) {
       draft.busy = false;
@@ -423,9 +439,11 @@ export function mountJelly(host: JellyHost): void {
   }
   async function undo(rows: Rows): Promise<void> {
     try {
-      const { skipped } = await call<{ skipped: string[] }>(host, "jelly.restore", { rows });
+      const { rows: restored, skipped } = await call<{ rows: Required<Rows>; skipped: string[] }>(host, "jelly.restore", { rows });
       await refresh();
-      if (skipped.length) toast("jelly.undo.changed");
+      if (skipped.length) host.showToast(uiText.text("jelly.undo.partial", {
+        restored: Object.values(restored).reduce((count, group) => count + group.length, 0), skipped: skipped.length,
+      }));
     } catch (error) {
       if (isConflict(error)) toast("jelly.undo.changed");
       else fail(error);
@@ -460,7 +478,9 @@ export function mountJelly(host: JellyHost): void {
 
   // ---- moving around ----
   async function show(change: () => void): Promise<void> {
-    await saveNote(state.dayNote).catch(fail);
+    const editor = state.tab === "notes" ? state.note : state.dayNote;
+    await saveNote(editor);
+    if (editor.conflict) return;
     change();
     paint();
     await refresh();

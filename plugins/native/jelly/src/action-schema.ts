@@ -23,7 +23,9 @@ export const occurrence = object({ ...entryFields, completed_at: nullable(text),
 export const note = object({ id, title: text, body: text, day: nullable(date), revision, created_at: text, updated_at: text });
 export const noteSummary = object({ id, title: text, day: nullable(date), revision, updated_at: text, excerpt: text });
 /** Rows taken back by `jelly.restore`, as the command that removed or moved them returned them. */
-export const rows = object({ categories: array(category), items: array(item), series: array(series), notes: array(note) }, []);
+const rowGroups = { categories: array(category), items: array(item), series: array(series), notes: array(note) };
+export const rows = object(rowGroups, []);
+export const restoreInput = object({ ...rowGroups, series_modified: boolean }, []);
 
 /** A new entry. Times are both given or both left out (all day); the time zone defaults to the Home's. */
 export const itemInput = object({ id, title, kind, category_id: id, notes: text, start_date: date, end_date: date, start_time: minute, end_time: minute, time_zone: text, completed: boolean }, ["title", "start_date"]);

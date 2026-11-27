@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { jellyActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -44,7 +46,9 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   await waitFor(`!!document.querySelector('[data-jelly-note="${dayNote.id}"]')`);
   await click('[data-jelly-act="new-note"]');
   await waitFor("!!document.querySelector('[data-jelly-notes-editor] [data-jelly-note-body]')");
-  await evaluate(`(() => { const box = document.querySelector('[data-jelly-notes-editor] [data-jelly-note-body]'); box.value = '# 读书\\n\\n- 第三章'; box.dispatchEvent(new InputEvent('input', { bubbles: true })); box.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); })()`);
+  // B112-03: the real keyboard only reaches a visible, focused editor.
+  await waitFor("document.activeElement?.matches('[data-jelly-notes-editor] textarea') && document.activeElement.checkVisibility()");
+  await command("Input.insertText", { text: "# 读书\n\n- 第三章" }, sessionId);
   await waitFor("document.querySelectorAll('[data-jelly-note]').length === 2", 10_000);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
@@ -63,4 +67,37 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   await click('[data-jelly-tab="notes"]');
   await waitFor("document.querySelectorAll('[data-jelly-note]').length === 2");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+});
+
+test("B112-01 editing a series from an exception only propagates fields changed in the form", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const frame = await pluginFrameBrowser(t, browser, "jelly");
+  const caller = { actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS } as const;
+  const client = bindActionClient(browser.localHost.homeActionClient(), () => caller);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=jelly" }, browser.sessionId));
+  await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") await browser.click("[data-plugin-strip] [data-plugin-id=jelly]");
+  await frame.waitFor("document.querySelector('[data-jelly-day][data-selected]')");
+  const month = await frame.evaluate<string>("document.querySelector('[data-jelly-day][data-selected]').dataset.jellyDay.slice(0, 7)");
+  const dates = ["01", "08", "15", "22"].map(day => month + "-" + day);
+  const first = dates[0]!, exception = dates[1]!, completed = dates[2]!, last = dates[3]!;
+  const { series } = await client.invoke(jellyActions.createSeries, { series: {
+    title: "周会", notes: "系列备注", start_date: first, until: last, weekdays: [new Date(first + "T12:00:00Z").getUTCDay() || 7],
+  } });
+  await client.invoke(jellyActions.updateSeries, { id: series.id, expected_revision: 1, scope: "onlyThis", original_date: exception, patch: { notes: "仅此日" } });
+  await client.invoke(jellyActions.updateSeries, { id: series.id, expected_revision: 2, scope: "onlyThis", original_date: completed, patch: { completed: true } });
+  await browser.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect',{detail:{capability_id:'jelly.series.update'}}))");
+  for (const scope of ["all", "thisAndFuture"]) {
+    const selector = '[data-jelly-open="' + series.id + "@" + exception + '"]';
+    await frame.waitFor("!!document.querySelector(" + JSON.stringify(selector) + ")");
+    await frame.click(selector);
+    await frame.click('[data-jelly-scope][value="' + scope + '"]');
+    await frame.evaluate("document.querySelector('[name=title]').value=" + JSON.stringify(scope) + ";document.querySelector('[data-jelly-form]').requestSubmit()");
+    await frame.waitFor("!document.querySelector('[data-jelly-panel]')");
+    const { items } = await client.invoke(jellyActions.calendar, { start: first, end: last });
+    assert.deepEqual(items.map(item => item.notes), ["系列备注", "仅此日", "系列备注", "系列备注"]);
+    assert.deepEqual(items.map(item => item.title), ["all", scope, scope, scope]);
+    assert.deepEqual(items.filter(item => item.completed_at).map(item => item.start_date), [completed]);
+  }
 });

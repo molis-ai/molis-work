@@ -43,7 +43,9 @@ private func recognize(_ image: CGImage, languages: [String]?) throws -> (String
     request.recognitionLevel = .accurate; request.usesLanguageCorrection = true
     let supported = try request.supportedRecognitionLanguages()
     if let languages, !languages.allSatisfy({ supported.contains($0) }) { throw MaterialError.failure("unsupported_language", "本机不支持所选识别语言") }
-    request.recognitionLanguages = languages ?? ["zh-Hans", "zh-Hant", "en-US", "ja-JP"].filter { supported.contains($0) }
+    // Vision uses list order for ambiguous mixed-language lines. Prefer Japanese to retain kana alongside Latin text.
+    request.recognitionLanguages = languages ?? ["ja-JP", "zh-Hans", "zh-Hant", "en-US"].filter { supported.contains($0) }
+    request.automaticallyDetectsLanguage = request.recognitionLanguages.count > 1
     try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
     let observations = (request.results ?? []).sorted { left, right in
         if abs(left.boundingBox.midY - right.boundingBox.midY) > 0.012 { return left.boundingBox.midY > right.boundingBox.midY }

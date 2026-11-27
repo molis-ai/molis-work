@@ -7,6 +7,8 @@ import { Readable } from "node:stream";
 import { gzipSync, brotliCompressSync, deflateSync } from "node:zlib";
 import { classifyMaterialSource, materialSourceEmbeddedJSON, materialXiaohongshuNoteID, parseMaterialXiaohongshu, readMaterialSource, type MaterialSourceOptions } from "../apps/local-host/src/material-source-providers.js";
 import { assertMaterialHostAllowed, fetchMaterialPublicBytes, isMaterialPublicAddress, materialRedirectTarget, readMaterialPublicBody, resolveMaterialPublicAddresses, validateMaterialPublicURL, type MaterialPublicResponse } from "../apps/local-host/src/material-source-reader.js";
+import { localizeActionErrorResponse } from "../apps/local-host/src/ui-error-words.js";
+import { runWithLocale } from "../apps/local-host/src/web-locale.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { type UploadedMaterial } from "../apps/local-host/src/material-upload.js";
@@ -77,6 +79,32 @@ test("Batch 112: Bilibili without qualified public subtitles asks for pasted sub
     async extractMaterial() { assert.fail("no audio is transcribed"); }
   }), (error: unknown) => error instanceof ActionError && error.code.startsWith("material.") && /粘贴字幕/.test(error.message));
   assert.ok(!seen.some(target => target.includes("/x/player/playurl?")), "the audio stream address is never asked for");
+});
+test("B112-07 the subtitle step preserves withdrawal and cancellation, and the three languages keep the next action", async () => {
+  const url = "https://www.bilibili.com/video/BVexample";
+  for (const [locale, words] of [["zh", /粘贴字幕/], ["en", /Paste the subtitles/], ["ja", /字幕を貼り付け/]] as const) {
+    for (const mode of ["missing", "revoked", "cancelled"]) {
+      let requests = 0;
+      const stop = new AbortController();
+      await assert.rejects(runWithLocale(locale, () => readMaterialSource(url, { signal: stop.signal,
+        beforeEffect() {
+          if (requests === 2 && mode === "revoked") throw new ActionError("actions.forbidden", "withdrawn");
+          if (requests === 2 && mode === "cancelled") stop.abort();
+        },
+        async fetch(target) {
+          requests++;
+          if (target === url) return page(target, '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVexample","cid":123}}</script>');
+          return page(target, JSON.stringify({ code: 0, data: { subtitle: { subtitles: mode === "missing" ? [] : [{ subtitle_url: "https://cdn.example/subtitle" }] } } }), "application/json");
+        },
+      })), error => {
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, mode === "missing" ? "material.source.subtitles_missing" : mode === "revoked" ? "actions.forbidden" : "material.source.cancelled");
+        if (mode === "missing") assert.match(localizeActionErrorResponse(error, locale).body.error, words);
+        return true;
+      });
+      assert.equal(requests, 2);
+    }
+  }
 });
 test("Batch 112: a podcast page is read as an ordinary article, and its audio is never fetched", async () => {
   const seen: string[] = [];

@@ -4,7 +4,7 @@ import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/u
  * Why one part of the product cannot be used (upgrade-continuity U3 design §2.4). `unreadable` is a store
  * that refused for a reason of its own (a structure that does not match), which the Home plugin ledger has had its own page for.
  */
-export type OwnerUnavailableReason = "upgrade_failed" | "upgrade_activation_failed" | "store_too_new" | "upgrade_no_space" | "snapshot_invalid" | "unreadable";
+export type OwnerUnavailableReason = "upgrade_failed" | "upgrade_activation_failed" | "store_too_new" | "structure_mismatch" | "upgrade_no_space" | "snapshot_invalid" | "unreadable";
 
 /** What the card says. The Host decides every field; the card only draws it. */
 export interface OwnerUnavailableCard {
@@ -20,14 +20,15 @@ export interface OwnerUnavailableCard {
 }
 
 /** A store from a newer version stays refused however often the page reloads, and its backup is no way back either. */
-const RELOADS: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: true, store_too_new: false, upgrade_no_space: true, snapshot_invalid: true, unreadable: true };
+const RELOADS: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: true, store_too_new: false, structure_mismatch: false, upgrade_no_space: true, snapshot_invalid: true, unreadable: true };
 const REASON_TEXT: Readonly<Record<OwnerUnavailableReason, string>> = {
   upgrade_failed: "workbench.owner-unavailable.upgrade-failed", store_too_new: "workbench.owner-unavailable.store-too-new",
   upgrade_activation_failed: "workbench.settings-plugins.retry-start",
   upgrade_no_space: "workbench.owner-unavailable.upgrade-no-space", snapshot_invalid: "workbench.owner-unavailable.snapshot-invalid",
+  structure_mismatch: "workbench.owner-unavailable.structure-mismatch",
   unreadable: "workbench.owner-unavailable.unreadable",
 };
-const ROLLS_BACK: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: false, store_too_new: false, upgrade_no_space: false, snapshot_invalid: false, unreadable: false };
+const ROLLS_BACK: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: false, store_too_new: false, structure_mismatch: false, upgrade_no_space: false, snapshot_invalid: false, unreadable: false };
 
 /**
  * The card in place of the part (定样「某块暂不可用」, 11-04): the part's name, one sentence of why, and the ways out beside it. Nothing else on

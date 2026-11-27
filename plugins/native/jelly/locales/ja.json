@@ -160,6 +160,7 @@
     "jelly.tone.purple": "紫",
     "jelly.tone.red": "赤",
     "jelly.tone.teal": "青緑",
+    "jelly.undo.partial": "{restored} 件を復元しました。後で変更された {skipped} 件はスキップしました。",
     "jelly.undo.changed": "元に戻せませんでした。削除後に変更されています"
   }
 }

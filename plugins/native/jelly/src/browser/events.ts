@@ -232,6 +232,7 @@ export function bindPageEvents(page: JellyPage): void {
     else if (act === "new-note")
       run(async () => {
         await saveNote(state.note);
+        if (state.note.conflict) return;
         state.tab = "notes";
         state.note = { ...blankNote(), open: true };
         state.noteRead = false;
@@ -241,6 +242,7 @@ export function bindPageEvents(page: JellyPage): void {
     else if (act === "note-back")
       run(async () => {
         await saveNote(state.note);
+        if (state.note.conflict) return;
         state.note = blankNote();
         paint();
       });

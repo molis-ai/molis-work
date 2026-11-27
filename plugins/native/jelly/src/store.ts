@@ -100,6 +100,9 @@ export class JellyStore {
   seriesInCategory(id: string): JellySeries[] {
     return this.many("series", "SELECT * FROM jelly_series WHERE category_id = ? OR exceptions LIKE ?", [id, `%${JSON.stringify(id)}%`]);
   }
+  noteDays(start: string, end: string): string[] {
+    return this.db.all("SELECT DISTINCT day FROM jelly_notes WHERE day BETWEEN ? AND ? ORDER BY day", [start, end]).map(row => String(row.day));
+  }
   /** Notes, newest first; `day` keeps one day's, `query` those whose title or text holds it. */
   notes(filter: { day?: string | null; query?: string; limit?: number } = {}): JellyNote[] {
     const where: string[] = [], parameters: unknown[] = [];

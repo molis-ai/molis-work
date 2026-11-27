@@ -160,6 +160,7 @@
     "jelly.tone.purple": "紫",
     "jelly.tone.red": "红",
     "jelly.tone.teal": "青绿",
+    "jelly.undo.partial": "已恢复 {restored} 项，另有 {skipped} 项因后续变更而跳过。",
     "jelly.undo.changed": "没能撤销：它在删除后又被改过"
   }
 }

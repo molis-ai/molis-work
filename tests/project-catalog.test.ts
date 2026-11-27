@@ -1094,7 +1094,7 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
     const home = join(directory, ".molis-work");
     const databasePath = join(home, "projects", "catalog.db");
     // Batch 107's six and batch 108's five (user 2026-11-26: keep the rule, widen the test).
-    const six = ["cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "todo", "workflows"];
+    const historicalMembers = ["cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "todo", "workflows"];
     const made = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const open = await made.createProject({ display_name: "看得见", actor_id: "user" });
     const hiding = await made.createProject({ display_name: "隐藏过 Pages", actor_id: "user" });
@@ -1102,13 +1102,13 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
     // A new Home is marked done at creation: it never backfills.
     const fresh = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
-      assert.deepEqual(fresh.listProjectPlugins(open.project_id).filter(id => six.includes(id)), [], "a Home made with this version gains nothing");
+      assert.deepEqual(fresh.listProjectPlugins(open.project_id).filter(id => historicalMembers.includes(id)), [], "a Home made with this version gains nothing");
     } finally { fresh.close(); }
     // Make it look like a Home from before batch 107: no mark, no member rows for the eleven, one partition hid Pages.
     const older = openTestSqlite(databasePath);
     try {
       older.prepare("DELETE FROM catalog_meta WHERE key = 'mark.former-personal-plugins'").run();
-      older.prepare(`DELETE FROM partition_plugins WHERE plugin_id IN (${six.map(() => "?").join(",")})`).run(...six);
+      older.prepare(`DELETE FROM partition_plugins WHERE plugin_id IN (${historicalMembers.map(() => "?").join(",")})`).run(...historicalMembers);
       older.exec("CREATE TABLE IF NOT EXISTS project_plugin_exclusions (project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, removed_at TEXT NOT NULL, PRIMARY KEY(project_id, plugin_id))");
       older.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'pages', ?)").run(hiding.project_id, new Date().toISOString());
     } finally { older.close(); }
@@ -1116,7 +1116,7 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
     const upgraded = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       for (const partition of ["personal", open.project_id]) {
-        assert.deepEqual(upgraded.listProjectPlugins(partition).filter(id => six.includes(id)), six, `${partition} keeps reading its old Pages and Dataset data`);
+        assert.deepEqual(upgraded.listProjectPlugins(partition).filter(id => historicalMembers.includes(id)), historicalMembers, `${partition} keeps reading its old Pages and Dataset data`);
       }
       const hidden = upgraded.listProjectPlugins(hiding.project_id);
       assert.equal(hidden.includes("pages"), false, "the partition that hid Pages stays closed");
@@ -1136,9 +1136,9 @@ test("UPP-18 UPP-03 an older Home's partitions keep the eleven former personal p
     // Exactly the eleven: the fix takes them by declaration (databases.partition, no plugin names in platform source), so a later batch
     // that moves another plugin to a partition library fails here and has to decide what this one-time fix does with it.
     assert.deepEqual([...new Set((before.rows as { plugin_id: string; enabled_by: string }[])
-      .filter(row => row.enabled_by === "upgrade:former-personal-plugins").map(row => row.plugin_id))].sort(), six,
+      .filter(row => row.enabled_by === "upgrade:former-personal-plugins").map(row => row.plugin_id))].sort(), historicalMembers,
       "the one-time fix writes exactly the eleven former personal plugins, nothing a later batch moved");
-    assert.ok((before.rows as { plugin_id: string; enabled_by: string }[]).filter(row => six.includes(row.plugin_id)).every(row => row.enabled_by === "upgrade:former-personal-plugins"), "the platform's upgrade wrote them, not the person");
+    assert.ok((before.rows as { plugin_id: string; enabled_by: string }[]).filter(row => historicalMembers.includes(row.plugin_id)).every(row => row.enabled_by === "upgrade:former-personal-plugins"), "the platform's upgrade wrote them, not the person");
 
     const again = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {

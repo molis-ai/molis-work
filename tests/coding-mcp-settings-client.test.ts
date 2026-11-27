@@ -76,7 +76,7 @@ const NOT_ENABLED_ANSWER = answer(403, { error: "此项目未启用该插件", c
 const STATE = "/projects/project-1/api/plugins/io.molis.work.coding/state";
 const MEMBERSHIP = "/api/settings/project-plugins";
 const ENABLE = "/api/settings/projects/project-1/plugins";
-const observation = (revision: string) => answer(200, { projects: [{ project_id: "project-1", plugins: ["goals"], hidden: [], revision }] });
+const observation = (revision: string) => answer(200, { projects: [{ project_id: "project-1", plugins: ["goals"], revision }] });
 
 test("a project that has not enabled Coding shows the enable button, on the platform's code, and stops polling", async () => {
   const page = fixture(url => url === STATE ? NOT_ENABLED_ANSWER : url === MEMBERSHIP ? observation("first") : answer(500, {}));
@@ -121,7 +121,7 @@ test("SPC-C08 enabling Coding uses the observation shown with the button, and re
 test("SPC-C08 a committed Coding membership change leaves the refresh message and no second enable button", async () => {
   const page = fixture(url => url === STATE ? NOT_ENABLED_ANSWER : url === MEMBERSHIP ? observation("first") : answer(503, {
     error: "插件选择已保存，切换尚未完成。请刷新项目。", code: "host.project_plugins_refresh_failed", details: {
-      committed: true, membership: { plugins: ["coding", "goals"], hidden: [], revision: "committed" },
+      committed: true, membership: { plugins: ["coding", "goals"], revision: "committed" },
     },
   }));
   await page.settled();

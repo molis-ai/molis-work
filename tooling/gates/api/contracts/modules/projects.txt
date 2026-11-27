@@ -144,14 +144,12 @@ export type ProjectPluginId = string;
 
 export interface ProjectPluginMembership {
     plugins: ProjectPluginId[];
-    hidden: ProjectPluginId[];
 }
 
 export interface ProjectPluginRegistry {
     has(pluginId: ProjectPluginId): boolean;
     initial?(projectId: string): readonly ProjectPluginId[];
     companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
-    isPersonal?(pluginId: ProjectPluginId): boolean;
 }
 
 export interface ProjectRecord {
@@ -218,7 +216,6 @@ export interface ProjectsQueryApi {
     projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership;
     partitionPluginMembership(partitionId: string): VersionedPartitionPluginMembership;
     listProjectPlugins(projectId: string): ProjectPluginId[];
-    listHiddenPlugins(projectId: string): ProjectPluginId[];
     listProjects(): ProjectRecord[];
     listPartitions(): ProjectRecord[];
     getProject(projectId: string): ProjectRecord;

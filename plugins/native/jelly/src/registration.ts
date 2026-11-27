@@ -6,6 +6,7 @@ import { JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JE
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
+  preservedMembershipBatch: 108,
   project_plugin_id: JELLY_PROJECT_PLUGIN_ID, catalog_order: 5,
   project_runtime: { create: createJellyPlugin,
     package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },

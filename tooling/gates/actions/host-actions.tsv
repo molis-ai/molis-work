@@ -408,8 +408,8 @@ onboarding.context.select	1	system.onboarding	command	operation	home	write	concu
 onboarding.context.stage_file	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	0fadf42a7cb5	a2c799262a3c	3cfff55e5308
 onboarding.context.start	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	beab5193887d	a2c799262a3c	613063238287
 overview.read	1	system.overview	query	query	home	read	-	agent,user	-	-	-	-	742c0f493774	e5ecf49b88ab	-
-partitions.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	partition.plugin_membership	99334726611c	7820ca58dd08	-
-partitions.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	partition.plugin_membership	e1b2b86278c5	7820ca58dd08	-
+partitions.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	partition.plugin_membership	99334726611c	a8fb3bc69c47	-
+partitions.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	partition.plugin_membership	e1b2b86278c5	a8fb3bc69c47	-
 placement.attach	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	cdecf8a40173	673957d8495a	-
 placement.attach.targets	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	3bdb4f862fc5	c5c720bcf2dc	-
 placement.convert	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	9b742e008df9	9039ea40cbb1	-
@@ -465,8 +465,8 @@ projects.directories.unmap_source	1	system.project-workspaces	command	operation	
 projects.guidance.add	1	system.project-guidance	command	operation	project	write	-	agent,mcp,user,workflow	projects:guidance	project	-	-	1650e00d1011	a49fb1a4d66b	9a20bdba744a
 projects.guidance.read	1	system.project-guidance	query	query	project	read	-	agent,mcp,plugin,user,workflow	projects:guidance-read	project	-	-	d746974fa9af	41715d51de31	-
 projects.guidance.update	1	system.project-guidance	command	operation	project	write	-	agent,mcp,user,workflow	projects:guidance	project	-	-	dafc23902cbf	976a9a5636ac	9a20bdba744a
-projects.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	project.plugin_membership	99334726611c	2a702bb14aae	-
-projects.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	2a702bb14aae	-
+projects.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	project.plugin_membership	99334726611c	6a8617b7b542	-
+projects.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	6a8617b7b542	-
 projects.settings.read	1	system.project-runtime	query	query	project	read	-	agent,plugin,user	-	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
 projects.settings.runtime.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-

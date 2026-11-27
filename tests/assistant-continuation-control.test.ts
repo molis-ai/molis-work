@@ -5,9 +5,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createPrologueNodeAdapter, AgentHost, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore, assistantServiceFor, closeAssistantService, assistantSettingActions, assistantSettingOwner, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentContinuationStarter } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+
+import { setTimeout as delay } from "node:timers/promises";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_PROVIDER_ID, overviewReadAction } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { todoActions } from "@molis-ai/molis-work-plugin-todo";
+import { openTestHome } from "./fixtures/test-home.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
+import { cogniaScriptedResponse as respond } from "./fixtures/cognia-model-response.js";
 
 test("ASC-18: rejecting controls on an idle work changes neither its stored choice nor its setup requests", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
@@ -345,4 +353,57 @@ test("101-2: concurrent startFor reuses settled same-key run and re-evaluates af
     store.close();
     store.close(); // idempotent close must not throw
   }
+});
+
+for (const removal of ["project", "title"] as const) test(`B2R-02 the next model request after withdrawing A's ${removal} can read B again on the same work`, { timeout: 65_000 }, async t => {
+  const home = await openTestHome(t), a = await home.createProject("A", ["todo"]), b = await home.createProject("B", ["todo"]);
+  const self = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, project_id: null, permissions: [] };
+  const aTitle = "orchid-19273", bTitle = "plum-62011";
+  for (const [project, title] of [[a, aTitle], [b, bTitle]] as const) {
+    await home.host.actionClient(project.reference).invoke({ ...self, permissions: todoActions.create.action.permissions, project_id: project.project_id }, todoActions.create, { title });
+  }
+  const grant = (revision: string, fields: string[]) => home.host.homeActionClient().invoke(self, { ...assistantSettingActions.write, provider_id: assistantSettingOwner.provider_id },
+    { layer: "personal", key: "assistant.overview_grants", expected_revision: revision, request_id: "overview-" + revision,
+      change: { set: { grants: [...(fields.length ? [{ partition_id: a.project_id, fields }] : []), { partition_id: b.project_id, fields: ["title"] }] } } });
+  await grant("0", ["title", "status"]);
+
+  let round = 0;
+  const wire: string[][] = [[], []];
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => respond(undefined, text), async (_url: unknown, init?: RequestInit) => {
+    assert.equal(typeof init?.body, "string");
+    wire[round]!.push(String(init!.body));
+    return wire[round]!.length === 1 ? respond({ name: "read-capability", input: { capability_id: overviewReadAction.capability_id, version: 1,
+      provider_id: OVERVIEW_PROVIDER_ID, input: { kinds: ["task"] } } }) : respond();
+  }));
+  const queue = new AgentReviewQueue(), agents = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.overview-test", appVersion: "1.0" },
+    storageRoot: join(home.home, "test-model"), reviewQueue: queue, modelConfiguration: async () => ({
+      protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture" });
+  agents.register(adapter);
+  closeAssistantService(home.host);
+  const { service } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: agents, agentReady: async () => {},
+    projectTitle: async () => "Overview", pages: async () => [], projectReference: async id => {
+      if (id === a.project_id) return a.reference;
+      if (id === b.project_id) return b.reference;
+      assert.equal(id, "personal");
+      return molisWorkHostProjectReference({ projectId: id, databasePath: join(home.home, "personal-space", "molis-work.db") });
+    } });
+  t.after(async () => { service.continuations.close(); await adapter.close(); });
+  async function send(workId?: string) {
+    const started = await service.send({ text: "读取已获准的待办摘要", request_id: "overview-round-" + round, work_id: workId }, {});
+    const end = Date.now() + 25_000;
+    for (;;) {
+      const { work } = await service.read(started.work.work_id);
+      if (work.state === "completed") return work.work_id;
+      assert.ok(Date.now() < end && !["failed", "blocked"].includes(work.state), "round ends successfully");
+      await delay(50);
+    }
+  }
+  const workId = await send();
+  assert.ok(wire[0]!.some(body => body.includes(aTitle) && body.includes(bTitle)));
+  await grant("1", removal === "title" ? ["status"] : []);
+  round = 1;
+  assert.equal(await send(workId), workId);
+  assert.ok(wire[1]!.every(body => !body.includes(aTitle)), "no outgoing request contains the former A title");
+  assert.ok(wire[1]!.some(body => body.includes(bTitle)), "fresh tool output with B reaches the model in this work");
 });

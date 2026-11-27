@@ -16,6 +16,7 @@
 
 ## 在做的
 
+- [第 108 批 B2 复核修复](b108-review-remediation/spec.md)。负责人 Codex。五插件迁移、真实提醒、总览授权和休眠同步。
 - [创作台生成插件的图标与原处连接卡](studio-icon-connection/spec.md)。Codex 负责 BL-1049、BL-1057 的实现与验证。
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
 

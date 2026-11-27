@@ -228,7 +228,9 @@ test("UPP-30 B2R-09 capture a task in personal space after confirmation, then fi
   assert.equal(await member(), false);
   await b.click(panel + " summary"); await b.waitFor("document.querySelectorAll('[data-personal-tasks-body] button').length === 2");
   await b.click(panel + " button:last-child"); assert.equal(await member(), false);
-  await b.click(panel + " summary"); await b.click(panel + " button:first-of-type");
+  await b.click(panel + " summary");
+  await b.waitFor("document.querySelectorAll('[data-personal-tasks-body] button').length === 2");
+  await b.click(panel + " button:first-of-type");
   await b.waitFor("!!document.querySelector('[data-personal-tasks-body] form input')");
   await b.evaluate("document.querySelector('[data-personal-tasks-body] form input').value='B2 personal capture'");
   await b.click(panel + " form button");
@@ -239,5 +241,8 @@ test("UPP-30 B2R-09 capture a task in personal space after confirmation, then fi
   await b.waitFor("document.querySelector('[data-personal-tasks-body]')?.textContent.includes('B2 project task')");
   const links = await b.evaluate<{ title: string; url: string }[]>("Array.from(document.querySelectorAll('[data-personal-tasks-body] a'), a => ({ title: a.textContent, url: a.href }))");
   assert.equal(new URL(links.find(row => row.title.includes("B2 personal capture"))!.url).pathname, "/projects/personal/");
-  assert.equal(new URL(links.find(row => row.title.includes("B2 project task"))!.url).pathname, "/projects/" + b.projectId + "/");
+  const owner = new URL(links.find(row => row.title.includes("B2 project task"))!.url);
+  assert.equal(owner.pathname, "/projects/" + b.projectId + "/");
+  await b.navigate(() => b.click("[data-personal-tasks-body] a[href^='/projects/" + b.projectId + "/']"));
+  await b.waitFor("document.querySelector('[data-todo-field=title]')?.value === 'B2 project task'");
 });

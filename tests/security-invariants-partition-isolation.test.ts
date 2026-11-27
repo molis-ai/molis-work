@@ -449,7 +449,7 @@ test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
 });
 
 // B2R-03/04. Use a wall-clock minute so the public calendar form, registry, timer and final notification agree.
-test("UPP-32 a single Jelly event and a weekly occurrence due in a sleeping partition wake only Jelly and notify once each", { timeout: 120_000 }, async t => {
+test("UPP-32 a single Jelly event and a weekly occurrence due in a sleeping partition wake only Jelly and notify once each", { timeout: 175_000 }, async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("Calendar", ["jelly"]), b = await f.project("Unrelated", ["jelly"]);
   const assembly = existingPartitionPluginHost(f.home);
@@ -467,17 +467,29 @@ test("UPP-32 a single Jelly event and a weekly occurrence due in a sleeping part
   const clock = assembly.services;
   const due = () => clock.due.entries(a.project_id).filter(row => keys.includes(row.entry_key));
   assert.deepEqual(due().map(row => row.due_at), [when.toISOString(), when.toISOString()]);
-  const notices: string[] = [];
-  t.after(onPartitionReminder(f.home, entry => { if (entry.partition_id === a.project_id) notices.push(entry.entry_key); }));
+  const attempts = new Map<string, number>();
+  t.after(onPartitionReminder(f.home, entry => {
+    if (entry.partition_id !== a.project_id) return;
+    const count = (attempts.get(entry.entry_key) ?? 0) + 1;
+    attempts.set(entry.entry_key, count);
+    if (count === 1) throw new Error("interrupt the first delivery receipt for this calendar event");
+  }));
   for (const project of [a, b]) await f.host.closeProject(project.reference);
   await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
   assert.deepEqual(f.host.projects(), []);
-  await until("both calendar reminders were acknowledged", () => !due().length, 90_000);
-  assert.deepEqual(notices.sort(), keys);
+  // The owner's first failed receipt backs off one minute. Budget from the chosen wall-clock minute.
+  await until("both calendar reminders were acknowledged", () => !due().length, when.getTime() - Date.now() + 80_000);
+  assert.deepEqual([...attempts.keys()].sort(), keys);
+  assert.ok(keys.every(key => attempts.get(key) === 2));
   assert.deepEqual(assembly.assembly.instances().map(row => [row.partition_id, row.plugin_id]), [[a.project_id, jellyManifest.plugin_id]]);
   assert.deepEqual(f.host.projects().map(row => row.project_id), [a.project_id]);
   await clock.timer.fire();
-  assert.deepEqual(notices.sort(), keys);
+  assert.deepEqual([...attempts.keys()].sort(), keys);
+  assert.ok(keys.every(key => attempts.get(key) === 2));
+  const response = await f.request("/api/assistant/notices");
+  assert.equal(response.status, 200);
+  const delivered = (await response.json() as { notices: { open?: { project_id?: string; id?: string } }[] }).notices.filter(notice => notice.open?.project_id === a.project_id);
+  for (const key of keys) assert.equal(delivered.filter(notice => JSON.stringify(notice).includes(key.slice(6))).length, 1, "one persistent notice for " + key);
   assert.ok(clock.due.entries(a.project_id).some(row => row.entry_key === "calendar-window"));
 });
 
@@ -1014,7 +1026,9 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   const { OVERVIEW_PROVIDER_ID, overviewReadAction } = await import("@molis-ai/molis-work-contracts/platform/plugin");
   let inaccessible: string | undefined;
   const home = await openTestHome(t, { host: { overviewProjectAccess: (_caller, id) => id !== inaccessible } });
-  const a = await home.createProject("总览 A"), b = await home.createProject("总览 B");
+  const a = await home.createProject("总览 A", ["todo"]), b = await home.createProject("总览 B", ["todo"]);
+  for (const project of [a, b]) await home.host.actionClient(project.reference).invoke(
+    runtimePerson(TODO_ACTION_PERMISSIONS, project.project_id), todoActions.create, { title: project.project_id });
   // Two "waiting on you" entries written where the platform keeps them, one per project, and one already done that is not shown.
   for (const [project, entry, status] of [[a, "wait-a", "open"], [b, "wait-b", "in_progress"], [a, "done-a", "done"]] as const) {
     const db = new DatabaseSync(project.database_path);
@@ -1044,7 +1058,10 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
 
   await write("2", [a, b].map(project => ({ partition_id: project.project_id, fields: ["title"] })));
   assert.equal((await rows(assistant)).length, 2);
+  const tasks = async () => (await client.invoke(assistant, read, { kinds: ["task"] })).rows.map(task => task.fields.title).sort();
+  assert.deepEqual(await tasks(), [a.project_id, b.project_id].sort());
   inaccessible = a.project_id;
+  assert.deepEqual(await tasks(), [b.project_id], "the same live deny removes A from plugin summaries as from platform notifications");
   assert.deepEqual((await rows(assistant)).map(([id]) => id), [b.project_id], "live project access narrows an unchanged two-project grant on a warm cache");
   assert.deepEqual((await rows(person)).map(([id]) => id), [b.project_id]);
   assert.deepEqual(await rows({ ...person, readable_project_ids: [a.project_id] }), [], "the trusted caller scope intersects live access");

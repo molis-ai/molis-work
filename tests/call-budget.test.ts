@@ -295,7 +295,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   // function (which calls reachEntry) with a catalog that says the project shows Goals.
   const { projectActionAvailability } = await import("@molis-ai/molis-work-app-local-host");
   const withCatalog = async (_settings: unknown, operation: (catalog: unknown) => unknown) => operation({
-    projectPluginMembership: () => ({ plugins: ["goals"], hidden: [] }),
+    projectPluginMembership: () => ({ plugins: ["goals"] }),
   });
   const live = projectActionAvailability(withCatalog as never, "/tmp/call-budget-bcc-06");
   const extra = await measure(async () => {

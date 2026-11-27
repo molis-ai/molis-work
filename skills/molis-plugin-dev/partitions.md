@@ -93,4 +93,13 @@ context.services.due?.register({ entry_key: job.id, due_at: job.deadline });
 
 到期回调先用 `delivery.beforeEffect()` 复查权限，再把结果写进本分区业务库。通过 `{ reminder: { title, open } }` 返回需要告诉本人的内容。宿主等待通知接收成功才确认这次交付。重复交付同一键与时间时读取已完成的业务结果。
 
-总览的消费者是受保护的本人入口或个人助理。其调用写法可见[受保护工作台路由](../../apps/local-host/src/runtime-overview-http.ts)与[平台读取动作](../../apps/local-host/src/overview-actions.ts)。本人可在个人空间查看各项目的任务；助理只获得本人已同意的项目及字段。插件可提供本分区投影，插件通过 SDK 自行查询跨项目总览会被拒绝。当前休眠分区的同步装配通过内置分区插件的所有者实现，外部签名包以实际运行时授予的端口为准。
+受保护的工作台页面用宿主已验证的本人会话读取任务。下例可放在工作台的个人空间组件内：
+
+```ts
+import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+const { rows } = await globalThis.molisWorkRequest<OverviewReadResult>("/api/runtime/overview/read", {
+  method: "POST", body: { kinds: ["task"], limit: 100 },
+});
+```
+
+路由检查本人页面身份，经 `overview.read@1` 取出可读分区和当前字段。个人助理从动作目录调用同一动作，按本人授予的项目与字段读取。插件提供本分区投影，其 SDK 调用不能代读个人空间。见[工作台路由](../../apps/local-host/src/runtime-overview-http.ts)、[总览动作](../../apps/local-host/src/overview-actions.ts)和[页面使用位置](../../apps/workbench/src/browser/personal-tasks.ts)。本次休眠同步装配支持声明了 `partitionSync` 的内置分区插件；外部签名包的能力见[沙箱入口](../../apps/local-host/src/plugin-host-services.ts)。

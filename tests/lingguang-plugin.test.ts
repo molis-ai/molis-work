@@ -124,7 +124,7 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
   assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_surfaces: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
     "without the host's stage, Lingguang comes from its Manifest stage");
 
-  const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
+  const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"] } as MolisWorkWebView;
   assert.doesNotMatch(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts(hiddenIssues))).join("\n"), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
 });
 

@@ -13,7 +13,7 @@ const directory: PluginDirectory = [
     { view_id: "side", slot: "side", title: "项目侧栏", order: 20 },
     { view_id: "settings", slot: "settings", title: "项目设置" },
   ] } },
-  { id: "stalled-package", plugin_id: sharedId, name: "旧安装", chosen: false, personal: true, home: true, ui: { views: [
+  { id: "stalled-package", plugin_id: sharedId, name: "旧安装", chosen: false, home: true, ui: { views: [
     { view_id: "open", slot: "navigator", title: "旧安装入口", order: 20, group: "advance", rail: "extend" },
     { view_id: "side", slot: "side", title: "旧安装侧栏", order: 20 },
     { view_id: "settings", slot: "settings", title: "旧安装设置" },

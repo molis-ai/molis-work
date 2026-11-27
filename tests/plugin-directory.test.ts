@@ -245,7 +245,7 @@ test("RAC-619 the Host's marks (personal, home, always_on, companions) are kept 
   ]) as PluginDirectoryEntry[];
   assert.deepEqual(["personal" in kept!, kept!.companions], [false, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
   // Only the installation scope survives directory sanitization.
-  assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "home", "id", "name", "plugin_id", "ui"], "an entry the project does not choose carries the two Home marks and no other");
+  assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "home", "id", "name", "plugin_id", "ui"], "an entry the project does not choose retains its Home runtime scope");
   assert.deepEqual(Object.keys(looseHome!).sort(), ["chosen", "id", "name", "plugin_id", "ui"], "on it too only true counts as a Home mark");
   assert.deepEqual(Object.keys(loose!).filter(name => ["personal", "home", "always_on", "companions"].includes(name)), [], "only true counts as a flag, only an array as companions");
   assert.equal(many!.companions!.length, 32);
@@ -357,7 +357,7 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
   for (const entry of parsed as Array<Record<string, unknown>>) {
     assert.deepEqual(Object.keys(entry).filter(key => !["order", "personal", "side", "side_item"].includes(key)).sort(), ["accepts_objects", "hue", "id"]);
     if ("order" in entry) assert.equal(typeof entry.order, "number");
-    if ("personal" in entry) assert.equal(entry.personal, true);
+    assert.equal(Object.hasOwn(entry, "personal"), false);
     for (const key of ["side", "side_item"] as const) if (key in entry) assert.match(String(entry[key]), new RegExp(`^plugin:${String(entry.id)}/`, "u"));
   }
   assert.deepEqual(parsed.filter(entry => entry.accepts_objects).map(entry => entry.id).includes("notes"), true);
@@ -373,22 +373,19 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
 test("RAC-607 the rail lists an installed plugin under the group its view names, the one that names none under 更多", () => {
   const html = renderMolisWorkWeb(view([installed("makes", { group: "make" }, "Makes"), installed("plain", {}, "Plain")]));
   const sections = railSections(html);
-  // 07-1 S4b (口径 9): 个人 is no longer a group a view names; it holds the person's own plugins (`isPersonalPlugin`: the Host's personal
-  // and home marks). This directory marks none (the built-ins it does not list come from the shell's own catalog, which carries no Host
-  // mark), so there is no 个人 heading here; before S4b the built-ins whose view named 个人 drew it. The marks bring it back below.
+  // B2: the rail groups come from the views of the enabled plugins.
   const headings = ["推进", "写与做", "个人", "编码"].slice(0, UI_VIEW_GROUPS.length);
   assert.deepEqual(sections.map(section => section.heading), [...headings, "更多"]);
   assert.equal(headingOf(html, "makes"), "写与做");
   assert.equal(headingOf(html, "plain"), "更多");
-  const own = { ...installed("own", { group: "make" }, "Own"), personal: true, home: true } as PluginDirectoryEntry;
+  const own = { ...installed("own", { group: "make" }, "Own"), home: true } as PluginDirectoryEntry;
   const marked = renderMolisWorkWeb(view([own, installed("named", { group: "personal" }, "Named")]));
   assert.deepEqual(railSections(marked).map(section => section.heading), [...headings, "更多"]);
-  assert.equal(headingOf(marked, "own"), "写与做", "the person's own plugin is under 个人 whatever group its view names");
-  assert.equal(headingOf(marked, "named"), "个人", "a view that names 个人 without the Host's marks does not put itself there");
+  assert.equal(headingOf(marked, "own"), "写与做", "a Home installation keeps its declared group");
+  assert.equal(headingOf(marked, "named"), "个人", "the navigator uses the declared 个人 group");
   assert.match(html, /data-plugin-tile="makes"[^>]*>[^]*?data-plugin-id="makes"/u, "it opens its own surface");
   assert.doesNotMatch(html, /data-plugin-toggle="makes"/u, "taking it out is not this list's");
   assert.deepEqual(railSections(renderMolisWorkWeb(view([installed("order-a", { order: 5 }), installed("order-b", { order: 1 })]))).find(s => s.heading === "更多")!.tiles.filter(id => id.startsWith("order-")),
-    // 07-1 S4b: 灵光 is not the person's own (it runs per project), so it now leads 更多 as an island leads its group; read only these two.
     ["order-b", "order-a"], "order is the declared order");
 });
 

@@ -155,7 +155,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     return true;
   } },
   // What runs on its own here and what was missed, from every owner that declares the runs types (resident-runtime-design §2.2).
-  { id: "runtime-overview", handle: ({ request, response, url, serverOptions, localHost }) => handleRuntimeOverviewHttp(request, response, url, localHost, serverOptions.homeDirectory) },
+  { id: "runtime-overview", handle: ({ request, response, url, serverOptions, localHost }) => handleRuntimeOverviewHttp(request, response, url, localHost, serverOptions.homeDirectory, serverOptions.assertAccountCurrent) },
   // U3 §3: the person closed the notice that an interrupted upgrade was finished; it is gone for that round only.
   { id: "upgrade-notice", handle: async ({ request, response, url, serverOptions }) => {
     if (!(request.method === "POST" && url.pathname === "/api/upgrade/notice/dismiss" && serverOptions.homeDirectory)) return false;

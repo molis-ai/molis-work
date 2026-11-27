@@ -6,6 +6,7 @@ import { createDatasetPlugin, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASE
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
+  preservedMembershipBatch: 107,
   project_plugin_id: DATASET_PROJECT_PLUGIN_ID, catalog_order: 17,
   manifest: datasetManifest,
   project_runtime: { create: createDatasetPlugin, package_name: "@molis-ai/molis-work-plugin-dataset", factory_export: "createDatasetPlugin" },

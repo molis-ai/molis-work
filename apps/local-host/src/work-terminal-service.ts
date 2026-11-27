@@ -57,7 +57,7 @@ export function registerWorkTerminalOwner(input: {
   });
 }
 
-/** Kill live platform work terminals for a Home-scoped plugin hidden/removed from one project, leaving other projects running. */
+/** Kill live platform work terminals for a Home-scoped plugin removed from one project, leaving other projects running. */
 export function disposeWorkTerminalsForHomePluginInProject(homeDirectory: string, pluginId: string, projectId: string): void {
   const home = resolve(homeDirectory);
   for (const [key, entry] of activeOwners) {

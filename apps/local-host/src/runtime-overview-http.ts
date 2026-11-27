@@ -1,4 +1,4 @@
-import { localOwnerContext } from "./home-plugin-http.js";
+import { authorizationSettingsControl } from "./authorization-settings-control.js";
 import { overviewReadAction, OVERVIEW_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -17,10 +17,10 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
  * The person's own client in the Home or in one open project, one context per request (N42): its discovery and every answer it
  * invokes share it, and each call still re-checks the person's authority, so a grant taken back meanwhile refuses.
  */
-function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined): RunsClient {
+function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, assertCurrent?: () => void): RunsClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
   let pending: Promise<ActionCallContext> | undefined;
-  const context = () => pending ??= localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+  const context = () => pending ??= localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, undefined, { assertCurrent });
   return { discover: async () => client.discover(await context()), invoke: async (action, input) => client.invoke(await context(), action, input) };
 }
 
@@ -56,11 +56,14 @@ const toldKey = (homeDirectory: string, through: string) => `${homeDirectory}\u0
  * `POST /api/runtime/runs/decide`: 「现在做」 or 「跳过」 on one missed run, handed to its owner.
  * `POST /api/runtime/expired/seen`: the person read the summary of runs skipped on their own; it is not said again (`runs-expired-seen.ts`).
  */
-export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined): Promise<boolean> {
+export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined, accountCurrent?: () => void): Promise<boolean> {
   if (!homeDirectory) return false;
   if (request.method === "POST" && url.pathname === "/api/runtime/overview/read") {
-    const caller = await localOwnerContext(host, undefined);
-    const rows = await host.homeActionClient().invoke(caller, { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID }, await readLocalWebBody(request));
+    const { assertCurrent } = authorizationSettingsControl(request, response, host, accountCurrent);
+    assertCurrent();
+    const input = await readLocalWebBody(request);
+    const rows = await personRuns(host, undefined, assertCurrent).invoke({ ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID }, input);
+    assertCurrent();
     sendLocalWebJson(response, 200, rows);
     return true;
   }

@@ -33,12 +33,19 @@ export function createImagesPlugin(): PluginDefinition {
       // `images:files:write` is a required grant, so the Runtime has already refused a start without it.
       if (context.grants.includes(IMAGES_FILES_READ)) await current.reclaimAssets(control("storage:private", IMAGES_FILES_WRITE));
     }
-    catch (error) { services.delete(context); current.close(); throw error; }
+    catch (error) {
+      services.delete(context);
+      current.close();
+      throw error;
+    }
     finally { recovering = false; }
     // The services this instance may use for a caller that may not read them (an Agent's generation): read once now, as the plugin itself.
     try { connections.list(); } catch { /* None to remember: a generation then asks the person to add one. */ }
     return { kind: "app", sync: syncBindings(context), views: [imagesUiContribution], actions: createImagesActionHandlers({ service: () => current, directory: context.services?.actions?.directory }),
       routes: imagesRoutes(context),
       onDue: (entry, due) => current.due(entry.entry_key, { signal: due.signal, beforeEffect: async () => due.beforeEffect(), assert_authority_current: () => due.beforeEffect() }) };
-  }, async stop(context) { services.get(context)?.close(); services.delete(context); } };
+  }, async stop(context) {
+    services.get(context)?.close();
+    services.delete(context);
+  } };
 }

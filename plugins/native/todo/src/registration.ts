@@ -6,6 +6,7 @@ import { TODO_PROJECT_PLUGIN_ID, todoManifest, TODO_CLIENT_FACTORY_SCRIPT, TODO_
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
+  preservedMembershipBatch: 108,
   project_plugin_id: TODO_PROJECT_PLUGIN_ID, catalog_order: 13,
   manifest: todoManifest,
   project_runtime: { create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },

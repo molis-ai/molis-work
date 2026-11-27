@@ -12,13 +12,38 @@ export function syncBindings(context: PartitionSyncContext): PluginSyncBinding[]
   const refresh = () => {
     if (context.services?.database) armJellyWindow(context.services.database, context.services.due);
   };
-  return [{ collection_id: "entries", replica: {
-    ...replica,
-    receive(event, options) { replica.receive(event, options); refresh(); },
-    resolve(key, choice, revision, state) { replica.resolve(key, choice, revision, state); refresh(); },
-    ...(replica.retryWaiting ? { retryWaiting() { replica.retryWaiting!(); refresh(); } } : {}),
-    ...(replica.restoreRecovery ? { restoreRecovery(id: string, choice: "local" | "remote", revision: number) { replica.restoreRecovery!(id, choice, revision); refresh(); } } : {}),
-  },
-    content: createSyncJsonContent({ spaceId: scope.spaceId, authorize: () => scope.assertActive() }),
-    locate: syncTupleLocation("jelly", false, undefined, false) }];
+  return [
+    {
+      collection_id: "entries",
+      replica: {
+        ...replica,
+        receive(event, options) {
+          replica.receive(event, options);
+          refresh();
+        },
+        resolve(key, choice, revision, state) {
+          replica.resolve(key, choice, revision, state);
+          refresh();
+        },
+        ...(replica.retryWaiting
+          ? {
+              retryWaiting() {
+                replica.retryWaiting!();
+                refresh();
+              },
+            }
+          : {}),
+        ...(replica.restoreRecovery
+          ? {
+              restoreRecovery(id: string, choice: "local" | "remote", revision: number) {
+                replica.restoreRecovery!(id, choice, revision);
+                refresh();
+              },
+            }
+          : {}),
+      },
+      content: createSyncJsonContent({ spaceId: scope.spaceId, authorize: () => scope.assertActive() }),
+      locate: syncTupleLocation("jelly", false, undefined, false),
+    },
+  ];
 }

@@ -6,8 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // The global entries, in the titlebar strip since the work line took the foot (specs/work-line §4.1, §6.5; first laid out as the
 // bar's three zones by 07-1 S4b, PFG-22): the plugins kept at hand, the tabs, ＋ (the start page, its glyph alone), the person's
 // own plugins they keep, then the project; the foot is the line with the Assistant's input and nothing else. No side button in
-// the foot, no personal-tool slot in the titlebar. Who is the person's own is one rule (`isPersonalPlugin`) that the start page's
-// 个人 group and the strip's own group both read; a plugin that did not start carries the amber point on its entry.
+// the foot, no personal-tool slot in the titlebar. A plugin that did not start carries the amber point on its entry.
 //
 // specs/screen-polish §3 方案 C「纸上的页签」 (user 2026-11-15) redraws the strip: the first place, 「项目 › 项目主页」 with ⌂ in it
 // (§4「底栏第十三版」第 1 条), is the only fixed piece before the tabs — no plugin is kept at the top any more (user 2026-11-18「按最新设计为准」), every plugin is reached from ＋; the right end
@@ -49,14 +48,11 @@ test("PFG-22 WLN-16 POLISH-05 the strip carries the first place alone before the
   // The glyph-only ＋ says where the work area is to a screen reader.
   await waitFor("/^切换插件 · 现在：/.test(document.querySelector('[data-plugin-picker-toggle]').getAttribute('aria-label'))");
 
-  // One rule: the start page's 个人 group, the strip's own group and the plugin directory list the same plugins. Since batch 108 no built-in is
-  // the person's own (all run in each partition they are added to); only a Home plugin outside the build is (until batch 109-3).
-  const personal = await evaluate<{ switcher: string[]; plus: string[] }>(`(() => ({
-    switcher: [...document.querySelectorAll('[data-plugin-tile][data-rail-group="personal"]')].map((tile) => tile.dataset.pluginTile).sort(),
-    plus: JSON.parse(document.querySelector('script[data-plugin-directory]').textContent).filter((entry) => entry.personal).map((entry) => entry.id).sort(),
-  }))()`);
-  for (const id of ["todo", "jelly", "pages", "lingguang"]) assert.ok(!personal.switcher.includes(id) && !personal.plus.includes(id), `${id} is not the person's own`);
-  assert.deepEqual(personal.switcher.filter((id) => !personal.plus.includes(id)), [], "every 个人 entry of the switcher is in ＋'s 个人 section");
+  // B2: the switcher receives ordinary plugin navigation records from the Host.
+  const entries = await evaluate<{ id: string; personal?: unknown }[]>("JSON.parse(document.querySelector('script[data-plugin-directory]').textContent)");
+  assert.ok(entries.length > 0);
+  assert.ok(entries.every(entry => !Object.hasOwn(entry, "personal")));
+
 
   // The plugin that did not start: the amber point on its start-page entry and its ＋ row; the top has no glyph of it to carry one.
   assert.deepEqual(await evaluate(`(() => ({

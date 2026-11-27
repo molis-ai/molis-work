@@ -218,7 +218,7 @@ test('local scope → grounded summary → one real project and editable source 
   assert.equal(a.phase,'complete',JSON.stringify({error:a.error,other_phase:b.phase,other_error:b.error}));assert.equal(a.project_id,b.project_id);
   // The chooser introduces the new project in the words the person accepted: the summary's first paragraph, without its headings or [S1] marks.
   const introduced=readProjectArrival(dir).projects[a.project_id]?.description;assert.match(introduced??'',/10 月 8 日/);assert.doesNotMatch(introduced??'',/\[S\d+\]|^#/);
-  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.projectPluginMembership(a.project_id).hidden.includes('pages'));});
+  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(catalog.projectPluginMembership(a.project_id).plugins.includes('pages'));});
   const pages=openPagesStore(dir,a.project_id!);try{assert.equal(pages.list().length,2);const summary=pages.get(a.summary_open!.id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
   await adoptContextJourney(dir,id,{title:'重复请求'},ports);
   const reopened=openPagesStore(dir,a.project_id!);try{assert.equal(reopened.get(a.summary_open!.id).title,'手动修改后');assert.equal(reopened.list().length,2);}finally{reopened.close();}

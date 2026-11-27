@@ -8,7 +8,7 @@ store	owner	version	structure	upgrades
 <partition>/libraries/form.db	io.molis.work.form	1	6d4bff6666020499	-
 <partition>/libraries/images.db	io.molis.work.images	1	e383d46ee766a108	-
 <partition>/libraries/issues.db	io.molis.work.issues	1	09d4e287095bc580	-
-<partition>/libraries/jelly.db	io.molis.work.jelly	1	680355108d487208	-
+<partition>/libraries/jelly.db	io.molis.work.jelly	1	9b2c92e41cbce8aa	-
 <partition>/libraries/lingguang.db	io.molis.work.lingguang	1	2754a7e58c64524e	-
 <partition>/libraries/pages.db	io.molis.work.pages	1	955d3684f92605b9	-
 <partition>/libraries/ppt.db	io.molis.work.ppt	1	650579fc784ea1cf	-
@@ -46,7 +46,7 @@ plugin-directories/plugin-directories.db	apps/local-host	1	4e3877ad46125b3e	-
 plugin-libraries/plugin-libraries.db	apps/local-host	1	3f1e077abbfc48cb	-
 plugin-originals/plugin-originals.db	apps/local-host	1	3ad6632f1b839415	-
 plugin-runtime/plugin-runtime.db	apps/local-host	1	e69c29d592801ef1	-
-projects/catalog.db	apps/local-host	1	0691cb9c32e88862	-
+projects/catalog.db	apps/local-host	1	ad21e98fcc2b70c3	-
 server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	1	4ffa2f326552fc84	-
 web-search/web-search.db	apps/local-host	1	8cc2e4721c5a1e6e	-

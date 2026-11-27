@@ -4109,6 +4109,12 @@ export interface PartitionPluginDatabaseDeclaration extends PluginDatabaseDeclar
     readonly deletion?: Pick<PluginProjectRowsDeclaration, "label" | "order">;
 }
 
+export type PartitionSyncContext = Pick<PluginStartContext, "project_id" | "sync" | "copy"> & {
+    readonly services?: Pick<PluginHostServices, "sync" | "ownerFiles" | "due"> & {
+        readonly database?: Pick<NonNullable<PluginHostServices["database"]>, "get">;
+    };
+};
+
 export interface PersonIntake extends DestinationDeclaration {
     readonly intake_id: string;
     readonly title_text?: TextRef;
@@ -4506,6 +4512,7 @@ export interface PluginDeclarationProblem {
 }
 
 export interface PluginDefinition {
+    partitionSync?(context: PartitionSyncContext): readonly import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncBinding[];
     manifest: PluginManifest;
     execution?: "host" | "sandbox";
     event_types?: readonly PluginEventType[];
@@ -5582,6 +5589,15 @@ export interface PluginPermissionDeclaration {
 export interface PluginPersonSettingsClient {
     get(key: string): PersonSettingRecord | null;
     list(): PersonSettingRecord[];
+    snapshot(): {
+        readonly records: readonly PersonSettingRecord[];
+        current(): boolean;
+    };
+    setMany(changes: readonly {
+        readonly key: string;
+        readonly value: unknown;
+        readonly expected_revision?: number | null;
+    }[]): PersonSettingRecord[];
     set(key: string, value: unknown, options?: {
         readonly expected_revision?: number | null;
     }): PersonSettingRecord;

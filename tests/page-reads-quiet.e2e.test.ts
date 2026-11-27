@@ -209,7 +209,7 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   await waitFor("document.body.dataset.desktopSurface === 'todo'", 30_000); await settle();
   phase = "project";
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelectorAll('[data-titlebar-tabs] .tab-item').length >= 2", 30_000); await settle();
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelectorAll('[data-titlebar-tabs] .tab-item').length >= 2", 30_000); await settle();
   phase = "tab";
   await click("[data-titlebar-tabs] .tab-item:not([aria-current]) .tab-item-trigger");
   await settle();
@@ -236,17 +236,14 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
     const frameWords = reads.filter(one => one.method === "GET" && one.path === "/api/ui/locales");
     const appearance = reads.filter(one => one.method === "GET" && one.path === "/api/ui/appearance/events");
     const registrations = reads.filter(one => one.method === "POST" && one.path === "/api/host/plugin-pages");
+    // The chooser and the inline Goals board use only the shell. Both Todo visits and the opened side each mount one plugin document.
+    const expectedRegistrations = name === "chooser" || name === "project" ? 0 : 1;
+    assert.equal(registrations.length, expectedRegistrations, `${name}: register each opened plugin document exactly once`);
     assert.equal(words.length, new Set(words.map(one => one.frame)).size, `${name}: at most one language script per document`);
     assert.ok(frameWords.length <= registrations.length, `${name}: no repeated frame word reads`);
     assert.ok(appearance.length <= 1, `${name}: one appearance subscription`);
     const other = reads.length - words.length - frameWords.length - appearance.length;
     assert.ok(other <= MEASURED[name] + CALL_SLACK, `${name}: ${other} existing requests, over the measured ${MEASURED[name]} + ${CALL_SLACK} allowance: ${JSON.stringify(tally(name))}`);
-  }
-  // Each step really mounts a plugin frame, and a document asked for the shared stylesheet at least once: without this, the checks
-  // below could pass because nothing was mounted or fetched at all (b51cb696d1 counted a page registration in every step, 1-2
-  // each, and the sheet on each page load; a step whose document was already loaded may take it from the document's own cache).
-  for (const name of PHASES) {
-    assert.ok(requestsIn(name).some(one => one.method === "POST" && one.path === "/api/host/plugin-pages"), `${name}: a plugin frame registered its page`);
   }
   assert.ok(seen.some(one => one.path === "/assets/molis-work-workbench.css"), "a document asked for the shared stylesheet");
   // A page registered for a frame is kept while the frame is up: none of these steps takes one back as soon as it was made.

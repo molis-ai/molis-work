@@ -11,7 +11,7 @@ import { BASELINE_FONT_NAME, SOFT_LOOK, TEAL_LOOK, WARM_LOOK, type BoardLook, ty
 /** Long enough to meet the narrowest card and the narrowest line, in both languages. */
 const LONG_NAME = "workbench.catalog-appearance.a-look-with-a-very-long-name";
 const LONG_FONT = "workbench.catalog-appearance.a-suggested-font-whose-name-is-also";
-const PROBLEMS = ["workbench.catalog-appearance.in-dark-body-text-on-its-ground", "workbench.catalog-appearance.its-suggested-font-is-not-on-this"];
+const PROBLEMS = ["workbench.appearance-picker.in-dark-body-text-on-its-ground", "workbench.appearance-picker.its-suggested-font-is-not-on-this"];
 const LONG_PROBLEMS = [...PROBLEMS, "workbench.catalog-appearance.one-colour-points-at-a-role-the"];
 
 export type AppearanceLook = Pick<BoardLook, "id" | "name" | "editable"> & { readonly previewSkin?: string; readonly by: string };
@@ -36,18 +36,18 @@ export function renderLookCard(say: Say, look: AppearanceLook, state: LookCardSt
   const name = state.name ?? look.name;
   const badges = [
     `<span class="mw-look-card__current"${state.inUse ? "" : " hidden"}>${renderBadge({ label: say("workbench.appearance-picker.use"), tone: "success" })}</span>`,
-    `<span class="mw-look-card__trial"${state.trying ? "" : " hidden"}>${renderBadge({ label: say("workbench.catalog-appearance.in-the-specimen"), tone: "info" })}</span>`,
+    `<span class="mw-look-card__trial"${state.trying ? "" : " hidden"}>${renderBadge({ label: say("workbench.appearance-picker.in-the-specimen"), tone: "info" })}</span>`,
     state.fails ? renderBadge({ label: say("workbench.settings-connector-account.check-failed"), tone: "warning" }) : "",
   ].join("");
   const picture = `<span class="mw-look-card__view" data-look="${escapeHtml(look.id)}"${look.previewSkin ? ` data-ui-skin="${escapeHtml(look.previewSkin)}"` : ""} aria-hidden="true"><span class="mw-look-card__sheet"><span class="mw-look-card__sample">Aa 你好 12</span><i class="mw-look-card__line"></i><i class="mw-look-card__line"></i><span class="mw-look-card__marks"><i class="mw-look-card__button"></i><i class="mw-look-card__dot"></i><i class="mw-look-card__dot"></i><i class="mw-look-card__dot"></i></span></span></span>`;
   const mine = look.editable === true;
-  const items = renderMenuItem({ label: say("workbench.catalog-appearance.duplicate-as-mine"), iconName: "copy" })
-    + (mine ? renderMenuItem({ label: say("workbench.catalog-appearance.export"), iconName: "download" }) + renderMenuItem({ label: say("workbench.context-onboarding.remove"), iconName: "trash", danger: true, disabled: state.inUse, ...(state.inUse ? { description: say("workbench.catalog-appearance.a-look-in-use-can-t-be") } : {}) }) : "");
-  const more = renderButton({ label: say("workbench.catalog-appearance.more-actions-name", { name }), variant: "ghost", size: "sm", icon: "more", iconOnly: true, attrs: { "aria-haspopup": "menu", "aria-expanded": String(Boolean(state.menuOpen)), "data-compose-menu-toggle": "" } });
+  const items = renderMenuItem({ label: say("workbench.appearance-picker.duplicate-as-mine"), iconName: "copy" })
+    + (mine ? renderMenuItem({ label: say("workbench.appearance-picker.export"), iconName: "download" }) + renderMenuItem({ label: say("workbench.context-onboarding.remove"), iconName: "trash", danger: true, disabled: state.inUse, ...(state.inUse ? { description: say("workbench.appearance-picker.a-look-in-use-can-t-be") } : {}) }) : "");
+  const more = renderButton({ label: say("workbench.appearance-picker.more-actions-name", { name }), variant: "ghost", size: "sm", icon: "more", iconOnly: true, attrs: { "aria-haspopup": "menu", "aria-expanded": String(Boolean(state.menuOpen)), "data-compose-menu-toggle": "" } });
   return `<div class="mw-look-card" data-look-card="${escapeHtml(look.id)}">
     <button type="button" class="mw-look-card__pick" aria-pressed="${Boolean(state.pressed)}"${state.inUse ? " data-look-in-use" : ""}>
       ${picture}
-      <span class="mw-look-card__text"><span class="mw-look-card__name">${escapeHtml(name)}</span><span class="mw-look-card__meta">${t("workbench.catalog-appearance.by-suggests-font", { by: look.by, font: state.fontName ?? say(BASELINE_FONT_NAME) })}</span></span>
+      <span class="mw-look-card__text"><span class="mw-look-card__name">${escapeHtml(name)}</span><span class="mw-look-card__meta">${t("workbench.appearance-picker.by-suggests-font", { by: look.by, font: state.fontName ?? say(BASELINE_FONT_NAME) })}</span></span>
       <span class="mw-look-card__badges">${badges}</span>
     </button>
     ${state.more ? `<div class="mw-look-card__more">${more}<div class="mw-compose__menu" data-compose-menu${state.menuOpen ? " data-menu-held" : " hidden"}>${renderMenu({ items })}</div></div>` : ""}
@@ -90,12 +90,12 @@ function renderLookCanvas(say: Say, look: AppearanceLook, name: string, theme?: 
   return `<div class="mw-look-proof__picture" role="img" aria-label="${escapeHtml(say("workbench.appearance-picker.specimen-name-picture-not-operable", { name }))}">
     <div class="mw-look-proof__canvas" data-look="${escapeHtml(look.id)}"${theme ? ` data-look-theme="${theme}"` : ""}${scopes ? ` data-ui-skin="${escapeHtml(scopes.skin)}" data-ui-font="${escapeHtml(scopes.font)}" data-ui-mono="${escapeHtml(scopes.mono)}"` : ""} inert>
       <div class="mw-look-proof__sheet">
-        <h4><span>${t("workbench.catalog-appearance.this-week")}</span>${renderBadge({ label: say("workbench.catalog-appearance.value-3-items"), tone: "info" })}</h4>
-        <ul class="mw-look-proof__rows">${row("done", "workbench.catalog-appearance.tidy-the-interview-notes", "09:41")}${row("running", "workbench.catalog-appearance.draft-the-q4-plan", say("workbench.assistant-delivery.progress"))}${row("waiting", "workbench.catalog-appearance.wait-for-design-review", "11/06")}</ul>
-        ${renderField({ label: say("workbench.context-onboarding.project-name"), control: renderInput({ value: say("workbench.catalog-appearance.molis-launch"), invalid: true }), error: say("workbench.catalog-appearance.a-project-with-this-name-already-exists") })}
+        <h4><span>${t("workbench.appearance-picker.this-week")}</span>${renderBadge({ label: say("workbench.appearance-picker.value-3-items"), tone: "info" })}</h4>
+        <ul class="mw-look-proof__rows">${row("done", "workbench.appearance-picker.tidy-the-interview-notes", "09:41")}${row("running", "workbench.appearance-picker.draft-the-q4-plan", say("workbench.assistant-delivery.progress"))}${row("waiting", "workbench.appearance-picker.wait-for-design-review", "11/06")}</ul>
+        ${renderField({ label: say("workbench.context-onboarding.project-name"), control: renderInput({ value: say("workbench.appearance-picker.molis-launch"), invalid: true }), error: say("workbench.appearance-picker.a-project-with-this-name-already-exists") })}
         <div class="mw-look-proof__buttons">${renderButton({ label: say("common.control.save"), variant: "primary" })}${renderButton({ label: say("common.control.cancel"), variant: "secondary" })}${renderButton({ label: say("workbench.context-toolbar.more"), variant: "ghost", icon: "more" })}</div>
-        <p class="mw-look-proof__read">${t("workbench.catalog-appearance.on-4-november-2026-1-284-notes")}</p>
-        <pre class="mw-look-proof__code">const look = "<span data-look-code-name>${escapeHtml(look.id)}</span>";  // ${t("workbench.catalog-appearance.monospace")}</pre>
+        <p class="mw-look-proof__read">${t("workbench.appearance-picker.on-4-november-2026-1-284-notes")}</p>
+        <pre class="mw-look-proof__code">const look = "<span data-look-code-name>${escapeHtml(look.id)}</span>";  // ${t("workbench.appearance-picker.monospace")}</pre>
       </div>
     </div>
   </div>`;
@@ -105,14 +105,14 @@ function renderLookCanvas(say: Say, look: AppearanceLook, name: string, theme?: 
 function proofFoot(say: Say, { state, problems = PROBLEMS.map(problem => say(problem)) }: LookProofOptions): { status: string; extra: string; disabled: boolean; primary: string } {
   const t = (text: string, values?: Record<string, string | number>) => escapeHtml(say(text, values));
   const mark = (ring: StateRingState, text: string, values?: Record<string, string | number>) => renderStatusMark({ state: ring, label: say(text, values), plain: true });
-  const ask = renderButton({ label: say("workbench.catalog-appearance.ask-the-assistant-to-fix-it"), variant: "secondary", icon: "sparkles" });
+  const ask = renderButton({ label: say("workbench.appearance-picker.ask-the-assistant-to-fix-it"), variant: "secondary", icon: "sparkles" });
   const use = say("workbench.appearance-picker.use-2");
   switch (state) {
-    case "idle": return { status: t("workbench.catalog-appearance.pick-a-skin-or-a-font-the"), extra: "", disabled: true, primary: use };
-    case "ready": return { status: t("workbench.catalog-appearance.the-page-hasn-t-changed-once-used"), extra: "", disabled: false, primary: use };
+    case "idle": return { status: t("workbench.appearance-picker.pick-skin-font-specimen-changes-first-page-stays"), extra: "", disabled: true, primary: use };
+    case "ready": return { status: t("workbench.appearance-picker.page-hasnt-changed-once-used-every-window-home"), extra: "", disabled: false, primary: use };
     case "loading": return { status: mark("running", "workbench.appearance-picker.font-loading-specimen-uses-fallback-font"), extra: "", disabled: true, primary: use };
     case "failed": return { status: mark("failed", "workbench.appearance-picker.font-didnt-load-specimen-uses-fallback-font-combination"), extra: "", disabled: true, primary: use };
-    case "invalid": return { status: `${mark("blocked", "workbench.catalog-appearance.n-n-problem-problems-fix-n-it", { n: problems.length })}<ul>${problems.map((problem) => `<li>${escapeHtml(problem)}</li>`).join("")}</ul>`, extra: ask, disabled: true, primary: use };
+    case "invalid": return { status: `${mark("blocked", "workbench.appearance-picker.n-n-problem-problems-fix-n-it", { n: problems.length })}<ul>${problems.map((problem) => `<li>${escapeHtml(problem)}</li>`).join("")}</ul>`, extra: ask, disabled: true, primary: use };
     case "conflict": return { status: mark("conflict", "workbench.appearance-picker.another-window-just-switched-name-using-replaces", { name: SOFT_LOOK.name }), extra: "", disabled: false, primary: say("workbench.appearance-picker.use-mine-anyway") };
   }
 }
@@ -129,7 +129,7 @@ export function renderLookProof(say: Say, options: LookProofOptions): string {
   return `<article class="mw-card mw-look-proof" data-slot="card" data-state="${state}">
     <header class="mw-card__header"><div><h3 class="mw-card__title">${escapeHtml(say("workbench.settings-appearance.specimen"))}</h3><p class="mw-card__description">${escapeHtml(say(trying ? "workbench.appearance-picker.trying-name" : "workbench.appearance-picker.use-name", { name }))}</p></div>${renderBadge({ label: say(trying ? "workbench.appearance-picker.not-applied" : "workbench.appearance-picker.use"), tone: trying ? "info" : "success" })}</header>
     <div class="mw-card__panel">${renderLookCanvas(say, look, name, theme, options.scopes)}</div>
-    <footer class="mw-card__footer"><div class="mw-look-proof__status" role="status" aria-live="polite">${foot.status}</div><div class="mw-look-proof__actions">${foot.extra}${renderButton({ label: say("common.appearance.try-again"), variant: "secondary", attrs: { "data-look-retry": true, hidden: state !== "failed" } })}${renderButton({ label: say("workbench.catalog-appearance.not-this-time"), variant: "secondary", disabled: !trying, attrs: { "data-look-cancel": true } })}${renderButton({ label: foot.primary, variant: "primary", disabled: foot.disabled, attrs: { "data-look-apply": true } })}</div></footer>
+    <footer class="mw-card__footer"><div class="mw-look-proof__status" role="status" aria-live="polite">${foot.status}</div><div class="mw-look-proof__actions">${foot.extra}${renderButton({ label: say("common.appearance.try-again"), variant: "secondary", attrs: { "data-look-retry": true, hidden: state !== "failed" } })}${renderButton({ label: say("workbench.appearance-picker.not-this-time"), variant: "secondary", disabled: !trying, attrs: { "data-look-cancel": true } })}${renderButton({ label: foot.primary, variant: "primary", disabled: foot.disabled, attrs: { "data-look-apply": true } })}</div></footer>
   </article>`;
 }
 

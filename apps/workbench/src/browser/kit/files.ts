@@ -104,7 +104,7 @@ export function importPanel(kit: Kit, project: string, importing: Importing): st
   const refs = file.references.map(ref => {
     const found = here(kit, ref), categories = ref.needs?.connector_categories ?? [];
     const state = found ? renderStatusMark({ label: readText("workbench.kit.reference-present"), tone: "idle", state: "ready" }) : renderStatusMark({ label: readText("workbench.kit.reference-missing"), tone: "hold", state: "unavailable" });
-    const fix = !found && categories.length ? goTo(readText("workbench.catalog-skill-packs.connect"), "/capabilities/connections" + (project ? "?project=" + encodeURIComponent(project) : "")) : "";
+    const fix = !found && categories.length ? goTo(readText("workbench.settings-skills.connect"), "/capabilities/connections" + (project ? "?project=" + encodeURIComponent(project) : "")) : "";
     return `<li class="mw-item"><span class="mw-mark" aria-hidden="true">${icon(KIND_GLYPH[ref.kind])}</span><span><strong>${esc(ref.name)}</strong><small>${esc(readText(KIND_WORD[ref.kind]))} · ${esc(ref.source_title)}</small></span><span class="mw-item__end">${state}${fix}</span></li>`;
   }).join("");
   const rows = (importing.preview?.rows ?? []).map(row => {

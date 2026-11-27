@@ -58,6 +58,14 @@ async function openTab(t: TestContext, b: IssueBrowser, path: string, plugin?: s
   return { evaluate, wait, child, targetId };
 }
 
+/** Keep a real, previously opened capture document behind each window while testing connection sharing. */
+async function openAndCloseCapture(tab: Pick<IssueBrowser, "evaluate">, wait: (expression: string) => Promise<unknown>) {
+  await tab.evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'plugin', view: 'issues/capture' }, cancelable: true }))");
+  await wait(sideReady);
+  await tab.evaluate(String.raw`window.dispatchEvent(new KeyboardEvent("keydown", { key: "\\", metaKey: true, ctrlKey: true }))`);
+  await wait("document.body.dataset.sideOpen === 'false'");
+}
+
 function observeAppearance(b: IssueBrowser) {
   const streams = new Map<ServerResponse, URL>();
   const attention = new Map<ServerResponse, string>();
@@ -109,7 +117,7 @@ async function openOutputFile(t: TestContext, b: IssueBrowser, workbench: string
   return tab;
 }
 
-test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a project file and a fourth can read it too", { timeout: 100_000 }, async t => {
+test("FSS-06 FSS-07 three Workbench windows with previously opened Issues still read a project file and a fourth can read it too", { timeout: 100_000 }, async t => {
   // Keep the real Web Host's catalog directory ports so the materials reader reads the configured output.
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, {}, undefined,
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
@@ -129,18 +137,18 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a p
   const pages = await pluginFrameBrowser(t, b, "pages");
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + workbench + "?openPlugin=pages&openItem=" + note.id }, b.sessionId));
   await pages.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')?.textContent === '打开 Pages'");
-  await b.waitFor(sideReady);
+  await openAndCloseCapture(b, b.waitFor);
   const ppt = await openTab(t, b, workbench + "?openPlugin=ppt&openItem=" + deck.id, "ppt");
   await ppt.child!.waitFor("document.querySelector('[data-ppt-preview] .ppt-card h2')?.textContent === '打开 PPT'");
-  await ppt.wait(sideReady);
+  await openAndCloseCapture(ppt, ppt.wait);
 
   const files = await openTab(t, b, workbench);
-  await files.wait(sideReady);
+  await openAndCloseCapture(files, files.wait);
   await readOutputFile(files, file);
   const third = traffic.streams.size;
   const direct = await openOutputFile(t, b, workbench, file);
-  await direct.wait(sideReady);
-  assert.ok(traffic.opened.every(source => source.pathname === workbench), "preloaded Issues has no additional HTTP stream");
+  await openAndCloseCapture(direct, direct.wait);
+  assert.ok(traffic.opened.every(source => source.pathname === workbench), "opened Issues has no additional HTTP stream");
   assert.ok(third > 0 && third <= 3 && traffic.streams.size <= 4);
   t.diagnostic(JSON.stringify({ third, fourth: traffic.streams.size, embeddedStreams: traffic.opened.filter(source => source.pathname !== workbench).length }));
 });
@@ -162,16 +170,18 @@ test("FSS-06 FSS-07 QEA-169 three chooser windows keep their selected project an
   const selected = `location.pathname === '/' && document.body.dataset.arrival === 'chooser'
     && document.body.dataset.projectId === ${JSON.stringify(b.projectId)}
     && document.body.dataset.routePrefix === ${JSON.stringify(project)} && ${card}?.getAttribute('aria-selected') === 'true'`;
-  const ready = `${selected} && ${sideReady}`;
   await b.setViewport(1440, 950);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/" }, b.sessionId));
-  await b.waitFor(ready);
+  await b.waitFor(selected);
   const second = await openTab(t, b, "/");
-  await second.wait(ready);
+  await second.wait(selected);
   const third = await openTab(t, b, "/");
-  await third.wait(ready);
+  await third.wait(selected);
   const choosers = [{ evaluate: b.evaluate, wait: b.waitFor }, second, third];
-  for (const chooser of choosers) await chooser.evaluate(`window.originalChooserSide = ${issueDocument}`);
+  for (const chooser of choosers) {
+    await openAndCloseCapture(chooser, chooser.wait);
+    await chooser.evaluate(`window.originalChooserSide = ${issueDocument}`);
+  }
   await chooserConnected.promise;
 
   const chooserStreams = [...traffic.streams.values()].map(source => source.pathname + source.search);

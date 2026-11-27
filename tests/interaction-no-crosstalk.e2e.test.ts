@@ -422,8 +422,10 @@ test("AC-05: a reference question in one project finds and keeps only that proje
   /** Types into the question's search until it offers something (a fresh Home may still be indexing); resolves to the labels offered. */
   const search = async (words: string) => {
     for (let attempt = 0; attempt < 20 && !(await evaluate<boolean>(`!document.querySelector('${list}').hidden`)); attempt++) {
-      await evaluate(`(() => { const input = document.querySelector('${query}'); input.focus(); input.value = ''; })()`);
+      await click(query);
+      await evaluate(`document.querySelector('${query}').select()`);
       await command("Input.insertText", { text: words }, sessionId);
+      assert.equal(await evaluate(`document.querySelector('${query}').value`), words, "the reference query received the typed text");
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     await waitFor(`!document.querySelector('${list}').hidden`, 10_000);

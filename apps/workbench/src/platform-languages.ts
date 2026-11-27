@@ -58,17 +58,23 @@ export const sceneOwnerStatusPacks = WORKBENCH_LANGUAGES.languages.map(({ tag, d
   return { ...scenePacks.find(pack => pack.locale === source)!, locale: tag, direction };
 });
 
-const catalogDirectory = registeredPath(directory, "catalog");
-const catalogPacks = readPacks(catalogDirectory, readdirSync(catalogDirectory).filter(name => name.endsWith(".json")).sort());
-const catalogLocales = catalogPacks.map(pack => pack.locale);
-const catalogMerged = new Map<string, UiLocalePack>();
-
-function catalogPackFor(tag: UiLanguageTag): UiLocalePack {
-  const matched = WORKBENCH_LANGUAGES.languages.find(row => row.tag === tag || row.html_lang === tag)?.tag ?? tag;
-  const source = matchLocale(matched, catalogLocales, WORKBENCH_LANGUAGES.default);
-  return catalogPacks.find(item => item.locale === source)!;
+// The regular Workbench language resource is available without opening any board-only files.
+function readCatalogPacks() {
+  const path = registeredPath(directory, "catalog");
+  const packs = readPacks(path, readdirSync(path).filter(name => name.endsWith(".json")).sort());
+  return { packs, locales: packs.map(pack => pack.locale) };
 }
 
+const declaredTag = (tag: UiLanguageTag) => WORKBENCH_LANGUAGES.languages.find(row => row.tag === tag || row.html_lang === tag)?.tag;
+let catalog: ReturnType<typeof readCatalogPacks> | undefined;
+function catalogPackFor(tag: UiLanguageTag): UiLocalePack {
+  const { packs, locales } = catalog ??= readCatalogPacks();
+  const matched = declaredTag(tag) ?? tag;
+  const source = matchLocale(matched, locales, WORKBENCH_LANGUAGES.default);
+  return packs.find(item => item.locale === source)!;
+}
+
+const catalogMerged = new Map<string, UiLocalePack>();
 /** On-demand component board reader (`/__ui/catalog*` only): merges the catalog sub-pack without touching production startup packs. */
 export const catalogBoardText: PluginTextReader = {
   owner, default: WORKBENCH_LANGUAGES.default,
@@ -84,32 +90,14 @@ export const catalogBoardText: PluginTextReader = {
 
 /** Inline page text payload for `/__ui/catalog*` documents so browser live switching resolves `workbench.catalog-board.*` with +0 B production cost. */
 export function catalogInlinePageText(tag: UiLanguageTag): { readonly slot: string; readonly producer: string; readonly packs: readonly UiLocalePack[] } {
-  const matched = WORKBENCH_LANGUAGES.languages.find(row => row.tag === tag || row.html_lang === tag)?.tag ?? WORKBENCH_LANGUAGES.default;
+  const matched = declaredTag(tag) ?? WORKBENCH_LANGUAGES.default;
   const pack = catalogPackFor(matched);
   return { slot: "catalog:workbench", producer: owner, packs: [pack.locale === matched ? pack : { ...pack, locale: matched }] };
 }
 
-const catalogOnlyReaders = new Map(
-  WORKBENCH_LANGUAGES.languages.map(({ tag }) => {
-    const selected = catalogPackFor(tag);
-    const set = selected.locale === WORKBENCH_LANGUAGES.default ? [selected] : [catalogPackFor(WORKBENCH_LANGUAGES.default), { ...selected, locale: tag }];
-    return [tag, createTextReader({ locale: tag, packs: set })] as const;
-  }),
-);
-const catalogDefaultMessages = catalogPackFor(WORKBENCH_LANGUAGES.default).messages;
-
-function activeCatalogLocale(): UiLanguageTag {
-  const current = activeUiLocale();
-  if (typeof current === "string" && current) {
-    return WORKBENCH_LANGUAGES.languages.find(row => row.tag === current || row.html_lang === current)?.tag
-      ?? matchLocale(current, catalogLocales, WORKBENCH_LANGUAGES.default);
-  }
-  return WORKBENCH_LANGUAGES.default;
-}
-
 /** Plain-text catalog reader for standalone specimen renders (such as unit tests outside `/__ui/catalog` HTTP). */
 export function catalogBoardSay(tag: UiLanguageTag): (key: string, values?: Readonly<Record<string, string | number>>) => string {
-  const matched = WORKBENCH_LANGUAGES.languages.find(row => row.tag === tag || row.html_lang === tag)?.tag ?? WORKBENCH_LANGUAGES.default;
+  const matched = declaredTag(tag) ?? WORKBENCH_LANGUAGES.default;
   const set = [...new Set([matched, WORKBENCH_LANGUAGES.default])].flatMap(locale => catalogBoardText.pack(locale) ?? []);
   const reader = createTextReader({ locale: matched, packs: set });
   return (key, values) => {
@@ -118,10 +106,16 @@ export function catalogBoardSay(tag: UiLanguageTag): (key: string, values?: Read
   };
 }
 
+const specimenReaders = new Map<UiLanguageTag, ReturnType<typeof catalogBoardSay>>();
 registerCatalogBoardText((key, values) => {
-  if (!Object.hasOwn(catalogDefaultMessages, key)) return null;
-  const tag = activeCatalogLocale();
-  const reader = catalogOnlyReaders.get(tag) ?? catalogOnlyReaders.get(WORKBENCH_LANGUAGES.default)!;
-  const args = values ? textArgs(values) : undefined;
-  return reader.text({ owner, key, ...(args?.length ? { args } : {}) });
+  const tag = activeUiLocale() || WORKBENCH_LANGUAGES.default;
+  const pack = catalogPackFor(tag);
+  if (!Object.hasOwn(pack.messages, key)) return null;
+  const locale = declaredTag(tag) ?? pack.locale;
+  let say = specimenReaders.get(locale);
+  if (!say) {
+    say = catalogBoardSay(locale);
+    specimenReaders.set(locale, say);
+  }
+  return say(key, values);
 });

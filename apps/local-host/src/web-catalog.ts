@@ -21,8 +21,8 @@ export async function handleLocalCatalogWebRequest(
 ): Promise<void> {
   if (await dispatchCatalogRoutes({ request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, projectCount, composition, deletionPorts, agentRuntimes })) return;
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
-    sendJson(response, 400, { error: uiText.text("workbench.catalog.choose-molis-work-project-first") });
+    sendJson(response, 400, { error: uiText.text("workbench.project-navigation.choose-molis-work-project-first") });
     return;
   }
-  sendJson(response, 404, { error: uiText.text("workbench.catalog.page-not-found") });
+  sendJson(response, 404, { error: uiText.text("workbench.project-navigation.page-not-found") });
 }

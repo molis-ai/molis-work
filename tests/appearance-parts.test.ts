@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { BASELINE_FONT, BASELINE_SKIN, BASELINE_SPEC, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { BASELINE_FONT, BASELINE_SKIN, BASELINE_SPEC, renderLookCard, renderLookProof, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 import { fontTokenDeclarations, skinTokenDeclarations } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { withPageText } from "./fixtures/page-text.js";
+import { pagePack, withPageText } from "./fixtures/page-text.js";
 
 // The look card, the specimen card and the fade when the look changes, on the component board (docs/design/appearance-selection/README.md「组件板新增」;
 // specs/font-and-skin-system/a-section-contract.md FSS-66, FSS-67, FSS-68). What the page does with them is in board-appearance.e2e.test.ts; this file
@@ -22,6 +22,21 @@ const styleOf = (html: string) => html.slice(html.indexOf("<style>"), html.index
 const style = styleOf(board);
 const english = withPageText("en", [], renderPrimitiveCatalog);
 const PARTS = ["look-card", "look-proof", "look-fade"];
+
+test("D-1: the appearance picker renders its card actions and every proof state using the startup pack alone", () => {
+  const look = { id: "custom", name: "My look", by: "User", editable: true };
+  for (const locale of ["zh", "en", "ja"]) {
+    const messages = pagePack("workbench", locale).messages;
+    const say = (key: string) => {
+      assert.ok(Object.hasOwn(messages, key), `${locale}: appearance settings need ${key} before visiting the board`);
+      return key;
+    };
+    renderLookCard(say, look, { inUse: true, trying: true, fails: true, more: true });
+    for (const state of ["idle", "ready", "loading", "failed", "invalid", "conflict"] as const) {
+      renderLookProof(say, { look, state });
+    }
+  }
+});
 
 test("FSS-66: the board has the three look sections, after the type section and in order", () => {
   const ids = [...board.matchAll(/<section class="mw-catalog__section" id="([^"]+)"/gu)].map((match) => match[1]!);

@@ -168,7 +168,7 @@ export function recoverySections(say: Say = t): string {
   });
 
   const attemptBudget = renderTaskAttemptBudget({
-    headerText: c("attempt-header", { attempt: 2, max: 3, pct: 86 }),
+    headerText: say("workbench.subtask-conversation.budget-exhausted", { attempt: 2, max: 3, pct: 86 }),
     budgetPercent: 86,
     meterLabel: c("attempt-meter-label", { pct: 86 }),
     retryReasonLabel: c("attempt-retry-reason"),
@@ -176,7 +176,7 @@ export function recoverySections(say: Say = t): string {
     summaryText: c("attempt-summary"),
     pastSummaryLabel: c("attempt-past-summary", { n: 1 }),
     pastAttempts: [{ state: "blocked", text: c("attempt-past-item") }],
-    actions: [{ label: c("attempt-extend-action"), variant: "secondary" }],
+    actions: [{ label: say("workbench.subtask-conversation.extend-budget"), variant: "secondary" }],
   });
 
   const reportCard = renderRoundReportCard({

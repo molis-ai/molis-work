@@ -68,21 +68,21 @@ interface ShellOptions {
  * 补充 (an input's kind, English Supplement).
  */
 export const composerLabelsIn = (say: Say, to: string, add: string): MwComposerAiLabels => ({
-  input: say("workbench.catalog-composer.message-to-who", { who: to }), send: say("workbench.assistant-dock.send"), sendTitle: say("workbench.catalog-composer.send"), add: say("workbench.catalog-composer.add-files-and-materials"), more: say("workbench.context-toolbar.more"),
-  files: say("workbench.catalog-composer.files-and-images"), filesHint: say("workbench.catalog-composer.pick-from-this-computer-or-drag-them"), dropRefused: say("workbench.catalog-composer.only-files-can-be-dropped-here"), commands: say("workbench.pane.command"),
-  searching: say("workbench.catalog-composer.searching"), nothing: say("workbench.agent-question-card.no-matches"), unavailable: say("workbench.catalog-composer.name-cannot-be-used-right-now"), reading: say("workbench.assistant-context-strip.reading"), remove: say("workbench.catalog-composer.remove-name"), retryFile: say("workbench.catalog-composer.retry-name"),
-  blocked: say("workbench.catalog-composer.remove-the-item-that-cannot-be-attached-then"), restored: say("workbench.catalog-composer.restored-your-unsent-draft-time"), clear: say("workbench.catalog-composer.clear-draft"), unsaved: say("workbench.catalog-composer.the-draft-could-not-be-saved-on-this"),
-  notice: say("workbench.catalog-composer.note"), sending: say("workbench.catalog-composer.sending-2"), sendingText: say("workbench.catalog-composer.sending"),
-  failed: say("workbench.catalog-composer.not-sent"), retry: say("common.control.retry"), unknown: say("workbench.catalog-composer.pending-confirmation"), unknownText: say("workbench.catalog-composer.could-not-confirm-it-arrived-don-t-send"), check: say("workbench.catalog-composer.check"),
-  notSent: say("workbench.catalog-composer.checked-it-did-not-arrive-your-text-is"),
-  to: say("workbench.catalog-composer.send-to"), stop: say("workbench.attention.stop"), stopTitle: say("workbench.catalog-composer.stop-this-turn"), delivery: say("workbench.catalog-composer.choose-how-it-is-delivered"), deliveryGroup: say("workbench.catalog-composer.how-it-is-delivered"),
+  input: say("workbench.catalog-composer.message-to-who", { who: to }), send: say("workbench.assistant-dock.send"), sendTitle: say("workbench.composer.send"), add: say("workbench.catalog-composer.add-files-and-materials"), more: say("workbench.context-toolbar.more"),
+  files: say("workbench.catalog-composer.files-and-images"), filesHint: say("workbench.catalog-composer.pick-from-this-computer-or-drag-them"), dropRefused: say("workbench.composer.only-files-can-be-dropped-here"), commands: say("workbench.pane.command"),
+  searching: say("workbench.composer.searching"), nothing: say("workbench.agent-question-card.no-matches"), unavailable: say("workbench.composer.name-cannot-be-used-right-now"), reading: say("workbench.assistant-context-strip.reading"), remove: say("workbench.composer.remove-name"), retryFile: say("workbench.composer.retry-name"),
+  blocked: say("workbench.composer.remove-the-item-that-cannot-be-attached-then"), restored: say("workbench.composer.restored-your-unsent-draft-time"), clear: say("workbench.composer.clear-draft"), unsaved: say("workbench.catalog-composer.the-draft-could-not-be-saved-on-this"),
+  notice: say("workbench.composer.note"), sending: say("workbench.composer.sending-2"), sendingText: say("workbench.composer.sending"),
+  failed: say("workbench.composer.not-sent"), retry: say("common.control.retry"), unknown: say("workbench.catalog-composer.pending-confirmation"), unknownText: say("workbench.composer.could-not-confirm-it-arrived-don-t-send"), check: say("workbench.composer.check"),
+  notSent: say("workbench.composer.checked-it-did-not-arrive-your-text-is"),
+  to: say("workbench.composer.send-to"), stop: say("workbench.attention.stop"), stopTitle: say("workbench.composer.stop-this-turn"), delivery: say("workbench.composer.choose-how-it-is-delivered"), deliveryGroup: say("workbench.composer.how-it-is-delivered"),
   modes: {
-    "next-boundary": { name: add, title: say("workbench.catalog-composer.add"), description: say("workbench.catalog-composer.read-once-the-current-reply-or-tool") },
-    interrupt: { name: say("workbench.catalog-composer.interrupt-and-redirect"), title: say("workbench.catalog-composer.interrupt-and-redirect"), description: say("workbench.catalog-composer.drops-the-reply-in-progress-and-follows-this") },
-    "after-run": { name: say("workbench.catalog-composer.do-it-next-turn"), title: say("workbench.catalog-composer.do-it-next-turn-2"), description: say("workbench.catalog-composer.waits-for-the-start-of-the-next") },
+    "next-boundary": { name: add, title: say("workbench.composer.add"), description: say("workbench.composer.read-once-the-current-reply-or-tool") },
+    interrupt: { name: say("workbench.composer.interrupt-and-redirect"), title: say("workbench.composer.interrupt-and-redirect"), description: say("workbench.composer.drops-the-reply-in-progress-and-follows-this") },
+    "after-run": { name: say("workbench.composer.do-it-next-turn"), title: say("workbench.composer.do-it-next-turn-2"), description: say("workbench.composer.waits-for-the-start-of-the-next") },
   },
-  unsupported: say("workbench.catalog-composer.this-receiver-does-not-take-this-kind-of"), running: say("workbench.settings-plugins.running"), runningText: say("workbench.catalog-composer.working-on-this-turn-a-new-message"),
-  queued: say("workbench.catalog-composer.this-turn-had-just-ended-it-waits-for"), replayed: say("workbench.catalog-composer.this-was-already-sent-it-was-not-sent"),
+  unsupported: say("workbench.catalog-composer.this-receiver-does-not-take-this-kind-of"), running: say("workbench.settings-plugins.running"), runningText: say("workbench.composer.working-on-this-turn-a-new-message"),
+  queued: say("workbench.catalog-composer.this-turn-had-just-ended-it-waits-for"), replayed: say("workbench.composer.this-was-already-sent-it-was-not-sent"),
 });
 
 /**
@@ -105,7 +105,7 @@ function shell(say: Say, add: string, options: ShellOptions): string {
     attrs: { "data-catalog-focus": options.focus, "data-catalog-menu-room": options.menuRoom },
   });
   const restored = options.restored
-    ? `<p class="mw-field__hint mw-composer__restore">${escapeHtml(say("workbench.catalog-composer.restored-your-unsent-draft-11-02-am"))} · ${renderButton({ label: say("workbench.catalog-composer.clear-draft"), variant: "link" })}</p>` : "";
+    ? `<p class="mw-field__hint mw-composer__restore">${escapeHtml(say("workbench.catalog-composer.restored-your-unsent-draft-11-02-am"))} · ${renderButton({ label: say("workbench.composer.clear-draft"), variant: "link" })}</p>` : "";
   const menu = deliveryMenu(say, add, "catalog-composer-running");
   const notice = options.notice;
   return drawn
@@ -132,7 +132,7 @@ function notices(say: Say, add: string): string {
 /** The attachment strip is the board's upload rows: one being read, one read, one refused with its reason. */
 function files(say: Say): string {
   const row = (mark: Parameters<typeof icon>[0], name: string, body: string) =>
-    `<li class="mw-upload"><span class="mw-mark">${icon(mark)}</span><span>${escapeHtml(name)}${body}</span>${ghostIcon(say("workbench.catalog-composer.remove-name", { name }), "x")}</li>`;
+    `<li class="mw-upload"><span class="mw-mark">${icon(mark)}</span><span>${escapeHtml(name)}${body}</span>${ghostIcon(say("workbench.composer.remove-name", { name }), "x")}</li>`;
   const interview = say("workbench.catalog-board.ds.composer-file-interview");
   const sketch = say("workbench.catalog-board.ds.composer-file-sketch");
   const report = say("workbench.catalog-board.ds.composer-file-report");
@@ -165,8 +165,8 @@ export function composerSection(say: Say, add = say("workbench.composer.next-bou
     ${specimen(escapeHtml(say("workbench.catalog-composer.focus")), shell(say, add, { focus: true, text: task }))}
     ${specimen(escapeHtml(say("workbench.catalog-composer.draft-restored-line")), shell(say, add, { restored: true, text: say("workbench.catalog-composer.add-the-tests-for-step-3-then-look") }))}
     ${specimen(escapeHtml(say("workbench.catalog-composer.attachments-grown-to-the-cap-scrolls-inside")), shell(say, add, { to: say("workbench.catalog-composer.coding-sign-up-endpoint"), files: files(say), text: long }))}
-    ${specimen(escapeHtml(say("workbench.catalog-composer.working-sending")), shell(say, add, { state: "sending", text: task, status: { caption: say("workbench.catalog-composer.sending-2"), text: say("workbench.catalog-composer.sending") } }))}
-    ${specimen(escapeHtml(say("workbench.catalog-composer.working-running-delivery-menu")), shell(say, add, { state: "running", menuRoom: true, text: say("workbench.catalog-composer.attach-the-failure-screenshots-too"), status: { caption: say("workbench.settings-plugins.running"), text: say("workbench.catalog-composer.working-on-this-turn-a-new-message") } }))}
+    ${specimen(escapeHtml(say("workbench.catalog-composer.working-sending")), shell(say, add, { state: "sending", text: task, status: { caption: say("workbench.composer.sending-2"), text: say("workbench.composer.sending") } }))}
+    ${specimen(escapeHtml(say("workbench.catalog-composer.working-running-delivery-menu")), shell(say, add, { state: "running", menuRoom: true, text: say("workbench.catalog-composer.attach-the-failure-screenshots-too"), status: { caption: say("workbench.settings-plugins.running"), text: say("workbench.composer.working-on-this-turn-a-new-message") } }))}
     ${specimen(escapeHtml(say("common.generated.failed")), shell(say, add, { state: "failed", text: task, status: { caption: say("common.generated.failed"), text: say("workbench.catalog-composer.not-sent-the-connection-was-reset-your"), action: say("common.control.retry") } }))}
     ${specimen(escapeHtml(say("workbench.catalog-composer.pending-confirmation")), shell(say, add, { state: "unknown", text: task, status: { caption: say("workbench.catalog-composer.pending-confirmation"), text: say("workbench.catalog-composer.could-not-confirm-it-arrived-checking-now-don"), action: say("workbench.settings-sync-history.details") } }))}
     ${notices(say, add)}

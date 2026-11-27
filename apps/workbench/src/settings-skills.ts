@@ -9,13 +9,13 @@ const readText = globalThis.t.text, el = (tag, cls, text) => { const n = documen
 const button = (text, fn, variant = "secondary") => { const n = el("button", "mw-btn mw-btn--" + variant + " mw-btn--sm", readText(text)); n.type = "button"; n.addEventListener("click", fn); return n; };
 const api = (project, path, body = {}) => molisWorkRequest((project ? "/projects/" + encodeURIComponent(project) : "") + "/api/skills/" + path, { body });
 const installApi = (project, path, body = {}) => molisWorkRequest("/projects/" + encodeURIComponent(project || "personal") + "/api/plugin-trust/" + path, { body });
-const STATES = { off: "workbench.catalog-skill-packs.off", auto: "workbench.catalog-skill-packs.automatic", manual: "workbench.catalog-skill-packs.manual-only" };
+const STATES = { off: "workbench.skill-picks.state-off", auto: "workbench.skill-picks.state-auto", manual: "workbench.skill-picks.state-manual" };
 let scenes = [];
 const setScenes = next => { scenes = Array.isArray(next) ? next.slice() : []; };
 const forText = (value, list = scenes) => value === "assistant" ? readText("workbench.common.assistant") : value === "agent" ? readText("workbench.settings-skills.agent")
   : value === "both" ? (list.length ? readText("workbench.settings-skills.assistant-and-plugins", { list: list.map(row => row.name).join(readText("common.list.separator")) }) : readText("workbench.common.assistant"))
   : list.find(row => row.scene === value)?.name || value;
-const WHY = { plugin_disabled: "workbench.settings-skills.the-plugin-is-disabled-your-settings-will-apply", publisher_revoked: "workbench.catalog-skill-packs.retracted", resource_invalid: "workbench.settings-skills.the-skill-or-its-files-are-missing-reinstall", requires_unmet: "workbench.settings-skills.a-required-capability-is-unavailable", connection_missing: "workbench.settings-skills.connect-the-required-service-first", native_only: "workbench.settings-skills.this-skill-requires-a-local-agent", not_applicable: "workbench.settings-skills.not-applicable-to-the-current-execution-mode" };
+const WHY = { plugin_disabled: "workbench.settings-skills.the-plugin-is-disabled-your-settings-will-apply", publisher_revoked: "workbench.settings-skills.retracted", resource_invalid: "workbench.settings-skills.the-skill-or-its-files-are-missing-reinstall", requires_unmet: "workbench.settings-skills.a-required-capability-is-unavailable", connection_missing: "workbench.settings-skills.connect-the-required-service-first", native_only: "workbench.settings-skills.this-skill-requires-a-local-agent", not_applicable: "workbench.settings-skills.not-applicable-to-the-current-execution-mode" };
 const LOCKED = new Set(["plugin_disabled", "publisher_revoked", "resource_invalid"]);
 const key = s => s.ref.install_id + "/" + s.ref.skill_id;
 const error = (box, failure, retry) => { box.hidden = false; box.className = "mw-alert"; box.setAttribute("role", "alert"); box.replaceChildren(el("p", "", failure?.message || String(failure))); if (retry) { const actions = el("div", "mw-alert__actions"); actions.append(button("common.control.retry", retry)); box.append(actions); } };
@@ -34,10 +34,10 @@ finally { group.disabled = !skill.availability.available && LOCKED.has(skill.ava
 };
 const facts = (skill, list = scenes) => {
 const dl = el("dl", "mw-facts"), fact = (label, text) => { if (text) dl.append(el("dt", "", readText(label)), el("dd", "", text)); };
-fact("workbench.settings-skills.for", forText(skill.applies_to, list)); fact("workbench.catalog-skill-packs.local-agents-only", skill.native_only_reason); fact("workbench.catalog-skill-packs.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join(readText("common.list.separator")) || readText("workbench.settings-skills.no-declared-tools"));
+fact("workbench.settings-skills.for", forText(skill.applies_to, list)); fact("workbench.settings-skills.local-agents-only", skill.native_only_reason); fact("workbench.settings-skills.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join(readText("common.list.separator")) || readText("workbench.settings-skills.no-declared-tools"));
 fact("workbench.settings-skills.connector-categories", (skill.connector_categories || []).join(readText("common.list.separator")));
-fact("workbench.settings-skills.included-files", skill.resources.map(r => r.path + " · " + r.bytes + " B" + (r.role === "script" ? " · " + readText("workbench.settings-skills.runs-code") : "")).join("\n") || readText("workbench.catalog-skill-packs.no-included-files"));
-fact("workbench.catalog-skill-packs.start-of-the-text", skill.excerpt); return dl;
+fact("workbench.settings-skills.included-files", skill.resources.map(r => r.path + " · " + r.bytes + " B" + (r.role === "script" ? " · " + readText("workbench.settings-skills.runs-code") : "")).join("\n") || readText("workbench.settings-skills.no-included-files"));
+fact("workbench.settings-skills.start-of-the-text", skill.excerpt); return dl;
 };
 const preview = (panel, skills, previewScenes) => { if (!skills?.length) return;
 const listScenes = Array.isArray(previewScenes) ? previewScenes : scenes;
@@ -45,7 +45,7 @@ panel.append(el("h3", "", readText("workbench.settings-skills.skills-in-this-pac
 for (const s of skills) { const row = el("li", "mw-item mw-item--stack"), text = el("span"); row.append(el("span", "mw-mark", "✦"), text); const name = el(s.change === "removed" ? "del" : "strong", "", s.name); text.append(name, el("small", "", s.description), el("small", "", forText(s.applies_to, listScenes)));
 const CHANGE = { added: "workbench.settings.add", body_changed: "workbench.settings-skills.body-changed", resources_changed: "workbench.settings-skills.files-changed", removed: "workbench.settings-skills.will-be-removed" };
 if (s.runs_scripts) text.append(el("small", "", readText("workbench.settings-skills.runs-code"))); if (s.connector_categories?.length) text.append(el("small", "", s.connector_categories.join(readText("common.list.separator")))); if (s.change) text.append(el("small", "", readText(CHANGE[s.change]))); if (s.state === "manual" && s.change !== "removed") text.append(el("small", "", readText("workbench.settings-skills.manual-setting-is-kept")));
-const detail = el("details", "mw-item__more"), summary = el("summary", "", readText("workbench.catalog-skill-packs.details")); detail.append(summary, facts(s, listScenes)); row.append(detail); list.append(row); } panel.append(list);
+const detail = el("details", "mw-item__more"), summary = el("summary", "", readText("workbench.settings-skills.details")); detail.append(summary, facts(s, listScenes)); row.append(detail); list.append(row); } panel.append(list);
 };
 const enable = async (panel, project, pluginId, done) => {
 const data = await api(project, "list"); if (Array.isArray(data.scenes)) setScenes(data.scenes);
@@ -93,7 +93,7 @@ const full = el("div"), open = button("workbench.settings-skills.read-full-text"
 }
 if (skill.enabled) box.append(el("p", "settings-muted", readText("workbench.settings-skills.enabled") + " · " + skill.enabled.at.slice(0,10) + " · " + skill.enabled.by + " · " + readText(skill.enabled.scope === "home" ? "workbench.index.personal-space" : "workbench.settings-skills.current-project")));
 if (skill.last_used) box.append(el("p", "mw-list-detail__used", readText("workbench.settings-skills.last-used") + " · " + skill.last_used.at.slice(0,16).replace("T"," ") + " · " + forText(skill.last_used.caller)));
-const nextStep = { plugin_disabled: "workbench.home-plugin-page.enable-plugin", publisher_revoked: "workbench.settings-skills.uninstall-package", resource_invalid: "workbench.catalog-skill-packs.reinstall" };
+const nextStep = { plugin_disabled: "workbench.home-plugin-page.enable-plugin", publisher_revoked: "workbench.settings-skills.uninstall-package", resource_invalid: "workbench.settings-skills.reinstall" };
 const link = el("a", "mw-btn mw-btn--link", readText(nextStep[skill.availability.reason] || "workbench.settings-skills.manage-package")); link.href = "/projects/" + encodeURIComponent(project || "personal") + "/settings/plugins"; box.append(link);
 return title;
 };

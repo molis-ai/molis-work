@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-b44c-g1-exception-kinds | 具名决定已落实 | 一骏于 2026-11-26 批准五处上游工具名和一处历史记忆键。跨设备演示按能力发现操作，移除五行共八处命中。[六项决定](../specs/plugin-specials-demotion/spec.md#2026-11-26-整改决定) · [演示实现](../server/tooling/continuity-demo.mts) |
+| BL-b44-psd03-sample-plugin | 单包九项完成 | 一个固定签名的应用包安装一次，项目实例提供工作能力，Home 实例提供个人来源。真实收件、检索、场景采用与审查批准均有读回。[签包回归](../tests/plugin-sample-equal-standing.test.ts) · [助理交互](../tests/fixtures/signed-tool-review.ts) · [整改合同](../specs/post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-remediation) |
 | BL-jelly-command-readers | 已完成并删除 | 2026-11-26：它留着 Jelly 表驱动处理器的读值函数与 `store` 那层的 `as`，因为全部命令共用一个 `JellyCommand`（值是 `unknown`）。第 112-2 批删掉了 `JellyCommand` 与共用处理器，18 个动作各自由 schema 推导输入（[112](../specs/post-anticorruption-roadmap/reference/batches/112.md#batch-112-closeout)，[#2338](https://github.com/molis-ai/molis-work/pull/2338)） |
 | BL-b36-review-followups | 已完成并删除 | 2026-11-26。主线按事项保存修订号，新事项从 1 起算。改名、转换及来源版本变化会更新读取修订号。空名字统一报错，重复完成保留排列版本，两处共用下一步合同。两处提供方身份已由 [44C #2333](https://github.com/molis-ai/molis-work/pull/2333) 统一。[事项合同](../specs/work-mainline/contract-design.md) |
 | BL-work-line-event-card-line-read | 已完成并删除 | 2026-11-26。事件卡按本人权限、对象种类及时间窗口核对是否在线，每次核对只发现一次目录，只问声明了该对象种类的登记方，任务总表读取次数为 0。[事件卡合同](../specs/work-line/spec.md#44-点一个事件) |

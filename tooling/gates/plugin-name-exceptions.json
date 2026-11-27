@@ -29,7 +29,7 @@
       "count": 1,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "apps/local-host/src/assistant/assistant-memory-bridge.ts": {
       "count": 1,
@@ -467,7 +467,7 @@
       "count": 1,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/agent-host/src/adapters/prologue-schedule.ts": {
       "count": 1,
@@ -479,13 +479,13 @@
       "count": 4,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/agent-host/src/code-intelligence/index.ts": {
       "count": 9,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/agent-host/src/review-presentation.ts": {
       "count": 1,
@@ -497,7 +497,7 @@
       "count": 1,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/automation-recommender/src/scan.ts": {
       "count": 2,
@@ -1031,7 +1031,7 @@
       "count": 2,
       "kind": "upgrade-step",
       "reason": "记忆标记 v1→v2 的一次性升级步骤认旧版写下的 `coding` 场景（`io.molis.work.coding`），随升级链保留，退役随版本基线",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "packages/ui-host/src/assistant-review-words.ts": {
       "count": 1,

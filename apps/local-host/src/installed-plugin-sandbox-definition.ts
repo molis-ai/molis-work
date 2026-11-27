@@ -18,7 +18,7 @@ import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-a
 import { actionErrorFromResponse, sandboxUpgradeOperation, actionErrorResponse, isRecord, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { installedStageFrame } from './installed-stage-section.js';
 import { releaseInstructions } from './installed-plugin-prompts.js';
-import type { InstalledRelease } from './installed-release.js';
+import { installedInstanceOperations, type InstalledRelease } from './installed-release.js';
 import { activeLocale } from './web-locale.js';
 import { sandboxTextPacks } from './ui-text-provider.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './installed-plugin-capabilities.js';
@@ -149,11 +149,13 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       if (owesSource && !host.source) throw pluginErrors.home_scope_unavailable('个人来源需要 Home 的连接服务');
       const allowed = effectsForHalf(grantedEffects(approved, liveGrants()), context.project_id, dualInstance);
       const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
-      background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256,
+      const operations = installedInstanceOperations(release, context.project_id == null ? 'home' : 'project');
+      background = createBackgroundLane({ contract: { ...release.design.contract, operations }, create: () => createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256,
         contract: release.design.contract, grants: allowed, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS, localePacks }) });
       const lane = background;
       const guardedBackground: SandboxBackgroundLane = { check: lane.check, stop: lane.stop, async run(operationId, input, control) {
-        const operation = release.design.contract.operations.find(item => item.id === operationId)!;
+        const operation = operations.find(item => item.id === operationId);
+        if (!operation) throw new SandboxError('sandbox.invalid_request', '这个后台操作不属于当前实例');
         const effects = sandboxOperationEffects(release.design.contract, operation);
         host.assertLive?.(identity);
         assertOperationGranted(effects, liveGrants());
@@ -190,7 +192,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       // A bundle that cannot start fails the installation, not the person's first click.
       await open('quick').catch(rethrowInstalledSandboxStartup);
       const contribution: PluginAppContribution = { kind: 'app',
-        routes: [sandboxedPluginCall({ release, context, host, identity, lanes, open, upgradeOperation, liveGrants })],
+        routes: [sandboxedPluginCall({ release, operations, context, host, identity, lanes, open, upgradeOperation, liveGrants })],
         views: [{ descriptor, render: () => installedStageFrame({ pluginId: release.pluginId, label: manifest.name,
           prefix: context.project_id ? '/projects/' + encodeURIComponent(context.project_id) : '',
           installation: { scope: context.project_id ? 'project' : 'home', install_id: context.install_id,
@@ -246,7 +248,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
 }
 
 /** Execute the original registered action in the correct sandbox lane, preserving its host refusal or uncertain outcome. */
-function sandboxedPluginCall({ release, context, host, identity, lanes, open, upgradeOperation, liveGrants }: {
+function sandboxedPluginCall({ release, operations, context, host, identity, lanes, open, upgradeOperation, liveGrants }: {
+  operations: ReturnType<typeof installedInstanceOperations>;
   release: InstalledRelease;
   context: PluginStartContext;
   host: SandboxedPluginHost;
@@ -267,7 +270,7 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
       const call = raw ? { operationId: installedOperation(release, context, body.operation), input: Object.hasOwn(body, 'input') ? body.input : {} }
         : resolvePluginComponentCall(node!, 'read', body.payload ?? {});
       await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
-      const operation = release.design.contract.operations.find(item => item.id === call.operationId && item.id !== upgradeOperation && !(release.design.contract.home_source && isSandboxSourceOperation(item.id)));
+      const operation = operations.find(item => item.id === call.operationId && item.id !== upgradeOperation && !(release.design.contract.home_source && isSandboxSourceOperation(item.id)));
       if (!operation) throw new ActionError('actions.forbidden', '这个操作不在已安装页面的合同内');
       const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
       // Before any of its code runs, whichever door it came through (BL-701, S-48).

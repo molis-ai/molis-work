@@ -85,8 +85,8 @@ async function prepare(name: string, { evaluate, waitFor }: Pick<Page,"evaluate"
 test("VUX-06: actions hidden until hover on the board, the project page and every plugin show to keyboard focus and without hover", { timeout: 1_800_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
-  const children = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
-    id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
+  const children: Record<string, Awaited<ReturnType<typeof pluginFrameBrowser>>> = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
+    id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)] as const)));
   const childShown = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
     return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
   const surfaces: [string, string][] = [["组件板", "/__ui/catalog"], ["项目页", `/projects/${projectId}/`],

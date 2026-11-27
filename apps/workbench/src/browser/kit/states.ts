@@ -5,20 +5,20 @@ import { badge, colon, joined, readText, mark, type Kit } from "./common.js";
 // What each entry and each pack says about itself, read from the catalog alone (contract-design §4.4): an entry's own state word at
 // the end of its row, and a pack's state from its plugin and what it holds. A pack has no switch of its own.
 
-const SKILL_STATE: Record<string, string> = { off: "workbench.catalog-skill-packs.off", auto: "workbench.catalog-skill-packs.automatic", manual: "workbench.catalog-skill-packs.manual-only" };
+const SKILL_STATE: Record<string, string> = { off: "workbench.skill-picks.state-off", auto: "workbench.skill-picks.state-auto", manual: "workbench.skill-picks.state-manual" };
 /** An owner's own reason codes the page has words for; any other code reads 「暂时用不了」 with the owner's detail beside it. */
 const REASON: Record<string, string> = {
-  plugin_disabled: "workbench.kit.plugin-off", resource_invalid: "workbench.catalog-skill-packs.its-text-or-files-are-missing", requires_unmet: "workbench.kit.missing-capability",
+  plugin_disabled: "workbench.kit.plugin-off", resource_invalid: "workbench.settings-skills.its-text-or-files-are-missing", requires_unmet: "workbench.kit.missing-capability",
   connection_missing: "workbench.kit.service-disconnected", native_only: "workbench.kit.native-only", not_applicable: "workbench.kit.unsupported-run",
 };
 export const reasonWord = (entry: KitEntry) => entry.availability.available ? ""
-  : entry.availability.reason === "publisher_revoked" ? readText("workbench.catalog-skill-packs.retracted") : readText(REASON[entry.availability.reason] || "workbench.catalog-skill-packs.unavailable-for-now");
+  : entry.availability.reason === "publisher_revoked" ? readText("workbench.settings-skills.retracted") : readText(REASON[entry.availability.reason] || "workbench.settings-skills.unavailable-for-now");
 
 /** The word at the end of an entry's row, as a status mark (a tool's is a tag: it has no state, only whether it writes). */
 export function entryMark(entry: KitEntry): string {
   if (entry.kind === "tool") return entry.tool.writes ? badge(readText("workbench.kit.writes"), "warning") : badge(readText("workbench.characters.execution-read-only"));
   if (!entry.availability.available) return mark(reasonWord(entry), "hold", "unavailable");
-  if (entry.kind === "skill") return entry.skill.state === "off" ? mark(readText("workbench.catalog-skill-packs.off"), "quiet", "idle") : mark(readText(SKILL_STATE[entry.skill.state]!), "idle", "ready");
+  if (entry.kind === "skill") return entry.skill.state === "off" ? mark(readText("workbench.skill-picks.state-off"), "quiet", "idle") : mark(readText(SKILL_STATE[entry.skill.state]!), "idle", "ready");
   if (entry.kind === "prompt") {
     if (entry.version.change?.kind === "default_updated") return mark(readText("workbench.settings-prompts.default-updated"), "attention", "ready");
     return entry.prompt.edited ? mark(readText("workbench.settings-agent-diagnostics.version"), "idle", "ready") : mark(readText("workbench.settings-prompts.default"), "quiet", "idle");

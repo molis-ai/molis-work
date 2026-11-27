@@ -51,11 +51,11 @@ const fill = (text: string, values: Readonly<Record<string, string>>) => text.re
 
 export function codingBasicsSection(say: Say = t): string {
   const c = (key: string, values?: Record<string, string | number>) => say(`workbench.catalog-coding-basics.${key}`, values);
-  const remove = (name: string) => fill(say("workbench.catalog-composer.remove-name"), { name });
+  const remove = (name: string) => fill(say("workbench.composer.remove-name"), { name });
   const chip = renderCommandChip({ name: "review-pr", source: c("command-source"), removeLabel: remove("/review-pr") });
   const prompt = renderCommandPrompt({ label: c("command-prompt-label"), text: c("command-prompt-text"), open: true });
   const builtin = renderCommandChip({ name: "init", source: c("command-builtin"), removeLabel: remove("/init") });
-  const labels = composerLabelsIn(say, say("workbench.common.assistant"), say("workbench.catalog-composer.add"));
+  const labels = composerLabelsIn(say, say("workbench.common.assistant"), say("workbench.composer.add"));
   const picture = (key: string, extra: Pick<ComposerStripItem, "state"> & Partial<ComposerStripItem>): ComposerStripItem => ({ key, title: c(`${key}-name`), thumb: SAMPLE_PICTURE, open: c("thumb-open", { name: c(`${key}-name`) }), ...extra });
   const pictures = renderComposerStrip(labels, [
     picture("thumb-1", { state: "attached", meta: c("thumb-1-meta") }),

@@ -16,9 +16,10 @@ test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘�
   const { requests, namings } = model;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
-  // A tool with a chord is loaded while the page is idle, so the first press shows a ready view.
+  await b.waitFor("document.body.dataset.sideOpen === 'false'");
+  await v.chord();
   await b.waitFor(`'loaded' in (document.querySelector('[data-side-body="plugin:issues/capture"] iframe')?.dataset ?? {})`, 10_000);
-  await v.chord(); await v.composerFocused();
+  await v.composerFocused();
   await v.type("  切换页面以后，输入没了。\n"); await v.paste();
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
   await v.until("!$('[data-issue-submit]').disabled"); await v.send();

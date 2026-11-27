@@ -563,6 +563,7 @@ function inspectPacks(snapshot, problems) {
     if (!english) problems.push(`${definition.directory}/en.json: no declared English pack`);
     const baseline = packs.find(pack => pack.locale === definition.default);
     for (const key of Object.keys(baseline?.messages ?? {})) {
+      if (prefix === "workbench" && /^workbench\.catalog[.-]/u.test(key)) problems.push(`${definition.directory}: component board key ${key} belongs in locales/catalog`);
       if (all.has(key)) problems.push(`${definition.directory}: duplicate owner of ${key}`);
       all.set(key, { prefix: definition.prefix ?? prefix });
     }

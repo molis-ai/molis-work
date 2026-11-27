@@ -10,7 +10,7 @@ import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline 
 // state or body. Every query names the owner and the project, so another person's or another project's rows are never read.
 
 /** The store's one current schema (repository-anti-corruption §4.1). */
-export const MAINLINE_BASELINE: SqliteBaseline = { version: /* @version database.mainline_baseline */ 2, schema: `
+export const MAINLINE_BASELINE: SqliteBaseline = { version: /* @version database.mainline_baseline */ 1, schema: `
 CREATE TABLE mainline_items (owner_actor_id TEXT NOT NULL, project_id TEXT NOT NULL, item_id TEXT NOT NULL,
   name TEXT, source_kind TEXT, source_id TEXT, created_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (owner_actor_id, project_id, item_id),
@@ -21,7 +21,7 @@ CREATE TABLE mainline_arrangements (owner_actor_id TEXT NOT NULL, project_id TEX
 CREATE TABLE mainline_holds (owner_actor_id TEXT NOT NULL, project_id TEXT NOT NULL, item_id TEXT NOT NULL, subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL, added_at TEXT NOT NULL,
   PRIMARY KEY (owner_actor_id, project_id, item_id, subject_kind, subject_id));
 CREATE INDEX mainline_holds_subject ON mainline_holds (owner_actor_id, project_id, subject_kind, subject_id);
-`, upgrades: [{ from: 1, sql: "ALTER TABLE mainline_items ADD COLUMN revision INTEGER NOT NULL DEFAULT 1" }] };
+` };
 
 /** This store in the Home's store registry (W4-11): `mainline/mainline.db`. */
 export const MAINLINE_HOME_STORE = { path: "mainline", library: { baseline: MAINLINE_BASELINE } } as const satisfies HomeStoreDeclaration;

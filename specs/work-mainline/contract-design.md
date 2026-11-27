@@ -145,7 +145,7 @@ CREATE INDEX mainline_holds_subject ON mainline_holds (owner_actor_id, project_i
 - 存的只有：轻量事项的名字、来源引用、装进的引用、排列（MLN-12）；查不到插件对象的标题、状态或正文。测试按列名与内容核对。
 - 删除项目：在宿主的项目删除主人表里加一项，删掉这个项目的三张表的行（同 Characters 的 `charactersProjectData`）。
 - 同步：主线是个人数据，个人同步合同落地之前只在本机（主线 §6）。
-- 事项库现为 v2，v1 经显式升级给每行补修订 1，登记进 `home-stores.ts`、版本表、`docs/system/HOME-DATA.md` 与 `tooling/gates/table-owners.json`（表主人核对）。
+- 空库按 v1 建表，每个新事项从修订 1 起步。缺少修订列的旧 v1 会在核对表结构时被拒，v2 会在核对版本号时被拒。本人决定何时停宿主、备份并移开对应空间的整个主线库目录，再从空库开始。新库只含此后建立的事项、排列和关联。
 
 ## 7. 记录（MLN-18）
 
@@ -189,6 +189,7 @@ CREATE INDEX mainline_holds_subject ON mainline_holds (owner_actor_id, project_i
 | MLC-13 | 等别的主人的写：取消或冲突后用同一请求重试只得到一个来源对象；`next.start` 指向别家提供方的被拒；`mainline.read` 带 `counts` 一次给出每件与每组的数（调用次数） |
 | MLC-14 | `work_item` 作为主体能读出名字；放进另一件事项后只在那一件里 |
 | MLC-12 | 放进、移动、切换、完成各留一条工作记录，带操作者与事项引用，无正文（MLN-18）；合同里没有状态流、负责人、截止、评论字段（MLN-22） |
+| MLC-15 | 空库建为 v1，事项改名后的修订在重开后保留。旧结构 v1 和 v2 打开失败时保留原文件；本人离线移开旧库后可建空库。 |
 
 ## 10. 落地时的改动（2026-11-16）
 

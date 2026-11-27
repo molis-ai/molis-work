@@ -119,9 +119,10 @@ test("VUX-31: Todo shows the search typed last when an earlier search answers la
 
 test("VUX-31: Cognia shows the search typed last when an earlier search answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { homeDirectory } = browser;
+  const { homeDirectory, projectId } = browser;
   const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "cognia");
-  const store = openCogniaStore(homeDirectory);
+  // Cognia keeps a library in each space (batch 108): the materials go into the project the page opens.
+  const store = openCogniaStore(homeDirectory, projectId!);
   try { for (const title of ["甲资料", "乙资料"]) store.createMaterial({ title, body: title + "的正文" }); } finally { store.close(); }
   await wide(browser); await openPlugin(browser, "cognia");
   await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2", 20_000);

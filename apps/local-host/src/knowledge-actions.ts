@@ -219,7 +219,11 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
         const owner = await ports.ownerContext(projectId);
         if (closed) return;
         await service.catchUp({ client: ports.clientFor(owner), caller: owner });
-      } catch (error) { ports.onError?.(error, "knowledge.catch_up"); return; }
+      } catch (error) {
+        // A project that is not open is brought current by its next search or listing; that is not a failure.
+        if (!(error instanceof ActionError && error.code === "search.project_closed")) ports.onError?.(error, "knowledge.catch_up");
+        return;
+      }
     }
     if (!closed) await organizer.kick(projectId);
   };

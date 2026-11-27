@@ -1,4 +1,4 @@
-import { say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { webRequestAuthenticated, webBrowserReadAuthenticated, handleWebSessionHttp } from "./web-sessions.js";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
@@ -8,8 +8,8 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
-import { localizeActionErrorResponse, localizeWebErrorBody, readErrorWord } from "./ui-error-words.js";
-import { activeLocale } from "./web-locale.js";
+import { localizeActionErrorResponse, localizeWebErrorBody, readErrorWord, readWorkbenchText } from "./ui-error-words.js";
+import { activeLocale, resolveWebLocale } from "./web-locale.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -38,8 +38,8 @@ export function sendLocalGatewayJson(response: ServerResponse, status: number, v
   response.end(JSON.stringify(answer.body));
 }
 
-export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
-  const sanitized = status >= 400 ? localizeWebErrorBody(status, value) : value;
+export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown, localeOverride?: string | null): void {
+  const sanitized = status >= 400 ? localizeWebErrorBody(status, value, localeOverride) : value;
   sendLocalGatewayJson(response, status, sanitized);
 }
 
@@ -100,11 +100,11 @@ export function finalizeLocalMutation(response: ServerResponse, mutationKeys: Ma
 }
 
 /** Every refusal of the Host, Origin and control-token checks is this one answer, so a refused caller cannot tell which check it failed. Returns false: the request is not allowed. */
-function refuse(response: ServerResponse): false {
-  // Before the request has a trusted language, read the registered owner's default.
-  const message = say.text({ owner: "workbench", key: "workbench.http.local-control-request-was-rejected" }, { locale: activeLocale() });
+function refuse(response: ServerResponse, locale?: string | null): false {
+  const resolved = locale ?? activeLocale();
+  const message = readWorkbenchText("workbench.http.local-control-request-was-rejected", resolved);
   const refusal = actionErrorResponse(hostErrors.request_refused(message));
-  sendLocalWebJson(response, refusal.status, refusal.body);
+  sendLocalWebJson(response, refusal.status, refusal.body, resolved);
   return false;
 }
 
@@ -149,6 +149,10 @@ function allowOpaquePluginFrame(response: ServerResponse, origin: string): void 
   response.writeHead = patched as ServerResponse["writeHead"];
 }
 
+function requestRefusalLocale(request: IncomingMessage): string {
+  return activeLocale() ?? resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+}
+
 /**
  * What every request of the web host meets before any route (S-02, S-21). The answer is marked as one that no other origin's frame may show
  * (clickjacking: the pages hold the control token, and the plugin Studio's pages set no CSP of their own, so the rule is made once, here);
@@ -162,7 +166,7 @@ export function refuseForeignRequest(request: IncomingMessage, response: ServerR
     allowOpaquePluginFrame(response, `http://${host}`);
     return false;
   }
-  refuse(response);
+  refuse(response, requestRefusalLocale(request));
   return true;
 }
 
@@ -180,17 +184,18 @@ const SELF_GUARDED_MOUNT = /^\/im(?:\/|$)/;
  * Browsers omit Origin on same-origin GET; only an exact same-origin Referer may replace it.
  */
 function authorizeAccountRead(request: IncomingMessage, response: ServerResponse, host: string, controlToken: string): boolean {
-  if (!webRequestAuthenticated(request, controlToken)) return refuse(response);
+  const locale = requestRefusalLocale(request);
+  if (!webRequestAuthenticated(request, controlToken)) return refuse(response, locale);
   const site = request.headers["sec-fetch-site"];
-  if (site !== undefined && site !== "same-origin" && site !== "none") return refuse(response);
+  if (site !== undefined && site !== "same-origin" && site !== "none") return refuse(response, locale);
   const origin = request.headers.origin, referer = request.headers.referer;
   const proof = origin === undefined ? referer : origin;
-  if (typeof proof !== "string") return refuse(response);
+  if (typeof proof !== "string") return refuse(response, locale);
   try {
     const parsed = new URL(proof);
-    if (parsed.username || parsed.password || parsed.origin !== `http://${host}` || !isLoopbackHostname(parsed.hostname)) return refuse(response);
-    if (origin !== undefined && origin !== parsed.origin) return refuse(response);
-  } catch { return refuse(response); }
+    if (parsed.username || parsed.password || parsed.origin !== `http://${host}` || !isLoopbackHostname(parsed.hostname)) return refuse(response, locale);
+    if (origin !== undefined && origin !== parsed.origin) return refuse(response, locale);
+  } catch { return refuse(response, locale); }
   return true;
 }
 
@@ -201,17 +206,18 @@ export function authorizeLocalWebRequest(
   controlToken: string,
   mutationKeys: Map<string, LocalMutationState>,
 ): boolean {
+  const locale = requestRefusalLocale(request);
   const host = requestHost(request);
-  if (!host) return refuse(response);
-  if (request.headers["x-molis-work-page-session"] !== undefined && !webRequestAuthenticated(request, controlToken)) return refuse(response);
+  if (!host) return refuse(response, locale);
+  if (request.headers["x-molis-work-page-session"] !== undefined && !webRequestAuthenticated(request, controlToken)) return refuse(response, locale);
   if (!request.method || ["GET", "HEAD"].includes(request.method)) {
-    if (request.headers["sec-fetch-site"] !== undefined && isGuardedMutationPath(url.pathname) && !webBrowserReadAuthenticated(request, controlToken)) return refuse(response);
+    if (request.headers["sec-fetch-site"] !== undefined && isGuardedMutationPath(url.pathname) && !webBrowserReadAuthenticated(request, controlToken)) return refuse(response, locale);
     return url.pathname === "/api/account" || url.pathname.startsWith("/api/account/")
       ? authorizeAccountRead(request, response, host, controlToken) : true;
   }
   if (!isGuardedMutationPath(url.pathname)) {
     if (SELF_GUARDED_MOUNT.test(url.pathname)) return true;
-    return refuse(response);
+    return refuse(response, locale);
   }
   const originValue = request.headers.origin;
   let origin: URL;
@@ -219,10 +225,10 @@ export function authorizeLocalWebRequest(
     if (typeof originValue !== "string") throw new Error("missing origin");
     origin = new URL(originValue);
   } catch {
-    return refuse(response);
+    return refuse(response, locale);
   }
-  if (origin.protocol !== "http:" || !isLoopbackHostname(origin.hostname) || origin.host !== host) return refuse(response);
-  if (!webRequestAuthenticated(request, controlToken)) return refuse(response);
+  if (origin.protocol !== "http:" || !isLoopbackHostname(origin.hostname) || origin.host !== host) return refuse(response, locale);
+  if (!webRequestAuthenticated(request, controlToken)) return refuse(response, locale);
   const idempotencyKey = requestHeader(request, "x-molis-work-idempotency-key");
   if (
     typeof idempotencyKey !== "string"

@@ -82,7 +82,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   // A move the Host stopped in the middle of (between its put and its remove) is settled once the Host answers placement calls again, as
   // the local person, in the background, one pass at a time; one left unsettled is tried again when a new carry is recorded or after
   // `CARRY_RETRY_MS`, not on every call (a pass opens both partitions). `move` settles its own object before it starts.
-  const carrying = new CarrySettling(service, { settled: pass => {
+  const carrying = new CarrySettling(service, { isClosed: () => closed, settled: pass => {
     // The pass in the work records (batch 108): the carries themselves are the ledger's own history, so only the counts and how it ended.
     liveObservation(ports.homeDirectory)?.sink("home").bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null })
       .record({ fact: "home.placement_carry_settle", outcome: pass.failed ? "failed" : pass.left < pass.pending ? "succeeded" : "no_action",
@@ -114,7 +114,12 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
       if (closed) throw new ActionError("actions.expired", "原放置服务已关闭");
       return placementRelationsFor(ledger, projectId, candidates);
     },
-    close: () => { closed = true; dispose(); db.close(); },
+    close: () => {
+      closed = true;
+      carrying.close();
+      dispose();
+      db.close();
+    },
   };
 }
 

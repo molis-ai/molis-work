@@ -568,12 +568,19 @@ async function continueSubagentAttempt(
       errors[newRunId] = failReason + "；失败原因未能持久保存，请保留当前记录";
     }
   };
-  continued.run.subscribe(event => {
+  let continuedDone = false;
+  let unsubContinued: (() => void) | undefined;
+  unsubContinued = continued.run.subscribe(event => {
     for (const changed of state.subagentListeners) changed(parentRun.run_id);
     if (isTerminalEventType(event.type)) {
+      if (!continuedDone) {
+        continuedDone = true;
+        queueMicrotask(() => { unsubContinued?.(); });
+      }
       authority.finish();
       if (state.liveSessions.get(child.session.id) === newRunId) state.liveSessions.delete(child.session.id);
       state.activeRuns.delete(newRunId);
+      state.runRefs.delete(newRunId);
       state.runRoots.delete(newRunId);
       childController?.abort(); state.actionControllers.delete(newRunId);
     }

@@ -281,7 +281,15 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     send("shown", entry.id, { service: read.service_title });
     // Cancelled once on this page: asked again, only the folded line shows, opened by the person (§13.5 三第 1 条).
     if (refused.has(key)) { heights.narrow = heights.wide = CONNECTION_NEED_HEIGHTS.line; entry.stage = "line"; entry.line = t("common.connection-need.not-connected"); draw(entry); return; }
-    try { await begin(entry); } catch { if (live(entry)) { close(key); fail(); } }
+    try {
+      await begin(entry);
+    } catch {
+      if (live(entry)) {
+        const currentId = entry.id;
+        close(key);
+        send("done", currentId, { error: CONNECTION_NEED_UNAVAILABLE });
+      }
+    }
   };
   return (message: ConnectionNeedUp) => {
     if (!message || !Number.isSafeInteger(message.id) || message.id < 1) return;

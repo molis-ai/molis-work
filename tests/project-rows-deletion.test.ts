@@ -166,6 +166,20 @@ test("RAC-561 the SDK refuses project_rows that name what is not this library's 
   refused({ ...ROWS, tables: [{ table: "items", column: "project_id" }, { table: "notes", column: "item_id", parent: "items" }] }, /写在它后面/u);
   refused({ ...ROWS, tables: [{ table: "notes", column: "item_id", parent: "ghosts" }, { table: "items", column: "project_id" }] }, /写在它后面/u);
   refused({ ...ROWS, label: "" }, /label/u);
+  // AP-21: unknown partition deletion fields use locale-neutral ", " instead of hardcoded "、".
+  assert.throws(
+    () => parsePluginManifest({
+      ...manifest(),
+      databases: {
+        partition: {
+          store_name: "rows-probe", version: 1, read_permission: "rowsprobe:read", write_permission: "rowsprobe:write",
+          schema: "CREATE TABLE items (id TEXT PRIMARY KEY);",
+          deletion: { label: "探针", foo: 1, bar: 2 } as never,
+        },
+      },
+    }),
+    (error: unknown) => error instanceof Error && error.message.includes("foo, bar") && !error.message.includes("、"),
+  );
 });
 
 const rowsWord = "rowsprobe.project-deletion.data", declarations = { default: "zh", available: ["zh", "en"] } as const;

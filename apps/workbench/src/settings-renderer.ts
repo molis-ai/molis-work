@@ -35,10 +35,15 @@ import { withSettingsHelp } from "./settings-help-topics.js";
 import { platformSettingsHelp, platformSettingsPage, settingsSectionPage, type PlatformSettingsPage } from "./platform-settings-registry.js";
 import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./judgment-rules/bootstrap.js";
 /** The docs page that lists every outbound network class (docs/platform/NETWORK.md), per interface language. */
-const NETWORK_DOC_HREF = {
+const NETWORK_DOC_HREF: Readonly<Record<string, string>> = {
   zh: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.md",
   en: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.en.md",
-} as const;
+};
+
+function networkDocHrefFor(locale: string): string {
+  const normalized = locale.trim().toLowerCase();
+  return NETWORK_DOC_HREF[normalized] ?? NETWORK_DOC_HREF[normalized.split("-")[0] ?? ""] ?? NETWORK_DOC_HREF.en!;
+}
 export interface SettingsRenderPrimitives {
   accountRegistration?: boolean;
   environmentName?(): "dev" | "test" | undefined;
@@ -103,7 +108,7 @@ const PLATFORM_SETTINGS_PAGES: Readonly<Record<PlatformSettingsPage, (page: Sett
   library: ({ view, primitives: { readText, escapeHtml }, capabilities }) => view.capabilities?.rules
     ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: readText } }) : capabilities?.library() ?? "",
   connectors: ({ view, primitives: { readText, escapeHtml, icon, currentLocale } }) => renderConnectorsSettings(view, { readText, escapeHtml, icon,
-    networkDocHref: NETWORK_DOC_HREF[currentLocale() === "zh" ? "zh" : "en"] }),
+    networkDocHref: networkDocHrefFor(currentLocale()) }),
   "web-search": ({ view }) => renderWebSearchSettings(view.web_search),
   mcp: ({ view, primitives, desktopShell }) => renderMcpSettings(view, desktopShell, primitives),
   authorizations: ({ view, contextProject }) => renderAuthorizationSettings(view.projects, contextProject?.project_id ?? null, view.show_project_approval_rules),

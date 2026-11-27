@@ -23,6 +23,77 @@ import type {
 const uiText = globalThis.t;
 const SAVE_AFTER = 800;
 
+function summaryOf(note: JellyNote): NoteSummary {
+  return {
+    id: note.id,
+    title: note.title,
+    day: note.day,
+    revision: note.revision,
+    updated_at: note.updated_at,
+    excerpt: [...note.body.replace(/\s+/gu, " ").trim()].slice(0, 200).join(""),
+  };
+}
+
+function buildDraft(entry: JellyOccurrence | null, day: string): Draft {
+  if (!entry) {
+    return {
+      occurrence: null,
+      title: "",
+      kind: "event",
+      allDay: false,
+      start_date: day,
+      end_date: day,
+      start_time: "09:00",
+      end_time: "10:00",
+      repeat: false,
+      weekdays: [((new Date(`${day}T12:00:00`).getDay() + 6) % 7) + 1],
+      until: "",
+      category_id: "uncategorized",
+      notes: "",
+      scope: "onlyThis",
+      conflict: false,
+      error: "",
+      busy: false,
+    };
+  }
+  return {
+    occurrence: entry,
+    title: entry.title,
+    kind: entry.kind,
+    allDay: entry.start_time === null,
+    start_date: entry.start_date,
+    end_date: entry.end_date,
+    start_time: clockLabel(entry.start_time) || "09:00",
+    end_time: clockLabel(entry.end_time) || "10:00",
+    repeat: Boolean(entry.series_id),
+    weekdays: [],
+    until: "",
+    category_id: entry.category_id,
+    notes: entry.notes,
+    scope: "onlyThis",
+    conflict: false,
+    error: "",
+    busy: false,
+  };
+}
+
+/** The form as the person left it, read into the draft so a repaint keeps it. */
+function readDraftForm(draft: Draft | null, view: HTMLElement): void {
+  const form = view.querySelector<HTMLFormElement>("[data-jelly-form]");
+  if (!draft || !form) return;
+  const value = (name: string) =>
+    (form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? "";
+  draft.title = value("title");
+  draft.start_date = value("start_date") || draft.start_date;
+  draft.end_date = value("end_date") || draft.end_date;
+  if (!draft.allDay) {
+    draft.start_time = value("start_time") || draft.start_time;
+    draft.end_time = value("end_time") || draft.end_time;
+  }
+  draft.until = form.elements.namedItem("until") ? value("until") : draft.until;
+  draft.notes = value("notes");
+}
+
 /**
  * The Jelly page (batch 112, plan B): the calendar with the chosen day beside it, and the notes. Every change is one of Jelly's own actions on one
  * row, at the revision the page read; a deletion is undone from the workbench's toast, and a row changed elsewhere asks for that row alone.
@@ -199,6 +270,13 @@ export function mountJelly(host: JellyHost): void {
       await pending;
     }
   }
+  async function refreshNoteDays(): Promise<void> {
+    const range = state.loaded ?? (state.tab === "calendar" && state.mode === "month" ? period(state) : null);
+    if (!range) return;
+    const seq = calendarSeq;
+    const { days } = await call<{ days: string[] }>(host, "jelly.note.days", range);
+    if (seq === calendarSeq) noteDays = new Set(days);
+  }
   async function writeNote(editor: NoteEditor): Promise<void> {
     clearTimeout(editor.timer);
     if (!editor.note && !editor.body.trim()) {
@@ -209,6 +287,7 @@ export function mountJelly(host: JellyHost): void {
     editor.dirty = false;
     paintStatus();
     const body = editor.body;
+    const previousDay = editor.note?.day ?? null;
     try {
       const { note } = await call<{ note: JellyNote }>(
         host,
@@ -221,12 +300,23 @@ export function mountJelly(host: JellyHost): void {
       if (editor.body !== body) editor.dirty = true;
       // The same note open in the other editor (the day rail and the notes tab) follows, unless it is being written there too.
       const other = editor === state.dayNote ? state.note : state.dayNote;
-      if (other.note?.id === note.id && !other.dirty && !other.saving) Object.assign(other, { note, body: note.body });
+      if (other.note?.id === note.id && !other.dirty && !other.saving) {
+        if (other === state.dayNote && note.day !== state.selected) Object.assign(other, blankNote(state.selected));
+        else Object.assign(other, { note, body: note.body, day: other === state.dayNote ? state.selected : note.day });
+      }
       if (note.day) noteDays.add(note.day);
-      state.notes = [summaryOf(note), ...state.notes.filter(row => row.id !== note.id)];
+      if (previousDay && previousDay !== note.day) {
+        await refreshNoteDays().catch(fail);
+      }
+      const needle = state.noteQuery.trim().toLowerCase();
+      const matchesQuery = !needle || note.title.toLowerCase().includes(needle) || note.body.toLowerCase().includes(needle);
+      state.notes = matchesQuery
+        ? [summaryOf(note), ...state.notes.filter(row => row.id !== note.id)]
+        : state.notes.filter(row => row.id !== note.id);
       if (state.tab === "notes") {
         const list = view!.querySelector(".jelly-nlist");
-        if (list && !list.querySelector(`[data-jelly-note="${CSS.escape(note.id)}"]`)) paint();
+        const present = Boolean(list?.querySelector(`[data-jelly-note="${CSS.escape(note.id)}"]`));
+        if (list && present !== matchesQuery) paint();
       }
     } catch (error) {
       editor.dirty = true;
@@ -237,10 +327,6 @@ export function mountJelly(host: JellyHost): void {
     } finally {
       editor.saving = false;
     }
-  }
-  function summaryOf(note: JellyNote): NoteSummary {
-    return { id: note.id, title: note.title, day: note.day, revision: note.revision, updated_at: note.updated_at,
-      excerpt: [...note.body.replace(/\s+/gu, " ").trim()].slice(0, 200).join("") };
   }
   async function openNote(id: string): Promise<boolean> {
     await saveNote(state.note);
@@ -260,53 +346,23 @@ export function mountJelly(host: JellyHost): void {
     });
     state.notes = state.notes.filter((row) => row.id !== note.id);
     Object.assign(editor, blankNote(editor === state.dayNote ? state.selected : null));
+    const other = editor === state.dayNote ? state.note : state.dayNote;
+    if (other.note?.id === note.id) {
+      clearTimeout(other.timer);
+      Object.assign(other, blankNote(other === state.dayNote ? state.selected : null));
+    }
+    if (note.day) {
+      await refreshNoteDays().catch(() => {
+        noteDays.delete(note.day!);
+      });
+    }
     toast("jelly.note.deleted", { title: noteName(note) || uiText.text("jelly.note.untitled") }, () => {
       void undo(restore);
     });
   }
 
   // ---- calendar entries ----
-  function draftFor(entry: JellyOccurrence | null, day = state.selected): Draft {
-    if (!entry)
-      return {
-        occurrence: null,
-        title: "",
-        kind: "event",
-        allDay: false,
-        start_date: day,
-        end_date: day,
-        start_time: "09:00",
-        end_time: "10:00",
-        repeat: false,
-        weekdays: [((new Date(`${day}T12:00:00`).getDay() + 6) % 7) + 1],
-        until: "",
-        category_id: "uncategorized",
-        notes: "",
-        scope: "onlyThis",
-        conflict: false,
-        error: "",
-        busy: false,
-      };
-    return {
-      occurrence: entry,
-      title: entry.title,
-      kind: entry.kind,
-      allDay: entry.start_time === null,
-      start_date: entry.start_date,
-      end_date: entry.end_date,
-      start_time: clockLabel(entry.start_time) || "09:00",
-      end_time: clockLabel(entry.end_time) || "10:00",
-      repeat: Boolean(entry.series_id),
-      weekdays: [],
-      until: "",
-      category_id: entry.category_id,
-      notes: entry.notes,
-      scope: "onlyThis",
-      conflict: false,
-      error: "",
-      busy: false,
-    };
-  }
+  const draftFor = (entry: JellyOccurrence | null, day = state.selected): Draft => buildDraft(entry, day);
   async function openEntry(id: string): Promise<void> {
     const entry = state.occurrences.find((occurrence) => occurrence.id === id);
     if (!entry) return;
@@ -320,23 +376,7 @@ export function mountJelly(host: JellyHost): void {
       }
     }
   }
-  /** The form as the person left it, read into the draft so a repaint keeps it. */
-  function readForm(): void {
-    const draft = state.draft,
-      form = view!.querySelector<HTMLFormElement>("[data-jelly-form]");
-    if (!draft || !form) return;
-    const value = (name: string) =>
-      (form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? "";
-    draft.title = value("title");
-    draft.start_date = value("start_date") || draft.start_date;
-    draft.end_date = value("end_date") || draft.end_date;
-    if (!draft.allDay) {
-      draft.start_time = value("start_time") || draft.start_time;
-      draft.end_time = value("end_time") || draft.end_time;
-    }
-    draft.until = form.elements.namedItem("until") ? value("until") : draft.until;
-    draft.notes = value("notes");
-  }
+  const readForm = (): void => readDraftForm(state.draft, view!);
   async function saveEntry(): Promise<void> {
     readForm();
     const draft = state.draft!;
@@ -382,7 +422,14 @@ export function mountJelly(host: JellyHost): void {
         } else await call(host, "jelly.item.create", { item: { ...fields, time_zone: homeZone() } });
       } else if (entry.series_id) {
         const patch: Record<string, unknown> = Object.fromEntries(Object.entries(fields).filter(([key, value]) => entry[key as keyof typeof fields] !== value));
-        if (patch.start_date !== undefined) patch.end_date = fields.end_date;
+        if ("start_date" in patch || "end_date" in patch) {
+          patch.start_date = fields.start_date;
+          patch.end_date = fields.end_date;
+        }
+        if ("start_time" in patch || "end_time" in patch) {
+          patch.start_time = fields.start_time;
+          patch.end_time = fields.end_time;
+        }
         const originalRule = draft.originalRule;
         if (draft.scope !== "onlyThis" && originalRule) {
           if (draft.weekdays.join() !== originalRule.weekdays.join()) patch.weekdays = draft.weekdays;

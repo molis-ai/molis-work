@@ -17,6 +17,11 @@ function words(_L: Translate) {
     delegation: { received: uiText.text("coding.coop.state.received"), delivered: uiText.text("coding.coop.state.delivered"), accepted: uiText.text("coding.coop.state.accepted"), committing: uiText.text("coding.coop.state.committing"), completed: uiText.text("coding.coop.state.completed"), rejected: uiText.text("coding.coop.state.rejected"), cancelled: uiText.text("coding.coop.state.cancelled"), failed: uiText.text("coding.coop.state.failed") } as Readonly<Record<string, string>>,
     mailKind: { request: uiText.text("coding.coop.mail.request"), reply: uiText.text("coding.coop.mail.reply"), notice: uiText.text("coding.coop.mail.notice"), handoff: uiText.text("coding.coop.mail.handoff") } as Readonly<Record<string, string>>,
     mailState: { queued: uiText.text("coding.coop.mail.queued"), delivered: uiText.text("coding.coop.mail.delivered"), accepted: uiText.text("coding.coop.event.accepted"), completed: uiText.text("coding.board.phase.completed"), rejected: uiText.text("coding.coop.event.rejected"), cancelled: uiText.text("coding.coop.mail.cancelled"), expired: uiText.text("coding.coop.mail.expired") } as Readonly<Record<string, string>>,
+    mailEndNote: {
+      "mail.recipient_failed": uiText.text("coding.coop.mail.ended-failed"),
+      "mail.recipient_tripped": uiText.text("coding.coop.mail.ended-tripped"),
+      "mail.recipient_circuit_tripped": uiText.text("coding.coop.mail.ended-circuit-tripped"),
+    } as Readonly<Record<string, string>>,
     task: { running: uiText.text("coding.coop.task.running"), succeeded: uiText.text("coding.coop.task.succeeded"), failed: uiText.text("coding.timeline.failed"), stopped: uiText.text("coding.phase.stopped"), interrupted: uiText.text("coding.coop.task.interrupted") } as Readonly<Record<string, string>>,
   };
 }
@@ -235,7 +240,7 @@ function mailItem(coop: Coop, message: Mail, word: ReturnType<typeof words>) {
   const body = el("details", "", "coding-coop-task");
   body.append(el("summary", message.body.split("\n")[0]?.slice(0, 80) ?? ""), el("p", message.body));
   item.append(head, line, body);
-  if (stopped && ending.note) item.append(el("p", ending.note, "coding-coop-note"));
+  if (stopped && ending.note) item.append(el("p", word.mailEndNote[ending.note] || ending.note, "coding-coop-note"));
   if (message.outgoing && ["queued", "delivered", "accepted"].includes(message.state)) item.append(button(coop, uiText.text("coding.coop.withdraw"), "ghost", () => post(coop, "/messages/" + encodeURIComponent(message.message_id) + "/cancel", uiText.text("coding.coop.withdrawn"))));
   return item;
 }

@@ -347,3 +347,99 @@ test("S-35 a put onto an object already at the target accepts only the same reco
   await assert.rejects(put("检查清单", 1), { code: "notes.conflict" });
   assert.equal(w.notes.get("q4")!.body, "目标改过");
 });
+
+test("AP-07 CarrySettling.close suppresses post-close DB reads and unhandled rejections when placement.db closes during settleCarries", async () => {
+  const gate = pause();
+  let dbClosed = false;
+  let settledCalls = 0;
+  let unhandled = 0;
+  const onUnhandled = () => { unhandled += 1; };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const fakeService = {
+      pendingCarryRecords: () => {
+        if (dbClosed) throw new Error("ERR_SQLITE_ERROR: database is not open");
+        return ["carrying:note:n1"];
+      },
+      settleCarries: async () => {
+        await gate.wait();
+        return 0;
+      },
+    };
+    const settling = new CarrySettling(fakeService, {
+      isClosed: () => dbClosed,
+      settled: () => { settledCalls += 1; },
+    });
+    settling.kick();
+    await gate.reached;
+    dbClosed = true;
+    settling.close();
+    gate.release();
+    await settling.idle();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(settledCalls, 0, "closed CarrySettling does not emit settled after close");
+    assert.equal(unhandled, 0, "no unhandled rejection when DB closes during in-flight settleCarries");
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+});
+
+test("AP-12 carryMove checks beforeEffect before noteCarrying, clears carrying edge on definite pre-effect refusal, and settleCarry checks beforeEffect before carry_not_put", async () => {
+  // 1. Cancelled call before noteCarrying writes no carrying edge and never calls put.
+  {
+    const w = carryWorld();
+    let exportCalls = 0;
+    let cancelled = false;
+    const origin: ActionExecutionContext = {
+      ...owner("personal"),
+      beforeEffect: async () => {
+        if (cancelled) throw new ActionError("actions.cancelled", "已取消");
+      },
+    };
+    const wrappedPorts = placementCallPorts(w.ports, origin, () => true);
+    const originalScope = wrappedPorts.scope;
+    wrappedPorts.scope = async projectId => {
+      const scope = await originalScope(projectId);
+      if (projectId === "personal") {
+        const origInvoke = scope.client.invoke.bind(scope.client);
+        return {
+          ...scope,
+          client: {
+            ...scope.client,
+            discover: scope.client.discover.bind(scope.client),
+            invoke: async (caller, ref, input) => {
+              const result = await origInvoke(caller, ref, input);
+              if (ref.capability_id === exporter.capability_id) { exportCalls += 1; cancelled = true; }
+              return result;
+            },
+          } as never,
+        };
+      }
+      return scope;
+    };
+    await assert.rejects(new PlacementService(wrappedPorts).move(old, "q4"), { code: "actions.cancelled" });
+    assert.equal(exportCalls, 1);
+    assert.equal(w.service().pendingCarries(), 0, "cancelled move writes no carrying edge");
+    assert.equal(w.notes.has("q4"), false);
+  }
+
+  // 2. Definite pre-effect forbidden refusal from target put clears the carrying edge immediately.
+  {
+    const w = carryWorld({ putting: async () => { throw new ActionError("actions.forbidden", "目标禁止写入"); } });
+    await assert.rejects(w.service().move(old, "q4"), { code: "actions.forbidden" });
+    assert.equal(w.service().pendingCarries(), 0, "definite pre-effect forbidden refusal clears carrying edge");
+  }
+
+  // 3. settleCarry calls beforeEffect before removing a carry_not_put edge.
+  {
+    const w = carryWorld({ putting: async () => { throw new Error("ambiguous IO failure"); } });
+    await assert.rejects(w.service().move(old, "q4"), /ambiguous IO failure/u);
+    assert.equal(w.service().pendingCarries(), 1, "ambiguous failure keeps carrying edge for settlement");
+    const blocked = new PlacementService({ ...w.ports, beforeEffect: async () => { throw new ActionError("actions.cancelled", "已取消"); } });
+    assert.equal(await blocked.settleCarries(), 1, "cancelled beforeEffect keeps carry_not_put unsettled");
+    assert.equal(w.service().pendingCarries(), 1, "cancelled settleCarry does not mutate ledger on carry_not_put");
+    await assert.rejects(blocked.move(old, "q4"), { code: "actions.cancelled" }, "move propagates cancelled settleCarry beforeEffect");
+    assert.equal(w.service().pendingCarries(), 1, "carry_not_put edge remains until an authorized settlement runs");
+    assert.equal(await w.service().settleCarries(), 0, "valid settleCarry clears carry_not_put");
+  }
+});

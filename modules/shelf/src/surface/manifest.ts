@@ -1,4 +1,5 @@
 import { PLUGIN_LOCAL_TOOLS_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/platform/ui";
 import { shelfPreferences, shelfSettings } from "./device-preferences.js";
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
@@ -8,7 +9,7 @@ import { SHELF_HOME_ROUTES } from "./routes.js";
 import { SHELF_OWNER_FILES } from "./owner-files.js";
 import { SHELF_LOCAL_TOOLS } from "./local-tools.js";
 /** Shelf is a platform part the runtime hosts (44B, decision 66): its id is the platform's, which no package may install. */
-export const SHELF_PLUGIN_ID = "system.shelf";
+export const SHELF_PLUGIN_ID = "system.shelf" satisfies typeof PLATFORM_RECEIVE_STATION;
 /** The key the workbench and the Host name the Shelf surface by. */
 export const SHELF_PROJECT_PLUGIN_ID = "shelf";
 

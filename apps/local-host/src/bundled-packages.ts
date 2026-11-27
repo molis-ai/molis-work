@@ -40,37 +40,62 @@ export function releasePackageIds(directory: string): ReadonlySet<string> {
     .filter(id => id.startsWith(HOST_PLUGIN_ID_PREFIX)));
 }
 
+type ReleaseBinding = { kind: 'signed'; key: string } | { kind: 'draft' } | { kind: 'invalid' };
+
 /**
  * The release's packages under the Host's prefix as the Runtime checks them at install and at every start (S-reserved-host-prefix, 44C
  * P-13): an id the folder carries, signed as the folder's package is. A package the folder ships signed (`<plugin_id>.json`) installs
- * only under the key that signed it there, verified once; one it ships unsigned (`<plugin_id>.draft.json`) only under this Home's own
+ * only under the key that signed it there, verified once (and if the signed file is invalid, fails closed rather than falling back to
+ * `localKey`); one it ships unsigned (`<plugin_id>.draft.json`, with no `<plugin_id>.json`) installs only under this Home's own
  * publisher key (`localKey`), the one that signs it when the person installs it. A version older than the folder's still passes, since
  * the signer is what is bound; a package with the same id signed by anyone else does not.
  */
 export function releasePackages(directory: string, ids: ReadonlySet<string>, localKey: () => string | null): ReleasePackages {
-  const signers = new Map<string, string | null>();
-  const signerOf = (pluginId: string): string | null => {
-    if (!signers.has(pluginId)) signers.set(pluginId, signedKeyOf(path.join(directory, `${pluginId}.json`), pluginId));
-    return signers.get(pluginId) ?? null;
+  const bindings = new Map<string, ReleaseBinding>();
+  const bindingOf = (pluginId: string): ReleaseBinding => {
+    if (!bindings.has(pluginId)) bindings.set(pluginId, resolveReleaseBinding(directory, pluginId));
+    return bindings.get(pluginId)!;
   };
   return {
     has: pluginId => ids.has(pluginId),
     signedBy(pluginId, signature) {
       if (!ids.has(pluginId)) return false;
-      const signed = signerOf(pluginId);
-      return signature === (signed ?? localKey());
+      const binding = bindingOf(pluginId);
+      if (binding.kind === 'signed') return signature === binding.key;
+      if (binding.kind === 'draft') {
+        const local = localKey();
+        return local !== null && signature === local;
+      }
+      return false;
     },
   };
 }
 
-/** The key that signed the release's package at `file` if it lies there as a regular file, verifies and is the package for `pluginId`; otherwise none. */
-function signedKeyOf(file: string, pluginId: string): string | null {
-  try {
-    const stat = lstatSync(file, { throwIfNoEntry: false });
-    if (!stat?.isFile() || stat.size > MAX_PACKAGE_BYTES) return null;
-    const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(readFileSync(file, 'utf8')) as unknown);
-    return readKeptPackage(bundle.payload).manifest.plugin_id === pluginId ? key_id : null;
-  } catch { return null; }
+/**
+ * Resolves the signer binding of `pluginId` in `directory`:
+ * (a) `<pluginId>.json` exists (not ENOENT) -> verify signature, `manifest.plugin_id === pluginId`, and `manifest.kind === "content"`; fail closed on any error.
+ * (b) Only `<pluginId>.draft.json` regular file exists -> bind strictly to `localKey()`.
+ * (c) Neither exists -> fail closed (`invalid`).
+ */
+function resolveReleaseBinding(directory: string, pluginId: string): ReleaseBinding {
+  const signedFile = path.join(directory, `${pluginId}.json`);
+  let signedStat: ReturnType<typeof lstatSync>;
+  try { signedStat = lstatSync(signedFile, { throwIfNoEntry: false }); } catch { return { kind: 'invalid' }; }
+  if (signedStat !== undefined) {
+    try {
+      if (signedStat.isSymbolicLink() || !signedStat.isFile() || signedStat.size > MAX_PACKAGE_BYTES) return { kind: 'invalid' };
+      const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(readFileSync(signedFile, 'utf8')) as unknown);
+      const { manifest } = readKeptPackage(bundle.payload);
+      return manifest.plugin_id === pluginId && manifest.kind === 'content' ? { kind: 'signed', key: key_id } : { kind: 'invalid' };
+    } catch { return { kind: 'invalid' }; }
+  }
+  const draftFile = path.join(directory, `${pluginId}${DRAFT_SUFFIX}`);
+  let draftStat: ReturnType<typeof lstatSync>;
+  try { draftStat = lstatSync(draftFile, { throwIfNoEntry: false }); } catch { return { kind: 'invalid' }; }
+  if (draftStat && !draftStat.isSymbolicLink() && draftStat.isFile() && draftStat.size <= MAX_PACKAGE_BYTES) {
+    return { kind: 'draft' };
+  }
+  return { kind: 'invalid' };
 }
 
 /** One bundled package that verified: its file in the folder, the signed bundle as it lies there, its Manifest as read, and the key that signed it. */

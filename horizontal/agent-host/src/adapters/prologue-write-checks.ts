@@ -66,7 +66,12 @@ export function registerWriteChecks(runtime: Runtime, store: Map<string, AgentWr
     const rewritten = context.toolName === "write" ? { path: file, text: checked.text } : { path: file, find: before!, replace: checked.text };
     return { kind: "rewrite" as const, input: rewritten, why: "格式化后再审查" };
   } });
-  return () => runtime.hooks.unregister(id);
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    runtime.hooks.unregister(id);
+  };
 }
 
 /** The whole new text a call proposes; undefined when it cannot be worked out exactly (an edit whose find is not there once). */

@@ -2,7 +2,7 @@
 
 分组：9. 平台小项与工程流程
 
-状态：2026-11-17 已实现并通过本地验收，最终头 CI 待完成。负责人沿用合同维护人，执行 Codex。用户已批准 quality-experience-audit §28 两处门禁调整；WebQuery 整包及 YouTube 未接入工厂/Manifest 已移除，频道工具原包名、现行来源和 Host 产物依赖保留。活跃集成缺安装清单的拒绝反证、真实 Runtime 频道拉取/重放及 npm 压缩包解压导入均通过，见 [本轮报告](../quality-experience-audit/report.md)。下表保留原缺口与依赖记录，不能继续据它宣称尚未获批或工厂仍存在。
+状态：已销账（待归档）。`plugins/official-integrations/web-query/` 整包已移除，`plugins/official-integrations/youtube/` 已在第 44B 批收编进 `rss` 连接器驱动并合入 `main`；用户已批准 quality-experience-audit §28 两处门禁调整，见 [本轮报告](../quality-experience-audit/report.md)。下表仅留作历史缺口记录，不再作为待办项。
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |

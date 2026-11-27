@@ -48,6 +48,7 @@ export function createAcceptanceSyncRegistration(home: string, spaceId: string, 
 export function projectPlatformSyncRegistration(owner: {
   readonly owner: PlatformSyncCollection["owner"]; readonly journal: string; readonly denied: string; locate(projectId: string): string;
   readonly keyLength?: number; readonly dependencies?: readonly SyncSelection[];
+  readonly onMutated?: (projectId: string) => void;
   replica(db: ReplicaDatabase, projectId: string, spaceId: string, authorize: () => void, title: string): SqliteReplica;
 }, home: string, spaceId: string, check: () => void, withCatalog: LocalWebCatalogRunner, readCatalog: SyncCatalogReader | undefined,
   selected: Selected): SyncRegistration {
@@ -97,10 +98,32 @@ export function projectPlatformSyncRegistration(owner: {
           };
           authorize();
           const store = new LocalProjectDatabase(before.database_path, { existingOnly: true });
+          let mutated = false;
+          let result: ReturnType<typeof operation>;
           try {
             if (readDatabaseSpace(store.db)?.spaceId !== spaceId) throw denied();
-            return operation(owner.replica(store.replicationDatabase, id, spaceId, authorize, before.display_name));
+            const base = owner.replica(store.replicationDatabase, id, spaceId, authorize, before.display_name);
+            const tracked: SqliteReplica = owner.onMutated ? {
+              ...base,
+              receive(event, options) {
+                base.receive(event, options);
+                mutated = true;
+              },
+              resolve(key, choice, expectedRevision, expectedState) {
+                base.resolve(key, choice, expectedRevision, expectedState);
+                mutated = true;
+              },
+              ...(base.restoreRecovery ? {
+                restoreRecovery(recoveryId, choice, expectedRevision) {
+                  base.restoreRecovery!(recoveryId, choice, expectedRevision);
+                  mutated = true;
+                },
+              } : {}),
+            } : base;
+            result = operation(tracked);
           } finally { store.close(); }
+          if (mutated) owner.onMutated?.(id);
+          return result;
         },
       }));
     },

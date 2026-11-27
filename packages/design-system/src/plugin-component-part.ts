@@ -202,8 +202,12 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         // A step that cannot be undone asks first, in the catalog's alert dialog.
         const shell = overlay('confirm', t.text("common.generated.confirm", { action: rowLabel(node) }), t.text("common.generated.irreversible"), node.id);
         bindWord(shell.dialog.querySelector('h2')!, '', () => t.text("common.generated.confirm", { action: rowLabel(part.node) }));
+        bindWord(shell.dialog.querySelector<HTMLElement>('[data-pc-overlay-description]')!, '', () => t.text("common.generated.irreversible"));
         if (facts) shell.body.append(facts);
-        const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md'), yes = button(rowLabel(node), 'danger', 'md'); yes.dataset.pcConfirmYes = '';
+        const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md');
+        const yes = button(rowLabel(node), 'danger', 'md');
+        yes.dataset.pcConfirmYes = '';
+        bindWord(cancel.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => t.text("common.generated.cancel"));
         bindWord(yes.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => rowLabel(part.node));
         cancel.addEventListener('click', () => shell.dialog.close()); shell.footer.append(cancel, yes); shell.dialog.dataset.pcConfirm = node.id; part.confirm = shell.dialog;
         form = make('form', undefined, 'pc-form pc-bare'); form.append(fields, submit);
@@ -235,7 +239,13 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         form.append(panel);
         if (node.connectionNeed && isDestructivePluginPart(node)) {
           const shell = overlay('confirm', t.text("common.generated.confirm", { action: rowLabel(node) }), t.text("common.generated.irreversible"), node.id);
-          const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md'), yes = button(rowLabel(node), 'danger', 'md');
+          bindWord(shell.dialog.querySelector('h2')!, '', () => t.text("common.generated.confirm", { action: rowLabel(part.node) }));
+          bindWord(shell.dialog.querySelector<HTMLElement>('[data-pc-overlay-description]')!, '', () => t.text("common.generated.irreversible"));
+          const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md');
+        const yes = button(rowLabel(node), 'danger', 'md');
+        yes.dataset.pcConfirmYes = '';
+          bindWord(cancel.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => t.text("common.generated.cancel"));
+          bindWord(yes.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => rowLabel(part.node));
           cancel.addEventListener('click', event => {
             event.preventDefault();
             shell.dialog.close('');
@@ -245,6 +255,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
             shell.dialog.close('confirm');
           });
           shell.footer.append(cancel, yes);
+          shell.dialog.dataset.pcConfirm = node.id;
           element.append(shell.dialog);
           part.confirm = shell.dialog;
         }

@@ -4,10 +4,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentRelease } from "@molis-ai/molis-work-plugin-studio";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { promptVersions, readPluginPrompts, releaseInstructions, resolvePluginPrompt } from "../apps/local-host/src/installed-plugin-prompts.js";
-import { homeAgentDefinitions, pluginAgentRegistration } from "../apps/local-host/src/plugin-instructions.js";
+import { homeAgentDefinitions, pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, withPendingPluginEnable } from "../apps/local-host/src/plugin-instructions.js";
 
 // A plugin the studio made is installed from its signed package (PG-083), so its prompts reach the Home's register the way every
 // plugin's do: the instructions its definition carries, projected by the platform. These stand where that definition stands.
@@ -138,5 +138,37 @@ test("developer diagnostics say what each source registered and what is not in e
     const assistant = report.owners.find(owner => owner.owner_id === "system.assistant")!;
     assert.ok(assistant.prompts > 0 && assistant.roles > 0);
     assert.ok(assistant.issues.some(issue => issue.level === "info" && /还没有被调用过/.test(issue.text)));
+    // IUI-15: diagnostics localize cleanly in English and Japanese without Chinese leaks.
+    const enReport = registry.diagnostics("en");
+    const enGenerated = enReport.owners.find(owner => owner.owner_id === "studio.b1")!;
+    assert.ok(enGenerated.issues.some(issue => /Plugin is disabled/i.test(issue.text)));
+    assert.ok(enGenerated.issues.some(issue => /older default/i.test(issue.text)));
+    assert.ok(enGenerated.issues.every(issue => !/、/.test(issue.text)));
+    const jaReport = registry.diagnostics("ja");
+    const jaGenerated = jaReport.owners.find(owner => owner.owner_id === "studio.b1")!;
+    assert.ok(jaGenerated.issues.some(issue => /プラグインは無効/.test(issue.text)));
+    assert.ok(jaGenerated.issues.some(issue => /古い既定値/.test(issue.text)));
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("updatePluginAgentDefinitions writes disabled fallback even when only a pendingGeneration hold exists", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-prompt-pending-disable-"));
+  try {
+    const v1 = release(1, [{ id: "summary", title: "要点提炼", purpose: "p", body: "V1" }]);
+    const manifest = sandboxPluginManifest({ pluginId: v1.pluginId, name: v1.design.title, version: "1.0.0", presentation: false,
+      publisher: { publisher_id: "molis-studio", signature: SIGNATURE } });
+    const definition: PluginDefinition = { manifest, execution: "sandbox", instructions: releaseInstructions(v1, [v1]),
+      start() { throw new Error("never started"); } };
+    const installId = "install-pending-only";
+    const releaseHold = await withPendingPluginEnable("gen-pending", async () =>
+      registerPluginAgentDefinitions({ directory: home }, definition, installId, { installation_generation: "gen-pending" } as PluginInstanceRecord));
+    assert.ok(releaseHold);
+    assert.equal(homeAgentDefinitions(home).hasPrompt(v1.pluginId, "summary"), false, "pending hold is not visible while enabling");
+    updatePluginAgentDefinitions({ directory: home }, definition, installId, "disabled");
+    const disabled = homeAgentDefinitions(home).prompt(`${v1.pluginId}/summary`);
+    assert.equal(disabled.source.kind === "plugin" && disabled.source.state, "disabled", "disabled fallback is registered and remembered despite pending hold");
+    releaseHold!();
+    const afterRelease = homeAgentDefinitions(home).prompt(`${v1.pluginId}/summary`);
+    assert.equal(afterRelease.source.kind === "plugin" && afterRelease.source.state, "disabled", "releasing the failed pending hold preserves the disabled fallback");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

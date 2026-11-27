@@ -4,7 +4,7 @@ import {personalSyncFixture} from './fixtures/personal-sync-coordinator.js';
 import { runtimePersonalSync, syncOwnerPair } from './fixtures/runtime-personal-sync.js';
 import {openFormStore,openDatasetStore,openPptStore,openLingguangStore,openWorkflowsStore,openJellyStore,openTodoStore} from './fixtures/plugin-sync-stores.js';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {LocalProjectDatabase, homeAgentDefinitions, personalConfigRegistrations} from '@molis-ai/molis-work-app-local-host';
+import {ATTENTION_OVERVIEW_SOURCE, LocalProjectDatabase, homeAgentDefinitions, personalConfigRegistrations} from '@molis-ai/molis-work-app-local-host';
 import { APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION, appearanceSelectionActions, type UiAppearanceSelection } from '@molis-ai/molis-work-contracts/platform/ui';
 import { bindActionClient, type ActionCallContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { ActionService } from '@molis-ai/molis-work-kernel';
@@ -16,7 +16,7 @@ import { createSurfaceCorrections } from '@molis-ai/molis-work-service-surfaces'
 import type { Blueprint } from '@molis-ai/molis-work-contracts/platform/blueprints';
 import { ASSISTANT_PLUGIN_ID } from '@molis-ai/molis-work-contracts/services/assistant';
 import { syncNamespace, type SyncSelection } from '@molis-ai/molis-work-module-sync-replication';
-import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
+import { ensureStorageSpace, openOverviewIndex } from '@molis-ai/molis-work-storage';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -299,5 +299,53 @@ test('AC-M1-06 local space, another account, and a revoked account cannot read o
       assert.throws(() => registration.withReplica(replica => replica.receive({ key: 'foreign', revision: 1, base: 0, operationId: 'forged', value: null })),
         /不属于当前个人空间|TEST_LEASE_REVOKED/);
     }
+  }
+});
+
+test('AP-04 synced attention_entries invalidate and refresh ATTENTION_OVERVIEW_SOURCE in search.db', { timeout: 60_000 }, async t => {
+  const { source, target, owner, space } = await platformConfigPair(t);
+  const sourceProject = source.project(), targetProject = target.project();
+  // Create an open attention entry on source so attentionOverviewRows projects it after sync arrives.
+  const sourceStore = new LocalProjectDatabase(sourceProject.database_path);
+  try {
+    new AttentionModule(sourceStore.db, { exists: () => true }).commands.create({
+      project_id: sourceProject.project_id, entry_id: 'synced-open-attention', subject_type: 'goal', subject_id: 'open-goal', reason: 'manual',
+    });
+  } finally {
+    sourceStore.close();
+  }
+  const selections = source.sync.status().collections.filter(row => row.group === 'platform' && row.selection.collection_id === 'attention').map(row => row.selection);
+  const makeAttention = (side: typeof source) => personalConfigRegistrations({
+    home: side.home, actor: owner, spaceId: space.spaceId, authorize: noop,
+    catalog: side.withCatalog, readCatalog: side.readCatalog, selected: () => ({ revision: 1, selections }),
+  }).find(row => row.selection.collection_id === 'attention')!;
+  const origin = makeAttention(source), destination = makeAttention(target);
+  const event = origin.withReplica(replica => replica.next());
+  assert.ok(event, 'source has an attention mutation ready to sync');
+
+  const index = openOverviewIndex({ homeDirectory: target.home });
+  const attentionRowIds = () => index.rows({ partitions: [targetProject.project_id], kinds: ['notification'], limit: 50 })
+    .filter(row => row.install_id === ATTENTION_OVERVIEW_SOURCE).map(row => row.row_id);
+  try {
+    index.replace({
+      partition_id: targetProject.project_id,
+      install_id: ATTENTION_OVERVIEW_SOURCE,
+      plugin_id: ATTENTION_OVERVIEW_SOURCE,
+      path: targetProject.database_path,
+      kinds: ['notification'],
+      table: 'attention',
+    }, [], []);
+    assert.deepEqual(index.state(targetProject.project_id, ATTENTION_OVERVIEW_SOURCE), { dirty: false });
+    assert.deepEqual(attentionRowIds(), []);
+    // Read-only counts() does not mark or refresh ATTENTION_OVERVIEW_SOURCE.
+    destination.withReplica(replica => replica.counts());
+    assert.deepEqual(index.state(targetProject.project_id, ATTENTION_OVERVIEW_SOURCE), { dirty: false });
+    assert.deepEqual(attentionRowIds(), []);
+    // Receiving synced attention_entries triggers partitionChanged(target.home, projectId, ATTENTION_OVERVIEW_SOURCE), refreshing the cached overview rows.
+    destination.withReplica(replica => replica.receive({ ...event, revision: 1 }));
+    assert.ok(attentionRowIds().includes('synced-open-attention'),
+      'synced open attention_entries must invalidate and refresh ATTENTION_OVERVIEW_SOURCE in search.db');
+  } finally {
+    index.close();
   }
 });

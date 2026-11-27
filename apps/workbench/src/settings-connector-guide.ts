@@ -36,12 +36,14 @@ export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMet
   if (direct) return direct;
   if (methods.length === 1 && methods[0]?.kind === "token" && methods[0].support === "paste") return methods[0];
   if (preferred === "mcp") return methods.find(m => m.mcp);
-  if (preferred === "token" || PLATFORM_KEYS.includes(card.connector_id)) return methods.find(m => m.kind === "token" && m.support === "paste");
+  if (preferred === "token" || PLATFORM_CONNECTION_SERVICE_SET.has(card.connector_id)) return methods.find(m => m.kind === "token" && m.support === "paste");
   return undefined;
 }
 
 /** The platform's own keys (the Host's `platform-connection-services.ts`): no account is behind them and nothing but a key connects them. */
-const PLATFORM_KEYS: readonly string[] = ["model-api", "image-api", "typesafe", "mcp-bearer"];
+export const PLATFORM_CONNECTION_SERVICE_IDS = ["model-api", "image-api", "typesafe", "mcp-bearer"] as const;
+export type PlatformConnectionServiceId = (typeof PLATFORM_CONNECTION_SERVICE_IDS)[number];
+const PLATFORM_CONNECTION_SERVICE_SET: ReadonlySet<string> = new Set(PLATFORM_CONNECTION_SERVICE_IDS);
 
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 
@@ -59,7 +61,7 @@ export function requestGuideVariant(method: ConnectorMethodOption): "main" | "fu
 }
 
 /** What each of the platform's own keys is for. */
-const PLATFORM_PURPOSE: Record<string, string> = {
+const PLATFORM_PURPOSE: Readonly<Record<PlatformConnectionServiceId, string>> = {
   "model-api": "workbench.settings-connector-guide.choose-text-models-molis-can-use",
   "image-api": "workbench.settings-connector-guide.use-own-image-generation-service-images",
   typesafe: "workbench.settings-connector-guide.let-functions-use-type-safe-account",
@@ -68,7 +70,7 @@ const PLATFORM_PURPOSE: Record<string, string> = {
 
 /** What a connector is for: the sentence its declaration gives for it, else its summary (its words are its own; specs/font-and-skin-system FSS-36). */
 export function connectorPurpose(card: ConnectorSettingsCardView, _readText: Translate): string {
-  if (Object.hasOwn(PLATFORM_PURPOSE, card.connector_id)) return uiText.text(PLATFORM_PURPOSE[card.connector_id]!);
+  if (Object.hasOwn(PLATFORM_PURPOSE, card.connector_id)) return uiText.text(PLATFORM_PURPOSE[card.connector_id as PlatformConnectionServiceId]);
   return card.card?.purpose ?? card.summary;
 }
 
@@ -83,7 +85,7 @@ export function officialLinks(links: readonly ConnectorSetupLink[], p: Connector
 export function credentialInputs(card: ConnectorSettingsCardView, p: ConnectorPrimitives): { fields: string; separator?: string } {
   const { escapeHtml: e } = p;
   const composite = card.card?.credential;
-  const fields = composite ? composite.fields.map(({ label, type, placeholder }) => `<label class="settings-connector-field"><span>${e(label)}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
+  const fields = composite ? composite.fields.map(({ label, type, placeholder }) => `<label class="settings-connector-field"><span>${e(label)}</span><input class="mw-input" data-credential-part type="${e(type)}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
     : `<label class="settings-connector-field"><span>${card.token_label ? e(card.token_label) : uiText("workbench.settings-connector-guide.api-key-access-token")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${e(card.connector_id)}" placeholder="${e(card.token_placeholder || "")}" required></label>`;
   return { fields, separator: composite?.separator };
 }
@@ -91,12 +93,12 @@ export function credentialInputs(card: ConnectorSettingsCardView, p: ConnectorPr
 function tokenGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives): string {
   const { escapeHtml: e } = p;
   const { fields, separator } = credentialInputs(card, p);
-  return `<form class="settings-connector-auth" data-connector-auth="${e(card.connector_id)}"${separator ? ` data-credential-separator="${separator}"` : ""}>
+  return `<form class="settings-connector-auth" data-connector-auth="${e(card.connector_id)}"${separator ? ` data-credential-separator="${e(separator)}"` : ""}>
     <ol class="settings-connector-steps"><li><strong>${uiText("workbench.settings-connector-guide.get-credentials-official-console")}</strong><p>${uiText("workbench.settings-connector-guide.open-official-page-below-sign-create-key-need")}</p>${officialLinks(option.links, p)}</li>
     <li><strong>${uiText("workbench.settings-connector-guide.come-back-here-enter-credentials")}</strong>${fields}</li></ol>
     ${card.auth_help || option.note ? `<details class="settings-connector-help"><summary>${uiText("workbench.settings-connector-guide.permission-requirements-help-filling")}</summary><p>${e((card.auth_help || option.note))}</p></details>` : ""}
     <p>${uiText("workbench.settings-connector-guide.credentials-stored-only-computer-not-shown-again-after")}</p>
-    <button class="mw-btn mw-btn--primary" type="submit">${uiText(PLATFORM_KEYS.includes(card.connector_id) ? "workbench.settings-connector-guide.save-continue" : "workbench.settings-connector-guide.save-check-connection")}</button>
+    <button class="mw-btn mw-btn--primary" type="submit">${uiText(PLATFORM_CONNECTION_SERVICE_SET.has(card.connector_id) ? "workbench.settings-connector-guide.save-continue" : "workbench.settings-connector-guide.save-check-connection")}</button>
     <div data-protocol-result role="status" aria-live="polite" hidden></div></form>`;
 }
 

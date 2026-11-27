@@ -59,7 +59,12 @@ export function installationSwitchedOff(platform: Pick<PluginPlatform, "runtime"
  * turn share that round: it reads the catalog only after every one of them asked, so none consumes a reading older than its request (BCC-04).
  * A round that has started reading is never joined, and a finished or failed one is never reused.
  */
-export function projectPluginEnablementRefresh(platform: PluginPlatform, home: string | undefined, projectId: string): () => Promise<ProjectPluginRefreshResult | null> {
+export function projectPluginEnablementRefresh(
+  platform: PluginPlatform,
+  home: string | undefined,
+  projectId: string,
+  onDisabled?: (pluginId: string) => void,
+): () => Promise<ProjectPluginRefreshResult | null> {
   const pending = new Map<string, { desired: boolean; install: InstallIdentity | null }>();
   let tail: Promise<unknown> = Promise.resolve();
   let queued: Promise<ProjectPluginRefreshResult | null> | undefined;
@@ -115,7 +120,11 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         if (refusal !== undefined) { unfinished.push({ plugin_id, desired_enabled: wanted, reason: refusal }); continue; }
         pending.set(plugin_id, { desired: wanted, install: installationIdentity(install) });
         const reason = wanted ? await enableProjectPlugin(platform, plugin_id) : await disableProjectPlugin(platform, plugin_id, install, isActive);
-        if (reason === undefined) { pending.delete(plugin_id); continue; }
+        if (reason === undefined) {
+          pending.delete(plugin_id);
+          if (!wanted) onDisabled?.(plugin_id);
+          continue;
+        }
         unfinished.push({ plugin_id, desired_enabled: wanted, reason });
         const current = readInstallation(platform, plugin_id, platform.supervisor.state(plugin_id)?.install_id);
         if (!install) pending.set(plugin_id, { desired: wanted, install: installationIdentity(current) });

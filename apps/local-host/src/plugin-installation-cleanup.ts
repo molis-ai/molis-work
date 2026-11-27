@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { observationPluginDataCleared } from "./observation-host.js";
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -6,12 +7,67 @@ import { forgetInstallationBindings, forgetInstallationProjectBindings, installa
 import { forgetInstallationOriginalFiles } from "./material-original-files.js";
 import { forgetInstallationAttachments } from "./material-attachments.js";
 import { hostLog } from "./host-log.js";
-import { installedIdentities, pluginHeldElsewhere, type InstallScope } from "./plugin-holders.js";
+import { heldInstalls, installedIdentities, sameInstallScope, type InstallScope } from "./plugin-holders.js";
 import { forgetSandboxImageBindings } from "./sandbox-image-generation.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { noteRetained } from "./uninstall-retained.js";
 import { forgetInstallationPlatformRecords, forgetRetainedPlatformRecords } from "./partition-platform-services.js";
+
+export interface DiscardCleanupContext {
+  /** All scopes whose kept data is being discarded in this confirmation transaction (prevents dual-instance mutual blocking). */
+  readonly excludeScopes: readonly InstallScope[];
+  /** Retained-record cleanups run once all replacement halves start and before exposure. */
+  readonly preExpose: Array<() => Promise<void>>;
+  /** Errors recorded during pre-expose retained-record cleanup (surfaced as `retained_cleanup_incomplete` without aborting install). */
+  readonly errors: unknown[];
+}
+
+const discardCleanupStorage = new AsyncLocalStorage<DiscardCleanupContext>();
+
+export function withDiscardCleanup<T>(excludeScopes: readonly InstallScope[], run: (ctx: DiscardCleanupContext) => Promise<T>): Promise<T> {
+  const ctx: DiscardCleanupContext = { excludeScopes, preExpose: [], errors: [] };
+  return discardCleanupStorage.run(ctx, () => run(ctx));
+}
+
+export function currentDiscardCleanup(): DiscardCleanupContext | undefined {
+  return discardCleanupStorage.getStore();
+}
+
+export async function flushPreExposeDiscardCleanup(): Promise<void> {
+  const ctx = discardCleanupStorage.getStore();
+  if (!ctx || !ctx.preExpose.length) return;
+  const tasks = ctx.preExpose.splice(0);
+  const results = await Promise.allSettled(tasks.map(task => task()));
+  for (const result of results) {
+    if (result.status === "rejected") ctx.errors.push(result.reason);
+  }
+}
+
+export interface RetainedCleanupOptions {
+  readonly excludeScopes?: readonly InstallScope[];
+}
+
+function installedElsewhereExcluding(home: string, installId: string, excludeScopes: readonly InstallScope[]): boolean {
+  try {
+    return heldInstalls(home).some(held => held.record.state !== "uninstalled"
+      && held.record.install_id === installId
+      && !excludeScopes.some(scope => sameInstallScope(held.scope, scope)));
+  } catch (error) {
+    hostLog.warn("connections", "installation_holders_unreadable", error, { install_id: installId });
+    return true;
+  }
+}
+
+function pluginHeldElsewhereExcluding(home: string, pluginId: string, installId: string, excludeScopes: readonly InstallScope[]): boolean {
+  try {
+    return heldInstalls(home).some(held => held.record.plugin_id === pluginId
+      && !(held.record.install_id === installId && excludeScopes.some(scope => sameInstallScope(held.scope, scope))));
+  } catch (error) {
+    hostLog.warn("functions", "plugin_holders_unreadable", error, { plugin_id: pluginId, install_id: installId });
+    return true;
+  }
+}
 
 /**
  * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
@@ -31,14 +87,15 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
     .catch(error => hostLog.warn("plugins", "attachments_not_removed", error));
 }
 
-/** Retained data in platform services follows the old installation only after its replacement succeeds. */
-export function forgetRetainedInstallationRecords(home: string, projectId: string | null, record: PluginInstanceRecord): Promise<void> {
-  observationPluginDataCleared(home, record, projectId ?? undefined);
-  forgetInstallationRules(home, record, projectId);
-  if (projectId) forgetInstallJudgmentsIn(home, record.install_id, projectId);
+/** Retained data in platform services follows the old installation once its replacement has started and before exposure. */
+export function forgetRetainedInstallationRecords(home: string, projectId: string | null, record: PluginInstanceRecord, options?: RetainedCleanupOptions): Promise<void> {
   const scope: InstallScope = projectId ? { kind: "project", project_id: projectId } : { kind: "home" };
-  const installed = installedIdentities(home, { scope, install_id: record.install_id });
-  forgetRetainedPlatformRecords(home, record.install_id, projectId ?? undefined, !installed || installed.has(record.install_id));
+  const excludeScopes = options?.excludeScopes?.length ? options.excludeScopes : [scope];
+  observationPluginDataCleared(home, record, projectId ?? undefined);
+  forgetInstallationRules(home, record, projectId, excludeScopes);
+  if (projectId) forgetInstallJudgmentsIn(home, record.install_id, projectId);
+  const installedElsewhere = installedElsewhereExcluding(home, record.install_id, excludeScopes);
+  forgetRetainedPlatformRecords(home, record.install_id, projectId ?? undefined, installedElsewhere);
   return forgetInstallationAttachments(home, record.plugin_id, record.install_id, projectId);
 }
 
@@ -90,8 +147,8 @@ export function forgetOrphanedInstallationBindings(home: string): void {
  * they stay with whatever that installation put on them. A plugin that keeps its data leaves everything (the provider is gone, so nothing
  * calls them); a reinstall registers it again and finds them.
  */
-function forgetInstallationRules(home: string, record: PluginInstanceRecord, projectId: string | null): void {
-  const forgotten = forgetDeclaredRulesIn(home, record.plugin_id, projectId, pluginHeldElsewhere(home, record.plugin_id, { scope: projectId === null ? { kind: "home" } : { kind: "project", project_id: projectId }, install_id: record.install_id }));
+function forgetInstallationRules(home: string, record: PluginInstanceRecord, projectId: string | null, excludeScopes: readonly InstallScope[]): void {
+  const forgotten = forgetDeclaredRulesIn(home, record.plugin_id, projectId, pluginHeldElsewhereExcluding(home, record.plugin_id, record.install_id, excludeScopes));
   if (forgotten && (forgotten.removed.length || forgotten.kept.length || forgotten.bindings)) hostLog.debug("functions", "declared_rules_forgotten", { plugin_id: record.plugin_id, project_id: projectId, ...forgotten });
   if (forgotten?.kept.length) noteRetained(projectId, record.install_id, { kind: "declared_rule", reason: "other_holder" });
 }

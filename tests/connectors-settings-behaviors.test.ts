@@ -258,6 +258,26 @@ test("RAC-2419: a card names the package that declared it, and the package name 
   for (const id of ["model-api", "typesafe", "image-api", "mcp-bearer"]) {
     assert.equal(HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === id)!.declared_by, null, `${id} is the platform's own`);
   }
+  // AP-36: credential field type and composite separator attributes are HTML-escaped.
+  const escapedHtml = renderConnectorsSettings({
+    connectors: [{
+      connector_id: "escape-probe", title: "Escape Probe", summary: "s", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+      method_options: [{ kind: "token", support: "paste", links: [] }],
+      card: {
+        credential: {
+          separator: '":data-xss="1',
+          fields: [{ label: "ID", type: 'text" onmouseover="alert(1)' as never, placeholder: "" }],
+        },
+      },
+    }],
+    connector_connections: [{
+      connection_id: "conn-escape", service_id: "escape-probe", display_name: "Probe", account_label: null,
+      source: "managed", state: "connected", auth_method: "token",
+    }],
+  }, primitives);
+  assert.doesNotMatch(escapedHtml, /onmouseover="alert\(1\)"/);
+  assert.doesNotMatch(escapedHtml, /data-xss="1"/);
+  assert.match(escapedHtml, /data-credential-separator="&quot;:data-xss=&quot;1"/);
   const html = renderConnectorsSettings({ connectors: [
     github,
     HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "model-api")!,

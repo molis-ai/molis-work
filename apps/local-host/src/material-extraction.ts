@@ -36,11 +36,14 @@ export function createMaterialExtractor(native: NativeMaterialOptions = {}): Mat
     const limits = checkedLimits(options), extension = path.extname(source.file_name).toLowerCase();
     if (!source.bytes.length || source.bytes.length > limits.maxBytes) throw materialErrors.invalid_data("文件为空或超过提取容量上限");
     if (!supportsMaterialExtension(extension)) throw materialErrors.unsupported("不支持该材料格式");
+    const normalizedOptions = options.ocrLanguages !== undefined
+      ? { ...options, ocrLanguages: [...new Set(options.ocrLanguages)] }
+      : options;
     const result = extension === ".html" || extension === ".htm" ? await runMaterialWorker<MaterialExtraction>("material-html-worker.js",
       { kind: "extraction", bytes: new Uint8Array(source.bytes), extension, markdown: options.textFormat === "markdown", limits }, options, "HTML")
       : materialTextExtensions.has(extension) ? extractMaterialText(source.bytes, extension, options.textFormat === "markdown", limits)
       : extension === ".pdf" && options.pdfMode !== "ocr" ? await extractPdf(source, options, limits)
-      : await extractNativeMaterial(source, options, limits, native);
+      : await extractNativeMaterial(source, normalizedOptions, limits, native);
     options.signal?.throwIfAborted();
     return result;
   };

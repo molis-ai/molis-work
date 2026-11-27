@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { ensureSystemAgentService, connectorPluginSlotUsages, connectorUsagesAction, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectorAccountActionProvider, ensureSystemAgentService, connectorPluginSlotUsages, connectorUsagesAction, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorUsage } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -164,4 +164,31 @@ test("ASC-13 ASC-16: usage reporters are discovered by contract and a withdrawn 
   await entered.promise; disposeFirst(); release.resolve();
   const result = await pending;
   assert.deepEqual(result.usages, []); assert.ok(result.issues.some(issue => issue.includes("First owner")), "withdrawal is visible, not silently reported as no references");
+});
+
+test("projectMcpUsagesHandler falls back to project_id when projectNames() rejects", async t => {
+  const home = await openTestHome(t), project = await home.createProject("First");
+  const library = await ensureSystemAgentService(home.host, home.home).mcpLibrary();
+  assert.ok(library);
+  const endpoint = "https://mcp.example.test/tools";
+  const account = withConnectorConnections(home.home, store => {
+    const row = store.createToken({ serviceId: "mcp-bearer", displayName: "A", token: "fixture-mcp-fallback-key" });
+    store.assertTarget(row.connection_id, "mcp-bearer", endpoint);
+    return row.connection_id;
+  });
+  await library.save({ project_id: project.project_id, plugin_id: "io.molis.work.coding" }, {
+    expected_version: 0, transport: "http", enabled: true, timeout_ms: 1000, endpoint, label: "Notes",
+    auth: { kind: "connection", connection_id: account },
+  });
+  const provider = connectorAccountActionProvider(
+    home.home,
+    () => {},
+    { library: async () => library, refresh: async () => {} },
+    undefined,
+    undefined,
+    { manifest: async () => null, projectNames: async () => { throw new Error("catalog unavailable"); } },
+  );
+  const handler = provider.handlers.find(item => item.capability_id === "connectors.project_mcp.usages")!;
+  const response = await handler.handle({ ...caller, beforeEffect: async () => {} }, { connection_id: account }) as { usages: Array<{ title: string }> };
+  assert.deepEqual(response.usages.map(item => item.title), [`${project.project_id} · Notes`]);
 });

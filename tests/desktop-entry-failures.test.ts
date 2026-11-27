@@ -140,7 +140,7 @@ test("RAC-119 Desktop Web normal signal waits for real HTTP and Host cleanup, th
   assert.deepEqual(f.observed(), { transport: 1, transportClosed: true, host: 1, hostClosed: true, args: [], order: ["transport", "transport_done", "host"] });
   assert.equal(f.stderr(), "");
   assert.ok(f.stdout().includes(`Molis Work Web: ${f.origin}`));
-  assert.ok(f.stdout().includes("项目列表（网页不会修改 Runtime Session 绑定）"));
+  assert.ok(f.stdout().includes("项目列表（网页不会修改活跃会话绑定）"));
 });
 
 test("RAC-119 Desktop Web stops live SSE and upgraded PTY connections with real cleanup and exit 0", async t => {

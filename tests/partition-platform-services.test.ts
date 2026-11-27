@@ -485,3 +485,53 @@ test("UPP-34 parsePluginManifest validates databases.partition SQL safety, overv
     push: { kinds: [{ kind: "todo", export_action: "todo.missing", put_action: "todo.push.put", revision: "bad-pointer" }] },
   }).length >= 2);
 });
+
+test("UPP-31 AP-08 DueTimer.close stops remaining wakes, drain settles in-flight wake before db.close, and synchronous db.close during wake never records a false failure", async () => withHome(async home => {
+  const now = new Date("2026-11-24T10:00:00.000Z");
+
+  // Case 1: close() + drain() lets in-flight wake settle before due.close(), and skips queued entry 2.
+  {
+    const due = openDueRegistry(home, { now: () => now });
+    due.register(A, { entry_key: "r1", due_at: "2026-11-24T09:58:00.000Z" });
+    due.register(A, { entry_key: "r2", due_at: "2026-11-24T09:59:00.000Z" });
+    const woken: string[] = [], failures: string[] = [];
+    const wakeEntered = Promise.withResolvers<void>(), releaseWake = Promise.withResolvers<void>();
+    const timer = new DueTimer(due, {
+      now: () => now,
+      failed: entry => { failures.push(entry.entry_key); },
+      wake: async entry => {
+        woken.push(entry.entry_key);
+        if (entry.entry_key === "r1") { wakeEntered.resolve(); await releaseWake.promise; }
+      },
+    });
+    const firing = timer.fire();
+    await wakeEntered.promise;
+    timer.close();
+    releaseWake.resolve();
+    await timer.drain();
+    await firing;
+    assert.deepEqual(woken, ["r1"], "entry r2 is never woken after close()");
+    assert.deepEqual(failures, [], "in-flight r1 settles cleanly with zero false failures");
+    assert.deepEqual(due.entries().map(entry => entry.entry_key), ["r2"], "r1 settled before db.close so it will not ring twice on restart");
+    due.close();
+  }
+
+  // Case 2: synchronous close() + due.close() while wake is in flight suppresses closed-DB settle crash and false failure callback.
+  {
+    const due = openDueRegistry(home, { now: () => now });
+    const failures: string[] = [];
+    const wakeEntered = Promise.withResolvers<void>(), releaseWake = Promise.withResolvers<void>();
+    const timer = new DueTimer(due, {
+      now: () => now,
+      failed: entry => { failures.push(entry.entry_key); },
+      wake: async () => { wakeEntered.resolve(); await releaseWake.promise; },
+    });
+    const firing = timer.fire();
+    await wakeEntered.promise;
+    timer.close();
+    due.close();
+    releaseWake.resolve();
+    await firing;
+    assert.deepEqual(failures, [], "post-close closed-DB settle does not trigger failed callback");
+  }
+}));

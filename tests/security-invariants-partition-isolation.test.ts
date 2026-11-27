@@ -8,12 +8,14 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  createPluginPlatform, ensureProjectPlugins, existingPartitionPluginHost, HomeConsentLedger, homeStores, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore,
-  openPartitionPluginLibrary, openProjectVersionStores, PartitionPlatformServices, PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope,
-  pluginInstallRecords, projectPluginPlatform, refreshRunningProjectPlugins, releaseProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
+  ATTENTION_OVERVIEW_SOURCE, attentionOverviewLibrary, createPluginPlatform, ensureProjectPlugins, existingPartitionPluginHost, HomeConsentLedger, homeStores, LocalProjectDatabase,
+  mainOverviewLibrary, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores, overviewRowsFor, partitionChanged, PartitionPlatformServices,
+  PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope, pluginInstallRecords, projectPluginPlatform, refreshRunningProjectPlugins, releaseProjectPlugins,
+  runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
-import { installIdentity, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+import { createPluginRuntimeReleaseArtifact, installIdentity, pluginManifestDigest, SqlitePluginPrivateStorage, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+import { openOverviewIndex } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -24,7 +26,7 @@ import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work
 import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
 import { TODO_ACTION_PERMISSIONS, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, pluginErrors, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, pluginErrors, type PartitionPluginDatabaseDeclaration, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
 import { bindActionHandler, defineSettingsActions, overviewRows, partitionDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk";
 import { DueTimer, openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
@@ -1013,4 +1015,157 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
     ["a workflow", { ...person, audience: "workflow", actor_kind: "runtime" }],
     ["a call handed on by a plugin", { ...person, delegated_by: "some-install" }],
   ] as const) await assert.rejects(client.invoke(caller as ActionCallContext, read, {}), (error: ActionError) => error.code === "actions.forbidden" || error.code === "actions.unavailable", label);
+});
+
+test("UPP-06 S-partition-isolation AP-01 mainOverviewLibrary, attentionOverviewLibrary, and overview index reject symlink escapes across partitions", async () => withPartitions(async (home, a, b) => {
+  const mainManifest = { plugin_id: "io.molis.work.coding", databases: { project: { store_name: "coding" } }, overview_projection: { kinds: ["background_task"] } } as never;
+  const dbBPath = join(partitionRoot(home, b), "molis-work.db");
+  const dbB = new LocalProjectDatabase(dbBPath);
+  try {
+    dbB.db.prepare(`INSERT INTO attention_entries (project_id, entry_id, owner_plugin_id, subject_type, subject_id, reason, status, detail_json, revision, created_at, updated_at)
+      VALUES (?, 'secret-b', 'io.molis.work.goals', 'goal', 'g-b', 'needs_decision', 'open', '{}', 1, '2026-11-26T09:00:00.000Z', '2026-11-26T09:00:00.000Z')`).run(b);
+    dbB.db.prepare(`INSERT INTO plugin_overview_rows (install_id, kind, row_id, title, state, waiting, updated_at)
+      VALUES ('coding-install', 'background_task', 's-b', 'B 的秘密任务', 'running', 0, '2026-11-26T09:00:00.000Z')`).run();
+  } finally { dbB.close(); }
+
+  // Replace A's molis-work.db with a symlink pointing to B's molis-work.db.
+  const dbAPath = join(partitionRoot(home, a), "molis-work.db");
+  rmSync(dbAPath, { force: true });
+  symlinkSync(dbBPath, dbAPath);
+
+  assert.throws(() => mainOverviewLibrary(home, a, "coding-install", mainManifest), forbidden, "mainOverviewLibrary rejects symlinked molis-work.db");
+  assert.throws(() => attentionOverviewLibrary(home, a), forbidden, "attentionOverviewLibrary rejects symlinked molis-work.db");
+  const resolved = partitionOverviewLibraries(home, [a, b].map(partition_id => ({ partition_id, plugins: [{ install_id: "coding-install", manifest: mainManifest }] })));
+  assert.deepEqual(resolved.map(library => library.partition_id), [b], "partitionOverviewLibraries skips symlinked main library in A");
+
+  // Defense in depth: even if a library descriptor with A's symlinked path reaches readLibrary or readOverview directly, it is refused and returns null/empty.
+  const index = openOverviewIndex({ homeDirectory: home });
+  try {
+    assert.equal(index.readLibrary({ partition_id: a, install_id: "coding-install", plugin_id: "io.molis.work.coding", path: dbAPath, kinds: ["background_task"], table: "main" }), null);
+  } finally { index.close(); }
+  const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("never woken"); } } });
+  try {
+    const forgedAttention = { partition_id: a, install_id: ATTENTION_OVERVIEW_SOURCE, plugin_id: ATTENTION_OVERVIEW_SOURCE, path: dbAPath, kinds: ["notification"] as const, table: "attention" as const };
+    assert.equal(services.overview.refresh(forgedAttention), null, "readAttentionLibrary refuses symlinked molis-work.db");
+    assert.deepEqual(services.readOverview(runtimePerson([], null), [forgedAttention], () => ({ readable: [a], grants: [] })), []);
+  } finally { services.close(); }
+}));
+
+test("UPP-34 V11 AP-03 AP-17 AP-06 AP-10 AP-11 Host partitionChanged arms synced dormant reminders, overview reads dormant installed packages, disabling main-DB plugins clears stale rows, and live recheck/mid-start stop hold", { timeout: 60_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("休眠提醒 A", ["todo", "coding"]);
+  const host = existingPartitionPluginHost(f.home), services = host?.services;
+  assert.ok(host && services, "the Host started partition services");
+
+  // AP-03: close partition A and stop Todo, then write a reminder directly to A's todo.db (simulating cross-device sync).
+  await f.host.closeProject(a.reference);
+  await host.assembly.stopPlugin(todoManifest.plugin_id);
+  assert.deepEqual(host.assembly.instances(), [], "no plugin instance running before sync arrival");
+  const todoInstall = installIdentity(todoManifest);
+  const remindAt = "2026-12-10T09:00:00.000Z";
+  const todoLib = openPartitionPluginLibrary(partitionPluginScope(f.home, a.project_id, todoManifest.plugin_id, todoInstall), f.home, todoManifest.databases!.partition!);
+  try {
+    const db = todoLib.writer;
+    const tx = { get: (sql: string, values: readonly unknown[] = []) => (db.prepare(sql).get(...(values as never[])) ?? null) as never,
+      all: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).all(...(values as never[])) as never,
+      run: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).run(...(values as never[])), savepoint: () => { throw new Error("unused"); } };
+    db.exec("BEGIN");
+    overviewRows(tx as never).upsert("task", { row_id: "synced-dormant-1", title: "休眠同步提醒", status: "open", remind_at: remindAt, updated_at: "2026-11-26T10:00:00.000Z" });
+    db.exec("COMMIT");
+  } finally { todoLib.close(); }
+  partitionChanged(f.home, a.project_id);
+  assert.deepEqual(host.assembly.instances(), [], "partitionChanged wakes zero plugins");
+  assert.deepEqual(services.due.entries(a.project_id).map(entry => [entry.entry_key, entry.due_at]), [["task:synced-dormant-1", remindAt]],
+    "V11: synced reminder in dormant partition immediately populates due-registry without opening Overview");
+
+  // AP-17: dormant third-party partition plugin installed in Home plugin-runtime.db is discovered read-only by overviewRowsFor.
+  const thirdPartyId = "com.example.dormant-tasks";
+  const thirdPartyDecl: PartitionPluginDatabaseDeclaration = { store_name: "dormant-tasks", version: 1, schema: `CREATE TABLE items (id TEXT PRIMARY KEY);\n${OVERVIEW_TABLE_SQL}`,
+    read_permission: "dormant:read", write_permission: "dormant:write" };
+  const thirdPartyManifest: PluginManifest = {
+    schema_version: 1, host_api_version: 1, plugin_id: thirdPartyId, version: "1.0.0", name: "Dormant Tasks", kind: "app",
+    publisher: { publisher_id: "third", signature: "third-sig" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "storage:private", required: true, reason: "db" }, { permission: "dormant:read", required: true, reason: "r" }, { permission: "dormant:write", required: true, reason: "w" }],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    databases: { partition: thirdPartyDecl }, overview_projection: { kinds: ["task"] },
+  };
+  const thirdInstallId = installIdentity(thirdPartyManifest);
+  const homeStore = openHomePluginStore(f.home);
+  try {
+    const installsRepo = new SqlitePluginRuntimeRepository(homeStore.db);
+    const releasesRepo = new SqlitePluginRuntimeReleaseArtifactRepository(homeStore.db);
+    installsRepo.save({
+      install_id: thirdInstallId, plugin_id: thirdPartyId, version: "1.0.0", deployment: "local", selected_entrypoint: "./index.js",
+      execution: "sandbox", state: "installed", publisher_id: "third", publisher_signature: "third-sig",
+      manifest_digest: pluginManifestDigest(thirdPartyManifest), publisher_trust: "unsigned",
+      grants: ["storage:private", "dormant:read", "dormant:write"], installed_at: "2026-11-26T00:00:00.000Z", updated_at: "2026-11-26T00:00:00.000Z",
+      uninstalled_at: null, retain_private_data: false, installation_generation: "gen-1", recovery_count: 0, last_error_code: null,
+    });
+    releasesRepo.save(createPluginRuntimeReleaseArtifact(thirdPartyManifest, "export {};"));
+  } finally { homeStore.db.close(); }
+  const thirdLib = openPartitionPluginLibrary(partitionPluginScope(f.home, a.project_id, thirdPartyId, thirdInstallId), f.home, thirdPartyDecl);
+  try {
+    const db = thirdLib.writer;
+    const tx = { get: (sql: string, values: readonly unknown[] = []) => (db.prepare(sql).get(...(values as never[])) ?? null) as never,
+      all: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).all(...(values as never[])) as never,
+      run: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).run(...(values as never[])), savepoint: () => { throw new Error("unused"); } };
+    db.exec("BEGIN");
+    overviewRows(tx as never).upsert("task", { row_id: "ext-1", title: "第三方休眠待办", status: "open", updated_at: "2026-11-26T10:00:00.000Z" });
+    db.exec("COMMIT");
+  } finally { thirdLib.close(); }
+
+  const overviewSource = { home: f.home, reach: (partitionId: string) => f.host.projectPluginReach(partitionId) };
+  const localPerson = runtimePerson([], null);
+  const thirdRead = await overviewRowsFor(overviewSource, localPerson, [{ project_id: a.project_id, display_name: "A" }], () => [], { kinds: ["task"], limit: 50 });
+  assert.ok(thirdRead?.rows.some(row => row.plugin_id === thirdPartyId && row.row_id === "ext-1"), "dormant third-party plugin row appears in overview without waking plugin");
+  assert.deepEqual(host.assembly.instances(), [], "still zero wakes");
+
+  // AP-10: recheckPartitions / live readable drops rows from a partition removed mid-read.
+  const liveRecheck = await overviewRowsFor(overviewSource, localPerson, [{ project_id: a.project_id, display_name: "A" }], () => [], { kinds: ["task"], limit: 50 }, {
+    recheckPartitions: async () => [],
+  });
+  assert.deepEqual(liveRecheck?.rows, [], "partition removed before recheck delivers zero rows");
+
+  // AP-06: disabling a main-DB plugin (coding) clears both search.db overview_rows and <partition>/molis-work.db plugin_overview_rows.
+  const { codingManifest } = await import("@molis-ai/molis-work-plugin-coding");
+  const codingInstallId = installIdentity(codingManifest);
+  const mainDb = new DatabaseSync(a.reference.storage_key);
+  try {
+    mainDb.prepare(`INSERT INTO plugin_overview_rows (install_id, kind, row_id, title, state, waiting, updated_at)
+      VALUES (?, 'background_task', 'stale-coding-1', '旧编码任务', 'running', 0, '2026-11-26T10:00:00.000Z')`).run(codingInstallId);
+  } finally { mainDb.close(); }
+  partitionChanged(f.home, a.project_id, codingInstallId);
+  const beforeDisable = await overviewRowsFor(overviewSource, localPerson, [{ project_id: a.project_id, display_name: "A" }], () => [], { kinds: ["background_task"], limit: 50 });
+  assert.ok(beforeDisable?.rows.some(row => row.install_id === codingInstallId && row.row_id === "stale-coding-1"));
+  const { LocalHostHttpClient, projectPluginRevision } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
+  const revision = await projectPluginRevision(web, a.project_id);
+  const disableRes = await f.request(`/api/settings/projects/${encodeURIComponent(a.project_id)}/plugins`, { method: "DELETE", body: { plugin_id: "coding", expected_revision: revision } });
+  assert.equal(disableRes.status, 200);
+  const verifyMain = new DatabaseSync(a.reference.storage_key, { readOnly: true });
+  try {
+    assert.deepEqual(verifyMain.prepare("SELECT row_id FROM plugin_overview_rows WHERE install_id = ?").all(codingInstallId), [],
+      "disabling main-DB plugin coding clears plugin_overview_rows in molis-work.db");
+  } finally { verifyMain.close(); }
+  const verifySearch = openOverviewIndex({ homeDirectory: f.home });
+  try {
+    assert.deepEqual(verifySearch.rows({ partitions: [a.project_id], kinds: ["background_task"], limit: 50 }).filter(row => row.install_id === codingInstallId), [],
+      "and clears overview_rows in search.db");
+  } finally { verifySearch.close(); }
+
+  // AP-11: PartitionPluginAssembly.hasActiveOrStarting reports true during an in-flight start while started() is still undefined.
+  let finishStart!: () => void;
+  const startingAssembly = new PartitionPluginAssembly({
+    home: f.home, library: () => "notes", members: () => [PLUGIN], installation: () => record,
+    start: () => new Promise<{ stop(): Promise<void> }>(resolve => { finishStart = () => resolve({ async stop() {} }); }),
+  });
+  const pendingAcquire = startingAssembly.acquire(PLUGIN, a.project_id, "due");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(startingAssembly.started(PLUGIN, a.project_id), undefined);
+  assert.equal(startingAssembly.hasActiveOrStarting(PLUGIN, a.project_id), true, "mid-startup plugin is detected as active-or-starting");
+  const stoppingMidStart = startingAssembly.stopPlugin(PLUGIN, a.project_id);
+  finishStart();
+  await stoppingMidStart;
+  await assert.rejects(pendingAcquire, unavailable);
+  assert.equal(startingAssembly.hasActiveOrStarting(PLUGIN, a.project_id), false);
 });

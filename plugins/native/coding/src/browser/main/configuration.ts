@@ -8,7 +8,7 @@ import { drawWelcomePrep, refreshRunPrep } from "./prep-fold.js";
 import { api, status } from "./request.js";
 import { surfaceChanged } from "./select.js";
 import type { StateRead } from "./shapes.js";
-import { followWorkspace, showWorkspace } from "./workspace.js";
+import { clearWorkspaceSync, followWorkspace, isWorkspaceSynced, showWorkspace } from "./workspace.js";
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
@@ -104,8 +104,12 @@ function drawWorkspaces(page: Page, result: StateRead) {
   if (!q<HTMLDialogElement>("[data-coding-workspace-dialog]").open) choice.value = s.workspaceId;
   if (workspacesChanged || prevWorking !== s.workspaceId) {
     // The session may have restored its folder before this first list of authorized directories arrived.
-    if (selected?.realpath_verified && config?.workspace_id === selected.workspace_id && s.workspaceId === selected.workspace_id) void followWorkspace(page);
-    else page.refs.filesFace?.follow(s.workspaceId);
+    if (selected?.realpath_verified && config?.workspace_id === selected.workspace_id && s.workspaceId === selected.workspace_id) {
+      if (!isWorkspaceSynced(page, selected.workspace_id)) void followWorkspace(page);
+    } else {
+      if (prevWorking !== s.workspaceId) clearWorkspaceSync(page);
+      page.refs.filesFace?.follow(s.workspaceId);
+    }
   }
 }
 

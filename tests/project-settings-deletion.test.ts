@@ -395,3 +395,27 @@ test("SSC-23 the settings page asks about the default output directory only when
   assert.equal(kept2.status, 400);
   assert.equal((await kept2.json() as { code?: string }).code, "catalog.deletion_idempotency_conflict");
 });
+
+test("project-runtime treats ENOENT during concurrent project deletion the same as SQLITE_CANTOPEN", async t => {
+  const { project, localHost, origin, post } = await fixture(t);
+  const readPaused = Promise.withResolvers<void>();
+  const continueRead = Promise.withResolvers<void>();
+  t.mock.method(localHost, "withProject", async () => {
+    readPaused.resolve();
+    await continueRead.promise;
+    const error = Object.assign(new Error("project database disappeared"), { code: "ENOENT" });
+    throw error;
+  });
+  const settingsPath = `${origin}/projects/${project.project_id}/settings/general?embed=1`;
+  const read = fetch(settingsPath);
+  try {
+    await readPaused.promise;
+    const deleted = await post(`/api/settings/projects/${project.project_id}/delete`, { delete_confirmed: true, idempotency_key: "enoent-race-delete" });
+    assert.equal(deleted.status, 200);
+  } finally {
+    continueRead.resolve();
+  }
+  const response = await read;
+  assert.equal(response.status, 404);
+  assert.equal((await response.json() as { code?: string }).code, "catalog.project_not_found");
+});

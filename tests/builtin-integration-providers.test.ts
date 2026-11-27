@@ -325,4 +325,31 @@ test("44C-2 PSD-08 the Host does not start on two integrations that declare the 
   const other = integrationDriverDirectory([{ order: 1, cli: { "service-a": cli } }, { order: 2, cli: { "service-b": cli } }]);
   assert.deepEqual(Object.keys(other.cli()), ["service-a", "service-b"], "different services stand side by side");
   assert.throws(() => other.mailbox(), /no integration declares a mailbox driver/u);
+  // Disjoint document_source drivers coexist and resolve by source; duplicate document_source or managed_environment keys throw.
+  const docDef = (pluginId: string, source: string) => ({
+    manifest: {
+      schema_version: 1 as const, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "integration" as const,
+      publisher: { publisher_id: "test", signature: "sig" }, entrypoints: [{ deployment: "local" as const, entrypoint: "./e.mjs" }],
+      permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+      integrations: [{ integration_id: source, kind: "document_import" as const, service_id: source, document_source: source }],
+    },
+    start: async () => ({ kind: "integration" as const, sources: {} }),
+  });
+  const docA: DocumentDriver = { read: async () => { throw new Error("a"); }, refused: () => false };
+  const docB: DocumentDriver = { read: async () => { throw new Error("b"); }, refused: () => false };
+  const multiDocs = integrationDriverDirectory([
+    { order: 1, integrations: () => [docDef("io.example.a", "source-a")], documents: docA },
+    { order: 2, integrations: () => [docDef("io.example.b", "source-b")], documents: docB },
+  ]);
+  assert.equal(multiDocs.documentDriver("source-a"), docA);
+  assert.equal(multiDocs.documentDriver("source-b"), docB);
+  assert.equal(multiDocs.documentDriver("source-c"), undefined);
+  assert.throws(() => integrationDriverDirectory([
+    { order: 1, integrations: () => [docDef("io.example.a", "source-a")], documents: docA },
+    { order: 2, integrations: () => [docDef("io.example.b", "source-a")], documents: docB },
+  ]), /two integrations declare the document driver of source-a/u);
+  assert.throws(() => integrationDriverDirectory([
+    { order: 1, cli: { "service-a": { ...cli, managed_environment: { SHARED_VAR: "1" } } } },
+    { order: 2, cli: { "service-b": { ...cli, managed_environment: { SHARED_VAR: "2" } } } },
+  ]), /two integrations declare the managed CLI environment variable SHARED_VAR/u);
 });

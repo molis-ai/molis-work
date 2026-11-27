@@ -28,7 +28,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     const showToast = (message, errorOrOpts = false, action = null) => {
       const opts = typeof errorOrOpts === "object" && errorOrOpts !== null ? errorOrOpts : { tone: errorOrOpts ? "error" : "default" };
-      const resolvedAction = action || opts.action || null;
+      const resolvedAction = action || opts.action || (typeof opts.undo === "function" ? { label: opts.undoLabel || globalThis.t.text("common.control.undo"), onClick: opts.undo } : null);
       if (typeof message === "string" && typeof window.molisToast === "function") {
         window.molisToast(message, {
           ...opts,

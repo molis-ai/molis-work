@@ -1,5 +1,5 @@
 import {CODING_HISTORY_SCHEMA_SQL,readCodingSavedHistory} from './saved-history.js';
-import type { PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginOverviewClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_ROW_LIMIT, type PluginDatabase, type PluginDatabaseReader, type PluginDatabaseTransaction, type PluginOverviewClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingOverviewRow } from "./home-background.js";
 import { codingStoreErrors } from "./store-errors.js";
 import {CodingInputStore,CODING_INPUTS_SCHEMA_SQL} from './inputs.js';
@@ -147,7 +147,32 @@ export class CodingSessionStore {
     // The partition's main database holds this one project, so the session id alone finds the row.
     const row = tx.get("SELECT session_id, runtime_session_id, title, state, updated_at, steps_json, background_json, archived FROM coding_sessions WHERE session_id = ?", [sessionId]);
     const session = row && Number(row.archived) === 0 ? backgroundSessionsOf([row])[0] : undefined;
-    this.overview.join(tx, rows => session ? rows.upsert("background_task", codingOverviewRow(session)) : rows.remove("background_task", sessionId));
+    this.overview.join(tx, rows => {
+      if (!session) {
+        rows.remove("background_task", sessionId);
+        return;
+      }
+      const activeMarks = CODING_ACTIVE_STATES.map(() => "?").join(", ");
+      const total = Number((tx.get(
+        `SELECT count(*) AS total FROM coding_sessions WHERE archived = 0 AND (state IN (${activeMarks}) OR steps_json IS NOT NULL OR background_json IS NOT NULL)`,
+        [...CODING_ACTIVE_STATES],
+      ) as { total: number }).total);
+      if (total > OVERVIEW_ROW_LIMIT) {
+        // Bound background_task rows to OVERVIEW_ROW_LIMIT: keep active sessions first, then newest updated_at, evicting older overflow rows before upserting.
+        const all = backgroundSessionsOf(tx.all(
+          `SELECT session_id, runtime_session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions WHERE archived = 0 AND (state IN (${activeMarks}) OR steps_json IS NOT NULL OR background_json IS NOT NULL)`,
+          [...CODING_ACTIVE_STATES],
+        )).sort((a, b) => Number(b.active) - Number(a.active) || b.updated_at.localeCompare(a.updated_at) || a.session_id.localeCompare(b.session_id));
+        const evicted = all.slice(OVERVIEW_ROW_LIMIT);
+        let evictedCurrent = false;
+        for (const dropped of evicted) {
+          rows.remove("background_task", dropped.session_id);
+          if (dropped.session_id === sessionId) evictedCurrent = true;
+        }
+        if (evictedCurrent) return;
+      }
+      rows.upsert("background_task", codingOverviewRow(session));
+    });
   }
 
   savedHistory(projectId:string,sessionId:string):string[] {const record=this.get(projectId,sessionId);return readCodingSavedHistory(this.db,projectId,sessionId,record.runtime_session_id);}

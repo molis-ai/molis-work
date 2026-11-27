@@ -154,8 +154,8 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       const open = unanswered(sessionId).filter(envelope => envelope.awaitReply);
       if (!open.length) return;
       const at = await now();
-      const reason = type === "failed" ? "收信的会话那一轮失败了，没有答复"
-        : type === "tripped" ? "收信的会话被护栏叫停，没有答复" : "收信的会话连续尝试没有进展，已停止，没有答复";
+      const reason = type === "failed" ? "mail.recipient_failed"
+        : type === "tripped" ? "mail.recipient_tripped" : "mail.recipient_circuit_tripped";
       for (const envelope of open) runtime.delivery.cancel(envelope.ref, { event: type === "failed" ? "failed" : "stopped", note: reason }, at);
       await runtime.delivery.flush();
     },

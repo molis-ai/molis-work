@@ -189,6 +189,11 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
     return this.running.get(keyOf(pluginId, partitionId))?.handle;
   }
 
+  /** Whether an instance of this plugin in this partition is running or currently starting; never starts one. */
+  hasActiveOrStarting(pluginId: string, partitionId: string): boolean {
+    return this.running.has(keyOf(pluginId, partitionId));
+  }
+
   /** The instances running now, as (plugin, partition) pairs. */
   instances(): readonly { plugin_id: string; partition_id: string }[] {
     return [...this.running.values()].map(entry => ({ plugin_id: entry.scope.plugin_id, partition_id: entry.scope.partition_id }));

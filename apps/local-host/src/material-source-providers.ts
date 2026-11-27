@@ -6,7 +6,16 @@ import type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/platf
 import type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale, webLanguage } from "./web-locale.js";
 
-import { readWorkbenchText } from "./ui-error-words.js";
+import { localizeWebErrorMessage, readWorkbenchText } from "./ui-error-words.js";
+
+function isAbortOrAccessRefusal(error: unknown): boolean {
+  return error instanceof ActionError && (
+    error.kind === "forbidden"
+    || error.kind === "cancelled"
+    || error.code === "material.source.private_address"
+    || error.code === "material.cancelled"
+  );
+}
 
 type MaterialSourceMaterial = MaterialSourceContent;
 export interface MaterialSourceOptions extends MaterialUploadOptions {
@@ -165,8 +174,8 @@ async function bilibili(source: string, options: MaterialSourceOptions): Promise
       const body = array(value.body); const segments = body.slice(0, 10000).map(object).flatMap(value => { const text = typeof value.content === "string" ? value.content.trim().slice(0, 200000) : ""; const start = Number(value.from ?? 0); const end = Number(value.to ?? start); return text && Number.isFinite(start) && start >= 0 && start <= 604800 && Number.isFinite(end) && end <= 604800 ? [{ start_seconds: start, end_seconds: Math.max(start, end), text }] : []; });
       if (segments.length < 30 || segments.reduce((count, segment) => count + (segment.text.match(/\p{L}/gu)?.length ?? 0), 0) < 200) continue;
       const text = segments.map(segment => `[${segment.start_seconds}–${segment.end_seconds} 秒] ${segment.text}`).join("\n");
-      return { text, title: typeof video.title === "string" ? video.title : metadata(html, "og:title"), source_url: source, provider: "bilibili", extractor: "bilibili-public-subtitles", segments, coverage: coverage(body.length > 10000 ? ["字幕仅提取前 10000 段"] : [], true) };
-    } catch (error) { checkAborted(options); if (!isMaterialSourceFailure(error) || error.kind === "forbidden" || error.kind === "cancelled" || error.code === "material.source.private_address") throw error; }
+      return { text, title: typeof video.title === "string" ? video.title : metadata(html, "og:title"), source_url: source, provider: "bilibili", extractor: "bilibili-public-subtitles", segments, coverage: coverage(body.length > 10000 ? [readWorkbenchText("workbench.material.subtitles-truncated")] : [], true) };
+    } catch (error) { checkAborted(options); if (!isMaterialSourceFailure(error) || isAbortOrAccessRefusal(error)) throw error; }
   }
   throw materialSourceErrors.subtitles_missing(readWorkbenchText("common.error.subtitles-missing"));
 }
@@ -177,13 +186,22 @@ async function xiaohongshu(source: string, options: MaterialSourceOptions): Prom
   const issues: string[] = []; const pages: NonNullable<MaterialSourceMaterial["pages"]> = []; let acquired = 0; let bytes = 0; let hasMaterial = !!payload.body;
   if (payload.kind === "video") issues.push(readWorkbenchText("workbench.material.video-note-text"));
   else {
-    if (payload.images.length > 20) issues.push("图集仅提取前 20 张");
+    if (payload.images.length > 20) issues.push(readWorkbenchText("workbench.material.gallery-truncated"));
     for (const [index, url] of payload.images.slice(0, 20).entries()) {
-      checkAborted(options); if (bytes >= maxBinary) { issues.push("图集总下载达到 25 MB 上限"); break; }
+      checkAborted(options); if (bytes >= maxBinary) { issues.push(readWorkbenchText("workbench.material.gallery-size-limit")); break; }
       try { const result = await remoteImage(url, response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
-      catch (error) { checkAborted(options); if (error instanceof ActionError && !isMaterialFailure(error)) throw error; issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
+      catch (error) {
+        checkAborted(options);
+        if (isAbortOrAccessRefusal(error) || (error instanceof ActionError && !isMaterialFailure(error))) throw error;
+        const reason = error instanceof Error ? localizeWebErrorMessage(error, "common.error.internal") : readWorkbenchText("workbench.material.extract-failed");
+        issues.push(readWorkbenchText("workbench.material.gallery-image-failed", undefined, [
+          { name: "index", kind: "number", number: index + 1 },
+          { name: "reason", kind: "text", text: reason },
+        ]));
+        if (isMaterialFailure(error) && error.code === "material.native_unavailable") break;
+      }
     }
-    if (payload.images.length) issues.push("图片仅提取文字，未理解纯视觉内容");
+    if (payload.images.length) issues.push(readWorkbenchText("workbench.material.images-text-only"));
   }
   const text = parts.filter(Boolean).join("\n\n");
   if (!text || !hasMaterial) throw materialSourceErrors.insufficient("小红书来源只有标题或元数据，没有足够的可读材料；原链接保留，可以粘贴原文继续");

@@ -1,4 +1,4 @@
-import { OVERVIEW_TABLE, type OverviewBackgroundTaskRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewBackgroundTaskRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { overviewRows, type OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
 import { ENDED_SHOWN_MS } from "./background.js";
 import type { ImageJob } from "./contract.js";
@@ -22,8 +22,18 @@ export function imagesOverviewRow(job: ImageJob, now = Date.now()): OverviewBack
 export function writeImagesOverview(db: OverviewRowsWriter, job: ImageJob, now = Date.now()): void {
   db.run(`DELETE FROM ${OVERVIEW_TABLE} WHERE kind = 'background_task' AND state IN ('done', 'failed') AND updated_at < ?`, [new Date(now - ENDED_SHOWN_MS).toISOString()]);
   const row = imagesOverviewRow(job, now), rows = overviewRows(db);
-  if (row) rows.upsert("background_task", row);
-  else rows.remove("background_task", job.id);
+  if (!row) {
+    rows.remove("background_task", job.id);
+    return;
+  }
+  if (!db.get(`SELECT 1 AS found FROM ${OVERVIEW_TABLE} WHERE kind = 'background_task' AND row_id = ?`, [job.id])
+    && Number((db.get(`SELECT count(*) AS total FROM ${OVERVIEW_TABLE} WHERE kind = 'background_task'`) as { total: number }).total) >= OVERVIEW_ROW_LIMIT) {
+    const room = (db.get(`SELECT row_id FROM ${OVERVIEW_TABLE} WHERE kind = 'background_task' AND state IN ('done', 'failed') ORDER BY updated_at, row_id LIMIT 1`) as { row_id: string } | undefined)
+      ?? (db.get(`SELECT row_id FROM ${OVERVIEW_TABLE} WHERE kind = 'background_task' ORDER BY updated_at, row_id LIMIT 1`) as { row_id: string } | undefined);
+    if (!room) return;
+    rows.remove("background_task", room.row_id);
+  }
+  rows.upsert("background_task", row);
 }
 
 export function removeImagesOverview(db: OverviewRowsWriter, jobId: string): void {

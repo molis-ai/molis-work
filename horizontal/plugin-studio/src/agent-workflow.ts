@@ -5,7 +5,7 @@ import { inDesignOrder, type AgentPublicationControl, type AgentRelease as Publi
 import { recheckAgentBuild } from './agent-recheck.js';
 import { publishAgentBuild, buildScope, releaseScope } from './agent-publication.js';
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { PLUGIN_ICON_NAMES, tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { randomUUID } from 'node:crypto';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -165,8 +165,9 @@ export class AgentBuilderWorkflow {
     this.current(id, token);
     if (!missing.length) return false;
     this.change(id, build => { build.pendingPlugins = missing; build.active = null; build.phase = 'paused'; });
+    const listSep = tryUiText('common.list.separator') ?? ', ';
     this.step(id, { id: 'plugins:' + design!.contract.revision, agent: 'host', action: 'decide', label: studioStep('plugins-needed'), status: 'waiting',
-      detail: missing.map(item => item.title + '：' + item.capabilities.join('、')).join('\n') });
+      detail: missing.map(item => `${item.title}: ${item.capabilities.join(listSep)}`).join('\n') });
     return true;
   }
   private async withAgent<T>(id: string, purpose: 'design' | 'code', action: (agent: Awaited<ReturnType<AgentBuilderPorts['agent']>>) => Promise<T>) {
@@ -237,11 +238,17 @@ export class AgentBuilderWorkflow {
     const abort = new AbortController(); this.drawing.add(abort);
     const set = (candidateId: string, mockup: NonNullable<AgentProposal['mockup']>) => { if (!this.closed) this.change(id, build => { const item = build.candidates.find(candidate => candidate.id === candidateId); if (item) item.mockup = mockup; }); };
     const locale = this.ports.designLanguages?.().current;
-    const instructions = instructionText(this.ports, BUILDER_MOCKUP, locale);
+    const resolvedLocale = mockupInstructionLocale(locale);
+    const hostInstruction = this.ports.instruction?.(BUILDER_MOCKUP);
+    // Avoid mixing Chinese default instructions with non-zh proposal details when BUILDER_MOCKUP lacks a translation for `locale`.
+    const instructions = hostInstruction && (resolvedLocale === 'zh' || hostInstruction !== BUILDER_MOCKUP.body)
+      ? hostInstruction
+      : agentBodyIn(BUILDER_MOCKUP, resolvedLocale === 'zh' ? undefined : resolvedLocale);
+    const copyLocale = hostInstruction && hostInstruction !== BUILDER_MOCKUP.body ? locale : resolvedLocale;
     try {
       await Promise.all(proposals.map(async proposal => {
         set(proposal.id, { status: 'drawing' });
-        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal, instructions, locale) }, abort.signal).catch(error => ({ reason: message(error) }));
+        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal, instructions, copyLocale) }, abort.signal).catch(error => ({ reason: message(error) }));
         set(proposal.id, 'jobId' in result ? { status: 'ready', jobId: result.jobId, imageId: result.imageId } : { status: 'failed', reason: result.reason });
       }));
     } finally { this.drawing.delete(abort); }
@@ -725,7 +732,8 @@ export class AgentBuilderWorkflow {
         this.change(id, value => { value.pendingPlugins = undefined; for (const step of value.steps) if (step.agent === 'host' && step.action === 'decide' && step.status === 'waiting') { step.status = 'done'; step.label = studioStep('plugins-enabled'); } });
         this.launch(id, 'build'); return this.store.require(id);
       }
-      this.change(id, value => { value.pendingPlugins = undefined; value.messages.push({ role: 'user', text: '不要使用' + pending.map(item => '「' + item.title + '」').join('、') + '的能力（' + pending.flatMap(item => item.capabilities).join('、') + '），换一种不需要它们的做法' });
+      const listSep = tryUiText('common.list.separator') ?? ', ';
+      this.change(id, value => { value.pendingPlugins = undefined; value.messages.push({ role: 'user', text: '不要使用' + pending.map(item => '「' + item.title + '」').join(listSep) + '的能力（' + pending.flatMap(item => item.capabilities).join(listSep) + '），换一种不需要它们的做法' });
         for (const step of value.steps) if (step.agent === 'host' && step.action === 'decide' && step.status === 'waiting') { step.status = 'cancelled'; step.label = studioStep('plugins-declined'); } });
       this.launch(id, 'revise'); return this.store.require(id);
     }
@@ -776,13 +784,21 @@ function mockupLocaleOf(locale?: string): MockupLocale {
   return base === 'ja' ? 'ja' : 'en';
 }
 
+function mockupInstructionLocale(locale?: string): MockupLocale {
+  const requested = mockupLocaleOf(locale);
+  if (requested === 'zh') return 'zh';
+  if (BUILDER_MOCKUP.body_by_locale && Object.hasOwn(BUILDER_MOCKUP.body_by_locale, requested)) return requested;
+  return 'en';
+}
+
 /** What the image service is asked to draw for a proposal: registered mockup style instructions plus the proposal details. */
 export function mockupPrompt(proposal: AgentProposal, instructions?: string, locale?: string): string {
-  const lang = mockupLocaleOf(locale);
+  const instructionLang = mockupInstructionLocale(locale);
+  const lang = instructions !== undefined ? mockupLocaleOf(locale) : instructionLang;
   const copy = MOCKUP_COPY[lang];
   const parts = proposal.preview.parts.map(part => copy.part(part.purpose, MOCKUP_INTENT_LABELS[part.intent]?.[lang] ?? part.intent)).join('\n');
   const details = [copy.plugin(proposal.title, proposal.description), `${copy.page}\n${parts}`, `${copy.journey}${proposal.journey.join(' → ')}`].join('\n');
-  const body = instructions ?? (lang === 'zh' ? agentBodyIn(BUILDER_MOCKUP) : agentBodyIn(BUILDER_MOCKUP, lang === 'ja' && BUILDER_MOCKUP.body_by_locale?.ja ? 'ja' : 'en'));
+  const body = instructions ?? (instructionLang === 'zh' ? agentBodyIn(BUILDER_MOCKUP) : agentBodyIn(BUILDER_MOCKUP, instructionLang));
   return composeInstructedPrompt(body, details);
 }
 /** Network failures between the host and the model service, worth one more request. */

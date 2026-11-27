@@ -224,7 +224,13 @@ export class HomePagesStore {
       this.db.exec("COMMIT");
       return value;
     } catch (error) {
-      this.db.exec("ROLLBACK");
+      if (this.db.isTransaction) {
+        try {
+          this.db.exec("ROLLBACK");
+        } catch {
+          /* preserve original error */
+        }
+      }
       throw error;
     }
   }

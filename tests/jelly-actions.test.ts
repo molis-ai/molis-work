@@ -194,3 +194,25 @@ test("notes keep plain text or Markdown, pin to a day, list by day or words, ref
   await f.bound.invoke(a.restore, { rows: restore });
   assert.equal((await f.bound.invoke(a.note, { id: note.id })).note.body, "改过");
 });
+
+test("deleting a category matches exact category_id without LIKE wildcard or exception notes false positives", async t => {
+  const f = fixture(t);
+  const catWild = (await f.bound.invoke(a.saveCategory, { name: "Wild", color: "#111111" })).category;
+  const catOther = (await f.bound.invoke(a.saveCategory, { name: "Other", color: "#222222" })).category;
+  const unrelated = (await f.bound.invoke(a.createSeries, { series: { title: "无关重复", start_date: "2026-09-07", weekdays: [1], category_id: catOther.id, time_zone: zone } })).series;
+  // Add an occurrence exception whose notes text mentions the deleted category's JSON pattern without targeting its category_id.
+  const withNotes = (await f.bound.invoke(a.updateSeries, {
+    id: unrelated.id, expected_revision: unrelated.revision, original_date: "2026-09-07", scope: "onlyThis",
+    patch: { notes: `mentions "category_id":"${catWild.id}" inside notes` },
+  })).series!;
+  const matching = (await f.bound.invoke(a.createSeries, { series: { title: "真匹配", start_date: "2026-09-07", weekdays: [1], category_id: catOther.id, time_zone: zone } })).series;
+  const withCatException = (await f.bound.invoke(a.updateSeries, {
+    id: matching.id, expected_revision: matching.revision, original_date: "2026-09-07", scope: "onlyThis",
+    patch: { category_id: catWild.id },
+  })).series!;
+  const deleted = await f.bound.invoke(a.deleteCategory, { id: catWild.id, expected_revision: catWild.revision });
+  assert.deepEqual(deleted.restore.modified?.map(item => item.id), [withCatException.id], "only genuinely matching series are modified and recorded in restore");
+  const list = (await f.month()).items;
+  assert.equal(list.find(entry => entry.series_id === unrelated.id)?.revision, withNotes.revision, "unrelated series revision stays unchanged");
+  assert.equal(list.find(entry => entry.series_id === matching.id)?.category_id, "uncategorized", "matching exception category_id is reassigned");
+});

@@ -121,6 +121,7 @@ export function renderMolisWorkBarSpecimen(appearance?: WorkbenchAppearance, lan
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${NO_FAVICON_LINK}
   <title>${escapeHtml(say("workbench.catalog-board.core.bar-page-title"))} · Molis Work</title>
   ${renderInlinePageText([catalogInlinePageText(lang)])}${renderLanguageHead(lang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>

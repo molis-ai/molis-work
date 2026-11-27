@@ -1,4 +1,4 @@
-import { isRecord, type SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -28,7 +28,6 @@ export interface ModelPreferenceFile {
   schema_version: typeof MODEL_PREFERENCE_SCHEMA_VERSION;
   selection: PluginModelSelection | null;
   revision: number;
-  receipts: Record<string, SettingsWriteReceipt>;
 }
 const invalidFile = () => errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
 function isSelection(value: unknown): value is PluginModelSelection {
@@ -38,30 +37,16 @@ function isSelection(value: unknown): value is PluginModelSelection {
 function preferencePath(home: string, declaration: ConsumerModelConfigurationDeclaration): string { return join(home, declaration.preference.store_name, declaration.preference.file_name); }
 function readModelPreference(home: string, declaration: ConsumerModelConfigurationDeclaration): ModelPreferenceFile {
   const path = preferencePath(home, declaration);
-  if (!existsSync(path)) return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, selection: null, revision: 0, receipts: {} };
+  if (!existsSync(path)) return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, selection: null, revision: 0 };
   return parsePreference(JSON.parse(readFileSync(path, "utf8")));
 }
 /** The host upgrade process applies this same owner definition to every existing model preference. */
 export const MODEL_PREFERENCE_FILE: VersionedFile<ModelPreferenceFile> = { version: MODEL_PREFERENCE_SCHEMA_VERSION, field: "schema_version", upgrades: MODEL_PREFERENCE_UPGRADES, parse: parsePreference };
-function isModelReceipt(receipt: unknown): receipt is SettingsWriteReceipt {
-  if (!isRecord(receipt) || !isRecord(receipt.request) || !isRecord(receipt.result)) return false;
-  const { key, layer, request_id, expected_revision, change } = receipt.request;
-  const values = receipt.result.values;
-  if (typeof key !== "string" || layer !== "personal" || typeof request_id !== "string" || typeof expected_revision !== "string" ||
-      !isRecord(change) || !(change.inherit === true || isSelection(change.set)) || !Array.isArray(values) || values.length !== 1) return false;
-  const saved = values[0];
-  return isRecord(saved) && saved.key === key && saved.state === "ok" && typeof saved.revision === "string" &&
-    (saved.source === "personal" || saved.source === "provider_default") && (saved.value === null || isSelection(saved.value));
-}
 function parsePreference(value: unknown): ModelPreferenceFile {
-  if (!isRecord(value) || value.schema_version !== MODEL_PREFERENCE_SCHEMA_VERSION || !(value.selection === null || isSelection(value.selection) && Object.keys(value.selection).length === 2)
-    || typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 0 || !isRecord(value.receipts)) throw invalidFile();
-  const receipts: ModelPreferenceFile["receipts"] = Object.create(null);
-  for (const [id, receipt] of Object.entries(value.receipts)) {
-    if (!isModelReceipt(receipt)) throw invalidFile();
-    receipts[id] = receipt;
-  }
-  return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, selection: value.selection, revision: value.revision, receipts };
+  if (!isRecord(value) || Object.keys(value).some(key => key !== "schema_version" && key !== "selection" && key !== "revision")
+    || value.schema_version !== MODEL_PREFERENCE_SCHEMA_VERSION || !(value.selection === null || isSelection(value.selection) && Object.keys(value.selection).length === 2)
+    || typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 0) throw invalidFile();
+  return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, selection: value.selection, revision: value.revision };
 }
 function readSettings(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationView {
   const pref = readModelPreference(home, declaration).selection;
@@ -94,7 +79,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
     if (!provider?.enabled || !provider.models.some(model => model.model_id === selection.model_id && model.enabled)) throw errors.model_configuration_invalid("所选供应商或模型不存在，或尚未启用");
     if (!modelCredentialMetadata(home, provider).available) throw errors.model_configuration_invalid("所选模型连接不可用，请恢复连接或重新选择；原选择已保留");
     const prior = readModelPreference(home, declaration);
-    atomicWriteFileSync(path, JSON.stringify({ ...prior, selection, revision: prior.revision + 1 }) + "\n", { mode: 0o600, durable: true });
+    atomicWriteFileSync(path, JSON.stringify({ schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, selection, revision: prior.revision + 1 }) + "\n", { mode: 0o600, durable: true });
   } finally { opened.storage.close(); }
   return readSettings(home, declaration);
 }

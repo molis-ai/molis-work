@@ -1,4 +1,4 @@
-import { NO_FAVICON_LINK, activeUiLocale, escapeHtml as esc, tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { NO_FAVICON_LINK, activeUiIntlLocale, activeUiLocale, escapeHtml as esc, tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord, FormSubmissionRecord } from "./contract.js";
 
 function localized(key: string, fallback: string): string {
@@ -13,13 +13,9 @@ export const FORM_ANSWER_LIMIT = 4000;
 const scriptJson = (value: unknown) => JSON.stringify(value).replaceAll("<", "\\u003c").replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 
 function resolveFillHtmlLang(locale?: string): string {
-  const raw = locale ?? activeUiLocale() ?? "";
-  const tag = raw.trim().toLowerCase();
-  if (!tag) return "";
-  if (tag === "zh" || tag.startsWith("zh-")) return "zh-CN";
-  if (tag === "ja" || tag.startsWith("ja-")) return "ja";
-  if (tag === "en" || tag.startsWith("en-")) return "en";
-  return raw.trim();
+  const explicit = locale?.trim();
+  if (explicit) return explicit;
+  return activeUiIntlLocale() ?? activeUiLocale() ?? "";
 }
 
 /**
@@ -162,7 +158,7 @@ export function formResultsCsv(form: FormRecord, submissions: readonly FormSubmi
   } as const;
   const header = ["request_id", localized("form.csv.submitted-at", "提交时间"), localized("form.csv.source", "来源"), ...columns.values()].map(cell).join(",");
   const rows = [...submissions].sort((a, b) => a.submitted_at.localeCompare(b.submitted_at)).map(submission => [
-    submission.request_id?.trim() || submission.id, submission.submitted_at, source[submission.source], ...[...columns.keys()].map(id => String(submission.answers[id] ?? "").replaceAll("\n", "；")),
+    submission.request_id?.trim() || submission.id, submission.submitted_at, source[submission.source], ...[...columns.keys()].map(id => String(submission.answers[id] ?? "").replaceAll("\n", "; ")),
   ].map(cell).join(","));
   return "\ufeff" + [header, ...rows].join("\r\n") + "\r\n";
 }

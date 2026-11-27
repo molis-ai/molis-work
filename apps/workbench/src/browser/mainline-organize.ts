@@ -53,6 +53,7 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
   const paint = () => {
     const view = ports.read();
     if (!dialog || !view) return;
+    dialog.setAttribute("aria-label", uiText.text("workbench.mainline.organize-title"));
     const batchTargets = view.mainline.groups.map((group) => renderButton({
       variant: "secondary",
       size: "sm",

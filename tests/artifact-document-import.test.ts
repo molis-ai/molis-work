@@ -334,6 +334,24 @@ test("external document snapshots preserve exact old versions and isolate the sa
   assert.ok(other.url.startsWith("/projects/other/artifacts/"));
   assert.equal(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, other), null);
   assert.equal(library.artifacts.query.getArtifactVersion("other-project", first), null);
+  // Registry-declared dynamic document_source values outside the static 4-element tuple are accepted when supplied via ports.externalSources.
+  const dynamic = await importArtifactDocument(
+    { source: "custom-wiki", url: "https://wiki.example.com/page-1" },
+    {
+      ...ports,
+      externalSources: ["custom-wiki"],
+      readExternal: async req => ({
+        source: req.source, source_id: "wiki-1", source_url: req.url,
+        title: "Dynamic Wiki", content: "Dynamic external source content", format: "markdown", warnings: [],
+      }),
+    },
+  );
+  assert.equal(dynamic.version, 1);
+  assert.equal(dynamic.title, "Dynamic Wiki");
+  await assert.rejects(
+    importArtifactDocument({ source: "unregistered-wiki", url: "https://wiki.example.com/page-2" }, { ...ports, externalSources: ["custom-wiki"] }),
+    { code: "artifacts.document.source_invalid" },
+  );
   const beforeFailure = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const permissionDenied = new Error("fixture provider denied permission");
   await assert.rejects(importArtifactDocument(input, { ...ports, readExternal: async () => { throw permissionDenied; } }), error => error === permissionDenied);

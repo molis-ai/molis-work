@@ -13,7 +13,6 @@ import { agentErrors } from "../errors.js";
 import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { packToDynamicTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
-import { FIND_SYMBOL_HOST_TOOL } from "../code-intelligence/coding-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -29,6 +28,7 @@ import type { createWorkGraphs } from "./prologue-work-graphs.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { roundReferenceKinds } from "./prologue-reference-kinds.js";
+import { DEFAULT_ROUND_EXTENSIONS, type PreparedRoundExtension } from "./prologue-round-extension.js";
 import { roundGateway } from "./prologue-round-gateway.js";
 import { roundInstructions } from "./prologue-run-instructions.js";
 import { runModelParams } from "./prologue-run-params.js";
@@ -112,10 +112,10 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
 /** The round's Prologue system tools. Suggesting is the round's own action pack tool (prologue-action-tools.ts), not one of them. */
 /** The role's own tools in the Host's words, and as Prologue names them. */
 const hostSystemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL);
-const systemTools = (input: PrologueStartInput, overrides?: ReadonlyMap<string, string>) =>
+const systemTools = (input: PrologueStartInput, overrides?: ReadonlyMap<string, string>, excluded?: ReadonlySet<string>) =>
   hostSystemTools(input)
-    // A round whose pack does not hold the symbol tool must not show a name the pack cannot resolve.
-    .filter(tool => tool !== FIND_SYMBOL_HOST_TOOL || overrides?.has(tool) === true)
+    // A round whose pack does not hold an extension-provided tool must not show a name the pack cannot resolve.
+    .filter(tool => !excluded?.has(tool) || overrides?.has(tool) === true)
     .map(tool => overrides?.get(tool) ?? prologueToolName(tool));
 
 /**
@@ -231,7 +231,8 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
   readonly mode: Mode; readonly methods: readonly string[]; readonly childInstructions: string; readonly childRoles: Map<string, ChildRole>;
   readonly surface: Awaited<ReturnType<typeof roundSurface>>; readonly stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"];
   readonly actionTools: ReturnType<typeof roundGateway>["actionTools"];
-  readonly symbolToolName?: string;
+  readonly toolOverrides?: ReadonlyMap<string, string>;
+  readonly excludedHostTools?: ReadonlySet<string>;
 }) {
   const { runtime, stepBoards, mcpLibrary } = deps;
   const { mode: { none, business }, surface, stepBoard, childRoles } = parts;
@@ -252,8 +253,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
     mcpTools.push(adopted[at]!);
   }
   mcpTools.sort(compareCodeUnits);
-  const symbolOverrides = parts.symbolToolName === undefined ? undefined : new Map([[FIND_SYMBOL_HOST_TOOL, parts.symbolToolName]]);
-  const tools = [...systemTools(input, symbolOverrides), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
+  const tools = [...systemTools(input, parts.toolOverrides, parts.excludedHostTools), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
   const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
   // The memories the Host chose for this run, as exact references (one deleted meanwhile is simply not given).
   const pinnedMemory = input.memory?.pinned.map(item => ({ scope: item.scope, owner: item.owner,
@@ -305,7 +305,15 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
   const { runtime, state } = deps;
   return async (observed: Parameters<NonNullable<NonNullable<Parameters<Runtime["startAgentRun"]>[0]["subagents"]>["onStarted"]>>[0]) => {
     verifySubagentStart(runtime, children.roles, children.roots)(observed);
-    observed.run.subscribe(() => { for (const changed of state.subagentListeners) changed(observed.parentRun.id); });
+    let subagentDone = false;
+    let unsubSubagent: (() => void) | undefined;
+    unsubSubagent = observed.run.subscribe(event => {
+      for (const changed of state.subagentListeners) changed(observed.parentRun.id);
+      if (isTerminalEventType(event.type) && !subagentDone) {
+        subagentDone = true;
+        queueMicrotask(() => { unsubSubagent?.(); });
+      }
+    });
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
@@ -315,10 +323,18 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
       ...(parentWork ? { work: parentWork, workSelection: parentWork.permission.mode !== "original" } : {}),
       assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
       steer: async text => { await observed.control.steer({ text, source: "app" }); } });
-    observed.run.subscribe(event => {
+    let endedDone = false;
+    let unsubEnded: (() => void) | undefined;
+    unsubEnded = observed.run.subscribe(event => {
       if (!isTerminalEventType(event.type)) return;
+      if (!endedDone) {
+        endedDone = true;
+        queueMicrotask(() => { unsubEnded?.(); });
+      }
       state.activeRuns.delete(observed.run.ref.id);
       if (state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id);
+      state.runRefs.delete(observed.run.ref.id);
+      state.runRoots.delete(observed.run.ref.id);
     });
     // SDK493 invokes this observer only for this claim's newly created child. Its held driver has not started.
     // subscribe replays the initial opening synchronously; peer/carried input is never this canonical caller.
@@ -335,7 +351,17 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
       const guard = state.stopGuards.get(observed.childSession.ref.id);
       if (guard) guard.task = caller;
       watchRoundFacts(state, observed.run);
-      observed.run.subscribe(event => { if (isTerminalEventType(event.type)) { childController.abort(); state.actionControllers.delete(observed.run.ref.id); } });
+      let controllerDone = false;
+      let unsubController: (() => void) | undefined;
+      unsubController = observed.run.subscribe(event => {
+        if (!isTerminalEventType(event.type)) return;
+        if (!controllerDone) {
+          controllerDone = true;
+          queueMicrotask(() => { unsubController?.(); });
+        }
+        childController.abort();
+        state.actionControllers.delete(observed.run.ref.id);
+      });
     }
     await deps.index.update(observed.parentSession.id, saved => {
       const attempt = saved.attempts[attemptIndex];
@@ -377,7 +403,9 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
         });
       } catch { errors[childRun.run_id] = reason + "；失败原因未能持久保存，请保留当前记录"; }
     };
-    observed.run.subscribe(event => {
+    let bridgeDone = false;
+    let unsubBridge: (() => void) | undefined;
+    unsubBridge = observed.run.subscribe(event => {
       if (event.type === "command-receipt") {
         const events = state.commandEvents.get(childRun.run_id) ?? [];
         if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
@@ -385,6 +413,14 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
       }
       if (event.type === "awaiting-approval") void deps.approvals!.mirrorPending({ pendingRef: event.pendingRef, owner: index.owner, run: childRun })
         .catch(bridgeFailed);
+      if (isTerminalEventType(event.type)) {
+        if (!bridgeDone) {
+          bridgeDone = true;
+          queueMicrotask(() => { unsubBridge?.(); });
+        }
+        state.runRefs.delete(childRun.run_id);
+        state.runRoots.delete(childRun.run_id);
+      }
     });
   };
 }
@@ -529,7 +565,7 @@ function roundEnded(deps: RunDeps, at: RoundLifecycle, type: TerminalRunState): 
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
   void surface.release(end).catch(() => undefined);
-  surfaceHost?.releaseRun(started.run.ref); state.runRefs.delete(started.run.ref.id);
+  surfaceHost?.releaseRun(started.run.ref); state.runRefs.delete(started.run.ref.id); state.runRoots.delete(started.run.ref.id);
   const work = state.runWork.get(started.run.ref.id);
   if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, end).catch(() => undefined); }
   // A round that finished normally saw every message given to it; unanswered requests are settled.
@@ -544,12 +580,13 @@ interface RoundLifecycle {
   readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController; readonly surface: SurfaceAttachment;
   readonly stepBoard: { ref: { id: string } } | undefined; readonly onAborted: () => void;
   readonly actionReviews: ReturnType<typeof roundGateway>["reviews"];
+  readonly extensions?: { close(): Promise<void> };
   readonly codeIntelligence?: { close(): Promise<void> };
   readonly work?: PrologueWorkDelegation;
 }
 
 /** Single internal lifecycle observer for one round: repair-limit stop, command receipts, and idempotent terminal cleanup. */
-export function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at: RoundLifecycle): { readonly hostStop: () => string | undefined; readonly markReady: () => void; readonly dispose: (type: TerminalRunState) => void } {
+export function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at: RoundLifecycle): { readonly hostStop: () => string | undefined; readonly markReady: () => void; readonly dispose: (type: TerminalRunState) => void; readonly isSettled: () => boolean } {
   const { started } = at;
   const control = started.control;
   // The Host stops a round itself (an interaction refused twice) before its next model call, then keeps why it did,
@@ -574,6 +611,7 @@ export function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at
     if (at.actionReviews.releaseRun(started.run.ref.id) && deps.state.actionReviews.get(at.session.ref.id) === at.actionReviews) {
       deps.state.actionReviews.delete(at.session.ref.id);
     }
+    void at.extensions?.close().catch(() => undefined);
     void at.codeIntelligence?.close().catch(() => undefined);
     at.work?.release();
     roundEnded(deps, at, type);
@@ -599,6 +637,7 @@ export function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at
       ready = true;
       settle(pendingTerminal ?? type);
     },
+    isSettled: () => settled,
   };
 }
 
@@ -695,6 +734,12 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   let aborted = false;
   let accepted: Started | undefined;
   let lifecycle: ReturnType<typeof watchRoundLifecycle> | undefined;
+  let actionController: AbortController | undefined;
+  let actionReviews: ReturnType<typeof roundGateway>["reviews"] | undefined;
+  let gatewayHookId: string | undefined;
+  let extensions: PreparedRoundExtension | undefined;
+  let surface: SurfaceAttachment | undefined;
+  let unsubMcp: (() => void) | undefined;
   const onAborted = () => { aborted = true; };
   const appliedPolicies = new Map<string, () => void>();
   const exactPermissions = new Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>();
@@ -705,56 +750,60 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     }
     return exactPermissions.values();
   };
-  const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
-  const { actionController, actionTools, reviews: actionReviews, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined || aborted, work, mcp);
-  // Which languages this round can understand (A4), looked up while it starts: a directory listing and PATH, nothing started or fetched.
-  const codeProblem = deps.options.codeIntelligence?.problem;
-  const codeReadiness = codeIntelligence && (codeProblem !== undefined ? Promise.resolve({ problem: codeProblem, languages: [] }) : codeIntelligence.readiness().catch(() => undefined));
-  const assertDispatchCurrent = () => {
-    if (stopping.current !== undefined || aborted) throw new Error("原轮次正在停止");
-    for (const check of appliedPolicies.values()) check();
-    for (const { control } of activeExact()) control.assertCurrent();
-    requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
-  };
-  const prepareDispatch = async () => {
-    assertDispatchCurrent();
-    const original = await input.beforeDispatch?.();
-    if (!mode.none && !mode.business) {
-      await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
-      await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
-    }
-    for (const { control } of activeExact()) await control.beforeEffect();
-    return () => { requireSynchronous(original?.()); assertDispatchCurrent(); };
-  };
-  const dispatchGuard = { assertCurrent: assertDispatchCurrent, mcp: mcp?.dispatch, prepareDispatch,
-    beforeEffect: async () => { const fence = await prepareDispatch(); fence(); } };
-  const surfaceControl = { ...dispatchGuard,
-    assertCurrent: () => { if (!accepted) requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); assertDispatchCurrent(); },
-    beforeEffect: async () => { if (accepted) return dispatchGuard.beforeEffect(); await input.beforeStart?.(); surfaceControl.assertCurrent(); },
-  };
-  ensureStopGuard(runtime, state, input.session_id);
-  const afterWrite = await roundChecks(deps, input, index, mode, actionTools?.pack.tools);
-  const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || symbolTool);
-  // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
-  const dynamicTools = bindActions ? packToDynamicTools(actionTools!.pack,
-    { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, parameterBranches) : undefined;
-  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, dynamicTools ? { tools: dynamicTools } : undefined);
-  if (bindActions && session) state.actionToolSessions.add(input.session_id);
-  if (session === undefined) throw new Error("agent.session_unknown");
-  const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
-  const resolveHostTool = (tool: string) => tool === FIND_SYMBOL_HOST_TOOL && symbolToolName !== undefined ? symbolToolName : prologueToolName(tool);
-  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [],
-    hostSystemTools(input).filter(tool => tool !== FIND_SYMBOL_HOST_TOOL || symbolToolName !== undefined), resolveHostTool);
-  const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
-  for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "agent-material"), as: "original" });
-  const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, actionTools?.names ?? [], work);
-  const plan = input.provenance.frozen.execution_plan;
-  const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
-  const surface = await roundSurface(deps, input, index, session, mode.business, surfaceControl);
   try {
+    const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
+    const gateway = roundGateway(deps, input, mode.none, () => stopping.current !== undefined || aborted, work, mcp, DEFAULT_ROUND_EXTENSIONS);
+    actionController = gateway.actionController;
+    actionReviews = gateway.reviews;
+    gatewayHookId = gateway.hookId;
+    extensions = gateway.extensions;
+    const { actionTools, parameterBranches, toolOverrides, excludedHostTools, hasExtensionTools } = gateway;
+    // Which languages this round can understand (A4), looked up while it starts: a directory listing and PATH, nothing started or fetched.
+    const codeReadiness = extensions.codeIntelligenceReadiness?.();
+    const assertDispatchCurrent = () => {
+      if (stopping.current !== undefined || aborted) throw new Error("原轮次正在停止");
+      for (const check of appliedPolicies.values()) check();
+      for (const { control } of activeExact()) control.assertCurrent();
+      requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+    };
+    const prepareDispatch = async () => {
+      assertDispatchCurrent();
+      const original = await input.beforeDispatch?.();
+      if (!mode.none && !mode.business) {
+        await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
+        await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
+      }
+      for (const { control } of activeExact()) await control.beforeEffect();
+      return () => { requireSynchronous(original?.()); assertDispatchCurrent(); };
+    };
+    const dispatchGuard = { assertCurrent: assertDispatchCurrent, mcp: mcp?.dispatch, prepareDispatch,
+      beforeEffect: async () => { const fence = await prepareDispatch(); fence(); } };
+    const surfaceControl = { ...dispatchGuard,
+      assertCurrent: () => { if (!accepted) requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); assertDispatchCurrent(); },
+      beforeEffect: async () => { if (accepted) return dispatchGuard.beforeEffect(); await input.beforeStart?.(); surfaceControl.assertCurrent(); },
+    };
+    ensureStopGuard(runtime, state, input.session_id);
+    const afterWrite = await roundChecks(deps, input, index, mode, actionTools?.pack.tools);
+    const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || hasExtensionTools);
+    // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
+    const dynamicTools = bindActions ? packToDynamicTools(actionTools!.pack,
+      { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, parameterBranches) : undefined;
+    const session = ref === undefined ? undefined : await runtime.sessions.open(ref, dynamicTools ? { tools: dynamicTools } : undefined);
+    if (bindActions && session) state.actionToolSessions.add(input.session_id);
+    if (session === undefined) throw new Error("agent.session_unknown");
+    const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
+    const resolveHostTool = (tool: string) => toolOverrides.get(tool) ?? prologueToolName(tool);
+    const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [],
+      hostSystemTools(input).filter(tool => !excludedHostTools.has(tool) || toolOverrides.has(tool)), resolveHostTool);
+    const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
+    for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "agent-material"), as: "original" });
+    const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, actionTools?.names ?? [], work);
+    const plan = input.provenance.frozen.execution_plan;
+    const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
+    surface = await roundSurface(deps, input, index, session, mode.business, surfaceControl);
     const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
     const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools,
-      ...(symbolToolName === undefined ? {} : { symbolToolName }) });
+      toolOverrides, excludedHostTools });
     const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
     // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
     const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
@@ -774,7 +823,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
       deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
         attemptIndex, session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, work, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
       }))), input.disposeDispatch).catch(async (error: unknown) => {
-      onAborted(); actionController.abort();
+      onAborted(); actionController?.abort();
       // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
       // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
       if (!deps.effects.accepted()) {
@@ -792,8 +841,17 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     });
     accepted = started;
     work?.accept(started.run);
-    lifecycle = watchRoundLifecycle(deps, input, { started, session, projectDirectory: materials.projectDirectory, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, onAborted, actionReviews, work, codeIntelligence });
-    if (mcp) started.run.subscribe(event => { if (event.type === "tool-result") mcp.release((event as Extract<PrologueEvent, { type: "tool-result" }>).callId); });
+    lifecycle = watchRoundLifecycle(deps, input, { started, session, projectDirectory: materials.projectDirectory, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, onAborted, actionReviews, work, extensions });
+    if (mcp) {
+      let mcpDone = false;
+      unsubMcp = started.run.subscribe(event => {
+        if (event.type === "tool-result") mcp.release((event as Extract<PrologueEvent, { type: "tool-result" }>).callId);
+        if (isTerminalEventType(event.type) && !mcpDone) {
+          mcpDone = true;
+          queueMicrotask(() => { unsubMcp?.(); });
+        }
+      });
+    }
     watchRoundFacts(state, started.run, true);
     // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
     state.dispatchChecks.set(started.run.ref.id, prepareDispatch);
@@ -823,20 +881,39 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
       ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}), ...(code_intelligence ? { code_intelligence } : {}) };
   } catch (error) {
     onAborted();
-    actionController.abort();
+    actionController?.abort();
     const failures: unknown[] = [error];
+    let lifecycleDisposed = false;
+    let cancelFailed = false;
     if (accepted) {
       accepted.control.stop("cancelled");
       try {
         await accepted.run.cancel();
-        lifecycle?.dispose("cancelled");
+        if (lifecycle) {
+          lifecycle.dispose("cancelled");
+          lifecycleDisposed = true;
+        }
       } catch (failure) {
+        cancelFailed = true;
         lifecycle?.markReady();
         failures.push(failure);
       }
     }
-    try { await surface.release("failed"); } catch (failure) { failures.push(failure); }
-    try { await codeIntelligence?.close(); } catch (failure) { failures.push(failure); }
+    if (!accepted || lifecycleDisposed) unsubMcp?.();
+    const lifecycleOwnsCleanup = lifecycleDisposed || (lifecycle !== undefined && (cancelFailed || lifecycle.isSettled()));
+    if (!lifecycleOwnsCleanup) {
+      if (actionReviews && state.actionReviews.get(input.session_id) === actionReviews) state.actionReviews.delete(input.session_id);
+      if (!accepted && gatewayHookId) {
+        runtime.hooks.unregister(gatewayHookId);
+        state.gatewayHooks.delete(input.session_id);
+      }
+      if (surface) {
+        try { await surface.release("failed"); } catch (failure) { failures.push(failure); }
+      }
+      if (extensions) {
+        try { await extensions.close(); } catch (failure) { failures.push(failure); }
+      }
+    }
     if (failures.length > 1) throw new AggregateError(failures, "启动失败，原执行或界面仍需收口");
     throw error;
   }

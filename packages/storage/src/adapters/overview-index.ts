@@ -1,9 +1,55 @@
-import { existsSync, lstatSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync, rmSync } from "node:fs";
+import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OVERVIEW_KINDS, OVERVIEW_MAIN_TABLE, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewKind } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { OverviewIndexLibrary, OverviewIndexPort, OverviewIndexStoredRow, OverviewTableRow } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openHomeSqliteDatabase, openHomeSqliteFile } from "../home-sqlite.js";
 import { TEXT_SEARCH_STORE } from "./text-search-index.js";
+
+/** Verifies `candidate` stays strictly inside `partitionId`'s root under `homeDirectory` with no symlink segment. */
+function isPartitionLibraryConfined(homeDirectory: string, partitionId: string, candidate: string): boolean {
+  if (!partitionId || partitionId.includes("/") || partitionId.includes("\\") || partitionId === "." || partitionId === "..") return false;
+  const rawHome = path.resolve(homeDirectory);
+  let realHome: string;
+  try { realHome = realpathSync(rawHome); } catch { return false; }
+  let normalized = path.resolve(candidate);
+  if (normalized.startsWith(rawHome + path.sep)) {
+    normalized = path.join(realHome, path.relative(rawHome, normalized));
+  }
+  const expectedRoot = partitionId === PERSONAL_SPACE_PROJECT_ID
+    ? path.join(realHome, "personal-space")
+    : path.join(realHome, "projects", partitionId);
+  if (normalized !== expectedRoot && !normalized.startsWith(expectedRoot + path.sep)) return false;
+  const relative = path.relative(realHome, normalized);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return false;
+  let current = realHome;
+  for (const segment of relative.split(path.sep)) {
+    current = path.join(current, segment);
+    try {
+      if (lstatSync(current).isSymbolicLink()) return false;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | null)?.code === "ENOENT") break;
+      return false;
+    }
+  }
+  const rest: string[] = [];
+  let at = normalized;
+  let resolved = normalized;
+  for (;;) {
+    try {
+      resolved = path.join(realpathSync(at), ...rest.reverse());
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT") return false;
+      const parent = path.dirname(at);
+      if (parent === at) break;
+      rest.push(path.basename(at));
+      at = parent;
+    }
+  }
+  return resolved === expectedRoot || resolved.startsWith(expectedRoot + path.sep);
+}
 
 /**
  * The overview index's storage (specs/unified-partition-plugins §6.1, batch 106): two tables beside the search index in the Home's
@@ -78,13 +124,16 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
     readLibrary(library) {
       // The attention projection is its owner module's read (OverviewService's `readAttention`), never a table this index names.
       if (library.table === "attention") return null;
+      if (!isPartitionLibraryConfined(options.homeDirectory, library.partition_id, library.path)) return null;
       const kinds = library.kinds.filter(kind => (OVERVIEW_KINDS as readonly string[]).includes(kind));
+      let stat: ReturnType<typeof lstatSync>;
       try {
-        lstatSync(library.path);
+        stat = lstatSync(library.path);
       } catch (error) {
         // Only a library file that does not exist yet holds nothing; any other error (EACCES, EMFILE, broken parent) leaves the index as it was.
         return (error as NodeJS.ErrnoException | null)?.code === "ENOENT" ? [] : null;
       }
+      if (stat.isSymbolicLink() || !stat.isFile()) return null;
       let source: DatabaseSync;
       try {
         source = openHomeSqliteFile(library.path, { readOnly: true });

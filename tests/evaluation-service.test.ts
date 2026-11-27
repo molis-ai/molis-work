@@ -1835,3 +1835,131 @@ test("QRF-01 QRF-05: required owner versions, delayed stages and pause intervals
   assert.ok((await run("open")).unknown_reasons.includes("coverage_gap_paused"));
   assert.equal((await run("closed")).effective_verdict, "passed");
 });
+
+test("CORE-03 CORE-04: no_self_certifying_success handles agent.run ended, omitted subject_kind, opaque revisions, and empty-hold rollback", async t => {
+  const fx = createEvaluationFixture(t);
+  fx.service.registerProvider({
+    provider: { provider_id: "io.molis.work.opaque", title: "不透明版本对象", kind: "plugin" },
+    definitions: [{
+      capability_id: "opaque.update",
+      version: 1,
+      operation: "command",
+      action: {
+        title: "更新对象",
+        description: "使用不透明字符串版本更新对象",
+        kind: "operation",
+        scope: "project",
+        effect: "write",
+        audiences: ["user", "agent"],
+        permissions: [],
+        subject_kinds: ["home_page"],
+        result_subject: { id: "page.id", revision: "page.revision" },
+        input_schema: {
+          type: "object",
+          properties: { id: { type: "string" }, expected_revision: { type: "string" }, revision: { type: "string" } },
+          required: ["id"],
+          additionalProperties: false,
+        },
+        output_schema: {
+          type: "object",
+          properties: { page: { type: "object", properties: { id: { type: "string" }, revision: { type: "string" } }, required: ["id", "revision"] } },
+          required: ["page"],
+          additionalProperties: false,
+        },
+      },
+    }],
+    handlers: [{
+      capability_id: "opaque.update",
+      version: 1,
+      handle: async (_caller, raw) => {
+        const record = typeof raw === "object" && raw !== null ? raw as Record<string, unknown> : {};
+        const id = typeof record.id === "string" ? record.id : "page-1";
+        const revision = typeof record.revision === "string" ? record.revision : "home-2-bbb";
+        return { page: { id, revision } };
+      },
+    }],
+  });
+
+  // 1. CORE-03: agent.run with stage: "ended" and outcome: "succeeded" after an unretried failure must fail.
+  fx.layer.observed(
+    person({ project_id: "p1", audience: "agent", actor_id: "agent:assistant", call_id: "call-ended-fail" }),
+    { capability_id: "opaque.update", version: 1, provider_id: "io.molis.work.opaque", operation: "command" },
+    { invocation_id: "inv-fail-1", started_at: 100, ended_at: 110, handler_started: true, outcome: { ok: false, code: "opaque.conflict" }, aborted: false },
+  );
+  fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "call-ended-fail" })
+    .record({ fact: "agent.run", stage: "ended", outcome: "succeeded", work: { work_ref: "work-ended-fail" } });
+  fx.layer.flush();
+  await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample("core03-ended", { call_id: "call-ended-fail" }, {
+    expectations: [{ expectation_id: "honest", stage: "execution", source: "deterministic", description: "agent.run ended 不可自证成功",
+      rule: { check: "no_self_certifying_success" } }],
+  }));
+  const endedFail = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: "core03-ended" });
+  assert.equal(endedFail.effective_verdict, "failed");
+
+  // 2. CORE-03: omitted subject_kind recovers before revision from failed.subjects and accepts opaque successor revisions.
+  for (const [label, nextRev, expectedVerdict] of [["advanced", "home-2-bbb", "passed"], ["unchanged", "home-1-aaa", "unknown"]] as const) {
+    const call_id = `call-opaque-${label}`;
+    fx.layer.observed(
+      person({ project_id: "p1", audience: "agent", actor_id: "agent:assistant", call_id }),
+      { capability_id: "opaque.update", version: 1, provider_id: "io.molis.work.opaque", operation: "command" },
+      {
+        invocation_id: `inv-fail-${label}`,
+        started_at: 100,
+        ended_at: 110,
+        handler_started: true,
+        outcome: { ok: false, code: "opaque.conflict" },
+        aborted: false,
+      },
+    );
+    fx.layer.observed(
+      person({ project_id: "p1", audience: "agent", actor_id: "agent:assistant", call_id }),
+      { capability_id: "opaque.update", version: 1, provider_id: "io.molis.work.opaque", operation: "command" },
+      {
+        invocation_id: `inv-retry-${label}`,
+        started_at: 120,
+        ended_at: 130,
+        handler_started: true,
+        input: { id: "page-1", revision: nextRev },
+        result: { page: { id: "page-1", revision: nextRev } },
+        outcome: { ok: true },
+        aborted: false,
+      },
+    );
+    fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id })
+      .record({ fact: "agent.run", stage: "ended", outcome: "succeeded", work: { work_ref: `work-${label}` } });
+    fx.layer.flush();
+    fx.layer.writer.database()!.db.prepare("UPDATE records SET subjects = ? WHERE invocation_id = ?")
+      .run(JSON.stringify([{ kind: "home_page", id: "page-1", version: "home-1-aaa" }]), `inv-fail-${label}`);
+    await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample(`core03-opaque-${label}`, { call_id }, {
+      expectations: [{ expectation_id: "opaque", stage: "execution", source: "deterministic", description: "省略 subject_kind 且使用不透明版本",
+        rule: { check: "no_self_certifying_success", subject_id: "page-1" } }],
+    }));
+    const judged = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: `core03-opaque-${label}` });
+    assert.equal(judged.effective_verdict, expectedVerdict, label);
+  }
+
+  // 3. CORE-04: commitWithHold rollback clears newly appended records when previous hold existed with empty record_ids.
+  fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+    .record({ fact: "assistant.work", outcome: "succeeded", work: { work_ref: "empty-prev-hold" } });
+  fx.layer.flush();
+  const emptyHoldSample = workEvaluationSample("empty-prev", { work_ref: "empty-prev-hold" });
+  await fx.user.invoke(evaluationActions.samplesPut, emptyHoldSample);
+  const obsDb = fx.layer.writer.database()!.db;
+  obsDb.prepare(`
+    INSERT INTO evaluation_holds (hold_id, owner, sample_id, project_id, created_at, updated_at, expires_at, note)
+    VALUES ('eval:empty-prev:v1', ?, 'empty-prev@1', 'p1', '2026-11-15T10:00:00.000Z', '2026-11-15T10:00:00.000Z', NULL, 'empty prior hold')
+  `).run(EVALUATION_PROVIDER_ID);
+  const evalDb = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    evalDb.exec("CREATE TRIGGER abort_empty_prev BEFORE INSERT ON evaluation_runs BEGIN SELECT RAISE(ABORT, 'empty-prev rollback'); END");
+    await assert.rejects(
+      fx.user.invoke(evaluationActions.runsExecute, { sample_id: "empty-prev", hold_records: true }),
+      /empty-prev rollback/,
+    );
+    evalDb.exec("DROP TRIGGER abort_empty_prev");
+  } finally {
+    evalDb.close();
+  }
+  const remaining = (await fx.user.invoke(observationActions.holdsList, { sample_id: "empty-prev@1" })).holds;
+  assert.deepEqual(remaining.flatMap(hold => hold.record_ids), [], "CORE-04: rollback clears newly held records when previous hold was empty");
+});

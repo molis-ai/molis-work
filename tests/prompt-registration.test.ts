@@ -10,6 +10,7 @@ import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { BUILTIN_INSTRUCTIONS } from "../apps/local-host/dist/agent-definitions/builtin-instructions.js";
 
+import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome, createPackageProject } from "./fixtures/test-home.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
@@ -684,6 +685,15 @@ const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, s
   "io.molis.work.coding/coding-background": [[1, "1c6292f9e8eeaba8"], [2, "feacb285e133e257"]],
 };
 const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
+/** Canonical multi-locale hash: preserves legacy `[body, en]` format for `"en"`-only packs while covering all sorted locales once more are added (IUI-14). */
+function wordingFingerprint(prompt: { body: string; body_by_locale?: Readonly<Record<string, string>> }): string {
+  if (!prompt.body_by_locale) return fingerprint(prompt.body);
+  const locales = Object.keys(prompt.body_by_locale).sort();
+  if (locales.length === 1 && locales[0] === "en") {
+    return fingerprint(JSON.stringify([prompt.body, prompt.body_by_locale.en]));
+  }
+  return fingerprint(JSON.stringify([prompt.body, locales.map(locale => [locale, prompt.body_by_locale![locale]])]));
+}
 
 test("a registered judgment wording's version moves with its default text", () => {
   const bodies = registeredPrompts();
@@ -692,10 +702,21 @@ test("a registered judgment wording's version moves with its default text", () =
     assert.ok(prompt, `${key} is not registered`);
     const last = history.at(-1)!;
     assert.equal(prompt.version, last[0], `${key}: the registered version is not the last row of its history (a changed text needs a new version and a new row)`);
-    assert.equal(fingerprint(prompt.body_by_locale ? JSON.stringify([prompt.body, prompt.body_by_locale.en]) : prompt.body), last[1], `${key}: the default text changed without a new row in the history`);
+    assert.equal(wordingFingerprint(prompt), last[1], `${key}: the default text changed without a new row in the history`);
     history.forEach((row, index) => { if (index) assert.ok(row[0] > history[index - 1]![0], `${key}: versions rise from row to row`); });
     assert.equal(new Set(history.map(row => row[1])).size, history.length, `${key}: a version that does not change the text`);
   }
+  // Verify multi-locale changes alter the canonical fingerprint (e.g. adding or editing `ja`).
+  const baseEn = wordingFingerprint({ body: "中文", body_by_locale: { en: "English" } });
+  const withJa = wordingFingerprint({ body: "中文", body_by_locale: { en: "English", ja: "日本語" } });
+  const editedJa = wordingFingerprint({ body: "中文", body_by_locale: { en: "English", ja: "日本語・改" } });
+  assert.notEqual(baseEn, withJa);
+  assert.notEqual(withJa, editedJa);
+  // IUI-13: regional BCP-47 tags fall back to their primary language subtag before default body.
+  const regionalPrompt = { body: "中文正文", body_by_locale: { en: "English body", ja: "日本語本文" } };
+  assert.equal(agentBodyIn(regionalPrompt, "en-US"), "English body");
+  assert.equal(agentBodyIn(regionalPrompt, "ja-JP"), "日本語本文");
+  assert.equal(agentBodyIn(regionalPrompt, "fr-FR"), "中文正文");
   const everyWording = [...bodies.entries()]
     .filter(([key, prompt]) => key.startsWith("system:contextual/")
       || key.startsWith("io.molis.work.plugin-builder/choose.")

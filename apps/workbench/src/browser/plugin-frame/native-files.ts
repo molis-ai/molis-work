@@ -20,9 +20,18 @@ export function childNativeFiles(port: MessagePort, scope: FrameScope): NonNulla
   return { copy: paths => send("copy", paths), drag: (paths, ids) => send("drag", paths, ids), open: path => send("open", [path]), pick: childFilePicker(port, scope) };
 }
 
-export const nativeFileInvoke = () => (globalThis as typeof globalThis & {
+type DesktopFileShell = Window & {
   __TAURI__?: { core?: { invoke<T = void>(name: string, input: Record<string, unknown>): Promise<T> } };
-}).__TAURI__?.core?.invoke;
+};
+
+/** WKWebView installs desktop IPC in the main window. The workbench also mounts pages inside its own side panel. */
+export function nativeFileInvoke() {
+  const frame = window.frameElement;
+  const shell = frame?.matches("#side-panel iframe[data-side-frame]")
+    && frame.ownerDocument.defaultView === window.top
+    ? frame.ownerDocument.defaultView : window;
+  return (shell as DesktopFileShell | null)?.__TAURI__?.core?.invoke;
+}
 
 /**
  * IPC stays in the trusted shell. The child can name only relative files owned by its active installation, and the window

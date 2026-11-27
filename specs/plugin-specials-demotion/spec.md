@@ -281,7 +281,7 @@ PSD-04a 经一骏于 2026-11-26 确认。创作台作者可以在草稿中单独
 - **PSD-04a**（命名放开，V16）：固定公钥第三方包以 `com.example.notes` 安装、创作台生成插件以 `studio.<编号>` 安装均成功，页面与调用路由不 404；SDK 校验接受通用反向域名。
 - **PSD-04**（冒名前缀）：非宿主包以任意 `io.molis.work.*`（含 `characters`、`assistant`、`shelf`、`artifacts`）安装被拒，`plugin.id_namespace_conflict`（`S-reserved-host-prefix`）。
 - **PSD-05**（Clean v1 基线）：D5 改名拍平后，重生 `0.1.0` 金样回放通过，证据、拉取游标、「等你」条目与 `system.shelf` 数据全部正常；`better-sqlite3` 与 Alchemist 豁免清零。
-- **PSD-06**（纯平台 Shelf 与桌面壳）：Shelf 经 `/api/platform/shelf` 与 `HostSurfaceRegistration` 运行，热键、拖放、轮盘、剪贴板在真实 macOS 上照常；`always_on` 机制与 `plugins/native/shelf` 完全删除。
+- **PSD-06**（纯平台 Shelf 与桌面壳）：Shelf 经 `/api/platform/shelf` 与 `HostSurfaceRegistration` 运行，热键、拖放、轮盘、剪贴板在真实 macOS 上照常。应在打开的工作台侧栏选中已入架文件，通过复制按钮或 ⌘C 复制，再到 Finder 的空文件夹粘贴，核对文件名和正文。`always_on` 机制与 `plugins/native/shelf` 完全删除。
 - **PSD-07**（界面）：共用样式泛化（消费 `#2258`）与外壳收口后，`pnpm visual:compare` 无意外差异；中英、深浅、三宽度。
 - **PSD-08**（连接器驱动与系统技能）：`youtube` 收编进 `rss`、`planning-methods` 迁入 `packages/system-skills/`，宿主零厂商/CLI 分支，现有连接器与技能设置回归全绿。
 

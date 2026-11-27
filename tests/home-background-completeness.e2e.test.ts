@@ -2,33 +2,31 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
+import { hostBackgroundSource } from "./fixtures/home-background-plugin.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 
 test("QEA-15/16 QEA-169 Home keeps partial background work visible and retries only the read, in both languages and themes", { timeout: 180_000 }, async t => {
   let mode: "failed" | "partial" | "complete" | "empty" = "failed", healthyProject = "", otherProject = "";
-  const plugin = backgroundPlugin(project => {
-    // Nothing runs in the personal space, which the Home reads too (batch 106): the rows below are the two projects'.
-    if (project === PERSONAL_SPACE_PROJECT_ID) return { source: { surface: "example", title: "Example", icon: "list" }, tasks: [] };
+  const plugin = hostBackgroundSource(project => {
+    // The Host's own source (V17: plugins reach the Home as overview rows, these are still read live), registered in the two projects.
     if (mode === "failed" || mode === "partial" && project !== healthyProject) throw new ActionError("example.read_failed", "private-provider-diagnostic");
     return { source: { surface: "example", title: "Example", icon: "list" }, tasks: mode === "empty" ? [] : [{
       subject: { kind: "homebg_task", id: project }, title: "Export customer notes", state: "running", details: [], waiting: false,
       updated_at: "2026-10-01T10:00:00.000Z", executor: { kind: "plugin", label: "Example" }, serves: [], scope: "project", commands: [], decisions: [], open: null,
     }] };
   });
-  const b = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined, {}, { project: [plugin.definition] });
+  const b = await openGoalBrowser(t, "empty", undefined, null);
   assert.ok(b, "QEA-15 needs the isolated test browser");
   assert.ok(b.localHost);
   for (const name of ["Alpha", "Beta"]) {
     const project = await createProject(b.web, name);
     if (name === "Alpha") healthyProject = project.project_id;
     else { otherProject = project.project_id; await addProjectPlugin(b.web, otherProject, "goals"); }
-    await startProjectPlugins(b.localHost, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
+    plugin.register(b.localHost.actionRegistry(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path })));
   }
   const go = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
   const list = "document.querySelector('[data-background-tasks-list]')";
@@ -92,7 +90,7 @@ test("QEA-15/16 Home keeps a pending stop disabled across a null attention part,
   let taskProject = "", partial = false, offered = true, resumed = false;
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), secondEntered = Promise.withResolvers<void>();
   t.after(() => release.resolve());
-  const plugin = backgroundPlugin(project => {
+  const plugin = hostBackgroundSource(project => {
     if (partial && project !== taskProject) throw new ActionError("example.read_failed", "private-provider-diagnostic");
     return { source: { surface: "example", title: "Example", icon: "list" }, tasks: project !== taskProject ? [] : [{
       subject: { kind: "homebg_task", id: "export" }, title: "Export notes", state: "running", details: [], waiting: false,
@@ -101,12 +99,12 @@ test("QEA-15/16 Home keeps a pending stop disabled across a null attention part,
     }] };
   });
   plugin.state.stop = async () => { entered.resolve(); if (plugin.state.stops.length === 2) secondEntered.resolve(); await release.promise; offered = resumed; return { stopped: "export" }; };
-  const b = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined, {}, { project: [plugin.definition] });
+  const b = await openGoalBrowser(t, "empty", undefined, null);
   assert.ok(b); assert.ok(b.localHost);
   for (const name of ["Alpha", "Beta"]) {
     const project = await createProject(b.web, name);
     if (!taskProject) taskProject = project.project_id;
-    await startProjectPlugins(b.localHost, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
+    plugin.register(b.localHost.actionRegistry(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path })));
   }
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/" }, b.sessionId));
   const stop = "[data-background-tasks-list] .background-task-command button";

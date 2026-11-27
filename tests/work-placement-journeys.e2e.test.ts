@@ -6,7 +6,7 @@ import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/l
 import { formFillPageHtml } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { enablePersonalPlugin, openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 /** The shared moves of a placement journey in the real workbench (real pointer clicks, first visible match). */
@@ -14,6 +14,7 @@ async function journey(t: TestContext, mode: "empty" | "seeded", name: string) {
   const browser = await openGoalBrowser(t, mode);
   if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  await enablePersonalPlugin(browser.web, "pages");
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);

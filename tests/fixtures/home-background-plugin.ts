@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, defineBackgroundTasksAction, defineSubjectContextAction, defineTaskServesAction, defineWorkEventsAction, subjectContext, type ActionExecutionContext, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineBackgroundTasksAction, defineSubjectContextAction, defineTaskServesAction, defineWorkEventsAction, subjectContext, type ActionExecutionContext, type ActionRegistryPort, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACCEPTANCE_REPORT_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
@@ -92,6 +92,32 @@ export function backgroundPlugin(answer: (projectId: string) => unknown, { reade
 }
 
 export type BackgroundPlugin = ReturnType<typeof backgroundPlugin>;
+/**
+ * The same background-task source as one of the Host's own providers (the Assistant's work is one): since batch 108 (V17) a plugin's tasks
+ * reach the Home only as its overview rows, and the Home asks live only these, so a test of how the Home lists live reads (partial
+ * failure, invalid answers, a pending stop) uses this one. `register` puts it in a project's directory; its answer and stop are the test's.
+ */
+export function hostBackgroundSource(answer: (projectId: string) => unknown) {
+  const state = { answer, calls: [] as Array<{ project: string | null; query_only: boolean }>, stops: [] as Array<{ project: string | null; job: string }>,
+    stop: (async job => ({ stopped: job })) as (job: string) => Promise<unknown>, answers: [] as Array<{ project: string | null; job: string; verdict: string }> };
+  const query = defineBackgroundTasksAction("homebg.tasks", 1, ["homebg_task"], "示例后台任务", []);
+  const declared = { ...query, action: { ...query.action, output_schema: { type: "object" as const } } };
+  const stop = { capability_id: "homebg.stop", version: 1, operation: "command" as const, action: { title: "停止示例任务", description: "停止一个示例后台任务。", kind: "operation" as const, scope: "project" as const,
+    effect: "write" as const, audiences: ["user" as const], permissions: [], subject_kinds: [],
+    input_schema: { type: "object" as const, properties: { job: { type: "string" as const } }, required: ["job"], additionalProperties: false }, output_schema: { type: "object" as const } } };
+  const register = (registry: ActionRegistryPort) => registry.registerProvider({ provider: { provider_id: "homebg", title: "Example", kind: "system" }, definitions: [declared, stop], handlers: [
+    { ...declared, async handle(caller: ActionExecutionContext) {
+      state.calls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
+      return await state.answer(caller.project_id ?? "") as never;
+    } },
+    { ...stop, async handle(caller: ActionExecutionContext, input: unknown) {
+      const job = (input as { job: string }).job;
+      state.stops.push({ project: caller.project_id ?? null, job });
+      return await state.stop(job) as never;
+    } }] });
+  return { state, register };
+}
+
 
 /**
  * Projects under a Host that has opened all but `closed` (the Home reads only open projects), the plugin off in `off`.

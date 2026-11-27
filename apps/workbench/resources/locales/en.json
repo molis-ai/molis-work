@@ -5704,7 +5704,7 @@
     "workbench.settings-assistant.paused-until": "Paused until",
     "workbench.settings-assistant.personal": "Personal",
     "workbench.settings-assistant.overview-grants": "Cross-project overview",
-    "workbench.settings-assistant.overview-grants-hint": "By default the assistant only looks where you are. Choose the projects whose overview it may read, and what it may see in each. It never gets the original content or attachments, and turning a project off takes effect right away.",
+    "workbench.settings-assistant.overview-grants-hint": "Pick the projects whose overview the assistant may read. It never gets originals or attachments.",
     "workbench.settings-assistant.overview-no-places": "There are no projects to choose yet.",
     "workbench.settings-assistant.overview-fields": "What the assistant may see in {place}",
     "workbench.settings-assistant.overview-field-title": "Title",

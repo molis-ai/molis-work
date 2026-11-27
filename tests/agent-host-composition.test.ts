@@ -58,9 +58,9 @@ async function fixture(workspace: ProjectWorkspaceRef | null) {
  * A plugin started in `reference` that opens sessions and starts rounds, both its own actions (R8 batch 3), with the owner the Host
  * records its sessions under.
  */
-async function roundStarter(localHost: MolisWorkLocalHost, reference: Parameters<typeof startPlugin>[1], store: Parameters<typeof startPlugin>[2], name: string) {
+async function roundStarter(localHost: MolisWorkLocalHost, reference: Parameters<typeof startPlugin>[1], store: Parameters<typeof startPlugin>[2], name: string, home?: string) {
   const plugin = withReaderRole(callerPlugin(name, "project", {}, [agentHostCapabilities.createSession.capability_id, agentHostCapabilities.startRun.capability_id]));
-  await startPlugin(localHost, reference, store, plugin);
+  await startPlugin(localHost, reference, store, plugin, home ? { home } : {});
   const context = plugin.context(reference.project_id);
   const owner: AgentSessionOwner = { project_id: reference.project_id, plugin_id: plugin.id, install_id: context.install_id, actor_id: context.actor_id! };
   return { actions: plugin.actions(reference.project_id), owner };
@@ -129,7 +129,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     const added = await management.invoke(projectGuidanceActions.add, { kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
-    const starter = await roundStarter(localHost, reference, store, "guidance"), client = starter.actions; owner = starter.owner;
+    const starter = await roundStarter(localHost, reference, store, "guidance", directory), client = starter.actions; owner = starter.owner;
     const request: AgentStartInput = { session: { runtime_id: "probe", session_id: "s" }, task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const first = captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;

@@ -26,7 +26,10 @@ async function setup(t: TestContext) {
     home, installed, addRule,
     install: async (pluginId: string) => home.web.post(pluginsPath, { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, project.project_id) }),
     remove: async (pluginId: string) => home.web.delete(pluginsPath, { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, project.project_id) }),
-    // The personal space is a partition of its own (batch 106): a page it still shows can still be named.
+    // The personal space is a partition of its own (batch 106): a page it still shows can still be named. A new Home's personal space
+    // starts with Schedule only (batch 108, no plugin is personal any more), so a page shown there is one its settings added.
+    addPersonal: async (pluginId: string) => home.web.post(`/api/settings/projects/${PERSONAL_SPACE_PROJECT_ID}/plugins`,
+      { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, PERSONAL_SPACE_PROJECT_ID) }),
     removePersonal: async (pluginId: string) => home.web.delete(`/api/settings/projects/${PERSONAL_SPACE_PROJECT_ID}/plugins`,
       { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, PERSONAL_SPACE_PROJECT_ID) }),
   };
@@ -53,15 +56,15 @@ test("PG036-01: the Host offers add@1, refuses retired add@2 without writing, an
   assert.deepEqual((await home.web.get<RulePages>("/api/assistant/rules")).rules, added.rules, "the HTTP read observes the action's stored rule");
 });
 
-test("PG-036: a plugin installed in a project can have its page named by a rule; a personal plugin and the project home always can", async t => {
+test("PG-036: a plugin installed in a project can have its page named by a rule; one the personal space shows and the project home always can", async t => {
   const { installed, addRule, install } = await setup(t);
   assert.ok(!(await installed()).includes("coding"), "the plugin is not installed in any project yet");
   await assert.rejects(addRule(quiet(["coding"])), /coding/);
   await install("coding");
   const pages = await installed();
-  assert.ok(pages.includes("coding") && pages.includes("jelly") && pages.includes("home"), "the project plugin, a personal one and the project home are all there");
-  const { rules } = await addRule(quiet(["coding", "jelly", "home"]));
-  assert.deepEqual(rules.map(rule => rule.surfaces), [["coding", "jelly", "home"]]);
+  assert.ok(pages.includes("coding") && pages.includes("schedule") && pages.includes("home"), "the project plugin, one the personal space shows and the project home are all there");
+  const { rules } = await addRule(quiet(["coding", "schedule", "home"]));
+  assert.deepEqual(rules.map(rule => rule.surfaces), [["coding", "schedule", "home"]]);
 });
 
 test("PG-036: the pages the settings page offers come with the server, each with the name the workbench rail shows", async t => {
@@ -69,10 +72,10 @@ test("PG-036: the pages the settings page offers come with the server, each with
   const { pages } = await home.web.get<RulePages>("/api/assistant/rules");
   const byId = new Map(pages.map(page => [page.page_id, page.label]));
   assert.equal(byId.get("home"), "项目主页");
-  assert.ok((byId.get("jelly") ?? "").length > 0 && byId.get("jelly") !== "jelly", "an installed plugin is listed under the name of its rail entry, not its id");
+  assert.ok((byId.get("schedule") ?? "").length > 0 && byId.get("schedule") !== "schedule", "an installed plugin is listed under the name of its rail entry, not its id");
 });
 
-test("PG-036: a personal plugin with no entry in the workbench rail is not a page a rule can name, since the client never reports it", async t => {
+test("PG-036: a plugin with no entry in the workbench rail is not a page a rule can name, since the client never reports it", async t => {
   const { home, installed, addRule } = await setup(t);
   const { pages } = await home.web.get<RulePages>("/api/assistant/rules");
   for (const page of ["shelf"]) {
@@ -81,7 +84,7 @@ test("PG-036: a personal plugin with no entry in the workbench rail is not a pag
     await assert.rejects(addByAction(home, quiet([page])), new RegExp(page), `a rule naming ${page} is refused as an action`);
   }
   assert.ok(pages.every(choice => choice.page_id === "home" || choice.label !== choice.page_id), "every page offered has the name its rail entry shows");
-  assert.ok((await installed()).includes("jelly"), "a personal plugin that has a rail entry is still offered");
+  assert.ok((await installed()).includes("schedule"), "a plugin the personal space shows that has a rail entry is still offered");
   assert.deepEqual((await home.web.get<RulePages>("/api/assistant/rules")).rules, [], "nothing was kept");
 });
 
@@ -113,8 +116,10 @@ test("PG-036: after the plugin is taken out of every project its page is refused
   await assert.rejects(addRule(quiet(["coding", "feed"]), rule!.rule_id), /feed/, "a page the rule did not name still has to be installed");
 });
 
-test("PG-036: a personal plugin the person hid from every project drops out of the pages a rule may name", async t => {
-  const { installed, addRule, remove, removePersonal } = await setup(t);
+test("PG-036: a plugin the person took out of every project and the personal space drops out of the pages a rule may name", async t => {
+  const { installed, addRule, install, remove, addPersonal, removePersonal } = await setup(t);
+  await install("jelly");
+  await addPersonal("jelly");
   assert.ok((await installed()).includes("jelly"));
   await remove("jelly");
   assert.ok((await installed()).includes("jelly"), "the personal space still shows it");

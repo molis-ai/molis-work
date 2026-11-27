@@ -17,7 +17,7 @@ const surface = async (b: Browser, plugin: string) => {
 test("W2-18-CONTENT-CONTEXT-01: Cognia Back/delete clear the actual declared object; another material reopens and the owner retains its fixed historical reference", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "cognia");
-  const store = openCogniaStore(b.homeDirectory);
+  const store = openCogniaStore(b.homeDirectory, b.projectId!);
   const [a, other] = (() => { try { return [store.createMaterial({ title: "A material", body: "A evidence" }), store.createMaterial({ title: "B material", body: "B evidence" })]; } finally { store.close(); } })();
   await surface(b, "cognia"); await child.click(`[data-cognia-id="${a.id}"]`);
   await child.waitFor("document.querySelector('[data-cognia-heading]').textContent==='A material'");
@@ -31,7 +31,7 @@ test("W2-18-CONTENT-CONTEXT-01: Cognia Back/delete clear the actual declared obj
   await child.click('[data-page-dialog="confirm"] button[type="submit"]');
   await child.waitFor(`!document.querySelector('[data-cognia-id="${other.id}"]')`);
   assert.equal(await context(child, "cognia"), null);
-  const after = openCogniaStore(b.homeDirectory);
+  const after = openCogniaStore(b.homeDirectory, b.projectId!);
   try { assert.throws(() => after.read(other.id)); assert.equal(after.read(other.id, other.revision).body, "B evidence"); } finally { after.close(); }
   await child.click(`[data-cognia-id="${a.id}"]`); await child.waitFor("document.querySelector('[data-cognia-heading]').textContent==='A material'");
   assert.equal((await context(child, "cognia"))?.id, a.id);

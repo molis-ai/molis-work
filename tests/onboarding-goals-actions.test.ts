@@ -86,7 +86,7 @@ test("PEQ-01: a Run reads the project guidance through the platform's action, on
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     await management.invoke(projectGuidanceActions.add, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const probe = registerProbe(host.actionRegistry(reference), "project");
-    await startPlugin(host, reference, store, starter);
+    await startPlugin(host, reference, store, starter, { home });
     const issued = await issuedCaller(probe, starter, "guided"), rounds = starter.actions("guided");
     owner = { project_id: "guided", plugin_id: issued.plugin_id, install_id: issued.install_id, actor_id: issued.actor_id };
     const settled = watchSettlements(host);

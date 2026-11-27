@@ -18,8 +18,9 @@ test("H1/APR-12: the authorization manager shows the original source, revokes th
   const capability = await f.web.get<{ capabilities: Array<{ capability_id: string; version: number; provider_id: string; expected: string }> }>(
     `/projects/${project.project_id}/api/assistant/capabilities`);
   const { capability_id, version, provider_id } = capability.capabilities.find(row => row.capability_id === "todo.items.create")!;
+  // Todo runs in each space it is enabled in (batch 108), so its action is granted for that project, not across the Home.
   await f.web.post("/api/settings/mcp/actions", { capability_id, version, provider_id, client_id: "runtime:browser-authorization",
-    project_id: null, enabled: true, expected: { expected_absent: true } });
+    project_id: project.project_id, enabled: true, expected: { expected_absent: true } });
   const { agentHost } = ensureSystemAgentService(f.host, f.home);
   await ensureSystemAgentService(f.host, f.home).mcpLibrary();
   const queue = agentHost.reviews, reviewId = "authorization-manager-browser-review";

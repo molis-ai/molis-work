@@ -5152,7 +5152,7 @@
     "workbench.settings-assistant.paused-until": "一時停止の終了時刻",
     "workbench.settings-assistant.personal": "個人",
     "workbench.settings-assistant.overview-grants": "プロジェクト横断の概要",
-    "workbench.settings-assistant.overview-grants-hint": "アシスタントは通常、いま開いている場所だけを見ます。概要を読んでよいプロジェクトと、それぞれで見てよい内容をここで選んでください。原文や添付は渡さず、オフにするとすぐに反映されます。",
+    "workbench.settings-assistant.overview-grants-hint": "概要を読んでよいプロジェクトを選びます。原文や添付は渡しません。",
     "workbench.settings-assistant.overview-no-places": "選べるプロジェクトはまだありません。",
     "workbench.settings-assistant.overview-fields": "{place} でアシスタントが見られる内容",
     "workbench.settings-assistant.overview-field-title": "タイトル",

@@ -1,4 +1,4 @@
-import { BACKGROUND_TASK_DONE_STATES, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, RUN_MISSED_KEPT_MS, runExpiredUntold, type ActionCallContext,
+import { ActionError, BACKGROUND_TASK_DONE_STATES, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, RUN_MISSED_KEPT_MS, runExpiredUntold, type ActionCallContext,
   type RunsExpiryBounds } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { OverviewIndexRow, OverviewKind, OverviewOpen, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -163,17 +163,27 @@ export async function hostBackgroundTasks(host: MolisWorkLocalHost): Promise<Hom
   const source = hostOverviewSource(host);
   if (!source) return { tasks: [], issues: [] };
   const partitions = await host.partitions(), names = new Map(partitions.map(partition => [partition.project_id, partition.display_name]));
-  const [overview, own] = await Promise.all([homeBackgroundTasks(source, partitions), Promise.all(host.projects().filter(row => row.state !== "closing").map(async reference => {
-    const read = await host.withProject(reference, async () => {
-      const caller = await localOwnerContext(host, reference), client = host.actionClient(reference);
-      const views = (await client.discover({ ...caller, query_only: true })).filter(view => view.provider.kind === "system");
-      return readBackgroundTasks(caller, client, views);
-    }).catch(() => undefined);
-    return (read?.tasks ?? []).filter(row => !BACKGROUND_TASK_DONE_STATES.has(row.state))
-      .map((row): HomeBackgroundTaskRow => ({ ...row, project_id: reference.project_id, project_name: names.get(reference.project_id) ?? reference.project_id }));
+  const [overview, own] = await Promise.all([homeBackgroundTasks(source, partitions), Promise.all(host.projects().filter(row => row.state !== "closing").map(async (reference): Promise<HomeBackgroundTasksReadResult> => {
+    // A source that could not be read stays in the answer as an issue (QEA-14): an empty list alone never says there is no work.
+    let read: Awaited<ReturnType<typeof readBackgroundTasks>>;
+    try {
+      read = await host.withProject(reference, async () => {
+        const caller = await localOwnerContext(host, reference), client = host.actionClient(reference);
+        const views = (await client.discover({ ...caller, query_only: true })).filter(view => view.provider.kind === "system");
+        return readBackgroundTasks(caller, client, views);
+      });
+    } catch (error) {
+      return { tasks: [], issues: [{ project_id: reference.project_id, source: null, code: error instanceof ActionError ? error.code : "actions.execution_failed" }] };
+    }
+    return {
+      tasks: read.tasks.filter(row => !BACKGROUND_TASK_DONE_STATES.has(row.state))
+        .map((row): HomeBackgroundTaskRow => ({ ...row, project_id: reference.project_id, project_name: names.get(reference.project_id) ?? reference.project_id })),
+      issues: read.issues.map(issue => ({ project_id: reference.project_id, source: issue.source, code: issue.code })),
+    };
   }))]);
-  const tasks = [...overview.tasks, ...own.flat()];
-  return { tasks: tasks.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id)), issues: [] };
+  const tasks = [...overview.tasks, ...own.flatMap(part => part.tasks)];
+  return { tasks: tasks.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id)),
+    issues: [...overview.issues, ...own.flatMap(part => part.issues)] };
 }
 
 /**

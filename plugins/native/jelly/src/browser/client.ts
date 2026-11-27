@@ -135,7 +135,10 @@ export function mountJelly(host: JellyHost): void {
         const { days } = await call<{ days: string[] }>(host, "jelly.note.days", range);
         if (seq === calendarSeq) noteDays = new Set(days);
       } catch (error) {
-        if (seq === calendarSeq) { noteDays.clear(); fail(error); }
+        if (seq === calendarSeq) {
+          noteDays.clear();
+          fail(error);
+        }
       }
     }
   }

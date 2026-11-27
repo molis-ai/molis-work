@@ -81,7 +81,7 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
     } finally { store.close(); }
     await reloadPage(); await open();
     await waitFor(`!!document.querySelector('[data-jelly-day="${dayNote.day}"] .jelly-day-note')`);
-    assert.equal(await evaluate("document.querySelector('[data-jelly-day-note] textarea').value"), dayNote.body);
+    await waitFor(`document.querySelector('[data-jelly-day-note] textarea')?.value === ${JSON.stringify(dayNote.body)}`);
   });
 });
 

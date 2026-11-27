@@ -28,9 +28,9 @@ function fixture(t: { after(fn: () => Promise<void>): void }) {
   return { home, host, caller, service, bound, month, events };
 }
 
-test("UPP-15 Jelly is a partition plugin with fifteen typed actions and no model, settings or routes; permissions and separate Homes hold", async t => {
+test("UPP-15 Jelly is a partition plugin with sixteen typed actions and no model, settings or routes; permissions and separate Homes hold", async t => {
   const f = fixture(t), other = fixture(t);
-  assert.equal(Object.keys(a).length, 15);
+  assert.equal(Object.keys(a).length, 16);
   assert.equal(jellyManifest.runtime, undefined, "no Home runtime: one instance per partition it is enabled in");
   assert.equal(jellyManifest.databases?.partition?.store_name, "jelly");
   assert.deepEqual(jellyManifest.overview_projection, { kinds: ["event"] });

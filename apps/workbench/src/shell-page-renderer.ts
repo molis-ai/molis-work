@@ -45,7 +45,8 @@ function projectedPageText(view: WorkbenchShellPageView, packsFor: ProjectSettin
   const pages = Object.entries(view.plugin_stage_views ?? {}).flatMap(([slot, source]) =>
     source?.producer && source.textPacks ? [{ slot, producer: source.producer, packs: source.textPacks() }] : []);
   const station = HOST_FRAMED_SURFACES.find(entry => entry.manifest.plugin_id === PLATFORM_RECEIVE_STATION)?.manifest;
-  const key = station?.name_text?.key;
+  const title = station?.name_text;
+  const key = title && "key" in title ? title.key : undefined;
   if (station && key) {
     const packs = packsFor(station).flatMap(pack => Object.hasOwn(pack.messages, key)
       ? [{ ...pack, messages: { [key]: pack.messages[key]! } }] : []);

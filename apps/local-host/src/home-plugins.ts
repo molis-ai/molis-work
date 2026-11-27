@@ -25,11 +25,12 @@ import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { assertModelConfigurationEntries } from "./model-configuration-entries.js";
 import { assertImageGenerationEntries } from "./plugin-image-generation-entries.js";
 import { assertProjectCleanupEntries, registerPluginProjectCleanup, type PluginProjectCleanup } from "./plugin-project-cleanup.js";
-import { fixtureAdmission, pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type PluginFixture } from "./home-side.js";
+import { bundledDirectoryFor, fixtureAdmission, pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type PluginFixture } from "./home-side.js";
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
-import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from "./host-plugin-ids.js";
+import { HOST_PLUGIN_IDS, releasePackagesFor } from "./host-plugin-ids.js";
+import { localPublisherKeyId } from "./installed-plugin-publisher.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { closeHomePlugins } from "./plugin-platform-close.js";
 import { bindHomeRegistration } from "./home-registration.js";
@@ -386,7 +387,7 @@ async function startHomePlatformRuntime(input: {
     dualInstance: isDualDefinition, localePacks: identity.localePacks });
   // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
   const ledger = new SqlitePluginConsentLedger(db);
-  const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+  const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, releaseIds: releasePackagesFor(bundledDirectoryFor(options.home), () => localPublisherKeyId(options.home)), inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
     assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, installationScope.catalog(), runtime, rollback),
     redemption: definition => isDualDefinition(definition) ? { partial: true, outside_project: true } : {},
     actions: { registry: options.registry,

@@ -175,7 +175,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         const sceneId = sandboxSceneId(release.buildId, local);
         context.requireGrant('scenes:use');
         await control.beforeEffect?.();
-        return await sceneClient.runScene({ scene_id: sceneId, version: 1 }, sceneId, input) as SandboxJson;
+        return await sceneClient.runScene({ scene_id: sceneId, version: /* @version scene.sandbox.behavior-recommendation */ 1 }, sceneId, input) as SandboxJson;
       } };
       const services = sandboxServicesFor(context.services, { ...host, scenes: sceneRunner, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
       const open = (lane: Lane) => {

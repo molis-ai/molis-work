@@ -22,10 +22,10 @@ export function sandboxScenes(contract: SandboxPluginContract, buildId: string):
     if (new Set(keys).size !== keys.length) throw invalid();
     ids.add(scene.id);
     const sceneId = sandboxSceneId(buildId, scene.id);
-    return { scene_id: sceneId, version: 1, title: scene.title, description: scene.description, trigger: scene.trigger, scope: 'project',
+    return { scene_id: sceneId, version: /* @version scene.sandbox.behavior-recommendation */ 1, title: scene.title, description: scene.description, trigger: scene.trigger, scope: 'project',
       subject_kinds: [scene.subject_kind], permissions: ['scenes:use'], configuration_permissions: ['storage:private'],
       input_schema: { type: 'object', properties: { content: { type: 'string', minLength: 1, maxLength: 8000 } }, required: ['content'], additionalProperties: false },
-      result_type: 'molis.behavior-recommendation.v1',
+      result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1",
       result_schema: { type: 'object', properties: { status: { enum: ['ok', 'needs_review'] }, suggested_behavior_ids: { type: 'array', items: { enum: keys } } }, required: ['status', 'suggested_behavior_ids'] },
       recommendation_labels: Object.fromEntries(scene.options.map(option => [option.key, option.description])),
       default_rule: { function_key: 'scene_' + createHash('sha256').update(sceneId).digest('hex').slice(0, 40), name: scene.title,

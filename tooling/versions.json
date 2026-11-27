@@ -1441,6 +1441,7 @@
     "role.writers": 2,
     "scene.feed.capture": 1,
     "scene.home.dock": 1,
+    "scene.sandbox.behavior-recommendation": 1,
     "scene.inbox.next": 1,
     "state-machine.platform.plugin-runtime.lifecycle": 1,
     "sync.collection.coding.sessions": 1,

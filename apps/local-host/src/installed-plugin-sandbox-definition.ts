@@ -155,7 +155,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       const lane = background;
       const guardedBackground: SandboxBackgroundLane = { check: lane.check, stop: lane.stop, async run(operationId, input, control) {
         const operation = operations.find(item => item.id === operationId);
-        if (!operation) throw new SandboxError('sandbox.invalid_request', '这个后台操作不属于当前实例');
+        if (!operation) throw new ActionError('actions.forbidden', '这个后台操作不属于当前实例');
         const effects = sandboxOperationEffects(release.design.contract, operation);
         host.assertLive?.(identity);
         assertOperationGranted(effects, liveGrants());

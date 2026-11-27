@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { jellyActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
+import { openJellyStore } from "./fixtures/plugin-home-stores.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 /**
@@ -49,4 +53,28 @@ test("UPG3-04 the start page's entry of a plugin an upgrade stopped has the dot 
   await navigate(() => command("Page.navigate", { url: project }, sessionId));
   await waitFor(`${card}`);
   assert.equal(await evaluate(number), first, "the same number on the next look, in the same round");
+});
+
+test("B112-06 Clean v1 names a structure mismatch and can restart after the person moves the old file", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null, undefined, undefined, { prepareHome(home) {
+    openJellyStore(home).close();
+    const db = new DatabaseSync(join(home, "jelly", "jelly.db"));
+    try { db.exec("ALTER TABLE jelly_notes RENAME TO old_notes"); } finally { db.close(); }
+  } });
+  if (!browser) return;
+  assert.ok(browser.localHost);
+  const file = join(browser.homeDirectory, "jelly", "jelly.db");
+  const original = readFileSync(file);
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=jelly` }, browser.sessionId));
+  const recovery = '[data-home-plugin-unavailable] button[data-project-plugin-restart="restart"]';
+  await browser.waitFor(`document.querySelector('${recovery}')?.checkVisibility()`);
+  assert.match(await browser.evaluate<string>("document.querySelector('[data-owner-unavailable]').textContent"), /数据结构.*备份/u);
+  assert.deepEqual(readFileSync(file), original);
+  renameSync(file, file + ".backup");
+  await browser.navigate(() => browser.click(recovery));
+  const frame = await pluginFrameBrowser(t, browser, "jelly");
+  await frame.waitFor("document.querySelector('[data-jelly-day][data-selected]')");
+  const result = await browser.localHost.homeActionClient().invoke({ actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS }, jellyActions.notes, {});
+  assert.deepEqual(result.notes, []);
+  assert.deepEqual(readFileSync(file + ".backup"), original);
 });

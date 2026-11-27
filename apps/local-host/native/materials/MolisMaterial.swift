@@ -57,8 +57,8 @@ private func recognize(_ image: CGImage, languages: [String]?) throws -> (String
     }
     // Vision can assign an entire mixed line to Latin, including its kana, even at full confidence.
     // A Japanese reading may repair that line only if it agrees on the Latin words and reads kana in the same place.
-    func latinWords(_ text: String) -> Set<Substring> {
-        Set(text.split { !($0.isASCII && $0.isLetter) })
+    func latinWords(_ text: String) -> [Substring] {
+        text.split { !($0.isASCII && $0.isLetter) }
     }
     let hasPossibleMixedLine = candidates.compactMap { $0?.string }.contains { !containsKana($0) && !latinWords($0).isEmpty }
     if request.automaticallyDetectsLanguage, request.recognitionLanguages.contains("ja-JP"),
@@ -75,7 +75,13 @@ private func recognize(_ image: CGImage, languages: [String]?) throws -> (String
             guard let index = observations.firstIndex(where: { $0.boundingBox.contains(center) }),
                   let prior = candidates[index], !containsKana(prior.string), reading.confidence >= prior.confidence else { continue }
             let words = latinWords(reading.string)
-            if !words.isEmpty && words.isSubset(of: latinWords(prior.string)) { candidates[index] = reading }
+            let original = latinWords(prior.string)
+            // A misread leading glyph can appear as punctuation and one stray letter (e.g. "*T").
+            // All other Latin words must survive, in order, including repeated words.
+            let strayPrefix = prior.string.first?.isPunctuation == true && original.first?.count == 1
+            if !words.isEmpty && (words == original || strayPrefix && words.elementsEqual(original.dropFirst())) {
+                candidates[index] = reading
+            }
         }
     }
     let readings = candidates.compactMap { $0 }

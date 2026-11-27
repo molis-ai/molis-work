@@ -1,4 +1,3 @@
-import { observationPluginDataCleared } from "./observation-host.js";
 import { pluginInteraction } from "./plugin-interaction.js";
 import { installedPageRelease, pluginPagesFor } from "./plugin-page-authority.js";
 import { installedComponentSubmit } from "./installed-action-registration.js";
@@ -243,17 +242,17 @@ export class HomePluginExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
+    // A following install can discard even a retained library. Its statement process must have exited.
+    await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
     if (record.execution === "sandbox" && !record.retain_private_data) {
       removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
       forgetSandboxImageBindings(this.options.home, record.install_id);
       // Its own library goes too, once its statement process has exited, and only the one the ledger and its verified Manifest agree on (BL-915 A).
-      await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
       const manifest = new SandboxPackageStore(this.options.home).installedManifest(record), declared = manifest?.databases?.home;
       const kept = removeInstalledPluginLibrary(this.options.home, record, manifest && declared ? pluginSyncDatabaseDeclaration(manifest, declared) : undefined, pluginHomeFor(this.options.home).stores);
       if (kept) noteRetained(null, record.install_id, { kind: "home_library", reason: kept.reason });
     }
     // Its work records in every project, and the content of the calls it answered or made, go with its data (observation-collection §6).
-    if (!record.retain_private_data) observationPluginDataCleared(this.options.home, record);
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }
   prepareReinstall(record: PluginInstanceRecord): void {
@@ -265,7 +264,6 @@ export class HomePluginExecutor implements PluginExecutor {
   }
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: { directory: this.options.home }, project_id: null }, record, id => this.options.storage.deleteInstallationData(id));
-    observationPluginDataCleared(this.options.home, record);
   }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);

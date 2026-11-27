@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import type { PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { connectionsProbe } from "./fixtures/connections-runtime.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { mac } from "./fixtures/home-sandbox.js";
-import { SHEET_KEY_VALUE as KEY_VALUE, SHEET_PLUGIN_ID as ID, pinSheetPublisher, sheetPackage } from "./fixtures/install-sheet.js";
+import { mac, person } from "./fixtures/home-sandbox.js";
+import { SHEET_KEY_VALUE as KEY_VALUE, SHEET_PLUGIN_ID as ID, pinSheetPublisher, retainedSheetNotes, sheetPackage } from "./fixtures/install-sheet.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 
 // S-package-install-sheet (docs/system/security-invariants/S-package-install-sheet.md), the Host's half of the in-place install sheet
@@ -43,7 +45,7 @@ async function refusedWith(response: Response, status: number, code: string) {
   assert.equal((JSON.parse(text) as { code?: string }).code, code, text);
 }
 
-interface View { preview_id: string; plugin_id: string; version: string; from_version: string | null; runtime_scope: string; publisher: { label: string | null; local: boolean; trusted: boolean };
+interface View { kept_data_incompatible: boolean; preview_id: string; plugin_id: string; version: string; from_version: string | null; runtime_scope: string; publisher: { label: string | null; local: boolean; trusted: boolean };
   permissions: Array<{ permission: string; required: boolean; on: boolean; fresh: boolean }>; secrets: Array<{ name: string; saved: boolean }>; network: string[] }
 const previewed = async (response: Response): Promise<View> => { const text = await response.text(); assert.equal(response.status, 200, text); return JSON.parse(text) as View; };
 
@@ -58,7 +60,7 @@ test("S-package-install-sheet PBU-47-1 only the outer document's page header rea
   // The page's project only: the same page from another project's path is refused.
   assert.equal((await c.sheet(page, { operation: "preview", bundle }, undefined, `/projects/${c.other.project_id}`)).status, 403);
   for (const body of [{}, { operation: "install", bundle }, { operation: "preview" }, { operation: "preview", bundle: "text" }, { operation: "preview", bundle, pin_label: "Mine" },
-    { operation: "confirm" }, { operation: "confirm", preview_id: "x", pin_label: "Mine" }, { operation: "confirm", preview_id: "x", consent: true }]) {
+    { operation: "confirm" }, { operation: "confirm", preview_id: "x", discard_kept_data: "true" }, { operation: "confirm", preview_id: "x", pin_label: "Mine" }, { operation: "confirm", preview_id: "x", consent: true }]) {
     await refusedWith(await c.sheet(page, body), 400, "actions.input_invalid");
   }
   // A package that is not what it says it is stops at the preview, as it does at the settings door.
@@ -129,4 +131,32 @@ test("S-package-install-sheet PBU-47-4 the person's confirmation installs with t
   assert.deepEqual(moved, { plugin_id: ID, version: "1.1.0", publisher_key_id: publisher.identity });
   assert.deepEqual(await granted(), ["network:request", "storage:private"]);
   assert.equal((await c.overview()).plugins.find(row => row.plugin_id === ID)!.version, "1.1.0");
+});
+
+test("B47-K1 B47-K2 only the person can discard the retained generation shown by their preview", mac, async t => {
+  const c = await sheetHome(t), page = await c.open(), { f, project } = c;
+  const rig = await retainedSheetNotes(f.host, project.reference, new LocalHostHttpClient({ origin: f.origin, controlToken: f.token }));
+  const old = await rig.uninstallKeepingNote();
+  const preview = () => c.sheet(page, { operation: "preview", bundle: old.next }).then(previewed);
+  const confirm = (view: View, choice: object) => c.sheet(page, { operation: "confirm", preview_id: view.preview_id, ...choice });
+  for (const choice of [{}, { discard_kept_data: false }]) {
+    const shown = await preview();
+    assert.equal(shown.kept_data_incompatible, true);
+    await refusedWith(await confirm(shown, choice), 400, "plugin.kept_data_incompatible");
+    assert.deepEqual(await old.saved(), old.before);
+  }
+  const shown = await preview(), client = f.host.actionClient(project.reference);
+  const caller = person(project.project_id);
+  for (const denied of [caller, { ...caller, audience: "agent" as const }, { ...caller, user_action: undefined }]) {
+    await assert.rejects(client.invoke(denied, pluginInstallActions.confirm,
+      { preview_id: shown.preview_id, consent: true, discard_kept_data: true }), (error: { code?: string }) => error.code === "actions.forbidden" || error.code === "actions.audience_denied");
+    assert.deepEqual(await old.saved(), old.before);
+  }
+  const stale = await preview();
+  const ok = await confirm(shown, { discard_kept_data: true });
+  assert.equal(ok.status, 200, await ok.text());
+  assert.deepEqual(await rig.notes("notes.list"), []);
+  const replacement = await rig.uninstallKeepingNote();
+  await refusedWith(await confirm(stale, { discard_kept_data: true }), 404, "plugin.preview_unknown");
+  assert.deepEqual(await replacement.saved(), replacement.before);
 });

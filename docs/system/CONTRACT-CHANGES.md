@@ -167,7 +167,6 @@
 
 ### 当前保留机制
 
-- **主线事项修订（2026-11-26 用户批准）**。主线服务负责 `mainline/mainline.db` 的 1→2 升级，仅在显式升级事务中为已有事项补齐起始修订 1。普通打开只认 v2。仍支持带 v1 主线库的 Home 期间保留此段。
 
 - **个人同步 M1-B2（用户已批准）**。项目库、Agent 定义库、蓝图库、Functions 库和外观文件各自保留一段 v1→v2 升级。四个库新增 owner 同步日志并登记已有可同步记录，外观保留选择和回执并加入同步状态。读取只认 v2，转换由既有独立升级入口执行。Attention 保留现有集合的 v1 标识和日志。
 
@@ -220,7 +219,8 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `mainline/mainline.db` | 1 → 2 | BL-b36-review-followups：新增逐事项修订，旧事项从 1 起步 | `horizontal/mainline/src/store.ts#MAINLINE_BASELINE#1→2` |
+| `mainline/mainline.db` | 2 → 1 | 2026-11-26 一骏决定，带事项修订的表结构作为 v1 从空库开始 | 旧结构 v1 报结构不符，v2 报版本过高，原文件保留。重建由本人决定，停宿主、备份并移开该空间整个主线库目录后再启动。 |
+| `mainline/mainline.db` | 1 → 2 | #2347 增加逐事项修订，旧事项经升级从 1 起步 | 历史升级段见提交 `977a7cbde7`，已随上列 v1 复位撤下。 |
 | `memory/memory.db` | 1 → 2 | 2026-11-24 架构审查修复（用户确认补齐 `b3429bd1cc` 显式升级段）：将 `memory_markers` 中 `b3429bd1cc` 之前内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`，避免旧已完成记录永久误报 `needs-reconcile`，普通打开只认 v2 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
 | `projects/<project_id>/molis-work.db` | 2 → 3 | 第 44B 批 PR3：「等你」同步改用平台身份 `system.attention`、脱离 Inbox（44b.md 用户 2026-11-23 定的 2→3）；升级段只建平台自己的同步流水并把已有注意事项登记为待同步，不改业务表 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
@@ -401,6 +401,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - 第 5 节列的前置还没做完。
 
 ## 8. 阶段一已做、对插件作者有影响的合同改动
+
+- BL-b47-package-install-discard-kept-data：`plugins.install.preview@1` 返回布尔值 `kept_data_incompatible`。确认结果的可选字段 `retained_cleanup_incomplete` 表示新版已经装好，部分旧数据清理失败；两个入口均提示检查磁盘空间和文件夹权限。为 true 时，只有本人受保护入口在 `plugins.install.confirm@1` 显式传 `discard_kept_data: true` 才可放弃此次预览对应的旧数据；省略或 false 保留数据并拒绝安装。一骏确认清理范围包括该安装的私有数据、当前项目内签名和归属登记均吻合的业务表，以及本次涉及的个人空间实例自己的数据库。取消保留全部。两个动作原位更新，页面仍只收到原有结果。
 
 - 2026-11-08，D0038（用户选择 D）：工作台页面改为 `molis-work-page-session` meta 与 `x-molis-work-page-session` 请求头，只传 HttpOnly 会话配对的 CSRF 证明；账号状态从返回 `viewToken` 改为非授权的 `viewScope` 修订标识。页面不得依赖宿主控制令牌或把证明当作进程凭据；共用 UI 请求助手及 socket 消费者同期更新，旧页面须刷新。不新增读取兼容。CLI/MCP 的私有控制认证、独立客户端证明和原生身份保持各自检查；动作 id/schema、Manifest 与持久库版本不变。见 [实施及验收](../../specs/archive/daily-quality-d0038/spec.md)。
 

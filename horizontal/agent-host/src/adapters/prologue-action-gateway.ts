@@ -10,7 +10,7 @@ import { agentErrors } from "../errors.js";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
 import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueActionReviews } from "./prologue-action-reviews.js";
-import { actionReads, CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
+import { actionReads, mayRunDirect, scenarioDescription, CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** SDK children get ordinary capabilities under their own execution, never Work/delegation/memory closures. */
@@ -63,7 +63,7 @@ const describe = (view: ActionView, direct = false) => {
   const effect = actionEffect(view.action, view.capability_id);
   return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
     title: view.action.title, effect: actionReads(view) ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
-    use: actionReads(view) ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
+    use: actionReads(view) ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), ...(view.action.agent_scenario ? { scenario: { title: view.action.agent_scenario.title, instructions: view.action.agent_scenario.instructions } } : {}), input_schema: view.action.input_schema };
 };
 
 /** A memory tool is offered where the round was given memory, and remember, forget and suggest-memory only where it was given that one. */
@@ -427,14 +427,14 @@ export function prologueActionGateway(
       const terms = query.split(/\s+/).filter(Boolean);
       const views = (await gateway.client.discover()).filter(view => view.action.audiences.includes("agent"));
       const scored = views.map(view => {
-        const hay = `${view.provider.title} ${view.action.title} ${view.capability_id} ${view.action.description}`.toLowerCase();
+        const hay = `${view.provider.title} ${view.action.title} ${view.capability_id} ${view.action.description} ${scenarioDescription(view)}`.toLowerCase();
         const head = `${view.provider.title} ${view.action.title}`.toLowerCase();
         const hits = terms.filter(term => hay.includes(term)).length;
         return { view, score: hits * 10 + terms.filter(term => head.includes(term)).length * 5 };
       }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => Number(b.view.availability.available) - Number(a.view.availability.available) || b.score - a.score);
       if (!scored.length) return JSON.stringify({ found: 0, note: "Nothing matches; try the provider's name or a shorter word from the capability directory." });
       for (const row of scored.slice(0, FIND_LIMIT)) { known.add(row.view.capability_id); offered.add(offeredKey(row.view)); declared.note(row.view); }
-      return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, Boolean(gateway.client.direct?.(row.view)))) });
+      return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, mayRunDirect(row.view, gateway.client.direct?.(row.view)))) });
     }),
     [GATEWAY_TOOLS.read]: guarded(async (args, signal) => {
       const parsed = parseCapability(args);
@@ -473,7 +473,7 @@ export function prologueActionGateway(
       const held = reviews?.forCall(callId, GATEWAY_TOOLS.direct, args);
       try {
         const view = held?.view ?? await current(parsed, true);
-        if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
+        if (!mayRunDirect(view, gateway.client.direct?.(view))) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
         await held?.control.beforeEffect();
         held?.control.assertCurrent();
         const output = await invokeGatewayAction(gateway.client, parsed, view, signal, timeoutMs, true, held);
@@ -629,7 +629,7 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   gateway.declare?.(view);
   const reads = actionReads(view);
   if (isGatewayChange(toolName) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
-  if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
+  if (toolName === GATEWAY_TOOLS.direct && !mayRunDirect(view, gateway.client.direct?.(view))) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
   // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
   const sent = capabilityInput(view, parsed.input);

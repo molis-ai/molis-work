@@ -646,6 +646,7 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
   const example = { values: [{ key, value: title, state: "ok", source: layer, revision: "1" }] };
   return signedPackage(publisher, (files, manifest) => {
     const contract: SandboxPluginContract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!);
+    if (scope === "home") contract.operations.find(item => item.id === "notes.list")!.effects.networkDomains = ["example.org"];
     const complete = { ...contract, ui: { locales: { default: "en", available: ["en"] } },
       settings_entries: { entries: [{ key, title: { key: "settings.title" }, layers: [layer], schema: { type: "string", maxLength: 80 } }], read_operation: "settings.read", write_operation: "settings.write" },
       read_groups: [{ group_id: "values", title, description: title + " reads", operations: ["notes.list"] }],
@@ -675,13 +676,16 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
 }
 
 test("44C-01/02 PSD-04 same-id publishers expose separate settings and task categories", { ...mac, timeout: 180_000 }, async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("Scoped settings"), pluginId = "com.example.settings";
+  let f = await serveHomeRuntime(t);
+  const project = await f.project("Scoped settings"), pluginId = "com.example.settings";
   const client = f.host.actionClient(project.reference), caller = sandboxPerson(project.project_id);
   const install = async (scope: "project" | "home", version?: string) => {
     const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: scopedSettingsPackage(scope, version) }) as { preview_id: string };
     await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Owner " + scope });
   };
   await install("home"); await install("project");
+  const homeId = f.host.homePlugins!.installation(pluginId)!.install_id;
+  assert.equal((await f.request("/api/settings/plugin-permissions/set", { method: "POST", body: { install_id: homeId, permission: "network:request", granted: true } })).status, 200);
   const query = "?project=" + encodeURIComponent(project.project_id);
   const nav = await (await f.request("/settings/appearance" + query)).text();
   const page = async (scope: string) => {
@@ -702,6 +706,14 @@ test("44C-01/02 PSD-04 same-id publishers expose separate settings and task cate
   assert.match(await page("project"), /project-updated/);
   assert.match(await page("home"), /home-updated/);
   const owner = await f.host.localPersonContext(project.reference);
+  const dataViews = (await client.discover(owner)).filter(view => view.provider.plugin_id === pluginId);
+  const invokeNote = (installId: string, operation: string, input: unknown) => { const view = dataViews.find(row => row.provider.plugin_install_id === installId && row.action.local_id === operation); assert.ok(view);
+    return client.invoke(owner, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input); };
+  for (const [id, label] of [[home.plugin_install_id, "home-only"], [local.plugin_install_id, "project-only"]] as const) {
+    await invokeNote(id, "notes.add", { text: label });
+    assert.deepEqual((await invokeNote(id, "notes.list", {}) as { text: string }[]).map(row => row.text), [label]);
+  }
+  assert.deepEqual((await invokeNote(home.plugin_install_id, "notes.list", {}) as { text: string }[]).map(row => row.text), ["home-only"]);
   const current = () => client.invoke(owner, ref(agentTaskGrantActions.list), {}) as Promise<TaskGrantListResult>;
   const categories = (await current()).categories.filter(category => category.plugin_id === pluginId);
   assert.deepEqual(categories.map(row => row.description).sort(), ["Owner home reads", "Owner project reads"]);
@@ -730,4 +742,19 @@ test("44C-01/02 PSD-04 same-id publishers expose separate settings and task cate
   await install("project", "1.1.0");
   assert.notEqual((await write(local, "old-release", "2")).status, 200);
   assert.match(await page("home"), /home-updated/);
+  const upgraded = settingsInstallation(await page("project"));
+  assert.equal((await f.request(`/api/plugins/${pluginId}/disable`, { method: "POST", body: {} })).status, 200);
+  assert.notEqual((await write(home, "disabled-home", "2")).status, 200);
+  assert.equal((await write(upgraded, "project-active", "2")).status, 200);
+  assert.equal((await f.request(`/api/plugins/${pluginId}/enable`, { method: "POST", body: {} })).status, 200);
+  assert.match(await page("home"), /home-updated/);
+  const beforeRestart = f.home;
+  await f.host.close();
+  f = await serveHomeRuntime(t, { homeDirectory: beforeRestart });
+  assert.match(await page("home"), /home-updated/);
+  assert.match(await page("project"), /project-active/);
+  const renewed = settingsInstallation(await page("home"));
+  assert.equal((await f.request("/api/settings/plugin-publishers/revoke", { method: "POST", body: { key_id: fixturePublisher("home").identity } })).status, 200);
+  assert.notEqual((await write(renewed, "revoked-home", "2")).status, 200);
+  assert.match(await page("project"), /project-active/);
 });

@@ -1161,6 +1161,10 @@ export declare function sandboxRoleIdentity(pluginId: string, name: string): {
     prompt_id: string;
 };
 
+export declare const sandboxSceneId: (buildId: string, localId: string) => string;
+
+export declare function sandboxScenes(contract: SandboxPluginContract, buildId: string): ActionSceneDefinition[];
+
 export declare function sandboxStartProblems(contract: SandboxPluginContract): string[];
 
 export declare function sandboxStateMachineDeclarations(contract: Contract): StateMachineDeclaration[] | undefined;
@@ -1262,7 +1266,7 @@ export declare function zonedParts(timeZone: string | undefined, { seconds, shor
 
 type Contract = Pick<SandboxPluginContract, "pluginId" | "operations" | "state_machines">;
 
-type DerivedEffects = Pick<SandboxEffects, 'artifacts' | 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
+type DerivedEffects = Pick<SandboxEffects, 'scenes' | 'artifacts' | 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 
 interface DocumentConflict {
     event: SyncEvent;

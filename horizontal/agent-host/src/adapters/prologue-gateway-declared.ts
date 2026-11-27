@@ -4,6 +4,15 @@ import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/ag
 
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
 
+export function scenarioDescription(view: ActionView): string {
+  const pack = view.action.agent_scenario;
+  return pack ? [pack.title, pack.instructions].join("\n") : "";
+}
+
+export function mayRunDirect(view: ActionView, permitted: boolean | undefined): boolean {
+  return Boolean(permitted && !view.action.agent_scenario?.review);
+}
+
 export function actionReads(view: ActionView): boolean {
   return view.operation === "query" && actionEffect(view.action, view.capability_id) === "read";
 }
@@ -55,7 +64,7 @@ export function declaredCapabilities(gateway: Gateway) {
     return gateway.operate && !reads && (tool === "change-capability" || row.direct);
   };
   const branch = ({ view }: { view: ActionView }): Record<string, unknown> =>
-    ({ title: `${view.capability_id}@${view.version}`, description: `${view.provider.title} · ${view.action.title}`, ...view.action.input_schema });
+    ({ title: `${view.capability_id}@${view.version}`, ...view.action.input_schema, description: [`${view.provider.title} · ${view.action.title}`, scenarioDescription(view)].filter(Boolean).join("\n") });
   const allocate = (): ReadonlyMap<Tool, readonly Record<string, unknown>[]> => {
     const rows = [...found.values()];
     const tools: Tool[] = ["read-capability", "change-capability", "change-reversible", "suggest-action"];
@@ -73,7 +82,7 @@ export function declaredCapabilities(gateway: Gateway) {
     const key = JSON.stringify([view.capability_id, view.version, view.provider.provider_id]);
     // A capability found or attempted again is current context; it must not stay evicted by an older lookup.
     found.delete(key);
-    found.set(key, { view, direct: Boolean(gateway.client.direct?.(view)) });
+    found.set(key, { view, direct: mayRunDirect(view, gateway.client.direct?.(view)) });
     while (found.size > KEPT) found.delete(found.keys().next().value!);
     answer = undefined;
   };

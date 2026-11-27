@@ -104,7 +104,7 @@ function actionProtocolDefinitionOf(protocol: unknown, operation: SandboxProtoco
     const schema = IMAGE_GENERATION_SCHEMAS[role];
     return { capability_id: capabilityId, version, operation: operation.kind, action: { scope, title, description: operation.description || title,
       kind: role === 'generate' ? 'operation' : 'query', effect: role === 'generate' ? 'write' : 'read', audiences: ['user'], permissions: [...permissions],
-      subject_kinds: [], ...IMAGE_GENERATION_PROTOCOL[role], input_schema: schema.input, output_schema: schema.output } };
+      subject_kinds: [], ...IMAGE_GENERATION_PROTOCOL[role], input_schema: { ...schema.input }, output_schema: { ...schema.output } } };
   }
   if (protocol.kind === 'workflow_receive') {
     if (Object.keys(protocol).length !== 4 || !subjectKind(protocol.title) || !validRelation(protocol.subject_kind)

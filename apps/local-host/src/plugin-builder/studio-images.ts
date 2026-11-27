@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { ActionError, IMAGE_GENERATION_ROLES, imageGenerationRoleOf, type ActionCallContext, type ActionView, type ImageGenerationRole } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { StudioImageBinding } from '@molis-ai/molis-work-plugin-studio';
@@ -56,7 +57,7 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
     check();
     return result as T;
   }
-  async function choose(signal?: AbortSignal) {
+  async function* choices(signal?: AbortSignal) {
     for (const group of await catalog()) {
       const provider = group.roles.generate.provider, scope = provider.project_id ? 'project' : 'home';
       if (provider.project_id && provider.project_id !== options.projectId) continue;
@@ -66,10 +67,18 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
       let listed: { connections: Service[] };
       try { listed = await invoke<{ connections: Service[] }>(group, 'services.list', {}, owner, signal); }
       catch (error) { signal?.throwIfAborted(); if (!(error instanceof ActionError)) throw error; continue; }
-      const connection = listed.connections.find(item => item.available !== false);
-      if (connection) return { group, owner: { ...owner, connection_id: connection.id } };
+      for (const connection of listed.connections.filter(item => item.available !== false)) {
+        const binding = { ...owner, connection_id: connection.id };
+        const key = createHash('sha256').update(JSON.stringify(binding)).digest('hex');
+        yield { group, owner: binding, key, title: provider.title + ' · ' + connection.id };
+      }
     }
-    return undefined;
+  }
+  async function choose(signal?: AbortSignal) { for await (const item of choices(signal)) return item; }
+  async function imageChoices() {
+    const offered: { key: string; title: string }[] = [];
+    for await (const { key, title } of choices()) offered.push({ key, title });
+    return offered;
   }
   async function bound(owner: StudioImageBinding, signal?: AbortSignal) {
     assertOwner(owner);
@@ -84,6 +93,7 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
   }
   const mockups: NonNullable<AgentBuilderPorts['mockups']> = {
     available: async () => Boolean(await choose().catch(() => undefined)),
+    async select(key) { for await (const item of choices()) if (item.key === key) return item.owner; throw changed(); },
     async draw(request, signal) {
       const previous = request.previous;
       const chosen = previous?.binding ? { group: await bound(previous.binding, signal), owner: previous.binding } : await choose(signal);
@@ -113,5 +123,5 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
     if (job.id !== jobId || job.connection_id !== owner.connection_id || !job.images.some(image => image.id === imageId)) throw changed();
     return invoke<{ base64: string; mime_type: string }>(group, 'image.read', { id: jobId, image_id: imageId }, owner);
   };
-  return { mockups, mockupImage };
+  return { mockups, mockupImage, imageChoices };
 }

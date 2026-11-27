@@ -80,6 +80,7 @@ export interface Studio {
   /** Takes back what the studio answers the installed host for its trials. */
   stopTrials(): void;
   /** A proposal's picture from the images plugin (W7). */
+  imageChoices?(): Promise<{ key: string; title: string }[]>;
   mockupImage?(jobId: string, imageId: string, owner: import('@molis-ai/molis-work-plugin-studio').StudioImageBinding): Promise<{ base64: string; mime_type: string }>;
 }
 
@@ -142,7 +143,8 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
   const models = studioModels(home, storage);
   const execute = <T>(buildId: string, run: () => Promise<T>) => withPassiveSyncExecution(home, options.projectId, BUILDER_PLUGIN_ID, buildId, run);
   const preview = createStudioPreview(options, studio, installed, execute);
-  const { mockups, mockupImage } = studioImages(options, installed);
+  const { mockups, mockupImage, imageChoices } = studioImages(options, installed);
+  studio.imageChoices = imageChoices;
   studio.mockupImage = mockupImage;
   const choice = options.choice ?? selectionPorts(home);
   studio.workflow = new AgentBuilderWorkflow(storage, builderPorts({ execute, options, home, studio, installed, models, preview, mockups, choice, prompt: builderPrompts(home), instruction: builderInstructions(home) }));
@@ -208,6 +210,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       return true;
     }
     const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route), mockup = /^\/builds\/([a-f0-9-]{36})\/mockups\/([a-z0-9-]{1,64})$/u.exec(route);
+    if (route === '/image-services' && method === 'GET') { sendLocalWebJson(response, 200, { choices: await studio.imageChoices?.() ?? [] }); return true; }
     if (mockup && method === 'GET') {
       const picture = workflow.store.require(mockup[1]!).candidates.find(item => item.id === mockup[2])?.mockup;
       if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-not-ready", '这个方案还没有效果图')); return true; }

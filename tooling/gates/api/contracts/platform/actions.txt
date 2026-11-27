@@ -583,6 +583,7 @@ export interface ActionInvokeTransport {
 export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
+    readonly agent_scenario?: AgentActionScenario;
     readonly title: string;
     readonly title_text?: TextRef;
     readonly description: string;
@@ -931,6 +932,20 @@ export interface ActionView extends ActionReference {
     readonly action: ActionMetadata;
     readonly provider: ActionProvider;
     readonly availability: ActionAvailability;
+}
+
+export interface AgentActionScenario {
+    readonly id: string;
+    readonly title: string;
+    readonly instructions: string;
+    readonly review?: {
+        readonly kind: string;
+        readonly title: string;
+        readonly fields: readonly {
+            readonly field: string;
+            readonly label: string;
+        }[];
+    };
 }
 
 export interface ArtifactCompareInput {
@@ -2581,10 +2596,10 @@ export declare const FILE_ENTRIES_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 surface: {
-                                    type: string;
-                                    minLength: number;
-                                    maxLength: number;
-                                    pattern: string;
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 64;
+                                    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                                 };
                                 id: {
                                     type: string;
@@ -2674,10 +2689,10 @@ export declare const FILE_ENTRY_SCHEMA: {
                 type: string;
                 properties: {
                     surface: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
-                        pattern: string;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 64;
+                        readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                     };
                     id: {
                         type: string;
@@ -3090,6 +3105,25 @@ export declare const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, {
 }>;
 
 export declare const IMAGE_GENERATION_ROLES: readonly ["services.list", "generate", "generations.get", "image.read"];
+
+export declare const IMAGE_GENERATION_SCHEMAS: {
+    readonly "services.list": {
+        readonly input: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+        readonly output: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+    };
+    readonly generate: {
+        readonly input: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+        readonly output: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+    };
+    readonly "generations.get": {
+        readonly input: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+        readonly output: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+    };
+    readonly "image.read": {
+        readonly input: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+        readonly output: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+    };
+};
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
@@ -4299,10 +4333,10 @@ export declare const SEARCH_ENTRIES_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 surface: {
-                                    type: string;
-                                    minLength: number;
-                                    maxLength: number;
-                                    pattern: string;
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 64;
+                                    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                                 };
                                 id: {
                                     type: string;
@@ -4379,10 +4413,10 @@ export declare const SEARCH_ENTRY_SCHEMA: {
                 type: string;
                 properties: {
                     surface: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
-                        pattern: string;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 64;
+                        readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
                     };
                     id: {
                         type: string;
@@ -4404,10 +4438,10 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
     type: string;
     properties: {
         surface: {
-            type: string;
-            minLength: number;
-            maxLength: number;
-            pattern: string;
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 64;
+            readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
         };
         id: {
             type: string;
@@ -4419,6 +4453,13 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 };
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
+
+export declare const SEARCH_SURFACE_SCHEMA: {
+    readonly type: "string";
+    readonly minLength: 1;
+    readonly maxLength: 64;
+    readonly pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$";
+};
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
     readonly type: "object";

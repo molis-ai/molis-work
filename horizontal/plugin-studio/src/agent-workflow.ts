@@ -74,6 +74,7 @@ export interface AgentBuilderPorts {
    */
   mockups?: {
     available(): Promise<boolean>;
+    select?(key: string): Promise<import('./agent-model.js').StudioImageBinding>;
     draw(request: { key: string; prompt: string; previous?: AgentProposal['mockup'];
       checkpoint(value: { binding: import('./agent-model.js').StudioImageBinding; jobId?: string }): void },
       signal: AbortSignal): Promise<{ jobId: string; imageId: string; binding: import('./agent-model.js').StudioImageBinding } | { reason: string; regenerate?: true }>;
@@ -734,6 +735,16 @@ export class AgentBuilderWorkflow {
     if (body.action === 'redraw') {
       const proposal = build.candidates.find(item => item.id === body.candidateId && item.mockup?.status === 'failed');
       if (!proposal) return build;
+      if (body.service !== undefined) {
+        if (typeof body.service !== 'string' || !this.ports.mockups?.select) throw new Error('请选择可用的配图连接');
+        const binding = await this.ports.mockups.select(body.service);
+        await authority?.beforeEffect?.();
+        if (this.store.require(id).revision !== build.revision) throw new Error('草稿已改变，请重新查看方案');
+        const selected = { ...proposal, mockup: { status: 'drawing' as const, binding, regenerate: true as const } };
+        this.change(id, current => { current.candidates.find(item => item.id === proposal.id)!.mockup = selected.mockup; });
+        void this.drawMockups(id, [selected], false, true);
+        return this.store.require(id);
+      }
       // Set the state synchronously so two clicks cannot schedule two drawings.
       this.change(id, current => { current.candidates.find(item => item.id === proposal.id)!.mockup = { ...proposal.mockup, status: 'drawing' }; });
       void this.drawMockups(id, [proposal], Boolean(proposal.mockup?.binding), true);

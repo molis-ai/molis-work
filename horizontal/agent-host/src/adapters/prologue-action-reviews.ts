@@ -64,6 +64,7 @@ export class PrologueActionReviews {
     this.#run = origin.run;
     if (this.#calls.has(origin.toolCall)) throw agentErrors.review_version_changed("原工具调用已有固定提案，不能重新绑定");
     this.#assertRun();
+    if (view.action.agent_scenario?.review && !client.prepareReview) throw agentErrors.review_not_permitted("原安装的审查授权不可用");
     const original = client.prepareReview
       ? await client.prepareReview(view, input, reversible ? "reversible" : undefined)
       : { assertCurrent() {}, async beforeEffect() {} };

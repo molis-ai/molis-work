@@ -50,6 +50,7 @@ export function sandboxBackgroundProblems(contract: SandboxPluginContract): stri
   for (const operation of contract.operations) {
     for (const target of operation.effects.background ?? []) {
       const started = contract.operations.find(item => item.id === target);
+      if (started?.effects.scenes?.length) problems.push(`Background target ${target} cannot run judgment scenes outside its original foreground action`);
       if (!started || started.kind !== 'command' || started.effects.background?.length) {
         problems.push(`Background effect ${target} of ${operation.id} must name a command of the contract that starts no background work`);
       }

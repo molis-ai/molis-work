@@ -625,8 +625,7 @@ test("44C-3 PSD-03 PSD-04a a signed com.example package and a studio.<id> packag
   const publisher = fixturePublisher("PSD-04a");
   const studioRole = { name: "谨慎校对员", purpose: "校对文稿时保留作者的表达", body: "逐句对照原文。引用原句，说明修改依据。保留作者的语气。" };
   const author = readyPublication(f.home, "role-publication", "project", design => ({ ...design, roleTemplates: [studioRole] }));
-  t.after(() => author.workflow.close());
-  const distributed = await readStudioDistribution(author.root, await author.publish());
+  const distributed = await author.publish().then(release => readStudioDistribution(author.root, release)).finally(() => author.workflow.close());
   const sampleRole = { name: "Archive editor", purpose: "Keep citations intact", body: "Compare the original wording before annotating any quotation." };
   const ordinary = signedPackage(publisher, (files, manifest) => {
     Object.assign(manifest, { agent: [{ name: sampleRole.name, purpose: sampleRole.purpose, body: "agent/editor.md" }] });
@@ -634,42 +633,43 @@ test("44C-3 PSD-03 PSD-04a a signed com.example package and a studio.<id> packag
   });
   const chrome = locateTestChrome(); assert.ok(chrome);
   const browser = await ChromeHarness.start(f.home, { executable: chrome }); assert.ok(browser);
-  t.after(() => browser.close());
-  const tab = await browser.page(), api = prefix + "/api/platform/characters/roles";
-  const readRoles = async () => await (await f.request(api)).json() as CharacterRoleCatalog;
-  for (const [bundle, role] of [[ordinary, sampleRole], [distributed, studioRole]] as const) {
-    const pluginId = bundle.payload.manifest.plugin_id;
-    assert.ok(!pluginId.startsWith("io.molis.work."), `${pluginId} is not under the Host's reserved prefix`);
-    const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
-    await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Example publisher" });
-    const page = await f.request(prefix + "/plugins/" + pluginId + "?frame=workbench");
-    const html = await page.text();
-    assert.equal(page.status, 200, `${pluginId}: its page is served, not 404: ${html.slice(0, 200)}`);
-    const pageId = /"page_id":"([^"]+)"/u.exec(html)?.[1];
-    assert.ok(pageId, `${pluginId}: the page is the package's own installed frame`);
-    assert.ok(html.includes(`/api/plugins/${pluginId}/call`), `${pluginId}: the page calls through its own call route`);
-    const call = await f.request(prefix + "/api/plugins/" + pluginId + "/call", { method: "POST", body: { componentId: "notes", binding: "read", payload: {} }, headers: { "x-molis-plugin-page": pageId } });
-    assert.equal(call.status, 200, `${pluginId}: its call route answers, not 404: ${await call.clone().text()}`);
-    assert.ok("value" in (await call.json() as object), `${pluginId}: the call's answer is the operation's value`);
-    const views = (await client.discover(caller)).filter(view => view.provider.plugin_id === pluginId);
-    assert.ok(views.length > 0, `${pluginId}: its operations are in the project's directory like a built-in plugin's`);
-    assert.ok(!(await readRoles()).members.some(item => item.title === role.name));
-    await tab.command("Page.navigate", { url: f.origin + prefix + "/settings/characters" });
-    await tab.wait("document.querySelector('[data-roles-act=add]:enabled')");
-    await tab.evaluate("document.querySelector('[data-roles-act=add]').click()");
-    const button = `[...document.querySelectorAll('[data-roles-act=adopt-template]:enabled')].find(b => b.closest('.mw-setting-row')?.textContent.includes(${JSON.stringify(role.name)}))`;
-    await tab.wait(button); await tab.evaluate(`(${button}).click()`);
-    await tab.wait(`[...document.querySelectorAll('.roles-row')].some(e => e.textContent.includes(${JSON.stringify(role.name)}))`);
-    const matches = (await readRoles()).members.filter(item => item.title === role.name);
-    assert.equal(matches.length, 1);
-    const member_id = matches[0]!.role.current.member_id;
-    const versions = await f.request(api + "/versions", { method: "POST", body: { role: { kind: "project", member_id } } });
-    assert.equal(versions.status, 200);
-    const read = await versions.json() as { versions: CharacterRoleVersionEntry[] };
-    assert.equal(read.versions.find(item => item.current)?.content.instructions, role.body);
-    t.diagnostic(pluginId + ": signed role " + role.name + " adopted as " + member_id);
+  try {
+    const tab = await browser.page(), api = prefix + "/api/platform/characters/roles";
+    const readRoles = async () => await (await f.request(api)).json() as CharacterRoleCatalog;
+    for (const [bundle, role] of [[ordinary, sampleRole], [distributed, studioRole]] as const) {
+      const pluginId = bundle.payload.manifest.plugin_id;
+      assert.ok(!pluginId.startsWith("io.molis.work."), `${pluginId} is not under the Host's reserved prefix`);
+      const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+      await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Example publisher" });
+      const page = await f.request(prefix + "/plugins/" + pluginId + "?frame=workbench");
+      const html = await page.text();
+      assert.equal(page.status, 200, `${pluginId}: its page is served, not 404: ${html.slice(0, 200)}`);
+      const pageId = /"page_id":"([^"]+)"/u.exec(html)?.[1];
+      assert.ok(pageId, `${pluginId}: the page is the package's own installed frame`);
+      assert.ok(html.includes(`/api/plugins/${pluginId}/call`), `${pluginId}: the page calls through its own call route`);
+      const call = await f.request(prefix + "/api/plugins/" + pluginId + "/call", { method: "POST", body: { componentId: "notes", binding: "read", payload: {} }, headers: { "x-molis-plugin-page": pageId } });
+      assert.equal(call.status, 200, `${pluginId}: its call route answers, not 404: ${await call.clone().text()}`);
+      assert.ok("value" in (await call.json() as object), `${pluginId}: the call's answer is the operation's value`);
+      const views = (await client.discover(caller)).filter(view => view.provider.plugin_id === pluginId);
+      assert.ok(views.length > 0, `${pluginId}: its operations are in the project's directory like a built-in plugin's`);
+      assert.ok(!(await readRoles()).members.some(item => item.title === role.name));
+      await tab.command("Page.navigate", { url: f.origin + prefix + "/settings/characters" });
+      await tab.wait("document.querySelector('[data-roles-act=add]:enabled')");
+      await tab.evaluate("document.querySelector('[data-roles-act=add]').click()");
+      const button = `[...document.querySelectorAll('[data-roles-act=adopt-template]:enabled')].find(b => b.closest('.mw-setting-row')?.textContent.includes(${JSON.stringify(role.name)}))`;
+      await tab.wait(button); await tab.evaluate(`(${button}).click()`);
+      await tab.wait(`[...document.querySelectorAll('.roles-row')].some(e => e.textContent.includes(${JSON.stringify(role.name)}))`);
+      const matches = (await readRoles()).members.filter(item => item.title === role.name);
+      assert.equal(matches.length, 1);
+      const member_id = matches[0]!.role.current.member_id;
+      const versions = await f.request(api + "/versions", { method: "POST", body: { role: { kind: "project", member_id } } });
+      assert.equal(versions.status, 200);
+      const read = await versions.json() as { versions: CharacterRoleVersionEntry[] };
+      assert.equal(read.versions.find(item => item.current)?.content.instructions, role.body);
+      t.diagnostic(pluginId + ": signed role " + role.name + " adopted as " + member_id);
 
-  }
+    }
+  } finally { await browser.close(); }
 });
 
 /** Both publishers use identical operation and group names. Only the scope, signer and values distinguish these installations. */

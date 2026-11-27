@@ -3,6 +3,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import { assertWorkEventWindow, defineWorkEventsAction, withinWorkEventWindow, type WorkEvent, type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindOwnerPluginAction, type ActionHandlerBinding } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_RING, CODING_STANDING } from "./home-background.js";
+import { sessionTitleFor } from "./session-title.js";
 import type { CodingSessionStore } from "./store.js";
 
 /**
@@ -24,11 +25,11 @@ export function codingWorkEvents(sessions: CodingSessionStore, projectId: string
   for (const session of sessions.list(projectId)) {
     const active = held.has(session.session_id);
     if (!active && (!withinWorkEventWindow(session.updated_at, window) || ++ended > MAX_ENDED)) continue;
-    const label = uiText.text("coding.home-background.open-session"), standing = CODING_STANDING[session.state];
-    events.push({ event_id: "coding-session:" + session.session_id, subject: { kind: "coding_session", id: session.session_id }, title: session.title || label,
+    const label = uiText.text("coding.home-background.open-session"), standing = CODING_STANDING[session.state], title = sessionTitleFor(session.title);
+    events.push({ event_id: "coding-session:" + session.session_id, subject: { kind: "coding_session", id: session.session_id }, title: title || label,
       summary: standing ? uiText.text(standing) : uiText.text("coding.home-background.the-round-ended"), content: "", facts: [], category: "personal",
       placement: active ? "active" : "occurred", occurred_at: session.updated_at, state: CODING_RING[session.state] ?? "round-ended", needs_attention: false,
-      open: { kind: "item", surface: "coding", id: session.session_id, title: session.title || label, label } });
+      open: { kind: "item", surface: "coding", id: session.session_id, title: title || label, label } });
   }
   return events;
 }

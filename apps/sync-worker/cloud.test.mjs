@@ -215,3 +215,24 @@ test('PCSYNC-OPT-03 read schema checks are cached but writes still validate ever
  assert.equal((await f.call('/v1/round')).status,503,'schema failure invalidates the cached read check');
  assert.equal(f.requests.length,before,'schema mismatch is refused before calling Auth');
 });
+
+test('F-modules-server-27 upstream Auth 5xx and 429 return transient availability/rate-limit statuses instead of 401',async t=>{
+ const f=await cloudFixture(t);
+ const auth503=await f.call('/v1/quota','auth-503');
+ assert.equal(auth503.status,503);
+ assert.equal(auth503.headers.get('Retry-After'),'60');
+ assert.equal((await auth503.json()).error,'SYNC_AUTH_UNAVAILABLE');
+ const auth429=await f.call('/v1/quota','auth-429');
+ assert.equal(auth429.status,429);
+ assert.equal(auth429.headers.get('Retry-After'),'60');
+ assert.equal((await auth429.json()).error,'SYNC_AUTH_UNAVAILABLE');
+
+ const signed=await cloudFixture(t,{signedAuth(request,Response){
+  const user=request.headers.get('Authorization')?.slice(7);
+  if(user==='auth-429')return Response.json({error:'rate_limit'},{status:429});
+  return Response.json({error:'unauthorized'},{status:401});
+ }});
+ const signed429=await signed.call('/v1/round','auth-429');
+ assert.equal(signed429.status,503);
+ assert.equal((await signed429.json()).error,'SYNC_AUTH_UNAVAILABLE');
+});

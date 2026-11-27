@@ -374,3 +374,59 @@ test('P2-9 transport_backoff immediately aborts concurrent blob chunks within a 
   assert.ok(elapsed < 5_000, `expected immediate abort instead of waiting for 45s chunk timeout, took ${elapsed}ms`);
   assert.ok(sync.status().error !== null);
 });
+
+test('F-modules-server-20 revoked setDevice does not persist device.json and retryItem enforces dependencies and 4 MiB chunk limit', async t => {
+  t.mock.timers.reset();
+  const root = mkdtempSync(join(tmpdir(), 'molis-sync-f20-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
+  ensureStorageSpace(root, space);
+  const authority = new AbortController();
+  let releaseRound!: () => void;
+  const roundGate = new Promise<void>(resolve => { releaseRound = resolve; });
+  let roundEntered!: () => void;
+  const entered = new Promise<void>(resolve => { roundEntered = resolve; });
+  const sync = new PersonalSync({
+    home: root, spaceId: space.spaceId, endpoint: 'http://127.0.0.1:8788',
+    registrations: [],
+    authority: { signal: authority.signal, assertCurrent() { authority.signal.throwIfAborted(); }, accessToken: async () => 'synthetic' },
+    fetch: async (input) => {
+      if (new URL(String(input)).pathname === '/v1/round') {
+        roundEntered();
+        await roundGate;
+        return syncRoundResponse({ spaceId: space.spaceId, revision: 1, selections: [] }, 0);
+      }
+      return Response.json({ spaceId: space.spaceId, revision: 1, selections: [] });
+    },
+  });
+  t.after(() => sync.close());
+  await sync.setDevice(true);
+  await entered;
+  const pendingToggle = sync.setDevice(false);
+  authority.abort(new Error('revoked'));
+  releaseRound();
+  await assert.rejects(pendingToggle);
+  const persisted = JSON.parse(readFileSync(join(root, 'sync', 'device.json'), 'utf8')) as { automatic: boolean };
+  assert.equal(persisted.automatic, true, 'revoked setDevice must not dirty device.json before draining and re-authenticating');
+
+  // retryItem must enforce declared sync dependencies before retrying a download.
+  const dep = { plugin_id: 'io.example.dep', publisher_id: 'example', publisher_signature: 'sig', collection_id: 'base', schema_version: 1 };
+  const child = { plugin_id: 'io.example.child', publisher_id: 'example', publisher_signature: 'sig', collection_id: 'items', schema_version: 1 };
+  const childNs = syncNamespace(child);
+  const home2 = join(root, 'retry-dep');
+  ensureStorageSpace(home2, space);
+  const sync2 = new PersonalSync({
+    home: home2, spaceId: space.spaceId, endpoint: 'http://127.0.0.1:8788',
+    authority: { signal: new AbortController().signal, assertCurrent() {}, accessToken: async () => 'synthetic' },
+    registrations: [
+      { selection: dep, title: 'Dep', available: () => false, async refresh() {}, async prepare() {},
+        withReplica: run => run({ cursor: () => 0, next: () => null, receive() {}, acknowledge() {}, counts: () => ({ pending: 0, conflicts: 0 }), conflicts: () => [], resolve() {} }) },
+      { selection: child, title: 'Child', dependencies: [dep], async refresh() {}, async prepare() {},
+        withReplica: run => run({ cursor: () => 0, next: () => null, receive() {}, acknowledge() {}, counts: () => ({ pending: 0, conflicts: 0 }), conflicts: () => [], resolve() {} }) },
+    ],
+    fetch: async () => syncRoundResponse({ spaceId: space.spaceId, revision: 1, selections: [child] }, 0),
+  });
+  t.after(() => sync2.close());
+  await sync2.run();
+  await assert.rejects(() => sync2.retryItem(childNs, 'k1', 'download'), /依赖|开启|可用/);
+});

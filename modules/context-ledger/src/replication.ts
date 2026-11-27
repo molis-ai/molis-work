@@ -1,8 +1,22 @@
 import type { ProjectReplicaDefinition, ProjectReplicaRows } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { RELATION_EDGES_REPLICA_ID, type ObjectRef } from '@molis-ai/molis-work-contracts/modules/context-ledger';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
+import { sameRef } from './service.js';
 
 const errors = defineErrorCodes('context_ledger', { replica_invalid: 'invalid' });
+const VALID_MODULES = new Set(['artifacts', 'private-work-context', 'projects', 'assistant', 'plugins', 'agent-host']);
+const VALID_STATES = new Set(['active', 'removed']);
+
+const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
+const validTimestamp = (value: unknown): value is string => typeof value === 'string' && value.length <= 40 && Number.isFinite(Date.parse(value));
+
+function parseRef(raw: unknown): ObjectRef {
+  if (typeof raw !== 'string') invalid();
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { invalid(); }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) invalid();
+  return parsed as ObjectRef;
+}
 
 const quoted = (value: string) => "'" + value.replaceAll("'", "''") + "'";
 const ownedBy = (row: string, column: "source_json" | "target_json", pluginId: string) =>
@@ -32,22 +46,29 @@ export function relationEdgesTriggerCondition(row: 'NEW' | 'OLD', pluginId: stri
 }
 
 function validateEdges(rows: ProjectReplicaRows, projectId: string, pluginId: string): void {
-  const revisions = new Map<string, number>();
+  const seen = new Map<string, { revision: number; relationType: string; source: ObjectRef }>();
   for (const row of rows.context_edges!) {
-    if (row.scope_kind !== 'personal' || row.scope_id !== projectId || !row.edge_key || !row.relation_type || !row.actor_id || !row.cause) invalid();
-    const refs = [JSON.parse(String(row.source_json)), JSON.parse(String(row.target_json))] as ObjectRef[];
-    if (!refs.some(ref => ref?.module === 'plugins' && ref.plugin_id === pluginId)) invalid();
+    if (row.scope_kind !== 'personal' || row.scope_id !== projectId
+      || !nonEmpty(row.edge_key) || !nonEmpty(row.relation_type) || !nonEmpty(row.actor_id) || !nonEmpty(row.cause)
+      || typeof row.state !== 'string' || !VALID_STATES.has(row.state) || !validTimestamp(row.recorded_at)) invalid();
+    const source = parseRef(row.source_json);
+    const target = parseRef(row.target_json);
+    const refs = [source, target];
+    if (!refs.some(ref => ref.module === 'plugins' && ref.plugin_id === pluginId)) invalid();
     for (const ref of refs) {
-      if (!ref || !['artifacts', 'private-work-context', 'projects', 'assistant', 'plugins'].includes(ref.module)
+      if (!VALID_MODULES.has(ref.module)
         || typeof ref.id !== 'string' || !ref.id.trim() || ref.scope?.kind !== 'personal' || ref.scope.id !== projectId
         || (ref.project_id != null && ref.project_id !== projectId)
         || (ref.plugin_id !== undefined && (ref.module !== 'plugins' || typeof ref.plugin_id !== 'string' || !ref.plugin_id.trim()))
         || (ref.version !== null && (!Number.isSafeInteger(ref.version) || ref.version < 1))
         || (ref.module === 'artifacts' && ref.version === null)) invalid();
     }
-    const last = revisions.get(String(row.edge_key)) ?? 0;
+    const edgeKey = row.edge_key;
+    const previous = seen.get(edgeKey);
+    const last = previous?.revision ?? 0;
     if (!Number.isSafeInteger(row.revision) || row.revision !== last + 1) invalid();
-    revisions.set(String(row.edge_key), Number(row.revision));
+    if (previous && (row.relation_type !== previous.relationType || !sameRef(source, previous.source))) invalid();
+    seen.set(edgeKey, { revision: Number(row.revision), relationType: row.relation_type, source });
   }
 }
 function invalid(): never { throw errors.replica_invalid('同步的关联边引用的归属或版本无效'); }

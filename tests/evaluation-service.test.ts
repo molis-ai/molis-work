@@ -13,6 +13,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/evaluation";
 import { observationActions, type ObservationQueryOutput, type ObservationFactInput } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import { installHostUiText, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { TODO_ACTION_PERMISSIONS, todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { EvaluationService } from "@molis-ai/molis-work-service-evaluation";
@@ -1834,4 +1835,215 @@ test("QRF-01 QRF-05: required owner versions, delayed stages and pause intervals
   await fx.user.invoke(observationActions.settingsSet, { paused: false });
   assert.ok((await run("open")).unknown_reasons.includes("coverage_gap_paused"));
   assert.equal((await run("closed")).effective_verdict, "passed");
+});
+
+test("F-horiz-runtime-17: isolated replay blocks irreversible MCP/permissioned actions, declared transitive writes and avoids cross-caller cache pollution", async t => {
+  const fx = createEvaluationFixture(t);
+  let executed = 0;
+  const emptySchema = { type: "object", properties: {}, additionalProperties: false } as const;
+
+  const mcpDestroy = defineAction({
+    capability_id: "mcp.remote.destroy",
+    version: 1,
+    operation: "command",
+    action: {
+      title: "Remote destroy",
+      description: "Irreversible MCP write",
+      kind: "operation",
+      scope: "project",
+      audiences: ["user"],
+      permissions: [],
+      subject_kinds: [],
+      effect: "irreversible",
+      input_schema: emptySchema,
+    },
+  }, async () => { executed += 1; return { ok: true }; });
+
+  const netPurge = defineAction({
+    capability_id: "plugin.net.purge",
+    version: 1,
+    operation: "command",
+    action: {
+      title: "Network purge",
+      description: "Permissioned network irreversible command",
+      kind: "operation",
+      scope: "project",
+      audiences: ["user"],
+      permissions: ["network:fetch"],
+      subject_kinds: [],
+      effect: "irreversible",
+      input_schema: emptySchema,
+    },
+  }, async () => { executed += 1; return { ok: true }; });
+
+  const localWrapper = defineAction({
+    capability_id: "plugin.local.wrapper",
+    version: 1,
+    operation: "command",
+    action: {
+      title: "Local wrapper",
+      description: "Declares transitive dependency on external irreversible write",
+      kind: "operation",
+      scope: "project",
+      audiences: ["user"],
+      permissions: [],
+      subject_kinds: [],
+      effect: "write",
+      required_actions: [{ capability_id: "plugin.net.purge", version: 1, provider_id: "plugin.ext" }],
+      input_schema: emptySchema,
+    },
+  }, async () => { executed += 1; return { ok: true }; });
+
+  const agentNoop = defineAction({
+    capability_id: "plugin.agent.noop",
+    version: 1,
+    operation: "query",
+    action: {
+      title: "Agent noop",
+      description: "Safe local read",
+      kind: "query",
+      scope: "project",
+      audiences: ["agent", "user"],
+      permissions: [],
+      subject_kinds: [],
+      effect: "read",
+      input_schema: emptySchema,
+    },
+  }, async () => ({ ok: true }));
+
+  const userOnlyExternal = defineAction({
+    capability_id: "plugin.user_only.ext",
+    version: 1,
+    operation: "command",
+    action: {
+      title: "User external write",
+      description: "User-only declared external write",
+      kind: "operation",
+      scope: "project",
+      audiences: ["user"],
+      permissions: [],
+      subject_kinds: [],
+      effect: "write",
+      external: true,
+      input_schema: emptySchema,
+    },
+  }, async () => { executed += 1; return { ok: true }; });
+
+  fx.service.registerProvider({
+    provider: { provider_id: "mcp.ext", title: "External MCP", kind: "mcp" },
+    definitions: [mcpDestroy.definition],
+    handlers: [mcpDestroy.handler],
+  });
+  fx.service.registerProvider({
+    provider: { provider_id: "plugin.ext", title: "External Plugin", kind: "plugin" },
+    definitions: [netPurge.definition, localWrapper.definition, agentNoop.definition, userOnlyExternal.definition],
+    handlers: [netPurge.handler, localWrapper.handler, agentNoop.handler, userOnlyExternal.handler],
+  });
+
+  await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample("replay-ext-block", { fact: "assistant.work" }));
+  fx.evaluation.registerReplayScenario("ext-block", async (ctx) => {
+    await assert.rejects(
+      ctx.client.invoke(person({ project_id: "p1" }), { capability_id: "mcp.remote.destroy", version: 1, provider_id: "mcp.ext" }, {}),
+      { code: "evaluation.replay_external_effect_blocked" },
+    );
+    await assert.rejects(
+      ctx.client.invoke(person({ project_id: "p1", permissions: ["network:fetch"] }), { capability_id: "plugin.net.purge", version: 1, provider_id: "plugin.ext" }, {}),
+      { code: "evaluation.replay_external_effect_blocked" },
+    );
+    await assert.rejects(
+      ctx.client.invoke(person({ project_id: "p1", permissions: ["network:fetch"] }), { capability_id: "plugin.local.wrapper", version: 1, provider_id: "plugin.ext" }, {}),
+      { code: "evaluation.replay_external_effect_blocked" },
+    );
+    // Warm as restricted agent first; subsequent user call in the same project must still see user-only external action metadata.
+    await ctx.client.invoke(
+      person({ project_id: "p1", audience: "agent", actor_kind: "runtime", actor_id: "agent:1" }),
+      { capability_id: "plugin.agent.noop", version: 1, provider_id: "plugin.ext" },
+      {},
+    );
+    await assert.rejects(
+      ctx.client.invoke(person({ project_id: "p1" }), { capability_id: "plugin.user_only.ext", version: 1, provider_id: "plugin.ext" }, {}),
+      { code: "evaluation.replay_external_effect_blocked" },
+    );
+  });
+
+  const run = await fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: "replay-ext-block",
+    execution_kind: "isolated_replay",
+    replay_scenario_id: "ext-block",
+  });
+  assert.equal(executed, 0);
+  assert.equal(run.replay?.blocked_external_effects.length, 4);
+});
+
+test("F-horiz-runtime-19: metrics.summarize normalizes pure-date until to end-of-day UTC and normalizes timezone offsets", async t => {
+  const fx = createEvaluationFixture(t);
+  fx.setNow("2026-11-26T12:00:00.000Z");
+  fx.layer.sink("assistant")
+    .bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+    .record({ fact: "assistant.work", outcome: "succeeded", occurred_at: "2026-11-26T11:55:00.000Z" });
+  fx.layer.flush();
+
+  await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample("metrics-window", { fact: "assistant.work" }));
+  await fx.user.invoke(evaluationActions.runsExecute, { sample_id: "metrics-window" });
+
+  const sameDay = await fx.user.invoke(evaluationActions.metricsSummarize, {
+    purpose: "validation",
+    project_id: "p1",
+    since: "2026-11-26",
+    until: "2026-11-26",
+  });
+  assert.equal(sameDay.sample_count, 1);
+  assert.equal(sameDay.denominator, 1);
+  assert.equal(sameDay.verdict_counts.passed, 1);
+
+  const offsetWindow = await fx.user.invoke(evaluationActions.metricsSummarize, {
+    purpose: "validation",
+    project_id: "p1",
+    since: "2026-11-26T19:00:00+08:00",
+    until: "2026-11-26T21:00:00+08:00",
+  });
+  assert.equal(offsetWindow.sample_count, 1);
+  assert.equal(offsetWindow.denominator, 1);
+  assert.equal(offsetWindow.verdict_counts.passed, 1);
+
+  await assert.rejects(
+    fx.user.invoke(evaluationActions.metricsSummarize, { purpose: "validation", since: "2026-02-31" }),
+    { code: "evaluation.invalid" },
+  );
+});
+
+test("F-horiz-runtime-20: evidence_text forbids_any returns unknown when any matching record has missing evidence on non-delivery stage", async t => {
+  const fx = createEvaluationFixture(t);
+  const queryAction = { capability_id: "notes.list", version: 1, provider_id: "notes-install", operation: "query" } as const;
+  // Agent query retains a readable result snapshot; person query stores a by_rule missing result ref.
+  fx.layer.observed(
+    person({ project_id: "p1", audience: "agent", actor_kind: "runtime", actor_id: "agent:1", call_id: "forbid-partial" }),
+    queryAction,
+    { invocation_id: "inv-agent-ok", started_at: 100, ended_at: 110, handler_started: true, input: { q: 1 }, result: { text: "benign" }, outcome: { ok: true }, aborted: false },
+  );
+  fx.layer.observed(
+    person({ project_id: "p1", call_id: "forbid-partial" }),
+    queryAction,
+    { invocation_id: "inv-person-missing", started_at: 120, ended_at: 130, handler_started: true, input: { q: 2 }, result: { text: "FORBIDDEN_SECRET" }, outcome: { ok: true }, aborted: false },
+  );
+  fx.layer.flush();
+
+  await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample(
+    "forbid-partial-missing",
+    { project_id: "p1", call_id: "forbid-partial" },
+    {
+      expectations: [{
+        expectation_id: "no-forbidden",
+        stage: "execution",
+        source: "deterministic",
+        description: "禁止输出敏感片段",
+        rule: { check: "evidence_text", fact: "action.call", evidence_role: "result", forbids_any: ["FORBIDDEN_SECRET"] },
+      }],
+    },
+  ));
+
+  const run = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: "forbid-partial-missing" });
+  assert.equal(run.expectation_results[0]!.effective_verdict, "unknown");
+  assert.equal(run.effective_verdict, "unknown");
+  assert.ok(run.expectation_results[0]!.unknown_reasons.includes("evidence_missing"));
 });

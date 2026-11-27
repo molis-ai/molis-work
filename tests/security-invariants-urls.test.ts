@@ -49,7 +49,13 @@ test("S-09 a Host header names this machine or nothing: foreign, malformed, user
   assert.equal(loopbackHost("LOCALHOST:4173"), "localhost:4173");
   assert.equal(loopbackHost("[::1]:4173"), "[::1]:4173");
   assert.equal(loopbackHost(" 127.0.0.1:4173 "), "127.0.0.1:4173");
-  for (const value of [undefined, null, "", "   ", "evil.example", "evil.example:4173", "127.0.0.1@evil.example", "127.0.0.1.evil.example", "localhost.evil.example:4173", "[::1", "127.0.0.1:99999", "http://127.0.0.1", "0.0.0.0:4173", "[::ffff:127.0.0.1]:4173"]) {
+  for (const value of [
+    undefined, null, "", "   ", "evil.example", "evil.example:4173", "127.0.0.1@evil.example", "127.0.0.1.evil.example",
+    "localhost.evil.example:4173", "[::1", "127.0.0.1:99999", "http://127.0.0.1", "0.0.0.0:4173", "[::ffff:127.0.0.1]:4173",
+    "evil@127.0.0.1:4173", "127.0.0.1:4173/evil", "127.0.0.1:4173?x=1", "127.0.0.1:4173#frag", "127.0.0.1:4173\\@evil.com",
+    "127.1:4173", "0177.0.0.1:4173", "0x7f000001:4173", "2130706433:4173", "[0:0:0:0:0:0:0:1]:4173", "127.0.0.1\t:4173",
+    "127.0.0.1:", "127.0.0.1:080",
+  ]) {
     assert.equal(loopbackHost(value as string | null | undefined), null, JSON.stringify(value));
   }
 });
@@ -99,6 +105,17 @@ test("S-10 the sandbox proxy and the custom RSS fetch refuse every address of th
     assert.equal(isPublicAddress(address), true, `sandbox proxy: ${address}`);
     assert.equal(isDisallowedResolvedAddress(address), false, `custom RSS: ${address}`);
   }
+  // F-cf-04 / F-TEST-22: malformed IPv6 strings carrying brackets, paths, ports or control characters must return false.
+  for (const malformed of [
+    "2001:4860::8888]/evil",
+    "2001:4860::8888]:443/foo#",
+    "2001:4860::]:443/foo#",
+    "2001:4860::\t8888",
+    "2001:4860::\n8888",
+  ]) {
+    assert.equal(sharedIsPublicAddress(malformed), false, `shared public address: ${JSON.stringify(malformed)}`);
+    assert.equal(isPublicAddress(malformed), false, `sandbox proxy: ${JSON.stringify(malformed)}`);
+  }
 });
 
 test("S-10 a request a plugin makes through the sandbox proxy is HTTPS to an approved name: addresses, credentials, ports and look-alike names are refused", () => {
@@ -106,7 +123,7 @@ test("S-10 a request a plugin makes through the sandbox proxy is HTTPS to an app
   assert.equal(validateNetworkRequest({ url: "https://example.com/a" }, approved, 1024).hostname, "example.com");
   for (const url of ["http://example.com/", "https://127.0.0.1/", "https://[::1]/", "https://[::ffff:127.0.0.1]/", "https://10.0.0.1/", "https://2130706433/", "https://example.com.evil.test/", "https://evil-example.com/",
     "https://example.com:8443/", "https://user:pass@example.com/", "https://example.com./", "https://example.com/#fragment", "https://sub.example.com/", "file:///etc/passwd", "gopher://example.com/"]) {
-    assert.throws(() => validateNetworkRequest({ url }, approved, 1024), url);
+    assert.throws(() => validateNetworkRequest({ url }, approved, 1024), (error: unknown) => error instanceof Error && "code" in error && (error.code === "sandbox.network_denied" || error.code === "sandbox.invalid_request"), url);
   }
 });
 
@@ -114,7 +131,7 @@ test("S-10 a custom RSS address is HTTPS to a public DNS name: addresses, local 
   assert.doesNotThrow(() => normalizeCustomRssFeedUrl("https://example.com/feed.xml"));
   for (const url of ["http://example.com/feed.xml", "https://127.0.0.1/feed.xml", "https://[::1]/feed.xml", "https://10.0.0.5/feed", "https://localhost/feed", "https://printer.local/feed", "https://intranet/feed",
     "https://user:pass@example.com/feed", "https://metadata.google.internal/computeMetadata", "file:///etc/passwd", "https://169.254.169.254/latest/meta-data"]) {
-    assert.throws(() => normalizeCustomRssFeedUrl(url), url);
+    assert.throws(() => normalizeCustomRssFeedUrl(url), (error: unknown) => error instanceof ActionError && error.code === "rss.custom_url_invalid", url);
   }
 });
 

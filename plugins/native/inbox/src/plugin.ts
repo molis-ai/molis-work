@@ -91,7 +91,7 @@ export function createInboxPlugin(): PluginDefinition {
     if (!projectId) throw new ActionError("actions.scope_mismatch", "Inbox 只属于一个项目");
     if (!attention || !database || !scenes || !judgments || !own || !directory) throw new ActionError("actions.unredeemed", "Inbox 需要注意力、项目库、场景、判断账与动作目录服务");
     const ask = <Output>(reference: ActionReference, input: unknown) => directory.invoke<Output>(reference, input);
-    const feedMissing = (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing";
+    const feedMissing = (error: unknown) => error instanceof ActionError && (error.code === "actions.dependency_missing" || error.code === "actions.plugin_disabled");
     const recordOf = (entry: AttentionEntryRecord): InboxActionEntry => ({ ...entry, project_id: projectId });
     /** The entry as Attention has it; one that is not Inbox's to show is `inbox.entry_not_found`, the code the pages and callers know. */
     const entryOf = (entryId: string): AttentionEntryRecord => {

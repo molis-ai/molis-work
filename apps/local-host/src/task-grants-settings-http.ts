@@ -9,7 +9,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import { authorizationSettingsControl } from "./authorization-settings-control.js";
 import { directoryWordResolver, registeredInstallationText } from "./ui-text-provider.js";
-import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import { readLocalWebBody, requestAbortSignal, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
 
 /** What each mode takes, and nothing more: the project is the route's, the person is the caller, both from the request context. */
@@ -50,21 +50,19 @@ export async function handleTaskGrantsSettingsHttp(context: WebRequestContext, p
   const { request, response, url, localHost } = context;
   if (url.pathname !== "/api/settings/task-grants") return false;
   if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "不支持此方法" }); return true; }
-  const controller = new AbortController();
-  const cancel = () => controller.abort(new ActionError("actions.cancelled", "这次设置操作已经结束"));
-  const disconnected = () => { if (!response.writableEnded) cancel(); };
-  request.once("aborted", cancel); response.once("close", disconnected);
+  const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "这次设置操作已经结束"));
   const control = authorizationSettingsControl(request, response, localHost, context.serverOptions.assertAccountCurrent);
   try {
     control.assertCurrent();
-    const body = await readLocalWebBody(request), keys = typeof body.mode === "string" ? KEYS[body.mode] : undefined;
+    const body = await readLocalWebBody(request);
+    const keys = typeof body.mode === "string" && Object.hasOwn(KEYS, body.mode) ? KEYS[body.mode] : undefined;
     if (!keys || Object.keys(body).some(key => !keys.includes(key)) || body.mode !== "list" && !text(body.plugin_install_id)
       || body.mode === "titles" && body.cursor !== null && !text(body.cursor)
       || body.mode === "set" && typeof body.key !== "string"
       || body.mode === "set" && (!Array.isArray(body.categories) || typeof body.expected_revision !== "string"))
       throw new ActionError("actions.input_invalid", "任务授权请求无效");
     const projectCurrent = localHost.holdAuthorizationProject(project);
-    const caller = await localWebActionContext(localHost, project, LOCAL_OWNER_PERMISSIONS, controller.signal, {
+    const caller = await localWebActionContext(localHost, project, LOCAL_OWNER_PERMISSIONS, disconnected.signal, {
       assertCurrent: () => { control.assertCurrent(); projectCurrent(); },
     });
     const client = bindActionClient(localHost.actionClient(project), () => caller), install = body.plugin_install_id as string;
@@ -86,12 +84,30 @@ export async function handleTaskGrantsSettingsHttp(context: WebRequestContext, p
     const source = kind ? subjectSource(await localHost.inspectActions(caller, project), install, kind) : undefined;
     if (!kind || !source) { sendLocalWebJson(response, 200, { entries: [], next_cursor: null }); return true; }
     const surface = source.action.search_source!.kinds.find(entry => entry.kind === kind)!.surface;
-    const page = await localHost.actionClient(project).invoke(caller, { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id },
-      { cursor: body.cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as SearchEntriesPage;
-    sendLocalWebJson(response, 200, { next_cursor: page.next_cursor, entries: page.entries.filter(entry => entry.subject.kind === kind)
-      .map(entry => ({ key: entry.subject.id, title: entry.title, open: entry.open ?? { surface, id: entry.subject.id } })) });
+    const MAX_TITLE_PAGES = 20;
+    const actionClient = localHost.actionClient(project);
+    const ref = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };
+    let cursor = body.cursor as string | null;
+    let nextCursor: string | null = null;
+    const entries: Array<{ key: string; title: string; open: unknown }> = [];
+    const seenCursors = new Set<string>();
+    for (let scanned = 0; scanned < MAX_TITLE_PAGES; scanned += 1) {
+      disconnected.signal.throwIfAborted();
+      control.assertCurrent();
+      const page = await actionClient.invoke(caller, ref, { cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as SearchEntriesPage;
+      for (const entry of page.entries) {
+        if (entry.subject.kind !== kind) continue;
+        entries.push({ key: entry.subject.id, title: entry.title, open: entry.open ?? { surface, id: entry.subject.id } });
+      }
+      nextCursor = page.next_cursor;
+      if (entries.length > 0 || nextCursor === null) break;
+      if (seenCursors.has(nextCursor)) { nextCursor = null; break; }
+      seenCursors.add(nextCursor);
+      cursor = nextCursor;
+    }
+    sendLocalWebJson(response, 200, { next_cursor: nextCursor, entries });
   } catch (error) {
     const failure = actionErrorResponse(error); sendLocalWebJson(response, failure.status, failure.body);
-  } finally { request.off("aborted", cancel); response.off("close", disconnected); }
+  } finally { disconnected.dispose(); }
   return true;
 }

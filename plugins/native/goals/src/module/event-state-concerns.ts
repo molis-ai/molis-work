@@ -167,16 +167,26 @@ export class GoalEventConcerns {
       this.reuseDecision(goal, cited, reading);
       return;
     }
+    const opened = this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, concern.event_id);
     if (cited) {
       if (!decisionCoversConcern(cited, concern) && !scopeIsSubset(concern.scope, cited.scope)) {
         throw goalErrors["goals.event_decision.scope_expanded"]("引用的决定没有覆盖这个 Concern 的作用范围");
       }
-      return;
-    }
-    if (supporting.length === 0) {
+      if (
+        decisionHasEffect(cited, "reject_concerns")
+        || decisionHasEffect(cited, "deny_action")
+      ) {
+        throw goalErrors["goals.event_decision.invalid_effect"]("拒绝或驳回性质的决定不能用于解决或推翻 Concern");
+      }
+      this.reuseDecision(goal, cited, reading);
+      const citedEventId = this.records.decisions.getAppliedDecisionEventId(goal.project_id, goal.goal_id, cited.decision_id);
+      const citedEvent = citedEventId ? this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, citedEventId) : null;
+      if (opened && (!citedEvent || citedEvent.journal_seq <= opened.journal_seq)) {
+        throw goalErrors["goals.event_concern.evidence_not_subsequent"]("解决或推翻 Concern 必须引用打开之后的用户决定");
+      }
+    } else if (supporting.length === 0) {
       throw goalErrors["goals.event_concern.evidence_required"]("处理 Concern 需要关联后续实际事件或已有用户决定");
     }
-    const opened = this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, concern.event_id);
     for (const eventId of supporting) {
       const event = this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, eventId);
       if (!event) throw goalErrors["goals.event_concern.cross_goal_reference"](`事件 ${eventId} 不属于当前 Goal`);

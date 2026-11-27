@@ -118,7 +118,7 @@ export class ProjectRecycle {
         .run(input.actor_id, input.operation_id, this.fingerprint(input), JSON.stringify(result));
       beforeEffect();
       return result;
-    })();
+    }).immediate();
   }
 
   private fingerprint(input: ProjectRecycleInput): string {

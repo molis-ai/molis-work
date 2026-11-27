@@ -250,6 +250,21 @@ function preparedInput(card: ActionCard, values: Record<string, string>, refuse:
  * does not resend), or the owner failed after its effect, or its output was invalid after it (W2-18-CARD-UNKNOWN-01).
  */
 const OUTCOME_UNKNOWN: ReadonlySet<string> = new Set(["actions.outcome_unknown", "actions.output_invalid_after_effect", "actions.delivery_unknown", "actions.host_replaced"]);
+const CANCELLED_OR_REVOKED_CODES: ReadonlySet<string> = new Set(["actions.cancelled", "actions.forbidden", "actions.unauthenticated", "actions.plugin_disabled", "actions.stopped"]);
+
+/**
+ * Whether `error` stopped the call because the caller was cancelled, disconnected, revoked, or stopped.
+ * Such a call must not write a further business record (e.g. `status: "failed"`), and must propagate instead.
+ */
+function isCancelledOrRevoked(error: unknown): boolean {
+  if (error && typeof error === "object") {
+    if ((error as { name?: unknown }).name === "AbortError") return true;
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string" && CANCELLED_OR_REVOKED_CODES.has(code)) return true;
+  }
+  const kind = actionErrorKind(error);
+  return kind === "cancelled" || kind === "forbidden";
+}
 
 /** How a run that threw reads, by the failure's code and kind alone, never by its wording (specs/ai-interaction-experience D26). */
 function settled(error: unknown): Partial<ActionCard> {
@@ -281,17 +296,19 @@ export async function runActionCard<Card extends ActionCard>(card: Card, input: 
   try { await authority.check(view, prepared); }
   catch (error) { throw ports.refuse("invalid", `填写的内容不符合要求：${error instanceof Error ? error.message : String(error)}`); }
   let claimed = ports.store.update(card, card.revision, { status: "running", request_id: globalThis.crypto.randomUUID(), input: prepared, missing: [], outcome: undefined, presentation: undefined });
+  let result: unknown;
   try {
-    const result = await authority.invoke(claimed.reference, prepared);
-    const presentation = presentActionResult(view.action.result_view, result, ports.projectId);
-    const outcome = presentation?.summary ? ownWords(presentation.summary) : summarizeResult(result);
-    // Background work it started: the card shows it running, then how it ended.
-    if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: said("started") });
-    claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}), ...(presentation ? { presentation } : {}) });
-    return claimed;
+    result = await authority.invoke(claimed.reference, prepared);
   } catch (error) {
+    if (isCancelledOrRevoked(error)) throw error;
     return ports.store.update(claimed, claimed.revision, settled(error));
   }
+  const presentation = presentActionResult(view.action.result_view, result, ports.projectId);
+  const outcome = presentation?.summary ? ownWords(presentation.summary) : summarizeResult(result);
+  // Background work it started: the card shows it running, then how it ended.
+  if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: said("started") });
+  claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}), ...(presentation ? { presentation } : {}) });
+  return claimed;
 }
 
 /** A card the person put away. Only one that could still run, or failed or went stale, can be. */

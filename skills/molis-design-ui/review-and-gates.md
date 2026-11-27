@@ -40,7 +40,7 @@ node scripts/run-tests.mjs \
 node scripts/gates/translations.mjs --missing
 node scripts/audit-ui-copy.mjs --strict
 
-# 静态资源体积与首屏字节（单资源涨 >10KB 或新增资产/路由须先问用户）
+# 静态资源体积与首屏字节（按 tooling/gates/page-asset-budgets.json 预算表验收；调高上限或把资源移出路由须先问用户）
 pnpm page-assets:check
 node scripts/gates/first-screen.mjs --base origin/main
 

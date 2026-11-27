@@ -15,9 +15,12 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingHttpHeaders } from 'node:http';
+import { isIP } from 'node:net';
+import { Readable } from 'node:stream';
 import { isPublicAddress } from '@molis-ai/molis-work-contracts/platform/public-address';
 
 const TIMEOUT_MS = 15_000, MAX_BODY = 1024 * 1024;
+const NO_BODY_STATUSES = new Set([101, 204, 205, 304]);
 
 /**
  * Loopback, private, link-local, shared, multicast and reserved ranges, in both families: the sandbox proxy's own policy
@@ -84,11 +87,15 @@ export async function sendPublicHttps(request: PublicHttpsRequest): Promise<Publ
     stop.throwIfAborted(); request.current();
     // No wait between the final current check and constructing the actual request. DNS is pinned to the addresses checked above.
     return await Promise.race([new Promise<PublicHttpsResponse>((done, fail) => {
+      let revoked: { error: unknown } | undefined;
       const lookup = (_hostname: string, lookupOptions: { all?: boolean } | undefined, callback: (error: Error | null, address: string | LookupAddress[], family?: number) => void) => {
         try {
           stop.throwIfAborted(); request.current();
           if (lookupOptions?.all) callback(null, addresses); else callback(null, addresses[0]!.address, addresses[0]!.family);
-        } catch { callback(Object.assign(new Error('原调用已取消或授权已失效'), { code: 'INVOCATION_REVOKED' }), []); }
+        } catch (error) {
+          revoked = { error };
+          callback(Object.assign(new Error('原调用已取消或授权已失效'), { code: 'INVOCATION_REVOKED' }), []);
+        }
       };
     const outgoing = httpsRequest({ protocol: 'https:', hostname: url.hostname, port: request.testServer?.port ?? 443, path: url.pathname + url.search, method, headers,
       lookup: lookup as never, signal: stop, agent: false, ...(request.testServer ? { ca: request.testServer.ca } : {}) }, response => {
@@ -108,7 +115,8 @@ export async function sendPublicHttps(request: PublicHttpsRequest): Promise<Publ
     // Nothing is written before the socket is handed over; a reused one would have skipped the recheck, so it is never written to.
     outgoing.once('socket', () => { if (outgoing.reusedSocket) outgoing.destroy(new Error('连接被复用，发出前没有复核原调用')); });
     outgoing.on('error', error => {
-      if ((error as { code?: string }).code === 'PRIVATE_ADDRESS') fail(problem('private_address', '不能访问本机或内网地址'));
+      if ((error as { code?: string }).code === 'INVOCATION_REVOKED') fail(revoked ? revoked.error : error);
+      else if ((error as { code?: string }).code === 'PRIVATE_ADDRESS') fail(problem('private_address', '不能访问本机或内网地址'));
       else if (timeout.aborted) fail(problem('timeout', '网站在 15 秒内没有响应'));
       else if (signal.aborted) fail(signal.reason);
       else fail(problem('connect', '访问网站失败：' + error.message));
@@ -117,4 +125,133 @@ export async function sendPublicHttps(request: PublicHttpsRequest): Promise<Publ
     outgoing.end();
     }), stopped]);
   } finally { stop.removeEventListener('abort', abort); }
+}
+
+export interface PublicHttpsStreamRequest {
+  readonly url: URL;
+  readonly method: string;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly body?: Uint8Array;
+  readonly signal: AbortSignal;
+  readonly timeoutMs?: number;
+  beforeEffect?(): Promise<void>;
+  current(): void;
+  readonly lookup?: PublicLookup;
+  allowAddress?(address: string): boolean;
+  failure(reason: PublicHttpsFailure, detail: string): Error;
+}
+
+/**
+ * Streaming DNS-pinned HTTPS request returning a Web `Response` (for remote MCP Streamable HTTP / SSE / OAuth discovery, S-10).
+ * Validates every resolved IP via `publicAddress`, re-checks authority before connecting, disables socket reuse, and refuses redirects.
+ */
+export async function sendPublicHttpsResponse(request: PublicHttpsStreamRequest): Promise<Response> {
+  const { url, method, body, signal, failure, timeoutMs = 30_000 } = request;
+  signal.throwIfAborted();
+  const allowed = request.allowAddress ?? publicAddress;
+  const host = url.hostname.replace(/^\[|\]$/gu, '');
+  const resolveHost: PublicLookup = request.lookup ?? ((hostname, callback) => dnsLookup(hostname, { all: true, verbatim: true }, callback));
+  const connectTimeout = AbortSignal.timeout(timeoutMs);
+  const connectStop = AbortSignal.any([signal, connectTimeout]);
+  let abortConnect!: () => void;
+  const stopped = new Promise<never>((_resolve, reject) => {
+    abortConnect = () => reject(connectTimeout.aborted ? failure('timeout', '远程服务响应超时') : signal.reason);
+    connectStop.addEventListener('abort', abortConnect, { once: true });
+  });
+  stopped.catch(() => {});
+  try {
+    const literalFamily = isIP(host);
+    const addresses: LookupAddress[] = literalFamily
+      ? [{ address: host, family: literalFamily as 4 | 6 }]
+      : await Promise.race([new Promise<LookupAddress[]>((done, fail) => resolveHost(host, (error, rows) => {
+          if (error) fail(failure('connect', '网站地址解析失败')); else done(rows);
+        })), stopped]);
+    if (!addresses.length || addresses.some(item => !allowed(item.address))) {
+      throw failure('private_address', '不能访问本机或内网地址');
+    }
+    await Promise.race([Promise.resolve(request.beforeEffect?.()), stopped]);
+    connectStop.throwIfAborted();
+    request.current();
+    const headers: Record<string, string> = { ...request.headers };
+    if (body !== undefined && !Object.keys(headers).some(key => key.toLowerCase() === 'content-length')) {
+      headers['content-length'] = String(body.byteLength);
+    }
+    return await Promise.race([new Promise<Response>((done, fail) => {
+      let settled = false;
+      let revoked: { error: unknown } | undefined;
+      const finishError = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        connectTimeout.removeEventListener('abort', onConnectTimeout);
+        fail(error);
+      };
+      const lookup = (_hostname: string, lookupOptions: { all?: boolean } | undefined, callback: (error: Error | null, address: string | LookupAddress[], family?: number) => void) => {
+        try {
+          connectStop.throwIfAborted();
+          request.current();
+          if (lookupOptions?.all) callback(null, addresses);
+          else callback(null, addresses[0]!.address, addresses[0]!.family);
+        } catch (error) {
+          revoked = { error };
+          callback(Object.assign(new Error('原调用已取消或授权已失效'), { code: 'INVOCATION_REVOKED' }), []);
+        }
+      };
+      const outgoing = httpsRequest({
+        protocol: 'https:',
+        hostname: host,
+        port: url.port ? Number(url.port) : 443,
+        path: url.pathname + url.search,
+        method,
+        headers,
+        lookup: lookup as never,
+        servername: literalFamily ? undefined : host,
+        signal,
+        agent: false,
+      }, incoming => {
+        if (settled) {
+          incoming.destroy();
+          return;
+        }
+        settled = true;
+        connectTimeout.removeEventListener('abort', onConnectTimeout);
+        const status = incoming.statusCode ?? 0;
+        if (status >= 300 && status < 400) {
+          incoming.destroy();
+          fail(failure('private_address', '远程服务返回了未允许的重定向'));
+          return;
+        }
+        const responseHeaders = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (Array.isArray(value)) {
+            for (const item of value) responseHeaders.append(name, item);
+          } else if (typeof value === 'string') {
+            responseHeaders.set(name, value);
+          }
+        }
+        const bodyStream = NO_BODY_STATUSES.has(status) || method.toUpperCase() === 'HEAD'
+          ? (incoming.resume(), null)
+          : Readable.toWeb(incoming) as ConstructorParameters<typeof Response>[0];
+        done(new Response(bodyStream, { status, statusText: incoming.statusMessage ?? '', headers: responseHeaders }));
+      });
+      const onConnectTimeout = () => {
+        outgoing.destroy();
+        finishError(failure('timeout', '远程服务响应超时'));
+      };
+      connectTimeout.addEventListener('abort', onConnectTimeout, { once: true });
+      outgoing.once('socket', () => {
+        if (outgoing.reusedSocket) outgoing.destroy(new Error('连接被复用，发出前没有复核原调用'));
+      });
+      outgoing.on('error', error => {
+        if ((error as { code?: string }).code === 'INVOCATION_REVOKED') finishError(revoked ? revoked.error : error);
+        else if ((error as { code?: string }).code === 'PRIVATE_ADDRESS') finishError(failure('private_address', '不能访问本机或内网地址'));
+        else if (connectTimeout.aborted) finishError(failure('timeout', '远程服务响应超时'));
+        else if (signal.aborted) finishError(signal.reason);
+        else finishError(failure('connect', '访问网站失败：' + error.message));
+      });
+      if (body !== undefined) outgoing.write(body);
+      outgoing.end();
+    }), stopped]);
+  } finally {
+    connectStop.removeEventListener('abort', abortConnect);
+  }
 }

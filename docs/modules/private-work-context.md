@@ -4,7 +4,7 @@
 
 大白话说，它保存的是“这个外部 Runtime 的工作入口（或工作目录）属于哪个 Project”：谁在什么时候绑定、解绑，用户拒绝过哪些建议，幂等请求做到了哪一步。这些事实默认只在本机。
 
-Sessions 插件已下线（SC-4，`specs/archive/repository-anti-corruption/slices/sc-4-sessions-offline.md`）：Session 身份、事件与加密内容引用、Handoff、会话目录和关联规则的实现都已删除，重做见 `specs/BACKLOG.md` 的 BL-177。本模块只留下 Runtime 项目绑定。
+旧 Sessions 插件已下线（SC-4，`specs/archive/repository-anti-corruption/slices/sc-4-sessions-offline.md`）：原 Session 身份、事件与加密内容引用、Handoff、会话目录和关联规则的实现均已删除。外部会话发现与只读历史首期已在独立横向服务 [`horizontal/sessions`](../horizontal/sessions.md)（`<Home>/external-sessions/external-sessions.db`）落地，后续会话控制与交接仍按 `specs/BACKLOG.md` 的 [BL-177](../../specs/backlog/BL-177.md) 跟进；本模块只负责 Runtime 工作入口与项目的绑定关系。
 
 ## 本模块拥有
 
@@ -34,4 +34,4 @@ Project Catalog 编排选择 Project，不直接保存 Runtime binding SQL；Hos
 
 Runtime 工作入口绑定保留在 `projects/catalog.db` 的同一事务资源中。当前 Project 关联是 personal `work.binding_project` 边，本模块只存绑定身份、事件、setup 幂等与拒绝建议；目录库的读写只认当前版本，打开层不就地升级；低版本的目录库由启动升级过程先升到当前版本（`apps/local-host/src/platform-upgrade-stores.ts`、`packages/storage/src/sqlite-upgrade.ts`，[U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §3、§4）。绑定事件里的 Project 是当时决定的历史快照，setup 幂等与拒绝建议仍是控制状态，不能拿来恢复第二份当前关联。解除和 Project 删除通过公开 API 撤销边；外层事务同时覆盖目录版本、metadata、事件与 Ledger，失败后可完整重试。
 
-`<home>/sessions/`（旧 Sessions 的库与加密内容目录）不再被任何代码打开，也不在 Host 的存储清单（`apps/local-host/src/home-stores.ts`）里登记（用户 2026-10-30 确认删除退役 Sessions 的登记与离线 reader，见 `docs/system/HOME-DATA.md` §4.3）：新 Home 不创建它；快照遇到这个旧目录按未知条目拒绝，不打开其中的 SQLite 与正文。旧数据留在整体搬开的旧 Home 里，不删除，也不由现行程序转换；项目删除不再有 `sessions` 主人。重新设计是 BL-177。
+`<home>/sessions/`（旧 Sessions 的库与加密内容目录）不再被任何代码打开，也不在 Host 的存储清单（`apps/local-host/src/home-stores.ts`）里登记（用户 2026-10-30 确认删除退役 Sessions 的登记与离线 reader，见 `docs/system/HOME-DATA.md` §4.3）：新 Home 不创建它；快照遇到这个旧目录按未知条目拒绝，不打开其中的 SQLite 与正文。旧数据留在整体搬开的旧 Home 里，不删除，也不由现行程序转换；项目删除不再有旧 `sessions` 主人。现行外部会话首期（发现与只读历史）使用独立库 `<Home>/external-sessions/external-sessions.db`（由 `horizontal/sessions` 拥有，见 [`docs/horizontal/sessions.md`](../horizontal/sessions.md)），后续控制与交接能力继续按 [BL-177](../../specs/backlog/BL-177.md) 推进。

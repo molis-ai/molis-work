@@ -314,7 +314,7 @@ jobs:
       - name: Verify Goal boundaries
         if: ${{ matrix.slice == 'contracts' }}
         run: |
-          node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+          node --test tests/goals-query-boundaries.test.mjs
           node scripts/run-tests.mjs tests/goals-host-no-direct-reads.test.ts
 
       - name: Build product contracts hold
@@ -411,6 +411,7 @@ jobs:
     # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       # The scan reads every commit the change adds since its merge base with the target branch, so it needs the history
       # and not a depth-1 clone.
@@ -460,6 +461,7 @@ jobs:
     # other event, or when a job failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && ((github.event_name != 'pull_request' && github.event_name != 'merge_group') || needs.test-selection.result != 'success' || needs.test-selection.outputs.native_mode != 'none') }}
     runs-on: macos-latest
+    timeout-minutes: 45
     env:
       RUSTUP_TOOLCHAIN: 1.96.0
     steps:
@@ -511,6 +513,7 @@ jobs:
     # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.shell_mode == 'none') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -663,7 +666,7 @@ jobs:
   verify:
     name: Verify
     # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
-    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, product-subset, queue-check, test-selection]
+    needs: [build, account-login, gates, gates-built, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, security-invariants-macos, product-subset, queue-check, test-selection]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
     # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the source and build-dependent gates, secret scan, Rust/Swift/shell checks, account login, security invariants and product subset run here.
@@ -688,6 +691,7 @@ jobs:
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
           SECURITY_INVARIANTS_RESULT: ${{ needs.security-invariants.result }}
+          SECURITY_INVARIANTS_MACOS_RESULT: ${{ needs.security-invariants-macos.result }}
           PRODUCT_SUBSET_RESULT: ${{ needs.product-subset.result }}
           TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}
           SECURITY_MODE: ${{ needs.test-selection.outputs.security_mode }}
@@ -725,6 +729,10 @@ jobs:
           if [ "$SECURITY_INVARIANTS_RESULT" != "success" ]; then
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
             selected_skip "$SECURITY_MODE" none "$SECURITY_INVARIANTS_RESULT"
+          fi
+          if [ "$SECURITY_INVARIANTS_MACOS_RESULT" != "success" ]; then
+            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
+            selected_skip "$SECURITY_MODE" none "$SECURITY_INVARIANTS_MACOS_RESULT"
           fi
           if [ "$PRODUCT_SUBSET_RESULT" != "success" ]; then
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
@@ -849,6 +857,64 @@ jobs:
           else
             pnpm test:security --shard ${{ matrix.shard }}/${{ strategy.job-total }} --retries 1
           fi
+
+  # macOS-only security invariants (Seatbelt sandbox and native macOS input tests, P0-10 / F-TEST-01):
+  # runs all `@requires-platform darwin` and darwin-skipped security-invariant files (`test:security:macos`) on macos-latest
+  # so darwin-only invariants in the CI column actually execute instead of reporting 0-execution green on Linux.
+  security-invariants-macos:
+    name: Security invariants (macOS)
+    needs: [test-selection, queue-check]
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'none') }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      MOLIS_WORK_TEST_JOBS: 2
+    steps:
+      - uses: actions/checkout@v6
+
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      - name: Build
+        env:
+          # macOS security invariants never run Whisper audio transcription; skipping WhisperKit saves ~3.5 minutes on macOS.
+          MOLIS_WORK_SKIP_NATIVE_WHISPER_BUILD: "1"
+        run: pnpm build
+
+      - name: Chrome for macOS browser security tests
+        run: |
+          chrome=""
+          for candidate in \
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+            "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+            "$(command -v google-chrome || command -v chromium || true)"; do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+              chrome="$candidate"
+              break
+            fi
+          done
+          test -n "$chrome" || { echo "no Chrome on this macOS runner"; exit 1; }
+          "$chrome" --version
+          printf '#!/bin/sh\nexec "%s" "$@"\n' "$chrome" > "$RUNNER_TEMP/chrome-ci"
+          chmod +x "$RUNNER_TEMP/chrome-ci"
+          echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+          echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+
+      - name: Security invariants (macOS)
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/security-macos-node-cache
+        run: pnpm test:security:macos --retries 1
 
   # Decision #14 (specs/archive/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
   # listed in tests/ci-product-subset.txt (fast files that passed on Linux in the probe above, the main flow of each product area, the

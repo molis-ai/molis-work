@@ -173,7 +173,7 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
       purge_confirmation: { home_directory: plan.home_directory, user_project_count: plan.user_project_count },
     });
     assert.equal(result.status, "purged");
-    for (const file of written) await assert.rejects(stat(file), file);
+    for (const file of written) await assert.rejects(stat(file), { code: "ENOENT" }, file);
     await rm(userHome, { recursive: true, force: true });
   });
 });

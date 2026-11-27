@@ -645,3 +645,50 @@ test("W5-01-DELEGATE-09 S-43 check asks the original caller's own checks of the 
   assert.equal(await s.run({ op: "invoke" }, mcp), "checked");
   assert.deepEqual(s.ran, []);
 });
+
+test("F-hc2-10 delegated directory invokes and plugin query calls strip hop-scoped trust fields while preserving user_action", async t => {
+  const queryTarget: ActionDefinition = {
+    capability_id: "delegate.query_target",
+    version: 1,
+    operation: "query",
+    action: {
+      title: "delegate.query_target",
+      description: "Query delegation target",
+      kind: "query",
+      scope: "project",
+      audiences: ["user", "agent", "mcp", "workflow", "plugin"],
+      permissions: ["delegate:read"],
+      subject_kinds: [],
+      input_schema: { type: "object" },
+      output_schema: { type: "string" },
+    },
+  };
+  const probe = delegateProbe("stripcheck", { consumes: [queryTarget.capability_id], permissions: ["delegate:read"] });
+  const s = await setup(t, [probe], [...GRANTED, "delegate:read"]);
+  s.offer([OPEN, queryTarget]);
+
+  const tainted: ActionCallContext = Object.assign({ ...s.caller }, {
+    user_action: { source: "workbench" as const, conversation_ref: "chat:1", message_ref: "msg:1" },
+    acting_for: { actor_id: "person:1", project_id: s.project.project_id },
+    memory_session: { kind: "assistant", session_id: "sess:1" },
+    original_file: { relative_path: "secret.md", content_sha256: "0".repeat(64) },
+    named_skills: [{ plugin_id: "io.molis.work.goals", skill_id: "s1", version: "1.0.0" }],
+  });
+
+  assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, tainted), "done");
+  const delegatedSeen = s.targetsSeen.at(-1)!;
+  assert.deepEqual(delegatedSeen.user_action, tainted.user_action, "user_action is intentionally inherited");
+  assert.equal(Reflect.get(delegatedSeen, "acting_for"), undefined, "acting_for stripped from delegated invoke");
+  assert.equal(Reflect.get(delegatedSeen, "memory_session"), undefined, "memory_session stripped from delegated invoke");
+  assert.equal(Reflect.get(delegatedSeen, "original_file"), undefined, "original_file stripped from delegated invoke");
+  assert.equal(Reflect.get(delegatedSeen, "named_skills"), undefined, "named_skills stripped from delegated invoke");
+
+  probe.behavior.handle = async context => context.services!.actions!.invokeQuery(queryTarget, {});
+  assert.equal(await s.run({ op: "query" }, tainted), "done");
+  const querySeen = s.targetsSeen.at(-1)!;
+  assert.deepEqual(querySeen.user_action, tainted.user_action, "user_action is preserved on plugin query");
+  assert.equal(Reflect.get(querySeen, "acting_for"), undefined, "acting_for stripped from plugin query");
+  assert.equal(Reflect.get(querySeen, "memory_session"), undefined, "memory_session stripped from plugin query");
+  assert.equal(Reflect.get(querySeen, "original_file"), undefined, "original_file stripped from plugin query");
+  assert.equal(Reflect.get(querySeen, "named_skills"), undefined, "named_skills stripped from plugin query");
+});

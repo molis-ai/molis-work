@@ -82,6 +82,12 @@ test("Web Goals use shared actions and store a result exactly once across async 
     for (const [capability, path] of queries) {
       const result = await request(path);
       assert.equal(result.status, 200, await result.clone().text());
+      if (capability === "goals.state.read") {
+        // F-goals-10: /event-state returns review_version so 409 conflict retry can refresh observed_version.
+        const body = await result.json() as { review_version?: unknown };
+        assert.equal(typeof body.review_version, "string");
+        assert.match(body.review_version as string, /^[0-9a-f]{64}$/u);
+      }
       assert.ok(seen.includes(capability), `${capability} must use shared action policy`);
       deniedQueries.add(capability);
       const deniedRead = await request(path);

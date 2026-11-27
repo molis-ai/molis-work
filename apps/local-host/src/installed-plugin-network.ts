@@ -73,7 +73,7 @@ export function hostNetwork(options: HostNetworkOptions): NonNullable<SandboxSer
       const response = await sendPublicHttps({ url, method, headers, ...(request.body === undefined ? {} : { body: request.body }), signal: context.signal, current,
         ...(context.beforeEffect ? { beforeEffect: context.beforeEffect } : {}), ...(options.lookup ? { lookup: options.lookup } : {}),
         ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.testServer ? { testServer: options.testServer } : {}),
-        failure: (reason, detail) => new SandboxError(FAILURE_CODES[reason], detail) });
+        failure: (reason, detail, outcome) => new SandboxError(FAILURE_CODES[reason], detail, outcome) });
       const visible: Record<string, string> = {};
       for (const name of VISIBLE) { const value = response.headers[name]; if (typeof value === 'string') visible[name] = value; }
       const result: SandboxNetworkResponse = { status: response.status, headers: visible, body: response.body };

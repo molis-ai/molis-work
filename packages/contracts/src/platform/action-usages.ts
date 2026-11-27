@@ -23,7 +23,7 @@ export interface ActionUsage {
 }
 const text = { type: "string", minLength: 1, maxLength: 400 };
 export const ACTION_USAGE_SCHEMA = { type: "object", properties: { usage_id: text, title: text, detail: { type: "string", maxLength: 1000 }, enabled: { type: "boolean" },
-  href: { type: "string", pattern: "^/(?!/)", maxLength: 1000 } }, required: ["usage_id", "title", "enabled"], additionalProperties: false };
+  href: { type: "string", pattern: "^/(?![/\\\\])[^\\u0000-\\u0020\\u007f]*$", maxLength: 1000 } }, required: ["usage_id", "title", "enabled"], additionalProperties: false };
 export const ACTION_USAGES_INPUT_SCHEMA = { type: "object", properties: { action: ACTION_REFERENCE_SCHEMA }, required: ["action"], additionalProperties: false } as const;
 export const ACTION_USAGES_OUTPUT_SCHEMA = { type: "object", properties: { usages: { type: "array", maxItems: 500, items: ACTION_USAGE_SCHEMA } }, required: ["usages"], additionalProperties: false };
 

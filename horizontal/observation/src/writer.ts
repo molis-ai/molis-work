@@ -31,6 +31,8 @@ interface Quota { day: string; facts: number; bytes: number; dirty: boolean }
 const COALESCE_MS = 60_000;
 /** Gaps of the same kind this close together are one stretch, so a flood of refusals is one row, not thousands. */
 const GAP_JOIN_MS = 60_000;
+/** Backoff after a failed store open so hot-path callers never hammer a broken filesystem. */
+const OPEN_RETRY_BACKOFF_MS = 1_000;
 const keyId = (key: CoverageKey) => JSON.stringify([key.owner, key.fact, key.entry, key.project_id]);
 const WRITER_KEY: Omit<CoverageKey, "project_id"> = { owner: "observation", fact: "*", entry: "host" };
 
@@ -50,6 +52,7 @@ export class ObservationWriter {
   private readonly statements = new Map<string, StatementSync>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private paused: boolean | undefined;
+  private openBackoffUntil = 0;
   private closed = false;
 
   constructor(private readonly options: ObservationWriterOptions) {}
@@ -65,8 +68,13 @@ export class ObservationWriter {
     this.paused = paused;
   }
 
+  /** Drop cached read-coalescing targets after records are removed outside the writer queue. */
+  clearFolds(): void {
+    this.folds.clear();
+  }
+
   enqueue(record: PendingRecord): void {
-    if (this.closed || this.isPaused()) return;
+    if (this.closed || this.paused === true) return;
     const project = record.row.project_id;
     if (project && this.cleared.has(project)) {
       if (this.options.env.projectClass(project) === undefined) return;
@@ -124,17 +132,22 @@ export class ObservationWriter {
   flush(): void {
     if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
     const batch = this.queue; this.queue = [];
+    const quotas = [...this.quotas].filter(([, quota]) => quota.dirty);
+    const hasWork = batch.length > 0 || this.gaps.length > 0 || quotas.length > 0;
+    if (!hasWork && this.db) return;
+    if (!hasWork && !this.hasDatabase()) return;
     const db = this.tryOpen();
     if (!db) { this.lose(batch, "store_unavailable"); return; }
+    const effectiveBatch = this.paused === true ? [] : batch;
     const now = this.options.env.now().toISOString(), gaps = this.gaps.splice(0);
+    if (effectiveBatch.length === 0 && gaps.length === 0 && quotas.length === 0) return;
     // Gaps raised while the batch is written (a key that cannot be had) are written with it; if the transaction fails, every
     // one of them goes back, not only those already waiting before it.
     let pendingGaps: Gap[] = gaps;
-    const quotas = [...this.quotas].filter(([, quota]) => quota.dirty);
     try {
       db.exec("BEGIN IMMEDIATE");
       const tallies = new Map<string, Tally>();
-      for (const record of batch) this.write(db, record, now, tallies);
+      for (const record of effectiveBatch) this.write(db, record, now, tallies);
       for (const tally of tallies.values()) this.cover(db, tally, now);
       pendingGaps = [...gaps, ...this.gaps.splice(0)];
       for (const gap of pendingGaps) this.writeGap(db, gap);
@@ -148,7 +161,7 @@ export class ObservationWriter {
       // What was folded into a record of this batch would point at nothing; the stretches the failed transaction carried wait for the next write.
       this.folds.clear();
       this.gaps.unshift(...pendingGaps);
-      this.lose(batch, "write_failed");
+      this.lose(effectiveBatch, "write_failed");
     }
   }
 
@@ -164,8 +177,9 @@ export class ObservationWriter {
       const fold = createHash("sha256").update(record.coalesce_key).update(resolved.digests.join(",")).digest("hex");
       const at = Date.parse(record.row.occurred_at), held = this.folds.get(fold);
       if (held && at - held.at <= COALESCE_MS) {
-        this.run(db, "UPDATE records SET coalesced_count = COALESCE(coalesced_count, 1) + 1, coalesced_last_at = ? WHERE record_id = ?", record.row.occurred_at, held.record_id);
-        return;
+        const updated = this.run(db, "UPDATE records SET coalesced_count = COALESCE(coalesced_count, 1) + 1, coalesced_last_at = ? WHERE record_id = ?", record.row.occurred_at, held.record_id);
+        if (Number(updated.changes) > 0) return;
+        this.folds.delete(fold);
       }
       this.folds.set(fold, { record_id: record.row.record_id, at });
       if (this.folds.size > 4096) for (const [key, value] of this.folds) if (at - value.at > COALESCE_MS) this.folds.delete(key);
@@ -203,10 +217,13 @@ export class ObservationWriter {
    * The library, opened on first use. A run that ended without writing its queue is found here: `open` still says so, and the stretch from
    * the last write to now is kept as lost for an unknown reason (contract-design §8).
    */
-  private tryOpen(): DatabaseSync | undefined {
+  private tryOpen(force = false): DatabaseSync | undefined {
     if (this.db) return this.db;
+    const nowMs = Date.now();
+    if (!force && nowMs < this.openBackoffUntil) return undefined;
     try {
       const db = openBaselineHomeSqlite(this.options.home, OBSERVATION_STORE, OBSERVATION_BASELINE);
+      this.openBackoffUntil = 0;
       const state = (key: string) => (db.prepare("SELECT value FROM writer_state WHERE key = ?").get(key) as { value: string } | undefined)?.value;
       const now = this.options.env.now().toISOString();
       if (state("open") === "1") this.gaps.push({ key: { ...WRITER_KEY, project_id: "" }, state: "lost", reason: "unknown_exit", started: state("last_write_at") ?? now, ended: now, count: 0 });
@@ -217,6 +234,7 @@ export class ObservationWriter {
       try { sweepExpiredRecords(db, this.options.env.now()); } catch { /* retention sweep retries on next open */ }
       return this.db = db;
     } catch {
+      this.openBackoffUntil = nowMs + OPEN_RETRY_BACKOFF_MS;
       return undefined;
     }
   }
@@ -241,7 +259,7 @@ export class ObservationWriter {
     this.gaps = this.gaps.filter(gap => gap.key.project_id !== projectId);
     for (const [fold] of this.folds) this.folds.delete(fold);
     this.flush();
-    const db = this.tryOpen();
+    const db = this.tryOpen(true);
     if (!db) throw new Error("observation store unavailable");
     clearProjectRows(db, projectId);
     collectUnreferenced(db);
@@ -252,7 +270,7 @@ export class ObservationWriter {
     // What waits is written first, so the clean-up below sees it: its calls keep their rows, their content goes like the rest.
     this.folds.clear();
     this.flush();
-    const db = this.tryOpen();
+    const db = this.tryOpen(true);
     if (!db) throw new Error("observation store unavailable");
     purgePluginRows(db, purge, this.options.env.now().toISOString());
     collectUnreferenced(db);

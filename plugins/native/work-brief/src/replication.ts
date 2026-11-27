@@ -71,7 +71,7 @@ function portableChildren(value: unknown, fromLocal: boolean) {
     const row = object(value, children.brief_proposals, []);
     requireBriefSync(id(row.id) && version(row.base_version) && stamp(row.created_at));
     checkProducer(parse(row.produced_by_json));
-    for (const value of list(parse(row.conflicts_json), BRIEF_LIMITS.claims)) {
+    for (const value of list(parse(row.conflicts_json), 10_000)) {
       const { claim_id, mine, theirs } = object(value, ["claim_id", "mine", "theirs"], []);
       requireBriefSync(id(claim_id) && (mine === null || text(mine, BRIEF_LIMITS.claim_text)) && (theirs === null || text(theirs, BRIEF_LIMITS.claim_text)));
     }
@@ -150,6 +150,9 @@ export const briefCollection = (partition: string): PluginSyncCollectionDefiniti
       const references = artifact ? [...record.fixed, { id: String(artifact), artifactVersion: Number(record.row.artifact_version) }] : record.fixed;
       if (references.some(entry => !context.hasArtifact(projectId, entry.id, entry.artifactVersion)))
         throw workBriefErrors.conflict("等待简报关联的成果版本", { sync_waiting: true });
+      // The library holds one home brief: one another device started under a different id waits as a conflict, its own content kept.
+      if (record.row.scope === "home" && db.prepare("SELECT 1 FROM briefs WHERE scope = 'home' AND id <> ?").get(briefId))
+        throw workBriefErrors.conflict("另一个设备已创建这里的主简报，原内容已保留", { brief_id: briefId });
       const revision = Math.max(Number(row?.version ?? 0), Number(high?.version ?? 0)) + 1;
       db.prepare(`INSERT INTO briefs (${root.join(", ")}, version) VALUES (${[...root.map(() => "?"), "?"].join(", ")})
         ON CONFLICT(id) DO UPDATE SET ${root.slice(2).map(column => `${column} = excluded.${column}`).join(", ")}, version = excluded.version`)

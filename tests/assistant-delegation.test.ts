@@ -755,7 +755,7 @@ test("SAI-05/08: an admitted stop fences new input; its replay cannot stop a new
     assert.equal((await f.adapter.read(now.run)).phase, "running");
     assert.equal(f.store.get("web-user", child.work_id).continuation_hold, undefined);
     assert.equal((await f.service.checkSubtaskRequest(child.work_id, "sai-stale-stop")).state, "applied");
-    for (let i = 0; i < 501; i++) f.store.create({ actor_id: "web-user", title: `Later ${i}`, scope: { kind: "person" }, origin: null });
+    for (let i = 0; i < 501; i++) f.store.create({ actor_id: "web-user", title: `Later ${i}`, scope: { kind: "personal" }, origin: null });
     assert.equal((await f.service.readSubtask(child.work_id)).binding!.parent_work_id, parent.work.work_id, "original parent lookup is not a recent-Work window");
     await f.service.control(child.work_id, { kind: "stop", request_id: "sai-current-stop", subtask: now });
   } finally { first.resolve(); second.resolve(); release.resolve(); await f.close(); }

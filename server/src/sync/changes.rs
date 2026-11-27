@@ -97,15 +97,13 @@ pub(crate) async fn upload(req: &mut Request, db: &D1Database, space: &str) -> A
     let value = body(req).await?;
     upload_value(value, db, space, "write", None).await
 }
-pub(crate) async fn upload_value(
-    value: Value,
-    db: &D1Database,
-    space: &str,
+pub(crate) async fn fingerprint_for(
+    value: &Value,
     action: &str,
     source_revision: Option<i64>,
-) -> ApiResult<Value> {
+) -> ApiResult<String> {
     fields(
-        &value,
+        value,
         &["namespace", "policyRevision", "mutation", "attachments"],
     )?;
     let references = value["attachments"]
@@ -123,9 +121,8 @@ pub(crate) async fn upload_value(
             "INVALID_BLOBS",
         )?;
     }
-    let attachments = value["attachments"].to_string();
-    let namespace = string(&value, "namespace", 2500)?;
-    let policy_revision = integer(&value, "policyRevision")?;
+    string(value, "namespace", 2500)?;
+    integer(value, "policyRevision")?;
     let m = &value["mutation"];
     fields(m, &["operationId", "key", "base", "value"])?;
     require(
@@ -133,9 +130,9 @@ pub(crate) async fn upload_value(
         400,
         "INVALID_BLOBS",
     )?;
-    let operation = string(m, "operationId", 150)?;
-    let key = string(m, "key", 500)?;
-    let base = integer(m, "base")?;
+    string(m, "operationId", 150)?;
+    string(m, "key", 500)?;
+    integer(m, "base")?;
     let payload = m["value"].to_string();
     require(payload.len() <= 524288, 413, "ITEM_TOO_LARGE")?;
     let mut identity = json!([
@@ -148,7 +145,25 @@ pub(crate) async fn upload_value(
     if let Some(source) = source_revision {
         identity.as_array_mut().unwrap().push(json!(source));
     }
-    let fingerprint = crate::blob_store::checksum(identity.to_string().as_bytes()).await?;
+    crate::blob_store::checksum(identity.to_string().as_bytes()).await
+}
+
+pub(crate) async fn upload_value(
+    value: Value,
+    db: &D1Database,
+    space: &str,
+    action: &str,
+    source_revision: Option<i64>,
+) -> ApiResult<Value> {
+    let fingerprint = fingerprint_for(&value, action, source_revision).await?;
+    let attachments = value["attachments"].to_string();
+    let namespace = string(&value, "namespace", 2500)?;
+    let policy_revision = integer(&value, "policyRevision")?;
+    let m = &value["mutation"];
+    let operation = string(m, "operationId", 150)?;
+    let key = string(m, "key", 500)?;
+    let base = integer(m, "base")?;
+    let payload = m["value"].to_string();
     if let Some(revision) = replay(db, space, namespace, m, &fingerprint).await? {
         return Ok(json!({"accepted":true,"revision":revision}));
     }

@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { feedManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";

@@ -2,7 +2,7 @@
 
 ## Memory 管理分页
 
-`AgentMemoryCapability.page` 直接委托当前 SDK 的 `MemoryStore.page`；沿原可信 caller 和执行控制，只转换 `scan_limit` 与字段命名，不先 list、不推算总数、不自行解释游标。SDK 的原条目版本、穷尽/停止事实、诊断授权及隐藏成本保持原样。该薄口使用当前 SDK107；没有集合读取优化或新缓存接口。条件改类继续复用现 `setMeta/update`，不建立第二写入口。专项见 `tests/memory-management-page-authority.test.ts` 与 `tests/memory-classification-edit.test.ts`。
+`AgentMemoryCapability.page` 直接委托当前 SDK 的 `MemoryStore.page`；沿原可信 caller 和执行控制，只转换 `scan_limit` 与字段命名，不先 list、不推算总数、不自行解释游标。SDK 的原条目版本、穷尽/停止事实、诊断授权及隐藏成本保持原样。该薄口使用当前 SDK107；没有集合读取优化或新缓存接口。条件改类继续复用现 `setMeta/update`，不建立第二写入口。专项见 `tests/memory-authorize-each.test.ts` 与 `tests/memory-classification-edit.test.ts`。
 
 ## Memory 维护命令边界
 

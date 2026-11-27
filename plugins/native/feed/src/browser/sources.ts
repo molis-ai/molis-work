@@ -127,8 +127,8 @@ function showSourcePanel(page: FeedPage, view: string, kind: string): HTMLElemen
   }
   dialog.hidden = view === "messages"; workbench.dataset.feedView = view === "choose" || setup ? "add" : view;
   if (view === "messages") return;
-  const titles: Record<string, string> = { research_library: "feed.sources.research-library", custom_rss: "RSS / Atom", rss: "feed.sources.directory-feeds", web_query: "feed.sources.web-search", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
-  const title = q("h2", dialog); if (title) title.textContent = uiText.text(config ? view === "rules" ? "feed.sources.capture-rules" : "feed.sources.source-settings" : setup ? titles[kind] || "feed.sources.add-source" : "feed.sources.add-source");
+  const titles: Record<string, string> = { research_library: "feed.sources.research-library", custom_rss: "feed.add-source.rss-atom", rss: "feed.sources.directory-feeds", web_query: "feed.sources.web-search", youtube_channel: "feed.add-source.youtube", github: "feed.add-source.github", gmail: "feed.add-source.gmail", account: "feed.add-source.other-account" };
+  const title = q("h2", dialog); if (title) title.textContent = uiText.text(config ? view === "rules" ? "feed.sources.capture-rules" : "feed.sources.source-settings" : setup ? (Object.hasOwn(titles, kind) ? titles[kind]! : "feed.sources.add-source") : "feed.sources.add-source");
   const description = q("[data-feed-setup-description]", dialog); if (description) description.textContent = uiText.text(config ? view === "rules" ? "feed.sources.write-preview-rules-here-then-choose-which-messages" : "feed.sources.manage-source-details-pull-frequency-connection-status" : setup ? "feed.sources.after-adding-source-set-its-pull-schedule-capture" : "feed.sources.choose-source-follow");
   for (const [selector, visible] of [["[data-feed-source-choices]", !config && !setup], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", config]] as const) { const node = q(selector, dialog); if (node) node.hidden = !visible; }
   all("[data-feed-task-config]", dialog).forEach(node => node.hidden = node.dataset.feedTaskConfig !== page.selection);

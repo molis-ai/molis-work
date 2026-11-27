@@ -3,7 +3,7 @@ import { ActionError, bindActionHandler, type ActionDefinition, type ActionExecu
 import { canonicalJsonText, draftActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import { workBriefActions, type BriefSaved, type BriefView } from "./actions.js";
 import { workBriefErrors } from "./error.js";
-import { compareBriefBodies, briefSubjectKey, sourceTurn, type AttentionItem, type BriefBody, type BriefRecord, type BriefVersion, type Cite, type Claim, type NextOption,
+import { BRIEF_LIMITS, compareBriefBodies, briefSubjectKey, sourceTurn, type AttentionItem, type BriefBody, type BriefRecord, type BriefVersion, type Cite, type Claim, type NextOption,
   type ProducedBy, type ProposalConflict, type SourceRow } from "./model.js";
 import { settledMarks } from "./next.js";
 import { overviewReaders, readBriefSources, readBriefSubjects, type BriefDirectory, type SubjectRead } from "./reading.js";
@@ -169,7 +169,7 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
         const existing = input.new_topic ? null : target(store, input.brief_id);
         if ((existing?.revision ?? 0) !== (before.brief?.revision ?? 0)) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试");
         if (existing && store.proposal(existing.brief_id)) throw workBriefErrors.proposal_pending("还有一份提案没处理完，先处理它", { brief_id: existing.brief_id });
-        let brief = existing ?? store.create({ brief_id: ports.newId("brief"), scope: input.new_topic ? "topic" : "home", title: input.new_topic ? input.title! : input.title ?? "" }, at);
+        let brief = existing ?? store.create({ brief_id: input.new_topic ? ports.newId("brief") : store.singletonId("home"), scope: input.new_topic ? "topic" : "home", title: input.new_topic ? input.title! : input.title ?? "" }, at);
         const { conflicts, agreed } = conflictsOf(store, brief.brief_id, body.claims);
         if (conflicts.length) store.putProposal(brief.brief_id, { proposal_id: ports.newId("proposal"), base_version: brief.current_version, created_at: at, produced_by: made, body, conflicts });
         else {
@@ -206,7 +206,7 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
       const stored = await write(caller, store => {
         const existing = target(store, brief_id);
         if ((existing?.revision ?? 0) !== (before.brief?.revision ?? 0)) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试");
-        const brief = store.append(existing ?? store.create({ brief_id: ports.newId("brief"), scope: "home", title: "" }, at), existing?.revision ?? 1, body, made, at);
+        const brief = store.append(existing ?? store.create({ brief_id: store.singletonId("home"), scope: "home", title: "" }, at), existing?.revision ?? 1, body, made, at);
         return { brief, version: store.version(brief)! };
       });
       const version = await shown(stored.version);
@@ -222,6 +222,7 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
       const current = store.version(brief) ?? { ...EMPTY };
       const existing = claim_id ? current.claims.find(claim => claim.claim_id === claim_id) : undefined;
       if (claim_id ? !existing : text === null) throw workBriefErrors.invalid(claim_id ? "这句话已不在现行版里" : "要补的句子不能为空", { claim_id });
+      if (!claim_id && current.claims.length >= BRIEF_LIMITS.claims) throw workBriefErrors.invalid(`简报最多保留 ${BRIEF_LIMITS.claims} 条结论`, { brief_id });
       const id = claim_id ?? ports.newId("c");
       const claims = !claim_id ? [...current.claims, { claim_id: id, text: text!, cites: [], supplied_by: "owner" as const, edited: true as const }]
         : text === null ? current.claims.filter(claim => claim.claim_id !== id) : current.claims.map(claim => claim.claim_id === id ? { ...claim, text, edited: true as const } : claim);
@@ -240,8 +241,10 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
       // Every change of the person since the draft is in `conflicts` (an edit re-measures the proposal); one that is not would be lost, so it is refused.
       const open = conflictsOf(store, brief_id, proposal.body.claims);
       if (JSON.stringify(open.conflicts) !== JSON.stringify(proposal.conflicts)) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试", { brief_id });
-      store.dropProposal(brief_id);
-      if (discard) return saved(store, brief);
+      if (discard) {
+        store.dropProposal(brief_id);
+        return saved(store, brief);
+      }
       const taken = new Map((choices ?? []).map(choice => [choice.claim_id, choice.take]));
       if (taken.size !== proposal.conflicts.length || proposal.conflicts.some(conflict => !taken.has(conflict.claim_id)))
         throw workBriefErrors.invalid("每一处冲突都要选保留哪一种写法", { conflicts: proposal.conflicts.map(conflict => conflict.claim_id) });
@@ -254,6 +257,8 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
         else if (claims.some(claim => claim.claim_id === conflict.claim_id)) claims = claims.map(claim => claim.claim_id === conflict.claim_id ? { ...claim, text: conflict.mine!, edited: true as const } : claim);
         else claims = [...claims, { ...(mine ?? { claim_id: conflict.claim_id, cites: [], supplied_by: "owner" as const }), text: conflict.mine, edited: true as const }];
       }
+      if (claims.length > BRIEF_LIMITS.claims) throw workBriefErrors.invalid(`简报最多保留 ${BRIEF_LIMITS.claims} 条结论`, { brief_id, count: claims.length });
+      store.dropProposal(brief_id);
       // The sources are the newest read, not the proposal's: a refresh may have run while it waited.
       const next = store.append(brief, expected_revision, { ...proposal.body, sources: withTurns(current.sources, proposal.body.attention, []), claims }, proposal.produced_by, at);
       store.clearEdits(brief_id, [...open.agreed, ...proposal.conflicts.filter(conflict => taken.get(conflict.claim_id) === "theirs").map(conflict => conflict.claim_id)]);

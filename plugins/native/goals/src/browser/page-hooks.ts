@@ -36,6 +36,7 @@ export interface HookParts {
   readonly revealFocusTarget: (target: Element | null | undefined) => boolean;
   readonly loadGoalDocument: (goalId: string) => Promise<boolean | null>;
   readonly loadGoalDocumentInto: (targetPane: HTMLElement, goalId: string) => Promise<unknown>;
+  readonly ensureCopiedEventDocument: (targetPane: HTMLElement) => void;
   readonly announceSelection: (goalId: string, item: GoalListItem | undefined, tui: HTMLElement | null) => void;
   readonly eventDocument: ReturnType<typeof eventDocumentClient>;
   readonly panels: ReturnType<typeof panelsClient>;
@@ -56,7 +57,7 @@ const FOCUS_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "
 export function pageHooks(parts: HookParts) {
   const { host, page, goalData, documentPane, treeScroll, collectionView, documentCollection, directGoalRequested, storageKey, goalMoveReceiptKey,
     frameContainer, workFrame, stageList, visibleGoals, applySelection, restoreLastGoal, activateFocusSection, revealFocusTarget, loadGoalDocument,
-    loadGoalDocumentInto, announceSelection, eventDocument, panels, dialogs, lifecycle, momentum, tree, relation, navigation, refresh } = parts;
+    loadGoalDocumentInto, ensureCopiedEventDocument, announceSelection, eventDocument, panels, dialogs, lifecycle, momentum, tree, relation, navigation, refresh } = parts;
   const { workspace, directoryPane: treePane, terminalPane: tuiPane, showToast, lifetime, getSurface, setWorkSurface, setDirectory, setWorkspaceMode,
     setMobileView, applyMobilePanePresence, tabs, queueSave, saveUiState, localPathname, openEntryItem, surfaceScroll } = host;
   const { bindGoalEventDocument, openEventReader } = eventDocument;
@@ -208,6 +209,8 @@ export function pageHooks(parts: HookParts) {
         void loadGoalDocumentInto(docPane, goalId).finally(() => {
           if (docPane.dataset.loadingGoalId === goalId) delete docPane.dataset.loadingGoalId;
         });
+      } else if (shown === goalId) {
+        ensureCopiedEventDocument(docPane);
       }
     }
   };

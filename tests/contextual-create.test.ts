@@ -85,7 +85,7 @@ test("W4-1 Q02/Q04/Q08: 记成待办 and 记下灵光 are creation entries, made
     assert.equal((await read(made.id)).title, "改过的待办", "still there, as edited");
     const other = await create("记成待办", focus("c4", "约设计评审"), "req-todo-2");
     await undoCreated(OWNER, other.undo_token!, actions);
-    await assert.rejects(read(other.subject!.id), "Todo's revert of a creation removes the todo");
+    await assert.rejects(read(other.subject!.id), { code: "todo.not_found" }, "Todo's revert of a creation removes the todo");
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });
@@ -193,7 +193,7 @@ test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and 
 
     // Unchanged: 撤销 is the owner's own undo and removes it; the token is spent.
     assert.deepEqual(await undoCreated(OWNER, under.undo_token!, actions), { undone: true });
-    await assert.rejects(get(under.subject!.id), "gone");
+    await assert.rejects(get(under.subject!.id), { code: "pages.not_found" }, "gone");
     await assert.rejects(undoCreated(OWNER, under.undo_token!, actions), (error: Error & { code?: string }) => error.code === "contextual.stale", "spent once");
 
     // Changed since it was made: the owner refuses, says so, and the document is still there as it was edited.

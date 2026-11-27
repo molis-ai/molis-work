@@ -27,7 +27,7 @@ import type {
   SessionSuggestProjectMaterial,
   SessionsPorts,
 } from "./ports.js";
-import { isSessionInScopeWithMaps, resolveDerivedSnapshot } from "./runtime-view.js";
+import { isLocationActiveForTool, isSessionInScopeWithMaps, resolveDerivedSnapshot } from "./runtime-view.js";
 import { materializeSuggestion, type SessionsStore, type StoredExternalSessionRow } from "./store.js";
 
 const OPENING_MAX_MESSAGES = 3;
@@ -114,7 +114,7 @@ async function readOpeningMessages(
   const tool = EXTERNAL_TOOLS.find(
     item => canonicalEntryId(item) === session.entry_id && !item.shares_sessions_with,
   );
-  if (!tool) return [];
+  if (!tool || !isLocationActiveForTool(tool, session.location_key, ports)) return [];
   const root = tool.surface === "cloud" ? null : resolveLocalToolRoot(tool, ports).root;
   const ctx: AdapterSourceContext = {
     tool, entry_id: session.entry_id, location_key: session.location_key, root, connection_id: scopeConnectionId, ports,

@@ -416,3 +416,27 @@ test("BCD-09 set_instructions from an old revision is refused, and the setting g
     assert.equal((env.db.prepare("SELECT COUNT(*) AS n FROM project_instruction_settings").get() as { n: number }).n, 0, "ON DELETE CASCADE");
   });
 });
+
+test("F-modules-server-02/08 regular files are refused as project directories and recycled project workspaces are hidden from workspace directory listing", () => {
+  withHome(env => {
+    const project = env.create("文件校验");
+    const plainFile = join(env.outside, "not-a-dir.txt");
+    writeFileSync(plainFile, "plain file");
+    assert.throws(() => change(env, project, { kind: "add_input", workspace_path: plainFile }), refusedWith("projects.directory_missing"));
+    assert.throws(() => change(env, project, { kind: "set_output", target: { workspace_path: plainFile } }), refusedWith("projects.directory_missing"));
+    assert.throws(() => change(env, project, { kind: "map_source", source_workspace_id: "remote-ws", target: { workspace_path: plainFile } }), refusedWith("projects.directory_missing"));
+    const gone = folder(env, "gone-for-repair");
+    const goneId = change(env, project, { kind: "add_input", workspace_path: gone }).directories.find(item => item.canonical_path === gone)!.workspace_id;
+    rmSync(gone, { recursive: true });
+    assert.throws(() => change(env, project, { kind: "repair", workspace_id: goneId, workspace_path: plainFile }), refusedWith("projects.directory_missing"));
+
+    const live = env.create("保留项目");
+    const liveDir = folder(env, "live-dir"), recycledDir = folder(env, "recycled-dir");
+    change(env, live, { kind: "add_input", workspace_path: liveDir });
+    change(env, project, { kind: "add_input", workspace_path: recycledDir });
+    env.db.prepare("INSERT INTO project_recycle (project_id, recycled, generation, observed_at) VALUES (?, 1, 1, ?)").run(project, "2026-11-08T00:00:00.000Z");
+    const listed = env.projects.query.listWorkspaceDirectory().map(row => row.canonical_path);
+    assert.ok(listed.includes(liveDir));
+    assert.ok(!listed.includes(recycledDir), "workspaces owned solely by a recycled project are excluded");
+  });
+});

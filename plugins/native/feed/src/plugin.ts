@@ -32,7 +32,7 @@ import { isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
 import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./runtime-actions.js";
 import { createFeedWakeupCoordinator } from "./runtime-wake.js";
 import { syncResearchLibrary } from "./research-library-sync.js";
-import { type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
+import { releaseHeldHistory } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
@@ -43,6 +43,18 @@ import { feedUiContribution } from "./ui.js";
 import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
 import { SignalsModule } from "./store/index.js";
 import { createConnectionWatch, FEED_RECONCILE_ACTOR, keepFeedReconcile } from "./runtime-reconcile.js";
+
+const GMAIL_DEFAULT_SCOPE = "in:inbox is:unread";
+const GMAIL_SCOPE_PRESETS: ReadonlySet<string> = new Set([
+  "in:inbox is:unread",
+  "in:inbox",
+  "is:starred",
+  "is:important",
+]);
+function parseFeedGmailScope(value: string): string | null {
+  const normalized = value.trim().replace(/\s+/gu, " ").toLowerCase();
+  return GMAIL_SCOPE_PRESETS.has(normalized) ? normalized : null;
+}
 
 const idOf = (value: { capability_id: string; version: number }) => `${value.capability_id}@${value.version}`;
 /** The source actions after which an account source holds no account any more. */
@@ -89,16 +101,12 @@ export function createFeedPlugin(): PluginDefinition {
         return content === null ? { ...material, content: null, content_available: false } : { ...material, content, content_available: true };
       })) };
     };
-    // Releasing a deleted source's history waits on other services, so it is done before the commit that deletes the rows; the commit's
-    // history port only reports what that found, and the event that records it is written in the same commit.
-    let released: FeedSourceHistoryRelease | null = null;
-    const history: FeedSourceHistory = { release: () => released ?? { bodies_deleted: 0, bodies_kept: 0, records_deleted: 0, complete: false } };
     // The triggers read the application they are part of, once it exists: they run only when a call judges, long after this assembly.
     let assembled: FeedApplication | undefined;
     const application = (): FeedApplication => assembled ?? ((): never => { throw new ActionError("actions.execution_failed", "Feed 还没有装配完"); })();
     const staging = createRuntimeItemStaging(application, projectId);
     const feed = assembleFeedApplication({ sql: ports.sql, ledger: ports.ledger, attention: ports.attention, artifacts: ports.artifacts, appendEvent: ports.appendEvent,
-      subscribeInboxCreated: ports.subscribeInboxCreated, outRules: new FeedOutRuleStore(ports.sql), history,
+      subscribeInboxCreated: ports.subscribeInboxCreated, outRules: new FeedOutRuleStore(ports.sql),
       ...createRuntimeJudgmentTriggers({ projectId, services: judgmentServices, feed: application, hydrate, staging }) });
     assembled = feed;
     // Its scheduled and missed pulls in the overview, written with every write (V17).
@@ -114,16 +122,17 @@ export function createFeedPlugin(): PluginDefinition {
     const later = (what: string) => (): never => { throw new ActionError("actions.dependency_missing", `${what}还没有接到平台服务`); };
     // The source vocabulary (catalog, normalizers, the HTTP cursor) is the platform's (`services.sourcePull.vocabulary`); without the permission, describing a source fails.
     const vocabulary = services?.sourcePull?.vocabulary, noVocabulary = later("来源词汇");
+    const gmailProvider = { defaultScope: GMAIL_DEFAULT_SCOPE, parseScope: parseFeedGmailScope };
     const providers: FeedSourceProviders = vocabulary ? {
       listCatalog: () => vocabulary.catalog().map(entry => ({ sourceId: entry.source_id, enabled: entry.enabled, feedUrl: entry.feed_url, name: entry.name })),
       // Feed's custom address and channel kinds are the integration's addressed definitions (M10), asked for when a source is described.
       customRss: { get definitionId() { return addressedDefinition(vocabulary, "feed_url"); }, normalizeUrl: value => vocabulary.normalizeAddress(addressedDefinition(vocabulary, "feed_url"), value) },
       youtube: { get definitionId() { return addressedDefinition(vocabulary, "channel_id"); }, normalizeChannel: value => vocabulary.normalizeAddress(addressedDefinition(vocabulary, "channel_id"), value) },
-      gmail: { defaultScope: "", parseScope: later("Gmail 范围") },
+      gmail: gmailProvider,
       rss: { isSourceKind: isHttpFeedSourceKind, failureCount: vocabulary.feedFailureCount, withFailure: vocabulary.feedCursorAfterFailure, withSuccess: vocabulary.feedCursorAfterSuccess },
     } : {
       listCatalog: noVocabulary, customRss: { definitionId: "", normalizeUrl: noVocabulary },
-      youtube: { definitionId: "", normalizeChannel: noVocabulary }, gmail: { defaultScope: "", parseScope: noVocabulary },
+      youtube: { definitionId: "", normalizeChannel: noVocabulary }, gmail: gmailProvider,
       rss: { isSourceKind: isHttpFeedSourceKind, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
     };
     const sourcePull = services?.sourcePull, forget = sourcePull?.forget;
@@ -156,19 +165,24 @@ export function createFeedPlugin(): PluginDefinition {
       },
       sourcePull,
       holdContent: (source, contentRefs) => holdBodies(source.source_id, contentRefs),
-      // A release that fails throws before anything is committed: the source stays with what it holds, and deleting it again finishes.
-      releaseHistory: input => releaseHistoryPages(feed, input.project_id, input.source_id, {
-        reclaim: async unreferenced => giveBack(await evidenceOrRefuse().reclaim(input.source_id, unreferenced)),
-        release: async candidates => giveBack(await evidenceOrRefuse().release(input.source_id, candidates)),
-        forget: forget ? operationIds => forget(operationIds) : null }) }, projectId);
+      // Runs after the source deletion commit so a failed or revoked commit never deletes live evidence bodies.
+      releaseHistory: input => {
+        const releasePorts = {
+          reclaim: async (unreferenced: string[]) => giveBack(await evidenceOrRefuse().reclaim(input.source_id, unreferenced)),
+          release: async (candidates: string[]) => giveBack(await evidenceOrRefuse().release(input.source_id, candidates)),
+          forget: forget ? (operationIds: string[]) => forget(operationIds) : null,
+        };
+        return input.holding
+          ? releaseHeldHistory(input.holding, releasePorts)
+          : releaseHistoryPages(feed, input.project_id, input.source_id, releasePorts);
+      } }, projectId);
     const connectorSync = (caller: ActionExecutionContext) => {
       if (!connections || !connector) throw new ActionError("actions.dependency_missing", "Feed 没有使用账号来源的权限");
       return createRuntimeConnectorSync({ feed, projectId, sql: ports.sql, signals: signals.commands, services: { connections, connector }, commit: operation => commitSource(caller, operation),
         acquireSync: lease, appendEvent });
     };
     const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync, accountSources: connector, wake: WAKE,
-      wakeAt: wakeup.wakeAt, afterWake: wakeup.afterWake,
-      retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } });
+      wakeAt: wakeup.wakeAt, afterWake: wakeup.afterWake });
     // The Goal is read as the caller before its linked material is, so the material of a Goal the caller cannot read is not given.
     const linkedContext = async (input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext) => {
       const actions = services?.actions;
@@ -222,7 +236,7 @@ export function createFeedPlugin(): PluginDefinition {
     const declared = new Set(FEED_PROJECT_ACTIONS.map(idOf)), own = new Set([...SELF_COMMITTING, WAKE].map(idOf));
     const mine = bindings.filter(binding => declared.has(idOf(binding)));
     wakeup.start(services?.background);
-    // What no call sets right: the Home's ledger names every body the library keeps, and an account source follows its account. An event
+    // What no call sets right: the evidence ledger names every body the library keeps, and an account source follows its account. An event
     // delivery has no action scope of its own, so it only wakes the kept job, which has.
     const watch = createConnectionWatch();
     keepFeedReconcile(services?.background, { feed, projectId, connections, commit: (control, body) => writer.commitAs(control, FEED_RECONCILE_ACTOR, body),
@@ -237,7 +251,17 @@ export function createFeedPlugin(): PluginDefinition {
       return handlers[route_id]!({ params: request.params, request: { method: request.method, pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));
-    return { kind: "app", sync: syncBindings(context), views: [feedUiContribution], action_scenes: [sceneRuntime.handler], routes,
+    return {
+      kind: "app",
+      sync: syncBindings(context, {
+        ...(services?.background && evidence
+          ? { holdSyncedBodies: (groups) => watch.enqueueHold(groups) }
+          : {}),
+        onBodiesApplied: () => watch.bodiesChanged(),
+      }),
+      views: [feedUiContribution],
+      action_scenes: [sceneRuntime.handler],
+      routes,
       onEvent: (_event, delivery) => { delivery.beforeEffect(); watch.changed(); }, actions: [
       ...writer.writing(FEED_PROJECT_ACTIONS.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding))),
         (capabilityId, transaction) => { if (WAKE_SENSITIVE.has(capabilityId)) wakeup.sync(transaction); }),

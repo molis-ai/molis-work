@@ -104,3 +104,18 @@ test("S-unified-account-borrowed-home: a borrowing Home refuses to sign the inst
   assert.equal(read.status, 200);
   assert.equal((read.body.data as { state: string }).state, "AUTHENTICATED", "a refused logout must not end the borrowed installation session");
 });
+
+test("F-hc-02 S-unified-account-borrowed-home: a borrowing Home also refuses password, verification-code and code login endpoints", { timeout: 60_000 }, async t => {
+  const f = await startBorrowingHome(t), before = f.calls();
+  const routes: Array<[string, Record<string, unknown>]> = [
+    ["/api/account/auth/login/password", { email: "borrowed@example.test", password: "synthetic-fixture-password" }],
+    ["/api/account/auth/verification-codes", { email: "borrowed@example.test", purpose: "LOGIN" }],
+    ["/api/account/auth/login/code", { email: "borrowed@example.test", code: "123456" }],
+  ];
+  for (const [path, payload] of routes) {
+    const attempted = await request(f.origin, path, writeHeaders(f.headers), JSON.stringify(payload), "POST");
+    assert.equal(attempted.status, 409, `${path}: ${JSON.stringify(attempted.body)}`);
+    assert.equal((attempted.body as { code?: string }).code, "account.conflict", `${path}: returns account.conflict`);
+  }
+  assert.equal(f.calls(), before, "borrowed Home refuses direct login endpoints before contacting central Auth");
+});

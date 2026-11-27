@@ -1,6 +1,7 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { AgentCommandOutput, AgentReviewReceipt, AgentReviewRequest, AgentRunView, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { activeLeafSteps } from "./recovery-parts.js";
+import { codingLocalFailure } from "./words.js";
 
 /**
  * Continuing an unfinished round from where it stopped.
@@ -72,12 +73,14 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
   const { run } = input;
   const left = activeLeafSteps(run.step_board?.nodes ?? []).filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state)).length;
   if (!(["failed", "stopped", "cancelled"].includes(run.phase) || run.phase === "completed" && input.plan_unfinished && left)) {
-    throw new Error(run.phase === "completed" ? "这一轮已经完成；需要继续时请直接写下一步要求" : "这一轮还没有结束，不能从断点继续");
+    throw run.phase === "completed"
+      ? codingLocalFailure("coding.server.continue-already-done", "这一轮已经完成；需要继续时请直接写下一步要求")
+      : codingLocalFailure("coding.server.continue-not-ended", "这一轮还没有结束，不能从断点继续");
   }
   const intent = INTENT_BY_ROLE[run.frozen.role_id];
-  if (!intent) throw new Error("这一轮的方式不支持从断点继续，请在输入框写明要继续的部分再发送");
+  if (!intent) throw codingLocalFailure("coding.server.continue-unsupported-mode", "这一轮的方式不支持从断点继续，请在输入框写明要继续的部分再发送");
   const task = originalTask(run).trim();
-  if (!task) throw new Error("读不到这一轮的原任务，不能拼出继续说明");
+  if (!task) throw codingLocalFailure("coding.server.continue-missing-task", "读不到这一轮的原任务，不能拼出继续说明");
 
   const reason = (run.stop_reason ?? "").trim().replace(/[。.]+$/, "");
   const why = run.phase === "completed" ? `这一轮结束了，但计划还有 ${left} 步没完成` : run.phase === "stopped" ? "你停止了这一轮" : run.phase === "cancelled" ? "这一轮被取消"

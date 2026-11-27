@@ -46,21 +46,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, globalThis.say.text, savedAssistantText);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
-  const panel = island.querySelector("[data-assistant-panel]");
-  // The composer's root and its text area (the first screen is the Dock's; the mount keeps that text area for good).
-  const compose = island.querySelector("[data-assistant-composer]");
-  const input = compose?.querySelector(".mw-composer__input");
-  const thread = island.querySelector("[data-assistant-thread]");
+  const panel = island.querySelector("[data-assistant-panel]"), compose = island.querySelector("[data-assistant-composer]");
+  const input = compose?.querySelector(".mw-composer__input"), thread = island.querySelector("[data-assistant-thread]");
   const empty = island.querySelector("[data-assistant-empty]"), eventHint = island.querySelector("[data-assistant-event-hint]");
-  const workNav = island.querySelector("[data-assistant-works]");
-  const worksToggle = island.querySelector("[data-assistant-works-toggle]");
-  const titleEl = island.querySelector("[data-assistant-work-title]");
-  const stateEl = island.querySelector("[data-assistant-work-state]");
-  const nowEl = island.querySelector("[data-assistant-now]");
-  const metaEl = island.querySelector("[data-assistant-meta]");
-  const side = island.querySelector("[data-assistant-side]");
-  const sideToggle = island.querySelector("[data-assistant-side-toggle]");
-  const sideDot = island.querySelector("[data-assistant-side-dot]");
+  const workNav = island.querySelector("[data-assistant-works]"), worksToggle = island.querySelector("[data-assistant-works-toggle]");
+  const titleEl = island.querySelector("[data-assistant-work-title]"), stateEl = island.querySelector("[data-assistant-work-state]");
+  const nowEl = island.querySelector("[data-assistant-now]"), metaEl = island.querySelector("[data-assistant-meta]");
+  const side = island.querySelector("[data-assistant-side]"), sideToggle = island.querySelector("[data-assistant-side-toggle]"), sideDot = island.querySelector("[data-assistant-side-dot]");
   const blocks = Object.fromEntries([...island.querySelectorAll("[data-assistant-block]")].map((node) => [node.dataset.assistantBlock, node]));
   const newButton = island.querySelector("[data-assistant-new]");
   if (!compose || !input || !thread) return null;
@@ -77,14 +69,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // What this viewer has in front of them is remembered per project (proactive-assistant §12.1) and per work item (MLN-16).
   const scoped = (name) => "molis.assistant." + name + (project ? ":" + project.id : "") + (activeWorkItem() ? ":item:" + activeWorkItem().id : "");
-  let works = [];
-  let curId = store.get(scoped("current"));
-  let view = null;
-  let problem = null;
-  let nextScope = project ? "project" : "personal";
-  let nextExec = "assistant";
-  // The first round's mode for a new plugin work (empty: its default); after that the session keeps it.
-  let nextMode = "";
+  let works = [], curId = store.get(scoped("current")), view = null, problem = null;
+  let nextScope = project ? "project" : "personal", nextExec = "assistant", nextMode = "";
 ${ASSISTANT_CHOOSERS_PART}
 ${ASSISTANT_BROWSER_HANDBACK_PART}
 
@@ -92,16 +78,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const nameMain=(work)=>{if(work&&work.main)work.title=work.character?work.character.title:globalThis.t.text("workbench.assistant-tabs.main-conversation");return work;};
   const named=(res)=>{if(res&&res.work)nameMain(res.work);if(res&&Array.isArray(res.works))res.works.forEach(nameMain);return res;};
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")}).then(named);
-  let executorRequest = 0;
-  const loadExecutors = async () => {
-    if (!project) return;
-    const request = ++executorRequest, result = await api("/executors").catch(() => null);
-    if (!result || request !== executorRequest) return;
-    executors = result.executors || [];
-    if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant";
-    paintAim(); paintSum();
-  };
-  const executorsLoaded = loadExecutors();
+  loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, readText("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
   const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", unreadable: "unavailable", completed: "round-ended" })[state] || state;
@@ -141,6 +118,7 @@ ${ASSISTANT_LAYOUT_PART}
     if (id && !about) about = eventTabs.find((one) => aboutEvent(one.subject)?.work_id === id)?.key || null;
     if (id) fresh = false; else if (!fresh && !about) id = mainId();
     curEvent = about; curId = id; remember(); problem = null; view = null; pendingChar = undefined;
+    follower.stop();
     if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > .assistant-problem").forEach((node) => node.remove());
     thread.querySelectorAll(":scope > [data-review]").forEach(removeReview);
@@ -165,6 +143,8 @@ ${ASSISTANT_CONVERSATION_PART}
     return data && (data.action || data.action_kind) ? { ...next, name: next.name, message: next.message, action: next.action ?? data.action, action_kind: next.action_kind ?? data.action_kind } : next;
   };
   const showError = (next) => { problem = problemOf(next); render(); };
+  const adoptView = (workId, next) => { if (curId !== workId) return false; view = next; render(); return true; };
+  const showWorkError = (workId, next) => { if (curId === workId) showError(next); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
   const announced = new Set();
   let announcing = false;
@@ -209,11 +189,11 @@ ${ASSISTANT_SIDE_PATH_PART}
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: change.detail ? readText("workbench.assistant-island.change-named", { label: readText(UNDO[change.state] || change.state), detail: change.detail }) : readText(UNDO[change.state] || change.state), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(readText("workbench.assistant-island.undo"), change.title, async () => {
-          view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {});
+          const next = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {});
           // Taken back: the owner's page rereads, as it did when the change was made.
-          const taken = (view.undoable || []).find((one) => one.undo_id === change.undo_id);
+          const taken = (next.undoable || []).find((one) => one.undo_id === change.undo_id);
           if (taken && taken.state === "undone" && taken.capability_id) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: taken.capability_id } }));
-          render();
+          adoptView(work.work_id, next);
         }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "workbench.assistant-island.progress", completed: "workbench.assistant-island.done", failed: "workbench.assistant-island.not-finished", unknown: "workbench.assistant-island.no-longer-followed-check-where-runs" };
       const background = jobs.map((job) => card({ icon: spinner(job.state === "running" ? "running" : job.state === "completed" ? "round-ended" : job.state === "failed" ? "failed" : "verify"),
@@ -350,8 +330,8 @@ ${ASSISTANT_STRIP_PART}
           const handOver = (label, to) => {
             const hand = el("button", "assistant-side-action", label); hand.type = "button";
             hand.addEventListener("click", async () => { hand.disabled = true;
-              try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to }); render(); input.focus(); }
-              catch (error) { showError(error); } finally { if (hand.isConnected) hand.disabled = false; } });
+              try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to }); if (adoptView(work.work_id, next)) input.focus(); }
+              catch (error) { showWorkError(work.work_id, error); } finally { if (hand.isConnected) hand.disabled = false; } });
             rows.push(...metaRow("", hand)); };
           toPlugins.forEach((one) => handOver(readText("workbench.assistant-island.hand-name", { name: one.title }), { kind: "plugin", plugin_id: one.plugin_id }));
           if (work.executor.kind === "plugin") handOver(readText("workbench.assistant-island.back-assistant"), { kind: "assistant" });
@@ -474,6 +454,7 @@ ${ASSISTANT_HEAD_PART}
           check.disabled = true;
           try {
             const report = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery");
+            if (curId !== work.work_id || !check.isConnected) return;
             const OUTCOMES = { completed: "workbench.assistant-island.happened", failed: "workbench.assistant-island.failed-did-not-happen", "not-dispatched": "workbench.assistant-island.not-executed", unknown: "workbench.assistant-island.outcome-unknown-check-where-would-have-happened" };
             const list = el("ul", "assistant-recovery"), closes = [];
             report.rounds.forEach((round) => {
@@ -484,14 +465,14 @@ ${ASSISTANT_HEAD_PART}
                 const close = el("button", "mw-btn mw-btn--primary mw-btn--sm", readText("workbench.assistant-island.checked-close-turn")); close.type = "button";
                 close.addEventListener("click", async () => {
                   close.disabled = true;
-                  try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
-                  catch (error) { showError(error); }
+                  try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); adoptView(work.work_id, next); }
+                  catch (error) { showWorkError(work.work_id, error); if (close.isConnected) close.disabled = false; }
                 });
                 closes.push(close);
               }
             });
             check.replaceWith(list, ...closes);
-          } catch (error) { showError(error); }
+          } catch (error) { showWorkError(work.work_id, error); if (check.isConnected) check.disabled = false; }
         });
         box.append(check);
       }
@@ -595,7 +576,7 @@ ${ASSISTANT_HEAD_PART}
   const reload = async () => {
     if (!curId) return;
     const id = curId;
-    try { const next = await api("/works/" + encodeURIComponent(id)); if (id === curId) { view = next; render(); } }
+    try { const next = await api("/works/" + encodeURIComponent(id)); if (id === curId) { view = next; if (next?.work?.executor?.kind === "plugin") void ensureExecutors(); render(); } }
     catch (error) {
       if (id !== curId) return;
       if (error.code === "assistant.not_found") { curId = null; remember(); view = null; render(); return; }
@@ -604,7 +585,8 @@ ${ASSISTANT_HEAD_PART}
   };
   // A work is followed while it, its last round (stopped, the work answers before the round has ended) or a sub-task it handed out is live.
   const followed = (seen) => isLive(seen.work.state) || /^(starting|running|compacting)$/.test(seen.rounds?.at(-1)?.phase || "") || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state)) || (seen.sdk_subtasks?.children || []).some(child => child.state === "running");
-  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = named(next); render(); } });
+  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = named(next); render(); },
+    onMissing: (id) => { if (curId === id) { curId = null; remember(); view = null; render(); } } });
   const poll = () => { if (curId && view && view.work.work_id === curId && followed(view)) follower.follow(curId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { reload().then(poll); loadWorks(); } });
   // Another window may have changed this work (a mode, a new round): coming back to this one reads it again.
@@ -638,7 +620,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     refreshComposerWords();
     paintAim();
     composer?.refresh();
-    void loadExecutors();
+    if (project && (executorsFor === project.id || (panel && !panel.hidden))) void loadExecutors();
   };
   document.addEventListener("molis-work:language-changed", retitleReviews);
   presentation = (${ASSISTANT_MAX_FACTORY})({island,panel});
@@ -649,10 +631,11 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   });
   /** Pause, resume or stop the work in front: the summary's and the strip's buttons, and the composer's stop. */
   async function control(kind, extra) {
-    if (!curId) return;
-    try { view = await api("/works/" + encodeURIComponent(curId) + "/control", "POST", { kind, ...extra }); render(); }
-    catch (error) { showError(error); }
-    finally { poll(); }
+    const id = curId;
+    if (!id) return;
+    try { const next = await api("/works/" + encodeURIComponent(id) + "/control", "POST", { kind, ...extra }); adoptView(id, next); }
+    catch (error) { showWorkError(id, error); }
+    finally { if (curId === id) poll(); }
   }
   island.querySelectorAll("[data-assistant-control]").forEach((btnEl) => btnEl.addEventListener("click", async () => {
     btnEl.disabled = true;
@@ -704,7 +687,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     if (!panel.hidden && !spacious()) drawerOpen = false;
     paintLayout();
     if (panel.hidden) { conversationObjects?.clear(); setWorks(false); setDetails(false); restIfStale(); }
-    else { void conversationObjects?.update(false); cardHandle?.update(); drawHead(); paintJump(); }
+    else { void ensureExecutors(); void conversationObjects?.update(false); cardHandle?.update(); drawHead(); paintJump(); }
   }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the conversation's head: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
@@ -763,7 +746,11 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
       closeSubtask(); project = chosen; eventTabs = []; nextChar = undefined; talkDraft = ""; nextScope = project ? "project" : "personal";
+      executors = []; nextExec = "assistant"; nextMode = ""; executorRequest++; executorsFor = null; executorsLoaded = Promise.resolve();
+      catalogSeq++; catalog = null; rows = { capabilities: [], methods: [] }; rowsIn = false;
+      characterCache.clear();
       void showWork(store.get(scoped("current")));
+      if (panel && !panel.hidden) void ensureExecutors();
     },
-    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); disposeWorkItemPill(); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; executorsFor = null; document.removeEventListener("molis-work:language-changed", retitleReviews); disposeWorkItemPill(); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

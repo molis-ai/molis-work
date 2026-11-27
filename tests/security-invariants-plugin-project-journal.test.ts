@@ -316,7 +316,7 @@ test("S-63 an idempotency operation is the plugin's own: two owners using the sa
   await main.services().project_database!.transaction(async () => {}, tx => tx.journal.putIdempotency({ actorId: HOST_ACTOR, operation: "probe.note", key: "only-main",
     requestHash: "x", outcome: null, at: AT }));
   assert.equal(await get(peer, "only-main"), null, "a key one owner stored is not found by another");
-  await assert.rejects(put(main, "main-again"), "the same owner repeating its own operation and key is still the conflict it was");
+  await assert.rejects(put(main, "main-again"), { code: "ERR_SQLITE_ERROR", message: /UNIQUE constraint failed/ }, "the same owner repeating its own operation and key is still the conflict it was");
 });
 
 // RAC-296

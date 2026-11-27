@@ -27,7 +27,7 @@ export class GoalTreeMaterializationApplication {
                 conflicts.set(item.item_id, { ...conflict, recovery: conflict.recovery ?? this.recovery(conflict) });
                 return { keep: false, value: undefined };
               }
-              this.materialize(projectId, item, actorId, "Goal Tree 提案只读预检", at);
+              this.materialize(projectId, item, actorId, "Goal Tree 提案只读预检", at, { preview: true });
               return { keep: true, value: undefined };
             });
           } catch (error) {
@@ -45,8 +45,8 @@ export class GoalTreeMaterializationApplication {
     return "请先运行 goal_tree_check 并修订这个条目，再让用户决定整份提案。当前 Goal Tree 尚未改变。";
   }
 
-  materialize(projectId: string, item: GoalTreeProposalItemRecord, actorId: string, reason: string, at: string): ProposalAffectedObject[] {
-    if (item.kind === "goal") return [this.ports.facts.materializeGoalTreeGoal(projectId, item, actorId, reason, at)];
+  materialize(projectId: string, item: GoalTreeProposalItemRecord, actorId: string, reason: string, at: string, options?: { preview?: boolean }): ProposalAffectedObject[] {
+    if (item.kind === "goal") return [this.ports.facts.materializeGoalTreeGoal(projectId, item, actorId, reason, at, options)];
     return this.ports.facts.materializeGoalTreeRelations(projectId, item, actorId, reason, at);
   }
 }

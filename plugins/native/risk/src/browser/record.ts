@@ -47,7 +47,7 @@ function eventText(event: RiskEvent): string {
 
 function activity(page: RiskPage, events: readonly RiskEvent[], risk: RiskRecord): string {
   const add = page.state.readOnly || risk.status === "closed" ? ""
-    : `<form class="rk-note" data-rk-form="note"><input class="mw-input mw-input--sm" name="note" maxlength="4000" aria-label="${esc(text("record.note"))}" placeholder="${esc(text("record.note"))}">${
+    : `<form class="rk-note" data-rk-form="note"><input class="mw-input mw-input--sm" name="note" maxlength="4000" value="${esc(page.state.noteDraft)}" aria-label="${esc(text("record.note"))}" placeholder="${esc(text("record.note"))}">${
       renderButton({ label: text("action.add"), size: "sm", type: "submit", variant: "secondary" })}</form>`;
   const list = events.map(event => `<li class="mw-source"><span class="mw-source__icon">${icon(EVENT_ICON[event.kind])}</span><span><span class="mw-source__meta">${
     esc(when(event.at))}</span>${esc(eventText(event))}${event.kind === "note" || (event.kind === "status" && event.detail.text) ? `<span class="rk-quote">${esc(event.detail.text ?? "")}</span>` : ""}</span></li>`).join("");

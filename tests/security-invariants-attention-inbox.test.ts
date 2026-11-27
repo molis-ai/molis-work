@@ -7,14 +7,19 @@ import { createPluginPlatform, homeStores, LocalProjectDatabase } from "@molis-a
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionWaitingDeclarations, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { PluginLifecycleState, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import {
+  AttentionModule,
+  assertAttentionEntryShape,
+  attentionContentReplicationDefinition,
+} from "@molis-ai/molis-work-module-attention-resumption";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { providerItemOf } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { createInboxPlugin, INBOX_ACTION_PERMISSIONS, inboxActions, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { createPluginRuntimeReleaseArtifact, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
+import { assertPortableConfig, homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { recordInstallation } from "./fixtures/plugin-installations.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -195,4 +200,175 @@ test("RAC-809 a Manifest's attention.waiting lists some of its attention.subject
     assert.throws(() => parsePluginManifest(manifest({ subjects, waiting: inbox })), /attention\.waiting/u, JSON.stringify(inbox));
   }
   assert.throws(() => parsePluginManifest(manifest({ subjects, inbox_all: true })), /attention 不认这些字段/u);
+});
+
+test("P0-08 local Attention writes and personal sync replication share one validator for all Feed/Gmail structured details", () => {
+  const data = fixture();
+  try {
+    const gmailItem = providerItemOf({
+      externalId: "gmail-msg-1",
+      title: "Important mail",
+      summary: "Summary",
+      attention: {
+        reason: "source_rule",
+        detail: {
+          rule: "gmail_attention_v1",
+          matched_by: ["starred", "important", "direct_recipient"],
+          system_labels: ["STARRED", "IMPORTANT", "CATEGORY_PRIMARY"],
+          body: "must be stripped by connector intake",
+          title: "must be stripped too",
+        },
+      },
+    });
+    assert.deepEqual(gmailItem.attention, {
+      reason: "source_rule",
+      detail: {
+        rule: "gmail_attention_v1",
+        matched_by: ["starred", "important", "direct_recipient"],
+        system_labels: ["STARRED", "IMPORTANT", "CATEGORY_PRIMARY"],
+      },
+    });
+
+    const cases: Array<{ subject_type: AttentionSubjectType; subject_id: string; reason: string; detail: Record<string, unknown> }> = [
+      { subject_type: "feed_item", subject_id: "item-manual", reason: "manual", detail: { added_by: "web_user" } },
+      { subject_type: "feed_item", subject_id: "item-rule", reason: "source_rule", detail: { rule_id: "rule-1", rule_name: "重要追踪" } },
+      {
+        subject_type: "feed_item",
+        subject_id: "item-judgment",
+        reason: "source_rule",
+        detail: {
+          rule_id: "rule-2",
+          rule_name: "评审",
+          judgment_id: "jdg-1",
+          function_key: "triage",
+          function_version: 2,
+          needs_review: true,
+        },
+      },
+      {
+        subject_type: "feed_item",
+        subject_id: "item-capture-fail",
+        reason: "artifact_out_failed",
+        detail: { rule_ids: ["rule-1", "rule-2"], error_codes: ["artifacts.artifact.unavailable"] },
+      },
+      {
+        subject_type: "source_fault",
+        subject_id: "src-fault-1",
+        reason: "source_fault",
+        detail: {
+          error_code: "feed.source_connection_changed",
+          category: "auth",
+          retryable: false,
+          user_action: "reconnect",
+          detected_at: "2026-11-26T10:00:00.000Z",
+        },
+      },
+      {
+        subject_type: "source_fault",
+        subject_id: "src-demo-1",
+        reason: "source_fault",
+        detail: { error_code: "sources.network_timeout", user_action: "retry" },
+      },
+      {
+        subject_type: "feed_item",
+        subject_id: "item-notify",
+        reason: "source_rule",
+        detail: { plugin: "io.molis.work.demo", installation: "inst-1" },
+      },
+      {
+        subject_type: "feed_item",
+        subject_id: "item-gmail",
+        reason: "source_rule",
+        detail: (gmailItem.attention as { detail: Record<string, unknown> }).detail,
+      },
+      {
+        subject_type: "feed_item",
+        subject_id: "item-github",
+        reason: "source_rule",
+        detail: { provider_reason: "review_requested", repository: "molis/molis-work", rule: "github_direct_attention_v1" },
+      },
+    ];
+
+    for (const item of cases) {
+      const created = data.attention.commands.create({
+        project_id: PROJECT,
+        owner_plugin_id: "io.molis.work.feed",
+        subject_type: item.subject_type,
+        subject_id: item.subject_id,
+        reason: item.reason,
+        detail: item.detail,
+      });
+      assert.equal(created.created, true);
+      assert.deepEqual(created.entry.detail, item.detail);
+    }
+
+    const entries = data.store.db.prepare("SELECT * FROM attention_entries WHERE project_id = ?").all(PROJECT) as Array<Record<string, string | number | null>>;
+    const events = data.store.db.prepare("SELECT * FROM attention_events WHERE project_id = ?").all(PROJECT) as Array<Record<string, string | number | null>>;
+    const definition = attentionContentReplicationDefinition(assertPortableConfig);
+    assert.doesNotThrow(() => definition.validate({ attention_entries: entries, attention_events: events }, PROJECT));
+  } finally {
+    data.close();
+  }
+});
+
+test("P0-08 Attention detail anti-abuse bounds match identically between local write and personal sync validation", () => {
+  const data = fixture();
+  try {
+    const valid = data.attention.commands.create({
+      project_id: PROJECT,
+      subject_type: "feed_item",
+      subject_id: "item-base",
+      reason: "manual",
+      detail: { added_by: "web_user" },
+    }).entry;
+    const baseEntries = data.store.db.prepare("SELECT * FROM attention_entries WHERE project_id = ?").all(PROJECT) as Array<Record<string, string | number | null>>;
+    const baseEvents = data.store.db.prepare("SELECT * FROM attention_events WHERE project_id = ?").all(PROJECT) as Array<Record<string, string | number | null>>;
+    const definition = attentionContentReplicationDefinition(assertPortableConfig);
+
+    const tooManyKeys = Object.fromEntries(Array.from({ length: 33 }, (_, index) => [`k_${index}`, "v"]));
+    const oversizedBytes = Object.fromEntries(Array.from({ length: 12 }, (_, index) => [`field_${index}`, "x".repeat(450)]));
+    const invalidDetails: Array<{ label: string; detail: Record<string, unknown> }> = [
+      { label: "top-level forbidden body", detail: { body: "copied" } },
+      { label: "nested forbidden summary", detail: { nested: { summary: "leaked" } } },
+      { label: "too many keys", detail: tooManyKeys },
+      { label: "array too long", detail: { tags: Array.from({ length: 33 }, (_, index) => `tag_${index}`) } },
+      { label: "string too long", detail: { note: "a".repeat(501) } },
+      { label: "nesting too deep", detail: { a: { b: { c: { d: 1 } } } } },
+      { label: "oversized bytes", detail: oversizedBytes },
+      { label: "dangerous prototype key", detail: JSON.parse('{"__proto__":{"polluted":true}}') as Record<string, unknown> },
+    ];
+
+    for (const [index, candidate] of invalidDetails.entries()) {
+      assert.throws(
+        () => data.attention.commands.create({
+          project_id: PROJECT,
+          subject_type: "feed_item",
+          subject_id: `bad-${index}`,
+          reason: "manual",
+          detail: candidate.detail,
+        }),
+        { code: "attention.invalid_reference" },
+        `local write must reject: ${candidate.label}`,
+      );
+      const mutatedEntries = baseEntries.map((row) => ({ ...row, detail_json: JSON.stringify(candidate.detail) }));
+      assert.throws(
+        () => definition.validate({ attention_entries: mutatedEntries, attention_events: baseEvents }, PROJECT),
+        { code: "attention.invalid_reference" },
+        `sync validation must reject: ${candidate.label}`,
+      );
+    }
+
+    assert.throws(
+      () => assertAttentionEntryShape({ ...valid, detail: { count: Number.NaN } }),
+      { code: "attention.invalid_reference" },
+    );
+    const malformedEntries = baseEntries.map((row) => ({ ...row, detail_json: "{not-valid-json" }));
+    assert.throws(
+      () => definition.validate({ attention_entries: malformedEntries, attention_events: baseEvents }, PROJECT),
+      { code: "attention.invalid_reference" },
+      "malformed detail_json must fail with attention.invalid_reference rather than raw SyntaxError",
+    );
+  } finally {
+    data.close();
+  }
 });

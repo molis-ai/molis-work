@@ -27,7 +27,15 @@ export async function scanCogniaDirectory(directory: PluginDirectoryService | un
       if (entry.kind !== "file" || !type) { append({ path: filePath, reason: "暂不支持此文件类型" }); continue; }
       if ((entry.size ?? 0) > type.limit || total + (entry.size ?? 0) > COGNIA_LIMITS.batch_bytes) { append({ path: filePath, reason: "超过文件或批次大小限制" }); continue; }
       const read = await directory!.read({ grant_id: grantId, path: entry.path, kind: "bytes", max_bytes: type.limit }, signal);
-      if (read.outcome === "bytes") { total += read.bytes; append({ path: filePath, data: read.data }); continue; }
+      if (read.outcome === "bytes") {
+        if (total + read.bytes > COGNIA_LIMITS.batch_bytes) {
+          append({ path: filePath, reason: "超过文件或批次大小限制" });
+          continue;
+        }
+        total += read.bytes;
+        append({ path: filePath, data: read.data });
+        continue;
+      }
       append({ path: filePath, reason: read.outcome === "too-large" ? "超过文件或批次大小限制" : read.outcome === "missing" ? "文件已不存在" : "文件读取失败" });
     }
     if (listing.truncated) append({ path: [...relative, "…"].join("/"), reason: "目录太大，已截断" });

@@ -10,7 +10,7 @@ import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, isSubjectReader, type ActionSubjectContext, type ActionView, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, findSubjectReader, type ActionSubjectContext, type ActionView, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectAssistantReview } from "./assistant-review-words.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { roundModel, workView } from "./assistant-work-view.js";
@@ -117,13 +117,18 @@ export class AssistantWorkReads {
     }
     const nameOf = (object: { kind: string; id: string }) => named.get(`${object.kind}:${object.id}`) || this.link.rememberedTitle(object) || object.id;
     let actions: PersonActions | null = null;
-    let readers: readonly ActionView[] = [];
-    try { actions = await this.ports.scopeActions?.(work) ?? null; readers = actions ? (await actions.discover()).filter(view => isSubjectReader(view.action)) : []; }
-    catch { actions = null; }
+    let views: readonly ActionView[] = [];
+    try {
+      actions = await this.ports.scopeActions?.(work) ?? null;
+      views = actions ? await actions.discover() : [];
+    } catch {
+      actions = null;
+    }
     return Promise.all(relations.slice(-40).map(async relation => {
       const base = { relation: relation.relation, subject: { kind: relation.object.kind, id: relation.object.id }, recorded_revision: relation.object.revision, recorded_at: relation.recorded_at };
-      const reader = readers.find(view => view.action.subject_kinds.includes(relation.object.kind) && view.availability.available);
-      if (!actions || !reader) return { ...base, title: nameOf(relation.object), current_revision: null, state: "unavailable" as const };
+      const lookup = findSubjectReader(views, relation.object.kind);
+      if (!actions || lookup.found !== "one") return { ...base, title: nameOf(relation.object), current_revision: null, state: "unavailable" as const };
+      const reader = lookup.view;
       try {
         const context = await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: relation.object.id }) as ActionSubjectContext;
         if (belongsElsewhere(work, context)) {

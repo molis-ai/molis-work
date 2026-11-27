@@ -1,4 +1,4 @@
-import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { fencedMaterials, MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { KNOWLEDGE_LOCATE_MAX_SUBJECTS, type KnowledgeLocateResponse, type KnowledgeLocatedSection, type KnowledgeOutline } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
@@ -66,10 +66,21 @@ export async function locateSections(input: { question: string; subjects: readon
   const trees: KnowledgeOutline[] = [], unread: KnowledgeLocateResponse["unread"] = [];
   for (const subject of subjects) {
     try { trees.push(await outline(subject)); }
-    catch (error) { unread.push({ subject, reason: reasonOf(error) }); }
+    catch (error) {
+      if ((error instanceof Error && error.name === "AbortError") || (error instanceof ActionError && (error.code === "actions.cancelled" || error.code === "actions.host_closed"))) {
+        throw error;
+      }
+      unread.push({ subject, reason: reasonOf(error) });
+    }
   }
   const unsummarized = trees.filter(tree => !tree.sections.some(section => section.summary)).map(tree => tree.subject);
-  if (!trees.length) return { sections: [], unread, unsummarized, omitted: 0 };
+  if (!trees.length) {
+    try { await beforeEffect?.(); }
+    catch (error) {
+      if (!(error instanceof ActionError && (error.code === "knowledge.unreadable" || error.code === "knowledge.excluded"))) throw error;
+    }
+    return { sections: [], unread, unsummarized, omitted: 0 };
+  }
   const shown = shownPieces(input.question, trees);
   const draft = await locator({ question: input.question, pieces: shown.pieces });
   const sections: KnowledgeLocatedSection[] = [];

@@ -91,7 +91,8 @@ export function todoCollection(projectId: string): PluginSyncCollectionDefinitio
       db.prepare("DELETE FROM todo_requests WHERE item_id=?").run(id);
       upsert(db, "todo_items", itemColumns, "id", { ...wire.item, revision });
       for (const change of wire.changes) insert(db, "todo_changes", changeColumns, { ...change, revision_after: Number(change.revision_after) + offset });
-      for (const request of wire.requests) insert(db, "todo_requests", requestColumns, request);
+      const insertRequest = db.prepare("INSERT OR IGNORE INTO todo_requests (" + requestColumns.join(",") + ") VALUES (" + requestColumns.map(() => "?").join(",") + ")");
+      for (const request of wire.requests) insertRequest.run(...requestColumns.map(column => request[column] as string | number | null));
       for (const row of itemRows([db.prepare("SELECT * FROM todo_items WHERE id=?").get(id)])) writeTodoOverview(overview, fromRow(row));
     },
   };

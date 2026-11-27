@@ -12,6 +12,7 @@ import type { PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-wo
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
+import { runPluginCli, type PluginCliHost } from "@molis-ai/molis-work-plugin-cli";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { installedAccountAuth } from "./fixtures/installed-account.js";
 import { isolatedMcpResident } from "./fixtures/isolated-mcp-resident.js";
@@ -167,4 +168,50 @@ test("QRF-08 QRF-09 S-84 plugin install attaches to the signed-in installation a
   const rows = (await overview()).plugins.filter(row => row.plugin_id === PACKAGE_PLUGIN_ID);
   assert.deepEqual(rows.map(row => [row.version, row.trust, row.publisher_signature, row.publisher_label, row.state]),
     [["1.0.0", "pinned", publisher.identity, "CLI Publisher", "running"]]);
+});
+
+test("F-btd-02 S-84 plugin install strictly validates flags and refuses option-like --pin-as values", async () => {
+  const calls: Array<{ bundle_path: string; project_id: string; confirm: boolean; pin_label?: string }> = [];
+  const host: PluginCliHost = {
+    runDevelopment: async () => { throw new Error("unexpected dev call"); },
+    install: async (input) => {
+      calls.push(input);
+      return { ok: true };
+    },
+  };
+  const run = async (args: string[]) => {
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await runPluginCli(["install", ...args], {
+      stdout: (value) => out.push(value),
+      stderr: (value) => err.push(value),
+    }, host);
+    return { code, stdout: out.join(""), stderr: err.join("") };
+  };
+  for (const invalid of [
+    ["bundle.json", "proj-1", "--confrm"],
+    ["bundle.json", "proj-1", "extra-arg"],
+    ["bundle.json", "proj-1", "--pin-as", "--confirm"],
+    ["bundle.json", "proj-1", "--pin-as"],
+    ["bundle.json", "proj-1", "--pin-as", "   "],
+    ["bundle.json", "proj-1", "--pin-as", "-x"],
+    ["bundle.json", "proj-1", "--pin-as", "Alice", "--pin-as", "Bob"],
+    ["bundle.json", "proj-1", "--confirm", "--confirm"],
+    ["--confirm", "proj-1"],
+    ["bundle.json", "--confirm"],
+  ]) {
+    const result = await run(invalid);
+    assert.equal(result.code, 2, `expected usage error for ${JSON.stringify(invalid)}`);
+    assert.match(result.stderr, /^Usage:/u);
+  }
+  assert.deepEqual(calls, [], "invalid install invocations must never reach the Host");
+
+  assert.equal((await run(["bundle.json", "proj-1"])).code, 0);
+  assert.equal((await run(["bundle.json", "proj-1", "--pin-as", "Example", "--confirm"])).code, 0);
+  assert.equal((await run(["bundle.json", "proj-1", "--confirm", "--pin-as", "Example"])).code, 0);
+  assert.deepEqual(calls, [
+    { bundle_path: "bundle.json", project_id: "proj-1", confirm: false },
+    { bundle_path: "bundle.json", project_id: "proj-1", confirm: true, pin_label: "Example" },
+    { bundle_path: "bundle.json", project_id: "proj-1", confirm: true, pin_label: "Example" },
+  ]);
 });

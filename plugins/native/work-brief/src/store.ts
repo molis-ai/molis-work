@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { overviewRows, type ActionCard, type OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
 import { OVERVIEW_TEXT_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -7,6 +8,11 @@ import { BRIEF_LIMITS, type BriefBody, type BriefEdit, type BriefFixed, type Bri
 
 const text = (value: unknown) => String(value ?? "");
 const parse = <T>(value: unknown, fallback: T): T => typeof value === "string" && value ? JSON.parse(value) as T : fallback;
+
+/** Deterministic id for the partition's singleton home brief, so offline devices share one sync key. */
+export function singletonBriefId(scope: "home", ownerId: string): string {
+  return `brief-${scope}-${createHash("sha256").update(ownerId).digest("hex").slice(0, 32)}`;
+}
 
 /**
  * The partition's own brief as one `brief` row of the platform's overview table, in the transaction of the version it sums up (a local
@@ -63,6 +69,10 @@ export class BriefStore {
     return row ? briefOf(row, this.partitionId) : null;
   }
 
+  /** Deterministic id for this partition's singleton home brief. */
+  singletonId(scope: "home"): string {
+    return singletonBriefId(scope, this.partitionId);
+  }
   create(input: { brief_id: string; scope: BriefScope; title: string }, at: string): BriefRecord {
     this.tx.run("INSERT INTO briefs (id, scope, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", [input.brief_id, input.scope, input.title, at, at]);
     return briefOf(this.db.get("SELECT * FROM briefs WHERE id = ?", [input.brief_id])!, this.partitionId);

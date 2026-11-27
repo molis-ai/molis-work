@@ -162,9 +162,10 @@ async function submit(page: Page, id: string, input: ComposerSubmission, acknowl
   try {
     rememberConfiguration(page);
     await refs.draft.flush();
+    if (!page.lifetime.alive || s.current !== id) return { state: "failed", message: readText("coding.composer.cancelled") };
     if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary", picks, acknowledge, commandPrompt));
     else if (!await startFromComposer(page, id, task, selection, intent, model, commandPrompt)) return { state: "failed", message: readText("coding.composer.cancelled") };
-    refs.prompts?.sent();
+    if (s.current === id) refs.prompts?.sent();
     surfaceChanged(page, id);
     void refreshState(page).then(() => readCurrent(page)).catch(error => status(page, errorMessage(error), true));
     return { state: "sent" };
@@ -231,7 +232,7 @@ export function mountCodingComposer(page: Page, id: string) {
     mentions: (query, signal) => refs.mentions(query, signal),
     // Pictures pasted, dropped or picked (A3): the platform keeps each; the strip shows them as thumbnails that open larger.
     ...(images ? { attachments: { accept: images.accept, upload: (file: File, signal: AbortSignal) => images.upload(file, signal),
-      pictures: { label: readText("coding.images.strip"), open: readText("coding.images.open"), close: readText("coding.images.close") } } } : {}),
+      pictures: { get label() { return readText("coding.images.strip"); }, get open() { return readText("coding.images.open"); }, get close() { return readText("coding.images.close"); } } } } : {}),
     required: () => missing(page),
     notice: () => (images && refs.composer ? images.notice(refs.composer) : null) ?? readOnlyNotice(page),
     submit: (input, _signal, acknowledge) => submit(page, id, input, acknowledge),

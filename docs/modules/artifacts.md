@@ -41,8 +41,8 @@ SDK 的动作输入从 schema 推导。写入时，schema 校验成果与过程�
 
 当前不递归导入整个空间、数据库、子页面或附件文件，不自动同步和回写。Google Docs / 飞书 / Lark 的排版、图片、附件、评论及嵌入内容不承诺保留；Notion 的附件链接可能到期。非文本类的本地文件（如 PDF、DOCX、ZIP）只保存原件、不读出正文，可读预览由 `artifacts.documents.preview` 提供。空正文、超限、权限错误和 Notion 明确返回的截断结果不会产生成功 Artifact。
 
-实现分工：本插件编排导入并通过 `ArtifactsApplicationApi` 注册 `io.molis.work.document` v1；官方 catalog integration 只读取文档工具 API；Local Host 读取凭据、校验本地控制请求并注入端口。没有新增存储表、后台同步任务或跨插件私有存储。
+实现分工：本模块（平台成果模块 `modules/artifacts`）编排导入并通过 `ArtifactsApplicationApi` 注册 `io.molis.work.document` v1；官方 catalog integration 只读取文档工具 API；Local Host 读取凭据、校验本地控制请求并注入端口。没有新增存储表、后台同步任务或跨插件私有存储。
 
 官方接口依据：[Notion 页面 Markdown](https://developers.notion.com/reference/retrieve-page-markdown)、[飞书获取文档纯文本](https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document/raw_content)、[Google Drive 文档导出](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export)。
 
-包名：`@molis-ai/molis-work-plugin-artifacts`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-artifacts`。工作区内部包，通过仓库构建和 Host 装配使用。

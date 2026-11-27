@@ -46,16 +46,27 @@ export function createSyncJsonContent(options: SyncJsonContentOptions): SyncCont
       const bytes = Buffer.from(JSON.stringify(value));
       if (bytes.length > MAX) throw syncError('limit', '同步内容超过账号容量上限');
       const rawDigest = hash(bytes);
+      const mustEnvelope = (value !== null && typeof value === 'object' && Object.hasOwn(value, 'sync_content'))
+        || options.restore !== undefined;
       if (bytes.length <= INLINE && !blobs.size) {
-        const compressed = bytes.length >= COMPRESS_MIN ? deflateRawSync(bytes, { level: 6 }) : null;
-        if (compressed && compressed.length < bytes.length) {
-          const envelope = { sync_content: 1, encoding: 'deflate-raw' as const, spaceId: options.spaceId, key, size: bytes.length, digest: rawDigest, data: compressed.toString('base64') };
-          if (Buffer.byteLength(JSON.stringify(envelope)) < Math.floor(bytes.length * 0.85)) {
+        if (mustEnvelope) {
+          const compressed = deflateRawSync(bytes, { level: 6 });
+          const data = compressed.toString('base64');
+          if (data.length <= INLINE * 2) {
             options.authorize();
-            return { value: envelope, blobs: [] };
+            return { value: { sync_content: 1, encoding: 'deflate-raw' as const, spaceId: options.spaceId, key, size: bytes.length, digest: rawDigest, data }, blobs: [] };
           }
+        } else {
+          const compressed = bytes.length >= COMPRESS_MIN ? deflateRawSync(bytes, { level: 6 }) : null;
+          if (compressed && compressed.length < bytes.length) {
+            const envelope = { sync_content: 1, encoding: 'deflate-raw' as const, spaceId: options.spaceId, key, size: bytes.length, digest: rawDigest, data: compressed.toString('base64') };
+            if (Buffer.byteLength(JSON.stringify(envelope)) < Math.floor(bytes.length * 0.85)) {
+              options.authorize();
+              return { value: envelope, blobs: [] };
+            }
+          }
+          return { value, blobs: [] };
         }
-        return { value: input, blobs: [] };
       }
       const compressedBuffers: Buffer[] = [];
       let compressedTotal = 0;

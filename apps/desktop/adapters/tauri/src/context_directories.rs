@@ -118,7 +118,7 @@ fn unconnected(id: &str) -> DirectoryStatus {
 fn trusted_location(label: &str, url: &Url) -> bool {
     label == "main"
         && url.scheme() == "http"
-        && matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
+        && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
         && url.port_or_known_default() == Some(crate::host_port::port())
         && url.username().is_empty()
         && url.password().is_none()
@@ -600,13 +600,17 @@ mod tests {
         for address in [
             "http://127.0.0.1:4173/onboarding?desktop=1",
             "http://localhost:4173/onboarding",
+            "http://[::1]:4173/onboarding?desktop=1",
+            "http://[::1]:4173/onboarding",
         ] {
             assert!(trusted_location("main", &Url::parse(address).unwrap()));
             assert!(!trusted_location("capsule", &Url::parse(address).unwrap()));
         }
         for address in [
             "https://127.0.0.1:4173/onboarding",
+            "https://[::1]:4173/onboarding",
             "http://127.0.0.1:4339/onboarding",
+            "http://[::1]:4339/onboarding",
             "http://example.com:4173/onboarding",
             "http://localhost:4173/onboarding/child",
             "http://localhost:4173/projects/a",

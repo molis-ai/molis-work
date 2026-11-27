@@ -956,3 +956,89 @@ test("home install fails when a workspace package is missing declared files or u
     );
   });
 });
+
+test("F-host-subsystems-w2-01 build fingerprint covers server, bundled skill/content packs, and package runtime assets", async () => {
+  await withTemporaryDirectory(async directory => {
+    const source = await fixtureSource(directory, "1.0.0");
+    await mkdir(join(source, "src"), { recursive: true });
+    await writeFile(join(source, "src", "entry.ts"), "export const ok = true;\n");
+    await writeFile(join(source, "tsconfig.json"), "{}\n");
+    await writeFile(join(source, "pnpm-workspace.yaml"), "packages:\n  - 'apps/*'\n  - 'server'\n");
+    const trackedFiles = [
+      join(source, "server", "package.json"),
+      join(source, "server", "public", "client.js"),
+      join(source, "packages", "system-skills", "demo", "pack-content.json"),
+      join(source, "plugins", "content", "demo", "pack-content.json"),
+      join(source, "apps", "workbench", "resources", "languages.json"),
+      join(source, "apps", "local-host", "prompts", "base.md"),
+      join(source, "plugins", "native", "pages", "locales", "zh.json"),
+      join(source, "plugins", "official-integrations", "github", "manifest.json"),
+      join(source, "plugins", "official-integrations", "github", "locales", "en.json"),
+    ];
+    for (const dir of [
+      join(source, "server", "public"),
+      join(source, "packages", "system-skills", "demo"),
+      join(source, "plugins", "content", "demo"),
+      join(source, "apps", "workbench", "resources"),
+      join(source, "apps", "local-host", "prompts"),
+      join(source, "plugins", "native", "pages", "locales"),
+      join(source, "plugins", "official-integrations", "github", "locales"),
+    ]) {
+      await mkdir(dir, { recursive: true });
+    }
+    await writeFile(join(source, "apps", "workbench", "package.json"), '{"name":"wb","version":"1.0.0"}\n');
+    await writeFile(join(source, "apps", "local-host", "package.json"), '{"name":"lh","version":"1.0.0"}\n');
+    await writeFile(join(source, "plugins", "native", "pages", "package.json"), '{"name":"pg","version":"1.0.0"}\n');
+    await writeFile(join(source, "plugins", "official-integrations", "github", "package.json"), '{"name":"gh","version":"1.0.0"}\n');
+    await writeFile(trackedFiles[0]!, '{"name":"srv","version":"1.0.0"}\n');
+    await writeFile(trackedFiles[1]!, "console.log('v1');\n");
+    await writeFile(trackedFiles[2]!, '{"name":"sys"}\n');
+    await writeFile(trackedFiles[3]!, '{"name":"cnt"}\n');
+    await writeFile(trackedFiles[4]!, '{"default":"zh"}\n');
+    await writeFile(trackedFiles[5]!, "# prompt v1\n");
+    await writeFile(trackedFiles[6]!, '{"a":"1"}\n');
+    await writeFile(trackedFiles[7]!, '{"id":"github"}\n');
+    await writeFile(trackedFiles[8]!, '{"a":"one"}\n');
+    await writeMolisWorkBuildManifest(source);
+    const home = join(directory, "home");
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "installed");
+    for (const file of trackedFiles) {
+      const original = await readFile(file, "utf8");
+      await writeFile(file, `${original}\n`);
+      await assert.rejects(
+        installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
+        (error: unknown) => error instanceof ActionError && error.code === "installer.source.build_stale",
+        `stale build must be detected when ${file} changes`,
+      );
+      await writeFile(file, original);
+    }
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "unchanged");
+  });
+});
+
+test("F-host-subsystems-w2-02 rolling back launcher mutations preserves 0o755 executable mode", async () => {
+  await withTemporaryDirectory(async directory => {
+    const sourceOne = await fixtureSource(directory, "1.0.0");
+    const sourceTwo = await fixtureSource(directory, "2.0.0");
+    const home = join(directory, "home", ".molis-work");
+    const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: sourceOne });
+    for (const launcher of Object.values(installed.launchers)) {
+      assert.equal((await stat(launcher)).mode & 0o777, 0o755);
+    }
+    await assert.rejects(
+      installMolisWorkHome({
+        homeDirectory: home,
+        sourceDirectory: sourceTwo,
+        beforeStep(step) {
+          if (step === "before_write_install_manifest") throw new Error("rollback mode check");
+        },
+      }),
+      /rollback mode check/,
+    );
+    for (const launcher of Object.values(installed.launchers)) {
+      assert.equal((await stat(launcher)).mode & 0o777, 0o755, `rolled-back launcher keeps +x: ${launcher}`);
+    }
+    const output = await execFileAsync(installed.launchers.cli, [], { cwd: directory });
+    assert.equal(output.stdout.trim(), "cli:embedded");
+  });
+});

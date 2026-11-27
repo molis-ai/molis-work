@@ -11,7 +11,7 @@ import { MemoryPluginConsentLedger, PluginRuntime, SqlitePluginRuntimeRepository
 import { PluginInstallService, SandboxPackageStore, homeAgentDefinitions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, contentPackageParts, contentPayload, forgedBundle, signedContentPackage, type ContentPackageOptions } from "./fixtures/content-package.js";
-import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
+import { caller, installedPackageHost } from "./fixtures/signed-package-host.js";
 import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 
@@ -225,7 +225,7 @@ test("SKC-02 a plugin with only declarations is declared, not started: the Runti
   assert.deepEqual([resolution.blocked, resolution.order], [[], [manifest.plugin_id]], "an unmet requirement marks its Skills unavailable in the catalog; it does not block the plugin");
 });
 
-test("SKC-02 SKP-01 S-content-package in a real Host a content package installs through the one path, exposes no action, and registers its Skills only while it is enabled and its kept package verifies", mac, async () => {
+test("SKC-02 SKP-01 S-content-package in a real Host a content package installs through the one path, exposes no action, and registers its Skills only while it is enabled and its kept package verifies", { timeout: 90_000 }, async () => {
   const h = await installedPackageHost();
   try {
     const publisher = newPublisher();
@@ -275,7 +275,7 @@ test("SKC-02 SKP-01 S-content-package in a real Host a content package installs 
   } finally { await h.close(); }
 });
 
-test("SKC-02 S-content-package in a real Host the Skills of a Home content package are offered while its publisher stands, and not once the publisher is taken back", mac, async () => {
+test("SKC-02 S-content-package in a real Host the Skills of a Home content package are offered while its publisher stands, and not once the publisher is taken back", { timeout: 90_000 }, async () => {
   const h = await installedPackageHost();
   try {
     const publisher = newPublisher();
@@ -295,7 +295,7 @@ test("SKC-02 S-content-package in a real Host the Skills of a Home content packa
   } finally { await h.close(); }
 });
 
-test("SKC-04 SKC-05 an upgrade preview reads a home pack's Skill state from the home scope, not from the project's", mac, async () => {
+test("SKC-04 SKC-05 an upgrade preview reads a home pack's Skill state from the home scope, not from the project's", { timeout: 90_000 }, async () => {
   const h = await installedPackageHost();
   try {
     const publisher = newPublisher(), person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] };

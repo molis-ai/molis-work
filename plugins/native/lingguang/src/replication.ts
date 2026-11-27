@@ -1,4 +1,6 @@
 import { syncAggregateDeclaration } from "@molis-ai/molis-work-plugin-sdk";
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { LINGGUANG_BODY_LIMIT } from "./contract.js";
 import { syncError } from './sync-errors.js';
 import type { SyncAggregateDefinition, SyncPortableRow } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -8,7 +10,7 @@ export const lingguangAggregates:readonly SyncAggregateDefinition[] = [
   {kind:'spark',copy:{kind:'io.molis.work.lingguang:spark'},table:'sparks',columns:['id','title','body','source_kind','status','created_at','updated_at'],timestampVersionColumn:'updated_at',
     children:[{table:'spark_requests',parent:'spark_id',columns:['request_id','spark_id'],orderBy:'request_id',identityColumns:['request_id']}],
     validate({record:r,children}){
-      base(r);check(typeof r.title==='string'&&r.title.length>0&&r.title.length<=80&&typeof r.body==='string'&&r.body.length<=8000&&r.source_kind==='manual'&&['inbox','discarded'].includes(String(r.status)));
+      base(r);check(typeof r.title==='string'&&r.title.trim().length>0&&!exceedsCharacters(r.title,80)&&typeof r.body==='string'&&!exceedsCharacters(r.body,LINGGUANG_BODY_LIMIT)&&r.source_kind==='manual'&&['inbox','discarded'].includes(String(r.status)));
       for(const row of children.spark_requests!)check(typeof row.request_id==='string'&&row.request_id.length>0);
     },
   },
@@ -27,8 +29,8 @@ export const lingguangAggregates:readonly SyncAggregateDefinition[] = [
     },
   },
 ];
-function base(r:SyncPortableRow){for(const k of ['id'])check(typeof r[k]==='string'&&r[k].length>0);for(const k of ['created_at','updated_at'])check(typeof r[k]==='string'&&Number.isFinite(Date.parse(r[k])));}
-function sparkIds(r:SyncPortableRow):string[]{check(typeof r.spark_ids_json==='string');const ids:unknown=JSON.parse(r.spark_ids_json);check(Array.isArray(ids)&&ids.length>0&&ids.length<=1000&&ids.every(id=>typeof id==='string'&&id.length>0&&id.length<=80)&&new Set(ids).size===ids.length);return ids;}
+function base(r:SyncPortableRow){for(const k of ['id'])check(typeof r[k]==='string'&&r[k].trim().length>0);for(const k of ['created_at','updated_at'])check(typeof r[k]==='string'&&Number.isFinite(Date.parse(r[k])));}
+function sparkIds(r:SyncPortableRow):string[]{check(typeof r.spark_ids_json==='string');const ids:unknown=JSON.parse(r.spark_ids_json);check(Array.isArray(ids)&&ids.length>0&&ids.length<=1000&&ids.every(id=>typeof id==='string'&&id.trim().length>0&&!exceedsCharacters(id,80))&&new Set(ids).size===ids.length);return ids;}
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'灵光同步数据不合法');}
 
 export const lingguangSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'ideas',title:'灵光与对话',schema_version: /* @version sync.collection.lingguang.ideas */ 1,requires:[],aggregates:syncAggregateDeclaration(lingguangAggregates)}]};

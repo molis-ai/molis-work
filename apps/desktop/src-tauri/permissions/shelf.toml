@@ -9,7 +9,6 @@ commands.allow = [
   "files_copy",
   "shelf_find_files",
   "platform_read_selected_file",
-  "shelf_admit_paths",
   "files_open",
   "shelf_setup_status",
 ]

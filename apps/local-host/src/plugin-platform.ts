@@ -320,7 +320,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(installDb),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
-  const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed && options.db.open !== false);
+  const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed && options.db.open !== false, options.installDatabase ? null : options.project_id);
   const unwatchArtifacts = installedArtifacts.watch(artifactView), unbindArtifacts = bindProjectArtifacts(options.db, artifactView);
   const wiring = new PluginInputGraph({
     projectId: options.project_id, lifecycle: supervisor, canReadCommitted: () => options.db.inTransaction !== true,

@@ -168,7 +168,7 @@ test("Q05/W1-07: no model, a failed model and an unusable answer all leave the d
 
   const gone = new AbortController();
   await assert.rejects(draftIntake({ target: target(), material: material(), request_id: "r" }, ports(fake(() => { gone.abort(); throw new Error("aborted"); }).generate), gone.signal),
-    "the person moved on: nothing is returned for it");
+    /aborted/, "the person moved on: nothing is returned for it");
 });
 
 test("W1-07: a model's fields never make an input the action itself refuses", async () => {

@@ -10,6 +10,12 @@ import { createEvidenceContentStore, createLazyFileSecretStore, homeSqlitePath, 
 import { FEED_CONTENT_LEDGER_BATCH, FEED_FORGET_BATCH, createConnectionWatch, keepFeedReconcile, releaseHeldHistory, type FeedApplication, type FeedHistoryReleasePorts,
   type FeedReconcilePorts } from "@molis-ai/molis-work-plugin-feed";
 import type { PluginBackgroundClient, PluginJobControl } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { assembleFeedApplication, FEED_PROJECT_DATABASE, FEED_UNASSIGNED_BODY_HOLDER, holdKeptBodies } from "@molis-ai/molis-work-plugin-feed";
+import { FeedModule, fromProjectConnection, SignalsModule, SourcesModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { feedLedgerPort, unassignedFeedAttention } from "./fixtures/feed-ledger.js";
 
 // RAC-494, RAC-1016, FI-C-06 and FI-C-07: Feed's holds on the bodies its sources retained. Since batch 109 they are the platform's evidence
 // ledger's (`horizontal/evidence`, reached through `services.evidence`, S-98): a holder is a partition, Feed's installation and a source.
@@ -173,9 +179,9 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
   let failing = Number.POSITIVE_INFINITY;
   const asked: string[] = [];
   const ports: FeedReconcilePorts = { feed: standIn<FeedApplication>({ sources: { list: () => snapshot.sources }, reads: {
-    *history(_project: string, sourceId: string) {
-      const refs = sourceId === "s1" ? snapshot.feed_items[0]!.materials.map(row => row.content_ref) : [ref(0)];
-      for (let offset = 0; offset < refs.length; offset += 200) yield refs.slice(offset, offset + 200);
+    *projectBodyRefs() {
+      const rows = [...snapshot.feed_items[0]!.materials.map(row => ({ source_id: "s1", ref: row.content_ref })), { source_id: "s2", ref: ref(0) }];
+      for (let offset = 0; offset < rows.length; offset += 200) yield rows.slice(offset, offset + 200);
     },
   } }), projectId: "p1", connections: undefined, commit: async (_control, body) => body(),
     hold: async (sourceId, refs) => {
@@ -242,4 +248,48 @@ test("RAC-494: a hold cannot enter while a release deletes files, so a body is w
   f.ledger.hold(holder("p1", "s2"), [x]);
   assert.deepEqual(f.give(holder("p2", "s9"), "all", [x]), { holds_released: 1, bodies_deleted: 0, bodies_kept: 1 });
   assert.ok(f.evidence.has(x));
+});
+
+// P0-09 (from the audit, #2345), on the platform's ledger: the kept bodies the reconcile job names are every body the partition's library
+// points at — an active source's, a source retired with its history, an item that lost its source, and a signal's — so another partition
+// giving the same body back never deletes one this partition still shows.
+test("P0-09 holdKeptBodies names active, retain_history retired, sourceless item and signal bodies, so another partition's release keeps a shared body", async t => {
+  const f = fixture(t);
+  const db = openTestSqlite(":memory:");
+  t.after(() => db.close());
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root (project_id) VALUES ('proj-a');");
+  db.exec(FEED_PROJECT_DATABASE.schema);
+  db.exec(ATTENTION_SCHEMA_SQL);
+  db.exec(CONTEXT_LEDGER_SCHEMA);
+  const sql = fromProjectConnection(db), attention = new AttentionModule(db, { exists: () => true });
+  const ledgerPort = feedLedgerPort(createContextLedger(db, { authorize: () => true }));
+  const feedStore = new FeedModule(sql, unassignedFeedAttention(attention), { ledger: ledgerPort });
+  const feed = assembleFeedApplication({ sql, ledger: ledgerPort, attention: () => unassignedFeedAttention(attention), subscribeInboxCreated: () => {}, appendEvent: () => {} });
+  const sources = new SourcesModule(sql), signals = new SignalsModule(sql), at = "2026-11-26T10:00:00.000Z";
+  const [refActive, refShared, refUnassigned, refSignal] = ["active body", "shared body", "sourceless body", "signal body"].map(body => f.evidence.write(body).contentRef) as [string, string, string, string];
+  const saveSource = (sourceId: string) => sources.commands.save({ project_id: "proj-a", source_id: sourceId, kind: "manual", definition_id: null, sync_kind: "manual", name: sourceId,
+    description: "", status: "active", enabled: true, origin: "molis_work", config: {}, schedule: { mode: "manual" }, connection_ref: null, account_label: null,
+    last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: at, updated_at: at });
+  saveSource("s-active"); saveSource("s-retired");
+  const ingest = (sourceId: string, id: string, contentRef: string) => feedStore.commands.ingest({ project_id: "proj-a", source_id: sourceId, source_kind: "manual",
+    source_label: sourceId, external_id: `ext-${id}`, title: id, summary: "Summary", occurred_at: at, attention: false,
+    material: { material_id: `mat-${id}`, canonical_url: `https://example.test/${id}`, title: id, source_name: "Feed", published_at: at, preview: id,
+      content_hash: `hash:${id}`, content_ref: contentRef, content_available: true, content_type: "text/markdown", character_count: id.length, captured_at: at,
+      provenance: {}, selected_for_context: false } }).item;
+  ingest("s-active", "active", refActive);
+  ingest("s-retired", "retired", refShared);
+  const orphan = ingest("s-active", "orphan", refUnassigned);
+  db.prepare("UPDATE feed_items SET source_id = NULL WHERE item_id = ?").run(orphan.item_id);
+  sources.commands.retire("proj-a", "s-retired", "retain_history", at);
+  assert.deepEqual(feed.sources.list("proj-a").map(row => row.source_id), ["s-active"], "the retired source is no longer listed");
+  signals.commands.submitDraft({ project_id: "proj-a", source_id: "s-signal", provider_dedupe_id: "sig-1", kind: "update", occurred_at: at, observed_at: at,
+    payload: { title: "Signal" }, content_refs: [refSignal], raw_event_id: "raw-1", adapter: { plugin_id: "fixture", version: "1.0.0" }, provenance: { source: "fixture" } });
+  // Another partition holds the shared body before this partition's job names its own.
+  f.ledger.hold(holder("proj-b", "s-b"), [refShared]);
+  await holdKeptBodies({ feed, projectId: "proj-a", connections: undefined, commit: async (_control, body) => body(),
+    hold: async (sourceId, contentRefs) => { f.ledger.hold(holder("proj-a", sourceId), contentRefs); } });
+  assert.deepEqual(f.rows().filter(row => row.partition_id === "proj-a").map(row => [row.holder_key, row.content_ref]).sort(),
+    [[FEED_UNASSIGNED_BODY_HOLDER, refUnassigned], ["s-active", refActive], ["s-retired", refShared], ["s-signal", refSignal]].sort());
+  assert.deepEqual(f.give(holder("proj-b", "s-b"), "all", [refShared]), { holds_released: 1, bodies_deleted: 0, bodies_kept: 1 });
+  for (const ref of [refShared, refActive, refUnassigned, refSignal]) assert.equal(f.evidence.has(ref), true);
 });

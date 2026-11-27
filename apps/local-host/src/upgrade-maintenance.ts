@@ -9,7 +9,7 @@ import { hostLog } from "./host-log.js";
 import { removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
 import { pendingUpgradeUnits, runHomeUpgrade } from "./home-upgrade.js";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH, sendWebHealth } from "./web-control-token.js";
-import { refuseForeignRequest, refuseLocalWebRequest, sendLocalWebJson } from "./web-http.js";
+import { parseLocalRequestUrl, refuseForeignRequest, refuseLocalWebRequest, sendLocalWebJson } from "./web-http.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { installHostUiText } from "./ui-text-provider.js";
 import { readErrorWord } from "./ui-error-words.js";
@@ -111,7 +111,12 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
   const answer = (request: IncomingMessage, response: ServerResponse) => {
     if (refuseForeignRequest(request, response)) return;
     if (foreignOrigin(request.headers.origin)) { refuseLocalWebRequest(response); return; }
-    const url = new URL(request.url ?? "/", "http://localhost");
+    const url = parseLocalRequestUrl(request.url);
+    if (!url) {
+      const locale = resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+      runWithLocale(locale, () => sendLocalWebJson(response, 400, { code: "host.request_path_invalid", error: readErrorWord("common.error.invalid") }));
+      return;
+    }
     const progress = { done, total: Math.max(done, plan.total), started_at };
     if (request.method === "GET" && url.pathname === "/health") {
       const payload = { status: "upgrading", process_id: process.pid, service_process_id: serviceProcessId(), upgrade: progress };

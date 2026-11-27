@@ -13,8 +13,9 @@ import { DATASET_DATABASE } from "./database.js";
 
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
 
-/** The Host's current HTTP body bound for Dataset's project routes; the import action's 2,000,000 characters are another layer. */
+/** The Host's current HTTP body bound for Dataset's project routes; `dataset.import` carries up to 2,000,000 CSV characters as JSON. */
 const DATASET_BODY_BYTES = 1_000_000;
+const DATASET_IMPORT_BODY_BYTES = 8_000_000;
 
 export const datasetManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1,
@@ -45,7 +46,7 @@ export const datasetManifest: PluginManifest = {
     { route_id: "dataset.promote", method: "POST", path: "/datasets/:id/promote", max_body_bytes: DATASET_BODY_BYTES },
     { route_id: "dataset.generate", method: "POST", path: "/datasets/:id/generate-column", max_body_bytes: DATASET_BODY_BYTES },
     { route_id: "dataset.generate-ai", method: "POST", path: "/datasets/:id/generate-ai-column", max_body_bytes: DATASET_BODY_BYTES },
-    { route_id: "dataset.import", method: "POST", path: "/datasets/:id/import-csv", max_body_bytes: DATASET_BODY_BYTES },
+    { route_id: "dataset.import", method: "POST", path: "/datasets/:id/import-csv", max_body_bytes: DATASET_IMPORT_BODY_BYTES },
     { route_id: "dataset.export", method: "GET", path: "/datasets/:id/export" },
     { route_id: "dataset.versions", method: "GET", path: "/datasets/:id/versions" },
     { route_id: "dataset.snapshot", method: "POST", path: "/datasets/:id/versions", max_body_bytes: DATASET_BODY_BYTES },

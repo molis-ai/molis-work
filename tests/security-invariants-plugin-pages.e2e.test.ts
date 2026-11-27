@@ -288,9 +288,11 @@ test("D0033-02 S-47 plugin printing reaches the trusted print document without e
   })()`);
   const html = `<h1>Print probe</h1><p>Printable plugin content</p>
     <script>window.__printScriptExecuted=true;parent.__printScriptExecuted=true;parent.__stolenPrintProof=parent.document.querySelector('meta[name=molis-work-page-session]').content;fetch('${browser.origin}/d0033-print-probe-script')</script>
+    <meta http-equiv="refresh" content="0;url=${browser.origin}/locale?lang=ja">
     <img src="${browser.origin}/d0033-print-probe-image" onerror="parent.__printScriptExecuted=true">
     <form action="${browser.origin}/d0033-print-probe-form"><button>Submit</button></form>`;
-  await child.evaluate(`__printDocument(${JSON.stringify(html)})`);
+  await child.evaluate(`(()=>{const b=document.createElement('button');b.id='__d0033_print_btn';b.textContent='Print';document.body.append(b);b.addEventListener('click',()=>__printDocument(${JSON.stringify(html)}),{once:true});})()`);
+  await child.click("#__d0033_print_btn");
   await browser.waitFor("__printCalls.length === 1");
   const calls = await browser.evaluate<Array<{ sandbox: string; text: string; scriptRan: boolean }>>("__printCalls");
   assert.equal(calls[0]!.sandbox, "allow-same-origin allow-modals");
@@ -437,7 +439,8 @@ test("D0109 S-47 scriptless print frames release on timeout, afterprint and owne
   await child.waitFor("Boolean(globalThis.__printHost)");
   const frame = "document.querySelector('iframe[sandbox=\"allow-same-origin allow-modals\"]')";
   const print = async () => {
-    await child.evaluate("globalThis.__printHost.printDocument('<p>Printable</p><script>parent.__printEscape=true</scr'+'ipt>')");
+    await child.evaluate("(()=>{let b=document.getElementById('__d0109_print_btn');if(!b){b=document.createElement('button');b.id='__d0109_print_btn';b.textContent='Print';document.body.append(b);b.addEventListener('click',()=>globalThis.__printHost.printDocument('<p>Printable</p><script>parent.__printEscape=true</scr'+'ipt>'));}})()");
+    await child.click("#__d0109_print_btn");
     await browser.waitFor(frame + "?.isConnected");
     assert.equal(await browser.evaluate("Boolean(globalThis.__printEscape)"), false);
   };

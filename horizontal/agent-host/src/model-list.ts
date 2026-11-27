@@ -1,6 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import type { ModelApiFormat } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 
 // Asking a model service which models it offers (spec assistant-service-connections §13.2, PF-A04): the settings page lists them to pick
 // from instead of copying names by hand. It is not an inference call and Prologue has no such request, so it is built and sent here, by
@@ -45,7 +46,7 @@ export function readModelList(body: string): ListedModel[] {
     const name = "display_name" in entry && typeof entry.display_name === "string" ? entry.display_name.trim().slice(0, 200) : "";
     models.set(id, { model_id: id, ...(name && name !== id ? { display_name: name } : {}) });
   }
-  return [...models.values()].sort((a, b) => a.model_id.localeCompare(b.model_id)).slice(0, MOST_MODELS);
+  return [...models.values()].sort((a, b) => compareCodeUnits(a.model_id, b.model_id)).slice(0, MOST_MODELS);
 }
 
 /** One GET: no redirect followed (the key would go along), 15 seconds, at most 4 MiB read. */

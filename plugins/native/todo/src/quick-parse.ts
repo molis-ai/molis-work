@@ -54,7 +54,10 @@ export function parseTodoQuickText(text: string, now: Date): TodoQuickParse {
     const week = /^(下下?周|下星期|下礼拜|这周|本周|这星期|周|星期|礼拜)(.)$/u.exec(word);
     if (week) {
       const target = /\d/u.test(week[2]!) ? Number(week[2]) : numerals[week[2]!]!;
-      if (week[1] === "下下周") return new Date(weekday(target, "next").getTime() + 7 * 86_400_000);
+      if (week[1] === "下下周") {
+        const next = weekday(target, "next");
+        return new Date(next.getFullYear(), next.getMonth(), next.getDate() + 7);
+      }
       return weekday(target, week[1]!.startsWith("下") ? "next" : ["这周", "本周", "这星期"].includes(week[1]!) ? "this" : "");
     }
     const full = /^(\d{4})-(\d{1,2})-(\d{1,2})$/u.exec(word);
@@ -68,15 +71,24 @@ export function parseTodoQuickText(text: string, now: Date): TodoQuickParse {
     }
     const dayOnly = /^(\d{1,2})[日号]$/u.exec(word);
     if (dayOnly) {
-      const at = new Date(now.getFullYear(), now.getMonth(), Number(dayOnly[1]));
-      return iso(at) < iso(day(0)) ? new Date(now.getFullYear(), now.getMonth() + 1, Number(dayOnly[1])) : at;
+      const value = Number(dayOnly[1]);
+      if (value < 1 || value > 31) return null;
+      const at = new Date(now.getFullYear(), now.getMonth(), value);
+      if (at.getDate() !== value) return null;
+      if (iso(at) < iso(day(0))) {
+        const next = new Date(now.getFullYear(), now.getMonth() + 1, value);
+        return next.getDate() === value ? next : null;
+      }
+      return at;
     }
     return null;
   };
   const valid = (at: Date | null, word: string) => {
     if (!at || !Number.isFinite(at.getTime())) return false;
     const monthDay = /(\d{1,2})月(\d{1,2})/u.exec(word) ?? /-(\d{1,2})-(\d{1,2})$/u.exec(word);
-    return !monthDay || (at.getMonth() + 1 === Number(monthDay[1]) && at.getDate() === Number(monthDay[2]));
+    if (monthDay) return at.getMonth() + 1 === Number(monthDay[1]) && at.getDate() === Number(monthDay[2]);
+    const dayOnly = /^(\d{1,2})[日号]$/u.exec(word);
+    return !dayOnly || (Number(dayOnly[1]) >= 1 && at.getDate() === Number(dayOnly[1]));
   };
   const resolveTime = (period: string | undefined, hourText: string | undefined, minuteText: string | undefined, half: string | undefined): string | null => {
     if (!hourText) return null;

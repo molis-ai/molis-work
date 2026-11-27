@@ -2,7 +2,7 @@ import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/servi
 import type { PluginSourcePullClient, RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedApplication } from "./application.js";
-import type { FeedSourceHistoryRelease } from "./source-history.js";
+import type { FeedSourceHistoryHolding, FeedSourceHistoryRelease } from "./source-history.js";
 export type FeedSourceSyncInput = { idempotencyKey: string } & FeedSyncExecution;
 export interface FeedSourceProviders {
   listCatalog(): readonly { sourceId: string; enabled: boolean; feedUrl: string; name: string }[];
@@ -36,8 +36,8 @@ export interface FeedSourcePorts {
   commit?<T>(operation: () => T): Promise<T>;
   /** Tells the Home's reference ledger that this source holds these bodies. Present when the Feed keeps its references there. */
   holdContent?(source: FeedSourceRecord, contentRefs: readonly string[]): Promise<void>;
-  /** Releases the bodies and search records a source's history holds, before the history is deleted; reports what it could not do. */
-  releaseHistory?(input: { project_id: string; source_id: string }): Promise<FeedSourceHistoryRelease>;
+  /** Releases the bodies and search records a source's history holds after its rows are deleted; reports what it could not do. */
+  releaseHistory?(input: { project_id: string; source_id: string; holding?: FeedSourceHistoryHolding }): Promise<FeedSourceHistoryRelease>;
   appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
 }
 export type RegisterFeedSourceInput =

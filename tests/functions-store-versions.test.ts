@@ -5,8 +5,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test, { mock, type TestContext } from "node:test";
-import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-judgment-rules";
+import { createFunctionsService, FUNCTIONS_HOME_STORE, judgmentConfigReplica, type TypeSafeProvider } from "@molis-ai/molis-work-module-judgment-rules";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 
 const stale = (error: unknown) => (error as { code?: string }).code === "functions.draft_stale";
 const criteria = [{ key: "save", description: "Save the note" }, { key: "skip", description: "No change" }];
@@ -121,4 +123,66 @@ test("AIC-09: the list keeps its order through trials and samples; publishing br
   mock.timers.tick(2000);
   store.publish(older.id, trial.updated_at);
   assert.deepEqual(names(), ["Older", "Newer again"], "publishing does");
+});
+
+test("F-modules-server-05 judgmentConfigReplica protects published rules, accepts default model round-trip, rejects score+UI scene, and reports key_conflict", async (t) => {
+  const homeA = await mkdtemp(join(tmpdir(), "functions-sync-a-"));
+  const homeB = await mkdtemp(join(tmpdir(), "functions-sync-b-"));
+  const provider: TypeSafeProvider = { async evaluate() { return { primitive: "choice", choice: "save", noul: null, score: null, legend: null, probabilities: { save: 1 }, confidence: 1, model: "fixture" }; } };
+  const storeA = createFunctionsService({ home: homeA, credential: () => null, env: { TYPESAFE_API_KEY: "fixture-only" }, provider });
+  const storeB = createFunctionsService({ home: homeB, credential: () => null, env: { TYPESAFE_API_KEY: "fixture-only" }, provider });
+  const dbA = new DatabaseSync(homeSqlitePath(homeA, FUNCTIONS_HOME_STORE.path));
+  const dbB = new DatabaseSync(homeSqlitePath(homeB, FUNCTIONS_HOME_STORE.path));
+  t.after(async () => {
+    dbA.close(); dbB.close(); storeA.close(); storeB.close();
+    await rm(homeA, { recursive: true, force: true });
+    await rm(homeB, { recursive: true, force: true });
+  });
+  const replicaA = judgmentConfigReplica(dbA, "space-1", () => {});
+  const replicaB = judgmentConfigReplica(dbB, "space-1", () => {});
+
+  // Published rule with FUNCTIONS_DEFAULT_MODEL ("jev-latest") round-trips cleanly.
+  const draft = storeA.create({ primitive: "choice", name: "Sync Rule" });
+  const ready = storeA.updateDraft(draft.id, { instructions: "Decide carefully", criteria }, draft.updated_at);
+  await storeA.preview(draft.id, "Example", ready.updated_at);
+  const published = storeA.publish(draft.id, ready.updated_at);
+  const outgoing = replicaA.next()!;
+  assert.ok(outgoing);
+  replicaB.receive({ ...outgoing, revision: 1 });
+  assert.equal(storeB.get(published.id).status, "published");
+
+  // Exact idempotent replay succeeds, while delete, downgrade, or mutation of a published rule is refused.
+  replicaB.receive({ ...outgoing, operationId: "replay-same", revision: 2 });
+  assert.equal(storeB.get(published.id).status, "published");
+  const deleteEvent = { ...outgoing, operationId: "del-pub", base: 2, revision: 3, value: null };
+  replicaB.receive(deleteEvent);
+  assert.throws(() => replicaB.resolve(deleteEvent.key, "remote"), { code: "functions.published_immutable" });
+  const mutatedValue = structuredClone(outgoing.value as Record<string, unknown>);
+  (mutatedValue.data as Record<string, unknown>).instructions = "Tampered";
+  const mutateEvent = { ...outgoing, operationId: "mut-pub", base: 2, revision: 4, value: mutatedValue };
+  replicaB.receive(mutateEvent);
+  assert.throws(() => replicaB.resolve(mutateEvent.key, "remote"), { code: "functions.published_immutable" });
+  assert.equal(storeB.get(published.id).instructions, "Decide carefully");
+
+  // Cross-device function_key collision across different IDs raises functions.key_conflict.
+  const collisionValue = structuredClone(outgoing.value as Record<string, unknown>);
+  (collisionValue.data as Record<string, unknown>).status = "draft";
+  (collisionValue.data as Record<string, unknown>).version = null;
+  (collisionValue.data as Record<string, unknown>).published_at = null;
+  const collideEvent = { key: "other-rule-id", operationId: "collide-key", base: 0, revision: 5, value: collisionValue };
+  replicaB.receive(collideEvent);
+  assert.throws(() => replicaB.resolve(collideEvent.key, "remote"), { code: "functions.key_conflict" });
+
+  // Score primitive bound to a UI scene is rejected during sync.
+  const badScoreValue = structuredClone(collisionValue);
+  const badData = badScoreValue.data as Record<string, unknown>;
+  badData.function_key = "score_scene_bad";
+  badData.primitive = "score";
+  badData.criteria = ["低", "高"];
+  badData.scene_id = "feed.inbox.triage";
+  badData.scene_version = 1;
+  badData.scene_provider_id = "io.molis.work.feed";
+  const badScoreEvent = { key: "bad-score-scene", operationId: "bad-score", base: 0, revision: 6, value: badScoreValue };
+  replicaB.receive(badScoreEvent);
+  assert.throws(() => replicaB.resolve(badScoreEvent.key, "remote"), { code: "functions.invalid" });
 });

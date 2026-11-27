@@ -22,7 +22,7 @@ export function createRuntimeContextModule({ db, ledger, projects, validation }:
     ledger, assertProject: projectId => { projects.query.getProject(projectId); },
   });
   const resolution = new RuntimeProjectResolution(projects.query, repository);
-  const transaction = <T>(operation: () => T): T => db.transaction(operation)();
+  const transaction = <T>(operation: () => T): T => db.transaction(operation).immediate();
   const records = new RuntimeBindingRecords(repository, projects, validation);
   const commands = new RuntimeProjectBindingCommands(repository, resolution, projects, validation, transaction, records);
   return {

@@ -3,6 +3,7 @@ import test, { type TestContext } from "node:test";
 import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { body, fixture, selection } from "./fixtures/pages-action-host.js";
 import { bindActionClient, type ActionCallContext, type PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { openPagesStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
@@ -233,3 +234,84 @@ test("W4-2-06: pages.create with a request id makes the document once; other con
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:write"] }, actions.intakeOffers, selection({})), { code: "actions.forbidden" });
   });
 });
+
+test("F-pm3-15: pages.create and pages.update reject non-integer or out-of-range heading levels for user and agent audiences", async () => {
+  await fixture(async ({ bound, client, caller }) => {
+    const agent: ActionCallContext = { ...caller, audience: "agent" };
+    const { document } = await bound.invoke(actions.create, {
+      title: "Valid headings",
+      body: { type: "doc", content: [
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "One" }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Two" }] },
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Three" }] },
+        { type: "heading", content: [{ type: "text", text: "Default" }] },
+      ] },
+    });
+    for (const actor of [caller, agent]) {
+      for (const level of ["1 bad", "r", "tml", 0, 4, 1e9, 1.5, null]) {
+        const invalidBody = { type: "doc" as const, content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Bad" }] }] };
+        await assert.rejects(client.invoke(actor, actions.create, { title: "Bad heading", body: invalidBody }), { code: "pages.invalid" });
+        const nestedInvalid = { type: "doc" as const, content: [{ type: "blockquote", content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Nested" }] }] }] };
+        await assert.rejects(client.invoke(actor, actions.update, { id: document.id, body: nestedInvalid, expected_version: document.version }), { code: "pages.invalid" });
+      }
+    }
+    assert.equal((await bound.invoke(actions.list, {})).documents.length, 1);
+  });
+});
+
+for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "success"] as const) {
+  test(`Pages AI ${mode} returns real candidates or rejects without writing a placeholder`, async () => {
+    let enter!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>(resolve => { enter = resolve; });
+    const released = new Promise<void>(resolve => { release = resolve; });
+    const prompts: string[] = [];
+    const provider: HostCompleteText = async prompt => {
+      prompts.push(prompt);
+      if (mode === "failure") throw new Error("Fixture model failure");
+      if (mode === "empty") return " ";
+      if (mode !== "success") {
+        enter();
+        await released;
+      }
+      return "Actual candidate";
+    };
+    await fixture(async ({ home, bound, client, caller }) => {
+      const { document } = await bound.invoke(actions.create, { body: body("Original") });
+      const controller = new AbortController();
+      const pending = client.invoke({ ...caller, signal: controller.signal }, actions.ai,
+        { id: document.id, command: "rewrite", text: "Source selected text", expected_version: document.version });
+      if (mode === "success") {
+        assert.deepEqual(await pending, { text: "Actual candidate", command: "rewrite", style: undefined });
+        assert.match(prompts[0]!, /Source selected text/);
+        const translated = await bound.invoke(actions.ai, { id: document.id, command: "translate_new", text: "Original" });
+        assert.equal("stub" in translated, false, "the result no longer carries the retired placeholder flag");
+        assert.equal(translated.text, "Actual candidate");
+        assert.equal((await bound.invoke(actions.list, {})).documents.length, 1, "a candidate is returned, not saved as a document");
+      } else {
+        const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }
+          : mode === "failure" ? { code: "plugin.model_failed", message: "模型请求失败，请重试" } : mode === "empty" ? /模型没有返回文字/
+          : mode === "cancel" ? { name: "AbortError" } : mode === "delete" ? { code: "pages.not_found" } : { code: "pages.conflict" });
+        if (!["missing", "failure", "empty"].includes(mode)) {
+          await entered;
+          if (mode === "cancel") controller.abort();
+          else {
+            const store = openPagesStore(home, "a");
+            try {
+              if (mode === "edit") store.update(document.id, { body: body("Concurrent edit") });
+              else store.delete(document.id);
+            } finally {
+              store.close();
+            }
+          }
+          release();
+        }
+        await rejection;
+        assert.equal((await bound.invoke(actions.list, {})).documents.length, mode === "delete" ? 0 : 1);
+      }
+      if (mode !== "delete") {
+        assert.deepEqual((await bound.invoke(actions.get, { id: document.id })).document.body, body(mode === "edit" ? "Concurrent edit" : "Original"));
+      }
+    }, mode === "missing" ? null : provider);
+  });
+}

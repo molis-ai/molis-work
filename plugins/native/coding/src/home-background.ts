@@ -4,6 +4,7 @@ import { bindOwnerPluginAction, defineBackgroundTasksAction, type ActionHandlerB
 import type { StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingBackgroundSession, CodingSessionStore } from "./store.js";
+import { sessionTitleFor } from "./session-title.js";
 
 /**
  * Coding's part of the table of background tasks (PG-043, S-49, specs/work-line §6): the Host asks this query in every open
@@ -54,7 +55,8 @@ function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], s
     const subject = { kind: "coding_session", id: session.session_id };
     const agentSession = shown === "waiting-approval" ? session.runtime_session_id : undefined;
     const ids = agentSession ? reviewIds.get(agentSession) : undefined;
-    return { subject, title: session.title, state: mine && shown !== "running" ? "answer" : CODING_RING[shown] ?? "round-ended", updated_at: session.updated_at,
+    const title = sessionTitleFor(session.title);
+    return { subject, title, state: mine && shown !== "running" ? "answer" : CODING_RING[shown] ?? "round-ended", updated_at: session.updated_at,
       waiting: !beforeRestart && (WAITING.has(session.state) || mine > 0),
       step: { text: beforeRestart ? uiText.text("coding.home-background.this-did-not-finish-before-the-service") : CODING_STANDING[session.state] ? uiText.text(CODING_STANDING[session.state]!) : ended }, details: holders,
       executor: { kind: "plugin", label: "Coding" }, serves: [subject], scope: "project",
@@ -63,7 +65,7 @@ function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], s
         input: { session_id: session.session_id, task_id: command.task_id }, summary: command.summary })),
       decisions: [],
       ...(agentSession && ids?.length ? { held_reviews: { session_id: agentSession, ids } } : {}),
-      open: { kind: "item", surface: "coding", id: session.session_id, title: session.title || uiText.text("coding.home-background.open-session"), label: uiText.text("coding.home-background.open-session") } };
+      open: { kind: "item", surface: "coding", id: session.session_id, title: title || uiText.text("coding.home-background.open-session"), label: uiText.text("coding.home-background.open-session") } };
   });
 }
 

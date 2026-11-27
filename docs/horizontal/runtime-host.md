@@ -6,7 +6,7 @@
 
 **不拥有：** Goal、Session、workspace、conversation lineage 或 Artifact。
 
-**Adapter：** Terminal/PTY 实现放在 `horizontal/runtime-host/src/adapters/`，不建立顶层 adapters package。Codex app-server 会话适配器与 `RuntimeHostRouter` 随 Sessions 插件下线一起删除；Sessions 重做时按新的合同再设计，见 `specs/BACKLOG.md` 的 BL-177。
+**Adapter：** Terminal/PTY 实现放在 `horizontal/runtime-host/src/adapters/`，不建立顶层 adapters package。旧 Codex app-server 会话适配器与 `RuntimeHostRouter` 随旧 Sessions 插件下线删除；外部会话的发现与只读历史首期已在 [`horizontal/sessions`](sessions.md) 落地，后续会话控制与交接仍按 `specs/BACKLOG.md` 的 [BL-177](../../specs/backlog/BL-177.md) 跟进。
 
 ## 当前实现
 

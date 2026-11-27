@@ -75,11 +75,19 @@ function commandRow(page: Page, region: HTMLElement, row: Row, key: string) {
 export function renderCommandRows(page: Page, runs: readonly RunView[]) {
   const region = page.q("[data-coding-commands]"), rows = commandRows(runs);
   region.hidden = !rows.length;
-  const shown = new Set([...region.children].map(node => (node as HTMLElement).dataset.command));
+  const shown = new Map<string, HTMLElement>();
+  for (const child of Array.from(region.children) as HTMLElement[]) {
+    if (child.dataset.command) shown.set(child.dataset.command, child);
+  }
   for (const row of rows) {
     const key = JSON.stringify(row.ref);
-    if (shown.has(key)) continue;
-    shown.add(key);
+    const existing = shown.get(key);
+    if (existing) {
+      const round = existing.querySelector(".coding-command-round");
+      if (round) round.textContent = uiText.text("coding.turn.number", { number: row.number });
+      continue;
+    }
+    shown.set(key, region);
     commandRow(page, region, row, key);
   }
 }

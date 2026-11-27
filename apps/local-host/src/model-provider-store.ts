@@ -34,9 +34,12 @@ export interface ModelProviderSqlite {
   };
 }
 
+/** The provider metadata a credential reader checks before decrypting a `model-api` connection's key. */
+export type ModelSecretTarget = Pick<ModelProviderRecord, "credential_ref" | "base_url">;
+
 /** The slice of the Host's secret store this needs: it reads a connection's key, never writes one. */
 export interface ModelSecretPort {
-  get(authRef: string): string | null;
+  get(authRef: string, provider?: ModelSecretTarget): string | null;
 }
 
 const modelProviderErrors = defineErrorCodes("model_provider", {
@@ -229,11 +232,11 @@ export class ModelProviderStore {
     return true;
   }
 
-  /** Whether a key is really stored. Asked of the secret store, never cached on the row. */
+  /** Whether a key is really stored and currently usable for this provider's origin. Asked of the secret port, never cached on the row. */
   hasCredential(providerId: string): boolean {
     const existing = this.get(providerId);
     if (existing === null) return false;
-    const value = this.#secrets.get(existing.credential_ref);
+    const value = this.#secrets.get(existing.credential_ref, existing);
     return typeof value === "string" && value.trim() !== "";
   }
 
@@ -269,11 +272,11 @@ export class ModelProviderStore {
       : [this.get(input.provider_id)].filter((entry): entry is ModelProviderRecord => entry !== null);
     for (const provider of candidates) {
       if (!provider.enabled) continue;
-      const apiKey = this.#secrets.get(provider.credential_ref);
-      if (typeof apiKey !== "string" || apiKey.trim() === "") continue;
       const model = provider.models.find((entry) =>
         entry.enabled && (input?.model_id === undefined || entry.model_id === input.model_id));
       if (model === undefined) continue;
+      const apiKey = this.#secrets.get(provider.credential_ref, provider);
+      if (typeof apiKey !== "string" || apiKey.trim() === "") continue;
       return { provider, model, api_key: apiKey };
     }
     return null;

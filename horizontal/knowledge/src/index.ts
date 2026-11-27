@@ -98,6 +98,11 @@ const HINT_CHARS = 160;
 const DEFAULT_GREP_LIMIT = 30;
 const DEFAULT_LIST = 30;
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
+function throwIfAborted(access: KnowledgeAccess, error?: unknown): void {
+  access.caller.signal?.throwIfAborted();
+  access.reader?.signal?.throwIfAborted();
+  if (error instanceof Error && error.name === "AbortError") throw error;
+}
 /** How an owner refuses a subject it does not have: no reader for the kind, an id it cannot parse, or another object. */
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 /** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */
@@ -261,6 +266,8 @@ export class KnowledgeService {
     if (start > range.end) throw knowledgeErrors.invalid("读取位置超出了这一段的长度", { offset: input.offset ?? 0, length: range.end - range.start });
     await access.beforeEffect?.();
     await this.assertActive(access, context.subject);
+    throwIfAborted(access);
+    await access.beforeEffect?.();
     const round = roundOf(access.caller), left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
     const until = input.max_lines === undefined ? range.end : Math.min(range.end, afterLines(lines, start, input.max_lines, context.content.length));
     const end = Math.min(until, start + Math.min(asked, left ?? asked));
@@ -292,6 +299,8 @@ export class KnowledgeService {
     const all = [...named, ...found?.files.map(file => file.subject) ?? [], ...picked?.subjects ?? []];
     const subjects = all.filter((subject, index) => all.findIndex(other => sameSubject(other, subject)) === index);
     const read = await Promise.all(subjects.map(subject => this.originals.read(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
+    for (const outcome of read) if ("error" in outcome) throwIfAborted(access, outcome.error);
+    throwIfAborted(access);
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
     // Lines found are original text: they count toward the round's fill, and the rest is left with `more`. Counts are not text.
     await access.beforeEffect?.();
@@ -300,8 +309,13 @@ export class KnowledgeService {
       const outcome = read[index]!;
       if ("error" in outcome) continue;
       try { await this.assertActive(access, outcome.context.subject); }
-      catch (error) { read[index] = { error }; }
+      catch (error) {
+        throwIfAborted(access, error);
+        read[index] = { error };
+      }
     }
+    throwIfAborted(access);
+    await access.beforeEffect?.();
     const round = roundOf(access.caller), fill = lines ? this.budget.left(round) : null;
     let chars = 0;
     const given: Array<{ context: ActionSubjectContext; via: "grep"; chars: number }> = [];
@@ -425,7 +439,10 @@ class KnowledgeSourceReader {
     const active: T[] = [];
     for (const item of selected) {
       try { await this.assertActive(access, item.subject); active.push(item); }
-      catch { /* Unknown, archived and refused results are withheld alike. */ }
+      catch (error) {
+        throwIfAborted(access, error);
+        /* Unknown, archived and refused results are withheld alike. */
+      }
     }
     return active;
   }
@@ -442,7 +459,12 @@ class KnowledgeSourceReader {
   /** Whether a reader of this kind is offered to the caller, so a refusal is about the id and not about the kind. */
   private async readable(caller: ActionCallContext, access: KnowledgeAccess, subject: ActionSubject): Promise<boolean> {
     let views: readonly ActionView[];
-    try { views = await access.client.discover(caller); } catch { return false; }
+    try {
+      views = await access.client.discover(caller);
+    } catch (error) {
+      throwIfAborted(access, error);
+      return false;
+    }
     return views.some(view => isSubjectReader(view.action) && view.action.subject_kinds.includes(subject.kind) && view.availability.available);
   }
 
@@ -469,6 +491,7 @@ class KnowledgeSourceReader {
       await this.assertActive(access, subject);
       return { ...context, content, truncated: [...content].length < (page.length ?? characters) || (page.length === undefined && context.truncated) };
     } catch (error) {
+      throwIfAborted(access, error);
       // A subject no card knows, of a kind this caller may read, that its owner does not take is not a piece here: most often
       // one written differently from how it was given. Said as that, so the caller does not take the owner's refusal of the id
       // for a fault in its other arguments. A kind the caller may not read keeps the directory's own refusal (S-41).

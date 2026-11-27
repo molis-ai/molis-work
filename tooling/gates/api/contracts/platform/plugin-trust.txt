@@ -143,7 +143,7 @@ export interface ProjectPluginInstalledView extends PluginInstalledView {
 
 export declare const localPackageSignAction: ActionDefinition<LocalPackageSignInput, LocalPackageSignResult>;
 
-export declare function platformPermissionMeaning(permission: string): string | null;
+export declare function platformPermissionMeaning(permission: string, locale?: string): string | null;
 
 // Declarations the exports above refer to, which no entry exports itself:
 

@@ -14,7 +14,7 @@ import { memoryErrors } from "./errors.js";
 interface EditPorts {
   backend: MemoryBackendPort; ledger: MemoryLedgerPort; operations: MemoryOperations; scopes: MemoryScopeCommands;
   now(): Date; beforeEffect?(): void | Promise<void>;
-  record(caller: MemoryCaller, input: Omit<MemoryChangeRecord, "actor_id" | "change_id" | "project_id" | "work" | "at" | "state" | "undoable">): MemoryChangeRecord;
+  record(caller: MemoryCaller, input: Omit<MemoryChangeRecord, "actor_id" | "change_id" | "project_id" | "work" | "at" | "state" | "undoable"> & { project_id?: string | null }): MemoryChangeRecord;
 }
 
 /** Explicit formal classification correction uses one canonical CAS and the existing history owner. */
@@ -44,7 +44,7 @@ export class MemoryEdits {
           this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
           this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "edited", by, at });
           if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
-          return this.ports.record(caller, { kind: "edited", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: null, undo: null });
+          return this.ports.record(caller, { kind: "edited", scope, owner, project_id: project ?? null, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: null, undo: null });
         });
         return { memory: this.ports.scopes.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner })! }), change: changeView(change) };
       }
@@ -75,7 +75,7 @@ export class MemoryEdits {
           this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
           this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "restored", by, at });
           if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
-          return this.ports.record(caller, { kind: "restored", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: `回到第 ${revision.version} 版`, undo: null });
+          return this.ports.record(caller, { kind: "restored", scope, owner, project_id: project ?? null, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: `回到第 ${revision.version} 版`, undo: null });
         });
         return { memory: this.ports.scopes.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner })! }), change: changeView(change) };
       }
@@ -101,7 +101,7 @@ export class MemoryEdits {
       this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
       this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "edited", by: "person", at });
       disownAutomatic(this.ports.ledger, entry.memory_id);
-      return this.ports.record(caller, { kind: "edited", scope: located.scope, owner: located.owner, memory_id: entry.memory_id,
+      return this.ports.record(caller, { kind: "edited", scope: located.scope, owner: located.owner, project_id: located.project ?? null, memory_id: entry.memory_id,
         text: entry.text, by: "person", rule: null, reason: `续期至 ${expiry}`, undo: null });
     });
     return { memory: this.ports.scopes.item({ ...located, entry, meta: facts }), change: changeView(change) };
@@ -169,7 +169,7 @@ export class MemoryEdits {
       this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
       this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "edited", by: "person", at });
       disownAutomatic(this.ports.ledger, entry.memory_id);
-      return this.ports.record(caller, { kind: "edited", scope: located.scope, owner: located.owner, memory_id: entry.memory_id,
+      return this.ports.record(caller, { kind: "edited", scope: located.scope, owner: located.owner, project_id: located.project ?? null, memory_id: entry.memory_id,
         text: entry.text, by: "person", rule: null, reason: null, undo: null });
     });
     return { memory: this.ports.scopes.item({ ...located, entry, meta: facts }), change: changeView(change) };

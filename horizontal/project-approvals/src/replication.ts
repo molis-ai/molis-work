@@ -62,6 +62,8 @@ function validateRule(row: ApprovalRow) {
     || !text(row.created_by) || !text(row.created_at) || typeof row.reason !== "string") throw invalid();
   const changed = [row.changed_by, row.changed_at, row.change_reason];
   if (!changed.every(item => item === null) && !changed.every(text)) throw invalid();
+  if ((row.state === "active") !== changed.every(item => item === null)) throw invalid();
+  if (row.state === "active" ? Number(row.revision) !== 1 : Number(row.revision) < 2) throw invalid();
   if (!isApprovalRuleScope(parsedJson(row.scope_json))) throw invalid();
 }
 
@@ -85,29 +87,67 @@ export function projectApprovalReplica(db: ReplicaDatabase, projectId: string, s
     decisions: db.prepare("SELECT * FROM project_review_decisions WHERE project_id=? ORDER BY decision_id").all(projectId),
     rules: db.prepare("SELECT * FROM project_approval_rules WHERE project_id=? ORDER BY rule_order,id").all(projectId),
   });
+  function parsePayload(input: unknown) {
+    if (!isRecord(input) || !fields(input, ["space_id", "project_id", "decisions", "rules"])
+      || input.space_id !== spaceId || input.project_id !== projectId) throw invalid();
+    const decisions = approvedRows(input.decisions, projectId, decisionColumns, validateDecision);
+    const rules = approvedRows(input.rules, projectId, ruleColumns, validateRule);
+    if (new Set(decisions.map(row => row.decision_id)).size !== decisions.length
+      || new Set(decisions.map(row => row.request_id)).size !== decisions.length
+      || new Set(decisions.map(row => row.request_key)).size !== decisions.length
+      || new Set(rules.map(row => row.id)).size !== rules.length) throw invalid();
+    const activeRuleScopes = new Set<string>();
+    for (const row of rules) {
+      if (row.state !== "active") continue;
+      const scope = canonical(parsedJson(row.scope_json));
+      if (activeRuleScopes.has(scope)) throw invalid();
+      activeRuleScopes.add(scope);
+    }
+    return { decisions, rules };
+  }
   function mergeDecisions(rows: readonly ApprovalRow[]) {
-    const read = db.prepare("SELECT * FROM project_review_decisions WHERE decision_id=?");
+    const find = db.prepare(
+      "SELECT * FROM project_review_decisions WHERE decision_id=? OR (project_id=? AND (request_id=? OR request_key=?))",
+    );
     const insert = db.prepare(`INSERT INTO project_review_decisions (${decisionColumns.join(",")}) VALUES (?,?,?,?,?,?)`);
     for (const row of rows) {
-      const existing = read.get(row.decision_id!);
-      if (!existing) insert.run(...decisionColumns.map(column => row[column]!));
-      else if (canonical(existing) !== canonical(row)) throw collision();
+      const matches = find.all(row.decision_id!, projectId, row.request_id!, row.request_key!);
+      if (matches.length === 0) insert.run(...decisionColumns.map(column => row[column]!));
+      else if (matches.length !== 1 || canonical(matches[0]) !== canonical(row)) throw collision();
     }
   }
   function mergeRules(rows: readonly ApprovalRow[]) {
-    const read = db.prepare("SELECT * FROM project_approval_rules WHERE id=?");
+    const readRule = db.prepare("SELECT * FROM project_approval_rules WHERE id=?");
     const insert = db.prepare(`INSERT INTO project_approval_rules (${ruleColumns.join(",")}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     const update = db.prepare(`UPDATE project_approval_rules SET revision=?,state=?,changed_by=?,changed_at=?,change_reason=?
       WHERE project_id=? AND id=?`);
     const immutable = [...ruleColumns.slice(0, 5), ...ruleColumns.slice(7, 10)];
+    const pendingActiveInserts: ApprovalRow[] = [];
     for (const row of rows) {
-      const existing = read.get(row.id!);
-      if (!existing) { insert.run(...ruleColumns.map(column => row[column]!)); continue; }
+      const existing = readRule.get(row.id!);
+      if (!existing) {
+        if (row.state === "active") pendingActiveInserts.push(row);
+        else insert.run(...ruleColumns.map(column => row[column]!));
+        continue;
+      }
       if (immutable.some(column => row[column] !== existing[column])) throw collision();
       if (row.revision === existing.revision && canonical(existing) !== canonical(row)) throw collision();
       if (Number(row.revision) > Number(existing.revision)) {
         if (existing.state !== "active" || row.state === "active") throw collision();
         update.run(row.revision!, row.state!, row.changed_by!, row.changed_at!, row.change_reason!, projectId, row.id!);
+      }
+    }
+    if (pendingActiveInserts.length > 0) {
+      const activeScopes = new Map<string, string>();
+      for (const existing of db.prepare("SELECT id, scope_json FROM project_approval_rules WHERE project_id=? AND state='active'").all(projectId)) {
+        activeScopes.set(canonical(parsedJson(existing.scope_json)), String(existing.id));
+      }
+      for (const row of pendingActiveInserts) {
+        const scope = canonical(parsedJson(row.scope_json));
+        const existingId = activeScopes.get(scope);
+        if (existingId && existingId !== String(row.id)) throw collision();
+        insert.run(...ruleColumns.map(column => row[column]!));
+        activeScopes.set(scope, String(row.id));
       }
     }
   }
@@ -120,14 +160,24 @@ export function projectApprovalReplica(db: ReplicaDatabase, projectId: string, s
     },
     apply(candidate, input) {
       scoped(candidate);
-      if (!isRecord(input) || !fields(input, ["space_id", "project_id", "decisions", "rules"])
-        || input.space_id !== spaceId || input.project_id !== projectId) throw invalid();
-      const decisions = approvedRows(input.decisions, projectId, decisionColumns, validateDecision);
-      const rules = approvedRows(input.rules, projectId, ruleColumns, validateRule);
-      if (new Set(decisions.map(row => row.decision_id)).size !== decisions.length
-        || new Set(rules.map(row => row.id)).size !== rules.length) throw invalid();
+      const { decisions, rules } = parsePayload(input);
       mergeDecisions(decisions);
       mergeRules(rules);
+      authorize();
+    },
+    replace(candidate, input) {
+      scoped(candidate);
+      const { decisions, rules } = parsePayload(input);
+      const foreignDecision = db.prepare("SELECT 1 FROM project_review_decisions WHERE decision_id=? AND project_id<>?");
+      const foreignRule = db.prepare("SELECT 1 FROM project_approval_rules WHERE id=? AND project_id<>?");
+      for (const row of decisions) if (foreignDecision.get(row.decision_id!, projectId)) throw collision();
+      for (const row of rules) if (foreignRule.get(row.id!, projectId)) throw collision();
+      db.prepare("DELETE FROM project_review_decisions WHERE project_id=?").run(projectId);
+      db.prepare("DELETE FROM project_approval_rules WHERE project_id=?").run(projectId);
+      const insertDecision = db.prepare(`INSERT INTO project_review_decisions (${decisionColumns.join(",")}) VALUES (?,?,?,?,?,?)`);
+      for (const row of decisions) insertDecision.run(...decisionColumns.map(column => row[column]!));
+      const insertRule = db.prepare(`INSERT INTO project_approval_rules (${ruleColumns.join(",")}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      for (const row of rules) insertRule.run(...ruleColumns.map(column => row[column]!));
       authorize();
     },
   });

@@ -224,7 +224,10 @@ export interface AdapterReadOutput {
 }
 
 /** Attribution's opening sample is independent of the UI's newest history page. Never accepted by the public history action. */
-export type AdapterHistoryInput = Omit<ExternalSessionHistoryInput, "session_key"> & { readonly opening?: true };
+export type AdapterHistoryInput = Omit<ExternalSessionHistoryInput, "session_key"> & {
+  readonly opening?: true;
+  readonly redact?: boolean;
+};
 
 export interface ExternalSessionSourceAdapter {
   readonly entry_id: ExternalToolId;

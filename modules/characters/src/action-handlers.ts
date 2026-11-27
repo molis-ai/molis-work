@@ -184,17 +184,33 @@ function roleHandlers(drafts: CharactersService, projectId: string, validate: Va
     },
     memberSection: (input: CharacterMemberSectionInput) => write(() => ({ role: roles.setSection(requireProject(projectId), input.member_id, input.section,
       input.expected_revision, input.expected_original_version, input.to) })),
-    memberState: (input: CharacterMemberStateInput) => write(() => ({ role: roles.setMemberState(requireProject(projectId), input.member_id, input.expected_revision, input.state) })),
+    memberState: async (input: CharacterMemberStateInput) => {
+      const project = requireProject(projectId);
+      if (input.state === "active") {
+        const current = roles.memberRole(project, input.member_id);
+        if (current) await validate(roles.content(project, current.current).content.action_tools);
+      }
+      return write(() => ({ role: roles.setMemberState(project, input.member_id, input.expected_revision, input.state) }));
+    },
     restore: async (input: CharacterRestoreInput) => {
       if (input.version.kind === "personal") {
         const version = input.version;
+        const past = roles.version(version.character_id, version.version);
+        if (past) await validate(past.content.action_tools);
         await beforeWrite();
         const draft = drafts.restore(version, input.expected_revision as number);
         return { role: roles.personalRole(draft.character_id)! };
       }
+      const project = requireProject(projectId);
       const projectInput = input as Extract<CharacterRestoreInput, { expected_revision: string }>;
       const { version, expected_revision, expected_original_version, expected_original_draft_revision } = projectInput;
-      return write(() => ({ role: drafts.restoreMember(requireProject(projectId), version, expected_revision, expected_original_version, expected_original_draft_revision) }));
+      try {
+        const past = roles.content(project, version);
+        await validate(past.content.action_tools);
+      } catch (error) {
+        if (!(error instanceof ActionError && error.code === "characters.not_found")) throw error;
+      }
+      return write(() => ({ role: drafts.restoreMember(project, version, expected_revision, expected_original_version, expected_original_draft_revision) }));
     },
     defaults: (input: CharacterDefaultSelection) => write(() => { roles.setDefault(projectId, input); return roles.defaultsWithEffective(projectId); }),
     fromTemplate: async (input: CharacterTemplateAdoptionInput) => {

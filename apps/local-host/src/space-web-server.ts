@@ -14,7 +14,7 @@ import { createPersonalAccountHttp } from './personal-http.js';
 import { createPersonalNativeSession } from './personal-native-session.js';
 import { personalCloudConfig } from './personal-auth.js';
 import { resolveWebControlToken, sendWebHealth } from './web-control-token.js';
-import { authorizeLocalWebRequest, finalizeLocalMutation, refuseForeignRequest, refuseLocalWebRequest, requestHost, sendLocalWebJson, respondLocalWebRefusal, type LocalMutationState } from './web-http.js';
+import { authorizeLocalWebRequest, finalizeLocalMutation, parseLocalRequestUrl, refuseForeignRequest, refuseLocalWebRequest, requestHost, sendLocalWebJson, respondLocalWebRefusal, type LocalMutationState } from './web-http.js';
 import type { WebServerOptions } from './web-types.js';
 import { PLUGIN_INSTALL_PATH } from './plugin-install-gateway.js';
 import { ACCOUNT_CONNECT_PATH } from './resident-account-connection.js';
@@ -76,7 +76,9 @@ function dispatchNativeAccountCallback(request:IncomingMessage,response:ServerRe
   const host=requestHost(request);
   if(request.method!=='GET'||!host||!valid()||request.headers['x-molis-work-control-token']!==undefined
     ||request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'=')))return false;
-  if(!entry.server.matchesNativeAccountCallback?.(new URL(url.pathname+url.search,`http://${host}`),request.headers.origin))return false;
+  let callbackUrl: URL;
+  try { callbackUrl = new URL(url.pathname + url.search, `http://${host}`); } catch { return false; }
+  if(!entry.server.matchesNativeAccountCallback?.(callbackUrl,request.headers.origin))return false;
   entry.responses.set(response,valid);
   response.once('close',()=>entry.responses.delete(response));
   entry.server.emit('request',request,response);
@@ -347,9 +349,11 @@ function bindSpaceSockets(server:http.Server,sessions:WebSessions,{surface,selec
   });
 }
 
+const ACCOUNT_PAGE_CSP = "default-src 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://avatars.githubusercontent.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'";
+
 function respondAccountPreparation(response:ServerResponse,render?:()=>string):void {
   if(!render){sendLocalWebJson(response,409,{error:readErrorWord('common.error.account-switching')});return;}
-  response.writeHead(409,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'no-referrer',Refresh:'1'});
+  response.writeHead(409,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','content-security-policy':ACCOUNT_PAGE_CSP,'x-content-type-options':'nosniff','referrer-policy':'no-referrer',Refresh:'1'});
   response.end(render());
 }
 
@@ -376,12 +380,16 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
     void withWebSessionRequest(request, () => runWithLocale(requestLocale, () => runWithMolisWorkHome(home,async()=>{
       try {
         if(isStopping()){sendLocalWebJson(response,503,{error:readErrorWord('common.error.service-stopping')});return;}
-        const url=new URL(request.url??'/','http://localhost');
+        const url=parseLocalRequestUrl(request.url);
         if(refuseForeignRequest(request,response))return;
+        if (!url) {
+          sendLocalWebJson(response, 400, { code: 'host.request_path_invalid', error: readErrorWord('common.error.invalid') });
+          return;
+        }
         // External top-level links first enter this origin without any session or account action.
         // The resulting same-origin navigation can then obtain the normal cookie-bound page proof.
         if(accountEntry&&url.pathname==='/'&&request.method==='GET'&&request.headers['sec-fetch-site']==='cross-site'&&request.headers['sec-fetch-dest']==='document'&&request.headers.origin===undefined){
-          response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'no-referrer'});
+          response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','content-security-policy':ACCOUNT_PAGE_CSP,'x-content-type-options':'nosniff','referrer-policy':'no-referrer'});
           response.end(accountEntry.renderSameOriginEntry());return;
         }
         // CLI/MCP have no browser cookies. Only an already-open, authenticated
@@ -459,7 +467,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         const address=server.address();
         const origin=`http://127.0.0.1:${address&&typeof address==='object'?address.port:4173}`;
         if(accountEntry?.asset(request,response,url))return;
-        if(installationEntry&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));return;}
+        if(installationEntry&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','content-security-policy':ACCOUNT_PAGE_CSP,'x-content-type-options':'nosniff'});response.end(accountEntry.render(webPageToken(request),request,url));return;}
         if (url.pathname.startsWith('/api/sync')) {
           const expectedSpace = request.headers['x-molis-sync-space'];
           if (expectedSpace && expectedSpace !== selected.space.spaceId) {
@@ -503,7 +511,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
             if(entry&&!account.preparing()&&dispatchNativeAccountCallback(request,response,url,entry,()=>isAccountReady(entry.space.spaceId)))return;
             refuseLocalWebRequest(response);return;
           }
-          if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){url.searchParams.delete('accountLogin');response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));}
+          if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){url.searchParams.delete('accountLogin');response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','content-security-policy':ACCOUNT_PAGE_CSP,'x-content-type-options':'nosniff'});response.end(accountEntry.render(webPageToken(request),request,url));}
           else sendLocalWebJson(response,401,{error:readErrorWord('common.error.account-session-expired')});
           return;
         }
@@ -535,7 +543,8 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
       }catch(error){
         if(!response.headersSent&&error instanceof ActionError){respondLocalWebRefusal({respond:(status,body)=>sendLocalWebJson(response,status,body)},error);return;}
         if(!response.headersSent){
-          if(request.method==='GET'&&!(request.url??'/').startsWith('/api/')&&accountEntry){response.writeHead(503,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,new URL(request.url??'/','http://localhost'),readErrorWord('common.error.account-not-ready')));}
+          const fallbackUrl = parseLocalRequestUrl(request.url);
+          if(request.method==='GET'&&fallbackUrl&&!fallbackUrl.pathname.startsWith('/api/')&&accountEntry){response.writeHead(503,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','content-security-policy':ACCOUNT_PAGE_CSP,'x-content-type-options':'nosniff'});response.end(accountEntry.render(webPageToken(request),request,fallbackUrl,readErrorWord('common.error.account-not-ready')));}
           else sendLocalWebJson(response,503,{code:'space.unavailable',error:readErrorWord('common.error.account-not-ready')});
         }
         else response.destroy();

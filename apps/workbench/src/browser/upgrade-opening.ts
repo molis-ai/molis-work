@@ -16,12 +16,17 @@ async function tick(): Promise<void> {
   let response: Response | null = null;
   try { response = await molisWorkRequest<Response>("/upgrade-progress", { as: "response" }); }
   catch { response = null; /* Between the maintenance listener and the Host nothing answers for a moment: ask again. */ }
-  if (response && !response.ok) { location.reload(); return; }
-  if (response && box && line) {
-    const progress = await response.json() as Progress;
-    if (progress.state === "upgrading" && Date.now() - progress.started_at >= 2000) {
-      line.textContent = (box.dataset.template ?? "").replace("%done", String(progress.done)).replace("%total", String(progress.total));
-      box.hidden = false;
+  if (response) {
+    const type = (response.headers.get("content-type") ?? "").toLowerCase();
+    if (!response.ok || (type !== "" && !type.includes("application/json"))) { location.reload(); return; }
+    if (box && line) {
+      try {
+        const progress = await response.json() as Progress;
+        if (progress.state === "upgrading" && Date.now() - progress.started_at >= 2000) {
+          line.textContent = (box.dataset.template ?? "").replace("%done", String(progress.done)).replace("%total", String(progress.total));
+          box.hidden = false;
+        }
+      } catch { /* Truncated response or non-JSON body during switchover: ask again. */ }
     }
   }
   setTimeout(() => void tick(), 500);

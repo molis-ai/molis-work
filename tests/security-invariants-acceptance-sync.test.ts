@@ -218,3 +218,35 @@ test("S-acceptance-evidence-tier EVD-43: replicated checks and deliveries refuse
     "INSERT INTO acceptance_checks (check_id,subject_no,clock,requirement_id,requirement_version,round,kind,verdict,tier,gap,checked_version,method,observed,evidence_json,reporter_session,actor_id,reported_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
   ).run("bad-json", subjectNo, 2, "r1", 1, 1, "engineering", "supports", "self_reported", null, "v1", "m", "o", "{bad", null, "a", at), /CHECK constraint failed/i);
 });
+
+test("F-modules-server-09 acceptance replica refuses orphan checks and decisions before replacing rows", async t => {
+  const a = device(t), b = device(t);
+  a.service.set(PROVIDER, { subject: SUBJECT, requirements: [{ id: "r1", statement: "通过检查", requires_person: false }] });
+  await a.service.deliver(PROVIDER, { subject: SUBJECT, version: "v1" }, NO_EVIDENCE);
+  await a.service.report(PROVIDER, { subject: SUBJECT, reports: [{ requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "跑测试", observed: "通过" }] }, NO_EVIDENCE);
+  const first = a.replica.next()!;
+  b.replica.receive({ ...first, revision: 1 });
+  const beforeRows = b.rows();
+  const payload = structuredClone(first.value as {
+    requirements: Record<string, unknown>[]; deliveries: Record<string, unknown>[];
+    checks: Record<string, unknown>[]; decisions: Record<string, unknown>[];
+  });
+  // Orphan check pointing at a nonexistent delivery round.
+  const badRound = structuredClone(payload);
+  badRound.checks[0]!.round = 99;
+  const badRoundEvent = { ...first, operationId: "orphan-round", revision: 2, value: badRound };
+  b.replica.receive(badRoundEvent);
+  assert.throws(() => b.replica.resolve(badRoundEvent.key, "remote"), { code: "actions.input_invalid" });
+  assert.deepEqual(b.rows(), beforeRows);
+
+  // Orphan decision pointing at a nonexistent requirement version.
+  const badReq = structuredClone(payload);
+  badReq.decisions = [{
+    decision_id: "orphan-dec", clock: 1, requirement_id: "r1", requirement_version: 99, stands_round: 1, version: "v1",
+    decision: "accepted", note: null, origin: "user_decision", origin_ref: "dec-1", actor_id: "web-user", decided_at: at,
+  }];
+  const badReqEvent = { ...first, operationId: "orphan-req", revision: 3, value: badReq };
+  b.replica.receive(badReqEvent);
+  assert.throws(() => b.replica.resolve(badReqEvent.key, "remote"), { code: "actions.input_invalid" });
+  assert.deepEqual(b.rows(), beforeRows);
+});

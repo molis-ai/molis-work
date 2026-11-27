@@ -135,7 +135,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, homeActions(localHost))
       || await handlePluginSlotsHttp(request, response, url, localHost, settingsProjectReference(composition.projectSettings, serverOptions.homeDirectory)) },
   { id: "web-search-settings", handle: ({ request, response, url, localHost, serverOptions }) => handleWebSearchSettingsHttp(request, response, url, localHost, serverOptions.assertAccountCurrent) },
-  { id: "connector-methods", handle: ({ request, response, url, serverOptions, localHost }) => handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost) },
+  { id: "connector-methods", handle: ({ request, response, url, serverOptions, localHost }) => handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost, serverOptions.assertAccountCurrent) },
   { id: "connectors-settings", handle: ({ request, response, url, serverOptions }) => handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory) },
   { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog, serverOptions.assertAccountCurrent) },
   { id: "runtime-settings", handle: ({ request, response, url, runtimeIntegrations, webService, serverOptions }) => handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService, serverOptions.assertAccountCurrent) },

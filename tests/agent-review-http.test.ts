@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 
-import { assistantServiceFor, ComputerDesk, ensureSystemAgentService, MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale, WebSessions, webPageToken, withWebSessionRequest } from "@molis-ai/molis-work-app-local-host";
+import { assistantServiceFor, ComputerDesk, ensureSystemAgentService, MolisWorkLocalHost, handleAgentReviewHttp, handleUnscopedAgentReviews, installHostUiText, resolveWebLocale, runWithLocale, WebSessions, webPageToken, withWebSessionRequest } from "@molis-ai/molis-work-app-local-host";
 import type { AgentReviewRequest, AgentReviewDecisions } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -455,4 +455,76 @@ test("QEA-21 a revoked live review only offers rejection, while a disconnected p
     assert.equal(item.agentHost.reviews.receipt("no-execution")?.status, "pending");
     assert.equal(effects, 0);
   } finally { item.server.close(); }
+});
+
+test("F-hc-11: /api/agent/reviews/decide rechecks account currency after refresh, preserves actions.unavailable as 503, and handleUnscopedAgentReviews forwards it", async () => {
+  let accountCurrent = true;
+  let effects = 0;
+  const item = await fixture(undefined, {
+    assertAccountCurrent() {
+      if (!accountCurrent) throw new ActionError("actions.unavailable", "account switched");
+    },
+  });
+  try {
+    item.agentHost.reviews.request(pending("acct-raced"));
+    item.agentHost.reviews.registerDecisionHandler("acct-raced", async (_input, commit) => {
+      const receipt = await commit();
+      effects += 1;
+      return receipt;
+    });
+    const detach = item.agentHost.reviews.registerRefresh(async () => {
+      accountCurrent = false;
+    });
+    try {
+      const refused = await fetch(`${item.base}/api/agent/reviews/decide`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ review_id: "acct-raced", version: "proposal-1", decision: "approve" }),
+      });
+      assert.equal(refused.status, 503);
+      assert.equal((await refused.json() as { code?: string }).code, "actions.unavailable");
+      assert.equal(effects, 0, "lost account currency during refresh must not execute decision handler");
+      assert.equal(item.agentHost.reviews.receipt("acct-raced")?.status, "pending");
+    } finally {
+      detach();
+    }
+  } finally {
+    item.server.close();
+  }
+
+  // Unscoped entry point must also enforce assertAccountCurrent and preserve 503.
+  const host = await hostForReviews();
+  const { AgentHost: Host } = await import("@molis-ai/molis-work-service-agent-host");
+  const unscopedAgentHost = new Host({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) });
+  let unscopedEffects = 0;
+  unscopedAgentHost.reviews.request(pending("unscoped-acct", ASSISTANT_PERSONAL_OWNER));
+  unscopedAgentHost.reviews.registerDecisionHandler("unscoped-acct", async (_input, commit) => {
+    unscopedEffects += 1;
+    return commit();
+  });
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    void withWebSessionRequest(request, () => runWithLocale("en", () => handleUnscopedAgentReviews(request, response, url, {
+      host,
+      agentHost: unscopedAgentHost,
+      actorId: "user",
+      assertAccountCurrent: () => { throw new ActionError("actions.unavailable", "account unavailable"); },
+    }))).then(handled => {
+      if (!handled) { response.writeHead(404); response.end(); }
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const response = await fetch(`http://127.0.0.1:${port}/api/agent/reviews/decide`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ review_id: "unscoped-acct", version: "proposal-1", decision: "approve" }),
+    });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json() as { code?: string }).code, "actions.unavailable");
+    assert.equal(unscopedEffects, 0);
+  } finally {
+    server.close();
+  }
 });

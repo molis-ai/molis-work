@@ -57,6 +57,7 @@ export { resolveSyncEndpoint } from './endpoint.js';
 
 export class PersonalSync {
   private running:Promise<void>|null=null;
+  private opChain:Promise<void>=Promise.resolve();
   private controller=new AbortController();
   private error:string|null=null;
   private lastSuccess:string|null=null;
@@ -92,8 +93,35 @@ export class PersonalSync {
     this.history=cloudHistory({home:options.home,run:()=>this.run(),scope:namespace=>{
       const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
       const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
-      return {registration,policyRevision,channel:{assert:check,json:(route,body)=>this.request(route,body,body===undefined?'GET':'POST',check),binary:async(route,body)=>{const response=await this.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);if(!response.ok)throw syncError('invalid','同步附件读取失败');const bytes=new Uint8Array(await response.arrayBuffer());check();if(bytes.byteLength>4*1024*1024)throw syncError('limit','同步附件分块过大');return bytes;}}};
+      return {registration,policyRevision,channel:this.createBlobChannel(check)};
     }});
+  }
+  private async exclusive<T>(work:()=>Promise<T>):Promise<T>{
+    const prev=this.opChain;
+    let release!:()=>void;
+    const gate=new Promise<void>(resolve=>{release=resolve;});
+    this.opChain=prev.then(()=>gate,()=>gate);
+    await prev;
+    try{
+      return await work();
+    }finally{
+      release();
+    }
+  }
+  private createBlobChannel(check:()=>void,onProgress?:BlobChannel['onProgress']):BlobChannel{
+    return {
+      assert:check,
+      ...(onProgress?{onProgress}:{}),
+      json:<T>(route:string,body?:unknown)=>this.request<T>(route,body,body===undefined?'GET':'POST',check),
+      binary:async(route,body)=>{
+        const response=await this.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);
+        if(!response.ok)throw syncError('invalid','同步附件传输失败');
+        const bytes=new Uint8Array(await response.arrayBuffer());
+        check();
+        if(bytes.byteLength>4*1024*1024)throw syncError('limit','同步附件分块过大');
+        return bytes;
+      },
+    };
   }
   private db<T>(run:(db:import('node:sqlite').DatabaseSync)=>T):T {
     return withSyncDatabase(this.options.home,run);
@@ -128,15 +156,18 @@ export class PersonalSync {
     this.db(db=>db.prepare('INSERT INTO sync_policy VALUES (1,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(JSON.stringify(policy)));return policy;
   }
   async save(policy:unknown){
-    if(this.running)await this.running;
-    await this.registry.refresh();
-    const parsed=parseSpaceSyncPolicy(policy,this.options.spaceId);
-    const known=new Set(this.registry.current().map(r=>syncNamespace(r.selection)));
-    const old=new Set(this.policy().selections.map(syncNamespace));
-    if(parsed.selections.some(s=>!known.has(syncNamespace(s))&&!old.has(syncNamespace(s))))throw new Error('此同步格式尚未接入');
-    for(const registration of this.registry.current())if(parsed.selections.some(s=>syncNamespace(s)===syncNamespace(registration.selection)))assertSyncDependencies(registration,this.registry.current(),parsed);
-    const result=this.cache(await this.request('/v1/policy',parsed,'PUT'));
-    if(this.device.read().automatic===true)await this.run();return result;
+    const result=await this.exclusive(async()=>{
+      this.assert();
+      await this.registry.refresh();
+      const parsed=parseSpaceSyncPolicy(policy,this.options.spaceId);
+      const known=new Set(this.registry.current().map(r=>syncNamespace(r.selection)));
+      const old=new Set(this.policy().selections.map(syncNamespace));
+      if(parsed.selections.some(s=>!known.has(syncNamespace(s))&&!old.has(syncNamespace(s))))throw new Error('此同步格式尚未接入');
+      for(const registration of this.registry.current())if(parsed.selections.some(s=>syncNamespace(s)===syncNamespace(registration.selection)))assertSyncDependencies(registration,this.registry.current(),parsed);
+      return this.cache(await this.request('/v1/policy',parsed,'PUT'));
+    });
+    if(this.device.read().automatic===true)await this.run();
+    return result;
   }
   async refreshCatalog(){await this.registry.refresh();this.assert();}
   start(){
@@ -154,36 +185,49 @@ export class PersonalSync {
     this.assert();
     if(typeof automatic!=='boolean')throw syncError('invalid','请选择是否自动同步');
     if(this.changingDevice)throw syncError('busy','同步设置正在保存，请稍后重试');
-    this.device.write(automatic);this.changingDevice=true;
+    this.changingDevice=true;
     this.scheduler.stop();
     this.controller.abort();
     try{
-      await this.running;
-      this.options.authority.assertCurrent();
-      if(this.closed)throw syncError('scope','同步已停止');
-      this.controller=new AbortController();this.error=null;
+      await this.exclusive(async()=>{
+        this.options.authority.assertCurrent();
+        if(this.closed)throw syncError('scope','同步已停止');
+        this.device.write(automatic);
+        this.controller=new AbortController();
+        this.error=null;
+      });
     }finally{this.changingDevice=false;}
     if(automatic)this.start();
   }
   run():Promise<void>{
     if(this.running)return this.running;
     this.scheduler.running();
-    const signal=AbortSignal.any([this.options.authority.signal,this.controller.signal]);
-    this.running=withSyncCycleDatabase(this.options.home,signal,async()=>{
-      try{return await this.cycle();}
-      finally{
-        // Keep status discovery off the resident indicator's polling path.
-        if(!signal.aborted)try{this.status();}catch{this.lastProgress=null;}
+    let self!:Promise<void>;
+    self=this.exclusive(async()=>{
+      const signal=AbortSignal.any([this.options.authority.signal,this.controller.signal]);
+      try{
+        const active=await withSyncCycleDatabase(this.options.home,signal,async()=>{
+          try{return await this.cycle();}
+          finally{
+            // Keep status discovery off the resident indicator's polling path.
+            if(!signal.aborted)try{this.status();}catch{this.lastProgress=null;}
+          }
+        });
+        this.backoff.succeeded();
+        this.scheduler.completed(active);
+        this.error=null;this.lastSuccess=new Date().toISOString();
+      }catch(error){
+        this.scheduler.completed(true);
+        this.error=error instanceof Error?error.message:'同步失败';
+      }finally{
+        if(this.running===self)this.running=null;
       }
-    }).then(active=>{
-      this.backoff.succeeded();
-      this.scheduler.completed(active);
-      this.error=null;this.lastSuccess=new Date().toISOString();
-    },error=>{
-      this.scheduler.completed(true);
-      this.error=error instanceof Error?error.message:'同步失败';
-    }).finally(()=>{this.running=null;this.scheduler.resume();});
-    return this.running;
+    }).finally(()=>{
+      if(this.running===self)this.running=null;
+      this.scheduler.resume();
+    });
+    this.running=self;
+    return self;
   }
   private async cycle(){
     await this.registry.refresh();
@@ -200,10 +244,7 @@ export class PersonalSync {
     const syncOne=async(registration:SyncRegistration)=>{
       const namespace=syncNamespace(registration.selection);
       const check=()=>assertSyncRegistration(registration,()=>this.assert());
-      const blobs=blobTransfer(this.options.home,{assert:check,onProgress,json:<T>(route:string,body?:unknown)=>this.request<T>(route,body,body===undefined?'GET':'POST',check),binary:async(route,body)=>{
-        const response=await this.send(route,body?Buffer.from(body):undefined,body?'PUT':'GET','application/octet-stream',check);
-        if(!response.ok)throw syncError('invalid','同步附件传输失败');const bytes=new Uint8Array(await response.arrayBuffer());check();if(bytes.byteLength>4*1024*1024)throw syncError('limit','同步附件分块过大');return bytes;
-      }},budget);
+      const blobs=blobTransfer(this.options.home,this.createBlobChannel(check,onProgress),budget);
       try {
       assertSyncDependencies(registration,this.registry.current(),policy);
       pinSyncProtection(this.options.home,namespace,check,registration.protection);
@@ -313,43 +354,48 @@ export class PersonalSync {
     return {running,error:this.error,lastSuccess:this.lastSuccess,progress,transfer:this.transferBytes};
   }
   async retryItem(namespace:string,key:string,direction:'upload'|'download'){
-    if(this.running)await this.running;this.assert();
-    const registration=this.registry.current().find(r=>syncNamespace(r.selection)===namespace);
-    if(!registration||!this.policy().selections.some(s=>syncNamespace(s)===namespace)||!['upload','download'].includes(direction))throw syncError('scope','此同步集合已关闭或不存在');
-    const check=()=>assertSyncRegistration(registration,()=>this.assert()),failures=syncItemFailures(this.options.home,check,registration.protection);
-    pinSyncProtection(this.options.home,namespace,check,registration.protection);
-    if(direction==='download'){
-      const wire=failures.event(namespace,key);if(!wire)throw syncError('invalid','待重试资产不存在');
-      const transfer=blobTransfer(this.options.home,{assert:check,json:(route,body)=>this.request(route,body,body===undefined?'GET':'POST',check),binary:async(route,body)=>{const response=await this.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);if(!response.ok)throw syncError('invalid','同步附件读取失败');const bytes=new Uint8Array(await response.arrayBuffer());check();return bytes;}});
-      const event=await decodeContent(registration,wire,ref=>transfer.download(namespace,ref,registration.protection));check();await registration.prepare(event,{retry:true});await registration.refresh();check();await withSyncMutation(registration,{kind:'receive',event,retry:true},check,r=>r.receive(event,{retry:true}));check();transfer.release(namespace,(wire as SyncEvent&{attachments?:SyncBlobReference[]}).attachments??[]);
-    }
-    failures.clear(namespace,key,direction);await this.run();
+    await this.exclusive(async()=>{
+      this.assert();
+      await this.registry.refresh();
+      this.assert();
+      const policy=this.policy();
+      const registration=this.registry.current().find(r=>syncNamespace(r.selection)===namespace);
+      if(!registration||!policy.selections.some(s=>syncNamespace(s)===namespace)||!['upload','download'].includes(direction))throw syncError('scope','此同步集合已关闭或不存在');
+      assertSyncDependencies(registration,this.registry.current(),policy);
+      const check=()=>assertSyncRegistration(registration,()=>this.assert()),failures=syncItemFailures(this.options.home,check,registration.protection);
+      pinSyncProtection(this.options.home,namespace,check,registration.protection);
+      if(direction==='download'){
+        const wire=failures.event(namespace,key);if(!wire)throw syncError('invalid','待重试资产不存在');
+        const attachments=(wire as SyncEvent&{attachments?:SyncBlobReference[]}).attachments??[];
+        const {onProgress,finish}=this.trackTransfer('conflict');
+        const transfer=blobTransfer(this.options.home,this.createBlobChannel(check,onProgress));
+        try{
+          const event=await decodeContent(registration,wire,ref=>transfer.download(namespace,ref,registration.protection));check();await registration.prepare(event,{retry:true});await registration.refresh();check();await withSyncMutation(registration,{kind:'receive',event,retry:true},check,r=>r.receive(event,{retry:true}));check();
+        }finally{
+          try{transfer.release(namespace,attachments);}catch{/* best-effort release after failure/abort */}
+          finish();
+        }
+      }
+      failures.clear(namespace,key,direction);
+    });
+    await this.run();
   }
   async resolve(namespace:string,key:string,choice:'local'|'remote',revision?:number,state?:string){
-    if(this.running)await this.running;
-    const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
-    const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
-    await registration.refresh();check();
-    const {onProgress,finish}=this.trackTransfer('conflict');
-    try{
-      const channel:BlobChannel={
-        assert:check,onProgress,
-        json:(route,body)=>this.request(route,body,body===undefined?'GET':'POST',check),
-        binary:async(route,body)=>{
-          const response=await this.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);
-          if(!response.ok)throw syncError('invalid','同步附件传输失败');
-          const bytes=new Uint8Array(await response.arrayBuffer());
-          check();
-          return bytes;
-        },
-      };
-      const inspection=await retainConflict({home:this.options.home,namespace,key,choice,revision,state,policyRevision,registration,channel});
-      if(choice==='remote')await registration.content?.prepare?.(key,inspection.remote);
-      check();
-      await withSyncMutation(registration,{kind:'resolve',key,choice,revision:inspection.revision,state:inspection.state},check,r=>r.resolve(key,choice,inspection.revision,inspection.state));
-    }finally{
-      finish();
-    }
+    await this.exclusive(async()=>{
+      const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
+      const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
+      await registration.refresh();check();
+      const {onProgress,finish}=this.trackTransfer('conflict');
+      try{
+        const channel=this.createBlobChannel(check,onProgress);
+        const inspection=await retainConflict({home:this.options.home,namespace,key,choice,revision,state,policyRevision,registration,channel});
+        if(choice==='remote')await registration.content?.prepare?.(key,inspection.remote);
+        check();
+        await withSyncMutation(registration,{kind:'resolve',key,choice,revision:inspection.revision,state:inspection.state},check,r=>r.resolve(key,choice,inspection.revision,inspection.state));
+      }finally{
+        finish();
+      }
+    });
     await this.run();
   }
   private selected(namespace:string){this.assert();const registration=this.registry.current().find(r=>syncNamespace(r.selection)===namespace);if(!registration||!this.policy().selections.some(s=>syncNamespace(s)===namespace))throw syncError('scope','此同步集合已关闭或不存在');return registration;}
@@ -360,20 +406,34 @@ export class PersonalSync {
   recoveries(namespace:string){return this.selected(namespace).withReplica(r=>r.recoveries?.()??[]);}
   inspectRecovery(namespace:string,id:string){const registration=this.selected(namespace),view=registration.withReplica(r=>r.inspectRecovery?.(id)??null);return view?{...view,location:registration.locate?.(view.key)??registration.withReplica(r=>r.locate?.(view.key)??null)}:null;}
   async restoreRecovery(namespace:string,id:string,choice:'local'|'remote',revision:number){
-    if(this.running)await this.running;
-    const registration=this.selected(namespace),policyRevision=this.policy().revision;
-    const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
-    await registration.refresh();check();
-    const inspection=registration.withReplica(r=>r.inspectRecovery?.(id)??null);
-    if(!inspection||inspection.revision!==revision)throw syncError('conflict','保留版本已变化，请重新查看');
-    await registration.content?.prepare?.(inspection.key,choice==='local'?inspection.local:inspection.remote);check();
-    await withSyncMutation(registration,{kind:'restore-recovery',id,choice,revision},check,r=>{if(!r.restoreRecovery)throw syncError('unsupported','此集合未提供版本恢复');r.restoreRecovery(id,choice,revision);});await this.run();
+    await this.exclusive(async()=>{
+      const registration=this.selected(namespace),policyRevision=this.policy().revision;
+      const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
+      await registration.refresh();check();
+      const inspection=registration.withReplica(r=>r.inspectRecovery?.(id)??null);
+      if(!inspection||inspection.revision!==revision)throw syncError('conflict','保留版本已变化，请重新查看');
+      await registration.content?.prepare?.(inspection.key,choice==='local'?inspection.local:inspection.remote);check();
+      await withSyncMutation(registration,{kind:'restore-recovery',id,choice,revision},check,r=>{if(!r.restoreRecovery)throw syncError('unsupported','此集合未提供版本恢复');r.restoreRecovery(id,choice,revision);});
+    });
+    await this.run();
   }
 
   async trash(before?:number){this.assert();return this.request('/v1/trash'+(before===undefined?'':'?before='+encodeURIComponent(String(before))));}
   quotaBreakdown=()=>this.request('/v1/quota/breakdown');
-  async restoreTrash(namespace:string,key:string,revision:number,operationId:string){const registration=this.selected(namespace);await this.request('/v1/trash/restore',{namespace,key,revision,operationId,policyRevision:this.policy().revision},'POST',()=>assertSyncRegistration(registration,()=>this.assert()));await this.run();}
-  async purgeTrash(namespace:string,key:string,revision:number,confirm:boolean){const registration=this.selected(namespace);await this.request('/v1/trash/purge',{namespace,key,revision,confirm},'POST',()=>assertSyncRegistration(registration,()=>this.assert()));await this.run();}
+  async restoreTrash(namespace:string,key:string,revision:number,operationId:string){
+    await this.exclusive(async()=>{
+      const registration=this.selected(namespace);
+      await this.request('/v1/trash/restore',{namespace,key,revision,operationId,policyRevision:this.policy().revision},'POST',()=>assertSyncRegistration(registration,()=>this.assert()));
+    });
+    await this.run();
+  }
+  async purgeTrash(namespace:string,key:string,revision:number,confirm:boolean){
+    await this.exclusive(async()=>{
+      const registration=this.selected(namespace);
+      await this.request('/v1/trash/purge',{namespace,key,revision,confirm},'POST',()=>assertSyncRegistration(registration,()=>this.assert()));
+    });
+    await this.run();
+  }
 }
 
 async function replayDeferred(namespace:string,failures:ReturnType<typeof syncItemFailures>,receive:(event:SyncEvent)=>Promise<void>,assert:()=>void,dependencyChanged:boolean){

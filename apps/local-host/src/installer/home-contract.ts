@@ -150,6 +150,7 @@ export interface InspectedSource {
 export interface TextMutation {
   filePath: string;
   previous: string | null;
+  mode?: number;
 }
 
 /** What `config/installation.json` and a `release.json` have to be after their steps (§2.6). The two share `SCHEMA_VERSION`, and so share their steps. */

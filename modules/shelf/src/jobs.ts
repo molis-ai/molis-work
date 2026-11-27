@@ -127,7 +127,7 @@ export class ShelfJobs {
 
   /** A cancel leaves the shelf as it was; a failure leaves a row saying why, in the same write as the closed job. */
   private async recordFailure(run: RunContext, error: unknown): Promise<never> {
-    const { plan, staged, state } = run;
+    const { plan, staged, lifetime, state, assertCurrent } = run;
     if (isShelfFailure(error) && error.code === "shelf.configuration_changed") throw error;
     const cancelled = isShelfFailure(error) && error.code === "shelf.cancelled";
     const reason = failureCopy(error);
@@ -139,7 +139,12 @@ export class ShelfJobs {
       finished_at: now(),
     };
     await this.files.write((writer) => {
+      lifetime.assertActive();
+      assertCurrent();
+      state.validateResult?.();
       const catalog = this.access.from(writer);
+      const live = catalog.jobs.find((job) => job.job_id === staged.jobId);
+      if (!live || live.status !== "running") throw shelfErrors.cancelled("任务已取消");
       catalog.jobs = catalog.jobs.map((job) => job.job_id === staged.jobId ? closed : job);
       if (!cancelled) this.fileResult(writer, catalog, { outputFile: null, outputName: staged.outputName, jobId: staged.jobId, sourceItemIds: plan.items.map((item) => item.item_id), status: "failed", failureReason: reason });
       saveCatalog(writer, catalog);

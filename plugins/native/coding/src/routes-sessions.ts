@@ -4,24 +4,29 @@ import { readCodingSessions } from "./session-observation.js";
 import { characterSelection, characterSkillSelection, saveCharacter } from "./characters.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
-import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
+import { type Capabilities, type CodingActivation, selected, sessionState } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
-import { codingError, codingText } from "./words.js";
+import { codingError, codingFailure, codingText } from "./words.js";
 import { bodyOf, skillSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
-import { nextConfiguration, runControl, text, codingBudgetSelection } from "./run-inputs.js";
+import { chosenEffort, nextConfiguration, runControl, text, codingBudgetSelection } from "./run-inputs.js";
 import { projectRuntime, requireProjectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
-import { roundAfterParkedAnswer, startRound } from "./start-round.js";
+import { chosenWorktree, roleForIntent, roundAfterParkedAnswer, startRound } from "./start-round.js";
 import { codingSkillChoices } from "./skill-choices.js";
 import { codingInputPatch } from "./inputs.js";
+import { modelUnavailableMessage } from "./models.js";
+import { roundImages } from "./routes-images.js";
+import { codingWriterAssignments } from "./writers.js";
 import type { CodingSessionRecord } from "./store.js";
+import type { CodingSessionState } from "./projection.js";
 import { projectDirectories, projectFolders } from "./project-folders.js";
 import { inspectCodingEnvironment } from "./environment-prep.js";
 import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, agentTextMaterialContent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 
 /** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
 const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
@@ -108,9 +113,9 @@ const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
   return workspace.canonical_path;
 };
 /** Other sessions' work that overlaps what a send names: its text, and its plan's steps when it runs one. */
-const overlapsFor = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, record: CodingSessionRecord, body: Record<string, unknown>, beforeWrite: CodingBeforeWrite) => {
+const overlapsFor = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, record: CodingSessionRecord, body: Record<string, unknown>, beforeWrite: CodingBeforeWrite, directoryOverride?: string) => {
   const { context, projectId } = a;
-  const directory = await directoryOf(api, body.workspace_id);
+  const directory = directoryOverride ?? await directoryOf(api, body.workspace_id);
   const draft = body.plan_revision !== undefined ? execution.sessions.plan(projectId, record.session_id) : null;
   const plan = draft?.confirmed ? confirmedPlan(context, record.session_id, draft.revision) : null;
   const text = [typeof body.task === "string" ? body.task : "", plan ? plan.source.task : "", ...(plan?.content.steps ?? []).map(step => `${step.title}\n${step.acceptance}`)].join("\n");
@@ -275,7 +280,36 @@ const ROUTES: RouteMaker[] = [
         // "等它完成后再开始": the round is held as an item waiting on the other work, and starts on its own when it is done.
         if (typeof body.wait_for === "string") {
           if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw codingError(codingSessionErrors.wait_round_open, "coding.server.wait-round-open");
-          const { directory, overlaps } = await overlapsFor(a, api!, execution, record, body, beforeWrite);
+          const role = roleForIntent(body.intent);
+          const savedInput = execution.sessions.inputs.read(record.session_id);
+          roundImages(body.images);
+          const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);
+          if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.continue-plan");
+          const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(projectId, record.session_id);
+          if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.plan-confirm-first");
+          const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
+          const task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000, body.command_prompt === true);
+          const workspaces = await projectFolders(api!);
+          const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
+          if (!workspace?.realpath_verified) throw codingError(codingSessionErrors.choose_workspace, "coding.server.choose-workspace");
+          const tree = await chosenWorktree(a, body, workspace.workspace_id, role === "writers", beforeWrite);
+          const directory = tree?.canonical_path ?? workspace.canonical_path;
+          if (role === "writers") codingWriterAssignments(body.writer_assignments, true);
+          else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw codingFailure("coding.server.parallel-only");
+          const model = execution.models.list().find(entry => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
+          const modelRefusal = model ? execution.models.unavailable(model) : modelUnavailableMessage();
+          if (!model || modelRefusal !== undefined) throw new Error(modelRefusal);
+          chosenEffort(body, model);
+          const roles = await codingActions(context, beforeWrite).invoke(agent.availableRoles, [record.runtime_id]);
+          const availability = roles.find(entry => entry.role_id === role);
+          if (!availability?.available) throw availability?.reason ? new Error(availability.reason) : codingFailure("coding.server.role-unavailable");
+          if (body.character !== undefined) characterSelection(body.character);
+          if (body.character_skill_ids !== undefined) characterSkillSelection(body.character_skill_ids);
+          if (body.action_tools !== undefined) parseExactActionReferences(body.action_tools);
+          skillSelection(body.skills ?? []);
+          mcpSelection(body.mcp_tools ?? []);
+          mcpSources(body.mcp_sources ?? []);
+          const { overlaps } = await overlapsFor(a, api!, execution, record, body, beforeWrite, directory);
           const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
           if (!target) throw codingError(codingSessionErrors.wait_target_gone, "coding.server.wait-target-gone");
           // A wait is already a business write. Refuse unreadable selections before creating its Session or queue item;
@@ -285,19 +319,19 @@ const ROUTES: RouteMaker[] = [
           const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
             : await codingActions(context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
           if (!record.runtime_session_id) await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
-          const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
           const title = record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title;
           if (title !== record.title) await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString());
           const { wait_for: _dropped, ...sent } = body;
           // What the person chose goes with the queued round now (materials-ui-contract §2): an explicit choice as sent, else the draft as
           // it is; each piece is read by its reference when the round starts.
-          const rest = { ...sent, materials };
+          const rest = { ...sent, materials, ...(tree ? { worktree_id: tree.worktree_id } : {}) };
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
           const item = await codingActions(context, beforeWrite).invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, item.work_id);
+          const cleared_input_revision = !plan && savedInput.draft === body.task && await execution.sessions.inputs.clearIfUnchanged(beforeWrite, record.session_id, savedInput.revision) ? savedInput.revision + 1 : undefined;
           await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", new Date().toISOString());
           a.waits.wakeLoop(api!, execution, record.runtime_id);
-          return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };
+          return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target }, ...(cleared_input_revision === undefined ? {} : { cleared_input_revision }) };
         }
         return await startRound(a, record, body, api!, execution, beforeWrite);
       }
@@ -322,7 +356,20 @@ const ROUTES: RouteMaker[] = [
       if (action === "cancel") {
         // Giving up a wait for an answer withdraws the request; for the person's own wait, its project work item goes.
         await a.waits.cancel(record, wait, beforeWrite);
-        await execution.sessions.setState(beforeWrite, projectId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
+        let nextState: CodingSessionState = "idle";
+        if (record.runtime_session_id) {
+          const status = await codingActions(a.context, beforeWrite)
+            .invoke(agent.readSessionStatuses, [record.runtime_id, [record.runtime_session_id]])
+            .then(list => list[0], () => undefined);
+          nextState = !status || "error" in status
+            ? "done"
+            : status.recovery
+              ? "reconcile-required"
+              : status.latest_phase
+                ? sessionState({ phase: status.latest_phase })
+                : "idle";
+        }
+        await execution.sessions.setState(beforeWrite, projectId, record.session_id, nextState, new Date().toISOString());
         return { cancelled: true };
       }
       if (action !== "start") throw codingError(codingSessionErrors.wait_choose, "coding.server.wait-choose");

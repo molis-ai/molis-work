@@ -263,6 +263,9 @@ test("Pages 保存失败时不发布、不关闭、不切走草稿", async () =>
   let timerId = 0;
   const previousTimeout = globalThis.setTimeout;
   const previousClear = globalThis.clearTimeout;
+  const previousFetch = globalThis.fetch;
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
   globalThis.setTimeout = ((fn: () => void) => {
     const id = ++timerId;
     timers.set(id, fn);
@@ -358,6 +361,8 @@ test("Pages 保存失败时不发布、不关闭、不切走草稿", async () =>
     restoreText();
     globalThis.setTimeout = previousTimeout;
     globalThis.clearTimeout = previousClear;
+    globalThis.fetch = previousFetch;
+    Object.assign(globalThis, { document: previousDocument, window: previousWindow });
   }
 });
 

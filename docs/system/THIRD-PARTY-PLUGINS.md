@@ -1,32 +1,29 @@
 # 第三方插件：安装方案
 
-状态：方案，2026-10-08 按 origin/main `31c357df` 核实。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。2026-10-25 补：安装的信任等级与声明同意写在第 4.1 节；本文第 3、4 节的命令与受信表按它落地。
+状态：本地侧载安装、发布者密钥固定与撤销、沙箱执行及设置页安装入口**均已实现**（见第 4.1 节 T1–T7 落地记录与 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) §3.2）；仅远程目录索引、官方审核（BL-058）与非 macOS 跨平台沙箱仍在规划中。信任模型由用户 2026-10-08 拍板（`specs/archive/repository-anti-corruption/spec.md` §1）：本地签名包安装、首次安装确认并固定发布者公钥、在独立沙箱进程运行；2026-10-25 补充第 4.1 节信任等级与声明同意模型并按其落地。下文已按现行代码区分已实现能力与规划中能力。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「第三方插件」：用户自行安装插件的路径目前不存在，给出方案（安装命令、签名信任、市场入口、沙箱边界），不在本步实现。扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.2，内置插件的迁移计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)。
 
 ## 白话说明
 
-作者能把一个插件打成包、用自己的密钥签名，也能在隔离目录里试跑，但用户没有办法把它装进自己的 Home。本方案补四件事：一条安装命令；一张记着「我信任哪个发布者」的表；第三方代码只在沙箱进程里跑、界面由平台画；一个以后可以接上的市场来源。官方内置插件不受影响，它们仍随宿主编译、随宿主升级。
+作者可以用 `tooling/plugin-cli` 把插件打成包、用 Ed25519 密钥签名，用户现已可以通过 `molis-work plugin install <bundle>` 或设置页「安装插件包」／原处安装单将其装进自己的 Home：首次安装确认并固定发布者公钥，之后随时可在设置里撤销；第三方代码仅在独立沙箱进程里跑、界面由平台绘制。官方内置插件仍随宿主编译并跟随宿主升级。远程目录索引与官方审核上架流程（BL-058）以及非 macOS 跨平台沙箱仍留在后续阶段。
 
-## 1. 今天有什么、没有什么
+## 1. 现行已实现与仍在规划中的部分
 
-**有**（代码事实）：
+**已实现（生产能力）**：
 
-- `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径与超过 64 MiB 的包，不执行 glob 或生命周期脚本（`package-files.ts`）。
-- 发布者身份是 Ed25519 公钥的指纹：`ed25519:sha256:<spki 的哈希>`（`pluginPublisherIdentity`，`packages/plugin-runtime/src/package-verification.ts`），Manifest 的 `publisher.signature` 必须等于它，`signPluginPackage` 不一致就拒绝；`verifyPluginPackage(bundle, 可信公钥)` 验签，没签名的包「不是已验证发行物」。
-- Runtime 的安装、授权、升级、回滚、停用、卸载，安装记录有 `execution: "host" | "sandbox"`（`packages/contracts/src/platform/plugin.ts`）。`execution: "sandbox"` 的插件必须带明确的授权清单才能安装（`packages/plugin-runtime/src/index.ts`、`supervisor.ts`）。
-- 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/installed-plugin-sandbox-definition.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `sandbox.unsupported_platform`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
-- 升级兼容声明：`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`（`docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」）。
-- 方针：`docs/platform/PLUGIN-PLATFORM.md` §2 写明「官方可安装生态由官方发布并审核；第三方源码由用户自行构建和安装」，签名变化视为新插件，旧授权、存储和提供方绑定不继承。
+- `tooling/plugin-cli`：提供 `create`、`validate`、`pack`、`pack-sandbox`、`pack-content`、`pack-bundled`、`identity`、`sign`、`verify`、`dev` 与 `install`（`tooling/plugin-cli/src/cli.ts`）。打包拒绝符号链接、越界路径与超限包，不执行 glob 或生命周期脚本（`package-files.ts`）。
+- 发布者身份与固定受信表：发布者身份为 Ed25519 公钥指纹 `ed25519:sha256:<spki 哈希>`（`packages/plugin-runtime/src/package-verification.ts`）；Home 级存储 `plugin-runtime/plugin-runtime.db` 维护发布者固定表 `plugin_publishers` 与声明同意账本 `plugin_consents`（T1–T7）。
+- 宿主安装服务与设置入口：`apps/local-host/src/plugin-install-service.ts` 提供 `plugins.install.preview@1`、`plugins.install.confirm@1`、`plugins.publishers.revoke@1` 等系统动作；工作台设置页（`apps/workbench/src/settings-plugins.ts`）与原处安装单（`S-package-install-sheet`）及 `molis-work plugin install` 经同一安装服务验签、固定发布者并安装（安全边界见 S-84、S-85、S-87）。
+- 沙箱执行与同等合同：第三方签名包一律以 `execution: "sandbox"` 运行，由 `packages/plugin-sandbox` 在 macOS 上经 `sandbox-exec`（Seatbelt）隔离执行（禁止创建进程、联网和一切文件写入，网络与存储只经宿主服务）；界面由平台组件目录渲染，不向浏览器注入插件脚本。第 44／47 批起，签名固定沙箱第三方包与内置插件同等支持 `dual_instance`、`work_terminals`、`resume_summary`、`placement_relation`、`settings_entries`、`memory_scene`、`state_machines` 与多语言 `ui.locales`。
+- 升级兼容声明与本机开发：`upgrade_compatibility.compatible_from_versions` / `migratable_from_versions` 支持显式确认换版；`molis-work plugin dev --allow-unsigned-development` 仅用于隔离开发目录试跑，由 Runtime 的 `inProcess.admit` 守住唯一进程内例外（其余非 `host` 等级进程内代码一律被 `plugin.in_process_denied` 拒绝）。
+- 方针与内置插件：`docs/platform/PLUGIN-PLATFORM.md` §2 规定签名变化视为新插件，旧授权、存储和提供方绑定不继承；官方内置插件的可信来自宿主构建对象身份（`host` 信任），不靠标签字符串。
 
-**没有**：
+**仍在规划中（尚未实现）**：
 
-- 没有 `install` 命令。`molis-work plugin dev` 只在你给的隔离状态目录里 `import()` 源码试跑，必须带 `--allow-unsigned-development`，授权「不是 OS sandbox」。
-- 没有信任根。`verifyPluginPackage` 的公钥由调用方传入，没有任何地方保存「我信任这个发布者」；宿主（`apps/`）里也没有任何调用方，包解析和验签只有 `tooling/plugin-cli` 在用。
-- 没有从已验签的包起一个插件的加载器。`loadDevelopmentPlugin`（`packages/plugin-runtime/src/development-loader.ts`）是开发用的本地源码加载，在宿主进程里执行；它是唯一的进程内例外：`runPluginDevelopment` 只放行刚加载出的那一个定义对象（Runtime 的 `inProcess.admit`，BL-588），别的非 `host` 等级的进程内代码在安装与每次启动前都被 `plugin.in_process_denied` 拒绝。
-- 沙箱只认生成插件的形态：一份 JSON 的 `operations` 合同加平台的 UI 目录。第三方的 `native`、`app`、`integration` 插件（有路由、视图、事件、轮询）没有对应的沙箱形态。
-- 市场只列内置目录（`pluginMarketCards()` 读 `BUILTIN_PLUGIN_CATALOG`）；BL-058「插件市场的上架与审核流程」列在「明确后续做」。
-- 官方内置插件的 `publisher.signature` 是标签（例如 Diff 的 `official-diff-binding`），不是密钥指纹；它们的可信来自编进发行物，不来自验签。
+- **远程目录索引与官方上架审核**：插件市场目前展示内置目录与本地已装包；远程签名目录索引与官方审核流程按 `BL-058` 后续规划。
+- **非 macOS 跨平台沙箱**：当前沙箱依赖 macOS Seatbelt，非 darwin 平台失败即关闭（`sandbox.unsupported_platform`），跨平台沙箱属 C 端计划。
+- **完整第三方轮询集成（自定义 `service_id` 接入 Feed）**：第三方集成包声明自定义 `service_id` 尚不能直接接入 Feed 账号来源（见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) §3.3 V-BASE-01）。
 
 ## 2. 原则
 
@@ -53,7 +50,7 @@ molis-work plugin trust list | revoke <publisher_identity>
 5. 以 `execution: "sandbox"` 安装，保留发行物（升级和回滚用）。
 6. 启动，报告结果；失败只影响这个插件。
 
-命令只做解析和请求转发，真正的安装由常驻宿主里的安装服务做，CLI 进程里不新建宿主（落点：`apps/local-host`）。接线点是 `tooling/plugin-cli/src/cli.ts` 的 `PluginCliHost`（`runPluginCli` 的第三个参数），由 `apps/desktop/launchers/cli/main.ts` 注入。注意今天注入的 `runDevelopment` 是 `runLocalPluginDevelopment`（`apps/local-host/src/local-plugin-development.ts`），它在 CLI 进程里自己建一个 `createMolisWorkLocalHost()`、用隔离的状态目录，那不是转发，`install` 不能照搬这种接法。`install` 要新增的成员必须是常驻宿主的客户端（其他进程经动作网关转给常驻 Web 宿主，见 `docs/platform/LOCAL-HOST.md` 第 52 行）；宿主没在运行就明确报错，不自己起一个。工作台里的入口：设置的插件页「从文件安装」，走同一个服务，同一个确认对话框。
+命令只做解析和请求转发，真正的安装由常驻宿主里的安装服务（`apps/local-host/src/plugin-install-service.ts`，动作 `plugins.install.preview@1` 与 `plugins.install.confirm@1`）完成，CLI 进程里不新建业务宿主。接线点在 `tooling/plugin-cli/src/cli.ts` 的 `PluginCliHost`（`runPluginCli` 的第三个参数），由 `apps/desktop/launchers/cli/main.ts` 注入；`molis-work plugin dev` 的 `runLocalPluginDevelopment`（`apps/local-host/src/local-plugin-development.ts`）仅用于隔离开发目录试跑，`install` 则经受保护常驻宿主通道执行，宿主未运行时明确报错而不私自拉起。工作台设置页（`apps/workbench/src/settings-plugins.ts`）与原处安装单走同一安装服务和确认流程。
 
 ## 4. 签名信任（用户 2026-10-08 已定）
 
@@ -97,7 +94,7 @@ Manifest 里有两类声明会改变这个插件在别处的效果，安装预�
 - **只认官方签名**：市场就是官方目录，没有侧载。最简单，但用户自己做的、同事之间传的插件装不上。
 - **本步不开第三方路径**：把缺口记进 C 端计划（路线图 W1-21）。
 
-受信表放在哪里要定：它是 Home 级的（用户信任一次，对所有项目有效），而现有安装记录在每个项目库里（`plugin_runtime_installs`）。需要一个新的 Home 级存储，按 W1-16 和 W4-11 的约定登记（owner 是 Plugin Runtime，备份类别「必备份」）。
+受信表已落地在 Home 级 `plugin-runtime/plugin-runtime.db` 的 `plugin_publishers` 表（owner 是 `packages/plugin-runtime`，备份类别「必备份」，见 [HOME-DATA.md](HOME-DATA.md) §3.4），对所有项目生效；各项目的安装记录留在对应项目库的 `plugin_runtime_installs`。
 
 ### 状态机元数据
 
@@ -119,36 +116,31 @@ Manifest 里有两类声明会改变这个插件在别处的效果，安装预�
 - 阶段二：目录索引。一个签名的 JSON：`plugin_id`、版本、包地址、sha256、发布者指纹、摘要。官方索引默认开启并由官方密钥签名；第三方索引需用户自己添加。安装仍走第 3 节的流程，索引只负责「找到包」。
 - 审核：只有官方索引的上架要审核（BL-058）。侧载和第三方索引的条目在界面上标「未经官方审核」，并显示发布者指纹。
 
-## 7. 落点
+## 7. 落点与状态
 
-| 要做的 | 位置 | 说明 |
+| 能力 | 位置 | 状态 |
 | --- | --- | --- |
-| `install`、`list`、`trust` 命令 | `tooling/plugin-cli/src/cli.ts`、`apps/desktop/launchers/cli/main.ts` | 命令只转发 |
-| 安装服务 | `apps/local-host`（新文件，不按插件命名） | 解析、信任判定、授权、安装、发行物留存 |
-| 受信表 | `packages/plugin-runtime` 的端口加 Home 级存储实现 | 要登记到 Home 数据表 |
-| 已验签包到沙箱定义 | `apps/local-host/src/installed-plugin-sandbox-definition.ts` 一类的翻译层，拆出与创作台无关的部分 | 复用 `sandboxedPluginDefinition` 的运行方式 |
-| 沙箱合同扩展 | `packages/plugin-sandbox`、`packages/contracts/src/platform/plugin-sandbox.ts` | 阶段二 |
-| 确认对话框、「从文件安装」 | `apps/workbench`（设置的插件页） | 同一确认对话框 |
-| 文档 | `docs/platform/PLUGIN-DEVELOPMENT.md`「打包与签名」之后接「安装」；`skills/molis-plugin-dev/authoring.md` | 随实现一起改 |
+| `install` 等 CLI 命令 | `tooling/plugin-cli/src/cli.ts`、`apps/desktop/launchers/cli/main.ts` | 已实现（仅转发给常驻宿主） |
+| 安装服务 | `apps/local-host/src/plugin-install-service.ts`、`plugin-trust-actions.ts` | 已实现（预览、验签、固定发布者、确认安装、撤销） |
+| 受信表与同意账本 | `packages/plugin-runtime` + `plugin-runtime/plugin-runtime.db`（`plugin_publishers`、`plugin_consents`） | 已实现并登记到 [HOME-DATA.md](HOME-DATA.md) |
+| 已验签包到沙箱定义 | `apps/local-host/src/installed-plugin-sandbox-definition.ts` 等 | 已实现（复用 `sandboxedPluginDefinition`） |
+| 确认对话框、「安装插件包」与原处安装单 | `apps/workbench/src/settings-plugins.ts` 等 | 已实现 |
+| 远程目录索引与官方审核 | `BL-058` | 规划中 |
+| 非 macOS 跨平台沙箱与完整轮询集成 | `packages/plugin-sandbox`、`packages/contracts/src/platform/plugin-sandbox.ts` | 规划中（非 macOS 当前失败即关闭；自定义 `service_id` 接入 Feed 见 V-BASE-01） |
 
-## 8. 切片与依赖
+## 8. 历史切片与当前余项
 
-| 切片 | 内容 | 依赖 |
+| 切片 | 内容 | 当前状态 |
 | --- | --- | --- |
-| P-1 | 受信表与信任判定（端口、存储、`trust` 命令） | W4-11（Home 存储登记） |
-| P-2 | 安装服务与 `install`、`list`、`uninstall`（只收沙箱形态的子集） | P-1；W4-01（探针夹具能走完安装、发现、调用、升级、停用、卸载）；W4-02（`methods` 随安装生命周期登记） |
-| P-3 | 工作台确认对话框与「从文件安装」 | P-2 |
-| P-4 | 目录索引与官方索引签名 | P-2；BL-058 |
-| P-5 | 沙箱合同扩展（轮询与信号） | P-2；C 端计划里的跨平台沙箱 |
+| P-1 | 受信表与信任判定（端口、存储、撤销） | 已随 T1 / T4 / T5 / T5b 落地 |
+| P-2 | 安装服务与 `molis-work plugin install`（沙箱包与内容包） | 已随 T2 / T6 及第 44 / 47 批落地 |
+| P-3 | 工作台确认对话框、设置页「安装插件包」与原处安装单 | 已随 T7 及第 47 批 47-1 落地 |
+| P-4 | 远程目录索引与官方索引签名审核 | 待规划（`BL-058`） |
+| P-5 | 跨平台沙箱与第三方自定义 `service_id` 轮询集成扩展 | 待规划（C 端跨平台计划 / V-BASE-01） |
 
-这些切片不在路线图 §10 的 87 片内，是本方案提出的建议，待用户并入路线。
+## 9. 尚未定案的后续项
 
-## 9. 待决
+本地安装、发布者固定、包内带公钥验签、Home 级受信表存储、macOS Seatbelt 沙箱及设置页安装入口均已定案并落地；仍在后续阶段待决的只有两项：
 
-信任模型、安装命令和沙箱形态已定（第 4 节开头）；下面是实现前还要评审的设计问题：
-
-1. **阶段一的表达力**：接受只有「动作加平台目录界面」的第三方插件，还是要等 `kind: "integration"` 的沙箱合同再开放。
-2. **非 macOS**：第三方安装在非 macOS 上明确拒绝，还是等跨平台沙箱。
-3. **受信表的存储**：新建 Home 级存储，还是挂到现有的 Home 配置文件。
-4. **公钥怎么到达**：给包加一个公钥字段，还是 `install` 带 `--publisher-key`（第 4 节第二条）。
-5. **市场与审核**：官方索引何时做、谁审核（BL-058）。
+1. **市场目录索引与官方审核**：官方签名索引何时上线、审核流程与运营规范（`BL-058`）。
+2. **跨平台沙箱与完整第三方轮询集成**：非 macOS 平台的无 `sandbox-exec` 隔离方案，以及第三方自定义 `service_id` 接入 Feed 账号来源（V-BASE-01）。

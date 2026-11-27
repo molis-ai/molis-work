@@ -17,7 +17,7 @@ export interface ImportHost {
   load: () => Promise<void>;
   select: (id: string | null, focus?: boolean) => void;
   act: (action: () => Promise<unknown>) => Promise<void>;
-  save: () => Promise<CharacterRecord>;
+  save: () => Promise<CharacterRecord | null>;
   dirty: () => boolean;
   note: (text: string) => void;
 }
@@ -282,6 +282,7 @@ class ImportView {
     const active = host.current();
     if (active?.state !== "active") throw new Error(uiText.text("workbench.characters.must-enable"));
     const record = host.dirty() ? await host.save() : active;
+    if (!record) return;
     const published = await host.request<Published>("POST", "/drafts/" + encodeURIComponent(record.character_id) + "/publish", { expected_revision: record.revision });
     const reference = published.reference, content = published.publication.payload;
     this.reference = reference; this.runContent = content; this.requestId = null;

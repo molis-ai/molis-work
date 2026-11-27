@@ -79,8 +79,8 @@ test("RAC-284 the statement check the modules run under refuses a statement on t
     assert.throws(() => db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?").get("board-legal"));
     assert.throws(() => db.prepare("INSERT INTO idempotency_records (project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run("board-legal", "user-1", "op", "key", "hash", "{}", "2026-10-24T00:00:00.000Z"));
-    assert.throws(() => db.prepare("SELECT * FROM attention_entries").all(), "another owner's table");
-    assert.throws(() => db.exec("DELETE FROM goals"), "exec is not a plugin statement");
+    assert.throws(() => db.prepare("SELECT * FROM attention_entries").all(), { code: "plugin.project_database.statement_refused" }, "another owner's table");
+    assert.throws(() => db.exec("DELETE FROM goals"), /exec is not a plugin statement/, "exec is not a plugin statement");
     assert.equal((db.prepare("SELECT COUNT(*) AS n FROM goals").get() as { n: number }).n, 1, "the refused exec ran nothing");
   } finally { dispose(); }
 });

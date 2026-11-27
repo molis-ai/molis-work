@@ -144,8 +144,19 @@ export class GoalsRepository {
   }
 
 
+  ancestorGoalIds(projectId: string, goalId: string): Set<string> {
+    const relations = this.listRelations(projectId).filter(
+      (relation) => relation.type === "part_of" && relation.state === "active",
+    );
+    return collectAncestorGoalIds(relations, goalId);
+  }
+
   listActivePolicyBindings(projectId: string, goalId?: string): GoalPolicyBindingRecord[] {
-    return goalApprovalBindings(this.approvalRules(projectId, false), goalId);
+    return goalApprovalBindings(
+      this.approvalRules(projectId, false),
+      goalId,
+      goalId === undefined ? undefined : this.ancestorGoalIds(projectId, goalId),
+    );
   }
 
   listPolicyHistory(projectId: string) { return goalApprovalHistory(this.approvalRules(projectId, true)); }
@@ -172,6 +183,29 @@ export class GoalsRepository {
   putIdempotency(input: GoalsIdempotencyInput): void {
     this.journal.putIdempotency(input);
   }
+}
+
+export function collectAncestorGoalIds(
+  relations: readonly Pick<GoalRelationRecord, "from_goal_id" | "to_goal_id">[],
+  goalId: string,
+): Set<string> {
+  const parents = new Map<string, string[]>();
+  for (const relation of relations) {
+    const list = parents.get(relation.from_goal_id);
+    if (list) list.push(relation.to_goal_id);
+    else parents.set(relation.from_goal_id, [relation.to_goal_id]);
+  }
+  const ancestors = new Set<string>();
+  const queue = [...(parents.get(goalId) ?? [])];
+  while (queue.length > 0) {
+    const next = queue.shift()!;
+    if (next === goalId || ancestors.has(next)) continue;
+    ancestors.add(next);
+    for (const parent of parents.get(next) ?? []) {
+      if (parent !== goalId && !ancestors.has(parent)) queue.push(parent);
+    }
+  }
+  return ancestors;
 }
 
 export function sqliteJson(value: unknown): string {

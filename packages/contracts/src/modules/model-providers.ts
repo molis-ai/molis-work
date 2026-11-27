@@ -175,6 +175,19 @@ const TRAILING_SLASHES = /\/+$/u;
  * Both shapes are exercised against a live provider by `scripts/verify-model.mjs`;
  * the paths below are the ones that actually answered.
  */
+function hasCompletionEndpoint(base: string): boolean {
+  try {
+    return /\/(?:chat\/)?completions$/iu.test(new URL(base).pathname);
+  } catch {
+    return /\/(?:chat\/)?completions$/iu.test(base);
+  }
+}
+
+function anthropicMessagesUrl(base: string): string {
+  if (/\/messages$/u.test(base)) return base;
+  return /\/v1$/u.test(base) ? `${base}/messages` : `${base}/v1/messages`;
+}
+
 export function modelRequestShape(
   provider: Pick<ModelProviderRecord, "base_url" | "api_format">,
   apiKey: string,
@@ -182,17 +195,13 @@ export function modelRequestShape(
   const base = provider.base_url.trim().replace(TRAILING_SLASHES, "");
   if (provider.api_format === "anthropic-messages") {
     return {
-      url: /\/messages$/u.test(base) ? base : `${base}/v1/messages`,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      url: anthropicMessagesUrl(base),
+      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
       reply_path: "content[].text",
     };
   }
   return {
-    url: /completion/iu.test(base) ? base : `${base}/chat/completions`,
+    url: hasCompletionEndpoint(base) ? base : `${base}/chat/completions`,
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
     reply_path: "choices[0].message.content",
   };

@@ -1,5 +1,5 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { parseCodingPlanAnswer, type CodingPlanContent } from "../plan-content.js";
+import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { isValidFibonacciStoryPoints, parseCodingPlanAnswer, type CodingPlanContent } from "../plan-content.js";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -107,20 +107,36 @@ function describe(_L: PlanPorts["translate"], parent: HTMLElement, content: Codi
 /** The plan as the editor compares it with what it was opened from. */
 const shape = (content: Partial<CodingPlanContent> | undefined) => JSON.stringify({ title: content?.title || "", steps: (content?.steps || []).map(step => ({ title: step.title || "", acceptance: step.acceptance || "", ...(step.after ? { after: step.after } : {}), ...(step.parent !== undefined ? { parent: step.parent } : {}), ...(step.story_points !== undefined ? { story_points: step.story_points } : {}), ...(step.estimate_reason ? { estimate_reason: step.estimate_reason } : {}) })), blockers: content?.blockers || "", change_reason: content?.change_reason || "" });
 
-// A step's waits are typed as earlier step numbers: empty keeps the default (the step before), 无 means none.
+// A step's waits are typed as earlier step numbers: empty keeps the default (the step before), localized "none" means none.
 const afterOf = (text: string): number[] | undefined => {
   const value = text.trim();
   if (!value) return undefined;
-  if (/^(无|没有|不等|none|0)$/i.test(value)) return [];
+  if (value.toLocaleLowerCase() === uiText.text("coding.plan.none").trim().toLocaleLowerCase() || /^(无|没有|不等|none|なし|0)$/i.test(value)) return [];
   return value.split(/[\s,，、]+/).filter(Boolean).map(Number);
 };
 const afterText = (_L: PlanPorts["translate"], after: readonly number[] | undefined) => after === undefined ? "" : after.length ? after.join(uiText.text("coding.list.joiner")) : uiText.text("coding.plan.none");
+
+function validateEditor(editor: Editor): string | null {
+  for (const [index, step] of editor.steps.entries()) {
+    const after = afterOf(step.after.value);
+    if (after !== undefined && (after.some(n => !Number.isSafeInteger(n) || n < 1 || n > index) || new Set(after).size !== after.length)) {
+      return uiText.text("coding.server.plan-after", { step: index + 1 });
+    }
+    const rawPoints = step.points.value.trim();
+    if (rawPoints && !isValidFibonacciStoryPoints(Number(rawPoints))) {
+      return uiText.text("coding.server.plan-story-points");
+    }
+  }
+  return null;
+}
 
 function values(editor: Editor): CodingPlanContent {
   const steps: EditedStep[] = editor.steps.map((step, index) => {
     const after = afterOf(step.after.value);
     const rawPoints = step.points.value.trim();
-    const parsedPoints = rawPoints ? Number(rawPoints) : undefined;
+    const rawNumber = rawPoints ? Number(rawPoints) : undefined;
+    // Never serialize invalid input (NaN -> null) as clearing saved story points; save() rejects it explicitly.
+    const parsedPoints = !rawPoints ? undefined : rawNumber !== undefined && isValidFibonacciStoryPoints(rawNumber) ? rawNumber : step.basePoints;
     const reason = step.estimateReason.value.trim();
     const estimateSource = parsedPoints === undefined ? undefined : parsedPoints !== step.basePoints ? "human" as const : (step.baseSource ?? "human" as const);
     const parent = step.parent !== undefined && step.parent >= 1 && step.parent < index + 1 ? step.parent : undefined;
@@ -362,7 +378,7 @@ function render(state: Plans) {
   const { ports, region, runs } = state, { api, current } = ports, plan = state.plan;
   const active = runs.some(run => !ENDED.includes(run.phase));
   const planners = runs.filter(run => run.frozen.role_id === "planner" && run.phase === "completed" && readable(run));
-  const key = JSON.stringify([state.owner, plan, planners.map(run => run.ref.run_id), runs.map(run => [run.ref.run_id, run.phase]), state.busy]);
+  const key = JSON.stringify([activeUiLocale(), state.owner, plan, planners.map(run => run.ref.run_id), runs.map(run => [run.ref.run_id, run.phase]), state.busy]);
   if (key === state.renderKey) return;
   state.renderKey = key;
   region.replaceChildren();
@@ -387,6 +403,11 @@ async function save(state: Plans, event: Event) {
   event.preventDefault();
   const draft = state.editor;
   if (!draft || state.busy) return;
+  const invalid = validateEditor(draft);
+  if (invalid) {
+    q("[data-coding-plan-error]").textContent = invalid;
+    return;
+  }
   remember(state);
   state.busy = true;
   const submit = q<HTMLButtonElement>("[data-coding-plan-save]");

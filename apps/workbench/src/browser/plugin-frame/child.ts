@@ -88,7 +88,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   globalThis.EventSource = pageEventSource(scope, config.origin);
   const copyText = childCopy(port, scope);
   Object.defineProperty(navigator, "clipboard", { value: { writeText: copyText } });
-  Object.assign(globalThis, { molisWorkOpenExternalUrl: async (url: string) => send({ type: "link", url: new URL(url, config.origin).href, download: false }) });
+  Object.assign(globalThis, { molisWorkOpenExternalUrl: async (url: string) => {
+    let href: string;
+    try { href = new URL(url, config.origin).href; } catch { return; }
+    send({ type: "link", url: href, download: false });
+  } });
   const terminal = globalThis.molisPageTerminal = childTerminal(port, scope, config.origin);
   const select = pageSelection(root, scope, config.searchRow);
   let itemTab = config.itemTab;
@@ -153,6 +157,12 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     else if (message.type === "select") { itemTab = message.itemTab; select(message.detail); }
     else if (message.type === "collapse") collapsePage(root);
     else if (message.type === "model-ready") document.dispatchEvent(new CustomEvent("molis-work:model-ready"));
+    else if (message.type === "shelf-event") {
+      const init = message.detail !== null && message.detail !== undefined ? { detail: message.detail } : undefined;
+      if (message.name === "molis:shelf-refresh") window.dispatchEvent(new CustomEvent("molis:shelf-refresh", init));
+      else if (message.name === "molis:shelf-send-tui") window.dispatchEvent(new CustomEvent("molis:shelf-send-tui", init));
+      else if (message.name === "molis:shelf-notice") window.dispatchEvent(new CustomEvent("molis:shelf-notice", init));
+    }
     else if (message.type === "toast-undo") {
       const undo = undos.get(message.token);
       undos.delete(message.token);
@@ -171,7 +181,10 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     const link = target?.closest<HTMLAnchorElement>("a[href]");
     if (!link || event.defaultPrevented || event.button !== 0) return;
     const href = link.getAttribute("href"); if (!href || href.startsWith("#")) return;
-    event.preventDefault(); send({ type: "link", url: new URL(href, config.origin).href, download: link.hasAttribute("download") });
+    event.preventDefault();
+    let resolved: string;
+    try { resolved = new URL(href, config.origin).href; } catch { return; }
+    send({ type: "link", url: resolved, download: link.hasAttribute("download") });
   });
   const load = (url: string) => new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");

@@ -51,7 +51,7 @@ export interface SessionIndex {
     model_selection?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["model_selection"];
     frozen_model?: PrologueModelConfiguration;
     /** Human reconciliation decisions on steps whose command ended with an unknown outcome (BL-222). */
-    reconciled_steps?: Record<string, { action: "confirm-done" | "rerun"; note: string; at_ms: number }>;
+    reconciled_steps?: Record<string, { action: "confirm-done" | "rerun"; note: string; at_ms: number; count?: number }>;
     /** Trusted applicability facts for this attempt; body-free and never inferred from the model's query. */
     memory_context?: { class_restrictions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryClassPolicy; consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
     /** The round's after-write checks, by the SDK's key for each: which checker answered (prologue-after-write.ts). */

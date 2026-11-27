@@ -635,8 +635,19 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     return true;
   };
 
-  // The tasks this page heard wait on the person, by task and decision (WLN-06): the row stays, folded, once the task no longer waits.
-  const asked = new Map<string, { at: string; provider: string; title: string; event: WorkLineEvent; settled: boolean }>();
+  // The tasks this page heard wait on the person, scoped per work item (WLN-06, Q-wb2-04): switching items never settles or leaks another item's waiting rows.
+  type AskedRow = { at: string; provider: string; title: string; event: WorkLineEvent; settled: boolean };
+  const askedByScope = new Map<string, Map<string, AskedRow>>();
+  const askedForScope = () => {
+    const scope = activeItemId ?? "";
+    let map = askedByScope.get(scope);
+    if (!map) {
+      map = new Map();
+      askedByScope.set(scope, map);
+    }
+    return map;
+  };
+  let tasksReady = false;
   // An event opened from a task's card or a parked card is the press on it anywhere: its conversation and its page.
   const withPage: WorkBarHost = { ...host, openEvent(event, quiet) {
     const found = quiet ? undefined : eventOf(event.subject);
@@ -806,6 +817,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       follow();
     }
     const resumed = table ? tasks.offline(null) : false;
+    if (table) tasksReady = true;
     const tasksChanged = table ? tasks.take(table, started ?? 0, sequence) : false;
     const lineDrawn = read ? draw(read, before) : false;
     if (!lineDrawn && (tasksChanged || resumed || (read && wasChecking) || enteredChecking)) {
@@ -825,6 +837,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   });
   function restoreScopeLine() {
     knownAt = null;
+    tasksReady = false;
     tasks.take({ tasks: [], issues: [] }, 0);
     draw({ events: [], issues: [] });
     // Clearing the previous scope is not a read. Only compare arrivals after this scope has shown its own line.
@@ -884,15 +897,18 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     },
     place: subject => tasks.place(subject),
     waiting() {
-      const now = tasks.waiting(), live = new Set(now.map(one => one.key));
-      for (const one of now) asked.set(one.key, { at: asked.get(one.key)?.at ?? new Date().toISOString(), provider: one.provider, title: one.title, event: one.event, settled: false });
-      // A task that is not in the table because its provider could not be read is not known to wait no longer: its row stays as it was.
-      const unread = tasks.unreadable();
-      for (const [key, one] of asked) if (!live.has(key) && !unread.has(one.provider)) one.settled = true;
+      const asked = askedForScope();
+      if (tasksReady) {
+        const now = tasks.waiting(), live = new Set(now.map(one => one.key));
+        for (const one of now) asked.set(one.key, { at: asked.get(one.key)?.at ?? new Date().toISOString(), provider: one.provider, title: one.title, event: one.event, settled: false });
+        // A task that is not in the table because its provider could not be read is not known to wait no longer: its row stays as it was.
+        const unread = tasks.unreadable();
+        for (const [key, one] of asked) if (!live.has(key) && !unread.has(one.provider)) one.settled = true;
+      }
       return [...asked].map(([key, one]) => ({ key, at: one.at, settled: one.settled, html: renderReplyWaiting({ key, task: one.title, event: one.event.title, settled: one.settled }) }));
     },
     goWaiting(key) {
-      const one = asked.get(key);
+      const one = askedForScope().get(key);
       if (one && !one.settled) {
         const event = events.get(one.event.id) ?? one.event;
         list.show("info");

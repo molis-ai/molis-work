@@ -19,7 +19,7 @@ import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./histo
 import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 import { autoSkillMaterial, autoSkillsOf, withSkillTools } from "./skill-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
-import { MODEL_UNAVAILABLE } from "./models.js";
+import { modelUnavailableMessage } from "./models.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { executionSteps } from "./plan-content.js";
 import { confirmedPlan, planMaterial } from "./plans.js";
@@ -120,11 +120,17 @@ function continuedOriginal(body: Record<string, unknown>, sessionId: string | nu
   return { session_id: sessionId!, run_id: ref.run_id };
 }
 
+export function roleForIntent(intent: unknown): "writers" | "coordinator" | "planner" | "reviewer" | "builder" | "writer" | "reader" {
+  const role = intent === "parallel" ? "writers" : intent === "collaborate" ? "coordinator" : intent === "plan" ? "planner" : intent === "review" ? "reviewer" : intent === "execute" ? "builder" : intent === "edit" ? "writer" : intent === "discuss" ? "reader" : null;
+  if (!role) throw codingFailure("coding.server.pick-intent");
+  return role;
+}
+
 /**
  * The Host worktree of the session's folder the session was pointed at (「用这个」), when it was: the round runs there. One that is gone is
  * refused, never swapped for the folder itself: the person switches back to the output or picks another (coordinator 2026-11-08).
  */
-async function chosenWorktree(a: CodingActivation, body: Record<string, unknown>, workspaceId: string, writers: boolean, beforeWrite: CodingBeforeWrite) {
+export async function chosenWorktree(a: CodingActivation, body: Record<string, unknown>, workspaceId: string, writers: boolean, beforeWrite: CodingBeforeWrite) {
   if (body.worktree_id === undefined) return undefined;
   const worktreeId = text(body.worktree_id, "coding.field.worktree", 200);
   if (writers) throw codingFailure("coding.server.worktree-parallel");
@@ -227,16 +233,15 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     }
     if (snapshot.recovery || snapshot.checkpoint_busy) throw codingFailure("coding.server.check-before-plan");
   }
-  const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
-  if (!role) throw codingFailure("coding.server.pick-intent");
+  const role = roleForIntent(body.intent);
   const workspaces = await projectFolders(api!);
   const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
   if (!workspace?.realpath_verified) throw codingFailure("coding.server.authorize-workspace");
   const tree = await chosenWorktree(a, body, workspace.workspace_id, role === "writers", beforeWrite);
   const directory = { canonical_path: tree?.canonical_path ?? workspace.canonical_path, realpath_verified: true };
   if (plan) await requireLocalPlanningRun(api, record, plan, directory.canonical_path);
-  // Files named with @ travel with the task, as they read at this moment.
-  task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
+  // Files named with @ travel with the task when running in the linked workspace; worktrees live outside workspaceReadActions.file, so avoid attaching stale main-workspace copies and let the round read from its worktree directly.
+  if (!tree) task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
   const subagent_workspaces: AgentSubagentWorkspace[] = [];
   if (role === "writers") {
     const assignments = codingWriterAssignments(body.writer_assignments, true);
@@ -254,7 +259,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw codingFailure("coding.server.parallel-only");
   // The one model list the platform keeps (`services.model`, PG-047): the chosen model must be on it and able to run now.
   const model = execution.models.list().find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
-  const modelRefusal = model ? execution.models.unavailable(model) : MODEL_UNAVAILABLE;
+  const modelRefusal = model ? execution.models.unavailable(model) : modelUnavailableMessage();
   if (!model || modelRefusal !== undefined) throw new Error(modelRefusal);
   const effort = chosenEffort(body, model);
   const roles = await codingActions(context, beforeWrite).invoke(agent.availableRoles, [record.runtime_id]);
@@ -267,6 +272,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const { character, character_skill_ids, characterTools, pinCharacter } = await roundCharacter(context, record, body, execution, beforeWrite, priorSession);
   const chosenActions = body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools);
   const chosenSkills = skillSelection(body.skills ?? []);
+  const chosenMcpTools = mcpSelection(body.mcp_tools ?? []);
+  const chosenMcpSources = mcpSources(body.mcp_sources ?? []);
   const { action_tools, materials: roundMaterials } = await roundActions(context,
     await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]), characterTools, chosenActions, chosenSkills,
     `${record.title}\n${task}`, execution.locale, beforeWrite, body.auto_skills !== false);
@@ -312,7 +319,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // What waits in the session comes in with the round: asked for the next round, or unread when its round ended (specs/ai-input-receipts §4.8).
     queued: "carry", ...(body.resume_answer ? { resume_answer: body.resume_answer as import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["resume_answer"] } : {}),
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: chosenSkills, ...(body.auto_skills === false ? { auto_skills: false as const } : {}), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: chosenSkills, ...(body.auto_skills === false ? { auto_skills: false as const } : {}), action_tools, mcp_tools: chosenMcpTools, mcp_sources: chosenMcpSources }]);
   const follower = follow(a, execution, record.session_id, session, workspace.workspace_id);
   let run, receipted = false;
   try { run = await start(history).catch(async error => {
@@ -320,7 +327,6 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
     return start("digest");
   }); } catch (error) { follower.cancel(); throw error; }
-  if (codeRevision) context.services!.storage!.set(`code-revision:${record.session_id}:${run.ref.run_id}`, codeRevision);
   try {
     await beforeWrite(); beforeWrite.assert_current();
     if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
@@ -329,6 +335,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // A Runtime without letters between sessions has none to accept: the read comes back empty.
     await startDelegation(record, codingActions(context, beforeWrite), session.session_id).catch(() => undefined);
     await beforeWrite(); beforeWrite.assert_current();
+    if (codeRevision) context.services!.storage!.set(`code-revision:${record.session_id}:${run.ref.run_id}`, codeRevision);
     pinCharacter?.();
     const cleared_input_revision=!plan&&savedInput.draft===body.task&&await execution.sessions.inputs.clearIfUnchanged(beforeWrite,record.session_id,savedInput.revision)?savedInput.revision+1:undefined;
     // A session named by default takes its name from the first task, the way a person would label it.
@@ -342,6 +349,10 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, ...(tree ? { worktree_id: tree.worktree_id } : {}),
+      ...(chosenSkills.length ? { skills: chosenSkills } : {}),
+      ...(chosenMcpTools.length ? { mcp_tools: chosenMcpTools } : {}),
+      ...(chosenMcpSources.length ? { mcp_sources: chosenMcpSources } : {}),
+      ...(body.auto_skills === false ? { auto_skills: false } : {}),
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000, body.command_prompt === true) }));
     receipted = true;
     return { run, history, ...(cleared_input_revision===undefined?{}:{cleared_input_revision}), ...(historyReason ? { history_reason: historyReason } : {}),

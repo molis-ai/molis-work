@@ -8,7 +8,7 @@
  * and the tool reports itself unavailable.
  */
 
-import { readFile, realpath } from "node:fs/promises";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ToolRunner } from "@prologue/sdk";
@@ -118,6 +118,10 @@ function serverFor(servers: readonly LanguageServerSpec[], file: string): { read
   return spec === undefined ? undefined : { spec, languageId: spec.languageId ?? extension.slice(1) };
 }
 
+function isRelativeInside(relative: string): boolean {
+  return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
 /**
  * A path inside the round's root, or a refusal — the executor never reads outside the directory it was given.
  *
@@ -131,16 +135,26 @@ async function insideRoot(rootPath: string, requested: string): Promise<string> 
     throw new Error(`coding.find-symbol cannot read "${requested}": no such file in this round's directory`);
   });
   const relative = path.relative(root, real);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) throw refused();
+  if (!isRelativeInside(relative)) throw refused();
   return real;
 }
 
 /** Like `insideRoot`, for a file that may not exist yet: its directory must, inside the root. */
 async function insideRootForWrite(rootPath: string, requested: string): Promise<string> {
   const root = await realpath(path.resolve(rootPath));
-  const parent = await realpath(path.dirname(path.resolve(rootPath, requested))).catch(() => { throw new Error(`"${requested}" is in no directory of this round`); });
-  const absolute = path.join(parent, path.basename(requested)), relative = path.relative(root, absolute);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error(`"${requested}" is outside this round's directory`);
+  const candidate = path.resolve(rootPath, requested);
+  const parent = await realpath(path.dirname(candidate)).catch(() => { throw new Error(`"${requested}" is in no directory of this round`); });
+  const absolute = path.join(parent, path.basename(candidate));
+  const relative = path.relative(root, absolute);
+  if (!isRelativeInside(relative)) throw new Error(`"${requested}" is outside this round's directory`);
+  const existing = await lstat(absolute).catch(() => undefined);
+  if (existing?.isSymbolicLink()) {
+    const realTarget = await realpath(absolute).catch(() => undefined);
+    if (!realTarget || !isRelativeInside(path.relative(root, realTarget))) {
+      throw new Error(`"${requested}" is outside this round's directory`);
+    }
+    return realTarget;
+  }
   return absolute;
 }
 
@@ -343,12 +357,13 @@ interface LocationLike {
 }
 
 function findSymbolPosition(text: string, symbol: string): { readonly line: number; readonly character: number } | undefined {
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(^|[^\\w$])${escaped}(?=[^\\w$]|$)`);
   const lines = text.split("\n");
   for (let index = 0; index < lines.length; index += 1) {
-    const column = lines[index]!.search(new RegExp(`(^|[^\\w$])${symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\w$]|$)`));
-    if (column >= 0) {
-      const match = new RegExp(`(^|[^\\w$])(?:${symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`).exec(lines[index]!);
-      return { line: index, character: column + (match?.[1] ? 1 : 0) };
+    const match = pattern.exec(lines[index]!);
+    if (match !== null) {
+      return { line: index, character: match.index + match[1]!.length };
     }
   }
   return undefined;
@@ -375,7 +390,7 @@ async function describeLocation(one: LocationLike, realRoot: string): Promise<st
   if (!decoded || !path.isAbsolute(decoded)) return `${decoded || "(nowhere)"}${suffix}`;
   const resolved = await realpath(decoded).catch(() => path.resolve(decoded));
   const rel = path.relative(realRoot, resolved);
-  if (rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel)) {
+  if (isRelativeInside(rel)) {
     return `${rel.split(path.sep).join("/")}${suffix}`;
   }
   return `${path.basename(decoded) || "(outside)"}${suffix} (outside this round's directory)`;

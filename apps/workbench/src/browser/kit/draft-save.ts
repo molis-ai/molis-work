@@ -12,10 +12,18 @@ export function draftSave(
 ) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> | undefined;
+  const cancelled = new WeakSet<Workshop>();
 
-  function cancel(): void { clearTimeout(timer); timer = undefined; }
+  function clearTimer(): void { clearTimeout(timer); timer = undefined; }
+  async function cancel(w?: Workshop): Promise<void> {
+    clearTimer();
+    if (w) cancelled.add(w);
+    while (saving) await saving.catch(() => undefined);
+  }
+  function uncancel(w: Workshop): void { cancelled.delete(w); }
 
   function schedule(w: Workshop): void {
+    if (cancelled.has(w)) return;
     w.confirm = false;
     w.adoptFailure = undefined;
     if (w.save.kind === "conflict" || w.save.kind === "latest-failed") {
@@ -72,18 +80,19 @@ export function draftSave(
         untried: w.draft.cases.map(item => item.case_id), trial_needed: w.draft.cases.length > 0 };
       w.save = { kind: dirty(w) ? "saving" : "saved" };
     } catch (cause) {
+      if (cancelled.has(w)) return;
       if (failureOf(cause).code === "skills.draft_conflict") {
-        if (await reread(w, mayMerge, true) && dirty(w)) await save(w, false);
+        if (await reread(w, mayMerge, true) && !cancelled.has(w) && dirty(w)) await save(w, false);
       } else w.save = { kind: "failed", message: messageOf(cause) };
     }
   }
 
   /** Flush the open editor before moving on, including any typing during a save. */
   async function flush(w = view.workshop): Promise<boolean> {
-    if (view.workshop !== w) return false;
-    cancel();
+    if (view.workshop !== w || (w && cancelled.has(w))) return false;
+    clearTimer();
     while (saving) await saving;
-    if (view.workshop !== w) return false;
+    if (view.workshop !== w || (w && cancelled.has(w))) return false;
     if (!w) return true;
     if (w.save.kind === "conflict") return false;
     const readFirst = w.save.kind === "latest-failed";
@@ -95,13 +104,13 @@ export function draftSave(
     bar(w);
     const attempt = saving = (async () => {
       if (readFirst && !(await reread(w, true, true))) return;
-      if (dirty(w)) await save(w, true);
-      else w.save = { kind: "saved" };
+      if (!cancelled.has(w) && dirty(w)) await save(w, true);
+      else if (!cancelled.has(w)) w.save = { kind: "saved" };
     })();
     try { await attempt; } finally {
       if (saving === attempt) saving = undefined;
     }
-    if (view.workshop !== w) return false;
+    if (view.workshop !== w || cancelled.has(w)) return false;
     if (w.save.kind === "saving") return flush(w);
     bar(w);
     side(w);
@@ -111,18 +120,18 @@ export function draftSave(
   /** A replay or model reply can discover a newer version. Refreshing it never resubmits the action. */
   async function refresh(w: Workshop, afterConflict = false): Promise<void> {
     while (saving) await saving;
-    if (view.workshop === w) await reread(w, false, afterConflict);
+    if (view.workshop === w && !cancelled.has(w)) await reread(w, false, afterConflict);
   }
 
   async function resolve(w: Workshop, choice: DraftChoice): Promise<boolean> {
-    if (w.save.kind !== "conflict" || view.workshop !== w) return false;
+    if (w.save.kind !== "conflict" || view.workshop !== w || cancelled.has(w)) return false;
     const { latest } = w.save;
     applyRevision(w, latest, mergeDraftRevision(w.draft, w, latest, choice));
     return flush(w);
   }
 
   return {
-    cancel, flush, refresh, resolve, schedule,
+    cancel, uncancel, flush, refresh, resolve, schedule,
     pending: () => Boolean(timer || saving || view.workshop && dirty(view.workshop)),
   };
 }

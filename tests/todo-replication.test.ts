@@ -218,3 +218,22 @@ test("Todo titles use the same 200 code points for ordinary writes and replica r
     assert.equal((f.take().value as { item: { title: string } }).item.title, shorter);
   } finally { reopened.close(); }
 });
+
+test("F-plugins-rest-02: offline cross-device deterministic request_id collision syncs both items without UNIQUE conflict", t => {
+  const f = fixture(t), [a, b] = f.stores;
+  const sharedRequestId = "work-event:ev-shared:due";
+  const fromA = a!.create({ title: "设备 A 离线待办", request_id: sharedRequestId }, access).item;
+  const fromB = b!.create({ title: "设备 B 离线待办", request_id: sharedRequestId }, access).item;
+  assert.notEqual(fromA.id, fromB.id);
+  const eventA = f.take(0);
+  const eventB = f.take(1);
+  f.replicas[1]!.receive(eventA);
+  f.replicas[0]!.receive(eventB);
+  assert.deepEqual(f.replicas[0]!.conflicts(), []);
+  assert.deepEqual(f.replicas[1]!.conflicts(), []);
+  assert.equal(b!.get(fromA.id, access).title, "设备 A 离线待办");
+  assert.equal(a!.get(fromB.id, access).title, "设备 B 离线待办");
+  // Local idempotent retry keeps each device's own original mapping.
+  assert.equal(b!.create({ title: "设备 B 离线待办", request_id: sharedRequestId }, access).item.id, fromB.id);
+  assert.equal(a!.create({ title: "设备 A 离线待办", request_id: sharedRequestId }, access).item.id, fromA.id);
+});

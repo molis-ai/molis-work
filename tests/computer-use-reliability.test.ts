@@ -129,7 +129,7 @@ test("CU-G09: the Window menu names the app's other windows, and the typed menu 
   assert.match(receipt.tree, /没有变化/, "the menu hint is not part of the tree the step compares against");
   await performSurface(driver.surface(), { what: "menu", path: ["窗口", "Ideas"] }, TEST_CONTEXT);
   assert.deepEqual(calls.find(call => call.op === "input.menu")?.payload?.path, ["窗口", "Ideas"]);
-  // A window that shows Molis Work is neither offered nor reachable by menu: S-25, tests/security-invariants-computer-own-window.test.ts.
+  // A window that shows Molis Work is neither offered nor reachable by menu: S-25, tests/security-invariants-computer-driver.test.ts.
 });
 
 test("CU-G09: a sheet is named in the tree, not left as its raw accessibility role", async () => {

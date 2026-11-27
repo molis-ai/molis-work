@@ -1,4 +1,5 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { isValidFibonacciStoryPoints } from "../plan-content.js";
 import { stepActorText } from "./step-actor.js";
 import { el, errorMessage } from "./dom.js";
 import type { Amendment, PlanEntry, StepNode } from "./shapes.js";
@@ -219,10 +220,18 @@ function stepTools(d: Drawing, row: HTMLElement, node: StepNode, index: number, 
   if (node.state === "blocked") tool(uiText.text("coding.board.decide"), "edit", () => form([["note", uiText.text("coding.plan.decide-note"), 500]], ([note]) => change({ kind: "unblock", node: node.id, note: note ?? "" }), uiText.text("coding.board.decide-ok")));
   if (waiting || node.state === "blocked" || node.state === "failed") tool(node.state === "failed" ? uiText.text("coding.board.pass-over") : uiText.text("coding.board.skip"), "minus", () => form([["reason", uiText.text("coding.board.skip-reason"), 300]], ([reason]) => change({ kind: "skip", node: node.id, reason: reason ?? "" }), uiText.text("coding.board.skip")));
   if (node.state !== "cancelled") {
-    tool(uiText.text("coding.board.estimate"), "edit", () => form([["points", uiText.text("coding.board.estimate-points"), 10, typeof node.story_points === "number" ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]], ([pts, reason]) => {
+    tool(uiText.text("coding.board.estimate"), "edit", () => form([["points", uiText.text("coding.board.estimate-points"), 10, typeof node.story_points === "number" ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]], async ([pts, reason]) => {
       const cleaned = (pts ?? "").trim();
-      const parsed = !cleaned || cleaned === "0" || cleaned === "-" ? null : Number(cleaned);
-      return change({ kind: "estimate", node: node.id, story_points: parsed, ...(reason ? { reason } : {}) });
+      if (!cleaned || cleaned === "0" || cleaned === "-") {
+        await change({ kind: "estimate", node: node.id, story_points: null, ...(reason ? { reason } : {}) });
+        return;
+      }
+      const parsed = Number(cleaned);
+      if (!isValidFibonacciStoryPoints(parsed)) {
+        ports.status(uiText.text("coding.server.plan-story-points"), true);
+        return;
+      }
+      await change({ kind: "estimate", node: node.id, story_points: parsed, ...(reason ? { reason } : {}) });
     }, uiText.text("coding.board.estimate-ok")));
     if (node.state !== "succeeded") {
       const initPct = node.progress !== undefined ? String(Math.round(node.progress * 100)) : "";
@@ -328,9 +337,10 @@ export function planProgress(ports: ProgressPorts): PlanProgress {
         card.dataset.codingPlanProgress = run.ref.run_id;
         card.setAttribute("aria-label", uiText.text("coding.plan.progress"));
       }
-      const signature = JSON.stringify([board.version, board.terminal, board.progress_summary, board.nodes.map(node => [node.id, node.state, node.skipped, node.unknown_outcome, node.scope_removed, node.story_points, node.progress]), live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
+      const signature = JSON.stringify([activeUiLocale(), board.version, board.terminal, board.progress_summary, board.nodes.map(node => [node.id, node.state, node.skipped, node.unknown_outcome, node.scope_removed, node.story_points, node.progress]), live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
       // Never rebuild under the person's hands: an open form keeps the card as it is until they finish.
       if (card.dataset.editing === "true" || card.dataset.busy === "true" || card.dataset.signature === signature) return card;
+      card.setAttribute("aria-label", uiText.text("coding.plan.progress"));
       card.dataset.signature = signature;
       drawCard(ports, card, run, entry, board, live, latest);
       return card;

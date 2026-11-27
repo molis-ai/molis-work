@@ -55,7 +55,12 @@ export function createAuthenticationManagement(config: AccountEnvironmentConfig,
           ...(bindingId ? { params: { bindingId } } : {}), idempotencyKey: key,
           body: { operationProof: t.operationProof, expectedVersion: input.expectedVersion, ...(identity ? { newIdentityProof: identity.identityProof } : {}), ...(action === "password" ? { newPassword: input.newPassword } : {}) },
         }, { ...control, assertCurrent: () => { control.assertCurrent(); assertAuthentication(t); if (identity) assertAuthentication(identity); } });
-        t.operationProof = undefined; if (identity) identity.identityProof = undefined;
+        t.operationProof = undefined;
+        if (identity) {
+          identity.identityProof = undefined;
+          identity.finished = true;
+        }
+        t.finished = true;
         t.receipt = { key, digest: fingerprint, result: result.data }; return result.data;
       } finally { t.busy = false; if (identity) identity.busy = false; }
     },

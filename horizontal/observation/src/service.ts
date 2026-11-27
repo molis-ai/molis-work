@@ -110,7 +110,9 @@ export class ObservationLayer {
     this.writer.flush();
     const opened = this.writer.database();
     if (!opened) return null;
-    return sweepExpiredRecords(opened.db, this.options.env.now());
+    const result = sweepExpiredRecords(opened.db, this.options.env.now());
+    if (result && result.deleted_records > 0) this.writer.clearFolds();
+    return result;
   }
 
   clearProject(projectId: string): void { this.writer.clearProject(projectId); }

@@ -1,8 +1,10 @@
+import { isIP } from "node:net";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import type { McpServerConfiguration, StartMcpConnectionInput } from "./connector-mcp.js";
 import type { PluginAuthMethodDeclaration, PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { builtinLocalMcpServers } from "./builtin-drivers.js";
+import { publicAddress } from "./public-https.js";
 import { stdioMcpLaunch } from "./stdio-mcp-launch.js";
 
 /** The existing generic MCP connection entry also accepts complete remote server configurations. */
@@ -43,7 +45,10 @@ export function mcpEndpointFor(servers: Readonly<Record<string, McpServerConfigu
   try { endpoint = new URL(requested || server!.endpoint); } catch { throw invalid("MCP 地址无效"); }
   if (endpoint.username || endpoint.password || endpoint.hash || [...endpoint.searchParams.keys()].some(key => /^(auth|authorization|password|secret|token|access_token|refresh_token|api[_-]?key)$/i.test(key))) throw invalid("MCP 地址不能包含凭据；请使用受保护的凭据字段");
   if (!custom && (server!.endpointPattern ? !server!.endpointPattern.test(endpoint.href) : endpoint.href !== new URL(server!.endpoint).href)) throw invalid("MCP 地址必须匹配所选服务的官方地址；租户 ID 和 server name 需替换成实际值");
-  if (endpoint.protocol !== "https:" && !(isLoopbackHttpUrl(endpoint) && (custom || testing || localMcpServer(serviceId)?.loopback === true))) throw invalid("远程 MCP 必须使用 HTTPS；HTTP 仅用于明确选择的本机回环服务");
+  const localAllowed = isLoopbackHttpUrl(endpoint) && (custom || testing || localMcpServer(serviceId)?.loopback === true);
+  if (endpoint.protocol !== "https:" && !localAllowed) throw invalid("远程 MCP 必须使用 HTTPS；HTTP 仅用于明确选择的本机回环服务");
+  const host = endpoint.hostname.replace(/^\[|\]$/gu, "");
+  if (endpoint.protocol === "https:" && !testing && isIP(host) && !publicAddress(host)) throw invalid("远程 MCP 地址不能指向本机或内网地址");
   return endpoint.href;
 }
 export function mcpAuthentication(input: StartMcpConnectionInput, server: McpServerConfiguration): "none" | "bearer" | "oauth" {

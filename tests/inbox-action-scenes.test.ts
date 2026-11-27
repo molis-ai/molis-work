@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
-import { inboxActions, inboxContentActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxContentActions, inboxManifest, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
 import { feedContentActions, feedInboxActions, feedItemActions, type FeedJudgmentCatalog } from "@molis-ai/molis-work-plugin-feed";
 import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -442,4 +442,39 @@ test("BRC-05 Inbox and Feed HTTP candidate catalogs do the same full reads at ei
     t.diagnostic(JSON.stringify({ extraDiscovery: counts.discover, sceneCalls: counts.sceneCalls }));
     assert.throws(() => assertSceneCandidateBudget(counts, false, 2), /Kernel directory projections per audience/);
   } finally { extra.mock.restore(); }
+});
+
+test("F-plugins-rest-w2-02: disabling Feed degrades Inbox list/search/events cleanly and converts reopen refusal to inbox.invalid", async () => {
+  const home = await mkdtemp(join(tmpdir(), "inbox-feed-disabled-"));
+  let feedDisabled = false;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
+    actionAvailability: (_caller, view) => feedDisabled && view.provider.plugin_id === "io.molis.work.feed"
+      ? { available: false, code: "actions.plugin_disabled", reason: "Feed 已停用" } : { available: true } });
+  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
+  try {
+    const entry = await host.withProject(reference, runtime => {
+      const feed = createLocalFeedApplication(runtime.store.db);
+      const source = createLocalFeedSourceService(runtime.store.db, runtime.project_id).register({ kind: "research_library", repository: "fixture/disabled", research_source: "test" }).source;
+      const item = feed.ingestItem({ source, externalId: "disabled-1", title: "停用前入箱", summary: "摘要", body: "正文", occurredAt: new Date().toISOString(), attention: false }).item;
+      return feed.ensureInboxEntryForFeedItem(runtime.project_id, item.item_id, "manual").entry;
+    });
+    const actions = host.actionClient(reference);
+    await actions.discover(caller);
+    const dismissed = await actions.invoke(caller, inboxActions.setStatus, { entry_id: entry.entry_id, status: "dismissed", expected_revision: entry.revision }) as { entry: { revision: number } };
+    feedDisabled = true;
+    const contentList = await actions.invoke(caller, inboxContentActions.list, {}) as unknown[];
+    assert.ok(Array.isArray(contentList));
+    const searchEntries = inboxManifest.actions!.find(a => a.capability_id === "inbox.search.entries")!;
+    const eventsAction = inboxManifest.actions!.find(a => a.capability_id === "inbox.events")!;
+    const searched = await actions.invoke(caller, searchEntries, { cursor: null, limit: 20 }) as { entries: unknown[] };
+    assert.ok(Array.isArray(searched.entries));
+    const events = await actions.invoke(caller, eventsAction, { from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", now: "2026-06-01T00:00:00Z" }) as { events: unknown[] };
+    assert.ok(Array.isArray(events.events));
+    await assert.rejects(
+      actions.invoke(caller, inboxActions.setStatus, { entry_id: entry.entry_id, status: "open", expected_revision: dismissed.entry.revision }),
+      { code: "inbox.invalid" },
+    );
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

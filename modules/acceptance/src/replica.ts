@@ -191,6 +191,14 @@ export function acceptanceReplica(db: ReplicaDatabase, projectId: string, spaceI
     replace(key, input) {
       scoped(key);
       const value = parse(input), no = subjectNo(key, value.created_at)!;
+      const requirements = new Set(value.requirements.map(row => `${row.requirement_id}\u0000${row.version}`));
+      const rounds = new Set(value.deliveries.map(row => Number(row.round)));
+      for (const row of value.checks) {
+        if (!requirements.has(`${row.requirement_id}\u0000${row.requirement_version}`) || !rounds.has(Number(row.round))) throw invalid();
+      }
+      for (const row of value.decisions) {
+        if (!requirements.has(`${row.requirement_id}\u0000${row.requirement_version}`) || !rounds.has(Number(row.stands_round))) throw invalid();
+      }
       db.exec("INSERT INTO acceptance_sync_resolving (marker) VALUES (1)");
       try {
         for (const table of Object.keys(TABLES) as Table[]) db.prepare(`DELETE FROM acceptance_${table} WHERE subject_no=?`).run(no);

@@ -13,16 +13,23 @@ export function validateGoalReplication(rows: ProjectReplicaRows, _projectId: st
   const goals = new Map(rows.goals!.map(row => [row.goal_id, row]));
   if (roots[0]!.active_goal_id !== null && !goals.has(roots[0]!.active_goal_id)) invalid();
   const events = new Map(rows.goal_work_events!.map(row => [row.event_id, row]));
-  // The requirements Goals hung on the platform for each Goal (their statements and state are the platform's, in its own collection).
-  const requirements = new Map(rows.goal_requirement_links!.map(row => [row.requirement_id, row]));
+  // Requirements live on the platform's acceptance now, so a Goal may bind or scope one added there (or an original
+  // acceptance criterion) without a row in `goal_requirement_links`, and two Goals may share the same custom `requirement_id`.
+  const requirementLinks = new Set<string>();
+  for (const row of rows.goal_requirement_links!) {
+    if (typeof row.goal_id !== 'string' || !goals.has(row.goal_id)) invalid();
+    if (typeof row.requirement_id !== 'string' || !row.requirement_id.trim()) invalid();
+    const key = `${row.goal_id}\u0000${row.requirement_id}`;
+    if (requirementLinks.has(key)) invalid();
+    requirementLinks.add(key);
+  }
   for (const [table, list] of Object.entries(rows)) for (const row of list) {
     if (table !== 'goals' && row.goal_id !== undefined && row.goal_id !== null && !goals.has(row.goal_id)) invalid();
-    if (row.requirement_id !== undefined && !requirements.has(row.requirement_id)) invalid();
+    if (row.requirement_id !== undefined && (typeof row.requirement_id !== 'string' || !row.requirement_id.trim())) invalid();
     if (table.startsWith('goal_event_') && row.event_id && !events.has(row.event_id)) invalid();
     if (row.resolution_event_id && !events.has(row.resolution_event_id)) invalid();
-    if (row.requirement_id !== undefined && requirements.get(row.requirement_id)!.goal_id !== row.goal_id) invalid();
     if (table === 'goal_event_closures' && row.acceptance_round != null && !(Number.isSafeInteger(row.acceptance_round) && Number(row.acceptance_round) >= 0)) invalid();
-    if (row.scope_json) validateScope(row, JSON.parse(String(row.scope_json)), requirements, events);
+    if (row.scope_json) validateScope(row, parseJson(row.scope_json), events);
     if (table === 'goal_event_concerns') validateCitedSubjects(row.cited_subjects_json);
   }
   for (const row of rows.goal_event_configs!) {
@@ -42,12 +49,18 @@ export function validateGoalReplication(rows: ProjectReplicaRows, _projectId: st
   }
 }
 
-function validateScope(row: ProjectReplicaRow, value: unknown, requirements: Map<ProjectReplicaRow[string], ProjectReplicaRow>, events: Map<ProjectReplicaRow[string], ProjectReplicaRow>): void {
+function parseJson(value: ProjectReplicaRow[string]): unknown {
+  try { return JSON.parse(String(value)); } catch { invalid(); }
+}
+
+function validateScope(row: ProjectReplicaRow, value: unknown, events: Map<ProjectReplicaRow[string], ProjectReplicaRow>): void {
   if (!value || typeof value !== 'object' || Array.isArray(value)) invalid();
   const scope = value as Record<string, unknown>;
-  for (const [field, map] of [['requirement_ids', requirements], ['event_ids', events]] as const) {
-    if (scope[field] === undefined) continue;
-    if (!Array.isArray(scope[field]) || (scope[field] as unknown[]).some(id => typeof id !== 'string' || !map.has(id) || map.get(id)!.goal_id !== row.goal_id)) invalid();
+  if (scope.requirement_ids !== undefined) {
+    if (!Array.isArray(scope.requirement_ids) || (scope.requirement_ids as unknown[]).some(id => typeof id !== 'string' || !id.trim())) invalid();
+  }
+  if (scope.event_ids !== undefined) {
+    if (!Array.isArray(scope.event_ids) || (scope.event_ids as unknown[]).some(id => typeof id !== 'string' || !events.has(id) || events.get(id)!.goal_id !== row.goal_id)) invalid();
   }
 }
 

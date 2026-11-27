@@ -1,19 +1,19 @@
 import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Page } from "./page.js";
 
-const SECTION_SHORT_KEYS: readonly (readonly [attr: string, key: string])[] = [
-  ["data-coding-cooperation", "coding.short.cooperation"],
-  ["data-coding-checkpoints", "coding.short.checkpoints"],
-  ["data-coding-recovery", "coding.short.recovery"],
-  ["data-coding-outcomes", "coding.short.outcomes"],
-  ["data-coding-change-reader", "coding.short.change"],
-  ["data-coding-commands", "coding.short.commands"],
-  ["data-coding-background", "coding.short.background"],
+const SECTION_SHORT_LABELS: readonly (readonly [attr: string, label: () => string])[] = [
+  ["data-coding-cooperation", () => uiText.text("coding.short.cooperation")],
+  ["data-coding-checkpoints", () => uiText.text("coding.short.checkpoints")],
+  ["data-coding-recovery", () => uiText.text("coding.short.recovery")],
+  ["data-coding-outcomes", () => uiText.text("coding.short.outcomes")],
+  ["data-coding-change-reader", () => uiText.text("coding.short.change")],
+  ["data-coding-commands", () => uiText.text("coding.short.commands")],
+  ["data-coding-background", () => uiText.text("coding.short.background")],
 ];
 
 const shortLabel = (section: HTMLElement, fallback: string): string => {
-  for (const [attr, key] of SECTION_SHORT_KEYS) {
-    if (section.hasAttribute(attr)) return uiText.text(key);
+  for (const [attr, label] of SECTION_SHORT_LABELS) {
+    if (section.hasAttribute(attr)) return label();
   }
   return fallback;
 };

@@ -1,5 +1,5 @@
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { overviewRows, type ActionCard } from "@molis-ai/molis-work-plugin-sdk";
+import { overviewRows, type ActionCard, type OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
 import { OVERVIEW_TEXT_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { workBriefErrors } from "./error.js";
 import { BRIEF_LIMITS, type BriefBody, type BriefEdit, type BriefFixed, type BriefProposal, type BriefRecord, type BriefScope, type BriefVersion, type BriefVersionHead,
@@ -7,6 +7,21 @@ import { BRIEF_LIMITS, type BriefBody, type BriefEdit, type BriefFixed, type Bri
 
 const text = (value: unknown) => String(value ?? "");
 const parse = <T>(value: unknown, fallback: T): T => typeof value === "string" && value ? JSON.parse(value) as T : fallback;
+
+/**
+ * The partition's own brief as one `brief` row of the platform's overview table, in the transaction of the version it sums up (a local
+ * write or a synced one): its first sentence as the title and the next few as the summary, as written. A brief with no sentence yet has no row.
+ */
+export function writeBriefOverview(writer: OverviewRowsWriter | PluginDatabaseTransaction, brief: Pick<BriefRecord, "brief_id" | "title" | "updated_at">, body: { claims: readonly { text: string }[] }): void {
+  const rows = overviewRows(writer), sentences = body.claims.map(claim => claim.text.trim()).filter(Boolean);
+  if (!sentences.length) {
+    rows.remove("brief", brief.brief_id);
+    return;
+  }
+  const cut = (value: string, limit: number) => [...value].slice(0, limit).join("");
+  rows.upsert("brief", { row_id: brief.brief_id, title: cut(brief.title.trim() || sentences[0]!, OVERVIEW_TEXT_LIMITS.title),
+    summary: cut(sentences.slice(brief.title.trim() ? 0 : 1, 4).join("\n"), OVERVIEW_TEXT_LIMITS.summary) || null, updated_at: brief.updated_at });
+}
 
 function briefOf(row: PluginSqlRow, partitionId: string): BriefRecord {
   return { brief_id: text(row.id), project_id: partitionId, scope: text(row.scope) as BriefScope, title: text(row.title), current_version: Number(row.current_version),
@@ -82,19 +97,8 @@ export class BriefStore {
     return now;
   }
 
-  /**
-   * The partition's own brief as one `brief` row of the platform's overview table, in the transaction of the version it sums up: its first
-   * sentence as the title and the next few as the summary, as written. A brief with no sentence yet has no row.
-   */
   private overview(brief: BriefRecord, body: BriefBody): void {
-    const rows = overviewRows(this.tx), sentences = body.claims.map(claim => claim.text.trim()).filter(Boolean);
-    if (!sentences.length) {
-      rows.remove("brief", brief.brief_id);
-      return;
-    }
-    const cut = (value: string, limit: number) => [...value].slice(0, limit).join("");
-    rows.upsert("brief", { row_id: brief.brief_id, title: cut(brief.title.trim() || sentences[0]!, OVERVIEW_TEXT_LIMITS.title),
-      summary: cut(sentences.slice(brief.title.trim() ? 0 : 1, 4).join("\n"), OVERVIEW_TEXT_LIMITS.summary) || null, updated_at: brief.updated_at });
+    writeBriefOverview(this.tx, brief, body);
   }
 
   edits(briefId: string): BriefEdit[] {

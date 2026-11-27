@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_EVIDENCE_BATCH, PLUGIN_EVIDENCE_COLLECT_PERMISSION, type PluginEvidenceClient, type PluginEvidenceRelease } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly, pluginSceneEffectPassed } from "@molis-ai/molis-work-plugin-runtime";
 import { openEvidenceLedger, type EvidenceHolder, type EvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { createEvidenceContentStore, runWithMolisWorkHome, type EvidenceContentStore } from "@molis-ai/molis-work-storage";
 
@@ -22,6 +22,9 @@ const refsOf = (value: readonly string[], what: string): string[] => {
  * runs only inside the plugin's own running action that declares `evidence:collect`, never read-only, never another instance's, and the
  * instance must hold the permission on every call. Collection itself is the ledger's decision: a body any partition or installation still
  * holds is kept.
+ *
+ * Every write to the ledger waits for the calling action's `beforeEffect` right before it, so a call cancelled, revoked or stopped while it
+ * worked records nothing; a scene callback writes only after its own `beforeEffect` returned, and a kept job on its captured authority.
  */
 export function pluginEvidenceFor(manifest: PluginManifest, context: PluginStartContext, partitionId: string, home: string | undefined,
   assertActive: () => void, store?: EvidenceContentStore): PluginEvidenceClient | undefined {
@@ -48,8 +51,20 @@ export function pluginEvidenceFor(manifest: PluginManifest, context: PluginStart
     scope.caller.signal?.throwIfAborted();
     return { permissions: [PLUGIN_EVIDENCE_COLLECT_PERMISSION] };
   };
-  const giveBack = (holderKey: string, refs: readonly string[] | "all", candidates: readonly string[]): PluginEvidenceRelease => {
+  /** Right before a ledger write: the calling action's `beforeEffect`, so a call stopped while it worked writes nothing. */
+  const beforeWrite = async (): Promise<void> => {
+    const scope = currentPluginInvocation();
+    if (!scope) return;
+    if (pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读调用里不能登记或回收证据正文");
+    if ("definition" in scope) await scope.caller.beforeEffect();
+    else if ("scene" in scope && !pluginSceneEffectPassed(scope)) throw new ActionError("actions.forbidden", "场景回调写入前要先等 beforeEffect 通过");
+    assertActive();
+    context.requireGrant(PLUGIN_EVIDENCE_COLLECT_PERMISSION);
+    assertCapturedPluginActionCurrent(scope, context);
+  };
+  const giveBack = async (holderKey: string, refs: readonly string[] | "all", candidates: readonly string[]): Promise<PluginEvidenceRelease> => {
     const who = holder(holderKey), caller = collecting();
+    await beforeWrite();
     const outcome = runWithMolisWorkHome(home, () => withLedger(ledger => ledger.releaseAndCollect(caller, content(), who, refs, candidates)));
     return { holds_released: outcome.released, bodies_deleted: outcome.deleted.length, bodies_kept: outcome.kept.length };
   };
@@ -64,9 +79,10 @@ export function pluginEvidenceFor(manifest: PluginManifest, context: PluginStart
         assertCapturedPluginActionCurrent(scope, context);
         scope.caller.signal?.throwIfAborted();
       }
+      await beforeWrite();
       return { held: withLedger(ledger => ledger.hold(who, refs)) };
     },
-    reclaim: async (holderKey, contentRefs) => giveBack(holderKey, refsOf(contentRefs, "收回"), contentRefs),
-    release: async (holderKey, candidates) => giveBack(holderKey, "all", refsOf(candidates, "释放")),
+    reclaim: (holderKey, contentRefs) => giveBack(holderKey, refsOf(contentRefs, "收回"), contentRefs),
+    release: (holderKey, candidates) => giveBack(holderKey, "all", refsOf(candidates, "释放")),
   });
 }

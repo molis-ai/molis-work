@@ -200,3 +200,27 @@ test("S-98: a services.evidence handle kept past its call is refused outside eve
   await assert.rejects(kept!.reclaim("source-a", [body]), { code: "actions.forbidden" });
   assert.ok(bodies.has(body), "a call outside every action deleted nothing");
 });
+
+test("S-98: a hold or a release still running after its action ended waits for the action's beforeEffect and records nothing", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
+  const body = bodies.write("late body").contentRef, held = bodies.write("held body").contentRef;
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-held", [held])), { outcome: "ok", value: { held: 1 } });
+  // The work starts inside the action and reaches the ledger only after the action answered: its call is over, so its beforeEffect refuses.
+  let release!: () => void;
+  const ended = new Promise<void>(resolve => { release = resolve; });
+  let lateHold!: Promise<unknown>, lateRelease!: Promise<unknown>;
+  assert.deepEqual(await s.run("project", services => {
+    lateHold = (async () => { await ended; return services.project.evidence!.hold("source-late", [body]); })();
+    lateRelease = (async () => { await ended; return services.project.evidence!.release("source-held", [held]); })();
+    lateHold.catch(() => undefined); lateRelease.catch(() => undefined);
+    return null;
+  }), { outcome: "ok", value: null });
+  release();
+  await assert.rejects(lateHold, (error: Error & { code?: string }) => typeof error.code === "string", "a hold after its call ended is refused");
+  await assert.rejects(lateRelease, (error: Error & { code?: string }) => typeof error.code === "string", "a release after its call ended is refused");
+  assert.ok(bodies.has(held), "the refused release deleted nothing");
+  // Nothing was recorded for the late hold: giving its holder's holds back finds none, and the body nobody holds goes.
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.release("source-late", [body])),
+    { outcome: "ok", value: { holds_released: 0, bodies_deleted: 1, bodies_kept: 0 } });
+});

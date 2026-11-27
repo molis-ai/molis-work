@@ -1,9 +1,10 @@
-import { createSyncJsonContent, syncTupleLocation } from "@molis-ai/molis-work-plugin-sdk";
+import { createSyncJsonContent, overviewRows, syncTupleLocation } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginStartContext, PluginSyncBinding, PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginSyncCollectionDefinition, SyncPortableRow, SyncTrackedTable } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { workBriefErrors } from "./error.js";
 import { WORK_BRIEF_PROJECT_PLUGIN_ID } from "./identity.js";
 import { BRIEF_LIMITS } from "./model.js";
+import { writeBriefOverview } from "./store.js";
 import { checkProducer, id, list, object, parse, portableBody, requireBriefSync, stamp, text, version } from "./replication-content.js";
 
 const collection = "briefs";
@@ -26,11 +27,14 @@ export const workBriefSync: PluginSyncDeclaration = { protocol_version: /* @vers
 ] };
 
 type BriefKey = { projectId: string; briefId: string };
-function decode(key: string): BriefKey {
+function decodeKey(key: string): BriefKey {
   const value = parse(key);
   requireBriefSync(Array.isArray(value) && value.length === 3 && id(value[0]) && value[1] === "brief" && id(value[2]));
   return { projectId: value[0], briefId: value[2] };
 }
+
+/** The sentences of a version body `portableBody` already checked. */
+const briefClaims = (raw: unknown): { text: string }[] => (object(parse(raw)).claims as { text: string }[]);
 
 const inScope = (row: Record<string, unknown>): boolean => row.scope === "topic" || row.scope === "home";
 
@@ -92,7 +96,16 @@ function portable(value: unknown, key: BriefKey, spaceId: string, fromLocal = fa
   return { record, rows };
 }
 
-export const briefCollection: PluginSyncCollectionDefinition = { tracking, create(db, context) {
+/** The briefs of one partition's library: a key naming another partition is refused before anything is read or written. */
+export const briefCollection = (partition: string): PluginSyncCollectionDefinition => ({ tracking, create(db, context) {
+  const decode = (key: string): BriefKey => {
+    const selected = decodeKey(key);
+    requireBriefSync(selected.projectId === partition);
+    return selected;
+  };
+  // The overview row is written beside the brief, as the store writes it, so a synced brief shows on the partition's overview too.
+  const overview = { get: (sql: string, parameters: readonly (string | number | null)[] = []) => db.prepare(sql).get(...parameters),
+    run: (sql: string, parameters: readonly (string | number | null)[] = []) => db.prepare(sql).run(...parameters) };
   const owner = (key: BriefKey) => {
     const row = db.prepare(`SELECT ${root.join(", ")}, version, publication_pending_json FROM briefs WHERE id = ?`).get(key.briefId);
     const high = db.prepare("SELECT version FROM brief_editor_versions WHERE id = ?").get(key.briefId);
@@ -128,6 +141,7 @@ export const briefCollection: PluginSyncCollectionDefinition = { tracking, creat
       if (value === null) {
         for (const table of childTables) db.prepare(`DELETE FROM ${table} WHERE brief_id = ?`).run(briefId);
         db.prepare("DELETE FROM briefs WHERE id = ?").run(briefId);
+        overviewRows(overview).remove("brief", briefId);
         return;
       }
       const { record, rows } = portable(value, selected, context.spaceId);
@@ -146,16 +160,19 @@ export const briefCollection: PluginSyncCollectionDefinition = { tracking, creat
         const insert = db.prepare(`INSERT INTO ${table} (brief_id, ${columns.join(", ")}) VALUES (${["?", ...columns.map(() => "?")].join(", ")})`);
         for (const child of rows[table]) insert.run(briefId, ...columns.map(column => child[column] ?? null));
       }
+      const current = rows.brief_versions.find(entry => entry.version === record.row.current_version);
+      if (record.row.scope === "home") writeBriefOverview(overview, { brief_id: briefId, title: String(record.row.title), updated_at: String(record.row.updated_at) },
+        { claims: current ? briefClaims(current.body_json) : [] });
     },
   };
-} };
+} });
 
 /** Each partition's instance owns its library's journal: its briefs, keyed by the partition the platform bound the library to. */
 export function workBriefSyncBindings(context: PluginStartContext): PluginSyncBinding[] {
   const scope = context.sync, service = context.services?.sync;
   if (!scope || !service) return [];
   const projectLocation = syncTupleLocation(WORK_BRIEF_PROJECT_PLUGIN_ID, true, 2);
-  return [{ collection_id: collection, replica: service.collection(collection, briefCollection),
+  return [{ collection_id: collection, replica: service.collection(collection, briefCollection(context.project_id!)),
     content: createSyncJsonContent({ spaceId: scope.spaceId, authorize: scope.assertActive }),
     locate: projectLocation }];
 }

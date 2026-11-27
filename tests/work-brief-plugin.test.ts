@@ -11,7 +11,7 @@ import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-ho
 import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
-import { OVERVIEW_PROVIDER_ID, overviewReadAction, type OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_PROVIDER_ID, OVERVIEW_TABLE, overviewReadAction, type OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { syncOwnerPair } from "./fixtures/runtime-personal-sync.js";
 
 // Work Brief in a project that has no Goals: its sources are whatever the directory offers (here Risk), read as the caller.
@@ -69,6 +69,7 @@ test("AC-M1-02 a partition's brief restores its content and retains concurrent e
     try { return run(db); } finally { db.close(); }
   };
   const count = (query: string, ...parameters: string[]) => sql(target, db => (db.prepare(query).get(...parameters) as { n: number }).n);
+  const overview = () => sql(target, db => db.prepare(`SELECT title, summary FROM ${OVERVIEW_TABLE} WHERE kind = 'brief' AND row_id = ?`).get(briefId) as { title: string } | undefined);
   sql(source, db => db.prepare("INSERT INTO brief_next_marks(brief_id, option_id, state, card_json, actor_id, at) VALUES (?, ?, 'running', ?, ?, ?)")
     .run(briefId, options[0]!.option_id, '{"localOnly":"pending dispatch"}', owner, "2026-11-22T00:00:00Z"));
 
@@ -86,6 +87,12 @@ test("AC-M1-02 a partition's brief restores its content and retains concurrent e
     a.withReplica(replica => replica.acknowledge(mutation.key, mutation.operationId, revision));
     return mutation;
   };
+  // A key naming another partition is refused before anything is read or written, whatever the value says.
+  const forged = a.withReplica(replica => replica.next())!, foreign = forged.key.replace(source.project().project_id, "proj-elsewhere");
+  assert.notEqual(foreign, forged.key);
+  assert.throws(() => b.withReplica(replica => replica.receive({ ...forged, key: foreign, revision: 99 })));
+  assert.equal(count("SELECT COUNT(*) AS n FROM briefs"), 0, "a brief keyed to another partition writes nothing here");
+  assert.equal(overview(), undefined);
   const first = await syncOne();
   assert.doesNotMatch(JSON.stringify(first.value), /local card input|pending dispatch|card_json|"running"/);
   // The brief row carries no partition and no owner of its own (the target stamps its partition); its edits and next-step marks keep who made them.
@@ -94,6 +101,7 @@ test("AC-M1-02 a partition's brief restores its content and retains concurrent e
   const view = () => call<BriefView>(target, workBriefActions.get, { brief_id: briefId });
   const restored = await view();
   assert.equal(restored.version!.claims[0]!.text, "Saved project topic");
+  assert.equal(overview()?.title, "Saved project topic", "a synced brief shows on the partition's overview as a local save would");
   assert.deepEqual(restored.version!.next[0]!.act, { kind: "assistant" });
   assert.deepEqual(restored.marks.map(mark => mark.state), ["later"]);
   assert.equal(await code(call(target, riskActions.get, { risk_id: risk.risk.risk_id })), "risk.not_found");
@@ -115,6 +123,7 @@ test("AC-M1-02 a partition's brief restores its content and retains concurrent e
   assert.equal((await view()).version!.claims[0]!.text, "Local brief");
   b.withReplica(replica => replica.resolve(update.key, "remote", conflict.revision, conflict.state));
   assert.equal((await view()).version!.claims[0]!.text, "Remote brief");
+  assert.equal(overview()?.title, "Remote brief", "the overview row follows the version a resolved conflict keeps");
 
   sql(source, db => {
     db.prepare("DELETE FROM brief_versions WHERE brief_id=?").run(briefId);
@@ -126,6 +135,7 @@ test("AC-M1-02 a partition's brief restores its content and retains concurrent e
   await assert.rejects(view, { code: "work_brief.not_found" });
   assert.equal(count("SELECT COUNT(*) AS n FROM brief_versions WHERE brief_id=?", briefId), 0);
   assert.equal(count("SELECT COUNT(*) AS n FROM briefs"), 0);
+  assert.equal(overview(), undefined, "a synced removal takes the overview row with it");
 });
 
 test("WBR-10 WBR-12 a refresh reads the sources without a model, saves a version only when something changed and reports only the change", { timeout: 90_000 }, async t => {

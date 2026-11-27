@@ -5306,7 +5306,7 @@
     "workbench.settings-assistant.paused-until": "暂停提醒到",
     "workbench.settings-assistant.personal": "个人",
     "workbench.settings-assistant.overview-grants": "跨项目总览",
-    "workbench.settings-assistant.overview-grants-hint": "助理默认只看当前所在的地方。在这里选出它可以读总览摘要的项目，以及每个项目里能看到哪些内容；不会给它原文或附件，关掉后立刻不再给。",
+    "workbench.settings-assistant.overview-grants-hint": "选出助理能读总览摘要的项目；不给原文与附件。",
     "workbench.settings-assistant.overview-no-places": "还没有可以选的项目。",
     "workbench.settings-assistant.overview-fields": "{place} 里助理能看到的内容",
     "workbench.settings-assistant.overview-field-title": "标题",

@@ -46,8 +46,8 @@ test("Feed rejects foreign or malformed envelopes and preserves an active local 
     const c = fixture();
     try {
       c.db.prepare(`INSERT INTO feed_out_rules
-        (project_id,rule_id,name,enabled,match_json,created_at,updated_at,admission,judgment_json,revision)
-        VALUES (?,?,?,?,?,?,?,?,?,?)`).run(projectId, rule.rule_id, "本机活跃规则", 1, '{"contains":"本机"}',
+        (rule_id,name,enabled,match_json,created_at,updated_at,admission,judgment_json,revision)
+        VALUES (?,?,?,?,?,?,?,?,?)`).run(rule.rule_id, "本机活跃规则", 1, '{"contains":"本机"}',
         rule.created_at, rule.updated_at, "suggest", null, "local-revision");
       c.replica.receive({ ...mutation, revision: 1 });
       assert.equal(c.replica.conflicts().length, 1);

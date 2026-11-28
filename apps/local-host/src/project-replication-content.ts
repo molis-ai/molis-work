@@ -31,12 +31,6 @@ function exact(value: Record<string, unknown>, keys: readonly string[]): void {
   }
 }
 
-export interface ProjectEvidenceHoldInput {
-  readonly projectId: string;
-  readonly kind: string;
-  readonly refs: readonly string[];
-  readonly facts: Readonly<Record<string, ProjectReplicaRows>>;
-}
 
 /** Explicit owner references only. Plain bytes travel; encryption keys and device paths never do. */
 export function createProjectEvidenceContent(
@@ -45,7 +39,6 @@ export function createProjectEvidenceContent(
   kind: string,
   spaceId: string,
   authorize: () => void,
-  holdEvidence?: (input: ProjectEvidenceHoldInput) => Promise<void> | void,
 ): SyncContentCodec {
   // The evidence bodies sit where storage keeps them for this Home (`security/evidence`, BL-b44-feed-home-dir-and-styles).
   const store = runWithMolisWorkHome(home, () =>
@@ -118,21 +111,10 @@ export function createProjectEvidenceContent(
   });
   return {
     encode: codec.encode,
-    ...(holdEvidence
-      ? {
-          async prepare(key: string, input: unknown): Promise<void> {
-            const { projectId, wire, refs, facts } = inspect(key, input);
-            exact(wire, ["format", "spaceId", "project", "facts"]);
-            if (!refs.length) return;
-            await holdEvidence({ projectId, kind, refs, facts });
-            authorize();
-          },
-        }
-      : {}),
     async decode(key, input, read) {
       const decoded = await codec.decode(key, input, read);
       authorize();
-      const { projectId, wire, refs, facts } = inspect(key, decoded);
+      const { wire, refs } = inspect(key, decoded);
       if (!refs.length) {
         exact(wire, ["format", "spaceId", "project", "facts"]);
         return decoded;
@@ -182,10 +164,6 @@ export function createProjectEvidenceContent(
       }
       const texts = bodies.map((bytes) => new TextDecoder("utf-8", { fatal: true }).decode(bytes));
       authorize();
-      if (holdEvidence) {
-        await holdEvidence({ projectId, kind, refs, facts });
-        authorize();
-      }
       for (let n = 0; n < entries.length; n++) {
         authorize();
         if (store.write(texts[n]!).contentRef !== entries[n]!.reference) {

@@ -9,7 +9,7 @@ export { EVIDENCE_COLLECT_PERMISSION, type EvidenceHolder, type EvidenceHoldReco
  * content-addressed pool (`packages/storage` evidence-content, shared by every partition); this records each reference by
  * (content_ref, partition, installation, holder key), so a body nobody holds can be collected; collection carries `evidence:collect`
  * (S-98 as rewritten) and deletes only what no hold anywhere keeps. The partition and the installation are the Host's stamp from the trusted context; a plugin
- * names only its own holder key. Feed's own `feed_content_holds` stays until batch 109 moves Feed here (V1: add, move, delete).
+ * names only its own holder key. Plugins reach it through `services.evidence` (Feed's source holds since batch 109).
  */
 export const EVIDENCE_STORE = "evidence";
 export const EVIDENCE_BASELINE: SqliteBaseline = { version: /* @version database.evidence_baseline */ 1, schema: `
@@ -90,6 +90,28 @@ export class EvidenceLedger {
   collect(caller: { readonly permissions: readonly string[] }, content: Pick<EvidenceContentStore, "collect">, candidates: Iterable<string>): { deleted: string[]; kept: string[] } {
     if (!caller.permissions.includes(EVIDENCE_COLLECT_PERMISSION)) throw new ActionError("actions.forbidden", "只有平台能回收没人引用的证据正文");
     return content.collect({ candidates, isReferenced: ref => this.isHeld(ref) });
+  }
+
+  /**
+   * Drops `holder`'s holds (on exactly `refs`, or every one it has when `refs` is `"all"`), then deletes each candidate body nobody holds
+   * any more, in one write transaction: a hold of the same body elsewhere waits for the same lock, so it sees either the body kept or the
+   * body gone (and writes it again), never one about to be deleted. Only a caller carrying `evidence:collect` reaches it (S-98).
+   */
+  releaseAndCollect(caller: { readonly permissions: readonly string[] }, content: Pick<EvidenceContentStore, "collect">, holder: EvidenceHolder,
+    refs: readonly string[] | "all", candidates: readonly string[]): { released: number; deleted: string[]; kept: string[] } {
+    if (!caller.permissions.includes(EVIDENCE_COLLECT_PERMISSION)) throw new ActionError("actions.forbidden", "只有平台能回收没人引用的证据正文");
+    checkHolder(holder);
+    const bodies = unique(candidates);
+    const named = refs === "all" ? null : unique(refs);
+    return this.write(() => {
+      let released = 0;
+      if (named === null) released = Number(this.db.prepare("DELETE FROM evidence_holds WHERE partition_id = ? AND owner_install = ? AND holder_key = ?")
+        .run(holder.partition_id, holder.owner_install, holder.holder_key).changes);
+      else for (const ref of named) released += Number(this.db.prepare("DELETE FROM evidence_holds WHERE content_ref = ? AND partition_id = ? AND owner_install = ? AND holder_key = ?")
+        .run(ref, holder.partition_id, holder.owner_install, holder.holder_key).changes);
+      const { deleted, kept } = content.collect({ candidates: bodies, isReferenced: ref => this.isHeld(ref) });
+      return { released, deleted, kept };
+    });
   }
 
   close(): void { this.db.close(); }

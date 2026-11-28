@@ -26,22 +26,22 @@ export class GoalEventOutcomeRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_progress_summaries (
-        summary_id, project_id, goal_id, event_id, summary_text, based_on_cursor,
+        summary_id, goal_id, event_id, summary_text, based_on_cursor,
         next_step, next_actor, actor_id, recorded_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      input.summaryId, input.projectId, input.goalId, input.eventId, input.summary,
+      input.summaryId, input.goalId, input.eventId, input.summary,
       input.basedOnCursor, input.nextStep, input.nextActor, input.actorId, input.at,
     );
   }
 
-  latestProgress(projectId: string, goalId: string): Omit<GoalEventProgressSummaryView, "stale" | "stale_because_cursor"> | null {
+  latestProgress(_projectId: string, goalId: string): Omit<GoalEventProgressSummaryView, "stale" | "stale_because_cursor"> | null {
     const row = this.db.prepare(`
       SELECT s.* FROM goal_event_progress_summaries s
-      JOIN goal_work_events e ON e.event_id = s.event_id AND e.project_id = s.project_id AND e.goal_id = s.goal_id
-      WHERE s.project_id = ? AND s.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = s.event_id AND e.goal_id = s.goal_id
+      WHERE s.goal_id = ?
       ORDER BY e.journal_seq DESC LIMIT 1
-    `).get(projectId, goalId) as Row | undefined;
+    `).get(goalId) as Row | undefined;
     if (!row) return null;
     return {
       summary_id: rowText(row.summary_id),
@@ -74,51 +74,51 @@ export class GoalEventOutcomeRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_closures (
-        closure_id, project_id, goal_id, event_id, kind, result, reason, completion_applied,
+        closure_id, goal_id, event_id, kind, result, reason, completion_applied,
         expected_config_version, expected_agreement_version, config_version, agreement_version,
         unmet_reasons_json, superseded, recorded_at, acceptance_round
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `).run(
-      input.closureId, input.projectId, input.goalId, input.eventId, input.kind, input.result,
+      input.closureId, input.goalId, input.eventId, input.kind, input.result,
       input.reason, input.completionApplied ? 1 : 0, input.expectedConfigVersion,
       input.expectedAgreementVersion, input.configVersion, input.agreementVersion,
       sqliteJson(input.unmetReasons), input.at, input.acceptanceRound,
     );
   }
 
-  latestClosure(projectId: string, goalId: string): GoalEventClosureView | null {
+  latestClosure(_projectId: string, goalId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
       SELECT c.*, c.rowid AS stored_row FROM goal_event_closures c
-      JOIN goal_work_events e ON e.event_id = c.event_id AND e.project_id = c.project_id AND e.goal_id = c.goal_id
-      WHERE c.project_id = ? AND c.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = c.event_id AND e.goal_id = c.goal_id
+      WHERE c.goal_id = ?
       ORDER BY e.journal_seq DESC LIMIT 1
-    `).get(projectId, goalId) as Row | undefined;
+    `).get(goalId) as Row | undefined;
     return row ? mapClosure(row) : null;
   }
 
-  currentAppliedClosure(projectId: string, goalId: string): GoalEventClosureView | null {
+  currentAppliedClosure(goalId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
       SELECT c.*, c.rowid AS stored_row FROM goal_event_closures c
-      JOIN goal_work_events e ON e.event_id = c.event_id AND e.project_id = c.project_id AND e.goal_id = c.goal_id
-      WHERE c.project_id = ? AND c.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = c.event_id AND e.goal_id = c.goal_id
+      WHERE c.goal_id = ?
         AND c.completion_applied = 1 AND c.superseded = 0
       ORDER BY e.journal_seq DESC LIMIT 1
-    `).get(projectId, goalId) as Row | undefined;
+    `).get(goalId) as Row | undefined;
     return row ? mapClosure(row) : null;
   }
 
-  closureByEventId(projectId: string, goalId: string, eventId: string): GoalEventClosureView | null {
+  closureByEventId(_projectId: string, goalId: string, eventId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM goal_event_closures WHERE event_id = ? AND project_id = ? AND goal_id = ?
-    `).get(eventId, projectId, goalId) as Row | undefined;
+      SELECT *, rowid AS stored_row FROM goal_event_closures WHERE event_id = ? AND goal_id = ?
+    `).get(eventId, goalId) as Row | undefined;
     return row ? mapClosure(row) : null;
   }
 
-  supersedeAppliedClosures(projectId: string, goalId: string, reason: string): void {
+  supersedeAppliedClosures(_projectId: string, goalId: string, reason: string): void {
     this.db.prepare(`
       UPDATE goal_event_closures SET superseded = 1, superseded_reason = ?
-      WHERE project_id = ? AND goal_id = ? AND completion_applied = 1 AND superseded = 0
-    `).run(reason, projectId, goalId);
+      WHERE goal_id = ? AND completion_applied = 1 AND superseded = 0
+    `).run(reason, goalId);
   }
 
   setFulfillment(goalId: string, state: "unmet" | "satisfied", at: string): void {

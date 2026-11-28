@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
 import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, type BriefSaved } from "@molis-ai/molis-work-plugin-work-brief";
-import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { person } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -230,7 +231,8 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
   // The old action's persisted card identifies the interrupted step even after its version was replaced.
   const old = first.version!.next[0]!;
   assert.equal(old.act.kind, "card");
-  const db = openSqliteConnection(homeSqlitePath(browser.homeDirectory, "work-brief"));
+  // Since batch 109-1 the brief is in the partition's own library, beside its main database (`<partition>/libraries/work-brief.db`).
+  const db = openSqliteConnection(join(dirname(databasePath), "libraries", "work-brief.db"));
   try {
     db.prepare("INSERT INTO brief_next_marks(brief_id,option_id,state,card_json,actor_id,at) VALUES(?,?,'running',?,?,?)")
       .run(step.brief_id, old.option_id, JSON.stringify(old.act.card), me.actor_id, new Date().toISOString());
@@ -244,28 +246,9 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
   await waitFor(`!${has(act("undo-next", old.option_id))}`);
   assert.ok(!(await call<{ marks: { option_id: string }[] }>(workBriefActions.get, {})).marks.some(mark => mark.option_id === old.option_id));
 
-  // WBR-24 the person's own items across projects, each saying where it is from.
-  await click(act("mode", "personal"));
-  await waitFor(`${has(".wb-personal")} || ${has(".mw-empty")}`, 30_000);
-  await noOverflow();
-  await screenshot("personal");
-  await click(act("mode", "project"));
-  await waitFor(has(".wb-claims"));
-
-  // WBR-24 an item of another project says so and takes the person there: the shell opens that project's home (S-47).
-  const made = await createProject(web, "另一个项目"), elsewhere = made.project_id;
-  for (const plugin_id of ["risk", "work-brief"]) await web.post(`/api/settings/projects/${elsewhere}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(web, elsewhere) });
-  const there = localHost!.actionClient(molisWorkHostProjectReference({ databasePath: made.database_path, projectId: elsewhere })), them = person([...RISK_WRITE, ...WORK_BRIEF_WRITE], elsewhere);
-  const far = (await there.invoke(them, ref(riskActions.create), { title: "场地未定", statement: "活动场地还没签", impact: "medium", likelihood: "medium" }) as { risk: RiskRecord }).risk;
-  await there.invoke({ ...them, audience: "agent" }, ref(workBriefActions.save), { request_id: `far-${width}`, draft: { claims: [{ text: "场地还没签。", cites: [{ kind: "risk", id: far.risk_id }] }],
-    attention: [{ subject: { kind: "risk", id: far.risk_id }, why: "要定场地" }] } });
-  await click(act("mode", "personal"));
-  const jump = `.wb-personal a[href="/projects/${elsewhere}/"]`;
-  await waitFor(has(jump), 30_000);
-  await noOverflow();
-  await navigate(() => click(jump).catch(() => undefined));
-  await browser.waitFor(`location.pathname === ${JSON.stringify(`/projects/${elsewhere}/`)} && ${shown(LEDE)}`, 30_000);
-  assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(LEDE)}).textContent`), /场地还没签。/u);
+  // WBR-24 the person's briefs across partitions are rows of the platform's overview (tests/work-brief-plugin.test.ts), which only the person
+  // and the assistant they granted may read: Work Brief's page shows its own partition's brief, and the list across partitions is the
+  // personal space's overview page's to draw (batch 109-1, as Todo's across projects in batch 108).
 });
 
 for (const width of WIDTHS) test(`WBR-22 the brief in English on the dark theme at ${width}px: the page's words change, the person's sentences stay`, { timeout: 180_000 }, async t => {

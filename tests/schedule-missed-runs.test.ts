@@ -27,12 +27,12 @@ function harness(t: TestContext) {
   const delivered: string[] = [], rounds: string[] = [];
   const wake = wakeupInstallation(SCHEDULE_PLUGIN_ID);
   wake.action(SCHEDULE_REMINDER_WAKEUP, async (input, control) => {
-    const missed = await noteMissedWakeup(db, projectId, input, clock.now, write);
+    const missed = await noteMissedWakeup(db, input, clock.now, write);
     if (missed) return missed;
     return deliverScheduleReminder(db, input, control, { currentInstallation: () => true, deliver: (reminder, dueAt) => { delivered.push(`${reminder.text}@${dueAt}`); } });
   });
   wake.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, async input => {
-    const missed = await noteMissedWakeup(db, projectId, input, clock.now, write);
+    const missed = await noteMissedWakeup(db, input, clock.now, write);
     if (missed) return missed;
     rounds.push(`${input.object_ref}@${input.due_at}`);
     return { detail: "ok" };
@@ -40,12 +40,12 @@ function harness(t: TestContext) {
   const schedule = wake.scheduler(db, { now: () => new Date(clock.now) });
   t.after(async () => { await schedule.close(); db.close(); });
   const reminders = createScheduleReminders({ db, projectId, schedule, now: () => clock.now, describe: () => ({ title: "笔记", link: "/n", generation: "first" }) });
-  const decide = (run_id: string, decision: "run_now" | "skip") => db.transaction(() => decideMissedRun(db, schedule, projectId, { run_id, decision }, new Date(clock.now))).immediate();
+  const decide = (run_id: string, decision: "run_now" | "skip") => db.transaction(() => decideMissedRun(db, schedule, { run_id, decision }, new Date(clock.now))).immediate();
   const overview = (hours = 48, expiredAfter: string | null = null) => scheduleRunsOverview(db, schedule.list(), projectId,
     { now: new Date(clock.now).toISOString(), upcoming_until: new Date(clock.now + hours * 3_600_000).toISOString(), expired_after: expiredAfter });
   const missedRows = () => db.prepare("SELECT run_id, kind, title, due_at, decision FROM schedule_missed_runs ORDER BY due_at").all() as Array<{ run_id: string; kind: string; title: string; due_at: string; decision: string | null }>;
   /** Schedule's reconcile round, which runs every few seconds while the project is open (and first thing after a start). */
-  const reconcile = () => db.transaction(() => endExpiredOnce(db, projectId, clock.now)).immediate();
+  const reconcile = () => db.transaction(() => endExpiredOnce(db, clock.now)).immediate();
   return { db, clock, schedule, reminders, delivered, rounds, decide, overview, missedRows, reconcile,
     remind: (text: string, repeat: "none" | "daily" = "none", when = at) => reminders.add(identity, { at: when, text, repeat }).reminderId,
     task: (title: string) => {
@@ -200,20 +200,20 @@ test("BL-missed-runs-never-expire on the seventh day a one-time operation is end
   const operation = (id: string, when: string, state: "enabled" | "paused") => {
     saveScheduledOperation(h.db, { id, projectId, pluginId: "io.molis.work.test.ops", installationId: "installed", installationGeneration: "first", pluginTitle: "测试",
       operationId: "tidy", operationTitle: "整理", input: {}, inbox: false, link: "/o", jobId: `job-${id}`, jobOwner: SCHEDULE_PLUGIN_ID, repeat: "none", at: when, state, detail: null });
-    h.db.prepare("INSERT INTO schedule_missed_runs (project_id, run_id, kind, ref, title, due_at, missed_at) VALUES (?, ?, 'operation', ?, ?, ?, ?)")
-      .run(projectId, `operation:${id}:${due}`, id, id, due, new Date(Date.parse(due) + 3_600_000).toISOString());
+    h.db.prepare("INSERT INTO schedule_missed_runs (run_id, kind, ref, title, due_at, missed_at) VALUES (?, 'operation', ?, ?, ?, ?)")
+      .run(`operation:${id}:${due}`, id, id, due, new Date(Date.parse(due) + 3_600_000).toISOString());
   };
   operation("left", due, "enabled");
   operation("moved", later, "enabled");
   operation("paused", due, "paused");
   h.clock.now = Date.parse(due) + RUN_MISSED_KEPT_MS;
   assert.equal(h.reconcile(), true, "ending one says so, so the open page shows it (96-2)");
-  assert.deepEqual([getScheduledOperation(h.db, projectId, "left")?.state, getScheduledOperation(h.db, projectId, "left")?.detail], ["completed", "错过后跳过"],
+  assert.deepEqual([getScheduledOperation(h.db, "left")?.state, getScheduledOperation(h.db, "left")?.detail], ["completed", "错过后跳过"],
     "left as it was: ended as 跳过 ends it");
-  assert.equal(getScheduledOperation(h.db, projectId, "moved")?.state, "enabled", "moved by the person to another time: theirs to keep");
-  assert.equal(getScheduledOperation(h.db, projectId, "paused")?.state, "paused", "paused: left for the person");
+  assert.equal(getScheduledOperation(h.db, "moved")?.state, "enabled", "moved by the person to another time: theirs to keep");
+  assert.equal(getScheduledOperation(h.db, "paused")?.state, "paused", "paused: left for the person");
   assert.equal(h.reconcile(), false, "a later round ends nothing and says so");
-  assert.equal(getScheduledOperation(h.db, projectId, "moved")?.at, later, "and every later round leaves it alone");
+  assert.equal(getScheduledOperation(h.db, "moved")?.at, later, "and every later round leaves it alone");
   assert.equal(h.overview().expired, 3, "all three rows are still counted: nobody decided on them");
 });
 
@@ -221,7 +221,7 @@ test("BL-missed-runs-never-expire a run Schedule writes down only after the pers
   const h = harness(t);
   h.remind("新的一次");
   const row = (id: string, dueAt: string, missedAt: string) => h.db.prepare(
-    "INSERT INTO schedule_missed_runs (project_id, run_id, kind, ref, title, due_at, missed_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)").run(projectId, id, id, id, dueAt, missedAt);
+    "INSERT INTO schedule_missed_runs (run_id, kind, ref, title, due_at, missed_at) VALUES (?, 'reminder', ?, ?, ?, ?)").run(id, id, id, dueAt, missedAt);
   row("late", "2026-10-25T09:00:00.000Z", "2026-11-12T09:00:00.000Z");
   row("told", "2026-10-26T09:00:00.000Z", "2026-10-26T10:00:00.000Z");
   row("old", "2026-09-01T09:00:00.000Z", "2026-09-01T10:00:00.000Z");
@@ -256,7 +256,7 @@ test("BL-missed-runs-never-expire a missed one-off conversation task survives re
   // Reconcile passes (every 5s while open) must keep both one-off tasks enabled during the 7-day missed window.
   const movedDuringWindow = h.db.transaction(() => {
     const rescheduled = rescheduleEnabledConversationTasks(h.db, h.schedule, () => new Date(h.clock.now));
-    return endExpiredOnce(h.db, projectId, h.clock.now) || rescheduled;
+    return endExpiredOnce(h.db, h.clock.now) || rescheduled;
   }).immediate();
   assert.equal(movedDuringWindow, false, "reconcile leaves pending missed one-off tasks untouched");
   assert.equal(getScheduleConversationTask(h.db, runNowTask)?.enabled, true);

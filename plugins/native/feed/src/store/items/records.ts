@@ -27,76 +27,74 @@ export class FeedRecords {
   list(projectId: string, page: FeedItemPage): FeedItemRecord[] {
     const selected = feedPageSelection(page);
     // Lists never need article bodies; select their metadata before material hydration.
-    const columns = "project_id,item_id,source_id,signal_id,signal_revision,kind,title,summary,source_kind,source_label,external_id,url,origin_status,priority,tags_json,author,disposition,read_at,revision,source_created_at,source_updated_at,imported_at,updated_at";
-    const items = this.db.all(`SELECT ${columns} FROM feed_items WHERE project_id = ?${selected.where} ORDER BY ${selected.order} LIMIT ? OFFSET ?`, projectId,
-      ...selected.values, Math.min(200, Math.max(1, page.limit)), Math.max(0, page.offset)) as Row[];
+    const columns = "item_id,source_id,signal_id,signal_revision,kind,title,summary,source_kind,source_label,external_id,url,origin_status,priority,tags_json,author,disposition,read_at,revision,source_created_at,source_updated_at,imported_at,updated_at";
+    const items = this.db.all(`SELECT ${columns} FROM feed_items${selected.where} ORDER BY ${selected.order} LIMIT ? OFFSET ?`, ...selected.values, Math.min(200, Math.max(1, page.limit)), Math.max(0, page.offset)) as Row[];
     if (!items.length) return [];
     // One owner query for this page: no full ledger scan and no per-item authorization/query loop.
     const links = this.goalLinks.list(projectId, items.map(row => text(row.item_id)));
-    return items.map(row => mapFeedItem(row, [], links.get(text(row.item_id)) ?? null));
+    return items.map(row => mapFeedItem(row, projectId, [], links.get(text(row.item_id)) ?? null));
   }
 
   get(projectId: string, itemId: string, page?: { offset: number; limit: number }): FeedItemRecord {
-    const row = this.db.get("SELECT * FROM feed_items WHERE project_id = ? AND item_id = ?", projectId, itemId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM feed_items WHERE item_id = ?", itemId) as Row | undefined;
     if (!row) throw feedErrors.item_not_found("找不到这个 Feed Item");
     const materials: FeedMaterialRecord[] = [];
     // Complete-content callers retain all materials, but every SQL read is bounded.
     // Readers supply a page and never hydrate the remaining materials.
     if (page) materials.push(...this.materials(projectId, itemId, page.offset, page.limit));
     else for (let offset = 0;; offset += 200) {
-      const batch = (this.db.all("SELECT * FROM feed_materials WHERE project_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id LIMIT ? OFFSET ?", projectId, itemId, 200, offset) as Row[]).map(mapFeedMaterial);
+      const batch = (this.db.all("SELECT * FROM feed_materials WHERE item_id = ? ORDER BY updated_at DESC, material_id LIMIT ? OFFSET ?", itemId, 200, offset) as Row[]).map(row => mapFeedMaterial(row, projectId));
       materials.push(...batch);
       if (batch.length < 200) break;
     }
-    return mapFeedItem(row, materials, this.goalLinks.get(projectId, itemId));
+    return mapFeedItem(row, projectId, materials, this.goalLinks.get(projectId, itemId));
   }
 
   materials(projectId: string, itemId: string, offset: number, limit: number): FeedMaterialRecord[] {
-    return (this.db.all("SELECT * FROM feed_materials WHERE project_id = ? AND item_id = ? ORDER BY material_id LIMIT ? OFFSET ?",
-      projectId, itemId, Math.min(200, Math.max(1, limit)), Math.max(0, offset)) as Row[]).map(mapFeedMaterial);
+    return (this.db.all("SELECT * FROM feed_materials WHERE item_id = ? ORDER BY material_id LIMIT ? OFFSET ?",
+      itemId, Math.min(200, Math.max(1, limit)), Math.max(0, offset)) as Row[]).map(row => mapFeedMaterial(row, projectId));
   }
 
-  hasPackage(projectId: string, sourceId: string, externalId: string, hash: string): boolean {
-    return Boolean(this.db.get(`SELECT 1 FROM feed_materials WHERE project_id = ? AND item_id IN
-      (SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? AND external_id = ?)
-      AND json_extract(provenance_json, '$.manifest_sha256') = ? LIMIT 1`, projectId, projectId, sourceId, externalId, hash));
+  hasPackage(_projectId: string, sourceId: string, externalId: string, hash: string): boolean {
+    return Boolean(this.db.get(`SELECT 1 FROM feed_materials WHERE item_id IN
+      (SELECT item_id FROM feed_items WHERE source_id = ? AND external_id = ?)
+      AND json_extract(provenance_json, '$.manifest_sha256') = ? LIMIT 1`, sourceId, externalId, hash));
   }
 
-  facets(projectId: string): { source_id: string; label: string; count: number }[] {
+  facets(_projectId: string): { source_id: string; label: string; count: number }[] {
     return this.db.all<{ source_id: string; label: string; count: number }>(`SELECT COALESCE(source_id, '') AS source_id,
-      COALESCE(NULLIF(source_label, ''), source_kind) AS label, COUNT(*) AS count FROM feed_items
-      WHERE project_id = ? GROUP BY source_id, label ORDER BY source_id, label`, projectId);
+      COALESCE(NULLIF(source_label, ''), source_kind) AS label, COUNT(*) AS count FROM feed_items GROUP BY source_id, label ORDER BY source_id, label`);
   }
 
-  exists(projectId: string, itemId: string): boolean {
-    return Boolean(this.db.get("SELECT 1 FROM feed_items WHERE project_id = ? AND item_id = ?", projectId, itemId));
+  exists(_projectId: string, itemId: string): boolean {
+    return Boolean(this.db.get("SELECT 1 FROM feed_items WHERE item_id = ?", itemId));
   }
 
-  countBySource(projectId: string, sourceId: string): number {
+  countBySource(_projectId: string, sourceId: string): number {
     return Number((this.db.get(`
-      SELECT COUNT(*) AS count FROM feed_items WHERE project_id = ? AND source_id = ?
-    `, projectId, sourceId) as { count?: number } | undefined)?.count ?? 0);
+      SELECT COUNT(*) AS count FROM feed_items WHERE source_id = ?
+    `, sourceId) as { count?: number } | undefined)?.count ?? 0);
   }
 
   findByLinkedGoal(projectId: string, goalId: string, itemId?: string): FeedItemRecord | null {
     const linked = this.goalLinks.find(projectId, goalId).filter((id) => itemId == null || id === itemId);
     if (!linked.length) return null;
     const found = this.db.get(`SELECT item_id FROM feed_items
-      WHERE project_id = ? AND item_id IN (SELECT value FROM json_each(?))
-      ORDER BY updated_at DESC, item_id LIMIT 1`, projectId, JSON.stringify(linked)) as { item_id: string } | undefined;
+      WHERE item_id IN (SELECT value FROM json_each(?))
+      ORDER BY updated_at DESC, item_id LIMIT 1`, JSON.stringify(linked)) as { item_id: string } | undefined;
     return found ? this.get(projectId, found.item_id) : null;
   }
 
   listEvents(projectId: string, itemId?: string): FeedEvent[] {
     const rows = itemId == null
-      ? this.db.all("SELECT * FROM feed_item_events WHERE project_id = ? ORDER BY at, rowid", projectId)
+      ? this.db.all("SELECT * FROM feed_item_events ORDER BY at, rowid")
       : this.db.all(`
           SELECT * FROM feed_item_events
-          WHERE project_id = ? AND item_id = ? ORDER BY at, rowid
-        `, projectId, itemId);
+          WHERE item_id = ? ORDER BY at, rowid
+        `, itemId);
     return (rows as Row[]).map((row) => ({
       event_id: text(row.event_id),
-      project_id: text(row.project_id),
+      project_id: projectId,
       item_id: text(row.item_id),
       type: text(row.type) as FeedEvent["type"],
       payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
@@ -115,9 +113,9 @@ export class FeedRecords {
   ): void {
     this.db.run(`
       INSERT INTO feed_item_events (
-        event_id, project_id, item_id, type, payload_json, at
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `, `feed-event-${randomUUID()}`, projectId, itemId, type, JSON.stringify(payload), at);
+        event_id, item_id, type, payload_json, at
+      ) VALUES (?, ?, ?, ?, ?)
+    `, `feed-event-${randomUUID()}`, itemId, type, JSON.stringify(payload), at);
     this.options.eventSink?.({ project_id: projectId, item_id: itemId, type: journalType, reason, payload, at });
   }
 }

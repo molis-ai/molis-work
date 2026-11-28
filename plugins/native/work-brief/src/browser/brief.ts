@@ -10,7 +10,6 @@ import type { BriefChange, BriefPage, BriefProposal, BriefVersion, BriefView, Ci
 
 /** A source's name was kept as a reference, so it reads in the language shown now. */
 const ownerNames = (version: BriefVersion | null) => new Map(version?.sources.map(row => [row.plugin_id, said.text(row.name)]));
-const modeToggle = (page: BriefPage) => choices(text("mode.label"), "mode", [{ value: "project", label: text("mode.project") }, { value: "personal", label: text("mode.personal") }], page.state.mode);
 
 /** The version shown: an older one the person opened, else the current one. */
 export const shownOf = (page: BriefPage): BriefView | null => page.state.old ?? page.state.head;
@@ -31,7 +30,7 @@ function versionControl(page: BriefPage, view: BriefView): string {
 
 function headerActions(page: BriefPage, view: BriefView | null): string {
   const refreshing = page.state.busy === "refresh";
-  return `<div class="wb-head-actions" data-help-slot>${modeToggle(page)}${view?.version ? versionControl(page, view) : ""}${
+  return `<div class="wb-head-actions" data-help-slot>${view?.version ? versionControl(page, view) : ""}${
     act(refreshing ? text("page.refreshing") : text("page.refresh"), "refresh", { icon: "refresh", loading: refreshing, disabled: Boolean(page.state.busy) })}</div>`;
 }
 
@@ -203,23 +202,4 @@ export function renderBrief(page: BriefPage): string {
   const body = `${banner(page, view)}${section("sources", sources(version))}${section("now", claims(page, view))}${
     old ? "" : section("attention", attention(version)) + section("changes", changes(view)) + section("next", next(page, view))}`;
   return renderFrame({ className: "wb-frame", title: view.brief?.title || title, description: `${project} · ${text("page.as-of", { time: when(version.as_of) })}`, action: headerActions(page, view), panel: body });
-}
-
-export function renderPersonal(page: BriefPage): string {
-  const { state, host } = page, view = state.personal, here = host.projectId();
-  const action = `<div class="wb-head-actions" data-help-slot>${modeToggle(page)}${act(state.busy === "refresh" ? text("page.refreshing") : text("personal.refresh"), "refresh-personal", { icon: "refresh", loading: state.busy === "refresh", disabled: Boolean(state.busy) })}</div>`;
-  const frame = (panel: string, description = text("personal.note")) => renderFrame({ className: "wb-frame", title: text("personal.title"), description, action, panel });
-  if (state.personalError) return frame(renderAlert({ tone: "danger", role: "alert", title: text("page.failed"), body: state.personalError, actions: [actOptions(text("page.retry"), "reload-personal", { icon: "refresh" })] }));
-  if (!view) return frame(`<p class="wb-muted" aria-busy="true">${esc(text("page.loading"))}</p>`);
-  const partial = view.projects_complete ? "" : renderAlert({ tone: "info", role: null, title: text("personal.partial") });
-  if (!view.items.length) return frame(partial + renderEmpty({ icon: "check", title: text("personal.none"), body: text("personal.none-body") }));
-  const rows = view.items.map(item => {
-    const label = renderBadge({ label: text(`personal.label.${item.label}`), tone: item.label === "project" ? "info" : "neutral" });
-    const where = item.label !== "project" || !item.project_id ? (item.owner_name ? `<small>${esc(said.text(item.owner_name))}</small>` : "")
-      : item.project_id === here ? `<small>${esc(text("personal.here"))}</small>`
-      : `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="/projects/${encodeURIComponent(item.project_id)}/">${esc(text("personal.open-project"))}</a>`;
-    const mark = item.kind === "attention" ? sourceMark({ read: "ok", turn: item.blocked ? "blocked" : "waiting" }) : "";
-    return `<li class="mw-item">${label}<span><strong>${esc(item.text)}</strong><small>${esc([text(`personal.kind.${item.kind}`), item.why ?? ""].filter(Boolean).join(" · "))}</small></span><span class="mw-item__end">${mark}${where}</span></li>`;
-  }).join("");
-  return frame(`${partial}<ul class="mw-items wb-personal">${rows}</ul>`);
 }

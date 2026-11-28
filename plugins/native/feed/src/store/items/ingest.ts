@@ -21,11 +21,11 @@ export class FeedIngest {
     return db.transaction(() => {
       const existingRow = db.get(`
         SELECT * FROM feed_items
-        WHERE project_id = ? AND source_id = ? AND external_id = ?
-      `, input.project_id, input.source_id, input.external_id) as Row | undefined;
+        WHERE source_id = ? AND external_id = ?
+      `, input.source_id, input.external_id) as Row | undefined;
       const attention = input.attention === false ? null : input.attention ?? null;
       if (existingRow) {
-        const existing = mapFeedItem(existingRow, []);
+        const existing = mapFeedItem(existingRow, input.project_id, []);
         // A newer Signal revision updates the item. A source without Signals (a package republished under the same
         // id) says so with `refresh`, and the item then changes together with the material it carries.
         const shouldUpdate = input.refresh === true || (input.signal != null
@@ -39,8 +39,8 @@ export class FeedIngest {
               signal_id = ?, signal_revision = ?, kind = ?, title = ?, summary = ?, body = ?,
               source_kind = ?, source_label = ?, url = ?, priority = ?, tags_json = ?, author = ?,
               revision = revision + 1, source_updated_at = ?, updated_at = ?
-            WHERE project_id = ? AND item_id = ?
-          `, input.signal?.signal_id ?? existing.signal_id, input.signal?.revision ?? existing.signal_revision, input.kind ?? "update", normalizeTitle(input.title), normalizeSummary(input.summary), input.body ?? null, input.source_kind, input.source_label, input.url ?? null, input.priority ?? "medium", JSON.stringify(input.tags ?? [input.source_kind]), input.author ?? null, input.occurred_at, at, input.project_id, existing.item_id);
+            WHERE item_id = ?
+          `, input.signal?.signal_id ?? existing.signal_id, input.signal?.revision ?? existing.signal_revision, input.kind ?? "update", normalizeTitle(input.title), normalizeSummary(input.summary), input.body ?? null, input.source_kind, input.source_label, input.url ?? null, input.priority ?? "medium", JSON.stringify(input.tags ?? [input.source_kind]), input.author ?? null, input.occurred_at, at, existing.item_id);
           this.records.appendEvent(
             input.project_id,
             existing.item_id,
@@ -76,13 +76,13 @@ export class FeedIngest {
       const itemId = `feeditem-${randomUUID()}`;
       db.run(`
         INSERT INTO feed_items (
-          project_id, item_id, source_id, signal_id, signal_revision,
+          item_id, source_id, signal_id, signal_revision,
           kind, title, summary, body, source_kind, source_label, external_id,
           url, origin_status, priority, tags_json, author, disposition,
           read_at, revision, source_created_at, source_updated_at,
           imported_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?, ?, ?, 'inbox', NULL, 1, ?, ?, ?, ?)
-      `, input.project_id, itemId, input.source_id, input.signal?.signal_id ?? null, input.signal?.revision ?? null, input.kind ?? "update", normalizeTitle(input.title), normalizeSummary(input.summary), input.body ?? null, input.source_kind, input.source_label, input.external_id, input.url ?? null, input.priority ?? "medium", JSON.stringify(input.tags ?? [input.source_kind]), input.author ?? null, input.occurred_at, input.occurred_at, at, at);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?, ?, ?, 'inbox', NULL, 1, ?, ?, ?, ?)
+      `, itemId, input.source_id, input.signal?.signal_id ?? null, input.signal?.revision ?? null, input.kind ?? "update", normalizeTitle(input.title), normalizeSummary(input.summary), input.body ?? null, input.source_kind, input.source_label, input.external_id, input.url ?? null, input.priority ?? "medium", JSON.stringify(input.tags ?? [input.source_kind]), input.author ?? null, input.occurred_at, input.occurred_at, at, at);
       if (input.material) {
         this.upsertMaterial({
           ...input.material,
@@ -117,12 +117,12 @@ export class FeedIngest {
     this.records.get(material.project_id, material.item_id);
     this.records.db.run(`
       INSERT INTO feed_materials (
-        project_id, material_id, item_id, canonical_url, title, source_name,
+        material_id, item_id, canonical_url, title, source_name,
         published_at, preview, content_hash, content_ref, content_available,
         content_type, character_count, captured_at, provenance_json,
         selected_for_context, imported_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(project_id, material_id) DO UPDATE SET
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(material_id) DO UPDATE SET
         item_id = excluded.item_id,
         canonical_url = excluded.canonical_url,
         title = excluded.title,
@@ -142,7 +142,7 @@ export class FeedIngest {
         selected_for_context = excluded.selected_for_context,
         imported_at = excluded.imported_at,
         updated_at = excluded.updated_at
-    `, material.project_id, material.material_id, material.item_id, material.canonical_url, material.title, material.source_name, material.published_at, material.preview, material.content_hash, material.content_ref, material.content_available ? 1 : 0, material.content_type, material.character_count, material.captured_at, JSON.stringify(material.provenance), material.selected_for_context ? 1 : 0, material.imported_at, material.updated_at);
+    `, material.material_id, material.item_id, material.canonical_url, material.title, material.source_name, material.published_at, material.preview, material.content_hash, material.content_ref, material.content_available ? 1 : 0, material.content_type, material.character_count, material.captured_at, JSON.stringify(material.provenance), material.selected_for_context ? 1 : 0, material.imported_at, material.updated_at);
     return this.records.get(material.project_id, material.item_id).materials.find(
       (candidate) => candidate.material_id === material.material_id,
     )!;

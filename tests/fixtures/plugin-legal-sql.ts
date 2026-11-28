@@ -1,5 +1,5 @@
 import { PROJECT_DATABASE_BASELINE, pluginSyncDatabaseDeclaration, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { governanceSqlite } from "./governance-sqlite.js";
+import { governanceSqlite, withLibraryPartition } from "./governance-sqlite.js";
 import type { GovernanceSqliteDatabase } from "./goals-modules.js";
 import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { sqliteBaselineTriggers, replicaTriggerDefinitions } from "@molis-ai/molis-work-storage";
@@ -66,5 +66,6 @@ export function pluginLegalSql(store: LocalProjectDatabase): PluginLegalSql {
       return store.db.exec(sql);
     },
   });
-  return { db, governance, stats };
+  // The library's partition, bound as the plugin binds it at start (batch 109-1), on the library's own connection and both handles.
+  return { db: withLibraryPartition(db, store.db), governance: withLibraryPartition(governance, store.db), stats };
 }

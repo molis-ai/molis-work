@@ -216,7 +216,7 @@ test("W5-01-CODING-34 Coding's reader lists the sessions that are active or hold
   const everything = () => JSON.stringify(store.db.prepare("SELECT * FROM coding_sessions ORDER BY session_id").all());
   const before = everything();
 
-  const sessions = coding.backgroundSessions(projectId);
+  const sessions = coding.backgroundSessions();
   assert.deepEqual(sessions.map(session => [session.session_id, session.state, session.active]), [
     ["bad-json", "queued", true],
     ["done-with-steps", "done", false],
@@ -227,7 +227,6 @@ test("W5-01-CODING-34 Coding's reader lists the sessions that are active or hold
   assert.equal(sessions[0]!.steps, undefined, "a step record that does not parse is absent, not a guess");
   assert.equal(sessions[0]!.commands, undefined);
   assert.ok(codingPackage.CODING_ACTIVE_STATES.includes("running") && !(codingPackage.CODING_ACTIVE_STATES as readonly string[]).includes("done"));
-  assert.deepEqual(coding.backgroundSessions("another-project"), [], "only the project asked about");
   assert.equal(everything(), before, "reading the list changed no row");
 });
 

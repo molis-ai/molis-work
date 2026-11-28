@@ -48,7 +48,7 @@ export function checkProducer(value: unknown): void {
   else requireBriefSync((producer.kind === "assistant" || producer.kind === "person") && producer.subject === undefined);
 }
 
-export function portableBody(raw: unknown, fromLocal: boolean, personal: boolean): string {
+export function portableBody(raw: unknown, fromLocal: boolean): string {
   const body = object(parse(raw), ["sources", "claims", "attention", "next"], []);
   for (const value of list(body.sources, BRIEF_LIMITS.sources)) {
     const row = object(value, ["plugin_id", "name", "read", "subjects", "turn"], ["read_at", "summary"]);
@@ -70,11 +70,10 @@ export function portableBody(raw: unknown, fromLocal: boolean, personal: boolean
         && (cite.gap === undefined || ["changed", "gone", "unreadable"].includes(String(cite.gap))));
     }
   }
-  for (const value of list(body.attention, personal ? 10_000 : BRIEF_LIMITS.attention)) {
+  for (const value of list(body.attention, BRIEF_LIMITS.attention)) {
     const row = object(value, ["item_id", "subject", "owner_plugin_id", "why"], ["blocked"]);
     subject(row.subject);
-    const whyLimit = personal ? SUBJECT_CONTEXT_OUTPUT_SCHEMA.properties.title.maxLength : BRIEF_LIMITS.why;
-    requireBriefSync(identifier(row.item_id) && id(row.owner_plugin_id) && text(row.why, whyLimit) && (row.blocked === undefined || row.blocked === true));
+    requireBriefSync(identifier(row.item_id) && id(row.owner_plugin_id) && text(row.why, BRIEF_LIMITS.why) && (row.blocked === undefined || row.blocked === true));
   }
   for (const value of list(body.next, BRIEF_LIMITS.next)) {
     const row = object(value, ["option_id", "text", "why", "act"], ["subject"]);

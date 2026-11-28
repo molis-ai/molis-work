@@ -165,7 +165,6 @@ export interface PluginRegistration {
     readonly catalog_order: number;
     readonly manifest: PluginManifest;
     readonly default_enabled?: true;
-    readonly companions?: readonly string[];
     readonly runtime?: {
         readonly create: () => PluginDefinition;
         readonly package_name: string;

@@ -148,9 +148,9 @@ test("W5-02-REG-02: --check takes a catalog_order only as a positive integer lit
   assert.doesNotMatch(problems(feed("catalog_order: 10", `catalog_order: ${NEXT_POSITION}`)), /catalog_order/, "an unused positive integer is accepted");
 });
 
-test("W5-02-REG-02: --check refuses companions and client ids that are not literal short ids", () => {
-  assert.match(problems(feed('companions: ["inbox"]', "companions: [INBOX_ID]")), /must give "companions" literal short ids/);
-  assert.match(problems(feed('companions: ["inbox"]', 'companions: ["Inbox"]')), /must give "companions" literal short ids/);
+test("W5-02-REG-02: --check refuses client ids that are not literal short ids, and the retired companions key", () => {
+  // What a plugin turns on with it is its Manifest's `dependencies` with `enable_with` since batch 109-1; the registration has no such key.
+  assert.match(problems(feed("catalog_order: 10,", 'catalog_order: 10, companions: ["inbox"],')), /has key "companions", which PluginRegistration does not declare/);
   assert.match(problems(feed("    order: 5,", '    order: 5,\n    clientUses: "inbox",')), /must give "clientUses" literal short ids/);
 });
 
@@ -163,7 +163,7 @@ test("W5-02-REG-02: the built catalog has no repeated key, Manifest id or positi
     ["repeated key", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, catalog_order: 9999, manifest: { ...feedEntry.manifest, plugin_id: "io.molis.copy" } }], /two plugins have the project key feed/],
     ["repeated Manifest id", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", catalog_order: 9999 }], new RegExp(`two plugins have the Manifest id ${feedEntry.manifest.plugin_id.replaceAll(".", "\\.")}`)],
     ["repeated position", [...BUILTIN_PLUGIN_CATALOG, { ...feedEntry, project_plugin_id: "copy", manifest: { ...feedEntry.manifest, plugin_id: "io.molis.copy" } }], new RegExp(`two plugins have the catalog position ${feedEntry.catalog_order}`)],
-    ["dangling companion", without("inbox"), /feed names inbox in companions, which is not in the catalog/],
+    ["dangling enable_with", without("inbox"), /feed enables io\.molis\.work\.inbox with it, which is not in the catalog/],
     ["dangling clientUses", without(coding.workbench.clientUses![0]!), new RegExp(`${coding.project_plugin_id} names ${coding.workbench.clientUses![0]} in workbench.clientUses, which is not in the catalog`)],
     // PG-070 RAC-767: a plugin's extra class prefixes decide what leaves the shared sheet, so one catalog entry may not take
     // another plugin's id or the platform's own prefixes, and the same prefix cannot be listed twice or by two plugins.
@@ -218,7 +218,7 @@ test("W5-02-REG-02: loading the Host rejects an invalid catalog before the modul
       const source = typeof loaded.source === "string" ? loaded.source : new TextDecoder().decode(loaded.source);
       const mutation = process.argv[1] === "duplicate"
         ? "PLATFORM_PLUGIN_REGISTRATIONS.push({ ...PLATFORM_PLUGIN_REGISTRATIONS[0] });"
-        : 'PLATFORM_PLUGIN_REGISTRATIONS.splice(0, 1, { ...PLATFORM_PLUGIN_REGISTRATIONS[0], companions: ["missing-catalog-dependency"] });';
+        : 'PLATFORM_PLUGIN_REGISTRATIONS.splice(0, 1, { ...PLATFORM_PLUGIN_REGISTRATIONS[0], manifest: { ...PLATFORM_PLUGIN_REGISTRATIONS[0].manifest, dependencies: [{ plugin_id: "io.example.missing-catalog-dependency", enable_with: true, reason: "test" }] } });';
       return { ...loaded, source: source + "\\n" + mutation };
     } });
     await import("@molis-ai/molis-work-app-local-host");
@@ -232,7 +232,7 @@ test("W5-02-REG-02: loading the Host rejects an invalid catalog before the modul
   assert.equal(valid.stdout, "host loaded");
   for (const [mode, expected] of [
     ["duplicate", /Built-in plugin catalog: two plugins have the project key /],
-    ["dangling", /Built-in plugin catalog: .* names missing-catalog-dependency in companions, which is not in the catalog/],
+    ["dangling", /Built-in plugin catalog: .* enables io\.example\.missing-catalog-dependency with it, which is not in the catalog/],
   ] as const) {
     const invalid = load(mode);
     assert.equal(invalid.status, 1, invalid.stderr);
@@ -304,7 +304,7 @@ test("W5-02-REG-03: a new plugin is its own package; the generator lists it and 
   const packages = [...WORKSPACE_PACKAGES, { path: dir, name }];
   const own = {
     [`${dir}/package.json`]: `${JSON.stringify({ name, exports: { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" }, "./registration": { types: "./dist/registration.d.ts", import: "./dist/registration.js" } }, "molis-work": { registration: "./registration" } }, null, 2)}\n`,
-    [`${dir}/src/registration.ts`]: readReal(FEED)!.replace(/catalog_order: \d+/, `catalog_order: ${NEXT_POSITION}`).replace("project_plugin_id: FEED_PROJECT_PLUGIN_ID", 'project_plugin_id: "future"').replace(/companions: \[[^\]]*\],?\n/, ""),
+    [`${dir}/src/registration.ts`]: readReal(FEED)!.replace(/catalog_order: \d+/, `catalog_order: ${NEXT_POSITION}`).replace("project_plugin_id: FEED_PROJECT_PLUGIN_ID", 'project_plugin_id: "future"'),
   };
   assert.match(problems(own, packages), /out of date or edited by hand/, "the catalog does not list it until regenerated");
   const { text, platformText, problems: refused } = pluginRegistry(tree(own), packages);

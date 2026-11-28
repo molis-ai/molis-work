@@ -47,8 +47,11 @@ export function readApprovalOutcome(db: Reader, collection: PluginSyncCollection
   const declaration = collection.approval_outcomes?.find(row => row.subject_kind === subject.kind);
   if (!declaration) throw invalid();
   const columns = stableColumns(collection, declaration);
-  const rows = db.prepare(`SELECT ${columns.map(quoted).join(", ")} FROM ${quoted(declaration.table)} WHERE "project_id" = ? AND ${quoted(declaration.decision_column)} = ?`)
-    .all(project, decision) as ProjectReplicaRow[];
+  // A table with no partition column holds only its library's partition (U3, batch 109-1), and the platform reads it in that partition's
+  // own library: the decision alone selects the rows.
+  const partitioned = columns.includes("project_id");
+  const rows = db.prepare(`SELECT ${columns.map(quoted).join(", ")} FROM ${quoted(declaration.table)} WHERE ${partitioned ? `"project_id" = ? AND ` : ""}${quoted(declaration.decision_column)} = ?`)
+    .all(...partitioned ? [project, decision] : [decision]) as ProjectReplicaRow[];
   if (!rows.length) return null;
   const outcome = outcomeOf(subject.kind, declaration, columns, rows);
   if (outcome.id !== subject.id) throw invalid();

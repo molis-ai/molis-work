@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { ActionCard } from "@molis-ai/molis-work-plugin-sdk";
+import { overviewRows, type ActionCard, type OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
+import { OVERVIEW_TEXT_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { workBriefErrors } from "./error.js";
 import { BRIEF_LIMITS, type BriefBody, type BriefEdit, type BriefFixed, type BriefProposal, type BriefRecord, type BriefScope, type BriefVersion, type BriefVersionHead,
   type NextMark, type NextMarkState, type ProducedBy, type ProposalConflict } from "./model.js";
@@ -8,13 +9,28 @@ import { BRIEF_LIMITS, type BriefBody, type BriefEdit, type BriefFixed, type Bri
 const text = (value: unknown) => String(value ?? "");
 const parse = <T>(value: unknown, fallback: T): T => typeof value === "string" && value ? JSON.parse(value) as T : fallback;
 
-/** Deterministic id for a singleton brief (home per project, personal per person), so offline devices share one sync key. */
-export function singletonBriefId(scope: "home" | "personal", ownerId: string): string {
+/** Deterministic id for the partition's singleton home brief, so offline devices share one sync key. */
+export function singletonBriefId(scope: "home", ownerId: string): string {
   return `brief-${scope}-${createHash("sha256").update(ownerId).digest("hex").slice(0, 32)}`;
 }
 
-function briefOf(row: PluginSqlRow): BriefRecord {
-  return { brief_id: text(row.id), project_id: text(row.project_id), scope: text(row.scope) as BriefScope, title: text(row.title), current_version: Number(row.current_version),
+/**
+ * The partition's own brief as one `brief` row of the platform's overview table, in the transaction of the version it sums up (a local
+ * write or a synced one): its first sentence as the title and the next few as the summary, as written. A brief with no sentence yet has no row.
+ */
+export function writeBriefOverview(writer: OverviewRowsWriter | PluginDatabaseTransaction, brief: Pick<BriefRecord, "brief_id" | "title" | "updated_at">, body: { claims: readonly { text: string }[] }): void {
+  const rows = overviewRows(writer), sentences = body.claims.map(claim => claim.text.trim()).filter(Boolean);
+  if (!sentences.length) {
+    rows.remove("brief", brief.brief_id);
+    return;
+  }
+  const cut = (value: string, limit: number) => [...value].slice(0, limit).join("");
+  rows.upsert("brief", { row_id: brief.brief_id, title: cut(brief.title.trim() || sentences[0]!, OVERVIEW_TEXT_LIMITS.title),
+    summary: cut(sentences.slice(brief.title.trim() ? 0 : 1, 4).join("\n"), OVERVIEW_TEXT_LIMITS.summary) || null, updated_at: brief.updated_at });
+}
+
+function briefOf(row: PluginSqlRow, partitionId: string): BriefRecord {
+  return { brief_id: text(row.id), project_id: partitionId, scope: text(row.scope) as BriefScope, title: text(row.title), current_version: Number(row.current_version),
     revision: Number(row.version), created_at: text(row.created_at), updated_at: text(row.updated_at), fixed: parse<Record<string, BriefFixed>>(row.fixed_json, {}) };
 }
 function headOf(row: PluginSqlRow, fixed: Record<string, BriefFixed>): BriefVersionHead {
@@ -23,26 +39,25 @@ function headOf(row: PluginSqlRow, fixed: Record<string, BriefFixed>): BriefVers
 }
 
 /**
- * Work Brief's rows, read through whichever connection the caller holds (the library for a read, a transaction for a write).
- * `projectId` is the trusted scope of the half that opened it: a project's half reaches only its project's briefs; the Home half
- * (`projectId` null) reaches the briefs of the projects it is told the person reaches, and that person's own brief.
+ * Work Brief's rows in one partition's library, read through whichever connection the caller holds (the library for a read, a transaction
+ * for a write). The library is the partition's own, so every row is this partition's; `partitionId` is the trusted partition the instance
+ * was started for, stamped on the records it hands out.
  */
 export class BriefStore {
-  constructor(private readonly db: PluginDatabaseReader | PluginDatabaseTransaction, private readonly projectId: string | null) {}
+  constructor(private readonly db: PluginDatabaseReader | PluginDatabaseTransaction, private readonly partitionId: string) {}
 
   private get tx(): PluginDatabaseTransaction {
     if (!("run" in this.db)) throw workBriefErrors.unavailable("简报的读取不写入");
     return this.db;
   }
 
-  /** The briefs of this half's project, newest change first; the project's own (home) brief leads. */
+  /** The partition's briefs, newest change first; its own (home) brief leads. */
   list(): BriefRecord[] {
-    if (!this.projectId) return [];
-    return this.db.all("SELECT * FROM briefs WHERE project_id = ? AND scope != 'personal' ORDER BY scope = 'home' DESC, updated_at DESC, id", [this.projectId]).map(briefOf);
+    return this.db.all("SELECT * FROM briefs ORDER BY scope = 'home' DESC, updated_at DESC, id", []).map(row => briefOf(row, this.partitionId));
   }
   find(briefId: string): BriefRecord | null {
-    const row = this.projectId ? this.db.get("SELECT * FROM briefs WHERE id = ? AND project_id = ? AND scope != 'personal'", [briefId, this.projectId]) : null;
-    return row ? briefOf(row) : null;
+    const row = this.db.get("SELECT * FROM briefs WHERE id = ?", [briefId]);
+    return row ? briefOf(row, this.partitionId) : null;
   }
   get(briefId: string): BriefRecord {
     const brief = this.find(briefId);
@@ -50,30 +65,17 @@ export class BriefStore {
     return brief;
   }
   home(): BriefRecord | null {
-    const row = this.projectId ? this.db.get("SELECT * FROM briefs WHERE project_id = ? AND scope = 'home'", [this.projectId]) : null;
-    return row ? briefOf(row) : null;
-  }
-  /** The person's own brief; only the Home half asks. */
-  personal(actorId: string): BriefRecord | null {
-    const row = this.db.get("SELECT * FROM briefs WHERE actor_id = ? AND scope = 'personal'", [actorId]);
-    return row ? briefOf(row) : null;
-  }
-  /** The home briefs of the given projects (the person's reach), for the personal brief. */
-  homesOf(projectIds: readonly string[]): BriefRecord[] {
-    return projectIds.flatMap(projectId => {
-      const row = this.db.get("SELECT * FROM briefs WHERE project_id = ? AND scope = 'home'", [projectId]);
-      return row ? [briefOf(row)] : [];
-    });
+    const row = this.db.get("SELECT * FROM briefs WHERE scope = 'home'", []);
+    return row ? briefOf(row, this.partitionId) : null;
   }
 
-  /** Deterministic id for this store's singleton home or personal brief. */
-  singletonId(scope: "home" | "personal", actorId?: string): string {
-    return singletonBriefId(scope, scope === "personal" ? actorId ?? "" : this.projectId ?? "");
+  /** Deterministic id for this partition's singleton home brief. */
+  singletonId(scope: "home"): string {
+    return singletonBriefId(scope, this.partitionId);
   }
-  create(input: { brief_id: string; scope: BriefScope; title: string; actor_id?: string }, at: string): BriefRecord {
-    this.tx.run("INSERT INTO briefs (id, project_id, actor_id, scope, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [input.brief_id, input.scope === "personal" ? "" : this.projectId ?? "", input.actor_id ?? "", input.scope, input.title, at, at]);
-    return briefOf(this.db.get("SELECT * FROM briefs WHERE id = ?", [input.brief_id])!);
+  create(input: { brief_id: string; scope: BriefScope; title: string }, at: string): BriefRecord {
+    this.tx.run("INSERT INTO briefs (id, scope, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", [input.brief_id, input.scope, input.title, at, at]);
+    return briefOf(this.db.get("SELECT * FROM briefs WHERE id = ?", [input.brief_id])!, this.partitionId);
   }
 
   versions(brief: BriefRecord): BriefVersionHead[] {
@@ -100,7 +102,13 @@ export class BriefStore {
     const old = this.db.all("SELECT version FROM brief_versions WHERE brief_id = ? ORDER BY version DESC", [brief.brief_id]).map(row => Number(row.version))
       .filter(entry => !kept.has(entry)).slice(BRIEF_LIMITS.versions - 2);
     for (const entry of old) this.tx.run("DELETE FROM brief_versions WHERE brief_id = ? AND version = ?", [brief.brief_id, entry]);
-    return briefOf(this.db.get("SELECT * FROM briefs WHERE id = ?", [brief.brief_id])!);
+    const now = briefOf(this.db.get("SELECT * FROM briefs WHERE id = ?", [brief.brief_id])!, this.partitionId);
+    if (now.scope === "home") this.overview(now, body);
+    return now;
+  }
+
+  private overview(brief: BriefRecord, body: BriefBody): void {
+    writeBriefOverview(this.tx, brief, body);
   }
 
   edits(briefId: string): BriefEdit[] {
@@ -142,13 +150,13 @@ export class BriefStore {
 
   /** A request already answered returns its answer; the same id with another body is refused, so a retry never lands a second version. */
   answered<T>(actorId: string, requestId: string, hash: string): T | null {
-    const row = this.db.get("SELECT request_hash, result_json FROM brief_requests WHERE project_id = ? AND actor_id = ? AND request_id = ?", [this.projectId ?? "", actorId, requestId]);
+    const row = this.db.get("SELECT request_hash, result_json FROM brief_requests WHERE actor_id = ? AND request_id = ?", [actorId, requestId]);
     if (!row) return null;
     if (text(row.request_hash) !== hash) throw workBriefErrors.conflict("这个 request_id 已用于另一份草稿", { request_id: requestId });
     return parse<T | null>(row.result_json, null);
   }
   answer(actorId: string, requestId: string, hash: string, result: unknown, at: string): void {
-    this.tx.run("INSERT INTO brief_requests (project_id, actor_id, request_id, request_hash, result_json, at) VALUES (?, ?, ?, ?, ?, ?)",
-      [this.projectId ?? "", actorId, requestId, hash, JSON.stringify(result), at]);
+    this.tx.run("INSERT INTO brief_requests (actor_id, request_id, request_hash, result_json, at) VALUES (?, ?, ?, ?, ?)",
+      [actorId, requestId, hash, JSON.stringify(result), at]);
   }
 }

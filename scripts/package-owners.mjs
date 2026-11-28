@@ -55,7 +55,7 @@ const ALSO_REVIEWED_BY_CODING_REVIEWER = new Set([
 ]);
 
 /**
- * A built-in plugin's src/registration.ts holds fields the Host trusts from it alone (personal, companions, the Home Runtime;
+ * A built-in plugin's src/registration.ts holds fields the Host trusts from it alone (the Home Runtime;
  * W5-02, PG-065 in specs/archive/repository-anti-corruption/privileges.md), so the platform's reviewers are asked for it whoever
  * answers for the package. The last matching line wins: a package with reviewers of its own gets a line of its own after the
  * pattern, naming both.

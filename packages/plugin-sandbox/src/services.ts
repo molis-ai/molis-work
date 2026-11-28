@@ -117,7 +117,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn', sync: 'refused', savedHistory: 'refused',
   database: 'entry', files: 'entry', imageGeneration: 'given',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', personSettings: 'refused', due: 'refused', overview: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', sourcePull: 'refused', evidence: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', personSettings: 'refused', due: 'refused', overview: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -162,7 +162,7 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['terminal:run']) },
   { service: 'sourcePull', services: ['sourcePull'], reason: 'Pulling public feeds and web queries, and reading the evidence bodies they leave (sources:pull_public_feed, sources:pull_query, evidence:read, sources:pull_connector, sources:read_repository), is not given to sandboxed plugins: it fetches through the Host\'s own transports and writes into the Home\'s evidence store, which the sandbox has no form for yet (FI-4 step 4c).',
     declared: (definition, held) => asksFor(definition, held, ['sources:pull_public_feed', 'sources:pull_query', 'evidence:read', 'sources:read_repository', 'sources:pull_connector']) },
-  { service: 'evidenceCollector', services: ['evidenceCollector'], reason: 'Deleting evidence bodies nothing refers to (evidence:collect) is only given to plugins the Host runs itself in the Home: it removes files of the Home\'s evidence store, outside a sandbox.',
+  { service: 'evidence', services: ['evidence'], reason: 'Holding evidence bodies and deleting the ones nobody holds (evidence:collect) is only given to plugins the Host runs itself: it removes files of the Home\'s evidence store, outside a sandbox.',
     declared: (definition, held) => asksFor(definition, held, ['evidence:collect']) },
   { service: 'personSettings', services: ['personSettings', 'due'], reason: 'The person\'s own settings (person_settings in the Manifest) and per-partition due entries are only given to plugins the Host runs itself in a partition (batch 108): the settings live in the Home, outside a sandboxed package\'s data, and a due entry wakes the plugin through the Host.',
     declared: definition => definition.manifest.person_settings !== undefined },

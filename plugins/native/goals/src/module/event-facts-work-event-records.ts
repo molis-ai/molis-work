@@ -1,3 +1,4 @@
+import { libraryPartition } from "./library-partition.js";
 import { storedJson } from "../stored-json.js";
 import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
@@ -26,12 +27,11 @@ export class GoalWorkEventRecords {
   insertWorkEvent(event: StoredWorkEvent): void {
     this.db.prepare(`
       INSERT INTO goal_work_events (
-        event_id, project_id, goal_id, kind, type_id, type_version, title, payload_json,
+        event_id, goal_id, kind, type_id, type_version, title, payload_json,
         actor_id, actor_kind, received_at, journal_seq, config_version
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       event.event_id,
-      event.project_id,
       event.goal_id,
       event.kind,
       event.type_id,
@@ -46,93 +46,93 @@ export class GoalWorkEventRecords {
     );
   }
 
-  getWorkEvent(projectId: string, goalId: string, eventId: string): StoredWorkEvent | null {
+  getWorkEvent(_projectId: string, goalId: string, eventId: string): StoredWorkEvent | null {
     const row = this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM goal_work_events WHERE event_id = ? AND project_id = ? AND goal_id = ?
-    `).get(eventId, projectId, goalId) as Row | undefined;
-    return row ? mapWorkEvent(row) : null;
+      SELECT *, rowid AS stored_row FROM goal_work_events WHERE event_id = ? AND goal_id = ?
+    `).get(eventId, goalId) as Row | undefined;
+    return row ? mapWorkEvent(row, libraryPartition(this.db)) : null;
   }
 
-  getIntentCreatedEvent(projectId: string, goalId: string): StoredWorkEvent | null {
+  getIntentCreatedEvent(_projectId: string, goalId: string): StoredWorkEvent | null {
     const row = this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_work_events
-      WHERE project_id = ? AND goal_id = ? AND kind = 'system'
+      WHERE goal_id = ? AND kind = 'system'
         AND json_extract(payload_json, '$.operation') = 'intent_created'
       ORDER BY journal_seq ASC
       LIMIT 1
-    `).get(projectId, goalId) as Row | undefined;
-    return row ? mapWorkEvent(row) : null;
+    `).get(goalId) as Row | undefined;
+    return row ? mapWorkEvent(row, libraryPartition(this.db)) : null;
   }
 
-  listWorkEvents(projectId: string, goalId: string, afterCursor: number, limit: number): StoredWorkEvent[] {
+  listWorkEvents(_projectId: string, goalId: string, afterCursor: number, limit: number): StoredWorkEvent[] {
     return (this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_work_events
-      WHERE project_id = ? AND goal_id = ? AND journal_seq > ?
+      WHERE goal_id = ? AND journal_seq > ?
       ORDER BY journal_seq ASC
       LIMIT ?
-    `).all(projectId, goalId, afterCursor, limit) as Row[]).map(mapWorkEvent);
+    `).all(goalId, afterCursor, limit) as Row[]).map(row => mapWorkEvent(row, libraryPartition(this.db)));
   }
 
-  listLatestWorkEvents(projectId: string, goalId: string, beforeCursor: number | null, limit: number): StoredWorkEvent[] {
+  listLatestWorkEvents(_projectId: string, goalId: string, beforeCursor: number | null, limit: number): StoredWorkEvent[] {
     if (beforeCursor == null) {
       return (this.db.prepare(`
         SELECT *, rowid AS stored_row FROM goal_work_events
-        WHERE project_id = ? AND goal_id = ?
+        WHERE goal_id = ?
         ORDER BY journal_seq DESC
         LIMIT ?
-      `).all(projectId, goalId, limit) as Row[]).map(mapWorkEvent);
+      `).all(goalId, limit) as Row[]).map(row => mapWorkEvent(row, libraryPartition(this.db)));
     }
     return (this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_work_events
-      WHERE project_id = ? AND goal_id = ? AND journal_seq < ?
+      WHERE goal_id = ? AND journal_seq < ?
       ORDER BY journal_seq DESC
       LIMIT ?
-    `).all(projectId, goalId, beforeCursor, limit) as Row[]).map(mapWorkEvent);
+    `).all(goalId, beforeCursor, limit) as Row[]).map(row => mapWorkEvent(row, libraryPartition(this.db)));
   }
 
 
 
-  listLatestReportEvents(projectId: string, goalId: string, limit: number): StoredWorkEvent[] {
+  listLatestReportEvents(_projectId: string, goalId: string, limit: number): StoredWorkEvent[] {
     return (this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_work_events
-      WHERE project_id = ? AND goal_id = ? AND kind = 'report'
+      WHERE goal_id = ? AND kind = 'report'
       ORDER BY journal_seq DESC
       LIMIT ?
-    `).all(projectId, goalId, limit) as Row[]).map(mapWorkEvent);
+    `).all(goalId, limit) as Row[]).map(row => mapWorkEvent(row, libraryPartition(this.db)));
   }
 
-  maxGoalCursor(projectId: string, goalId: string, exceptEventId?: string): number {
+  maxGoalCursor(_projectId: string, goalId: string, exceptEventId?: string): number {
     const row = exceptEventId
       ? this.db.prepare(`
           SELECT MAX(journal_seq) AS cursor FROM goal_work_events
-          WHERE project_id = ? AND goal_id = ? AND event_id != ?
-        `).get(projectId, goalId, exceptEventId) as Row | undefined
+          WHERE goal_id = ? AND event_id != ?
+        `).get(goalId, exceptEventId) as Row | undefined
       : this.db.prepare(`
-          SELECT MAX(journal_seq) AS cursor FROM goal_work_events WHERE project_id = ? AND goal_id = ?
-        `).get(projectId, goalId) as Row | undefined;
+          SELECT MAX(journal_seq) AS cursor FROM goal_work_events WHERE goal_id = ?
+        `).get(goalId) as Row | undefined;
     return row?.cursor == null ? 0 : Number(row.cursor);
   }
 
-  hasGoalCursor(projectId: string, goalId: string, cursor: number): boolean {
+  hasGoalCursor(_projectId: string, goalId: string, cursor: number): boolean {
     if (cursor === 0) return true;
     return Boolean(this.db.prepare(`
-      SELECT 1 FROM goal_work_events WHERE project_id = ? AND goal_id = ? AND journal_seq = ? LIMIT 1
-    `).get(projectId, goalId, cursor));
+      SELECT 1 FROM goal_work_events WHERE goal_id = ? AND journal_seq = ? LIMIT 1
+    `).get(goalId, cursor));
   }
 
-  getWorkEventByCursor(projectId: string, goalId: string, cursor: number): StoredWorkEvent | null {
+  getWorkEventByCursor(goalId: string, cursor: number): StoredWorkEvent | null {
     const row = this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM goal_work_events WHERE project_id = ? AND goal_id = ? AND journal_seq = ?
-    `).get(projectId, goalId, cursor) as Row | undefined;
-    return row ? mapWorkEvent(row) : null;
+      SELECT *, rowid AS stored_row FROM goal_work_events WHERE goal_id = ? AND journal_seq = ?
+    `).get(goalId, cursor) as Row | undefined;
+    return row ? mapWorkEvent(row, libraryPartition(this.db)) : null;
   }
 
 }
 
-function mapWorkEvent(row: Row): StoredWorkEvent {
+function mapWorkEvent(row: Row, partition: string): StoredWorkEvent {
   return {
     event_id: rowText(row.event_id),
-    project_id: rowText(row.project_id),
+    project_id: partition,
     goal_id: rowText(row.goal_id),
     kind: rowText(row.kind) as StoredWorkEvent["kind"],
     type_id: row.type_id == null ? null : rowText(row.type_id),

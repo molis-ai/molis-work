@@ -15,8 +15,15 @@ export function validateSyncSections(manifest: PluginManifest, value: SyncSectio
     if(!id(section.id)||seen.has(section.id)||!Array.isArray(section.tables)||!section.tables.length)denied();seen.add(section.id);
     for(const table of section.tables){
       allowed(table.name,[...table.columns,...table.keys]);if(owned.has(table.name)||table.keys.some((k:string)=>!table.columns.includes(k)))denied();owned.add(table.name);
-      if(table.parent){allowed(table.name,[table.parent.column]);allowed(table.parent.table,[table.parent.key,table.parent.projectColumn??'project_id']);}
-      else allowed(table.name,[table.projectColumn??'project_id']);
+      // A table (or parent) without a partition column holds only its library's partition (U3, batch 109-1): the platform binds it, so a
+      // partition column is checked only where the declaration names one or the table has the default one.
+      const partitioned=(name:string,column?:string)=>{if(column)allowed(name,[column]);};
+      if(table.parent){
+        allowed(table.name,[table.parent.column]);
+        allowed(table.parent.table,[table.parent.key]);
+        partitioned(table.parent.table,table.parent.projectColumn);
+      }
+      else partitioned(table.name,table.projectColumn);
     }
     for(const values of [section.journalTypes,section.receiptOperations,section.sequenceFields])if(!Array.isArray(values)||values.some(v=>typeof v!=='string'||!v||v.length>200))denied();
     // A plugin may only select its declared journal vocabulary, not another owner's history.

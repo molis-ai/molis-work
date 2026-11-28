@@ -5,7 +5,8 @@ import { governanceReplicationDefinition } from "./governance/replication.js";
 import { validateGoalSections } from "./sync-validation.js";
 export const goalSections: SyncSectionsDefinition = {kind:"project_goals",business:[syncSection(goalReplicationDefinition()),syncSection(governanceReplicationDefinition())],platform:["relation-edges"],journal:true,journalIgnoredTypes:["board.created"],validate:validateGoalSections};
 export const goalSectionsDeclaration = syncSectionsDeclaration(goalSections);
-export const goalSectionsTracking = syncSectionsTracking(goalSectionsDeclaration).map(table => table.table === 'boards' ? {...table, existsAny:['goals'].map(table=>({table,match:[{column:'project_id',rowColumn:'project_id'}]}))} : table);
+// The board is journaled only once the partition has a Goal: an empty board is made by opening the page, not by the person.
+export const goalSectionsTracking = syncSectionsTracking(goalSectionsDeclaration).map(table => table.table === 'boards' ? {...table, existsAny:[{table:'goals',match:[]}]} : table);
 /**
  * Where a person's approved Goals decision leaves its result (44B): the platform reads and digests these rows itself. A Goal decision's
  * result is its applied-decision row; a tree proposal's is the effects of its items.

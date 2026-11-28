@@ -11,18 +11,20 @@ import { crc32 } from "node:zlib";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { issuesActions, ISSUES_PLUGIN_ID, type Issue } from "@molis-ai/molis-work-plugin-issues";
-import { WORK_BRIEF_PLUGIN_ID, workBriefPersonalActions } from "@molis-ai/molis-work-plugin-work-brief";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
-import { partitionInstallation } from "./fixtures/home-runtime.js";
+import { homeProbe, partitionInstallation } from "./fixtures/home-runtime.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 // Since batch 108 Issues runs in each partition it is added to (specs/unified-partition-plugins §4.2): its records are that partition's.
-// The Home's own plugin runtime stays until 109-3; its lifecycle is checked here on the Home half of Work Brief.
-const homeUser: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: ["work-brief:read", "work-brief:write"] };
+// The Home's own plugin runtime stays until 109-3; no shipped plugin has a Home half since 109-1, so its lifecycle is checked here on a
+// fixture Home plugin.
+const probe = homeProbe("retryprobe");
+const HOME_PLUGIN_ID = probe.id;
+const homeUser: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...probe.permissions] };
 const user = (projectId: string): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: ["issues:read", "issues:write"] });
 const space = (home: string, projectId: string) => ({ project_id: projectId, reference: molisWorkHostProjectReference({ databasePath: join(home, `${projectId}.sqlite`), projectId }) });
 const input = { title: "跨入口记录", type: "bug", description: "  点击后没有反馈\n再次点击才出现。\n" };
@@ -43,23 +45,23 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
   await mkdir(directory);
   const broken = new DatabaseSync(path); broken.exec("PRAGMA user_version=9"); broken.close();
   const original = await readFile(path);
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), token = resolveWebControlToken({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [probe.definition] } }), token = resolveWebControlToken({ homeDirectory: home });
   const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
-  const retry = (authorized = true) => fetch(`${origin}/api/plugins/${WORK_BRIEF_PLUGIN_ID}/retry`, { method: "POST",
+  const retry = (authorized = true) => fetch(`${origin}/api/plugins/${HOME_PLUGIN_ID}/retry`, { method: "POST",
     headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
       ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: "{}" });
   try {
     // A Home route of a Home plugin answers the failure; it neither starts nor retries anything.
-    const enable = () => fetch(`${origin}/api/plugins/${WORK_BRIEF_PLUGIN_ID}/enable`, { method: "POST",
+    const enable = () => fetch(`${origin}/api/plugins/${HOME_PLUGIN_ID}/enable`, { method: "POST",
       headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token }, body: "{}" });
     const refused = await enable();
     assert.equal(refused.status, 503); await refused.text();
     assert.deepEqual(await readFile(path), original);
     assert.equal((await retry(false)).status, 403);
-    assert.equal((await fetch(`${origin}/api/plugins/${WORK_BRIEF_PLUGIN_ID}/retry`)).status, 405);
+    assert.equal((await fetch(`${origin}/api/plugins/${HOME_PLUGIN_ID}/retry`)).status, 405);
     const failedRetry = host.homePlugins!.retry();
     assert.equal(host.homePlugins!.retry(), failedRetry, "concurrent retries share a failed attempt too");
     await assert.rejects(failedRetry, { code: "storage.store_too_new" });
@@ -70,13 +72,13 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
     assert.equal(again.status, 503, "ordinary requests do not silently restart"); await again.text();
     const retries = await Promise.all(Array.from({ length: 4 }, () => retry()));
     for (const response of retries) { assert.equal(response.status, 200, await response.clone().text()); await response.text(); }
-    // Four concurrent retries install each Home plugin once (Work Brief's Home half, and every other Home plugin beside it).
+    // Four concurrent retries install each Home plugin once.
     const installed = host.homePlugins!.installations().map(record => record.plugin_id);
-    assert.deepEqual(installed.filter(id => id === WORK_BRIEF_PLUGIN_ID), [WORK_BRIEF_PLUGIN_ID]);
+    assert.deepEqual(installed.filter(id => id === HOME_PLUGIN_ID), [HOME_PLUGIN_ID]);
     assert.ok(!installed.includes(ISSUES_PLUGIN_ID), "Issues is no Home plugin");
     assert.equal(new Set(installed).size, installed.length, "no Home plugin is installed twice");
     const capabilities = await host.homeActionClient().discover(homeUser);
-    assert.ok(capabilities.some(view => view.capability_id === workBriefPersonalActions.get.capability_id && view.availability.available));
+    assert.ok(capabilities.some(view => view.capability_id === probe.state.capability_id), "the retried Home plugin offers its actions again");
     assert.deepEqual(await readFile(join(directory, "rejected.db")), original);
     await host.close();
     await assert.rejects(host.homePlugins!.retry(), { code: "actions.plugin_unavailable" });
@@ -87,21 +89,24 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
 });
 
 test("ISSUE-01 ISSUE-05 owned web server close persists Home plugin shutdown before its callback", async () => {
+  // An owned server makes its own Host, which carries no fixture: since batch 109-1 the build ships no Home plugin, so what its close must
+  // have finished before the callback is the Home plugin runtime itself, written and released, which a restarted Host then opens.
   const home = await mkdtemp(join(tmpdir(), "issue-owned-close-"));
   const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home });
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
+    // The Home plugin settings list waits for the Home plugin runtime, which opens its records.
     const origin = `http://127.0.0.1:${address.port}`, token = resolveWebControlToken({ homeDirectory: home });
-    const response = await fetch(`${origin}/api/plugins/${WORK_BRIEF_PLUGIN_ID}/retry`, { method: "POST",
+    const response = await fetch(`${origin}/api/settings/plugin-permissions/list`, { method: "POST",
       headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token }, body: "{}" });
     assert.equal(response.status, 200, await response.clone().text()); await response.text();
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     const db = openReadOnlyHomeSqlite(home, "plugin-runtime");
-    try { assert.equal(new SqlitePluginRuntimeRepository(db).list().find(row => row.plugin_id === WORK_BRIEF_PLUGIN_ID)?.state, "installed"); }
+    try { assert.deepEqual(new SqlitePluginRuntimeRepository(db).list().map(row => row.state).filter(state => state === "running"), [], "nothing is left running"); }
     finally { db.close(); }
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    try { await restarted.homeActionClient().discover(homeUser); assert.equal(restarted.homePlugins!.installation(WORK_BRIEF_PLUGIN_ID)!.state, "running"); }
+    try { await restarted.homePlugins!.ready(); await restarted.homeActionClient().discover(homeUser); }
     finally { await restarted.close(); }
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

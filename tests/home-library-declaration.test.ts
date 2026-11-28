@@ -24,11 +24,11 @@ test("PLIB-11 RAC-301 a Home library is declared only in the Manifest's database
   }
 
   const libraries = BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.databases?.home ? [entry] : []);
-  assert.deepEqual(libraries.map(entry => entry.manifest.databases!.home!.store_name).sort(),
-    ["feed-content", "work-brief"]);
-  // Batches 107 and 108: these keep a library in each partition (`databases.partition`, U2) and none in the Home.
+  // Batch 109: Work Brief moved into the partitions and Feed's holds to the platform's evidence ledger, so no shipped plugin keeps a Home library.
+  assert.deepEqual(libraries.map(entry => entry.manifest.databases!.home!.store_name), []);
+  // Batches 107, 108 and 109: these keep a library in each partition (`databases.partition`, U2) and none in the Home.
   assert.deepEqual(BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.databases?.partition ? [entry.manifest.databases.partition.store_name] : []).sort(),
-    ["cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "todo", "workflows"]);
+    ["cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "todo", "work-brief", "workflows"]);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     assert.equal("database" in (entry.runtime ?? {}), false, `${entry.project_plugin_id}: runtime.database`);
     assert.equal(entry.home_store?.library, undefined, `${entry.project_plugin_id}: home_store.library`);

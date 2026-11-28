@@ -59,7 +59,7 @@ export const WORK_BRIEF_STYLES = `
 .wb-step__why{margin:0;font-size:13px;line-height:1.6;color:var(--ink-soft)}
 .wb-step__target{margin:6px 0 0;font-size:12px;color:var(--muted)}
 .wb-step .mw-card__panel{display:grid;gap:6px}
-.wb-personal .mw-item{align-items:center}
+
 .wb-toasts{position:absolute;inset-inline:0;bottom:20px;display:grid;justify-items:center;pointer-events:none;z-index:40}
 .wb-toasts>*{pointer-events:auto}
 @media (max-width:640px){

@@ -13,9 +13,9 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
   const deactivationReason = "Result no longer needs this relation";
   store.db.prepare(`
     INSERT INTO goal_relations (
-      relation_id, project_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at, deactivated_at
-    ) VALUES (?, ?, ?, ?, 'extends', 'inactive', ?, 'history-fixture', ?, ?)
-  `).run(relationId, DEMO_PROJECT_ID, "PLATFORM", "V1", creationReason, "2026-09-01T01:00:00.000Z", "2026-09-01T02:00:00.000Z");
+      relation_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at, deactivated_at
+    ) VALUES (?, ?, ?, 'extends', 'inactive', ?, 'history-fixture', ?, ?)
+  `).run(relationId, "PLATFORM", "V1", creationReason, "2026-09-01T01:00:00.000Z", "2026-09-01T02:00:00.000Z");
   store.db.prepare(`
     INSERT INTO events (
       event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at

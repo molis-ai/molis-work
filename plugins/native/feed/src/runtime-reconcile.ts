@@ -9,14 +9,15 @@ import { keptProjectBodyPages } from "./history-pages.js";
 
 // What a Runtime Feed sets right on its own, without a caller (FI-4 step 4e-2f, RAC-493 and RAC-518 of
 // specs/archive/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md): the stored state of its account sources follows the account the
-// person bound to each, and the Home's reference ledger names every body this project's library keeps. Both run in a job the installation
-// keeps, because nothing else of an installation runs without a call: the platform's account and ledger services answer a call or a kept job.
+// person bound to each, and the platform's evidence ledger names every body this partition's library keeps (`services.evidence`, batch 109).
+// Both run in a job the installation keeps, because nothing else of an installation runs without a call: the platform's account and ledger
+// services answer a call or a kept job.
 
 export const FEED_RECONCILE_JOB = "feed-reconcile";
 export const feedReconcileJob: PluginJobDeclaration = {
   job_id: FEED_RECONCILE_JOB,
-  reason: "让账号来源的状态跟上你的账号，并让 Home 的引用账记全这个项目留着的正文",
-  permissions: ["connections:use", "actions:invoke"],
+  reason: "让账号来源的状态跟上你的账号，并让证据账本记全这个空间留着的正文",
+  permissions: ["connections:use", "evidence:collect"],
 };
 
 /** The journal's actor for what the installation does on its own: the plugin, not a person. */
@@ -132,7 +133,7 @@ export interface FeedReconcilePorts {
   readonly connections: PluginConnectionsClient | undefined;
   /** One commit, with the job's own last check. */
   commit<T>(control: PluginJobControl, body: () => T): Promise<T>;
-  /** Names bodies in the Home's reference ledger (idempotent); absent when the installation may not reach the ledger. */
+  /** Names bodies in the platform's evidence ledger (`services.evidence`, idempotent); absent when the installation may not reach it. */
   hold: ((sourceId: string, contentRefs: readonly string[]) => Promise<void>) | undefined;
   /** Notified when account reconciliation moves one or more sources between active and disconnected states. */
   onSourceStateChanged?: () => void;
@@ -169,7 +170,7 @@ export async function refreshAccountSourceStates(ports: FeedReconcilePorts, cont
 }
 
 /**
- * Names every body the project's library keeps in the Home's ledger, in batches the ledger takes; a body already named stays named. Only the
+ * Names every body the partition's library keeps in the platform's evidence ledger, in batches the ledger takes; a body already named stays named. Only the
  * ledger's own bodies are named, not what another library keeps (`research:<id>`). Covers active sources, retain_history retired sources,
  * unassigned items (`source_id IS NULL`), and signals/revisions.
  */
@@ -204,7 +205,7 @@ async function drainPendingHolds(
         throw new ActionError("actions.cancelled", "Feed 正文引用登记已取消");
       }
       if (!ports.hold) {
-        throw new ActionError("actions.dependency_missing", "Feed 需要引用账服务才能登记同步正文");
+        throw new ActionError("actions.dependency_missing", "Feed 需要 evidence:collect 才能登记同步正文");
       }
       for (const group of request.groups) {
         if (group.refs.length === 0) continue;

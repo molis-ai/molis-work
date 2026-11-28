@@ -61,13 +61,14 @@ test("AC-M1-01 Risk replicates first delivery, edits, conflicts and tombstones a
   const settled = await call(target, riskActions.get, fields);
   assert.equal(settled.risk.title, "Remote choice");
 
-  const remote = structuredClone(conflict.remote) as { value: { item: { project_id: string; status: string; title: string }; events: unknown[] } };
+  const remote = structuredClone(conflict.remote) as { value: { item: { project_id?: string; status: string; title: string }; events: unknown[] } };
   const receive = (value: unknown, revision: number) => b.withReplica(replica => {
     replica.receive({ ...initial, value, base: 3, operationId: `bad-${revision}`, revision });
     const refused = replica.inspectConflict!(initial.key);
     assert.ok(refused);
     assert.throws(() => replica.resolve(initial.key, "remote", refused.revision, refused.state));
   });
+  // The partition comes from the library the row lands in; an item that names one carries a column the wire format does not have.
   const wrongProject = structuredClone(remote);
   wrongProject.value.item.project_id = source.project(1).project_id;
   receive(wrongProject, 4);

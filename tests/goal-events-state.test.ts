@@ -1295,10 +1295,10 @@ function appliedClosureFlags(store: LocalProjectDatabase, goalId: string): Array
   const rows = store.db.prepare(`
     SELECT c.completion_applied AS completion_applied, c.superseded AS superseded
     FROM goal_event_closures c
-    JOIN goal_work_events e ON e.event_id = c.event_id AND e.project_id = c.project_id AND e.goal_id = c.goal_id
-    WHERE c.project_id = ? AND c.goal_id = ?
+    JOIN goal_work_events e ON e.event_id = c.event_id AND e.goal_id = c.goal_id
+    WHERE c.goal_id = ?
     ORDER BY e.journal_seq ASC
-  `).all(BOARD, goalId) as Array<{ completion_applied: number; superseded: number }>;
+  `).all(goalId) as Array<{ completion_applied: number; superseded: number }>;
   return rows.map((row) => [Number(row.completion_applied), Number(row.superseded)]);
 }
 
@@ -2142,7 +2142,7 @@ test("RAC-1264: an unreadable Goal event type stops readState", () => {
     });
     const goalId = created.goal.goal_id;
     configure(data.app, goalId, "cfg-unreadable-type");
-    data.store.db.prepare("UPDATE goal_event_types SET fields_json = ? WHERE project_id = ? AND goal_id = ?").run('{"unreadable":', BOARD, goalId);
+    data.store.db.prepare("UPDATE goal_event_types SET fields_json = ? WHERE goal_id = ?").run('{"unreadable":', goalId);
     assert.throws(
       () => data.app.goalEvents.readState(BOARD, goalId),
       (error: unknown) => error instanceof ActionError && error.code === "goals.storage.record_unreadable" && error.kind === "internal",

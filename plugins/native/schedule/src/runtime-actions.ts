@@ -20,7 +20,7 @@ export type ScheduleRuntime = ReturnType<typeof scheduleRuntimeDatabase>;
 export async function scheduleRuntimeActions(projectId: string, services: PluginHostServices, runtime: ScheduleRuntime, grants: ScheduleTaskGrants,
   caller: ActionExecutionContext, capabilityId: string): Promise<ActionHandlerBinding[]> {
   const { db, schedule } = runtime, observed = services.installations!.list();
-  const listedOperations = capabilityId === scheduleActions.list.capability_id ? listScheduledOperations(db, projectId) : undefined;
+  const listedOperations = capabilityId === scheduleActions.list.capability_id ? listScheduledOperations(db) : undefined;
   // Only saved plans need the installation's list of operations for their recovery view.
   const needOperations = Boolean(listedOperations?.length) || capabilityId.startsWith("schedule.operations.") || capabilityId.startsWith("schedules.");
   const views: readonly ActionView[] = needOperations ? await services.actions!.dependencies!.discover() : [];
@@ -37,7 +37,7 @@ export async function scheduleRuntimeActions(projectId: string, services: Plugin
   }, link });
   const ports = createScheduleActionPorts({ db, schedule,
     reminders: createScheduleReminderManagement({ db, projectId, schedule, currentInstallation: owners.reminder }),
-    operations: createScheduledOperationManagement({ db, projectId, schedule, currentInstallation: owners.operation, listedOperations }),
+    operations: createScheduledOperationManagement({ db, schedule, currentInstallation: owners.operation, listedOperations }),
     readiness: async () => {
       // A round runs in the project's output (SSC-17). A project without directory services is not ready; refused or failed reads remain errors.
       const directories = await services.actions!.invoke(projectDirectoryActions.get, {}).catch(error => {

@@ -122,14 +122,18 @@ test("ASC-10 ASC-13 ASC-21: Functions reports its actual selected account and in
 // (`feed.connection.usages`) is gone: its sources hold no connection id any more.
 test("RAC-2669 ASC-10 ASC-13 BL-920: the plugin slots bound to a connection are the platform's to report, by plugin, slot purpose and project name: installation slots, and per_record ones counted per project without naming a record", async t => {
   const home = await openTestHome(t), a = await home.createProject("A", ["feed"]), b = await home.createProject("B", ["feed"]);
-  // Feed's per-record accounts belong to its Home installation (it runs as one Home instance with a half in each project).
-  await home.host.homePlugins!.ready();
-  const feedInstall = home.host.homePlugins!.installations().find(row => row.plugin_id === FEED_PLUGIN_ID)!.install_id;
+  // Feed's per-record accounts belong to its installation in each project (batch 109-1: Feed has no Home installation any more).
+  const feedInstallIn = async (project: typeof a) => {
+    const asked = { ...caller, project_id: project.project_id };
+    await home.host.inspectActions(asked, project.reference);
+    return home.host.inspectActionMetadata(asked, project.reference).find(row => row.provider.plugin_id === FEED_PLUGIN_ID && row.provider.plugin_install_id)!.provider.plugin_install_id!;
+  };
+  const feedInstalls = new Map([[a.project_id, await feedInstallIn(a)], [b.project_id, await feedInstallIn(b)]]);
   const account = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-feed-usage-key" }));
   const bind = (scopeId: string, pluginId: string, slotId: string) => withConnectorConnections(home.home, store => store.bind({ scopeId, pluginId, slotId, serviceId: "github", connectionId: account.connection_id }));
   bind(pluginBindingScope({ install_id: "install-example" }), "com.example.slots", "account");
   for (const [project, record] of [[a, "source-1"], [a, "source-2"], [b, "source-3"]] as const) {
-    bind(pluginBindingScope({ install_id: feedInstall, project_id: project.project_id, record_key: record }), FEED_PLUGIN_ID, "github");
+    bind(pluginBindingScope({ install_id: feedInstalls.get(project.project_id)!, project_id: project.project_id, record_key: record }), FEED_PLUGIN_ID, "github");
   }
   const platform = (result: { usages: Usage[] }) => result.usages.filter(usage => usage.source.capability_id === connectorPluginSlotUsages.capability_id);
   const atHome = await read(home.host.homeActionClient(), account.connection_id);
@@ -145,7 +149,7 @@ test("RAC-2669 ASC-10 ASC-13 BL-920: the plugin slots bound to a connection are 
   // In a project, only that project's records are counted; the installation slot is every project's.
   const inA = await read(home.host.actionClient(a.reference), account.connection_id, { ...caller, project_id: a.project_id });
   assert.deepEqual(platform(inA).map(usage => usage.detail).sort(), ["插件这个安装发出的请求都用这个账号", "项目「A」里 2 条记录用这个账号"].sort());
-  assert.doesNotMatch(JSON.stringify(platform(atHome).map(usage => [usage.title, usage.detail])), new RegExp(`${a.project_id}|${b.project_id}|${feedInstall}`), "no raw project or installation id where a name is known");
+  assert.doesNotMatch(JSON.stringify(platform(atHome).map(usage => [usage.title, usage.detail])), new RegExp(`${a.project_id}|${b.project_id}|${[...feedInstalls.values()].join("|")}`), "no raw project or installation id where a name is known");
   withConnectorConnections(home.home, store => store.disconnect(account.connection_id));
   assert.deepEqual(platform(await read(home.host.homeActionClient(), account.connection_id)).map(usage => usage.enabled), [false, false, false]);
 });

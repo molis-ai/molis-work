@@ -16,6 +16,7 @@ export { SANDBOX_VALIDATE_UPGRADE, assertSandboxUpgradeValidator, sandboxUpgrade
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, sandboxProjectedPermissions, sandboxOperationSwitches, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { parseConnectionSlots } from "./connection-declarations.js";
 export { parseSandboxUi, sandboxUiContribution, sandboxUiDeclaration, type SandboxUiContribution } from "./sandbox-ui.js";
+export { sandboxScenes, sandboxSceneId } from "./sandbox-scenes.js";
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems, sandboxStartProblems } from "./sandbox-actions.js";
 export { sandboxStateMachineDeclarations, sandboxStateMachineProblems } from "./sandbox-state-machines.js";
 export { assertJson as assertSandboxJson, assertSchema as assertSandboxSchema, assertMatches as assertSandboxMatches, type SandboxSchemaFailure } from "./sandbox-schema.js";

@@ -1,3 +1,4 @@
+import { PLATFORM_SURFACE_CLIENT_PATHS } from "@molis-ai/molis-work-ui-host/platform-client-paths";
 import { deferredSurfaceClients } from "../../plugin-workbench.js";
 
 /**
@@ -5,11 +6,13 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
  * the owner loads the shared frame bridge and never executes a plugin bundle.
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: readText } = host;
   // Each failure says what went wrong (F-21); the toast carries it, and the button on the surface only offers to load it again.
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap(), invalidations = new WeakMap();
   const scope = host.scope;
+  const platformScripts = ${JSON.stringify(PLATFORM_SURFACE_CLIENT_PATHS)};
+  const loadPlatformClient = id => Object.hasOwn(platformScripts, id) ? load(platformScripts[id])
+    : Promise.reject(new Error(globalThis.t.text("common.child.view-entry-missing")));
   const load = url => {
     if (scope.signal.aborted) return Promise.reject(scope.signal.reason);
     if (scripts.has(url)) return scripts.get(url);
@@ -30,6 +33,12 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
     scripts.set(url, waiting); return waiting;
   };
+  const frameAssets = async () => {
+    await load('/assets/molis-work-plugin-frame.js');
+    const assets = globalThis.molisPluginFrames.assets;
+    assets.configure(host.paneMessages);
+    return assets;
+  };
   const settle = (root, state) => { root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = state; };
   const prepare = (root, intent = "open") => {
     if (intent === "restore" && root?.dataset.uiClientState === "failed") return Promise.resolve();
@@ -47,24 +56,26 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     const pending = (async () => {
       try {
         if (pack.plugin_id) {
-          await load('/assets/molis-work-plugin-frame.js');
-          globalThis.molisPluginFrames.assets.configure(host.paneMessages);
+          await frameAssets();
           if (!root.isConnected || scope.signal.aborted) return;
           if(root.closest('[hidden], [data-surface-pool]')){mounting.delete(root);settle(root,'idle');return;}
           await globalThis.molisPluginFrames.mount(root, host, pack);
         } else {
           for (const asset of pack.assets) await load(asset);
-          await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
+          await loadPlatformClient(pack.id);
           if (!root.isConnected || scope.signal.aborted) return;
           const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
           if (!factory) throw new Error(globalThis.t.text('common.child.view-entry-missing'));
           factory({ ...host, root });
         }
         root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
-        const selection = selections.get(root);
-        if (selection) { selections.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: selection })); }
-        const invalidation = invalidations.get(root);
-        if (invalidation) { invalidations.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: invalidation })); }
+        for (const pendingEvents of [selections, invalidations]) {
+          const detail = pendingEvents.get(root);
+          if (detail) {
+            pendingEvents.delete(root);
+            root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail }));
+          }
+        }
       } catch (error) {
         if (!root.isConnected || scope.signal.aborted) return;
         settle(root, 'failed'); mounting.delete(root);
@@ -108,5 +119,5 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   }
   document.addEventListener('molis-work:place-changed', visible);
   visible();
-  return { prepare, loadBundle: id => load('/assets/molis-work-plugins/' + encodeURIComponent(id) + '.js'), frameAssets: async () => { await load('/assets/molis-work-plugin-frame.js'); globalThis.molisPluginFrames.assets.configure(host.paneMessages); return globalThis.molisPluginFrames.assets; }, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
+  return { prepare, loadPlatformClient, frameAssets, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
 }`;

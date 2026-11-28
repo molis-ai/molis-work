@@ -1,3 +1,4 @@
+import type { ConnectorAuthKind, ConnectorDirectoryGroupId, ConnectorCapability, ConnectorSetupLink, ConnectorMethodKind } from "../platform/plugin-integrations.js";
 import type { STATE_VOCABULARIES } from "../platform/state-vocabulary.js";
 import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
@@ -98,33 +99,7 @@ export interface ConnectorHostApi {
 }
 
 export type ConnectorDirectoryAvailability = "live" | "placeholder";
-export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
-export type ConnectorDirectoryGroupId =
-  | "mail"
-  | "files"
-  | "chat"
-  | "code"
-  | "work"
-  | "design"
-  | "crm"
-  | "social"
-  /** Web search services (§13.7): an account a person can make the default web search source. */
-  | "search";
-
-export type ConnectorCapabilityFulfillment = "live" | "unfulfilled";
-
-export interface ConnectorCapability {
-  readonly label: string;
-  readonly fulfillment: ConnectorCapabilityFulfillment;
-}
-
-/** Official page where a person creates the credential this Connector asks for. */
-export interface ConnectorSetupLink {
-  readonly label: string;
-  readonly url: string;
-}
-
-export type ConnectorMethodKind = "oauth" | "cli" | "token" | "mcp";
+export type { ConnectorAuthKind, ConnectorDirectoryGroupId, ConnectorCapabilityFulfillment, ConnectorCapability, ConnectorSetupLink, ConnectorMethodKind } from "../platform/plugin-integrations.js";
 export type ConnectorMethodSupport = "in_app" | "paste" | "external";
 
 /** A provider-supported route, with an independent statement of current app support. */

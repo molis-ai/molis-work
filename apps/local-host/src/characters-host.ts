@@ -6,6 +6,9 @@ import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/servic
 import { LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolveConfiguredHome } from "./product-home.js";
 import { PRODUCT_VERSION } from "./product-version.js";
+import { characterSignedTemplates } from "./signed-role-installations.js";
+import { pluginInstallRecords } from "./plugin-install-records.js";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homedir } from "node:os";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createCharacterDiscovery } from "./character-import-discovery.js";
@@ -21,9 +24,10 @@ export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSp
  * project's 成果库, and local Agent imports and launches. `agent` is read at each call: the built-in Agent's engines and
  * the actions it may be given, as the Agent composition answers them (none before it is composed).
  */
-export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, agent: () => Omit<CharactersAgentCatalog, "pickedRuntime"> | undefined): ActionProviderRegistration {
+export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, agent: () => Omit<CharactersAgentCatalog, "pickedRuntime"> | undefined, homeRows: () => readonly PluginInstanceRecord[]): ActionProviderRegistration {
   const catalog = () => agent() ?? (() => { throw new Error("内置 Agent 能力目录尚未接通"); })();
-  return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.artifacts.query), {
+  return charactersProvider(runtime, { ...characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.artifacts.query),
+    signedTemplates: characterSignedTemplates(options.homeDirectory, runtime.project_id, pluginInstallRecords(runtime.store.db), homeRows) }, {
     listRuntimes: () => catalog().listRuntimes(),
     pickedRuntime: () => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id),
     listActions: runtimeId => catalog().listActions(runtimeId),

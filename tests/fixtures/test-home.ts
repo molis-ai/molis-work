@@ -175,7 +175,7 @@ export async function openTestHome(t: TestContext, options: { host?: Partial<Hos
     if (failures.length) throw new AggregateError(failures, "Test Home cleanup failed");
   });
   served = await serveTestHost(null, { home, host, assertAccountCurrent: options.assertAccountCurrent });
-  return { ...served, host };
+  return { ...served, host, withCatalog };
 }
 
 export type TestHome = Awaited<ReturnType<typeof openTestHome>>;

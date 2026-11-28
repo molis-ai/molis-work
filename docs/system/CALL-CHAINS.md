@@ -127,6 +127,15 @@
 
 下表是 Plugin Runtime 管理这两类插件的链路：
 
+平台另有两个固定入口。
+
+| 入口 | 归属与加载 | 打开或使用时 |
+| --- | --- | --- |
+| 平台置物架 | `modules/shelf` 提供 `system.shelf` 接收动作；工作台及桌面从平台登记打开 | 放置目标是 `system.shelf`，桌面与呈现键是 `shelf` |
+| 外部会话 | `horizontal/sessions` 拥有会话入口，`PLATFORM_SURFACES` 为工作台登记按需加载的页面程序 | 打开侧栏时按本人及项目许可读取 |
+
+下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。
+
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 声明与校验 | `packages/plugin-sdk/src/manifest.ts`（`parsePluginManifest`，调用同目录 `action-declarations.ts` 的 `inspectActionDeclarations`（四种来源协议的细则在 `source-declarations.ts`）和 `action-cross-references.ts` 的 `inspectActionCrossReferences`（同一次注册里被引用的动作与位置；查 schema 里的路径用 `schema-paths.ts`）、`agent-declarations.ts` 的 `inspectAgentDeclaration` 与 `inspectSkillDeclarations`；端口与事件检查在 `wiring-declarations.ts`；成果类型声明（显示名、预览动作、固定与继续动作的指向）的检查在 `artifact-declarations.ts`，只由 `parsePluginManifest` 调用；内核注册动作时调用的也是这两个检查）；`PluginRuntime`（`packages/plugin-runtime/src/index.ts`）调用的 `validateManifest`（`packages/plugin-runtime/src/runtime-rules.ts`，里面用 SDK 的 `parsePluginManifest`） | Manifest → 通过或拒绝 | 实际 grant 不能超过 Manifest 声明上限，缺必需 grant 拒绝 | `plugin.manifest_invalid`；`plugin.grant_denied`；`plugin.entrypoint_missing` | 无 |

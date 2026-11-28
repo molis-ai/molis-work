@@ -19,6 +19,7 @@ type ComponentBinding = {
   readonly operationId: string;
   readonly action: ReturnType<typeof exposedActionReference>;
   readonly form: boolean;
+  readonly uiEvent?: string;
   readonly ownPermissions: readonly string[];
   readonly capabilities: readonly string[];
 };
@@ -41,6 +42,7 @@ export function rememberInstalledActionSource(definition: PluginDefinition, rele
     if (!operation) throw new ActionError('actions.definition_invalid', '原组件绑定的操作不存在');
     const effects = sandboxOperationEffects(contract, operation);
     const binding: ComponentBinding = { node: structuredClone(node), operationId: operation.id, action: Object.freeze(exposedActionReference(release, operation.id)),
+      uiEvent: operation.ui_event,
       form: operation.kind === 'command' && Object.values(node.submit.input).some(input => input.source === 'form'),
       ownPermissions: [...new Set(['storage:private', ...sandboxOperationPermissions(effects)])], capabilities: [...(effects.capabilities ?? [])] };
     return [[node.id, binding] as const];
@@ -84,7 +86,7 @@ export function installedComponentSubmit(definition: PluginDefinition, scope: Ac
     let call: ReturnType<typeof resolvePluginComponentCall>;
     try { call = resolvePluginComponentCall(binding.node, 'submit', payload); }
     catch (error) { throw new ActionError('actions.input_invalid', error instanceof Error ? error.message : '组件提交无效'); }
-    return { ...call, reference: binding.action, ownPermissions: binding.ownPermissions, ...retain(binding) };
+    return { ...call, reference: binding.action, uiEvent: binding.uiEvent, ownPermissions: binding.ownPermissions, ...retain(binding) };
   };
   return Object.assign(submit, { form(componentId: string, target: { capability_id: string; version: number }) {
     const binding = source.bindings.get(componentId);
@@ -140,7 +142,7 @@ export function registerInstalledActions(definition: PluginDefinition, contribut
     const grants = dualBound ? dualBound.effectiveGrants() : record.grants;
     return operationGrantAvailability(release.design.contract, id, grants)
       ?? registration.handlers.find(item => item.capability_id === exposedActionId(release, id))?.availability?.(caller) ?? { available: true };
-  });
+  }, registration);
   const publish = () => { resolved = true; };
   // A disabled project package is still under its enable request. Ordinary starts, including a regrant's
   // start from installed, complete when their live catalog policies have been restored as usual.

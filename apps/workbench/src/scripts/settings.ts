@@ -118,7 +118,37 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   })();
 `;
 
-export const SETTINGS_CLIENT_SCRIPT = SKILL_SETTINGS_CLIENT_SCRIPT + KIT_SETTINGS_LOADER_SCRIPT + CHARACTERS_SETTINGS_LOADER_SCRIPT + MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT + WEB_SEARCH_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + SETTINGS_RUNNING_CLIENT_SCRIPT + `
+const PLUGIN_SETTINGS_EDITOR = `
+document.addEventListener('submit', async event => {
+  const form = event.target.closest?.('[data-plugin-setting-editor]');
+  if (!form || event.defaultPrevented) return;
+  event.preventDefault();
+  const row = form.closest('[data-plugin-setting-key]'), section = form.closest('[data-dynamic-plugin-settings]');
+  const field = form.elements.namedItem('value'), button = form.querySelector('[type=submit]'), output = form.querySelector('output');
+  if (button.disabled) return;
+  const identity = section.dataset;
+  button.disabled = true;
+  try {
+    const value = field.type === 'checkbox' ? field.checked : field.dataset.format === 'json' ? JSON.parse(field.value) : field.value;
+    const result = await molisWorkRequest('/api/settings/plugin-entries/write', { body: {
+      plugin_id: identity.dynamicPluginSettings, project_id: identity.dynamicPluginProject || null,
+      scope: identity.pluginScope, plugin_install_id: identity.pluginInstallId, installation_generation: identity.installationGeneration,
+      manifest_digest: identity.manifestDigest, key: row.dataset.pluginSettingKey, layer: row.dataset.pluginSettingLayer,
+      expected_revision: row.dataset.pluginSettingRevision, change: { set: value }, request_id: crypto.randomUUID()
+    } });
+    const saved = result.values.find(item => item.key === row.dataset.pluginSettingKey);
+    if (!saved || saved.state !== 'ok') throw Error(saved?.reason || globalThis.t.text('workbench.settings.plugin-value-unavailable'));
+    row.dataset.pluginSettingRevision = saved.layer_revisions?.[row.dataset.pluginSettingLayer] || saved.revision;
+    if (field.type === 'checkbox') field.checked = saved.value === true;
+    else field.value = field.dataset.format === 'json' ? JSON.stringify(saved.value) : saved.value;
+    output.textContent = globalThis.t.text('workbench.settings.plugin-value-saved');
+  } catch(error) {
+    output.textContent = error instanceof SyntaxError ? globalThis.t.text('workbench.settings.plugin-value-invalid') : String(error.message || error);
+  } finally { button.disabled = false; }
+});
+`;
+
+export const SETTINGS_CLIENT_SCRIPT = PLUGIN_SETTINGS_EDITOR + SKILL_SETTINGS_CLIENT_SCRIPT + KIT_SETTINGS_LOADER_SCRIPT + CHARACTERS_SETTINGS_LOADER_SCRIPT + MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT + WEB_SEARCH_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + SETTINGS_RUNNING_CLIENT_SCRIPT + `
 ` + pluginSettingsClients() + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + SYNC_SETTINGS_CLIENT_SCRIPT + WORK_RECORDS_SETTINGS_LOADER_SCRIPT + SETTINGS_VIEW_HEIGHT_CLIENT_SCRIPT;
 
 

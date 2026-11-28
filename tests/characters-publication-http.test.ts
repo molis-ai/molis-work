@@ -102,7 +102,7 @@ test("ROLE-01 ROLE-04 ROLE-07 ROLE-08 roles are saved, added to a project, froze
 
 test("Character manager client parses and its server-rendered route is escaped", () => {
   // RAC-69: the bundled client parses, and registers the surface's factory with the workbench's deferred loader (CHR-1).
-  const client = platformSurfaceClientScript("/assets/molis-work-plugins/characters.js");
+  const client = platformSurfaceClientScript("/assets/platform/characters.js");
   assert.doesNotThrow(() => new Function(client)); assert.match(client, /molisWorkbenchPluginFactories/);
   const html = renderCharacters({ route_prefix: '/projects/"<script>', primitives: { escape: value => escapeHtml(String(value)) } });
   assert.ok(!html.includes('/projects/"<script>'));

@@ -36,6 +36,8 @@ const ROUTES: readonly CharacterRoute[] = [
   { method: "GET", path: /^\/drafts\/([^/]+)\/runs$/u, action: a.runs, input: (_body, id) => ({ id }) },
   { method: "POST", path: /^\/drafts$/u, action: a.create, input: body => ({ title: body().title, instructions: body().instructions, host_tools: body().host_tools,
     ...(body().action_tools === undefined ? {} : { action_tools: body().action_tools }) }) },
+  { method: "GET", path: /^\/roles\/templates$/u, action: a.signedTemplates, input: () => ({}) },
+  { method: "POST", path: /^\/roles\/templates\/adopt$/u, action: a.adoptSigned, input: body => body() },
   // The roles (role-service-design §3, §6): one catalog read, versions, this project's members, defaults and restoring a version.
   { method: "GET", path: /^\/roles$/u, action: a.rolesList, input: () => ({}) },
   { method: "POST", path: /^\/roles\/versions$/u, action: a.versions, input: body => ({ role: body().role }) },

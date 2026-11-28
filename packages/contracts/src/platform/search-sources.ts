@@ -43,11 +43,11 @@ export interface SearchEntriesPage {
   collection_revision: string;
 }
 
-const token = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" };
+export const SEARCH_SURFACE_SCHEMA = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)*$" } as const;
 const id = { type: "string", minLength: 1 };
 const text = (maxLength: number) => ({ type: "string", maxLength });
 const nullableText = { type: ["string", "null"] } as const;
-export const SEARCH_OPEN_TARGET_SCHEMA = { type: "object", properties: { surface: token, id }, required: ["surface", "id"], additionalProperties: false };
+export const SEARCH_OPEN_TARGET_SCHEMA = { type: "object", properties: { surface: SEARCH_SURFACE_SCHEMA, id }, required: ["surface", "id"], additionalProperties: false };
 const open = { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] };
 export const SEARCH_ENTRIES_INPUT_SCHEMA = { type: "object", properties: { cursor: nullableText, limit: { type: "integer", minimum: 1, maximum: SEARCH_ENTRIES_PAGE_LIMIT } },
   required: ["cursor", "limit"], additionalProperties: false } as const;

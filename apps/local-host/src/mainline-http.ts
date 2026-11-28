@@ -130,7 +130,8 @@ async function handleReceiveRoutes(request: IncomingMessage, response: ServerRes
         const shelfTitle = shelfManifest?.name_text !== undefined
           ? resolveManifestText(shelfManifest.plugin_id, shelfManifest.name, shelfManifest.name_text, manifestWordResolver(registeredBuiltinText(shelfManifest)))
           : readWorkbenchText("workbench.work-line.shelf");
-        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shelfTitle, icon: "bookmark" }, ...stations.values()] } };
+        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shelfTitle,
+          ...(shelfManifest?.name_text && { title_text: { owner: shelfManifest.plugin_id, ...shelfManifest.name_text } }), icon: "bookmark" }, ...stations.values()] } };
       }
       const input = body as Record<string, unknown>;
       const title = typeof input.title === "string" ? input.title.slice(0, 200) : "", text = typeof input.text === "string" ? input.text : "";

@@ -1,7 +1,7 @@
 import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServices, SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
-import { sandboxedPluginDefinition } from './installed-plugin-sandbox-definition.js';
+import { sandboxedPluginDefinition, type SandboxedPluginHost } from './installed-plugin-sandbox-definition.js';
 import type { CatalogCapability } from './installed-plugin-catalog.js';
 import type { InstalledRelease } from './installed-release.js';
 import { covered } from './installed-plugin-lifecycle.js';
@@ -13,6 +13,7 @@ import { lastUsedLocale } from './ui-locale-memory.js';
 export interface InstalledDefinitionPorts {
   /** The already selected Home, not a value supplied by the package. */
   readonly home: string;
+  source?: SandboxedPluginHost['source'];
   catalog(): Promise<CatalogCapability[]>;
   callCatalog?(context: SandboxServiceContext): Promise<CatalogCapability[]>;
   capabilityFor(live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']>;
@@ -53,7 +54,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
       const sandbox = sandboxedPluginDefinition(release, release.permissions, release.packaged.manifest, {
-        capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled, grantedCapabilities: ports.grantedCapabilities,
+        source: ports.source, capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled, grantedCapabilities: ports.grantedCapabilities,
         backgroundLocale: () => lastUsedLocale(ports.home),
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },

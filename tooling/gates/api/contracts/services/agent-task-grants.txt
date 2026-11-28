@@ -13,6 +13,7 @@ export interface TaskGrantCategory extends TaskGrantCategoryReference {
 export interface TaskGrantCategoryReference {
     provider_id: string;
     group_id?: string;
+    installation?: string;
 }
 
 export interface TaskGrantCategoryState extends TaskGrantCategory {

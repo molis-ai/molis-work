@@ -418,12 +418,14 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   const card = `${coding} [data-coding-question][data-ix-question]`, field = `${card} [data-ix-field="t1"] input`, turns = `${coding} [data-coding-turns]`;
   // A short window, so the thread scrolls and there is something above the card to read back.
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 640, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await evaluate(`(() => { window.__reads = 0; const original = window.fetch; window.fetch = (...args) => { if (String(args[0]).includes('?window=')) window.__reads++; return original(...args); }; })()`);
   await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
-  // As the person pressing into the field: Chrome 158 ignores a plugin frame's focus() without a user gesture.
-  await evaluate(`(() => { window.__card = document.querySelector(${JSON.stringify(card)}); document.querySelector(${JSON.stringify(field)}).focus(); })()`, undefined, "person");
+  await waitFor(`document.querySelector(${JSON.stringify(card)})?.dataset.answerable === 'true' && document.querySelector(${JSON.stringify(field)})?.matches(':enabled')`);
+  await click(field);
+  await waitFor(`document.hasFocus() && document.activeElement === document.querySelector(${JSON.stringify(field)})`);
+  await evaluate(`window.__card = document.querySelector(${JSON.stringify(card)}); true`);
   await command("Input.insertText", { text: "写到一半的话" }, sessionId);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(field)}).value`), "写到一半的话", "the typed text reached the question before polling");
   await evaluate(`document.querySelector(${JSON.stringify(field)}).setSelectionRange(3, 3)`);
   // Scrolled up with the wheel, as a person reading back does.
   const lane = await evaluate<{ x: number; y: number; room: number }>(`(() => { const node = document.querySelector(${JSON.stringify(turns)}), r = node.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, room: node.scrollHeight - node.clientHeight }; })()`);
@@ -434,11 +436,16 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   const position = `(() => { const node = document.querySelector(${JSON.stringify(turns)}); return { top: Math.round(node.scrollTop), latest: node.scrollHeight - node.clientHeight - node.scrollTop < 8 }; })()`;
   const before = await evaluate<{ top: number; latest: boolean }>(position);
   assert.equal(before.latest, false, "the person has scrolled up from the latest");
-  const reads = await evaluate<number>("window.__reads");
-  await waitFor(`window.__reads >= ${reads + 3}`, 20_000);
-  await new Promise(resolve => setTimeout(resolve, 300));
+  // adoptRuns writes this label only after a successful read of the still-current session.
+  await evaluate(`(() => {
+    const label = document.querySelector(${JSON.stringify(coding + " [data-coding-results-label]")});
+    window.__reads = 0;
+    const observer = new MutationObserver(() => { if (++window.__reads === 3) observer.disconnect(); });
+    observer.observe(label, { childList: true });
+  })()`);
+  await waitFor("window.__reads >= 3", 20_000);
   const after = await evaluate<{ same: boolean; value: string; caret: number[]; focused: boolean }>(`(() => { const input = document.querySelector(${JSON.stringify(field)});
-    return { same: document.querySelector(${JSON.stringify(card)}) === window.__card, value: input.value, caret: [input.selectionStart, input.selectionEnd], focused: document.activeElement === input }; })()`);
+    return { same: document.querySelector(${JSON.stringify(card)}) === window.__card, value: input.value, caret: [input.selectionStart, input.selectionEnd], focused: document.hasFocus() && document.activeElement === input }; })()`);
   assert.deepEqual(after, { same: true, value: "写到一半的话", caret: [3, 3], focused: true }, "three reads later the card is the same node, with the words, the caret and focus where they were");
   assert.deepEqual(await evaluate(position), before, "and the thread is where the person scrolled it");
   // VUX-26 reading anchor: a read that rewrites an earlier turn above the view (longer now) leaves what the person is reading

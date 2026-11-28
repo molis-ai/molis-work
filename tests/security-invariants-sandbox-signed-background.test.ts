@@ -151,6 +151,17 @@ test('RAC2873 static package reconstruction rejects invalid local metadata and a
   assert.equal(r.read('SELECT * FROM results').length,0);
 });
 
+test('PSD-03 S-48 the Home half declines a project-only background target before accepting an execution', mac, async t => {
+  const rig = await backgroundRig(t), observed = observeBackground(t);
+  await rig.h.install(signedBackgroundPackage(newPublisher(), { projectWorker: true }));
+  await rig.approve();
+  await assert.rejects(rig.launch('project-only', 'fast', rig.caller(), { target: 'job.release', bad_input: { job_id: 'project-only' } }), /not a command of this package/u);
+  assert.deepEqual(observed.results, []);
+  assert.deepEqual(observed.controls, []);
+  assert.deepEqual(observed.targetStarts, []);
+  assert.equal((await rig.status('project-only')).last_state, 'pending');
+});
+
 test('RAC2872 a real native dependency permission is part of the launcher, same-cost provider replacement revokes its old authority, and unrelated operations retain theirs',mac,async t=>{
   const dep=dependency();t.after(()=>dep.release.resolve());const r=await backgroundRig(t,{dependencies:[dep.definition]});
   const pkg=signedBackgroundPackage(newPublisher(),{dependency:true}),signedManifest=JSON.stringify(pkg.payload.manifest);

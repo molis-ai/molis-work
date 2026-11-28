@@ -190,6 +190,7 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
     models: async () => serverOptions.homeDirectory ? configuredModelChoices(serverOptions.homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID,
     actions: pluginServices.actions,
     homeActions: { registry: localHost.actionRegistry(), client: localHost.homeActionClient(), inspect: caller => localHost.inspectActions(caller), project_id: null },
+    homeInstallation: id => localHost.homePlugins?.installation(id),
     homeInstallations: async () => {
       const home = localHost.homePlugins;
       if (!home) return [];

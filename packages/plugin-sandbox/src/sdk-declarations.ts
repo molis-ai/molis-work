@@ -15,6 +15,8 @@ export const SANDBOX_SDK_CONTRACT_DECLARATIONS = Object.freeze([
   'services/conversation-attachments.d.ts',
   'platform/intake-start.d.ts',
   'services/trusted-review-row.d.ts',
+  'platform/plugin-integrations.d.ts',
+  'platform/plugin-role-protocols.d.ts',
   'platform/placement-relation.d.ts',
   'platform/setting-entry.d.ts',
 ] as const);

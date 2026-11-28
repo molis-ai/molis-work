@@ -1,6 +1,8 @@
 # 特殊逻辑平民化：特殊插件收归平台、平台特例收成公开声明（Platform Specials Demotion）
 
-状态：44B-0 已随 [#2262](https://github.com/molis-ai/molis-work/pull/2262) 合入（`de25e3090d`）。44B-1/2 由 Claude（本机）「44B｜主会话」承接，删除旧 Alchemist（[#2279](https://github.com/molis-ai/molis-work/pull/2279)，`ae9f8948c7`）、Shelf 平台化与官方集成驱动化（[#2294](https://github.com/molis-ai/molis-work/pull/2294)）均已合入，独立复核修复已随 [#2308](https://github.com/molis-ai/molis-work/pull/2308) 合入；同步衔接 #2260 已合入；余项收尾 [第 44C 批](../post-anticorruption-roadmap/reference/batches/44c.md)已随 [#2333](https://github.com/molis-ai/molis-work/pull/2333)（`56a094ec0e`，2026-11-26）合入：PSD-04a、PSD-08 达成；PSD-07 工程过（`visual:compare` 无意外差异），界面待你看实物；部分达成的有 PSD-02（具名例外名单已立，另有三种例外待你定）、PSD-01（逐一拔掉后的桌面壳、同步与备份没测）、PSD-03（签名沙箱包还不能申报 M2/M4/M6/M9/M12/M13）与 PSD-06（真机 macOS 热键、拖放与剪贴板待你验收），见批次文件。见[认领板](https://github.com/molis-ai/molis-work/issues/1743)、[44B](../post-anticorruption-roadmap/reference/batches/44b.md)、[44C](../post-anticorruption-roadmap/reference/batches/44c.md)与[实施总纲](implementation-plan.md)。
+状态：第 44C 批正在复验。2026-11-26 合入的首轮交付及当时仍缺的项目见[原实施记录](../post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-record)。独立复核后，整改候选已补单包九项、逐一拔除后的冷启与同步恢复、驱动故障隔离和三语置物架投递。原生交互、实物签收与云端结果按候选提交验收。[整改记录](../post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-remediation) · [整改 PR](https://github.com/molis-ai/molis-work/pull/2354)
+
+44B-0 随 #2262 合入，旧 Alchemist 随 #2279 删除，Shelf 与官方集成随 #2294 迁移，独立复核修复随 #2308 合入。44C 首轮合入提交为 `56a094ec0e`。截至 2026-11-27，个人同步全组合与附件回归的 PR 仍在审。[44B 移交](../post-anticorruption-roadmap/reference/batches/44b.md) · [44C 首轮 PR](https://github.com/molis-ai/molis-work/pull/2333) · [同步 PR](https://github.com/molis-ai/molis-work/pull/2260) · [认领板](https://github.com/molis-ai/molis-work/issues/1743) · [实施总纲](implementation-plan.md)
 
 需求维护：Claude / Antigravity；实现：Claude（本机）「44B｜主会话」。类型：底层与架构（主）、横向能力、产品线（Shelf、Feed、Inbox、Goals、Coding、Alchemist、官方集成）。前身：[插件同等地位收口](../plugin-equal-standing/spec.md)（第 44 批，及在途复核清扫 [#2258](https://github.com/molis-ai/molis-work/pull/2258)）；本需求把范围扩到**全仓所有特殊地位与特例接线**，并彻底清零插件形态特例。
 
@@ -86,6 +88,32 @@
 | E5 | **本机工具与受限 VCS 只给宿主信任** | `local_tools` 与受限 argv-only `git` 执行按**信任级别**拒绝非宿主包 | 本机抽字、OCR、剪贴板与 `git` 子进程是安全边界（`S-git-plugin-command-scope`、`docs/system/SECURITY-INVARIANTS.md`），按信任级别区分，不按插件名 | 不按插件 id 放行 |
 
 整套常开插件机制（`always-on-plugins.ts`、`always-on-rules.ts`、同意种类 `always_on`、外壳读取）在 `44B` 随 Shelf 收归纯平台彻底删除。
+
+### 2026-11-26 整改决定
+
+一骏在 44C 整改会话批准以下五个文件使用 Prologue 公开工具名，G1 继续计数。此前获准读取历史记忆键的第六项已随决定 69 删除。
+
+- `apps/local-host/src/agent-host-composition.ts`
+- `horizontal/agent-host/src/adapters/prologue-node-kit.ts`
+- `horizontal/agent-host/src/code-intelligence/coding-tools.ts`
+- `horizontal/agent-host/src/code-intelligence/index.ts`
+- `horizontal/agent-host/src/tool-catalog.ts`
+
+2026-11-26，一骏确认 PSD-03 用同一固定公钥签名的应用包。一次确认安装后，Home 实例登记个人来源，项目实例提供本项目的页面和动作。停一个项目只撤该项目，停整份安装一并撤下来源及各项目实例。M13 的通用审查种类登记、工具绑定与声明式卡片渲染提前到 44C，本地实现供 109-2 接入。签名样例须在助理中实际发起、显示和处理自己的审查，按发起安装复核并送达结果。109-2 负责 Git 接入及 V9／V10，109-3 负责统一装配。M9 由同包声明场景及默认选项，在 Functions 实际采用。M6 的框内动作只向对应挂载点发送声明事件。
+
+双实例包的普通操作若标明 `project_instance: true`，只有项目实例可在页面连接、读取或交给后台执行。Home 页面不连接该操作，宿主在接受后台任务前核对实例范围。未指定实例、使用两侧共用服务的组件读取在各自实例内继续可用。
+
+PSD-04a 经一骏于 2026-11-26 确认。创作台作者可以在草稿中单独写角色名称、用途和正文。发布器将该正文按现有签名 app 的 `agent` 材料格式装入发行包。安装后在 Characters 展示可采用的模板，用户明确采用后才创建本项目的角色。角色模板由作者选填；插件的助理场景指引、动作和授权继续按各自声明生效。验收以真实发布包签名验证、安装、框内页面、HTTP 动作、目录与 Characters 逐字读回为据。
+
+### 决定 69 生效后的草稿
+
+创作台在干净 Home 中直接写当前 v1 草稿。配图记录随任务保存实际安装、代次、项目和连接，重启后读取同一来源。跨 Home 同步保留方案，接收方重新选择本机连接生成图片。作者单独编写的角色正文随签名包发布。验证从新建草稿开始，覆盖重启、换版或撤权后的读取、两台设备同步和 Characters 采用。开发期不转换旧草稿。11 月 26 日的 v2 与旧 Home 回放记录按当时受检版本保存。[决定 69](../post-anticorruption-roadmap/reference/decisions.md#decision-69)
+
+配图显示沿用 S-03 的内联位图范围。宿主按实际字节识别 PNG、JPEG、WebP，并核对提供方声明；内容无法识别或声明不符时，沿用“效果图读取失败”，方案仍可打开。角色列表每次读取同一份安装与签名者快照；采用和交给助理时，在提交前复查所选安装的发行代次与签名者。
+
+### 整轮回归的复验条件
+
+复验使用正常安装、授权与真实输入。AC-10-6 在框内点入可编辑的问答栏，写入文字并移动光标，后台读回三次后核对原节点、文字、光标和滚动位置。W5-10-PGK-02/03 在当前编辑器内核对浏览器原生选区、编辑器选区和跨块操作。UPP-32 先确认三个项目已经登记提醒、关闭且实例休眠，再让两条提醒到期，核对只启动各自所在项目的插件。PCSYNC-OPT-07 按下载批次计量，核对峰值、每项完成及依赖顺序。ASC-70 在真实项目 Images 页面缺少密钥时弹出连接卡，取消后保留输入。APR-12 查看一个项目的授权时，只从该项目读本次需要的动作名称，其他关闭的项目继续休眠。同步和 MCP 的复验均包含实际读回。
 
 ## 4. 盘点二：平台代码里的特例分支（按层）
 
@@ -264,7 +292,7 @@
 - **PSD-04a**（命名放开，V16）：固定公钥第三方包以 `com.example.notes` 安装、创作台生成插件以 `studio.<编号>` 安装均成功，页面与调用路由不 404；SDK 校验接受通用反向域名。
 - **PSD-04**（冒名前缀）：非宿主包以任意 `io.molis.work.*`（含 `characters`、`assistant`、`shelf`、`artifacts`）安装被拒，`plugin.id_namespace_conflict`（`S-reserved-host-prefix`）。
 - **PSD-05**（Clean v1 基线）：D5 改名拍平后，重生 `0.1.0` 金样回放通过，证据、拉取游标、「等你」条目与 `system.shelf` 数据全部正常；`better-sqlite3` 与 Alchemist 豁免清零。
-- **PSD-06**（纯平台 Shelf 与桌面壳）：Shelf 经 `/api/platform/shelf` 与 `HostSurfaceRegistration` 运行，热键、拖放、轮盘、剪贴板在真实 macOS 上照常；`always_on` 机制与 `plugins/native/shelf` 完全删除。
+- **PSD-06**（纯平台 Shelf 与桌面壳）：Shelf 经 `/api/platform/shelf` 与 `HostSurfaceRegistration` 运行，热键、拖放、轮盘、剪贴板在真实 macOS 上照常。应在打开的工作台侧栏选中已入架文件，通过复制按钮或 ⌘C 复制，再到 Finder 的空文件夹粘贴，核对文件名和正文。`always_on` 机制与 `plugins/native/shelf` 完全删除。
 - **PSD-07**（界面）：共用样式泛化（消费 `#2258`）与外壳收口后，`pnpm visual:compare` 无意外差异；中英、深浅、三宽度。
 - **PSD-08**（连接器驱动与系统技能）：`youtube` 收编进 `rss`、`planning-methods` 迁入 `packages/system-skills/`，宿主零厂商/CLI 分支，现有连接器与技能设置回归全绿。
 

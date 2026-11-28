@@ -44,6 +44,10 @@ const selectText = (b: Browser, text: string, offset = 0, length = 0) => b.evalu
 })()`);
 const modKey = (b: Browser) => b.evaluate<number>("/Mac|iP(hone|[oa]d)/.test(navigator.platform)?4:2");
 async function group(b: Browser) {
+  // Start the native range in the editor that actually received the person's click.
+  await b.click("#keyboard-fixture .ProseMirror p");
+  await b.evaluate("window.MolisWorkPagesEditor.focusStart(keyEditor)");
+  await b.waitFor("document.hasFocus() && keyEditor.view.hasFocus() && getSelection()?.anchorNode === keyEditor.view.dom.querySelector('p').firstChild && getSelection().anchorOffset === 0");
   await key(b, "ArrowDown", "ArrowDown", 40, 8);
   await b.waitFor("!keyEditor.view.state.selection.empty");
   await key(b, "ArrowDown", "ArrowDown", 40, 8);

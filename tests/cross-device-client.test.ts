@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createContext, runInContext } from 'node:vm';
 
 const source=readFileSync(new URL('../server/public/client.js',import.meta.url),'utf8');
-const projection={project:{id:'a',title:'Private project',role:'owner'},goals:[{goal_id:'goal',title:'Private goal',summary:'Confidential progress',status:'open',can_record:true}],artifacts:[],members:[]};
+const projection={project:{id:'a',title:'Private project',role:'owner'},items:[{item_id:'goal',title:'Private goal',summary:'Confidential progress',status:'open',can_record:true}],artifacts:[],members:[]};
 const response=(body:unknown,status=200)=>({ok:status===200,status,json:async()=>body});
 async function client(){
   const elements=new Map<string,any>();
@@ -34,7 +34,7 @@ test('late project and save responses cannot restore private content after logou
   const c=await client();
   let finish!:(value:unknown)=>void;c.fetch(()=>new Promise(resolve=>finish=resolve));
   const loading=c.run("loadProject('a')");c.run('clearPrivate()');finish(response(projection));await loading;
-  assert.equal(c.element('workspace').hidden,true);assert.equal(c.element('goals').innerHTML,'');
+  assert.equal(c.element('workspace').hidden,true);assert.equal(c.element('items').innerHTML,'');
   c.run("session={member:{id:'member',display_name:'Member'}};savePending([{command_id:'command',project_id:'a'}])");
   const saving=c.run("send({command_id:'command',project_id:'a'})");c.run('clearPrivate()');finish(response({saved:true}));await saving;
   assert.equal(c.element('workspace').hidden,true);assert.equal(c.localStorage['molis-continuity:member'],undefined);
@@ -55,5 +55,5 @@ test('SSE reconnect denial clears private state; an ordinary network failure ret
   c.fetch(async()=>{throw Error('offline');});await c.streams[0].fire('error');
   assert.equal(c.element('workspace').hidden,false);assert.match(c.localStorage['molis-continuity:member'],/Unsent/);
   c.fetch(async()=>response({error:'Access revoked'},403));await c.streams[0].fire('error');
-  assert.equal(c.element('workspace').hidden,true);assert.equal(c.element('goals').innerHTML,'');assert.equal(c.localStorage['molis-continuity:member'],undefined);assert.equal(c.streams[0].closed,true);
+  assert.equal(c.element('workspace').hidden,true);assert.equal(c.element('items').innerHTML,'');assert.equal(c.localStorage['molis-continuity:member'],undefined);assert.equal(c.streams[0].closed,true);
 });

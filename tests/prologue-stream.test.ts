@@ -622,3 +622,35 @@ test("terminal phases refuse late resurrecting events, circuit-tripped closes pe
   assert.equal(settleProloguePending(mixed, "appr-1"), true);
   assert.equal(mixed.phase, "running");
 });
+
+test("PRL-14: mergeUsage preserves promptIncludesCache across partial usage snapshots and prefers receipt flag over state default", () => {
+  const state = emptyPrologueStreamState();
+  state.prompt_includes_cache = false;
+  const first: PrologueUsageReceipt = {
+    input: { source: "reported", tokens: 1200 },
+    output: { source: "unknown", tokens: undefined },
+    cacheRead: { source: "reported", tokens: 800 },
+    cacheWrite: { source: "reported", tokens: 100 },
+    cost: { source: "unknown", amount: undefined, currency: undefined },
+    promptIncludesCache: true,
+  };
+  const delta: PrologueUsageReceipt = {
+    input: { source: "unknown", tokens: undefined },
+    output: { source: "reported", tokens: 250 },
+    cacheRead: { source: "unknown", tokens: undefined },
+    cacheWrite: { source: "unknown", tokens: undefined },
+    cost: { source: "unknown", amount: undefined, currency: undefined },
+  };
+  apply(state, { type: "usage", receipt: first }, { type: "usage", receipt: delta });
+  assert.equal(state.usage_preview?.promptIncludesCache, true);
+  assert.equal(state.usage.context?.tokens, 1200, "receipt promptIncludesCache=true prevents double-counting cacheRead/cacheWrite even when state default is false");
+
+  const overrideFalse = emptyPrologueStreamState();
+  overrideFalse.prompt_includes_cache = true;
+  apply(overrideFalse, {
+    type: "usage-recorded",
+    callId: "anthropic-style",
+    receipt: { ...first, promptIncludesCache: false },
+  });
+  assert.equal(overrideFalse.usage.context?.tokens, 2100, "receipt promptIncludesCache=false includes cacheRead and cacheWrite even when state default is true");
+});

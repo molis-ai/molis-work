@@ -14,7 +14,7 @@ export const COMMON_ACTION_FIELD_KEYS: Readonly<Record<string, string>> = {
   start_time: "common.action-field.start-time", end_time: "common.action-field.end-time", time_zone: "common.action-field.time-zone",
   starts_at: "common.action-field.starts-at", ends_at: "common.action-field.ends-at", remind_at: "common.action-field.remind-at",
   expected_revision: "common.action-field.expected-version", expected_version: "common.action-field.expected-version", id: "common.action-field.object",
-  item: "common.action-field.content", markdown: "common.action-field.body", folder_id: "common.action-field.folder", goal_id: "common.action-field.goal",
+  item: "common.action-field.content", markdown: "common.action-field.body", folder_id: "common.action-field.folder",
   project_id: "common.action-field.project", starred: "common.action-field.starred",
 };
 
@@ -27,7 +27,7 @@ const COMMON_FIELD_LABELS: Readonly<Record<string, string>> = {
   kind: "类型", type: "类型", status: "状态", priority: "优先级", category_id: "分类", tags: "标签", url: "链接",
   date: "日期", start_date: "开始日期", end_date: "结束日期", due_date: "截止日期", start_time: "开始时间", end_time: "结束时间", time_zone: "时区",
   starts_at: "开始时间", ends_at: "结束时间", remind_at: "提醒时间", expected_revision: "基于的版本", expected_version: "基于的版本", id: "对象", item: "内容",
-  markdown: "正文", folder_id: "文件夹", goal_id: "目标", project_id: "项目", starred: "加星标",
+  markdown: "正文", folder_id: "文件夹", project_id: "项目", starred: "加星标",
 };
 
 /** The stable `common.action-field.*` key for a common schema field name, or `undefined` when it is not a common field. */

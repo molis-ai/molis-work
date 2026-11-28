@@ -36,8 +36,9 @@ test("a day or a moment is picked: the standard formats, through a nullable wrap
 });
 
 test("action field labels, booleans and list joiners localize via readText while preserving defaultKey and fallback", () => {
-  assert.equal(Object.keys(COMMON_ACTION_FIELD_KEYS).length, 35);
-  assert.equal(new Set(Object.values(COMMON_ACTION_FIELD_KEYS)).size, 29);
+  assert.equal(Object.keys(COMMON_ACTION_FIELD_KEYS).length, 34);
+  assert.equal(new Set(Object.values(COMMON_ACTION_FIELD_KEYS)).size, 28);
+  assert.equal(actionFieldLabelKey("goal_id"), undefined);
   assert.equal(actionFieldLabelKey("due_date"), "common.action-field.due-date");
   assert.equal(actionFieldLabelKey("expected_revision"), "common.action-field.expected-version");
   assert.equal(actionFieldLabelKey("expected_version"), "common.action-field.expected-version");

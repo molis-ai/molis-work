@@ -6,7 +6,7 @@ import { createGitPlugin, GIT_CLIENT_FACTORY_SCRIPT, GIT_PROJECT_PLUGIN_ID, GIT_
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  project_plugin_id: GIT_PROJECT_PLUGIN_ID, catalog_order: 24,
+  project_plugin_id: GIT_PROJECT_PLUGIN_ID, catalog_order: 24, demo_seed: false,
   manifest: gitManifest,
   project_runtime: { create: createGitPlugin, package_name: "@molis-ai/molis-work-plugin-git", factory_export: "createGitPlugin" },
   workbench: { order: 22, contributions: [gitUiContribution], clientFactory: GIT_CLIENT_FACTORY_SCRIPT, stylesheet: GIT_STYLES, frameStyleFeatures: ["coding-basics", "coding-companions"] },

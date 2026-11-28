@@ -1,3 +1,4 @@
+import { builtinMailboxDrivers, mailboxDriver } from "./builtin-drivers.js";
 import {
   readHeldSecretMaterialInMemory,
   stagePreparedHeldSecretReference,
@@ -79,11 +80,11 @@ export function mergeSourceIncrementally(previous: ContextSource | undefined, ne
     }
   }
   const withDigests = Object.keys(mergedDigests).length ? { ...next, staged_digests: mergedDigests } : next;
-  const scope = (s: ContextSource) => JSON.stringify([s.path, s.files, s.text, s.url, s.connection_id, s.days, s.metadata?.files, s.excluded]);
+  const scope = (s: ContextSource) => JSON.stringify([s.path, s.files, s.text, s.url, s.service_id, s.connection_id, s.days, s.metadata?.files, s.excluded]);
   if (scope(previous) === scope(next)) {
     return { ...previous, ...withDigests };
   }
-  if (next.kind === "browser" || next.kind === "gmail" || (previous.path && next.path && previous.path !== next.path)) {
+  if (next.kind === "browser" || next.kind === "mail" || (previous.path && next.path && previous.path !== next.path)) {
     return withDigests;
   }
   const knownRefs = [
@@ -138,9 +139,11 @@ export function readScopePathTags(sources: readonly ContextSource[]): string[] {
   const out: string[] = [];
   for (const s of sources) {
     if (!s.selected) continue;
-    if (s.kind === "gmail") {
+    if (s.kind === "mail") {
       if (s.connection_id || s.references?.length || s.issues?.length || s.held_secrets?.length) {
-        out.push(`gmail:Gmail（最近 ${s.days === 7 ? 7 : 30} 天）`);
+        const driver = (s.service_id ? mailboxDriver(s.service_id) : undefined) ?? builtinMailboxDrivers()[0];
+        const label = driver?.title ?? s.service_id ?? "邮箱";
+        out.push(`mail:${label}（最近 ${s.days === 7 ? 7 : 30} 天）`);
       }
     } else if (s.kind === "browser") {
       if (s.text?.trim() || s.references?.length) {

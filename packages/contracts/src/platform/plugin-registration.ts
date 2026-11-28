@@ -167,6 +167,16 @@ export interface PluginRegistration {
   readonly manifest: PluginManifest;
   /** Product setup choice for new projects; stored as ordinary membership and freely removable afterwards. */
   readonly default_enabled?: true;
+  /** Product setup choice for the demo project: set `false` when the plugin has no seeded demo content to show yet. */
+  readonly demo_seed?: false;
+  /**
+   * Optional subject kinds and recommendation options this built-in plugin contributes to the Home dock's default judgment rule
+   * (`home.dock`), so the Home scene composes its default rule declaratively without naming any plugin's subject kinds or option keys.
+   */
+  readonly home_dock_default?: {
+    readonly subject_kinds: readonly string[];
+    readonly options: readonly { readonly key: string; readonly description: string }[];
+  };
   /**
    * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
    * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;

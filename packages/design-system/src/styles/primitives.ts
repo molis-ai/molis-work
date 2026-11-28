@@ -27,19 +27,6 @@ const PRIMITIVE_SHELL_EXTRAS = `
   ${ON_DEMAND_HELP_SHELL_STYLES}
   .mw-menu--context { min-width: 220px; }
   .mw-card--tile { border: 0; background: transparent; box-shadow: none; overflow: visible; width: auto; display: block; }
-  :is(.characters-location, .artifact-raw) {
-    > summary:not(:has(svg)) {
-      display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;
-      &::-webkit-details-marker { display: none; }
-      &::before {
-        content: ""; flex: none; width: 12px; height: 12px; background-color: currentColor; opacity: .72;
-        --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 12px 12px no-repeat; -webkit-mask: var(--chevron); mask: var(--chevron);
-        transform: rotate(-90deg); transition: transform 250ms var(--ease-quint);
-      }
-    }
-    &[open] > summary:not(:has(svg))::before { transform: none; }
-  }
-  @media (prefers-reduced-motion: reduce) { :is(.characters-location, .artifact-raw) > summary::before { transition: none; } }
   /* The settings' return bar and a page's resume prompt (specs/draft-and-return §9): an alert with its answers under it, at any width. */
   .mw-return-bar > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-return-bar__actions, .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -147,7 +147,7 @@ test("Q-modules-server-02 (A5): GET /im/api/session rate-limits anonymous issuan
 
     // 3. Reconnecting with an existing session revokes existing.id and aborts in-flight continuity requests immediately.
     const owner = identity.createMember("Owner");
-    continuity.registerProject({ id: "p1", title: "P1", goal_ids: ["g1"], artifacts: [] }, owner.id);
+    continuity.registerProject({ id: "p1", title: "P1", item_ids: ["g1"], artifacts: [] }, owner.id);
     const firstCode = identity.code("bootstrap", owner.id).code;
     const firstRes = await fetch(server.origin + "/continuity/api/connect", {
       method: "POST",

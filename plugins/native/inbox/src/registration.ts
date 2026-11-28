@@ -1,6 +1,6 @@
 import { INBOX_CLIENT_FACTORY_SCRIPT } from "./client.js";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { INBOX_PROJECT_PLUGIN_ID, INBOX_STYLES, createInboxPlugin, inboxManifest, inboxUiContribution } from "./index.js";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_PROJECT_PLUGIN_ID, INBOX_STYLES, createInboxPlugin, inboxManifest, inboxUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -9,6 +9,13 @@ import { INBOX_PROJECT_PLUGIN_ID, INBOX_STYLES, createInboxPlugin, inboxManifest
 export const registration: PluginRegistration = {
   project_plugin_id: INBOX_PROJECT_PLUGIN_ID, catalog_order: 8,
   manifest: inboxManifest,
+  home_dock_default: {
+    subject_kinds: ["inbox_entry"],
+    options: [
+      { key: INBOX_DONE_OPTION_ID, description: "做完了" },
+      { key: INBOX_DISMISS_OPTION_ID, description: "忽略" },
+    ],
+  },
   project_runtime: { create: createInboxPlugin, package_name: "@molis-ai/molis-work-plugin-inbox", factory_export: "createInboxPlugin" },
   workbench: {
     clientFactory: INBOX_CLIENT_FACTORY_SCRIPT, clientMounts: "surfaces",

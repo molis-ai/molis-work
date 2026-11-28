@@ -537,6 +537,8 @@ export declare class ActionError extends Error {
     readonly code: string;
     readonly kind?: ActionErrorKind;
     readonly details?: Readonly<Record<string, unknown>>;
+    readonly text_key?: string;
+    readonly text_args?: Readonly<Record<string, string | number>>;
     constructor(code: string, message: string, options?: ActionErrorOptions);
 }
 
@@ -545,7 +547,14 @@ export type ActionErrorKind = (typeof ACTION_ERROR_KIND_NAMES)[number];
 export interface ActionErrorOptions {
     readonly kind?: ActionErrorKind;
     readonly details?: Readonly<Record<string, unknown>>;
+    readonly text_key?: string;
+    readonly text_args?: Readonly<Record<string, string | number>>;
     readonly cause?: unknown;
+}
+
+export interface ActionErrorText {
+    readonly key: string;
+    readonly args?: Readonly<Record<string, string | number>>;
 }
 
 export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
@@ -636,6 +645,10 @@ export interface ActionMetadata {
         readonly input_type: string;
         readonly output_type: string;
     }[];
+    readonly input_subject?: {
+        readonly id: string;
+        readonly expected_revision?: string;
+    };
     readonly result_subject?: {
         readonly id: string;
         readonly revision?: string;
@@ -2552,7 +2565,7 @@ export interface DueReminderWindow {
 }
 
 export type ErrorCodeRaisers<Reasons extends Readonly<Record<string, ActionErrorKind>>> = {
-    readonly [Reason in keyof Reasons & string]: (message: string, details?: Readonly<Record<string, unknown>>) => ActionError;
+    readonly [Reason in keyof Reasons & string]: (message: string, details?: Readonly<Record<string, unknown>>, text?: ActionErrorText) => ActionError;
 };
 
 export type ExactActionReference = ActionReference & {
@@ -9064,6 +9077,8 @@ export declare function actionFieldOptions(declared?: unknown): Array<{
 }> | null;
 
 export declare function actionFieldValue(key: string, value: unknown, declared?: unknown, readText?: ActionFieldTextReader): string;
+
+export declare function actionInputRevision(action: Pick<ActionDefinition["action"], "input_subject">, input: unknown, expectedId: string): string | number | undefined;
 
 export declare function actionPermissionDeclarations(definitions: readonly ActionDefinition[], reason: string, declared?: readonly {
     readonly permission: string;

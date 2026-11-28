@@ -1,4 +1,5 @@
 import {
+  actionInputRevision,
   actionResultSubject,
   type ActionCallContext,
   type ActionClient,
@@ -142,9 +143,7 @@ export async function readRetryReceipts(clientFor: (caller: ActionCallContext) =
     const result = actionResultSubject(view.action, undefined, jsonEvidence(items, "result"));
     if (!result?.revision) continue;
     const input = jsonEvidence(items, "input");
-    const previousRevision = typeof input === "object" && input && "id" in input && input.id === result.subject.id
-      && "expected_revision" in input && (typeof input.expected_revision === "number" || typeof input.expected_revision === "string")
-      ? input.expected_revision : undefined;
+    const previousRevision = actionInputRevision(view.action, input, result.subject.id);
     receipts.set(record.record_id, { ...result.subject, revision: result.revision, previousRevision });
   }
   return receipts;

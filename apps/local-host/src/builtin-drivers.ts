@@ -94,6 +94,22 @@ export function integrationDriverDirectory(declared: readonly IntegrationDrivers
     }
     return Object.freeze(result);
   })();
+  const mailboxes = (() => {
+    const byService: Record<string, MailboxDriver> = {};
+    const ordered: MailboxDriver[] = [];
+    for (const drivers of [...declared].sort((a, b) => a.order - b.order)) {
+      if (!drivers.mailbox) continue;
+      if (Object.hasOwn(byService, drivers.mailbox.service)) {
+        throw new Error(`two integrations declare the mailbox driver of ${drivers.mailbox.service}`);
+      }
+      byService[drivers.mailbox.service] = drivers.mailbox;
+      ordered.push(drivers.mailbox);
+    }
+    return {
+      list: Object.freeze(ordered) as readonly MailboxDriver[],
+      byService: Object.freeze(byService) as Readonly<Record<string, MailboxDriver>>,
+    };
+  })();
   return {
     /** The integrations, in the order services are listed in. */
     integrations: (ports: IntegrationHostPorts): IntegrationDriverDefinition[] =>
@@ -123,8 +139,15 @@ export function integrationDriverDirectory(declared: readonly IntegrationDrivers
     localMcpServers: () => localMcpServers,
     /** The repository driver: reads one source of a published research library at a pinned revision (`services.sourcePull.repository`). */
     repository: single<RepositoryDriver>(drivers => drivers.repository, "repository driver"),
-    /** The mailbox driver onboarding reads recent mail through. */
-    mailbox: single<MailboxDriver>(drivers => drivers.mailbox, "mailbox driver"),
+    /** The mailbox drivers onboarding reads recent mail through, in declared order. */
+    mailboxes: (): readonly MailboxDriver[] => mailboxes.list,
+    /** One mailbox driver by service id, if an integration declares it. */
+    mailboxDriver: (service: string): MailboxDriver | undefined => Object.hasOwn(mailboxes.byService, service) ? mailboxes.byService[service] : undefined,
+    /** The default mailbox driver onboarding reads recent mail through. */
+    mailbox: (): MailboxDriver => {
+      if (!mailboxes.list.length) throw new Error("no integration declares a mailbox driver");
+      return mailboxes.list[0]!;
+    },
   };
 }
 
@@ -147,6 +170,8 @@ export const builtinLocalMcpServers = DIRECTORY.localMcpServers;
 export const builtinRepositoryReader = (): RepositoryDriver["read"] => DIRECTORY.repository().read;
 export const builtinConnectorMarks = DIRECTORY.marks;
 export const builtinMailboxDriver = DIRECTORY.mailbox;
+export const builtinMailboxDrivers = DIRECTORY.mailboxes;
+export const mailboxDriver = DIRECTORY.mailboxDriver;
 
 const own = <T>(table: Readonly<Record<string, T>>, service: string): T | undefined => Object.hasOwn(table, service) ? table[service] : undefined;
 /** How a service's account is read, if an integration declares it. */

@@ -55,7 +55,7 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
   let storage=openServerDatabase(join(directory,'server'));
   let identity=new Identity(storage.db),events=new ServerEvents(storage.db),service=new ContinuityService(storage.db,identity,events,factory);
   const owner=identity.createMember('桌面用户');
-  service.registerProject({id:projectId,title:'设备接续',goal_ids:[goalId],artifacts:[{artifact_id:'shared-artifact',version:2}]},owner.id);
+  service.registerProject({id:projectId,title:'设备接续',item_ids:[goalId],artifacts:[{artifact_id:'shared-artifact',version:2}]},owner.id);
   let running=await startServer({identity,events,continuity:service,port:0});
   const desktop=new Client(()=>running.origin),phone=new Client(()=>running.origin),member=new Client(()=>running.origin),viewer=new Client(()=>running.origin);
   const path=`/projects/${projectId}`;
@@ -68,19 +68,19 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     assert.equal((await phone.get('/session')).member.id,owner.id);
     assert.equal((await member.request('/continuity/api/connect',{code:pair.code,display_name:'冒用',device_label:'第三台'})).status,401);
     const first=await phone.get(path);
-    assert.equal(first.goals.length,1);assert.equal(first.goals[0].title,'完成真实接续');
+    assert.equal(first.items.length,1);assert.equal(first.items[0].title,'完成真实接续');
     assert.match(first.artifacts[0].content,/实际固定成果正文/);assert.doesNotMatch(JSON.stringify(first),/PRIVATE|never-export|database_path/);
-    const command={command_id:randomUUID(),project_id:projectId,goal_id:goalId,cursor:first.goals[0].cursor,summary:'手机已核对成果',next_step:'桌面继续验证',next_actor:'桌面用户'};
+    const command={command_id:randomUUID(),project_id:projectId,item_id:goalId,cursor:first.items[0].cursor,summary:'手机已核对成果',next_step:'桌面继续验证',next_actor:'桌面用户'};
     drop=true;
     assert.equal((await phone.request('/continuity/api'+path+'/progress',command)).status,503);
-    const committed=await desktop.get(path);assert.equal(committed.goals[0].summary,command.summary);
-    const committedCursor=committed.goals[0].cursor;
+    const committed=await desktop.get(path);assert.equal(committed.items[0].summary,command.summary);
+    const committedCursor=committed.items[0].cursor;
     await running.close();storage.close();await host.close();
     host=new MolisWorkLocalHost({homeDirectory:directory,completeText:null});
     storage=openServerDatabase(join(directory,'server'));identity=new Identity(storage.db);events=new ServerEvents(storage.db);service=new ContinuityService(storage.db,identity,events,factory);
     running=await startServer({identity,events,continuity:service,port:0});
     const replay=await phone.post(path+'/progress',command);assert.equal(replay.replayed,true);
-    assert.equal((await desktop.get(path)).goals[0].cursor,committedCursor,'restart and lost response must not duplicate a Goal event');
+    assert.equal((await desktop.get(path)).items[0].cursor,committedCursor,'restart and lost response must not duplicate a Goal event');
     assert.equal((await phone.request('/continuity/api'+path+'/progress',{...command,summary:'different'})).status,409);
     const concurrent={...command,command_id:randomUUID(),cursor:committedCursor,summary:'并发重试只记一次'};
     const results=await Promise.all([phone.post(path+'/progress',concurrent),phone.post(path+'/progress',concurrent)]);
@@ -90,14 +90,14 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     const invitation=await desktop.post(path+'/invite',{role:'editor'});
     await member.post('/connect',{code:invitation.code,display_name:'第二位成员',device_label:'团队设备'});
     const shared=await member.get(path);assert.equal(shared.project.role,'editor');assert.equal(shared.members.length,2);
-    await member.post(path+'/progress',{...command,command_id:randomUUID(),cursor:shared.goals[0].cursor,summary:'团队成员已接手',next_actor:'第二位成员'});
-    assert.equal((await phone.get(path)).goals[0].next_actor,'第二位成员');
+    await member.post(path+'/progress',{...command,command_id:randomUUID(),cursor:shared.items[0].cursor,summary:'团队成员已接手',next_actor:'第二位成员'});
+    assert.equal((await phone.get(path)).items[0].next_actor,'第二位成员');
     const readInvite=await desktop.post(path+'/invite',{role:'viewer'});
     await viewer.post('/connect',{code:readInvite.code,display_name:'只读成员',device_label:'只读设备'});
     assert.equal((await viewer.get(path)).project.role,'viewer');
     assert.equal((await viewer.request('/continuity/api'+path+'/progress',{...command,command_id:randomUUID()})).status,403);
     assert.equal((await member.request('/continuity/api'+path+'/invite',{role:'owner'})).status,400);
-    assert.equal((await phone.request('/continuity/api'+path+'/progress',{...command,command_id:randomUUID(),goal_id:'PRIVATE'})).status,403);
+    assert.equal((await phone.request('/continuity/api'+path+'/progress',{...command,command_id:randomUUID(),item_id:'PRIVATE'})).status,403);
     assert.equal((await phone.request('/continuity/api'+path+'/progress',{...command,actor_id:'forged'})).status,400);
     assert.equal((await phone.request('/continuity/api/pair',{}, {origin:'https://evil.example'})).status,403);
     const deviceRows=await desktop.get('/session');const phoneId=deviceRows.devices.find((d:any)=>d.label==='手机').id;
@@ -106,11 +106,11 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     const beforeHold=await member.get(path), memberId=(await member.get('/session')).member.id;
     let release!:()=>void;hold=new Promise<void>(resolve=>release=resolve);
     const reached=new Promise<void>(resolve=>entered=resolve);
-    const pending=member.request('/continuity/api'+path+'/progress',{...command,command_id:randomUUID(),cursor:beforeHold.goals[0].cursor,summary:'不应在撤回后写入'});
+    const pending=member.request('/continuity/api'+path+'/progress',{...command,command_id:randomUUID(),cursor:beforeHold.items[0].cursor,summary:'不应在撤回后写入'});
     await Promise.race([reached,new Promise((_,reject)=>setTimeout(()=>reject(new Error("write never reached hold")),10000))]);
     await desktop.post(path+'/revoke',{member_id:memberId});release();
     assert.equal((await pending).status,403);hold=null;
-    assert.equal((await desktop.get(path)).goals[0].cursor,beforeHold.goals[0].cursor,'revocation must stop a write waiting before dispatch');
+    assert.equal((await desktop.get(path)).items[0].cursor,beforeHold.items[0].cursor,'revocation must stop a write waiting before dispatch');
     assert.equal((await member.request('/continuity/api'+path)).status,403);
     await desktop.post('/devices/revoke',{device_id:phoneId});
     assert.equal((await phone.get('/session')).member,null);
@@ -211,31 +211,31 @@ test("PEQ-09 Continuity discovers any plugin implementing WORK_PROGRESS_CONTINUI
 
   try {
     // 1. Project without Goals / without any work-progress provider works cleanly for artifacts-only continuity.
-    service.registerProject({ id: "no-goals", title: "纯成果项目", goal_ids: [], artifacts: [] }, owner.id);
+    service.registerProject({ id: "no-goals", title: "纯成果项目", item_ids: [], artifacts: [] }, owner.id);
     const emptyRead = await service.read(session, "no-goals");
-    assert.deepEqual(emptyRead.goals, []);
+    assert.deepEqual(emptyRead.items, []);
     const emptyAssets = await service.assets(session, "no-goals");
     assert.deepEqual(emptyAssets.sections, []);
 
     // 2. Requesting progress items when no provider (or only a disabled provider) implements WORK_PROGRESS_CONTINUITY_PROTOCOL returns explicit unavailable.
     includeUnavailableFirst = true;
-    service.registerProject({ id: "missing-provider", title: "缺进展插件", goal_ids: ["M-1"], artifacts: [] }, owner.id);
+    service.registerProject({ id: "missing-provider", title: "缺进展插件", item_ids: ["M-1"], artifacts: [] }, owner.id);
     await assert.rejects(() => service.read(session, "missing-provider"), { code: "im.continuity.progress_unavailable" });
 
     // 3. A third-party plugin implementing WORK_PROGRESS_CONTINUITY_PROTOCOL works identically to Goals even when an unavailable provider precedes it in discovery.
     exposeProvider = true;
-    service.registerProject({ id: "third-party", title: "第三方进展接续", goal_ids: ["M-1"], artifacts: [] }, owner.id);
+    service.registerProject({ id: "third-party", title: "第三方进展接续", item_ids: ["M-1"], artifacts: [] }, owner.id);
     const read = await service.read(session, "third-party");
-    assert.equal(read.goals.length, 1);
-    assert.equal(read.goals[0]!.title, "第三方里程碑");
+    assert.equal(read.items.length, 1);
+    assert.equal(read.items[0]!.title, "第三方里程碑");
     const saved = await service.progress(session, {
-      command_id: randomUUID(), project_id: "third-party", goal_id: "M-1", cursor: 3,
+      command_id: randomUUID(), project_id: "third-party", item_id: "M-1", cursor: 3,
       summary: "第三方插件已记录进展", next_step: "验收", next_actor: "Owner",
     });
     assert.equal(saved.saved, true);
     assert.equal(saved.event_id, "ev-4");
     await assert.rejects(() => service.progress(session, {
-      command_id: randomUUID(), project_id: "third-party", goal_id: "M-1", cursor: 3,
+      command_id: randomUUID(), project_id: "third-party", item_id: "M-1", cursor: 3,
       summary: "过期游标", next_step: "", next_actor: "",
     }), (error: unknown) => Boolean(error && typeof error === "object" && "status" in error && error.status === 409));
     const bundle = await service.assets(session, "third-party");

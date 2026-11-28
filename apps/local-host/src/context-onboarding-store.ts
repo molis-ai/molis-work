@@ -6,7 +6,7 @@ import type { OnboardingDocumentsResult, OnboardingDraftBatch } from "@molis-ai/
 export type ContextDocumentPart = OnboardingDocumentsResult["parts"][number];
 
 /** `sessions`: the external AI sessions filed to the round's project, read as that project's AI (batch 35 item 1, SRB-09). */
-export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat" | "sessions";
+export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "mail" | "chat" | "sessions";
 export type SecretSendDecision = "strip" | "raw" | "exclude";
 export type ContextModelFailureKind = "connection" | "auth" | "rate_limit" | "timeout" | "context_limit" | "invalid_output" | "unknown";
 
@@ -59,7 +59,7 @@ export interface ContextSource {
   kind: ContextSourceKind; selected: boolean; path?: string; files?: ImportFile[];
   /** Staged digests by relative path so browser uploads survive refresh and scope toggles before start (ONB-36, C6, C7). */
   staged_digests?: Record<string, string>;
-  text?: string; url?: string; connection_id?: string; days?: 0 | 7 | 30 | 90;
+  text?: string; url?: string; service_id?: string; connection_id?: string; days?: 0 | 7 | 30 | 90;
   metadata?: {
     files: ContextFileMetadata[];
     skipped: number;

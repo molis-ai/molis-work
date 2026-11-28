@@ -404,7 +404,7 @@ export async function commitApiOAuth(home: string, state: string, config: OAuthC
       displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
       refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true } });
   if (result.status === "connected") rememberVerifiedAccount(home, config.connectionId, { login: label, ...(config.context.account_id ? { account_id: config.context.account_id } : {}) });
-  if (result.status !== "pending") finishOAuthReturn(home, config.returnTo, state, { connected: config.connectionId });
+  if (result.status !== "pending") finishOAuthReturn(home, config.returnTo, state, { connected: config.connectionId, service: config.serviceId });
   return { service_id: config.serviceId, ...result, ...(config.returnTo ? { return_to: config.returnTo } : {}) };
 }
 const refreshes = new Map<string, SharedRefresh<string>>();

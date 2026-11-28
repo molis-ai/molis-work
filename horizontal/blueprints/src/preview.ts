@@ -5,6 +5,7 @@ import type { EffectiveSetting, SettingsWriteInput } from "@molis-ai/molis-work-
 import { blueprintsErrors, type BlueprintAdoptionPreviewInput, type BlueprintAdoptionPreviewResult,
   type BlueprintCurrentValue, type BlueprintDraftResult, type BlueprintPreviewPart } from "@molis-ai/molis-work-contracts/services/blueprints";
 import { assertSandboxMatches, canonicalJsonText, inspectBlueprint } from "@molis-ai/molis-work-plugin-sdk";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AdoptionStore, DiscoveredSetting, ObservedSetting, SettingBinding, SettingPlan } from "./store.js";
 
 export interface SettingsAccess {
@@ -55,32 +56,59 @@ export async function readOwnerValues(access: SettingsAccess, wanted: readonly P
 
 async function readCandidates(access: SettingsAccess, wanted: ReadonlySet<string>, caller: ActionExecutionContext) {
   const declared = (await access.discover()).filter(item => wanted.has(item.entry.key));
-  if (new Set(declared.map(item => item.entry.key)).size !== declared.length)
-    throw blueprintsErrors.step_conflict("多个提供方声明了同一个设置，请先检查安装");
+  if (new Set(declared.map(item => item.entry.key)).size !== declared.length) {
+    throw blueprintsErrors.step_conflict("多个提供方声明了同一个设置，请先检查安装", undefined, {
+      key: "workbench.blueprints.error.duplicate-setting-provider",
+    });
+  }
   const values = await readOwnerValues(access, declared.filter(item => !item.unavailable).map(({ entry, binding }) => ({ key: entry.key, binding })), caller);
   return new Map<string, ObservedSetting>(declared.map(item => [item.entry.key, { ...item, current: values.get(item.entry.key) }]));
 }
 
 function currentValue(current: EffectiveSetting | undefined, unavailable?: string): BlueprintCurrentValue {
-  if (!current || current.state === "unavailable") return { state: "unavailable", reason: current?.reason ?? unavailable ?? "暂时读不到此设置" };
+  if (!current || current.state === "unavailable") {
+    return {
+      state: "unavailable",
+      reason: current?.reason ?? unavailable ?? tryUiText("workbench.blueprints.error.setting-temporarily-unreadable") ?? "暂时读不到此设置",
+    };
+  }
   return { state: "present", value: current.value, revision: current.revision, origin: null, setting_source: current.source, ...(current.value_unavailable && { value_unavailable: current.value_unavailable }) };
 }
 
 export async function previewSettings(store: AdoptionStore, access: SettingsAccess, caller: ActionExecutionContext,
   input: BlueprintAdoptionPreviewInput, draft: BlueprintDraftResult["draft"], now: number, lifetime: number): Promise<BlueprintAdoptionPreviewResult> {
-  if (input.upgrade_of || input.source.kind !== "draft") throw blueprintsErrors.part_unsupported("场景包版本升级尚未开放");
-  if (input.target.kind === "current_project" && !caller.project_id) throw blueprintsErrors.part_unsupported("请选择目标项目");
-  if (draft.source.revision !== input.source.revision) throw blueprintsErrors.step_conflict("草稿已经修改，请重新查看");
+  if (input.upgrade_of || input.source.kind !== "draft") {
+    throw blueprintsErrors.part_unsupported("场景包版本升级尚未开放", undefined, {
+      key: "workbench.blueprints.error.upgrade-not-available",
+    });
+  }
+  if (input.target.kind === "current_project" && !caller.project_id) {
+    throw blueprintsErrors.part_unsupported("请选择目标项目", undefined, {
+      key: "workbench.blueprints.error.target-project-required",
+    });
+  }
+  if (draft.source.revision !== input.source.revision) {
+    throw blueprintsErrors.step_conflict("草稿已经修改，请重新查看", undefined, {
+      key: "workbench.blueprints.error.draft-changed",
+    });
+  }
   const all = new Map(draft.blueprint.parts.map(part => [part.part_id, part]));
   const changes = new Map(input.changes?.map(change => [change.part_id, change]));
   const selected = new Set(input.part_ids);
   if (changes.size !== (input.changes?.length ?? 0) || selected.size !== input.part_ids.length
-    || input.part_ids.some(id => !all.has(id)) || [...changes.keys()].some(id => !selected.has(id))) throw blueprintsErrors.part_unsupported("请检查所选部分是否重复或已离开当前草稿");
+    || input.part_ids.some(id => !all.has(id)) || [...changes.keys()].some(id => !selected.has(id))) {
+    throw blueprintsErrors.part_unsupported("请检查所选部分是否重复或已离开当前草稿", undefined, {
+      key: "workbench.blueprints.error.invalid-part-selection",
+    });
+  }
   const edited = draft.blueprint.parts.map(part => {
     const next = changes.get(part.part_id)?.proposal;
     if (!next) return part;
-    if (next.kind !== part.proposal.kind || next.kind === "setting" && part.proposal.kind === "setting" && next.key !== part.proposal.key)
-      throw blueprintsErrors.part_unsupported("只能修改同一部分和设置的建议");
+    if (next.kind !== part.proposal.kind || next.kind === "setting" && part.proposal.kind === "setting" && next.key !== part.proposal.key) {
+      throw blueprintsErrors.part_unsupported("只能修改同一部分和设置的建议", undefined, {
+        key: "workbench.blueprints.error.change-target-mismatch",
+      });
+    }
     return { ...part, proposal: next };
   });
   const problems = inspectBlueprint({ ...draft.blueprint, parts: edited }, { source: "draft" });
@@ -94,7 +122,9 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
       affected_step_ids: draft.blueprint.steps.filter(step => step.part_ids.includes(part_id)).map(step => step.step_id) };
     const change = changes.get(part_id), owner = proposal.kind === "setting" ? found.get(proposal.key) : undefined;
     if (change?.selection || change?.action && (!owner || canonicalJsonText(change.action) !== canonicalJsonText(owner.binding.write))) {
-      throw blueprintsErrors.part_unsupported("只能选择预览中列出的设置主人");
+      throw blueprintsErrors.part_unsupported("只能选择预览中列出的设置主人", undefined, {
+        key: "workbench.blueprints.error.owner-not-in-preview",
+      });
     }
     if (proposal.kind === "content" && access.homePage?.declaration.type === proposal.type) {
       if (layer !== "project" || input.target.kind === "personal") return { ...result, decision: "skip", reason: "scope_mismatch" };

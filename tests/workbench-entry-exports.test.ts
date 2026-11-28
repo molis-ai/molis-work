@@ -117,5 +117,5 @@ test("RAC-2684 ui-composition has no Goals adapter or dead Schedule factory", ()
   const composition = read("apps/workbench/src/ui-composition.ts");
   assert.doesNotMatch(composition, /@molis-ai\/molis-work-plugin-goals/u);
   assert.doesNotMatch(composition, /@molis-ai\/molis-work-plugin-schedule|renderScheduleContribution/u);
-  assert.equal("createWorkbenchGoalsPageRenderer" in workbench, false, "the private shell factory is not a public Goals adapter");
+  assert.equal("createWorkbenchShellPageRenderer" in workbench, false, "the private shell factory stays internal to the workbench");
 });

@@ -1,4 +1,4 @@
-import { escapeHtml as esc, icon, renderAlert, renderButton, renderEmpty, renderFrame, renderPopover } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as esc, icon, renderAlert, renderButton, renderCollapsible, renderEmpty, renderFrame, renderPopover } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { act, choices, severityGrid, statusMark, text } from "./parts.js";
 import type { RiskPage, RiskRow, RiskStatus } from "./types.js";
 
@@ -91,8 +91,14 @@ function groups(page: RiskPage): string {
   const closed = rows.filter(risk => risk.status === "closed");
   const sections = grouped.map(([status, list]) => `<section class="rk-group"><h3 class="rk-h">${statusMark(status)}<span class="rk-count">${list.length}</span></h3>
     <ul class="mw-items">${list.map(row).join("")}</ul></section>`).join("");
-  const folded = closed.length ? `<details class="mw-collapsible rk-closed" data-slot="collapsible"${page.state.filter.status === "closed" ? " open" : ""}>
-    <summary>${esc(text("overview.closed", { count: closed.length }))}</summary><div class="mw-collapsible__body"><ul class="mw-items">${closed.map(row).join("")}</ul></div></details>` : "";
+  const folded = closed.length
+    ? renderCollapsible({
+      summary: text("overview.closed", { count: closed.length }),
+      className: "rk-closed",
+      open: page.state.filter.status === "closed",
+      body: `<ul class="mw-items">${closed.map(row).join("")}</ul>`,
+    })
+    : "";
   const more = page.state.next ? `<div class="rk-more">${act(text("overview.more"), "more", { variant: "ghost" })}</div>` : "";
   return sections + folded + more;
 }

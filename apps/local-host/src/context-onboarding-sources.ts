@@ -6,10 +6,10 @@ import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import type { ContextJourney, ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
 import { isStagedDigest } from "./context-onboarding-staging.js";
-import { builtinMailboxDriver } from "./builtin-drivers.js";
+import { builtinMailboxDrivers, mailboxDriver } from "./builtin-drivers.js";
 
 const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
-const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat", "sessions"];
+const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "mail", "chat", "sessions"];
 const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
 /** A file onboarding takes in: the page's own rule (`contextFileSkip`), checked again here; explicit file picks may stage secret-like files so `prepareContextDocument` can hold them for the person's 3-way choice (`C2`, `S-onboarding-secret-hold`). */
 const supportedContextFile = (path: string, allowSecretName = false) => {
@@ -51,7 +51,7 @@ export function contextSources(value: unknown): ContextSource[] {
     if (!KINDS.includes(source.kind as ContextSourceKind) || seen.has(String(source.kind))) throw new Error("来源类型无效或重复");
     seen.add(String(source.kind));
     const result: ContextSource = { kind: source.kind as ContextSourceKind, selected: source.selected === true };
-    for (const key of ["path", "text", "url", "connection_id"] as const) {
+    for (const key of ["path", "text", "url", "connection_id", "service_id"] as const) {
       if (source[key] !== undefined) {
         if (typeof source[key] !== "string" || (key !== "text" && (source[key] as string).length > 4096)) throw new Error("来源范围过长或无效");
         result[key] = source[key] as string;
@@ -62,7 +62,7 @@ export function contextSources(value: unknown): ContextSource[] {
       if (![0, 7, 30, 90].includes(Number(source.days))) throw new Error("时间范围无效");
       result.days = Number(source.days) as ContextSource["days"];
     }
-    if (result.kind === "gmail") result.days = source.days === 7 ? 7 : 30;
+    if (result.kind === "mail") result.days = source.days === 7 ? 7 : 30;
     if (source.metadata !== undefined) {
       const metadata = source.metadata as Record<string, unknown>;
       if (!metadata || !Array.isArray(metadata.files)) throw new Error("文件预览无效");
@@ -134,7 +134,7 @@ export async function readContextSource(home: string, source: ContextSource, sig
     if (!source.text?.trim()) throw new Error("请粘贴要整理的网页正文");
     return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", bytes: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`) }] };
   }
-  if (source.kind === "gmail") return readOnboardingMail(home, source, fetch, signal);
+  if (source.kind === "mail") return readOnboardingMail(home, source, fetch, signal);
   // Read through the round's project, as its AI: the service passes the reader its own client (context-onboarding-sessions.ts).
   if (source.kind === "sessions") throw new Error("这里读不了外部会话");
   const derivedFiles = !source.files?.length && source.staged_digests && source.metadata
@@ -148,7 +148,9 @@ export async function readContextSource(home: string, source: ContextSource, sig
 /** Recent mail through the mailbox driver: the Host holds the connection, refreshes its token once and checks it is unchanged around every request. */
 export async function readOnboardingMail(home: string, source: ContextSource, fetcher: typeof fetch = fetch, outerSignal?: AbortSignal): Promise<{ name: string; locator: string; files: ImportFile[] }> {
   outerSignal?.throwIfAborted();
-  const driver = builtinMailboxDriver();
+  const serviceId = source.service_id?.trim();
+  const driver = serviceId ? mailboxDriver(serviceId) : builtinMailboxDrivers()[0];
+  if (!driver) throw new Error(serviceId ? `找不到邮箱服务 ${serviceId}` : "当前没有可用的邮箱服务");
   if (!source.connection_id) throw new Error(`请先连接 ${driver.account_title}，或跳过 ${driver.title}`);
   const id = source.connection_id;
   return withConnectorRequest(home, id, outerSignal, async signal => {

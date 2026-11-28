@@ -103,7 +103,7 @@ const factory: ActionFactory = ({ memberId, projectId, validate, signal }) => {
 const storage = openServerDatabase(join(directory, "server")), identity = new Identity(storage.db), events = new ServerEvents(storage.db);
 const continuity = new ContinuityService(storage.db, identity, events, factory);
 const owner = continuity.projectOwner(projectId) ?? identity.createMember("一骏 · 隔离实操");
-continuity.registerProject({ id: projectId, title: "设备接续 · 隔离实操", goal_ids: [goalId], artifacts: [guide] }, owner.id);
+continuity.registerProject({ id: projectId, title: "设备接续 · 隔离实操", item_ids: [goalId], artifacts: [guide] }, owner.id);
 await writeFile(join(directory, "connect.json"), JSON.stringify(identity.code("bootstrap", owner.id)), { mode: 0o600 });
 let running: Awaited<ReturnType<typeof startServer>> | undefined;
 let closing: Promise<void> | undefined;

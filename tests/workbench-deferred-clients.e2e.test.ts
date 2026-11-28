@@ -64,7 +64,7 @@ test("RAC-2516 RAC-2517 RAC-2519 in-place membership owns every Feed mount, sour
     const workspace=document.querySelector('[data-workspace]');
     workspace.classList.remove('is-plugin-directory-empty','is-directory-collapsed');
     workspace.style.setProperty('--tree-width','240px');
-    document.querySelector('#goal-tree-pane').dataset.desktopDirectory='sources';
+    document.querySelector('#shell-directory-pane').dataset.desktopDirectory='sources';
     for(const section of document.querySelectorAll('[data-plugin-section]'))section.hidden=section.dataset.pluginSection!=='feed';
     for(const panel of document.querySelectorAll('[data-directory-panel]'))panel.hidden=panel.dataset.directoryPanel!=='sources';
   })()`);

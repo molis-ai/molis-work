@@ -61,17 +61,27 @@ async function itemSources(caller: ActionCallContext, client: ActionClient, port
 
 function sourceOf(sources: readonly ItemSource[], kind: string, part?: WorkItemPart): ItemSource {
   const source = sources.find(candidate => candidate.kind === kind);
-  if (!source || (part && !source.parts[part])) throw mainlineErrors.source_unavailable("这种对象不能变成事项，或它的来源此刻不提供这一步");
+  if (!source || (part && !source.parts[part])) {
+    throw mainlineErrors.source_unavailable("这种对象不能变成事项，或它的来源此刻不提供这一步", undefined, {
+      key: "workbench.mainline.error.source-unavailable",
+    });
+  }
   return source;
 }
 
 /** The object read once as the caller; one the caller cannot read is refused by its kind and never named back. */
 async function readable(caller: ActionCallContext, client: ActionClient, subject: ActionSubject, directory?: readonly ActionView[]): Promise<ActionSubjectContext> {
-  if (subject.kind === WORK_ITEM_KIND) throw new ActionError("actions.input_invalid", "事项不能装进事项，也不能再设为事项");
+  if (subject.kind === WORK_ITEM_KIND) {
+    throw new ActionError("actions.input_invalid", "事项不能装进事项，也不能再设为事项", {
+      text_key: "workbench.mainline.error.nested-item-forbidden",
+    });
+  }
   try { return (await resolveActionSubject(client, { ...caller, query_only: true }, subject, directory)).context; }
   catch (error) {
     caller.signal?.throwIfAborted();
-    throw mainlineErrors.subject_unreadable("读不到这个对象，不能放进事项", { code: codeOf(error) });
+    throw mainlineErrors.subject_unreadable("读不到这个对象，不能放进事项", { code: codeOf(error) }, {
+      key: "workbench.mainline.error.subject-unreadable",
+    });
   }
 }
 
@@ -85,7 +95,11 @@ const sourceRequestId = (caller: ActionCallContext, requestId: string | undefine
 
 async function makeSource(caller: ActionExecutionContext, client: ActionClient, source: ItemSource, name: string, requestId: string): Promise<ActionSubject> {
   const result = await client.invoke(caller, source.parts.create!, { name, request_id: requestId }) as WorkItemCreateResult;
-  if (result?.subject?.kind !== source.kind || typeof result.subject.id !== "string") throw mainlineErrors.owner_answer_invalid("来源插件给出的对象读不了，请稍后重试");
+  if (result?.subject?.kind !== source.kind || typeof result.subject.id !== "string") {
+    throw mainlineErrors.owner_answer_invalid("来源插件给出的对象读不了，请稍后重试", undefined, {
+      key: "workbench.mainline.error.owner-answer-invalid",
+    });
+  }
   return result.subject;
 }
 
@@ -139,7 +153,11 @@ function countsOf(mainline: Mainline, held: ReadonlyMap<string, ActionSubject[]>
 /** `mainline.subject.read@1`: a light item by its name, one an object became by that object's title as the caller reads it. */
 export async function readItemSubject(caller: ActionExecutionContext, client: ActionClient, ports: MainlineItemPorts, request: SubjectContextRequest): Promise<ActionSubjectContext> {
   const current = await withStore(caller, ports, store => store.itemWithRevision(request.subject_id));
-  if (!current) throw mainlineErrors.item_missing("主线上没有这件事项");
+  if (!current) {
+    throw mainlineErrors.item_missing("主线上没有这件事项", undefined, {
+      key: "workbench.mainline.error.item-missing",
+    });
+  }
   const { item } = current;
   const source = item.source && await readable(caller, client, item.source);
   const revision = source ? JSON.stringify([current.revision, source.revision]) : current.revision;
@@ -149,7 +167,11 @@ export async function readItemSubject(caller: ActionExecutionContext, client: Ac
 /** `mainline.items.contents@1`: what was put in, and the source's own relation asked once as the caller. */
 export async function readContents(caller: ActionExecutionContext, client: ActionClient, ports: MainlineItemPorts, request: MainlineContentsRequest): Promise<MainlineContentsResult> {
   const [item, held] = await withStore(caller, ports, store => [store.item(request.item_id), store.item(request.item_id) ? store.held(request.item_id) : []] as const);
-  if (!item) throw mainlineErrors.item_missing("主线上没有这件事项");
+  if (!item) {
+    throw mainlineErrors.item_missing("主线上没有这件事项", undefined, {
+      key: "workbench.mainline.error.item-missing",
+    });
+  }
   const related: MainlineContentsResult["related"] = [], issues: MainlineIssue[] = [];
   const part = item.source ? (await itemSources(caller, client, ports)).find(source => source.kind === item.source!.kind)?.parts.related : undefined;
   if (part) {
@@ -164,7 +186,11 @@ export async function readContents(caller: ActionExecutionContext, client: Actio
 /** `mainline.items.create@1`: a light item, an object made into one, or one the source makes for it; each at the end of its group. */
 export async function createItem(caller: ActionExecutionContext, client: ActionClient, ports: MainlineItemPorts, request: MainlineItemCreateRequest): Promise<MainlineItemResult> {
   const given = [request.name, request.from, request.create_as].filter(value => value !== undefined).length;
-  if (given !== 1) throw new ActionError("actions.input_invalid", "新建事项要且只要给出名字、一个对象，或在来源里新建的种类与名字之一");
+  if (given !== 1) {
+    throw new ActionError("actions.input_invalid", "新建事项要且只要给出名字、一个对象，或在来源里新建的种类与名字之一", {
+      text_key: "workbench.mainline.error.create-input-invalid",
+    });
+  }
   let source: ActionSubject | undefined;
   if (request.from) {
     // One discovery serves both: whether its kind is an item source, and reading the object as the caller.
@@ -205,9 +231,21 @@ export const removeItem = (caller: ActionExecutionContext, ports: MainlineItemPo
   arranged(caller, ports, store => store.remove(request.expected_revision, request.item_id));
 export const editGroups = (caller: ActionExecutionContext, ports: MainlineItemPorts, request: MainlineGroupEditRequest) =>
   arranged(caller, ports, store => {
-    if (request.op !== "add" && !("group_id" in request && request.group_id)) throw new ActionError("actions.input_invalid", "要说明是哪一组");
-    if ((request.op === "add" || request.op === "rename") && !("name" in request && request.name)) throw new ActionError("actions.input_invalid", "要给出组名");
-    if (request.op === "move" && !("index" in request && Number.isInteger(request.index))) throw new ActionError("actions.input_invalid", "要给出移到的位置");
+    if (request.op !== "add" && !("group_id" in request && request.group_id)) {
+      throw new ActionError("actions.input_invalid", "要说明是哪一组", {
+        text_key: "workbench.mainline.error.group-required",
+      });
+    }
+    if ((request.op === "add" || request.op === "rename") && !("name" in request && request.name)) {
+      throw new ActionError("actions.input_invalid", "要给出组名", {
+        text_key: "workbench.mainline.error.group-name-required",
+      });
+    }
+    if (request.op === "move" && !("index" in request && Number.isInteger(request.index))) {
+      throw new ActionError("actions.input_invalid", "要给出移到的位置", {
+        text_key: "workbench.mainline.error.group-index-required",
+      });
+    }
     store.editGroups(request);
   });
 export const switchItem = (caller: ActionExecutionContext, ports: MainlineItemPorts, request: MainlineSwitchRequest) =>
@@ -217,7 +255,11 @@ export const switchItem = (caller: ActionExecutionContext, ports: MainlineItemPo
 
 const targetsOf = (store: MainlineStore, subject: ActionSubject): PlacementRelationResult => ({ targets: store.holding(subject).map(asTarget) });
 function itemTarget(target: ActionSubject): string {
-  if (target.kind !== WORK_ITEM_KIND) throw new ActionError("actions.input_invalid", "只能放进事项");
+  if (target.kind !== WORK_ITEM_KIND) {
+    throw new ActionError("actions.input_invalid", "只能放进事项", {
+      text_key: "workbench.mainline.error.item-target-only",
+    });
+  }
   return target.id;
 }
 
@@ -262,7 +304,11 @@ export async function holdsCreate(caller: ActionExecutionContext, client: Action
  */
 export async function checkItemPlacement(caller: ActionExecutionContext, ports: MainlineItemPorts, subject: ActionSubject,
   item: { kind: "item" | "none"; item_id?: string }, visible: () => Promise<boolean>): Promise<void> {
-  if (!await visible()) throw mainlineErrors.subject_unreadable("读不到这个任务，不能放进事项");
+  if (!await visible()) {
+    throw mainlineErrors.subject_unreadable("读不到这个任务，不能放进事项", undefined, {
+      key: "workbench.mainline.error.task-unreadable",
+    });
+  }
   await caller.validate_permissions?.([MAINLINE_ARRANGE_PERMISSION]);
   if (item.item_id !== undefined) await withStore(caller, ports, store => { store.checkHold(item.item_id!, subject); });
 }
@@ -295,7 +341,11 @@ export interface ItemLineScope {
 
 export async function itemLineScope(caller: ActionCallContext, client: ActionClient, ports: MainlineItemPorts, itemId: string, directory: readonly ActionView[]): Promise<ItemLineScope> {
   const [item, held] = await withStore(caller, ports, store => [store.item(itemId), store.item(itemId) ? store.held(itemId) : []] as const);
-  if (!item) throw mainlineErrors.item_missing("主线上没有这件事项");
+  if (!item) {
+    throw mainlineErrors.item_missing("主线上没有这件事项", undefined, {
+      key: "workbench.mainline.error.item-missing",
+    });
+  }
   const subjects = new Set([...held, ...(item.source ? [item.source] : [])].map(subjectKey)), issues: MainlineIssue[] = [];
   subjects.add(subjectKey({ kind: WORK_ITEM_KIND, id: item.item_id }));
   const declarations = await ports.declarations(caller);
@@ -310,7 +360,11 @@ export async function itemLineScope(caller: ActionCallContext, client: ActionCli
     try {
       const answer = (await client.invoke(reader, source.parts.next, { subjects: [item.source] }) as WorkItemNextResult).items.find(entry => subjectKey(entry.subject) === subjectKey(item.source!));
       // A start that names another provider's action is not the source's own: it is left out, never run.
-      if (answer?.next && answer.next.start && answer.next.start.action.provider_id !== source.provider_id) throw mainlineErrors.owner_answer_invalid("下一步只能开始来源自己的动作");
+      if (answer?.next && answer.next.start && answer.next.start.action.provider_id !== source.provider_id) {
+        throw mainlineErrors.owner_answer_invalid("下一步只能开始来源自己的动作", undefined, {
+          key: "workbench.mainline.error.next-owner-only",
+        });
+      }
       if (answer?.next) next = { source: source.parts.next, step: answer.next };
     } catch (error) { caller.signal?.throwIfAborted(); issues.push({ source: source.parts.next, title: source.parts.next.capability_id, code: codeOf(error) }); }
   }

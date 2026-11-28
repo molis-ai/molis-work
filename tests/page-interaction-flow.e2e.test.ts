@@ -55,7 +55,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click("[data-workspace-history=forward]");
   await waitFor(`${exclusive} === 'settings'`);
   await click("[data-cover-close]");
-  await waitFor(`${exclusive} === '' && document.querySelector('#goal-tree-pane').dataset.desktopDirectory === 'root'`);
+  await waitFor(`${exclusive} === '' && document.querySelector('#shell-directory-pane').dataset.desktopDirectory === 'root'`);
 
   // Settings is one grouped list, and 角色 is a settings page: its roles open their prompts in the same cover,
   // and Back walks back through the pages inside it.

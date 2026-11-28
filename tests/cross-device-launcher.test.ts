@@ -36,7 +36,7 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
   const directory=await mkdtemp(join(tmpdir(),'continuity-launcher-'));
   let server:ReturnType<typeof launch>|undefined;
   try {
-    const config=join(directory,'projects.json'),scope={id:'removed-project',title:'Shared',goal_ids:[],artifacts:[]};
+    const config=join(directory,'projects.json'),scope={id:'removed-project',title:'Shared',item_ids:[],artifacts:[]};
     const startArgs=['serve','--state',join(directory,'server'),'--config',config,'--host-home',join(directory,'original-home'),'--port','0'];
     await writeFile(config,JSON.stringify({projects:[scope]}));
     server=launch(startArgs);let origin=await listening(server);
@@ -59,7 +59,7 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     for(const cookie of [ownerCookie,memberCookie]){
       assert.deepEqual((await (await fetch(origin+'/continuity/api/session',{headers:{cookie}})).json()).projects,[]);
       for(const suffix of ['', '/assets','/events'])assert.equal((await fetch(origin+'/continuity/api/projects/'+scope.id+suffix,{headers:{cookie}})).status,403);
-      assert.equal((await post('/projects/'+scope.id+'/progress',{command_id:randomUUID(),project_id:scope.id,goal_id:'old-goal',cursor:1,summary:'must not write',next_step:'',next_actor:''},cookie)).status,403);
+      assert.equal((await post('/projects/'+scope.id+'/progress',{command_id:randomUUID(),project_id:scope.id,item_id:'old-goal',cursor:1,summary:'must not write',next_step:'',next_actor:''},cookie)).status,403);
     }
     assert.equal((await post('/connect',{code:unusedCode,display_name:'Old invitation',device_label:'Denied'})).status,401);
     server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
@@ -104,7 +104,7 @@ test('W2-18-CONTINUITY-QA-01 BL-1032: the documented QA command starts, restores
     const cookie=connected.headers.get('set-cookie')!.split(';')[0]!;
     const get=async(suffix="")=>{const response=await fetch(origin+'/continuity/api/projects/continuity-qa'+suffix,{headers:{cookie}});assert.equal(response.status,200);return response.json();};
     const before=await get();
-    assert.equal(before.goals[0].goal_id,'mobile-handoff');
+    assert.equal(before.items[0].item_id,'mobile-handoff');
     assert.equal(before.artifacts.length,1);assert.equal(before.artifacts[0].version,2);
     assert.match(before.artifacts[0].content,/跨设备接续操作说明/);
     const bundle = await get("/assets");
@@ -120,16 +120,16 @@ test('W2-18-CONTINUITY-QA-01 BL-1032: the documented QA command starts, restores
       binding_signature: pagesManifest.publisher.signature,
     });
     assert.equal(document.origin.subject.kind, PAGES_SUBJECT_KIND);
-    const command={command_id:randomUUID(),project_id:'continuity-qa',goal_id:'mobile-handoff',cursor:before.goals[0].cursor,summary:'QA confirmed',next_step:'continue on desktop',next_actor:'QA owner'};
+    const command={command_id:randomUUID(),project_id:'continuity-qa',item_id:'mobile-handoff',cursor:before.items[0].cursor,summary:'QA confirmed',next_step:'continue on desktop',next_actor:'QA owner'};
     const post=()=>fetch(origin+'/continuity/api/projects/continuity-qa/progress',{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify(command)});
     await writeFile(join(directory,'lose-next-response'),'');
     assert.equal((await post()).status,503,'the QA hook loses the response after the owner has committed');
-    const committed=await get();assert.equal(committed.goals[0].summary,command.summary);
+    const committed=await get();assert.equal(committed.items[0].summary,command.summary);
     const replay=await post();assert.equal(replay.status,200);assert.equal((await replay.json()).replayed,true);
-    assert.equal((await get()).goals[0].cursor,committed.goals[0].cursor,'reconciliation adds no second progress fact');
+    assert.equal((await get()).items[0].cursor,committed.items[0].cursor,'reconciliation adds no second progress fact');
     server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
     server=launch([directory,'--port','0'],entry,['--import','tsx']);origin=await listening(server);
-    const restarted=await get();assert.equal(restarted.goals[0].cursor,committed.goals[0].cursor);
+    const restarted=await get();assert.equal(restarted.items[0].cursor,committed.items[0].cursor);
     assert.equal(restarted.artifacts.length,1,'QA restart reuses the fixed version');
     assert.equal((await post()).status,200,'the original member/session and receipt survive QA restart');
     server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
@@ -148,7 +148,7 @@ test('the server package answers owner, role, member and closing questions itsel
     const identity=new Identity(storage.db),events=new ServerEvents(storage.db);
     const continuity=new ContinuityService(storage.db,identity,events,()=>{throw new Error('no host actions in this test');});
     const owner=identity.createMember('Owner'),member=identity.createMember('Member'),stranger=identity.createMember('Stranger');
-    const scope=(id:string)=>({id,title:'Project '+id,goal_ids:[],artifacts:[]});
+    const scope=(id:string)=>({id,title:'Project '+id,item_ids:[],artifacts:[]});
     assert.equal(continuity.projectOwner('kept'),null,'a project that is not registered has no owner');
     continuity.registerProject(scope('kept'),owner.id);continuity.registerProject(scope('closed'),owner.id);
     assert.deepEqual(continuity.projectOwner('kept'),owner);

@@ -4,18 +4,25 @@ import { transaction, type ServerDatabase } from "../database.js";
 import { Identity, type Member, type Role, type Session } from "../identity.js";
 import { ServerEvents } from "../events.js";
 import { ContinuityActions, type ResolvedContinuityActions } from "./actions.js";
-import type { ActionFactory, ArtifactVersionRecord, GoalProgressFacts, GoalStateFacts, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
+import type { ActionFactory, ArtifactVersionRecord, WorkItemProgressFacts, WorkItemStateFacts, WorkItemProjection, ProgressCommand, ProjectScope } from "./types.js";
 
 function count(value: unknown): number {
-  if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("im.continuity.invalid_version", "缺少有效的目标版本");
+  if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("im.continuity.invalid_version", "缺少有效的工作项版本");
   return Number(value);
 }
 export function progressInput(value: Record<string, unknown>, projectId: string): ProgressCommand {
-  const allowed = ["command_id","project_id","goal_id","cursor","summary","next_step","next_actor"];
+  const allowed = ["command_id", "project_id", "item_id", "cursor", "summary", "next_step", "next_actor"];
   if (Object.keys(value).some(k => !allowed.includes(k)) || value.project_id !== projectId) throw new ImError("im.continuity.invalid_input", "操作不属于此项目或包含不支持的字段");
   const optional = (v: unknown, max: number) => v === "" || v === undefined ? "" : textInput(v, "后续说明", max);
-  return {command_id:clientId(value.command_id),project_id:projectId,goal_id:textInput(value.goal_id,"目标",128),cursor:count(value.cursor),
-    summary:textInput(value.summary,"进展",4000),next_step:optional(value.next_step,2000),next_actor:optional(value.next_actor,100)};
+  return {
+    command_id: clientId(value.command_id),
+    project_id: projectId,
+    item_id: textInput(value.item_id, "工作项", 128),
+    cursor: count(value.cursor),
+    summary: textInput(value.summary, "进展", 4000),
+    next_step: optional(value.next_step, 2000),
+    next_actor: optional(value.next_actor, 100),
+  };
 }
 
 export class ContinuityService {
@@ -24,9 +31,12 @@ export class ContinuityService {
   constructor(readonly db: ServerDatabase, readonly identity: Identity, readonly events: ServerEvents, factory: ActionFactory) { this.actions = new ContinuityActions(factory); }
   /** Local operator API, never exposed as a browser mutation. Existing ids are required. */
   registerProject(scope: ProjectScope, ownerId: string): void {
-    textInput(scope.id,"项目",128); textInput(scope.title,"项目名称",200);
-    if (!Array.isArray(scope.goal_ids) || scope.goal_ids.length > 100 || !Array.isArray(scope.artifacts) || scope.artifacts.length > 100) throw new ImError("im.continuity.invalid_scope", "请选择不超过 100 个目标和成果");
-    scope.goal_ids.forEach(id => textInput(id,"目标",128));
+    textInput(scope.id, "项目", 128);
+    textInput(scope.title, "项目名称", 200);
+    if (!Array.isArray(scope.item_ids) || scope.item_ids.length > 100 || !Array.isArray(scope.artifacts) || scope.artifacts.length > 100) {
+      throw new ImError("im.continuity.invalid_scope", "请选择不超过 100 个工作项和成果");
+    }
+    scope.item_ids.forEach(id => textInput(id, "工作项", 128));
     scope.artifacts.forEach(ref => {textInput(ref.artifact_id,"成果",128);if (count(ref.version) < 1) throw new ImError("im.continuity.invalid_version","成果版本必须大于零");});
     transaction(this.db, () => {
       const old = this.db.prepare("SELECT owner_id FROM mw_projects WHERE id=?").get(scope.id) as {owner_id:string}|undefined;
@@ -76,15 +86,25 @@ export class ContinuityService {
       const result = await operation(bound,validate); validate(); return result;
     } finally { clearTimeout(timeout);this.active.delete(active); }
   }
-  private async goals(bound: ResolvedContinuityActions, goalIds: string[]): Promise<GoalProjection[]> {
-    if (!goalIds.length) return [];
-    const records = await this.actions.invoke<Array<{ goal_id: string; state: GoalStateFacts }>>(bound,"states.read",{goal_ids:[...new Set(goalIds)]});
+  private async items(bound: ResolvedContinuityActions, itemIds: string[]): Promise<WorkItemProjection[]> {
+    if (!itemIds.length) return [];
+    const records = await this.actions.invoke<Array<{ goal_id: string; state: WorkItemStateFacts }>>(bound, "states.read", { goal_ids: [...new Set(itemIds)] });
     const states = new Map(records.map(record => [record.goal_id, record.state]));
-    return goalIds.map(goal_id => {
-      const state = states.get(goal_id);
-      if (!state) throw new ImError("im.continuity.goal_missing", "共享目标状态不完整", 503);
-      return {goal_id,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,
-        can_record:state.can_record,summary:state.progress_summary?.summary ?? "",next_step:state.progress_summary?.next_step ?? "",next_actor:state.progress_summary?.next_actor ?? "",updated_at:state.progress_summary?.recorded_at ?? null};
+    return itemIds.map(item_id => {
+      const state = states.get(item_id);
+      if (!state) throw new ImError("im.continuity.item_missing", "共享工作项状态不完整", 503);
+      return {
+        item_id,
+        title: state.intent.title,
+        outcome: state.agreement.outcome,
+        status: state.work_status,
+        cursor: state.goal_event_cursor,
+        can_record: state.can_record,
+        summary: state.progress_summary?.summary ?? "",
+        next_step: state.progress_summary?.next_step ?? "",
+        next_actor: state.progress_summary?.next_actor ?? "",
+        updated_at: state.progress_summary?.recorded_at ?? null,
+      };
     });
   }
   private async artifacts(bound: ResolvedContinuityActions, scope: ProjectScope, team: boolean): Promise<ArtifactVersionRecord[]> {
@@ -100,12 +120,22 @@ export class ContinuityService {
   async read(session: Session, projectId: string) {
     return this.authorized(session,projectId,"viewer",async (bound,validate) => {
       const scope = this.scope(projectId), role = this.identity.access(session,projectId);
-      const goals = await this.goals(bound,scope.goal_ids);
-      const artifacts = await this.artifacts(bound,scope,role !== "owner"); validate();
-      return {project:{id:scope.id,title:scope.title,role},goals,artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,
-        title:a.title,
-        plugin_id:a.producer_plugin_id,availability:a.availability,
-        content:a.content_kind === "inline" ? (typeof a.payload === "string" ? a.payload : JSON.stringify(a.payload,null,2)) : ""})),members:this.members(projectId)};
+      const items = await this.items(bound, scope.item_ids);
+      const artifacts = await this.artifacts(bound, scope, role !== "owner");
+      validate();
+      return {
+        project: { id: scope.id, title: scope.title, role },
+        items,
+        artifacts: artifacts.map(a => ({
+          artifact_id: a.artifact_id,
+          version: a.version,
+          title: a.title,
+          plugin_id: a.producer_plugin_id,
+          availability: a.availability,
+          content: a.content_kind === "inline" ? (typeof a.payload === "string" ? a.payload : JSON.stringify(a.payload, null, 2)) : "",
+        })),
+        members: this.members(projectId),
+      };
     });
   }
   async invite(session: Session, projectId: string, role: unknown) {
@@ -132,30 +162,44 @@ export class ContinuityService {
     this.events.notify();
   }
   async progress(session: Session, input: ProgressCommand): Promise<{saved:true;event_id:string;replayed:boolean}> {
-    return this.authorized(session,input.project_id,"editor",async (bound,validate) => {
-      if (!this.scope(input.project_id).goal_ids.includes(input.goal_id)) throw new ImError("im.continuity.goal_denied","此目标未在共享范围内",403);
-      const key = [input.project_id,session.member_id!,input.command_id], json = JSON.stringify(input);
+    return this.authorized(session, input.project_id, "editor", async (bound, validate) => {
+      if (!this.scope(input.project_id).item_ids.includes(input.item_id)) throw new ImError("im.continuity.item_denied", "此工作项未在共享范围内", 403);
+      const key = [input.project_id, session.member_id!, input.command_id];
+      const json = JSON.stringify(input);
       const old = transaction(this.db, () => {
         const row = this.db.prepare("SELECT request_json,result_json FROM mw_commands WHERE project_id=? AND member_id=? AND command_id=?").get(...key) as {request_json:string;result_json:string|null}|undefined;
         if (row && row.request_json !== json) throw new ImError("im.continuity.key_reused","这条操作标识已用于不同内容，请重新提交",409);
         if (!row) this.db.prepare("INSERT INTO mw_commands(project_id,member_id,command_id,request_json,state) VALUES (?,?,?,?,'pending')").run(...key,json);
         return row;
       });
-      if (old?.result_json) {validate();return {...JSON.parse(old.result_json),replayed:true};}
+      if (old?.result_json) {
+        validate();
+        return { ...JSON.parse(old.result_json), replayed: true };
+      }
       try {
-        let result = await this.actions.invoke<GoalProgressFacts|null>(bound,"progress.receipt",{goal_id:input.goal_id,idempotency_key:input.command_id});
+        let result = await this.actions.invoke<WorkItemProgressFacts | null>(bound, "progress.receipt", { goal_id: input.item_id, idempotency_key: input.command_id });
         const replayed = !!result;
         if (!result) {
           validate();
-          result = await this.actions.invoke<GoalProgressFacts>(bound,"progress.record",{goal_id:input.goal_id,idempotency_key:input.command_id,
-            based_on_cursor:input.cursor,expected_goal_cursor:input.cursor,summary:input.summary,next_step:input.next_step,next_actor:input.next_actor});
+          result = await this.actions.invoke<WorkItemProgressFacts>(bound, "progress.record", {
+            goal_id: input.item_id,
+            idempotency_key: input.command_id,
+            based_on_cursor: input.cursor,
+            expected_goal_cursor: input.cursor,
+            summary: input.summary,
+            next_step: input.next_step,
+            next_actor: input.next_actor,
+          });
         }
-        validate(); const receipt = {saved:true as const,event_id:result.event_id,replayed:replayed || result.replayed};
+        validate();
+        const receipt = { saved: true as const, event_id: result.event_id, replayed: replayed || result.replayed };
         transaction(this.db, () => {
           const saved = this.db.prepare("SELECT result_json FROM mw_commands WHERE project_id=? AND member_id=? AND command_id=?").get(...key) as {result_json:string|null};
           this.db.prepare("UPDATE mw_commands SET state='saved',result_json=?,error_code=NULL WHERE project_id=? AND member_id=? AND command_id=?").run(JSON.stringify(receipt),...key);
-          if (!saved.result_json) this.events.append({scopeKind:"project",scopeId:input.project_id,kind:"progress",entityId:input.goal_id});
-        }); this.events.notify(); return receipt;
+          if (!saved.result_json) this.events.append({ scopeKind: "project", scopeId: input.project_id, kind: "progress", entityId: input.item_id });
+        });
+        this.events.notify();
+        return receipt;
       } catch (error) {
         const code = error && typeof error === "object" && "code" in error ? String(error.code) : "im.continuity.delivery_unknown";
         this.db.prepare("UPDATE mw_commands SET state='pending',error_code=? WHERE project_id=? AND member_id=? AND command_id=? AND result_json IS NULL").run(code,...key);
@@ -168,13 +212,15 @@ export class ContinuityService {
     });
   }
   async assets(session: Session, projectId: string) {
-    return this.authorized(session,projectId,"viewer",async (bound,validate) => {
-      const scope = this.scope(projectId), role = this.identity.access(session,projectId);
-      const artifacts = await this.artifacts(bound,scope,role !== "owner");
-      const goals = await this.goals(bound,scope.goal_ids); validate();
+    return this.authorized(session, projectId, "viewer", async (bound, validate) => {
+      const scope = this.scope(projectId);
+      const role = this.identity.access(session, projectId);
+      const artifacts = await this.artifacts(bound, scope, role !== "owner");
+      const items = await this.items(bound, scope.item_ids);
+      validate();
       const providerPluginId = bound.roles["states.read"]?.plugin_id;
-      const sections = goals.length && providerPluginId
-        ? [{ plugin_id: providerPluginId, section_id: "work_progress", schema_version: /* @version format.asset.bundle */ 1, title: "工作进展接续摘要", items: goals }]
+      const sections = items.length && providerPluginId
+        ? [{ plugin_id: providerPluginId, section_id: "work_progress", schema_version: /* @version format.asset.bundle */ 1, title: "工作进展接续摘要", items }]
         : [];
       return {format:"molis-work-assets",version:/* @version format.asset.bundle */1,source_project_id:projectId,title:scope.title,sections,
         artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,artifact_type_id:a.artifact_type_id,schema_version:a.schema_version,

@@ -41,6 +41,7 @@ for (const [name, baseline] of libraries) {
 // (specs/unified-partition-plugins §4.2), so the Home store registry no longer carries it; the partition declaration keeps version 1.
 test("RAC-44: Cognia's library is no Home store; each partition's library is the one its Manifest declares, at version 1", () => {
   assert.ok(!homeStores().stores.some(store => store.path === "cognia"));
+  assert.equal(homeStores().get("materials"), undefined, "retired transcription materials/ entry is removed under Decision 69 clean v1");
   assert.equal(cogniaManifest.databases?.partition?.version, 1);
   assert.equal(cogniaManifest.databases?.home, undefined);
 });
@@ -54,6 +55,7 @@ test("W3-06-F-04 Home Runtime created by the public Host is the complete indepen
     assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
     assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
     assert.deepEqual(describeSqliteSchema(db), shape(STORAGE_SPACE_SCHEMA_SQL + pluginRuntimeBaseline().schema));
+    assert.equal(pluginRuntimeBaseline().schema.includes("'always_on'"), false, "clean v1 plugin_consents CHECK no longer includes retired 'always_on'");
   } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
 });
 

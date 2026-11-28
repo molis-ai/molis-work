@@ -39,6 +39,7 @@ export function inspectActionCrossReferences(definitions: unknown): string[] {
     ...backgroundJobProblems(source, group),
     ...fragmentTargetProblems(source, group),
     ...subjectTargetProblems(source, group),
+    ...inputSubjectProblems(source),
     ...resultSubjectProblems(source),
     ...composerKindProblems(source, readable),
     ...trustedReviewReaderProblems(source, group),
@@ -160,7 +161,22 @@ function handlesKinds(target: Declared, offered: readonly string[]): boolean {
   return !Array.isArray(handled) || handled.length === 0 || offered.every(kind => handled.includes(kind));
 }
 
-// ---- the result object ------------------------------------------------------------------------------------------------------
+// ---- the input & result object ----------------------------------------------------------------------------------------------
+
+/**
+ * The places `input_subject` names (the target object's id, and its expected_revision when written) are in the input the action declares.
+ * Declared at all, it is an object: the shape check does not read it, so invalid shapes are reported here alongside `result_subject`.
+ */
+function inputSubjectProblems(source: Declared): string[] {
+  const declared = source.action.input_subject;
+  if (declared === undefined || declared === null) return [];
+  if (!isRecord(declared)) return [`能力 ${source.key} 的输入对象声明必须是对象，写明 id（可加 expected_revision）在输入里的路径`];
+  const positions = declared.expected_revision === undefined ? [declared.id] : [declared.id, declared.expected_revision];
+  return positions.flatMap(position => {
+    if (typeof position !== "string") return [`能力 ${source.key} 的输入对象位置必须写成输入里的路径`];
+    return schemaPathExists(source.action.input_schema, position) ? [] : [`能力 ${source.key} 的输入对象位置 ${position} 不在输入合同里`];
+  });
+}
 
 /**
  * The places `result_subject` names (the object's id, and its revision when written) are in the output the action declares. Declared

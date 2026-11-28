@@ -567,19 +567,19 @@ export interface ConnectorUsagesSwitchResult {
 export type ConnectorUse = (typeof CONNECTOR_USES)[number];
 
 export declare const connectorErrors: {
-    "connector.connection.disconnected": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.connection.invalid": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.connection.not_found": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.connection.service_mismatch": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.connection_missing": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.driver_duplicate": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.driver_missing": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.invocation_failed": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.timeout": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.mcp.authorization": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.mcp.configuration": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.mcp.disconnected": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    "connector.mcp.provider": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
+    "connector.connection.disconnected": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.connection.invalid": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.connection.not_found": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.connection.service_mismatch": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.connection_missing": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.driver_duplicate": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.driver_missing": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.invocation_failed": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.timeout": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.mcp.authorization": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.mcp.configuration": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.mcp.disconnected": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
+    "connector.mcp.provider": (message: string, details?: Readonly<Record<string, unknown>>, text?: import("platform/action-errors").ActionErrorText) => import("platform/action-errors").ActionError;
 };
 
 export declare const connectorGatewayBase: (gateway: NonNullable<ConnectorRequestTenant["gateway"]>, service_id: string, cloud_id: string) => string;

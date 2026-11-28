@@ -73,18 +73,6 @@
       "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
       "decided": "2026-11-25"
     },
-    "apps/local-host/src/demo-plugin-seed.ts": {
-      "count": 3,
-      "kind": "batch-109",
-      "reason": "演示项目暂不开的插件：`git`、`diff` 随第 109 批搬家，`work-brief` 的项目主页随 106～109 批；面板落地前保留",
-      "decided": "2026-11-25"
-    },
-    "apps/local-host/src/home-actions.ts": {
-      "count": 2,
-      "kind": "deferred",
-      "reason": "Home 底栏默认摆放规则 `inbox.done`／`inbox.dismiss` 点名 Inbox 的动作；用户在 44B（M9）定推迟，随 BL-b44-home-dock-default-rule 改成声明",
-      "decided": "2026-11-24"
-    },
     "apps/local-host/src/home-event-actions.ts": {
       "count": 1,
       "kind": "same-word",
@@ -128,10 +116,10 @@
       "decided": "2026-11-25"
     },
     "apps/local-host/src/observation-host.ts": {
-      "count": 1,
+      "count": 2,
       "kind": "same-word",
-      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
-      "decided": "2026-11-25"
+      "reason": "`schedule`／`schedule_job` 是观测入口与平台定时任务对象的取值；不是同名插件",
+      "decided": "2026-11-27"
     },
     "apps/local-host/src/plugin-executor.ts": {
       "count": 1,
@@ -193,11 +181,17 @@
       "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
       "decided": "2026-11-25"
     },
-    "apps/local-host/src/web-project-schedulers.ts": {
+    "apps/local-host/src/web-assistant.ts": {
       "count": 1,
       "kind": "same-word",
-      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
-      "decided": "2026-11-25"
+      "reason": "`schedule_not_attached` 是平台定时服务未挂载时的宿主诊断日志键；不是同名插件",
+      "decided": "2026-11-27"
+    },
+    "apps/local-host/src/web-project-schedulers.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`schedule`／`schedule_jobs` 是平台定时日志分类与定时任务表名；不是同名插件",
+      "decided": "2026-11-27"
     },
     "apps/local-host/src/web-storage-resources.ts": {
       "count": 1,
@@ -500,10 +494,10 @@
       "decided": "2026-11-26"
     },
     "horizontal/automation-recommender/src/scan.ts": {
-      "count": 2,
+      "count": 3,
       "kind": "same-word",
-      "reason": "`.github/workflows` 是 CI 配置目录名，不是 Workflows 插件",
-      "decided": "2026-11-25"
+      "reason": "`.github/workflows` 是 CI 配置目录名，`git_host` 是仓库托管线索类型；都不是同名插件",
+      "decided": "2026-11-27"
     },
     "horizontal/kit/src/index.ts": {
       "count": 1,
@@ -662,10 +656,10 @@
       "decided": "2026-11-25"
     },
     "packages/contracts/src/platform/plugin-integrations.ts": {
-      "count": 1,
+      "count": 2,
       "kind": "same-word",
-      "reason": "`form` 是令牌请求体的编码格式；不是同名插件",
-      "decided": "2026-11-25"
+      "reason": "`form` 是令牌请求体编码格式，`git_hosts` 是仓库托管方主机线索字段；都不是同名插件",
+      "decided": "2026-11-27"
     },
     "packages/contracts/src/platform/plugin-registration.ts": {
       "count": 1,
@@ -680,10 +674,10 @@
       "decided": "2026-11-25"
     },
     "packages/contracts/src/platform/plugin-source-pull.ts": {
-      "count": 1,
+      "count": 2,
       "kind": "same-word",
-      "reason": "`git` 是受限执行的 git 程序本身；不是同名插件",
-      "decided": "2026-11-25"
+      "reason": "`git` 是受限执行的 git 程序，`feed_url` 是公开 RSS 订阅源地址类型；都不是同名插件",
+      "decided": "2026-11-27"
     },
     "packages/contracts/src/platform/plugin-trust.ts": {
       "count": 1,
@@ -720,6 +714,12 @@
       "kind": "same-word",
       "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
       "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/automation-recommender.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`git_host` 是自动化推荐线索的仓库托管方种类取值；不是同名插件",
+      "decided": "2026-11-27"
     },
     "packages/contracts/src/services/conversation-attachments.ts": {
       "count": 1,
@@ -984,6 +984,12 @@
       "kind": "same-word",
       "reason": "`diff` 是代码高亮的语言名（补丁格式），不是 Diff 插件",
       "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/integration-declarations.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`git_hosts` 是集成声明里仓库托管方主机名的字段名；不是同名插件",
+      "decided": "2026-11-27"
     },
     "packages/plugin-sdk/src/oauth-declarations.ts": {
       "count": 1,

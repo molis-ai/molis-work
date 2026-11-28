@@ -74,7 +74,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: Discussi
           }
           if (session?.member_id) {
             const member = current.identity.requireMember(session);
-            if (!stored) current.continuity.registerProject({id:project.id,title:project.title,goal_ids:[],artifacts:[]},member.id);
+            if (!stored) current.continuity.registerProject({ id: project.id, title: project.title, item_ids: [], artifacts: [] }, member.id);
             current.identity.access(session,project.id);
           }
           // A new project without an owner still needs the normal name form.

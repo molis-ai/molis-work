@@ -1905,9 +1905,9 @@ test("a change's receipt survives micro-compaction in the next request; an older
   const f = await fixture(t, [
     () => reply({ name: "find-capabilities", input: { query: "Ledger" } }),
     () => reply({ name: "change-capability", input: { capability_id: "fixture.ledger.post", version: 1, provider_id: "fixture.ledger", input: { text: "posted" } } }),
-    // Five reads after the change: the SDK keeps the last four tool turns whole, so the change and the first read fall behind them.
-    () => reply(read), () => reply(read), () => reply(read), () => reply(read), () => reply(read),
-    () => reply(undefined, "Posted, then read five pages."),
+    // Six reads after the change (8 tool turns total): the SDK keeps the last four tool turns whole and steps micro-compaction in batches of four (`stepTurns: 4`), so the change and the first two reads fall behind the cutoff.
+    () => reply(read), () => reply(read), () => reply(read), () => reply(read), () => reply(read), () => reply(read),
+    () => reply(undefined, "Posted, then read six pages."),
   ]);
   f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.ledger", kind: "plugin", title: "Ledger" }, definitions: [post, page],
     handlers: [{ ...post, handle: () => ({ receipt }) }, { ...page, handle: () => ({ page: `PAGE-${++pages}-${"p".repeat(800)}` }) }] });
@@ -1916,7 +1916,7 @@ test("a change's receipt survives micro-compaction in the next request; an older
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, version: held.reviews[0]!.version, decision: "approve" });
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    assert.equal(pages, 5);
+    assert.equal(pages, 6);
     const last = JSON.stringify(f.requests.at(-1));
     assert.ok(last.includes("[observation compacted: read-capability"), "the first read, behind the last four tool turns, was compacted: compaction ran");
     assert.ok(!last.includes(`PAGE-1-${"p".repeat(800)}`), "and its text is gone from the request");

@@ -1,6 +1,6 @@
 import type { WorkflowLink, WorkflowLinkKind } from "../model.js";
 import { DEFAULT_BODY_TOKEN, ruleKey } from "./chain.js";
-import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as esc, renderCollapsible } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ico, kindHelp, kindName, required, settle } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { fitPop, markOpen, pillOf, placePop } from "./popover.js";
@@ -32,14 +32,15 @@ export function linkView(page: WorkflowsPage, link: WorkflowLink) {
   if (link.kind === "function") {
     const customized = Boolean(link.title_template.trim() || (link.body_template.trim() && link.body_template.trim() !== DEFAULT_BODY_TOKEN));
     return `<p class="wf-hint">${esc(uiText.text("workflows.rule.direct-summary"))}</p>`
-      + `<details class="mw-collapsible wf-advanced-template" data-slot="collapsible"${customized ? " open" : ""}>`
-      + `<summary>${esc(uiText.text("workflows.rule.customize"))}</summary>`
-      + `<div class="mw-collapsible__body">`
-      + field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, uiText.text("workflows.rule.title-placeholder", { title: "{标题}" }))
-      + field("body_template", uiText.text("workflows.rule.body"), link.body_template, 5, uiText.text("workflows.rule.body-placeholder", { source: "{来源}", link: "{链接}", body: "{正文}" }))
-      + `<p class="wf-tokens"><span>${esc(uiText.text("workflows.rule.insert"))}</span>` + TOKENS.map((token) => `<button type="button" class="wf-token" data-wf-token="{${token}}" title="${esc(uiText.text("workflows.rule.insert-into-body"))}">${esc(uiText.text(TOKEN_LABEL_KEYS[token]))}</button>`).join("") + "</p>"
-      + `<p class="wf-hint">${esc(uiText.text("workflows.rule.title-empty-note"))}</p>`
-      + "</div></details>";
+      + renderCollapsible({
+        summary: uiText.text("workflows.rule.customize"),
+        className: "wf-advanced-template",
+        open: customized,
+        body: field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, uiText.text("workflows.rule.title-placeholder", { title: "{标题}" }))
+          + field("body_template", uiText.text("workflows.rule.body"), link.body_template, 5, uiText.text("workflows.rule.body-placeholder", { source: "{来源}", link: "{链接}", body: "{正文}" }))
+          + `<p class="wf-tokens"><span>${esc(uiText.text("workflows.rule.insert"))}</span>` + TOKENS.map((token) => `<button type="button" class="wf-token" data-wf-token="{${token}}" title="${esc(uiText.text("workflows.rule.insert-into-body"))}">${esc(uiText.text(TOKEN_LABEL_KEYS[token]))}</button>`).join("") + "</p>"
+          + `<p class="wf-hint">${esc(uiText.text("workflows.rule.title-empty-note"))}</p>`,
+      });
   }
   if (link.kind === "ai") {
     return field("instructions", uiText.text("workflows.ai.target"), link.instructions, 4, uiText.text("workflows.ai.placeholder"))

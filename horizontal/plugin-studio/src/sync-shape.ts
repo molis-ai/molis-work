@@ -28,7 +28,7 @@ function checks(value:Record<string,unknown>){
 export function portableBuilderSnapshot(value:AgentBuildSnapshot):Record<string,unknown>{return {...pick(value,snapshotFields),...(value.checks?{checks:checks(value.checks)}:{})};}
 export function portableBuilderBuild(value:AgentBuild):Record<string,unknown>{
  return {...pick(value,buildFields),...portableBuilderSnapshot(value),revision:0,active:null,
-  candidates:value.candidates.map(candidate=>({...pick(candidate,['id','title','description','rationale','journey','effects','preview']),...(candidate.mockup?{mockup:pick(candidate.mockup,['status','jobId','imageId','reason'])}:{})})),
+  candidates:value.candidates.map(candidate=>({...pick(candidate,['id','title','description','rationale','journey','effects','preview']),...(candidate.mockup?{mockup:{status:'failed'}}:{})})),
   phase:['draft','clarifying','choosing'].includes(value.phase)?value.phase:'paused',
   steps:value.steps.map(step=>({...pick(step,['id','agent','action','label','status','operationId','detail','at','selection']),status:['active','queued'].includes(step.status)?'cancelled':step.status})),
   history:value.history.map(portableBuilderSnapshot)};

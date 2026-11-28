@@ -70,6 +70,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
 
   const { renderMolisWorkWeb } =
     createWorkbenchGoalsPageRenderer<MolisWorkWebView>({
+      catalogTextPacks: ports.catalogTextPacks,
       readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
       renderIconSprite, prefixLocalLinks, renderWorkbenchDocument: createWorkbenchDocumentRenderer(accountRegistration, ports.environmentName),
       renderDesktopProjectChrome, renderProjectSwitcher, renderProjectCorner,

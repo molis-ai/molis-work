@@ -24,6 +24,8 @@ import { renderSessionsOverlays, renderSessionsStage } from "./sessions/ui.js";
 import { appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
 import { renderInlinePageText } from "./language-resource.js";
+import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { ProjectSettingsPagePorts } from "./project-settings-pages.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string, directory: PluginDirectory) {
   const home = homePluginSideTabs(routePrefix, directory);
@@ -39,9 +41,17 @@ function stagedFrameSource(view: WorkbenchShellPageView, id: string) {
   return { producer: drawn.producer, mount: { contribution_id: descriptor.contribution_id, surface: main.surface_id, target_slot_id: main.target_slot_id } };
 }
 
-function projectedPageText(view: WorkbenchShellPageView): string {
+function projectedPageText(view: WorkbenchShellPageView, packsFor: ProjectSettingsPagePorts["catalogTextPacks"]): string {
   const pages = Object.entries(view.plugin_stage_views ?? {}).flatMap(([slot, source]) =>
     source?.producer && source.textPacks ? [{ slot, producer: source.producer, packs: source.textPacks() }] : []);
+  const station = HOST_FRAMED_SURFACES.find(entry => entry.manifest.plugin_id === PLATFORM_RECEIVE_STATION)?.manifest;
+  const title = station?.name_text;
+  const key = title && "key" in title ? title.key : undefined;
+  if (station && key) {
+    const packs = packsFor(station).flatMap(pack => Object.hasOwn(pack.messages, key)
+      ? [{ ...pack, messages: { [key]: pack.messages[key]! } }] : []);
+    pages.push({ slot: "mainline:receive", producer: station.plugin_id, packs });
+  }
   return renderInlinePageText(pages);
 }
 
@@ -113,6 +123,7 @@ export interface WorkbenchShellPageView {
  */
 export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView> {
   readText: Translate;
+  catalogTextPacks: ProjectSettingsPagePorts["catalogTextPacks"];
   escapeHtml(value: unknown): string;
   icon(name: PageIcon): string;
   htmlLang(): string;
@@ -206,7 +217,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 -->\n`,
     lang: htmlLang(),
     title,
-    head_before_title_html: controlTokenMeta(controlToken) + projectedPageText(view),
+    head_before_title_html: controlTokenMeta(controlToken) + projectedPageText(view, owners.catalogTextPacks),
     head_html: `<script>${THEME_BOOTSTRAP_SCRIPT};${homeToolKeysScript()};${widthPreference}</script>
   <link rel="stylesheet" href="__WORKBENCH_CSS__">${pluginShellStyleLinks(enabledPlugins)}${appearanceHead(appearance)}`,
     body_attributes: {

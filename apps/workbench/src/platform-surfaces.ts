@@ -1,5 +1,5 @@
 import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { PLATFORM_SURFACES, type PlatformSurface, type PlatformSurfaceClientPath, type PlatformSurfaceId } from "@molis-ai/molis-work-ui-host";
+import { PLATFORM_SURFACES, PLATFORM_SURFACE_CLIENT_PATHS, type PlatformSurface, type PlatformSurfaceClientPath, type PlatformSurfaceId } from "@molis-ai/molis-work-ui-host";
 import { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 import { workbenchNavigationLabel } from "./navigation-label.js";
 import { renderMolisWorkSessionsClientScript } from "./sessions/client-asset.js";
@@ -39,8 +39,8 @@ export function platformNavigationLabel(id: PlatformSurfaceId): string {
 
 /** Each served program, by the address the registration gives it. */
 const CLIENTS: Readonly<Record<PlatformSurfaceClientPath, () => string>> = {
-  "/assets/molis-work-plugins/characters.js": renderMolisWorkCharactersClientScript,
-  "/assets/molis-work-plugins/sessions.js": renderMolisWorkSessionsClientScript,
+  [PLATFORM_SURFACE_CLIENT_PATHS.characters]: renderMolisWorkCharactersClientScript,
+  [PLATFORM_SURFACE_CLIENT_PATHS.sessions]: renderMolisWorkSessionsClientScript,
 };
 
 export function platformSurfaceClientScript(path: PlatformSurfaceClientPath): string {

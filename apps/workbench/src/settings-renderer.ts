@@ -38,6 +38,8 @@ import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./judgment-rules/bootstrap.js";
 const NETWORK_DOC_HREF: Readonly<Record<string, string>> = {
   zh: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.md",
   en: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.en.md",
+  // The network reference is published in Chinese and English. Japanese links to its English edition.
+  ja: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.en.md",
 };
 
 function networkDocHrefFor(locale: string): string {

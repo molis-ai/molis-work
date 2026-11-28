@@ -359,7 +359,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (key === "assertCurrent") return () => { target.assertCurrent(); if (transition.preparing) throw new Error("Account is switching"); };
     return Reflect.get(target, key);
   }});
-  const port = channel.port1, requests = frameRequests(port, grant.page_id, businessScope);
+  const port = channel.port1, requests = frameRequests(port, grant.page_id, businessScope,
+    { root, pluginId: pack.plugin_id, actionPath: new URL(route("/api/host/plugin-page-actions"), location.origin).pathname });
   let flushSequence = 0;
   let draftsPrepared = false;
   const draftWork = new Set<Promise<void>>();

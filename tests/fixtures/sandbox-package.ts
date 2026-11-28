@@ -1,5 +1,5 @@
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
-import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign } from "node:crypto";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackageManifest, type SandboxAgentBodyDeclaration, type SandboxPackageManifest, type PluginPackageBundle, type PluginPackagePayload, type PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -31,8 +31,14 @@ const CODE = `export const operations = {
   'notes.add': async (input, sdk) => { const notes = JSON.parse((await sdk.storage.get('notes')) ?? '[]'); notes.push({ id: String(notes.length + 1), text: input.text, ...(input.access === undefined ? {} : { access: input.access }) }); await sdk.storage.set('notes', JSON.stringify(notes)); return true; },
 };\n`;
 
-export function newPublisher() {
-  const keys = generateKeyPairSync("ed25519");
+/** Repeatable public test identities, used only for packages in isolated acceptance Homes. */
+export function fixturePublisher(label: string) {
+  const seed = createHash("sha256").update("Molis test publisher: " + label).digest();
+  const privateKey = createPrivateKey({ format: "der", type: "pkcs8", key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]) });
+  return newPublisher({ privateKey, publicKey: createPublicKey(privateKey) });
+}
+
+export function newPublisher(keys = generateKeyPairSync("ed25519")) {
   const spki = keys.publicKey.export({ type: "spki", format: "der" });
   const identity = `ed25519:sha256:${createHash("sha256").update(spki).digest("hex")}`;
   const signer: PluginPackageSigner = { publisher_identity: identity, public_key_spki_base64: spki.toString("base64"), sign: bytes => sign(null, bytes, keys.privateKey) };

@@ -148,16 +148,24 @@ test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers whil
   const space=personalStorageSpace('https://auth.example.test','work','alice');
   ensureStorageSpace(root,space);
   const selections=Array.from({length:7},(_,i)=>({plugin_id:i===0?'io.molis.work.module.projects.v1':`io.example.col${i}`,publisher_id:i===0?'molis':'example',publisher_signature:i===0?'official-project-catalog-binding':'example-key',collection_id:i===0?'projects':`items-${i}`,schema_version:1}));
-  const order:string[]=[];
-  let active=0,peak=0,baseDone=false;
-  const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
+  const completed=new Set<string>(), waves:string[][]=[];
+  let pending:Promise<void>|null=null, active=0, peak=0;
+  // Every request started in this turn can finish in one network round trip.
+  const roundTrip=(ns:string)=>{
+    if(!pending){
+      waves.push([]);
+      pending=setImmediate().then(()=>{pending=null;});
+    }
+    waves.at(-1)!.push(ns);
+    return pending;
+  };
   const registrations=selections.map((selection,i)=>({
     selection,title:`Col ${i}`,
     ...(i===0?{restoreTier:'catalog' as const}:{}),
     ...(i===6?{dependencies:[selections[1]!]}:{}),
     async refresh(){},
     async prepare(){},
-    withReplica:run=>run({cursor:()=>0,next:()=>null,receive(){if(i===0)baseDone=true;},acknowledge(){},counts:()=>({pending:0,conflicts:0}),conflicts:()=>[],resolve(){}}),
+    withReplica:run=>run({cursor:()=>0,next:()=>null,receive(){completed.add(syncNamespace(selection));},acknowledge(){},counts:()=>({pending:0,conflicts:0}),conflicts:()=>[],resolve(){}}),
   }));
   const sync=new PersonalSync({home:root,spaceId:space.spaceId,endpoint:'http://127.0.0.1:8788',
     authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic';}},
@@ -166,21 +174,19 @@ test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers whil
       const url=new URL(String(input));
       if(url.pathname==='/v1/round')return Response.json({format:1,policy:{spaceId:space.spaceId,revision:1,selections},quota:{limitBytes:100000000,usedBytes:0},heads:selections.map(s=>({namespace:syncNamespace(s),revision:1}))});
       const ns=url.searchParams.get('namespace')!;
-      if(ns!==syncNamespace(selections[0]!))assert.equal(baseDone,true,'projects catalog settles before dependent layers');
-      active++;peak=Math.max(peak,active);order.push(ns);
-      await delay(80);
+      if(ns!==syncNamespace(selections[0]!))assert.ok(completed.has(syncNamespace(selections[0]!)),'projects catalog settles before dependent layers');
+      if(ns===syncNamespace(selections[6]!))assert.ok(completed.has(syncNamespace(selections[1]!)),'declared dependency has been applied before the consumer starts');
+      active++;peak=Math.max(peak,active);
+      await roundTrip(ns);
       active--;
       return Response.json({events:[{operationId:'op-'+ns,key:'k',base:0,revision:1,value:{ok:true}}],more:false});
     }});
   t.after(()=>sync.close());
-  const started=performance.now();
   await sync.run();
-  const elapsed=performance.now()-started;
   assert.equal(sync.status().error,null);
   assert.equal(peak,3,'bounded concurrency runs 3 independent collections at once');
-  assert.ok(order.indexOf(syncNamespace(selections[1]!))<order.indexOf(syncNamespace(selections[6]!)),'declared dependency completes before consumer');
-  // 7 * 80ms serial = >=560ms; layered parallel (1 + ceil(5/3) + 1 = 4 waves -> ~320ms) stays well below serial time even under CI CPU load
-  assert.ok(elapsed<480,`expected layered parallelism speedup, elapsed=${elapsed.toFixed(1)}ms`);
+  assert.deepEqual(waves.map(wave=>wave.length),[1,3,2,1],'seven downloads take four network round trips');
+  assert.equal(completed.size,7,'all collections applied their remote changes');
 });
 
 test('CORE-13 declarative restoreTier orders catalog -> version-store -> reference-owner -> default without hardcoded plugin IDs', async t => {

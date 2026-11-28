@@ -330,22 +330,21 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     const id=current();
     for(const button of buttons()){const on=button.dataset.sideTab===id;button.toggleAttribute('data-side-closed',!tabOf(button.dataset.sideTab));button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
     for(const body of panel.querySelectorAll('[data-side-body]')){
-      const on=body.dataset.sideBody===id;body.hidden=!on;
-      if(!on||!open)continue;
+      body.hidden=body.dataset.sideBody!==id;
+      if(body.hidden||!open)continue;
       load(body);
-      const inner=target&&body.querySelector('[data-side-frame]');
-      if(inner){
-        const revision=selectionRevision;
-        ready(inner,()=>{if(open&&id===current()&&revision===selectionRevision&&inner.isConnected)inner.contentWindow?.postMessage({type:'molis:side-target',target},location.origin);});
-      }
+      const inner=target&&body.querySelector('[data-side-frame]'),revision=selectionRevision;
+      if(inner)ready(inner,()=>{
+        if(open&&current()===id&&selectionRevision===revision&&inner.isConnected)inner.contentWindow?.postMessage({type:'molis:side-target',target},location.origin);
+      });
     }
     expanded();imVisible();drawUndo();reveal();
   };
   const dropHelpTab=()=>{const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');if(helpBtn)helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
   const choose=id=>{if(!offered(id))return;const state=getState();if(tabOf(id))ops.selectSide(state,id);else{ops.openSide(state,id,views());ops.setSideOpen(state,open);}};
   const select=(id,target,restore=false)=>{
-    selectionRevision++;
-    if(!restore)choose(id);if(id&&id!=='help')dropHelpTab();draw(target);
+    if(!restore){selectionRevision++;choose(id);}
+    if(id&&id!=='help')dropHelpTab();draw(target);
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{

@@ -25,6 +25,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // and dynamic Skill/Kit scene candidate reads and bindings (`kit.catalog.list`, `skills.kit.report`, `skills.catalog.list`,
   // `skills.import.preview`, `skills.import.confirm`, `skills.drafts.adopt`, `plugins.install.preview`), and signed package repair through the two protected settings actions
   // (`plugins.installed.repair`, `plugins.home.installed.repair`).
+  // Signed scenario tool calls and their approved commands share the agent tool and gateway exits. Studio calls the selected installation's four image actions here.
+  // Characters lists signed templates and records their explicit adoption through this same gateway.
   // Both signed-package install screens record the same plugins.install.confirm action exit, including an explicit discard of kept data.
   // Generated connection cards use the same connector binding and component-submit action exits; Studio icon selection belongs to the designer round.
   // Connector record binding, MCP configuration usage reports and connection list reads use this same action exit.

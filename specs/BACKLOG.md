@@ -20,6 +20,8 @@
 
 ## 1. 待你验收
 
+第 44C 批的置物架真机、服务卡、Google Docs 导入顺序和组件板由一骏体验后逐项登记。[BL-b44c-acceptance](backlog/BL-b44c-acceptance.md)
+
 第 38 批场景设置的采用范围、部分成功后继续和撤销见 [BL-b38-settings-adoption-acceptance](backlog/BL-b38-settings-adoption-acceptance.md)。第 40 批治理简化与全产品按需帮助／文案实物见 [BL-b40-governance-help-acceptance](backlog/BL-b40-governance-help-acceptance.md)。第 91 批前置段（`91-0a` / `91-0b`）四套皮肤、F1 字体、共享底座、组件板与设置页实物见 [BL-b91-0b-acceptance](backlog/BL-b91-0b-acceptance.md)。
 
 按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)；第 41 批 Skill 选用与自写技能见 [BL-b41-acceptance](backlog/BL-b41-acceptance.md)；第 42 批 Skill 创作与改进的实物验收见 [BL-b42-acceptance](backlog/BL-b42-acceptance.md)；第 33 批 Coding 与材料恢复闭环本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)；第 32 批事项线、交办与结果回流、逐项认可见 [BL-b32-acceptance](backlog/BL-b32-acceptance.md)；第 34 批 Sessions 历史实现本人验收见 [BL-b34-sessions-acceptance](backlog/BL-b34-sessions-acceptance.md)。第 58 批子代理公共对话部件见 [BL-b58-subtask-acceptance](backlog/BL-b58-subtask-acceptance.md)。第 59 批助理与 Coding 的真实入口与恢复体验见 [BL-b59-subtask-acceptance](backlog/BL-b59-subtask-acceptance.md)。第 47 批创作台入口、原处的安装单、已装插件的设置与损坏恢复、同编号两位发布者见 [BL-b47-acceptance](backlog/BL-b47-acceptance.md)。不要把本节整体当作可立即验收或已获认可。

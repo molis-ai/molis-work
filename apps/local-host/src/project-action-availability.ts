@@ -85,11 +85,12 @@ export function pluginReachable(entry: { readonly project_plugin_id: string }, r
 
 /**
  * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a registered Home plugin outside the build, the same
- * shape keyed by its plugin id. Anything else (a project's own Runtime plugin) is not the catalog's to judge.
+ * shape keyed by its plugin id. A provider owned by the project's Runtime has its own installation and grants even when a Home
+ * installation uses the same plugin id (BL-586).
  */
-export function reachEntry(homeDirectory: string | undefined, pluginId: string): ReachEntry | undefined {
+export function reachEntry(homeDirectory: string | undefined, pluginId: string, provider?: Pick<ActionView["provider"], "project_id">): ReachEntry | undefined {
   return builtinPluginByManifestId(pluginId)
-    ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { project_plugin_id: pluginId } : undefined);
+    ?? (provider?.project_id === undefined && homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { project_plugin_id: pluginId } : undefined);
 }
 
 /**
@@ -99,22 +100,17 @@ export function reachEntry(homeDirectory: string | undefined, pluginId: string):
  * the old rule. Returned once, so a caller outside the catalog's callback never holds its database open.
  */
 export function projectPluginJudge(catalog: ReachCatalog, projectId: string,
-  homeDirectory: string | undefined): (pluginId: string) => boolean | undefined {
+  homeDirectory: string | undefined): (pluginId: string, provider?: Pick<ActionView["provider"], "project_id">) => boolean | undefined {
   const reachable = cachedProjectReachablePlugins(catalog, projectId, homePluginsOutsideBuild(homeDirectory));
-  return pluginId => {
-    const entry = reachEntry(homeDirectory, pluginId);
+  return (pluginId, provider) => {
+    const entry = reachEntry(homeDirectory, pluginId, provider);
     return entry ? pluginReachable(entry, reachable) : undefined;
   };
 }
 
 /** Bundled plugins use the existing project installation record; Runtime plugins enforce their own grants. */
 export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, homeDirectory: string) {
-  const entryOf = (action: Pick<ActionView, "provider">) => {
-    const entry = action.provider.plugin_id ? reachEntry(homeDirectory, action.provider.plugin_id) : undefined;
-    // A Home plugin outside the build has no project half: a project's own provider under its id is another publisher's plugin (BL-586),
-    // whose grants and membership are independent of the Home registration.
-    return entry && !("manifest" in entry) && action.provider.project_id !== undefined ? undefined : entry;
-  };
+  const entryOf = ({ provider }: Pick<ActionView, "provider">) => provider.plugin_id ? reachEntry(homeDirectory, provider.plugin_id, provider) : undefined;
   const read = async (caller: ActionCallContext): Promise<ReadonlySet<string> | null> => {
     if (!caller.project_id) return null;
     return withCatalog({ homeDirectory }, catalog => cachedProjectReachablePlugins(catalog, caller.project_id!, homePluginsOutsideBuild(homeDirectory)));

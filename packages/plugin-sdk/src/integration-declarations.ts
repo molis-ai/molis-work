@@ -22,10 +22,12 @@ const CREDENTIAL_TYPES = new Set(["text", "email", "url", "password"]);
 const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "title", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
-export function integrationDeclarationProblems(manifest: { kind?: unknown; plugin_id?: unknown; ui?: { locales?: unknown }; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
+export function integrationDeclarationProblems(manifest: { kind?: unknown; plugin_id?: unknown; runtime?: unknown; ui?: { locales?: unknown }; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
   const { connection_services: services, integrations, source_presentations: presentations } = manifest;
   if (services === undefined && integrations === undefined && presentations === undefined) return [];
-  if (manifest.kind !== "integration") return ["只有 Integration Plugin 能声明 connection_services 和 integrations"];
+  const dual = manifest.kind === "app" && isRecord(manifest.runtime) && manifest.runtime.scope === "home" && manifest.runtime.dual_instance === true;
+  if (manifest.kind !== "integration" && !dual) return ["来源须由集成插件或双实例应用的 Home 实例声明"];
+  if (dual && (!Array.isArray(integrations) || integrations.length !== 1 || integrations.some(item => !isRecord(item) || item.kind !== "source") || !Array.isArray(services) || services.length !== 1)) return ["双实例应用只可声明一个个人来源和它的连接服务"];
   const problems: string[] = [];
   const word = (input: unknown, optionalEmpty = false) => {
     if (typeof input === "string") return optionalEmpty || text(input);

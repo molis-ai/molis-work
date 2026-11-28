@@ -102,7 +102,6 @@ export { renderMolisWorkWorkRecordsClientScript } from "./settings-work-records.
 export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
 export { renderCharacters } from "./characters/ui.js";
 export { platformSurfaceClientScript } from "./platform-surfaces.js";
-export { CHARACTERS_CLIENT_PATH } from "./characters/client-path.js";
 export { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, renderInstalledPluginBody, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet } from "./installed-plugin/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

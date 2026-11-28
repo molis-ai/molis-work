@@ -406,6 +406,8 @@ const pages: Record<string, Draw> = {
 // B2R-08 (#2358, base 8a47e73f): the personal Todo disclosure and the declared planning group change the 16 full pages
 // (+666 zh / +694 en). Compared with the rendered base, Lingguang, Todo, Jelly and Cognia retain their original tiles.
 // The remaining page markup and all 36 fragment and settings records match the base byte for byte.
+// 44C PSD-06: the 16 full shells carry the Shelf receiver's own locale entry in data-ui-page-text. Their expected bytes
+// were derived from #2357's verified markup by inserting that one JSON script after the page-session meta tag.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

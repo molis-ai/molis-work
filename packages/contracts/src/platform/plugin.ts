@@ -115,6 +115,8 @@ export interface PluginIntegrationContribution {
  */
 export interface PluginAppContribution {
   kind: "app";
+  /** Only the Home half of an application with signed source declarations supplies this adapter. */
+  home_source?: PluginIntegrationContribution;
   /** Optional implemented collections; a declared but undelivered collection stays unavailable. */
   sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
   actions?: readonly import("./actions.js").ActionHandlerBinding[];

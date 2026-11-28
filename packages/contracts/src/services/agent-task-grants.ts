@@ -32,6 +32,8 @@ export const TASK_GRANT_SUBJECT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}
 export interface TaskGrantCategoryReference {
   provider_id: string;
   group_id?: string;
+  /** Opaque reference to the installed sandbox release that offered the category. Echo it from list. */
+  installation?: string;
 }
 
 /**
@@ -127,9 +129,9 @@ export interface TaskGrantListResult {
 const id = { type: "string", minLength: 1, maxLength: 512 } as const;
 const words = { type: "string", maxLength: 2000 } as const;
 const key = { type: "string", pattern: TASK_GRANT_SUBJECT_KEY_PATTERN } as const;
-const setCategory = { type: "object", required: ["provider_id"], additionalProperties: false, properties: { provider_id: id, group_id: id, confirm: { const: true } } } as const;
+const setCategory = { type: "object", required: ["provider_id"], additionalProperties: false, properties: { provider_id: id, group_id: id, installation: id, confirm: { const: true } } } as const;
 const category = { type: "object", required: ["provider_id", "title", "description"], additionalProperties: false, properties: {
-  provider_id: id, group_id: id, plugin_id: id, title: words, description: words } } as const;
+  provider_id: id, group_id: id, installation: id, plugin_id: id, title: words, description: words } } as const;
 const categoryState = { type: "object", required: ["provider_id", "title", "description", "status"], additionalProperties: false, properties: {
   ...category.properties, status: { enum: ["granted", "needs_confirmation", "unavailable", "removed"] } } } as const;
 const subject = { type: "object", required: ["plugin_install_id", "key", "revision", "categories"], additionalProperties: false, properties: {

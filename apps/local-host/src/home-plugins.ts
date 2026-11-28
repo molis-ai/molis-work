@@ -82,6 +82,7 @@ export class HomePluginHost {
     ownerClosing?(): boolean;
     settingsVersionClaims?: SettingsVersionClaims;
     projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
+    reconcileProjectHalves?(pluginId: string, action: "enable" | "disable" | "uninstall"): Promise<void>;
     /** The open projects' 成果库, for what a Home instance consumes (`homePluginArtifactsFor`). */
     projectArtifacts?: import("./plugin-home-artifacts.js").HomeProjectArtifactStores;
     /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
@@ -181,8 +182,11 @@ export class HomePluginHost {
       await installed.refreshPublicActions(); return [];
     };
     // Disabling takes effect at once and does not wait behind an install on the Home line (surface-composition §14.4); the rest go through it.
-    if (action !== "disable") return this.installationScope.run(change);
-    await this.ready(); return change();
+    await this.ready();
+    const dual = this.dualInstance(pluginId);
+    const retained = action === "disable" ? await change() : await this.installationScope.run(change);
+    if (dual || this.dualInstance(pluginId)) await this.options.reconcileProjectHalves?.(pluginId, action);
+    return retained;
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }

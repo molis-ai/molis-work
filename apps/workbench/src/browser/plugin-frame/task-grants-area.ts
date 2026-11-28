@@ -27,8 +27,8 @@ type Change = { readonly kind: "on" | "off" | "allow" | "remove" | "undo"; reado
 export type TaskGrantsLine = { readonly text: string; readonly act?: "undo" | "retry" | "read"; readonly tone?: "danger" };
 type LineText = Omit<TaskGrantsLine, "text"> & { readonly key: string; readonly category?: string; readonly name?: string };
 
-export const taskGrantCategoryName = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "");
-const refOf = (ref: TaskGrantCategoryReference): TaskGrantSetCategory => ref.group_id === undefined ? { provider_id: ref.provider_id } : { provider_id: ref.provider_id, group_id: ref.group_id };
+export const taskGrantCategoryName = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "") + (ref.installation ? "\n" + ref.installation : "");
+const refOf = (ref: TaskGrantCategoryReference): TaskGrantSetCategory => ({ provider_id: ref.provider_id, ...(ref.group_id ? { group_id: ref.group_id } : {}), ...(ref.installation ? { installation: ref.installation } : {}) });
 
 export function taskGrantWords(categories: readonly TaskGrantCategory[]) {
   const words = new Map(categories.map(category => [taskGrantCategoryName(category), category]));

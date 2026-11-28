@@ -1,4 +1,5 @@
-import { escapeHtml, icon, renderButton, renderMenu, renderMenuItem, renderStateRing, t as uiText, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { escapeHtml, icon, renderButton, renderMenu, renderMenuItem, renderStateRing, say as sayOwned, t as uiText, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /**
@@ -488,9 +489,9 @@ export function renderCardOwn(own: { readonly words: string; readonly facts: rea
  * station a plugin of the project declares is an item of one 「放到…」 menu that opens under the row), said as done where it went.
  */
 export function renderCardResult(result: { readonly id: string; readonly preview: string; readonly open: boolean; readonly shelf: "" | "busy" | "done";
-  readonly targets?: readonly { readonly station: string; readonly title: string; readonly icon: string }[]; readonly placed?: string; readonly choosing?: boolean }): string {
+  readonly targets?: readonly { readonly station: string; readonly title: string; readonly title_text?: OwnedTextRef; readonly icon: string }[]; readonly placed?: string; readonly choosing?: boolean }): string {
   const say = (key: string) => uiText.text(`workbench.work-line.${key}`), id = escapeHtml(result.id);
-  const [first, ...rest] = result.targets?.length ? result.targets : [{ station: PLATFORM_RECEIVE_STATION, title: say("shelf"), icon: "bookmark" }];
+  const [first, ...rest] = result.targets?.length ? result.targets.map(target => target.title_text ? { ...target, title: sayOwned.text(target.title_text) } : target) : [{ station: PLATFORM_RECEIVE_STATION, title: say("shelf"), icon: "bookmark" }];
   const busy = result.shelf ? { disabled: "" } : {};
   const placedIn = result.shelf === "done" ? [first!, ...rest].find(target => target.station === result.placed) : undefined;
   const elsewhere = placedIn && placedIn !== first ? placedIn : undefined;

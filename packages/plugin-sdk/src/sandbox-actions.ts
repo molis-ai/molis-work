@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { isSandboxSourceOperation } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxOperationContract, SandboxPluginContract, SandboxSchema, SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } from '@molis-ai/molis-work-contracts/services/project-approvals';
 import { canonicalJsonText, isRecord } from './json-value.js';
 import { sandboxOperationPermissions } from './sandbox-manifest.js';
 import { sandboxActionProtocolAction, sandboxReadProtocolAction } from './sandbox-read-protocol.js';
+import { sandboxAgentTools } from './sandbox-agent-scenario.js';
 import { validTrustedReviewRow } from './action-declarations.js';
 
 /** The package identity already used for installed signed releases. It never depends on the running directory. */
@@ -48,6 +50,7 @@ export function sandboxBackgroundProblems(contract: SandboxPluginContract): stri
   for (const operation of contract.operations) {
     for (const target of operation.effects.background ?? []) {
       const started = contract.operations.find(item => item.id === target);
+      if (started?.effects.scenes?.length) problems.push(`Background target ${target} cannot run judgment scenes outside its original foreground action`);
       if (!started || started.kind !== 'command' || started.effects.background?.length) {
         problems.push(`Background effect ${target} of ${operation.id} must name a command of the contract that starts no background work`);
       }
@@ -142,25 +145,37 @@ export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "up
 export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project'; dualInstance?: boolean; upgradeOperation?: string; hasProjectDatabase?: boolean }): ActionDefinition[] {
   const problems = [...sandboxBackgroundProblems(input.contract), ...sandboxStartProblems(input.contract), ...reviewDeclarationProblems(input.contract, input.scope, input.dualInstance)];
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
+  const agentTools = sandboxAgentTools(input.contract, input.buildId);
   const scopeOf = (operation: SandboxOperationContract): 'home' | 'project' => {
+    if (operation.action_protocol?.kind === 'workflow_receive') {
+      if (input.scope === 'home' && !input.dualInstance) throw pluginErrors.declaration_invalid('workflow_receive needs a project installation or a project instance');
+      return 'project';
+    }
+    if (operation.effects.scenes?.length || operation.effects.artifacts?.length || operation.read_protocol?.kind === 'artifact_preview') return 'project';
     if (operation.read_protocol?.kind === 'work_terminal_prompt' || operation.read_protocol?.kind === 'resume_summary'
       || operation.action_protocol?.kind === 'placement_relation') return 'project';
+    if (operation.project_instance) {
+      if (input.scope === 'home' && !input.dualInstance) throw pluginErrors.declaration_invalid('project_instance requires a project instance');
+      return 'project';
+    }
     return input.dualInstance ? (operation.effects.projectDatabase?.length || operation.trusted_review !== undefined ? 'project' : 'home') : input.scope;
   };
-  return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation).map(operation => {
+  return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation && !(input.contract.home_source && isSandboxSourceOperation(operation.id))).map(operation => {
     const actionScope = scopeOf(operation);
     const localized = {
       ...(operation.title_text === undefined ? {} : { title_text: operation.title_text }),
       ...(operation.description_text === undefined ? {} : { description_text: operation.description_text }),
     };
     if (operation.read_protocol !== undefined) {
-      const definition = sandboxReadProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
+      const definition = sandboxReadProtocolAction(operation, { pluginId: input.contract.pluginId, capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
       return { ...definition, action: { ...definition.action, ...localized, local_id: operation.id } };
     }
     if (operation.action_protocol !== undefined) {
-      const definition = sandboxActionProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
+      const capabilityId = sandboxActionId(input.buildId, operation.id);
+      const stationId = operation.action_protocol.kind === 'workflow_receive' ? 'pkg-' + createHash('sha256').update(capabilityId).digest('hex').slice(0, 32) : undefined;
+      const definition = sandboxActionProtocolAction(operation, { capabilityId, stationId, version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
       return { ...definition, action: { ...definition.action, ...localized, local_id: operation.id } };
@@ -174,6 +189,8 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
         input_schema: { ...operation.input }, output_schema: { ...operation.output },
         ...(operation.external === undefined ? {} : { external: operation.external }),
         ...(operation.draft === undefined ? {} : { draft: operation.draft }),
+        ...(operation.effects.scenes?.length ? { execution: { cost: 'metered' as const } } : {}),
+        ...(agentTools.has(operation.id) ? { agent_scenario: agentTools.get(operation.id)! } : {}),
         ...startIntake(operation),
         ...(operation.trusted_review ? { requires_trusted_decision: true as const,
           trusted_decision_row: operation.trusted_review.row,

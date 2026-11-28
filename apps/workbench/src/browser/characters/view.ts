@@ -1,5 +1,5 @@
 import type {
-  CharacterMemberEntry, CharacterOriginalEntry, CharacterRoleCatalog, CharacterRoleContent, CharacterRoleSection,
+  CharacterMemberEntry, CharacterOriginalEntry, CharacterRoleCatalog, CharacterRoleContent, CharacterRoleSection, SignedCharacterTemplate,
 } from "@molis-ai/molis-work-contracts/modules/characters";
 import {
   escapeHtml as esc, icon, renderAlert, renderAvatar, renderBadge, renderButton, renderEmpty, renderSettingRow, renderSettingsSection, renderSourceLadder,
@@ -12,6 +12,7 @@ const say = (key: string, values?: Record<string, string | number>): string => u
 /** What is open in place on the page: the add panel, one row's menu, one row's turn-off question, one difference. */
 export interface PageUi {
   add: boolean;
+  templates?: SignedCharacterTemplate[];
   menu: string | null;
   stopAsk: string | null;
   diff: string | null;
@@ -172,12 +173,15 @@ function upstream(catalog: CharacterRoleCatalog, ui: PageUi, member: Member): st
 }
 
 /** The add panel under 添加角色: the person's roles not yet here, and writing a new one. */
-function addPanel(catalog: CharacterRoleCatalog): string {
+function addPanel(catalog: CharacterRoleCatalog, templates: readonly SignedCharacterTemplate[]): string {
   const here = new Set(catalog.members.map(member => member.role.current.original.character_id));
   const candidates = catalog.originals.filter(original => !here.has(original.ref.character_id) && original.state === "active" && original.version !== null);
   const rows = candidates.map(original => `<div class="roles-row"><div class="settings-record-title">${renderAvatar({ label: original.title })}<div><h3><span translate="no">${esc(original.title)}</span></h3><p>${esc(say("workbench.roles.version-used", { version: original.version ?? 0, count: original.use.projects }))}</p></div></div>
     <div class="roles-row__acts">${act("member-add", original.ref.character_id, { variant: "primary", label: say("workbench.roles.add"), attrs: { "aria-label": say("workbench.roles.add-named", { name: original.title }) } })}</div></div>`).join("");
+  const offered = templates.map(({ name, purpose }, index) => setRow(name, purpose,
+    act("adopt-template", String(index), { label: say("workbench.roles.adopt-template") }))).join("");
   return inset(`<p class="roles-inset__title" id="roles-add-title">${esc(say("workbench.roles.add-about"))}</p>${rows || `<p class="roles-hint">${esc(say("workbench.roles.all-here"))}</p>`}
+    ${offered ? `<h3>${esc(say("workbench.roles.plugin-templates"))}</h3>${offered}` : ""}
     <div class="roles-inline">${act("open", "new", { variant: "ghost", icon: "plus", label: say("workbench.roles.write-new") })}</div>`, { labelledBy: "roles-add-title" }, " roles-inset--add");
 }
 
@@ -186,7 +190,7 @@ export function projectBody(catalog: CharacterRoleCatalog, ui: PageUi): string {
   const add = act("add", "", { icon: ui.add ? "x" : "plus", label: say(ui.add ? "workbench.roles.close" : "workbench.roles.add-role"), attrs: { "aria-expanded": String(ui.add) } });
   const rows = catalog.members.map(member => upstream(catalog, ui, member) + memberRow(catalog, ui, member)).join("");
   return projectDefault(catalog) + section("roles-members-title", say("workbench.roles.members-title"),
-    `<p class="roles-hint">${esc(say("workbench.roles.members-hint"))}</p>${ui.add ? addPanel(catalog) : ""}${rows || `<p class="roles-hint">${esc(say("workbench.roles.no-members"))}</p>`}`, add);
+    `<p class="roles-hint">${esc(say("workbench.roles.members-hint"))}</p>${ui.add ? addPanel(catalog, ui.templates ?? []) : ""}${rows || `<p class="roles-hint">${esc(say("workbench.roles.no-members"))}</p>`}`, add);
 }
 
 function originalCaption(original: Original): string {

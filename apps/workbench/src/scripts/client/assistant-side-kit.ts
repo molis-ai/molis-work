@@ -11,8 +11,17 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  const sideText = globalThis.
   const glyphs = island.querySelector("[data-assistant-glyphs]");
   const glyph = (name) => {
     const holder = el("span", "assistant-glyph-icon"); holder.setAttribute("aria-hidden", "true");
-    const found = glyphs && glyphs.content && glyphs.content.querySelector('[data-glyph="' + name + '"]');
-    if (found && found.firstElementChild) holder.append(found.firstElementChild.cloneNode(true));
+    const sprite = glyphs?.content;
+    const preset = sprite?.querySelector('[data-glyph="' + CSS.escape(name) + '"]');
+    if (preset?.firstElementChild) holder.append(preset.firstElementChild.cloneNode(true));
+    else {
+      const symbol = document.getElementById("icon-" + name);
+      const svg = sprite?.querySelector('[data-glyph="file"] svg')?.cloneNode(true);
+      if (symbol?.localName === "symbol" && svg) {
+        svg.querySelector("use").setAttribute("href", "#" + symbol.id);
+        holder.append(svg);
+      }
+    }
     return holder;
   };
   const spinner = (state = "running") => { const mark = el("span", "assistant-state-ring"); mark.dataset.mwState = state; mark.setAttribute("aria-hidden", "true"); return mark; };

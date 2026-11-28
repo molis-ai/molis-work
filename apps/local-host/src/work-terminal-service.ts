@@ -189,7 +189,7 @@ function assertTargetCurrent(
   target: ResolvedTarget,
 ): void {
   assertTargetOwnerActive(homeDirectory, target, projectId);
-  if (projectPluginJudge(projects, projectId, homeDirectory)(pluginId) === false) {
+  if (projectPluginJudge(projects, projectId, homeDirectory)(pluginId, target.view.provider) === false) {
     throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   }
 }

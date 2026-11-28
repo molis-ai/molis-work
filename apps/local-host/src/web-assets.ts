@@ -19,8 +19,8 @@ const compressedLanguageAssets = new WeakMap<LanguageAsset, { body: Buffer; etag
 
 /** The addresses of the platform pages' programs. Spelled out here because the page-asset budget measures the literals of this file; the type keeps them the registration's. */
 const SURFACE_CLIENT_PATHS: Readonly<Record<PlatformSurfaceClientPath, true>> = {
-  "/assets/molis-work-plugins/characters.js": true,
-  "/assets/molis-work-plugins/sessions.js": true,
+  "/assets/platform/characters.js": true,
+  "/assets/platform/sessions.js": true,
 };
 const isSurfaceClientPath = (pathname: string): pathname is PlatformSurfaceClientPath => Object.hasOwn(SURFACE_CLIENT_PATHS, pathname);
 

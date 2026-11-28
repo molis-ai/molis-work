@@ -52,6 +52,11 @@ export type InstalledRelease = AgentRelease & {
   };
 };
 
+export function installedInstanceOperations(release: InstalledRelease, scope: 'project' | 'home') {
+  const operations = release.design.contract.operations;
+  return scope === 'project' ? operations : operations.filter(operation => !operation.project_instance);
+}
+
 /** The version the plugin's installation record carries. */
 export const installedVersion = (release: InstalledRelease): string => release.packaged?.manifest.version ?? releaseVersion(release.version);
 

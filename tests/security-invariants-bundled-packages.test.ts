@@ -10,14 +10,14 @@ import test from "node:test";
 import ts from "typescript";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillBodyReadResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { packBundledContent, packBundledDraft, runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, bundledPackagesDirectory, homeAgentDefinitions,
   molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard, type BundledPluginList } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
-import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
-import { caller } from "./fixtures/signed-package-host.js";
+import { fixturePublisher, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
+import { caller, mac } from "./fixtures/signed-package-host.js";
 
 // S-bundled-packages (batch 08, 08-10): the packages a release ships uninstalled (「随包带上、还没装」, specs/skill-packs/contract-design.md
 // §3, §9) lie in one folder of the release's own build output. Lying there gives a package nothing: it is verified as any package is,
@@ -224,6 +224,71 @@ test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design a
   } finally { await host.close(); await b.done(); }
 });
 
+test("44C P-13: Home and project retain the prior signed release across restart until the person confirms the replacement", mac, async t => {
+  for (const scope of ["home", "project"] as const) {
+    const base = await mkdtemp(join(tmpdir(), "molis-release-" + scope + "-"));
+    const home = join(base, "home"), folder = join(base, "bundled-plugins");
+    await mkdir(home); await mkdir(folder);
+    const databasePath = join(home, "project.sqlite");
+    const project = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+    const publisher = fixturePublisher("44C-release-continuity");
+    const issue = async (revision: number, signer = publisher) => {
+      const bundle = signedContentPackage(signer, { pluginId: PLUGIN_ID, scope, version: revision + ".0.0",
+        ...(revision === 2 ? { compatibleFrom: ["1.0.0"] } : {}), skills: [{ id: "notebook-review", version: revision,
+          name: "Notebook review", body: "Read notebook edition " + revision + " in " + scope + "." }] });
+      await writeFile(join(folder, PLUGIN_ID + ".json"), JSON.stringify(bundle));
+    };
+    const open = () => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, bundledPluginsDirectory: folder });
+    await issue(1);
+    let host = open();
+    try {
+      seedDemoBoard(databasePath);
+      const person = { ...caller, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management" as const, conversation_ref: "notebook-editions", message_ref: "install" } };
+      const skills = async () => {
+        const catalog = await host.actionClient(project).invoke({ ...person, permissions: SKILLS_PERMISSIONS }, skillCatalogActions.list, {}) as { skills: SkillCatalogEntry[] };
+        return catalog.skills.filter(row => row.pack.plugin_id === PLUGIN_ID);
+      };
+      const check = async (revision: number) => {
+        const [entry] = await skills();
+        assert.equal(entry?.pack.version, revision + ".0.0", scope);
+        assert.ok(entry?.availability.available, scope);
+        const client = host.actionClient(project), reader = { ...person, permissions: SKILLS_PERMISSIONS };
+        if (entry.state !== "auto") await client.invoke(reader, skillCatalogActions.setState, {
+          install_id: entry.ref.install_id, skill_id: entry.ref.skill_id, expected_revision: entry.settings_revision, scope: "project", state: "auto",
+        });
+        const { results } = await client.invoke(reader, skillCatalogActions.readBodies, { refs: [entry.ref] }) as { results: SkillBodyReadResult[] };
+        assert.ok(results[0]?.ok, JSON.stringify(results[0]));
+        assert.equal(results[0].body, "Read notebook edition " + revision + " in " + scope + ".");
+        return entry.ref;
+      };
+      const install = async (revision: number) => {
+        const client = host.actionClient(project), version = revision + ".0.0";
+        const view = await client.invoke(person, pluginInstallActions.preview, { bundled: { plugin_id: PLUGIN_ID, version } }) as { preview_id: string; runtime_scope: string };
+        assert.equal(view.runtime_scope, scope);
+        const receipt = await client.invoke(person, pluginInstallActions.confirm, { preview_id: view.preview_id, consent: true, pin_label: "Notebook test publisher" }) as { version: string; publisher_key_id: string };
+        assert.deepEqual([receipt.version, receipt.publisher_key_id], [version, publisher.identity]);
+      };
+      assert.deepEqual(await skills(), []);
+      await install(1);
+      await check(1);
+      await host.close();
+      await issue(2);
+      host = open();
+      await check(1);
+      await install(2);
+      const last = await check(2);
+      await host.close();
+      await issue(2, fixturePublisher("44C-replacement-release-signer"));
+      host = open();
+      assert.ok((await skills()).every(row => !row.availability.available), scope);
+      const rejected = await host.actionClient(project).invoke({ ...person, permissions: SKILLS_PERMISSIONS }, skillCatalogActions.readBodies, { refs: [last] }) as { results: SkillBodyReadResult[] };
+      assert.equal(rejected.results.length, 1);
+      assert.equal(rejected.results[0]?.ok, false, "the prior signer's Skill is unavailable after restart");
+      t.diagnostic(scope + " served v1 after restart with v2 bundled, served v2 after confirmation, and withdrew it after the release signer changed");
+    } finally { await host.close(); await rm(base, { recursive: true, force: true }); }
+  }
+});
+
 // 用户 2026-11-14 定（specs/prologue-strategies/skill.md §10）: until Molis Work has a publisher key of its own (batch 26, 26-1) the
 // official packs ship unsigned (`<plugin_id>.draft.json`), and the Home that installs one signs it with its own publisher identity —
 // the trust of a Skill folder imported from this machine, no more. Lying there still gives it nothing; a Host that cannot sign lists none.
@@ -262,6 +327,12 @@ test("S-bundled-packages an unsigned bundled pack is signed by this Home only wh
     await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), /发布者由签名方填写/u);
     await writeFile(file, JSON.stringify(draft));
     await packBundledContent(PACK, folder, newPublisher().signer);
+    const signedFile = join(folder, PLUGIN_ID + ".json");
+    const signedBytes = await readFile(signedFile);
+    await writeFile(signedFile, "{");
+    await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }),
+      { code: "plugin.package_invalid" }, "P-13: a damaged signed release cannot authorize the draft under the Home signer");
+    await writeFile(signedFile, signedBytes);
     const both = await list();
     assert.deepEqual([both.plugins.map(item => item.signed_here), both.refused.map(item => item.file)], [[undefined], [`${PLUGIN_ID}.draft.json`]], "the signed one is offered; its draft is refused");
   } finally { await host.close(); await rm(base, { recursive: true, force: true }); }

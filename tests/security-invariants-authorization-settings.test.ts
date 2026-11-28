@@ -5,6 +5,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { agentAuthorizationActions, type AuthorizationDetail, type AuthorizationList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { openTestHome } from "./fixtures/test-home.js";
 
 test("H1: an old Assistant settings page cannot overwrite the person's newer confirmation choice", { timeout: 30_000 }, async t => {
@@ -82,9 +83,12 @@ test("H1: the unified settings gate keeps original MCP and Assistant tokens and 
     [[project.project_id, "新建待办"], [other.project_id, "新建待办"]].sort());
   assert.equal(openedProjects.length, 0);
   const listed = await get<AuthorizationList>({ project: project.project_id });
+  const openProjects: LocalHostStatus["projects"] = f.host.projects();
+  assert.ok(openProjects.every(row => row.project_id !== other.project_id), "listing one project leaves the other project closed");
   assert.ok(listed.owners.every(owner => owner.state === "complete"), JSON.stringify(listed.owners));
   const entry = listed.entries.find(item => item.owner === "mcp-client" && item.expected === granted.generation)!;
   assert.ok(entry);
+  assert.equal(entry.title, "新建待办", "the granted action carries its project plugin’s title");
   const opened = await get<AuthorizationDetail>({ project: project.project_id, owner: entry.owner, id: entry.id });
   assert.equal(opened.availability, "available");
   assert.ok(!("permissions" in opened));

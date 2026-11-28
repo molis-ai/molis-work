@@ -3,6 +3,7 @@
   "owner": "system.shelf",
   "locale": "en",
   "messages": {
+    "shelf.directory.name": "Shelf",
     "shelf.directory.summary": "Work on copies of your files and keep the originals intact.",
     "shelf.admit.could-not-add-material": "Could not add material",
     "shelf.admit.done-added-count-could-not": "{done} added, {count} could not be added: {list}",

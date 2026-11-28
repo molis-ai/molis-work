@@ -402,8 +402,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#detachApprovalAnswers?.();
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
     try {
-      // A refused shutdown leaves the runtime alive. Keep consuming late receipts until a retry drains it.
       await this.#runtime.shutdown();
+      // After a failed shutdown, a run can still deliver a receipt before the Host retries.
       for (const record of this.#store.runs.values()) {
         clearNotifyTimer(record);
         record.unsubscribe();

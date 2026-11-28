@@ -1,11 +1,32 @@
-import type {
-  ConnectorAuthKind,
-  ConnectorCapability,
-  ConnectorDirectoryGroupId,
-  ConnectorMethodKind,
-  ConnectorSetupLink,
-} from "../services/connector-host.js";
 import type { TextRef } from "./ui-text.js";
+
+export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
+export type ConnectorDirectoryGroupId =
+  | "mail"
+  | "files"
+  | "chat"
+  | "code"
+  | "work"
+  | "design"
+  | "crm"
+  | "social"
+  /** Web search services (§13.7): an account a person can make the default web search source. */
+  | "search";
+
+export type ConnectorCapabilityFulfillment = "live" | "unfulfilled";
+
+export interface ConnectorCapability {
+  readonly label: string;
+  readonly fulfillment: ConnectorCapabilityFulfillment;
+}
+
+/** Official page where a person creates the credential this Connector asks for. */
+export interface ConnectorSetupLink {
+  readonly label: string;
+  readonly url: string;
+}
+
+export type ConnectorMethodKind = "oauth" | "cli" | "token" | "mcp";
 
 /** A fixed label or sentence supplied by the declaring plugin. The directory projects it to a string for its reader. */
 export type PluginConnectionWord = string | TextRef;

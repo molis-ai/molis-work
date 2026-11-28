@@ -620,9 +620,16 @@ export class MolisWorkLocalHost {
     return this.host.closeProject(referenceOrStorageKey);
   }
 
+  /** Read one membership snapshot through the held catalog immediately before delivering an overview. */
+  currentProjectPluginReach(partitionId: string): ((pluginId: string) => boolean | undefined) | undefined {
+    if (!this.webCatalog) return undefined;
+    return this.webCatalog.access.ready
+      ? this.webCatalog.access.read(catalog => projectPluginJudge(catalog, partitionId, this.overviewHome())) : () => false;
+  }
+
   /** A retained passive binding must pass the catalog's current membership even after discovery. */
   partitionSyncMember(partitionId: string, pluginId: string): boolean {
-    return this.webCatalog?.access.read(catalog => projectPluginJudge(catalog, partitionId, this.overviewHome())(pluginId) === true) === true;
+    return this.currentProjectPluginReach(partitionId)?.(pluginId) === true;
   }
 
   /** Recheck the current catalog and this caller's project access immediately before data or model history is delivered. */

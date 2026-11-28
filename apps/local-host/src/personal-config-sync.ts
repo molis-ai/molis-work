@@ -15,6 +15,9 @@ import { promptOverrideConfigReplica } from './agent-definitions/prompt-override
 import { PLATFORM_SYNC_COLLECTIONS } from './platform-sync-catalog.js';
 import { ATTENTION_SYNC_JOURNAL } from './project-database-schema.js';
 import { projectPlatformSyncRegistration } from './personal-project-approval-sync.js';
+import { attentionChanged } from './attention-changes.js';
+import { ATTENTION_OVERVIEW_SOURCE } from './partition-platform-services.js';
+import { partitionChanged } from './partition-plugin-host.js';
 import { appearanceForHome } from './ui-locale-memory.js';
 import { liveObservation } from './observation-live.js';
 import type { SyncCatalogReader } from './personal-runtime-sync-authority.js';
@@ -83,6 +86,10 @@ export function personalConfigRegistrations(context: { home: string; spaceId: st
     }, home, spaceId, check, catalog, readCatalog, selected),
     projectPlatformSyncRegistration({
       owner: 'attention', journal: ATTENTION_KIND, denied: '注意事项的同步授权或项目已变化', locate: projectLink,
+      onMutated: projectId => {
+        partitionChanged(home, projectId, ATTENTION_OVERVIEW_SOURCE);
+        attentionChanged(projectId);
+      },
       replica: (db, projectId, scope, authorize, title) => {
         const replica = attentionReplica(db, {
           spaceId: scope, projectId, authorize, conflictState: createSyncConflictState,

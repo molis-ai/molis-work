@@ -39,7 +39,9 @@ export function overviewReadProvider(ports: OverviewReadPorts): ActionProviderRe
       const kinds = (input.kinds?.length ? input.kinds : [...OVERVIEW_KINDS]).filter((kind): kind is OverviewKind => (OVERVIEW_KINDS as readonly string[]).includes(kind));
       const limit = Math.max(1, Math.min(input.limit ?? 200, OVERVIEW_READ_LIMIT));
       caller.signal?.throwIfAborted();
-      const read = await overviewRowsFor(source, caller, await ports.partitions(), () => reader === "assistant" ? ports.grants() : [], { kinds, limit });
+      const read = await overviewRowsFor(source, caller, await ports.partitions(), () => reader === "assistant" ? ports.grants() : [], { kinds, limit }, {
+        recheckPartitions: () => ports.partitions(),
+      });
       caller.signal?.throwIfAborted();
       const rows = read?.rows ?? [];
       if (reader === "assistant") ports.delivered?.(caller, rows);

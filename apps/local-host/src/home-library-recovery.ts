@@ -106,9 +106,10 @@ export function assertNoPendingArtifactRows(home: string, owner: StorageOwner): 
     if (!lstatSync(file, { throwIfNoEntry: false })) continue;
     assertSqliteLibraryReady(file);
     const ids = readUpgradeStore(file, db => {
-      // An older library its owner's declared steps take all the way to this version still holds the old build's pending pins, and they are
-      // read here, before the upgrade below this check moves the library out of the old build's reach. Too-new, unversioned, or broken-chain
-      // libraries are left untouched here so ensureHomeUpgraded isolates only that plugin instead of crashing the entire Home.
+      // Retained for third-party signed plugin upgrades (and future 1.0 releases; pre-dev built-in libraries stay at v1 with empty `upgrades`):
+      // an older plugin library whose declared steps reach `library.version` may still hold pending pins from the prior version, read here
+      // before the upgrade below moves the library forward. Too-new, unversioned, or broken-chain libraries are left untouched here so
+      // ensureHomeUpgraded isolates only that plugin instead of crashing the entire Home.
       const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
       const upgradable = found >= 1 && found < library.version && upgradeStepsProblem(library, found) === undefined;
       if (!upgradable && found !== library.version) return [];

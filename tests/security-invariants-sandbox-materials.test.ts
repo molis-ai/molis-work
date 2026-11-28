@@ -100,7 +100,7 @@ test("S-60 RAC-235 a read of bytes needs materials: read in the operation's effe
     ["materials.extract", [{ file_name: "a\nb.md", data_base64: FILE.data_base64 }, {}]], ["materials.extract", [{ ...FILE, data_base64: "YR==" }, {}]], ["materials.extract", [{ ...FILE, data_base64: "not base64!" }, {}]],
     ["materials.extract", [{ ...FILE, data_base64: 1 }, {}]],
     ["materials.extract", [FILE, { limits: { maxBytes: 1 } }]], ["materials.extract", [FILE, { allowModelDownload: true }]], ["materials.extract", [FILE, { onProgress: true }]], ["materials.extract", [FILE, { signal: true }]],
-    ["materials.extract", [FILE, { textFormat: "html" }]], ["materials.extract", [FILE, { pdfMode: 1 }]], ["materials.extract", [FILE, { ocrLanguages: ["fr"] }]], ["materials.extract", [FILE, { ocrLanguages: "en-US" }]],
+    ["materials.extract", [FILE, { textFormat: "html" }]], ["materials.extract", [FILE, { pdfMode: 1 }]], ["materials.extract", [FILE, { ocrLanguages: [] }]], ["materials.extract", [FILE, { ocrLanguages: ["fr"] }]], ["materials.extract", [FILE, { ocrLanguages: "en-US" }]],
     ["materials.extract", [FILE, { timeoutMs: 0 }]], ["materials.extract", [FILE, { timeoutMs: 31 * 60_000 }]], ["materials.extract", [FILE, { timeoutMs: "5" }]], ["materials.extract", [FILE, []]],
     ["materials.readDocuments", []], ["materials.readDocuments", [[FILE]]], ["materials.readDocuments", [[], {}]], ["materials.readDocuments", [FILE, {}]], ["materials.readDocuments", [Array.from({ length: 101 }, () => FILE), {}]],
     ["materials.readDocuments", [[{ ...FILE, extra: 1 }], {}]], ["materials.readDocuments", [[FILE], { textFormat: "text" }]], ["materials.readDocuments", [[FILE], { limits: {} }]], ["materials.readDocuments", [[FILE], { timeoutMs: -1 }]],
@@ -112,7 +112,7 @@ test("S-60 RAC-235 a read of bytes needs materials: read in the operation's effe
 
 test("S-60 RAC-235 the plugin's bytes reach the reader decoded and its choices as given, and nothing of the Host's own options is the plugin's", async () => {
   const r = rig();
-  await r.call(operation("command", READ), "materials.extract", [FILE, { textFormat: "markdown", pdfMode: "ocr", ocrLanguages: ["zh-Hant", "ja-JP"], timeoutMs: 7000 }]);
+  await r.call(operation("command", READ), "materials.extract", [FILE, { textFormat: "markdown", pdfMode: "ocr", ocrLanguages: ["zh-Hant", "ja-JP", "zh-Hant"], timeoutMs: 7000 }]);
   const read = r.reads.at(-1)!;
   assert.equal(read.bytes!.toString("utf8"), "# 标题\n正文");
   assert.equal(read.options.textFormat, "markdown");

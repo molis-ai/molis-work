@@ -162,7 +162,9 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
     bindActionHandler(jellyActions.deleteCategory, (input, caller) => write(caller, (store, now) => {
       jellyAssert(input.id !== JELLY_UNCATEGORIZED_ID, "「未分类」不能删除");
       const before = current(store, "category", input.id, input.expected_revision, "分类");
-      const items = store.itemsInCategory(before.id), series = store.seriesInCategory(before.id);
+      const items = store.itemsInCategory(before.id);
+      const series = store.seriesInCategory(before.id).filter(value =>
+        value.category_id === before.id || Object.values(value.exceptions).some(exception => exception.patch?.category_id === before.id));
       const movedItems = items.map(item => store.replace("item", { ...item, category_id: JELLY_UNCATEGORIZED_ID,
         revision: item.revision + 1, updated_at: now }, item.revision));
       const movedSeries = series.map(value => store.replace("series", { ...value,

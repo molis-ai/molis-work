@@ -16,7 +16,7 @@ import { appendEvent, copyTree, freezeReadOnly } from "./copy-tree.js";
 import { isShelfFailure, readShelfCopy, shelfErrors } from "./errors.js";
 import { extractionNote, extractionText, markdownFromExtract } from "./extract.js";
 import { uniqueName } from "./item-names.js";
-import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
+import { ocrLanguages, ocrMarkdown, ocrMissingText } from "./ocr.js";
 import { resolvedChoiceId, shelfRecipeOutputName, shelfRecipeSpec, type ShelfRecipeSpec } from "./recipes.js";
 import { normalizeShelfSettings, shortcutOutputName } from "./settings.js";
 
@@ -86,7 +86,7 @@ export function planJob(input: ShelfRunJobInput, access: ShelfCatalogAccess, por
   const ai = spec.requires_agent ? ports.ai?.status(settings.model_selection) ?? noAi : noAi;
   if (spec.requires_agent && (!ai.available || !ai.selected)) throw shelfErrors.no_model(ai.reason ?? noAi.reason!);
   if (!spec.requires_agent && !ports.materials.extract) throw shelfErrors.extraction_unavailable("材料提取服务不可用，请从 Molis Work 打开置物架后重试");
-  if (!spec.requires_agent && items.some(item => item.kind === "image") && !(ports.materials.imageTextAvailable?.() ?? false)) throw shelfErrors.no_ocr(OCR_MISSING);
+  if (!spec.requires_agent && items.some(item => item.kind === "image") && !(ports.materials.imageTextAvailable?.() ?? false)) throw shelfErrors.no_ocr(ocrMissingText());
   const optionId = spec.choices.length ? resolvedChoiceId(spec.recipe, input.option_id) : null;
   return { spec, settings, shortcut, actionName: shortcut ? shortcut.name : spec.label, items, optionId, ai };
 }

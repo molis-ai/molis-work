@@ -64,7 +64,7 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
       ? request.run?.run_id === run.ref.run_id && request.run.session_id === run.ref.session_id
       : request.run === null && document.source.run_id === run.ref.run_id && document.source.session_id === run.ref.session_id;
     if (!ofRound) throw codingLocalFailure("coding.server.change-review-elsewhere", "审查不属于这一轮");
-    if (!receipt || receipt.review_id !== request.review_id) throw codingLocalFailure("coding.server.change-receipt-unreadable", "原执行回执不可读，暂不能固定变更");
+    if (!receipt || receipt.review_id !== request.review_id) throw codingLocalFailure("coding.server.change-receipt-unreadable", "读取不到这次运行的记录，暂不能固定变更");
     const execution = executionOf(receipt);
     if (document.kind === "git-integration") {
       // A child writes in its own session, so its own reviews are not this round's; what it brought back is proven here, file by

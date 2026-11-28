@@ -134,6 +134,8 @@ test("Host sends the selected OCR languages to its helper and rejects invalid li
     fixture(base);
     const result = await extract(source, { ocrLanguages: ["zh-Hans", "en-US"] });
     assert.deepEqual(JSON.parse(readFileSync(args, "utf8")).slice(2), ["--languages", "zh-Hans,en-US"]);
+    await extract(source, { ocrLanguages: ["ja-JP", "ja-JP", "en-US"] });
+    assert.deepEqual(JSON.parse(readFileSync(args, "utf8")).slice(2), ["--languages", "ja-JP,en-US"], "duplicate OCR language tags are deduplicated preserving order");
     assert.deepEqual(result.pages[0]!.lines, [{ text: "Known line", confidence: 0.9 }]);
     for (const line of [{ text: "Known line", confidence: 2 }, { text: "Different line", confidence: 0.9 }]) {
       fixture({ ...base, pages: [{ ...base.pages[0], lines: [line] }] });

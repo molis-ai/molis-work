@@ -1,5 +1,6 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { RuntimeSyncCollection } from '@molis-ai/molis-work-plugin-runtime';
+import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { installIdentity, type RuntimeSyncCollection } from '@molis-ai/molis-work-plugin-runtime';
 import { partitionedReplica, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import { readRuntimeSyncValue, runtimeSyncKey, runtimeSyncValue, scopeRuntimeReplica } from './runtime-sync-scope.js';
 import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
@@ -14,6 +15,10 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
   const identity = first.binding;
   const selection = { plugin_id: identity.plugin_id, publisher_id: identity.publisher_id, publisher_signature: identity.publisher_signature,
     collection_id: identity.collection.id, schema_version: identity.collection.schema_version };
+  const installId = installIdentity({
+    plugin_id: selection.plugin_id,
+    publisher: { publisher_id: selection.publisher_id, signature: selection.publisher_signature },
+  } as PluginManifest);
   const byScope = new Map<string, RuntimeSyncOwner>();
   for (const owner of owners) {
     const key = JSON.stringify(owner.projectId), binding = owner.binding;
@@ -45,7 +50,7 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
       withPartition(id, operation) {
         const current = owner(id);
         return operation(scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId }, () => {
-          if (current.projectId !== null) partitionChanged(home, current.projectId, undefined, current.binding.plugin_id);
+          if (current.projectId !== null) partitionChanged(home, current.projectId, installId);
         }));
       },
     }),authorizeKey(key,value){const current=scope(key);if(!current.binding.replica.authorizeKey)throw new ActionError('actions.forbidden','同步主人尚未声明标识授权');current.binding.replica.authorizeKey(current.key,value===undefined?undefined:readRuntimeSyncValue(current,value));},hasProjectChanges(projectId){

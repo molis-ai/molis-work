@@ -6,10 +6,11 @@ import type { HomeBackgroundTaskRow, HomeBackgroundTasksReadResult } from "@moli
 import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginHomeFor } from "./home-side.js";
+import { isHomePluginStoreRefusal, readHomePluginInstallations } from "./home-plugin-store.js";
 import { existingPartitionPluginHost } from "./partition-plugin-host.js";
 import { attentionOverviewLibrary, partitionOverviewLibraries, runningPartitionPlatformServices } from "./partition-platform-services.js";
 import type { OverviewGrant, OverviewLibrary } from "@molis-ai/molis-work-service-search";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { readBackgroundTasks } from "@molis-ai/molis-work-service-mainline";
 import { localOwnerContext } from "./home-plugin-http.js";
@@ -31,26 +32,49 @@ export interface HomeOverviewPartition { readonly project_id: string; readonly d
 export interface HomeOverviewSource {
   readonly home: string;
   readable?(caller: ActionCallContext, candidates: readonly string[]): readonly string[];
+  currentReach?(partitionId: string): ((pluginId: string) => boolean | undefined) | undefined;
   reach(partitionId: string): Promise<(pluginId: string) => boolean | undefined>;
 }
 
 /** The Home's source as this Host serves it, or undefined before its catalog is bound. */
-export function hostOverviewSource(host: Pick<MolisWorkLocalHost, "overviewHome" | "projectPluginReach"> & Partial<Pick<MolisWorkLocalHost, "overviewReadable">>): HomeOverviewSource | undefined {
+export function hostOverviewSource(host: Pick<MolisWorkLocalHost, "overviewHome" | "projectPluginReach"> & Partial<Pick<MolisWorkLocalHost, "overviewReadable" | "currentProjectPluginReach">>): HomeOverviewSource | undefined {
   const home = host.overviewHome();
-  return home ? { home, readable: host.overviewReadable?.bind(host), reach: partitionId => host.projectPluginReach(partitionId) } : undefined;
+  return home ? { home, currentReach: host.currentProjectPluginReach?.bind(host), readable: host.overviewReadable?.bind(host), reach: partitionId => host.projectPluginReach(partitionId) } : undefined;
 }
 
 export const overviewPerson: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] };
 
-/** The Manifests that may write rows of these kinds: the plugins this Host ships and those it runs per partition, each once. */
-function overviewManifests(home: string, kinds: readonly OverviewKind[]): Map<string, PluginManifest> {
-  const manifests = new Map<string, PluginManifest>();
+/** The Manifests that may write rows of these kinds: shipped plugins, declared per-partition plugins, and active Home-installed packages (read-only, zero wakes). */
+function overviewManifests(home: string, kinds: readonly OverviewKind[]): { readonly manifests: Map<string, PluginManifest>; readonly installIds: Map<string, string> } {
+  const manifests = new Map<string, PluginManifest>(), installIds = new Map<string, string>();
+  const offer = (manifest: PluginManifest, installId?: string) => {
+    if (manifests.has(manifest.plugin_id)) return;
+    if (!manifest.overview_projection?.kinds.some(kind => kinds.includes(kind))) return;
+    manifests.set(manifest.plugin_id, manifest);
+    installIds.set(manifest.plugin_id, installId ?? installIdentity(manifest));
+  };
+  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) offer(entry.manifest);
   const host = existingPartitionPluginHost(home);
-  for (const manifest of [...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest), ...(host?.plugins() ?? []).flatMap(id => host?.manifestOf(id) ?? [])]) {
-    if (manifests.has(manifest.plugin_id)) continue;
-    if (manifest.overview_projection?.kinds.some(kind => kinds.includes(kind))) manifests.set(manifest.plugin_id, manifest);
+  for (const id of host?.plugins() ?? []) {
+    const manifest = host?.manifestOf(id);
+    if (manifest) offer(manifest);
   }
-  return manifests;
+  try {
+    for (const installed of readHomePluginInstallations(home, id => builtinPluginByManifestId(id)?.manifest, { availableOnly: true })) {
+      offer(installed.manifest, installed.install_id);
+    }
+  } catch (error) {
+    if (!isHomePluginStoreRefusal(error)) throw error;
+  }
+  return { manifests, installIds };
+}
+
+/** Optional live recheck hooks for `overviewRowsFor` so mid-read partition deletion or revocation is caught before delivery. */
+export interface OverviewRowsOptions {
+  /** Synchronous live readable partition IDs consulted on every pass of `OverviewService.read`. */
+  readonly readable?: () => readonly string[];
+  /** Live partition list checked before the final synchronous membership, grant and index read. */
+  readonly recheckPartitions?: () => Promise<readonly HomeOverviewPartition[]>;
 }
 
 /**
@@ -64,31 +88,45 @@ export async function homeOverviewRows(source: HomeOverviewSource, partitions: r
 
 /**
  * The overview rows `caller` may read now in `partitions` (`overview-readers`): the libraries of the plugins enabled in each partition, and
- * each partition's "waiting on you" entries when notifications are asked for (R13). `grants` are the person's grants to the assistant, read
+ * each partition's "waiting on you" entries when notifications are asked for (R13). `grants` and live partition membership are checked
  * again before the rows are handed over. Rows the index still holds of an installation turned off since are not handed over. Null while this
  * Host runs no partition services.
  */
 export async function overviewRowsFor(source: HomeOverviewSource, caller: ActionCallContext, partitions: readonly HomeOverviewPartition[],
-  grants: () => readonly OverviewGrant[], query: { readonly kinds: readonly OverviewKind[]; readonly limit: number }):
+  grants: () => readonly OverviewGrant[], query: { readonly kinds: readonly OverviewKind[]; readonly limit: number },
+  options: OverviewRowsOptions = {}):
   Promise<(OverviewReadResult & { readonly manifests: ReadonlyMap<string, PluginManifest>; readonly unavailable?: readonly string[]; readonly refreshing?: readonly string[] }) | null> {
   const { home } = source, services = runningPartitionPlatformServices(home);
   if (!services) return null;
-  const ids = partitions.map(partition => partition.project_id);
+  const rechecked = options.recheckPartitions ? new Set((await options.recheckPartitions()).map(partition => partition.project_id)) : undefined;
+  const ids = partitions.map(partition => partition.project_id).filter(id => !rechecked || rechecked.has(id));
   const readableNow = () => {
+    caller.signal?.throwIfAborted();
     requireSynchronous(caller.assert_authority_current?.());
     const scope = caller.readable_project_ids;
     const candidates = scope === undefined ? ids : ids.filter(id => scope.includes(id));
-    return source.readable?.(caller, candidates) ?? candidates;
+    const live = source.readable?.(caller, candidates) ?? candidates;
+    if (!options.readable) return live;
+    const readable = new Set(options.readable());
+    return live.filter(id => readable.has(id));
   };
   const initial = new Set(readableNow());
-  const manifests = overviewManifests(home, query.kinds);
+  const partitionsToRead = partitions.filter(partition => initial.has(partition.project_id));
+  const fallbacks = await Promise.all(partitionsToRead.map(({ project_id }) => source.reach(project_id).catch(() => () => false)));
+  const { manifests, installIds } = overviewManifests(home, query.kinds);
   const attention = query.kinds.includes("notification");
-  const libraries: OverviewLibrary[] = (await Promise.all(partitions.filter(partition => initial.has(partition.project_id)).map(async partition => {
-    const reaches = await source.reach(partition.project_id).catch(() => () => false);
+  const libraries: OverviewLibrary[] = partitionsToRead.flatMap((partition, index) => {
+    const reaches = source.currentReach?.(partition.project_id) ?? fallbacks[index]!;
+    const attentionLibraries: OverviewLibrary[] = [];
+    if (attention) {
+      try { attentionLibraries.push(attentionOverviewLibrary(home, partition.project_id)); }
+      catch (error) { if (!(error instanceof ActionError && error.code === "actions.forbidden")) throw error; }
+    }
     return [...partitionOverviewLibraries(home, [{ partition_id: partition.project_id,
-      plugins: [...manifests.values()].flatMap(manifest => reaches(manifest.plugin_id) === true ? [{ install_id: installIdentity(manifest), manifest }] : []) }]),
-      ...(attention ? [attentionOverviewLibrary(home, partition.project_id)] : [])];
-  }))).flat();
+      plugins: [...manifests.values()].flatMap(manifest => reaches(manifest.plugin_id) !== false
+        ? [{ install_id: installIds.get(manifest.plugin_id) ?? installIdentity(manifest), manifest }] : []) }]),
+      ...attentionLibraries];
+  });
   const enabled = new Set(libraries.map(library => `${library.partition_id}\u0000${library.install_id}`));
   const read = services.readOverview(caller, libraries, () => ({ readable: readableNow(), grants: grants() }), query);
   const rows = read.rows.filter(row => enabled.has(`${row.partition_id}\u0000${row.install_id}`));

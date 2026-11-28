@@ -18,7 +18,10 @@ export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest:
   if (!previous || previous.state !== "uninstalled" || previous.version === manifest.version || !previous.retain_private_data || discard) return undefined;
   if (host && comparePluginVersions(manifest.version, previous.version) > 0) return undefined;
   if ((manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(previous.version)) return undefined;
-  if (previous.execution === "sandbox" && comparePluginVersions(manifest.version, previous.version) < 0) return undefined;
+  if (previous.execution === "sandbox" && previous.publisher_trust === "unsigned" && !manifest.databases && comparePluginVersions(manifest.version, previous.version) < 0) return undefined;
+  if (comparePluginVersions(manifest.version, previous.version) < 0) {
+    return `卸载时保留了 ${previous.version} 的数据，更旧的 ${manifest.version} 没有声明能读取它：可以放弃这些数据后全新安装，或者重新安装 ${previous.version}`;
+  }
   return `卸载时保留了 ${previous.version} 的数据，${manifest.version} 没有声明能读取它：可以放弃这些数据后全新安装，或者先重新安装 ${previous.version}，再升级到 ${manifest.version}`;
 }
 

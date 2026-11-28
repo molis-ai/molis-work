@@ -162,10 +162,10 @@
   - `ja.json`（`ja.simplified-chinese-leak`、`ja.raw-markup`、`ja.bent-quotes`、`ja.chinese-semicolon`、`ja.telegraphic-ending`、`ja.dropped-particle`）：禁止简体中文专有字形及明确中文语境的 `没` / `的` 泄漏、原始 `<>&"'`、弯引号 `“”`、中文全角分号 `；`、电报式压缩结尾（`不可。`、`未保存。`、`未確認。`、`（…保持）。`、`残存）。`、`なし。`）以及省去助词的病句（`この操作する`、`この変更する`、`確認し再試行`、`調整し続行`）。
 - **生产源码多语言卫生规则：** 扫描 `apps/`、`horizontal/`、`modules/`、`packages/`、`plugins/`、`server/src/` 下的 `.ts`/`.mts`/`.tsx`/`.js`/`.mjs`/`.rs`/`.swift`/`.html`（剥离注释，排除测试、夹具、`examples/`、`scripts/`、`tooling/`，不误伤 OCR `["zh-Hans","en-US"]` 与 ISO `en-CA` 等算法）：
   - `src.binary-locale-flag`：原生代码中二元英文开关（如 `ENGLISH: AtomicBool`、`isEnglish`）。
-  - `src.binary-locale-switch`：未处理三语及以上分支的二元 `zh`/`en` 三元或 `if` 条件切换与布尔标志（含 `currentLocale() === "en"` / `!== "en"` / `=== "zh"`、`if (... === "en")`、`startsWith("en") ?`、`const en = ...lang === "en"`；仅对少数已证明支持全语种的底层辅助行设精确单行豁免）。
-  - `src.hardcoded-intl-zh`：生产源码中写死的 `Intl.DateTimeFormat("zh-CN")` 等格式器。
-  - `src.hardcoded-html-lang-zh`：生产界面源码与 `.html` 文件（如 `apps/desktop/webview-placeholder/index.html`）中写死的 `<html lang="zh-CN">`。
-  - `src.bare-to-locale-string`：`apps/workbench/src/`、`horizontal/`、`modules/`、`packages/` 与 `plugins/` 生产界面代码中未传活动语言的裸 `.toLocaleString()` / `.toLocaleDateString()` / `.toLocaleTimeString()`（含传 `[]` 使用系统默认区域的写法）。
+  - `src.binary-locale-switch`：未处理三语及以上分支的二元 `zh`/`en` 三元、`if` 条件切换、箭头函数二元断言（含 `!locale...startsWith("zh"|"en")`）与布尔标志（含 `currentLocale() === "en"` / `!== "en"` / `=== "zh"`、`if (... === "en")`、`startsWith("en") ?`、`const en = ...lang === "en"`；仅对少数已证明支持全语种的底层辅助行设精确单行豁免）。
+  - `src.hardcoded-intl-zh`：生产源码中写死任意 BCP-47 语言字面量的 `Intl.DateTimeFormat(...)` 等格式器（仅狭义豁免非界面算法如 `en-CA` ISO 日期键与 IANA 时区校验）。
+  - `src.hardcoded-html-lang-zh`：生产界面源码与 `.html` 文件（如 `apps/desktop/webview-placeholder/index.html`）中写死任意 BCP-47 字面量的 `<html lang="...">`。
+  - `src.bare-to-locale-string`：`apps/workbench/src/`、`horizontal/`、`modules/`、`packages/` 与 `plugins/` 生产界面代码中未传活动语言或写死语言字面量（如 `.toLocaleString("en-US")`）的 `.toLocaleString()` / `.toLocaleDateString()` / `.toLocaleTimeString()`（含传 `[]` 使用系统默认区域的写法）。
 
 ## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
 

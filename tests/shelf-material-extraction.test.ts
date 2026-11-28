@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createExtractablePdf, hashBytes } from "@molis-ai/molis-work-module-shelf";
+import { createExtractablePdf, hashBytes, ocrLanguages, ocrMarkdown } from "@molis-ai/molis-work-module-shelf";
 import { shelfActions as a, SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-shelf/surface";
 import { shelfStoreProvider, openTestShelfStore } from "./shelf-direct-actions.js";
 import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
@@ -172,4 +172,14 @@ test("an old running record without a live execution is preserved without replay
     assert.equal((await reopened.cancelJob("interrupted")).status, "cancelled");
     assert.equal(calls, 1); assert.equal((await reopened.snapshot()).results.length, 1);
   } finally { await rm(home, { recursive: true, force: true }); }
+});
+
+test("Shelf OCR language map supports ja-JP and trilingual default without binary zh/en branching", () => {
+  assert.deepEqual(ocrLanguages("zh"), ["zh-Hans"]);
+  assert.deepEqual(ocrLanguages("en"), ["en-US"]);
+  assert.deepEqual(ocrLanguages("ja"), ["ja-JP"]);
+  assert.deepEqual(ocrLanguages("auto"), ["zh-Hans", "en-US", "ja-JP"]);
+  assert.deepEqual(ocrLanguages(undefined), ["zh-Hans", "en-US", "ja-JP"]);
+  assert.match(ocrMarkdown([{ name: "scan.png", lines: [{ text: "Line", confidence: 0.4 }] }]), /Line（待确认）/);
+  assert.equal(ocrMarkdown([]), "没有识别到文字。\n");
 });

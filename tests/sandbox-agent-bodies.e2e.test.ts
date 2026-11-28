@@ -62,14 +62,20 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   await browser.waitFor("document.querySelector('[data-plugin-trust-list]').innerText.includes('1.1.0')");
   const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, packageMethod("new-method", "新增方法", "核对资料")], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
   const evidence = join(process.cwd(), ".impeccable/qa/review/t144"); if (shouldSaveReviewScreenshots()) await mkdir(evidence, { recursive: true });
+  const expectedLabels = {
+    zh: { bodyChanged: "正文已变化", added: "新增", willBeRemoved: "会移除" },
+    en: { bodyChanged: "Body changed", added: "Add", willBeRemoved: "Will be removed" },
+    ja: { bodyChanged: "本文が変更されました", added: "追加", willBeRemoved: "削除予定" },
+  } as const;
   for (const locale of ["zh", "en"] as const) {
+    const labels = expectedLabels[locale];
     await go("/locale?lang=" + locale + "&next=" + encodeURIComponent(settings)); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
     await select(next, "upgrade-" + locale);
-    const text = await shown(); assert.ok(text.includes(locale === "zh" ? "正文已变化" : "Body changed"));
+    const text = await shown(); assert.ok(text.includes(labels.bodyChanged));
     // The added and removed methods are Skill changes, shown in the package's Skill list.
     const changes = await browser.evaluate<Array<{name: string; labels: string[]}>>(`[...document.querySelectorAll('[data-plugin-trust-preview] li')].map(row => ({name: row.querySelector('strong,del')?.textContent, labels: [...row.querySelectorAll('small')].map(label => label.textContent)}))`);
-    assert.ok(changes.find(row => row.name === "新增方法")?.labels.includes(locale === "zh" ? "新增" : "Add"));
-    assert.ok(changes.find(row => row.name === "旧方法")?.labels.includes(locale === "zh" ? "会移除" : "Will be removed"));
+    assert.ok(changes.find(row => row.name === "新增方法")?.labels.includes(labels.added));
+    assert.ok(changes.find(row => row.name === "旧方法")?.labels.includes(labels.willBeRemoved));
     for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
       await browser.setViewport(width, 1000);
       await browser.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);

@@ -82,6 +82,8 @@ export interface ArtifactDocumentImportPorts {
   routePrefix: string;
   artifacts: ArtifactsApplicationApi;
   readExternal(input: { source: ExternalDocumentSource; url: string; connection_id?: string }): Promise<ImportedArtifactDocument>;
+  /** Allowed external document sources declared by the active integration registry; defaults to `EXTERNAL_DOCUMENT_SOURCES`. */
+  externalSources?: readonly string[] | (() => readonly string[] | Promise<readonly string[]>);
   readHtml(html: string): { title: string; content: string } | Promise<{ title: string; content: string }>;
   /** The text of a file kept as its original (PDF, DOCX), read by the Host's extraction; null for a kind it does not read. */
   readFileText?(file: { filename: string; bytes: Buffer }): Promise<{ text: string; warnings: ImportedDocumentWarning[] } | null>;
@@ -112,7 +114,11 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     const read = await readFileDocument(input, { readHtml: ports.readHtml, ...readFileText ? { readFileText } : {}, ...ports.offered ? { offered: ports.offered } : {} });
     document = read.document;
     pendingOriginal = read.pendingOriginal;
-  } else if (EXTERNAL_DOCUMENT_SOURCES.includes(source as ExternalDocumentSource)) {
+  } else if (typeof source === "string") {
+    const allowed = ports.externalSources
+      ? (typeof ports.externalSources === "function" ? await ports.externalSources() : ports.externalSources)
+      : EXTERNAL_DOCUMENT_SOURCES;
+    if (!allowed.includes(source)) throw documentErrors.source_invalid("请选择支持的文档来源");
     const url = requiredString(input.url, "请输入文档链接", 4096);
     const connection_id = input.connection_id === undefined ? undefined : requiredString(input.connection_id, "请选择有效连接", 100);
     document = await ports.readExternal({ source: source as ExternalDocumentSource, url, ...(connection_id ? { connection_id } : {}) });

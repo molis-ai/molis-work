@@ -1,6 +1,6 @@
 import { format, t as uiText, renderBadge, renderCard, renderRadioGroup, renderSettingRow, renderStatusMark, type MwStatusTone, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { credentialInputs, recommendedMethod, type ConnectorPrimitives } from "./settings-connector-guide.js";
+import { credentialInputs, PLATFORM_CONNECTION_SERVICE_IDS, recommendedMethod, type ConnectorPrimitives } from "./settings-connector-guide.js";
 import { renderConnectionStatus } from "./settings-connection-status.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection } from "./settings-view.js";
 
@@ -14,7 +14,7 @@ import type { ConnectorSettingsCardView, ConnectorSettingsConnection } from "./s
 type Primitives = ConnectorPrimitives;
 
 /** Keys only the place that uses them can test (a model, an image service, Functions, a remote tool): the page offers no check for them (§13.2). */
-export const KEY_ONLY_SERVICES: readonly string[] = ["model-api", "image-api", "typesafe", "mcp-bearer"];
+export const KEY_ONLY_SERVICES: readonly string[] = PLATFORM_CONNECTION_SERVICE_IDS;
 
 /** The last check in the current language and the reader's local time zone. */
 export function checkTime(at: string): string {
@@ -141,7 +141,7 @@ export function renderConnectionManage(connection: ConnectorSettingsConnection, 
   return `<section class="settings-connection-manage" ${scopeAttrs(connection, p)}>
     <h4>${name}</h4>
     ${own ? `<form class="settings-connection-inline" data-connection-rename="${id}"><label class="settings-connector-field"><span>${e(uiText.text("workbench.settings-connector-account.connection-name"))}</span><input class="mw-input" value="${name}" maxlength="100" required></label><button class="mw-btn mw-btn--secondary" type="submit">${e(uiText.text("workbench.settings-connector-account.rename"))}</button></form>` : ""}
-    ${own && connection.auth_method === "token" ? `<form class="settings-connection-inline" data-connection-replace="${id}"${credential.separator ? ` data-credential-separator="${credential.separator}"` : ""}>${credential.fields}<button class="mw-btn mw-btn--secondary" type="submit">${e(uiText.text("workbench.settings-connector-account.use-new-key"))}</button></form>` : ""}
+    ${own && connection.auth_method === "token" ? `<form class="settings-connection-inline" data-connection-replace="${id}"${credential.separator ? ` data-credential-separator="${e(credential.separator)}"` : ""}>${credential.fields}<button class="mw-btn mw-btn--secondary" type="submit">${e(uiText.text("workbench.settings-connector-account.use-new-key"))}</button></form>` : ""}
     <div class="settings-connection-row__actions">
       ${checkable(connection) ? button("secondary", `data-connection-preview="${id}"`, uiText.text(connection.auth_method === "mcp" ? "workbench.settings-connector-account.view-available-tools" : "workbench.settings-connector-account.view-read-results")) : ""}
       ${own || project ? `${connection.enabled === false ? "" : button("secondary", 'data-connection-manage="disable"', uiText.text("workbench.settings-connector-account.deactivate"))}${button("danger-outline", 'data-connection-manage="remove"', uiText.text("workbench.settings-connector-account.remove"))}` : ""}

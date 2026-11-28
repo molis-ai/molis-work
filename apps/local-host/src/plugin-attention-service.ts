@@ -16,6 +16,7 @@ import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { pluginNamespace } from "./plugin-namespace.js";
 import { joinPluginTransaction } from "./plugin-transaction.js";
 import { inboxDeclarationsOf } from "./plugin-inbox-declarations.js";
+import { readWorkbenchText } from "./ui-error-words.js";
 import type { PluginRuntimeDatabase, PluginRuntimeReleaseArtifactDatabase } from "@molis-ai/molis-work-plugin-runtime";
 
 /**
@@ -139,7 +140,7 @@ function hasAttentionOwner<T extends { owner_plugin_id: string | null }>(entry: 
 }
 
 function assignedEntry(entry: AttentionEntryRecord): AttentionEntryRecord & { owner_plugin_id: string } {
-  if (!hasAttentionOwner(entry)) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
+  if (!hasAttentionOwner(entry)) throw attentionErrors.entry_not_found(readWorkbenchText("common.error.not-found"));
   return entry;
 }
 

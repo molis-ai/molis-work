@@ -27,7 +27,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
     const node = root.querySelector('[data-home-offers]'), state = currentState(); if (!node || !state) return;
     const recommended = current()?.suggested_behavior_ids || [];
     // R-65: without an automatic judgment result the panel says what automatic judgment can see; a result shows itself by its offers.
-    const hint = recommended.length || current()?.subject.kind !== 'feed_item' ? '' : '<p class="home-offers-note">' + globalThis.t.text("workbench.home-offers.automatic-judgment-only-considers-actions-feed-has-been") + '</p>';
+    const hint = recommended.length || !state.offers.some(o => o.recommendation_key) ? '' : '<p class="home-offers-note">' + globalThis.t.text("workbench.home-offers.automatic-judgment-only-considers-granted-actions") + '</p>';
     if (!state.offers.length && !state.issues.length && !state.loading && !state.busy && !state.pending && !state.error && !state.result) {
       if (hint) { node.innerHTML = hint; rendered.set(node, { html: hint, key: state.key }); } else { node.replaceChildren(); rendered.delete(node); }
       return;

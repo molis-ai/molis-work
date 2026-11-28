@@ -1,7 +1,7 @@
 import type { CharacterRoleCatalog, CharacterRoleResolution } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { AgentActionReviewControl, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentQuestion, AgentQuestionAnswer } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
 import type { ExecutorHanded } from "./assistant-executor-input.js";
@@ -129,12 +129,13 @@ export function checkText(value: unknown, field: string, max: number): string {
 export interface RoundMaterials { knowledgeDispatch?: import("../knowledge-dispatch.js").KnowledgeDispatchControl; skillHandles?: ReadonlyMap<string, SkillRef>; materials: AgentTextMaterial[]; told: { undos: string[]; unsettled: string[] } }
 
 /**
- * A Home-kept object that says it belongs to another project (or a project, for personal work): its content is not
- * this work's to read, whatever the owner's reader allows.
+ * An object that says it belongs to another partition (including `"personal"` for a project work, or a project for personal work):
+ * its content is not this work's to read, whatever the owner's reader allows (`S-partition-isolation`, spec §6.2).
  */
 export function belongsElsewhere(work: Pick<StoredWork, "project_ref">, context: ActionSubjectContext): boolean {
-  if (typeof context.project_id !== "string" || context.project_id === "personal") return false;
-  return context.project_id !== (work.project_ref?.project_id ?? null);
+  if (typeof context.project_id !== "string") return false;
+  const workPartition = work.project_ref?.project_id ?? PERSONAL_SPACE_PROJECT_ID;
+  return context.project_id !== workPartition;
 }
 
 export const HANDOVER_MARK = "【这项工作从个人助理转交给你继续。";

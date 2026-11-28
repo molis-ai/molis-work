@@ -202,4 +202,12 @@ test('PSD-02 the studio finds the image generator by role: Images today, any pro
   const elsewhere = roleViews.map(view => ({ ...view, provider: { ...view.provider, provider_id: 'com.example.pictures' } }));
   assert.equal(imageGeneratorOf(elsewhere)?.roles.generate.provider.provider_id, 'com.example.pictures', 'a third-party provider declaring the four roles is found the same way');
   assert.equal(imageGeneratorOf(elsewhere.filter(view => view.capability_id !== actions.image.capability_id)), undefined, 'three roles are not a generator');
+  // Unavailable providers are skipped in favor of the next available provider declaring all four roles.
+  const unavailableFirst = roleViews.map(view => ({
+    ...view,
+    provider: { ...view.provider, provider_id: 'com.example.disabled' },
+    availability: { available: false as const, code: 'actions.unavailable', reason: 'disabled' },
+  }));
+  assert.equal(imageGeneratorOf([...unavailableFirst, ...elsewhere])?.roles.generate.provider.provider_id, 'com.example.pictures', 'unavailable providers are skipped');
+  assert.equal(imageGeneratorOf(unavailableFirst), undefined, 'no available provider returns undefined');
 });

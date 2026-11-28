@@ -1,5 +1,5 @@
 import {
-  ActionError, defineErrorCodes, isObjectCopier, isObjectExporter, isObjectMover, isObjectPutter, isObjectRemover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS,
+  ActionError, defineErrorCodes, isObjectCopier, isObjectExporter, isObjectMover, isObjectPutter, isObjectRemover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS, platformErrorKind,
   type ActionCallContext, type ActionClient, type ActionReference, type ActionSubject, type ActionView, type PlacementRelationCandidates, type PlacementRelationResult,
   type PlacementExport, type PlacementRelationRole, type PlacementRemoved, type PlacementResult,
   type WorkflowItemRef,
@@ -458,9 +458,23 @@ async function carryMove(ports: PlacementPorts, object: PlacedObject, from: stri
   if (!tools.remover) throw notMovable(ports);
   const exported = await carryExport(tools, object, t);
   const request = "move:" + createHash("sha256").update(JSON.stringify([object.kind, object.id, exported.revision, from, to])).digest("hex");
+  // Check cancellation/revocation before writing the carrying ledger edge (skip on S-35 revert `back = true`).
+  if (!back) await ports.beforeEffect?.();
   // Written before the put: a cut between the put and the remove leaves this record, and `settleCarry` finishes the move or takes the put back.
   noteCarrying(ports, object, from, to, exported.revision);
-  const put = await tools.target.client.invoke(tools.target.caller, tools.putter, { kind: object.kind, record: exported.record, request_id: request, target_id: object.id }) as PlacementResult;
+  let put: PlacementResult;
+  try {
+    put = await tools.target.client.invoke(tools.target.caller, tools.putter, { kind: object.kind, record: exported.record, request_id: request, target_id: object.id }) as PlacementResult;
+  } catch (error) {
+    // Definite pre-effect refusal (forbidden/invalid): target never wrote, so clear the carrying edge immediately; keep it on ambiguous failures for settlement.
+    const kind = error instanceof ActionError ? error.kind ?? platformErrorKind(error.code) : undefined;
+    if (kind === "forbidden" || kind === "invalid") {
+      try {
+        ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carry_refused");
+      } catch { /* leave for settlement */ }
+    }
+    throw error;
+  }
   if (put.subject.kind !== object.kind || put.subject.id !== object.id || put.project_id !== to) {
     throw new ActionError("placement.result_mismatch", t(back ? "workbench.index.putting-it-back-did-not-return-the" : "workbench.index.plugin-s-move-result-doesn-t-match-request"));
   }
@@ -533,7 +547,10 @@ async function settleCarry(ports: PlacementPorts, edge: ContextEdge): Promise<"s
   // its list unreadable) says nothing, so the record stays for the next pass and neither copy is touched.
   const target = await exportedAt(ports, { ...object, project_id: to }, to, from);
   if (!target) return "unsettled";
-  if (!target.exported) return done("placement.carry_not_put");
+  if (!target.exported) {
+    await ports.beforeEffect?.();
+    return done("placement.carry_not_put");
+  }
   const source = await exportedAt(ports, object, from, to);
   if (!source) return "unsettled";
   if (source && source.exported && source.exported.revision !== revision) {
@@ -572,27 +589,44 @@ export class CarrySettling {
   private running: Promise<void> | null = null;
   private lastAt = Number.NEGATIVE_INFINITY;
   private left = new Set<string>();
+  private closed = false;
 
   constructor(private readonly service: Pick<PlacementService, "pendingCarryRecords" | "settleCarries">,
-    private readonly options: { readonly now?: () => number; readonly retryMs?: number; readonly settled?: (pass: CarrySettlePass) => void } = {}) {}
+    private readonly options: { readonly now?: () => number; readonly retryMs?: number; readonly settled?: (pass: CarrySettlePass) => void; readonly isClosed?: () => boolean } = {}) {}
+
+  private isClosed(): boolean { return this.closed || this.options.isClosed?.() === true; }
 
   /** Starts a pass when one is due; returns at once. */
   kick(): void {
-    if (this.running) return;
-    const records = this.service.pendingCarryRecords();
+    if (this.running || this.isClosed()) return;
+    let records: string[];
+    try { records = this.service.pendingCarryRecords(); } catch { return; }
     if (!records.length) return;
     const now = (this.options.now ?? Date.now)();
     if (records.every(record => this.left.has(record)) && now - this.lastAt < (this.options.retryMs ?? CARRY_RETRY_MS)) return;
     this.lastAt = now;
     let failed = false;
-    this.running = this.service.settleCarries().then(() => undefined, () => { failed = true; }).finally(() => {
-      this.left = new Set(this.service.pendingCarryRecords());
+    const pass = this.service.settleCarries().then(() => undefined, () => { failed = true; }).finally(() => {
+      if (!this.isClosed()) {
+        try {
+          this.left = new Set(this.service.pendingCarryRecords());
+        } catch {
+          failed = true;
+        }
+      }
       this.running = null;
-      try {
-        this.options.settled?.({ started_at: new Date(now).toISOString(), pending: records.length, left: this.left.size, failed });
-      } catch { /* A pass that could not be told about is still settled. */ }
+      if (!this.isClosed()) {
+        try {
+          this.options.settled?.({ started_at: new Date(now).toISOString(), pending: records.length, left: this.left.size, failed });
+        } catch { /* A pass that could not be told about is still settled. */ }
+      }
     });
+    pass.catch(() => {});
+    this.running = pass;
   }
+
+  /** Stops future kicks and suppresses post-close database reads when an in-flight pass settles. */
+  close(): void { this.closed = true; }
 
   /** Resolves once the pass under way, if any, has finished. */
   idle(): Promise<void> { return this.running ?? Promise.resolve(); }

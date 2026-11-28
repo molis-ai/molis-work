@@ -22,7 +22,7 @@ import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./revi
 import { continuationForwarder, type ObserveContinuations } from "./agent-continuation-starts.js";
 import { projectRuntimeDeclarations } from "./plugin-registry.js";
 import { assembledPerPartition, type PartitionPluginScope } from "./partition-plugin-assembly.js";
-import { existingPartitionPluginHost, partitionPluginHostFor, releasePartitionPlugins, type PartitionPluginInstance } from "./partition-plugin-host.js";
+import { existingPartitionPluginHost, partitionPluginHostFor, partitionPluginRemoved, releasePartitionPlugins, type PartitionPluginInstance } from "./partition-plugin-host.js";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 
 export interface ProjectPluginPorts {
@@ -296,7 +296,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         const pluginId = entry.definition.manifest.plugin_id;
         return { ...entry, enabled: (enabled?.get(pluginId) ?? true) && !installationSwitchedOff(platform, pluginId) };
       }));
-    const refreshProject = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
+    const refreshProject = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId,
+      ports.homeDirectory ? pluginId => partitionPluginRemoved(ports.homeDirectory!, pluginId, ports.projectId) : undefined);
     record.refreshEnablement = refreshProject;
     record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
@@ -321,6 +322,11 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     }
   } catch (error) {
     record.stopObservers?.();
+    if (record.partitions) {
+      try { await releasePartitionPlugins(ports.store, ports.projectId); }
+      catch (cleanupError) { error = new AggregateError([error, cleanupError], "项目插件启动及清理失败"); }
+      record.partitions = undefined;
+    }
     if (record.platform) {
       try { await stopProjectPlugins(record.platform, ports.projectId); }
       catch (cleanupError) { error = new AggregateError([error, cleanupError], "项目插件启动及清理失败"); }

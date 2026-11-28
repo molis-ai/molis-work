@@ -170,12 +170,16 @@ export function updatePluginAgentDefinitions(home: PluginPlatformHome, definitio
     }
     // A retried disable may name the version whose last hold already left before its fallback could be saved.
     const remaining = newestHeld(installation);
-    if (remaining) rememberHeld(home, installId, installation, remaining);
-  } else {
-    const registration = pluginAgentRegistration(definition);
-    showDeclaration(home, owner, installId, registration && state === "disabled" ? notRunning(registration) : registration);
-    rememberDeclaration(home, owner, installId, registration);
+    if (remaining) {
+      rememberHeld(home, installId, installation, remaining);
+      return;
+    }
+    if (state !== "disabled") return;
   }
+  const registration = pluginAgentRegistration(definition);
+  showDeclaration(home, owner, installId, registration && state === "disabled" ? notRunning(registration) : registration);
+  rememberDeclaration(home, owner, installId, registration);
+  if (installation) delete installation.remembered;
 }
 
 /**

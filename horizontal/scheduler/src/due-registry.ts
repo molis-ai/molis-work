@@ -282,11 +282,12 @@ export class DueTimer {
 
   /** Runs one round now, whatever the timer says; the timer is armed again after it. */
   fire(): Promise<void> {
-    if (this.closed) return Promise.resolve();
+    if (this.closed) return this.running ?? Promise.resolve();
     if (this.running) return this.running;
     // Started after the assignment below, so a round with nothing to await cannot finish (and clear `running`) before it is set.
     this.running = Promise.resolve().then(async () => {
       try {
+        if (this.closed) return;
         const { due, expired } = this.registry.dueNow();
         if (expired.length) {
           try { this.options.expired?.(expired); } catch { /* An expired-entry listener never drops due wakeups. */ }
@@ -298,11 +299,19 @@ export class DueTimer {
           if (this.closed) break;
           const key = dueKey(entry), off = this.putOff.get(key);
           if (off && off.until > now) continue;
+          let woken = false;
           try {
             await this.options.wake(entry);
+            woken = true;
             this.putOff.delete(key);
+            if (this.closed) {
+              // Best-effort settle if the registry is still open; never treat a post-close DB closure as a wake failure.
+              try { this.registry.settle(entry); } catch { /* registry already closed during shutdown */ }
+              break;
+            }
             this.registry.settle(entry);
           } catch (error) {
+            if (this.closed && woken) break;
             const wait = off ? Math.min(off.wait * 2, RETRY_MOST_MS) : RETRY_FIRST_MS;
             this.putOff.set(key, { until: this.now() + wait, wait });
             this.options.failed?.(entry, error);
@@ -315,6 +324,9 @@ export class DueTimer {
     });
     return this.running;
   }
+
+  /** Resolves once any in-flight `fire()` round has completed. */
+  drain(): Promise<void> { return this.running ?? Promise.resolve(); }
 
   close(): Promise<void> {
     this.closed = true;

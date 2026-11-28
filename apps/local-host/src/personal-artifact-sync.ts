@@ -95,7 +95,7 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
     });
   };
   const registration: SyncRegistration = {
-    locate:key=>objectLink(decode(key)[0]!,{surface:'artifacts',id:decode(key)[2]!}),selection: declared.selection, dependencies: [], title: declared.title,
+    locate:key=>objectLink(decode(key)[0]!,{surface:'artifacts',id:decode(key)[2]!}),selection: declared.selection, restoreTier: 'version-store', dependencies: [], title: declared.title,
     content: library ? createArtifactSyncContent(spaceId) : createSyncJsonContent({ spaceId, authorize: check }),
     async refresh() {
       check();

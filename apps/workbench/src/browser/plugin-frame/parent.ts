@@ -184,7 +184,7 @@ export function sanitizeFrameToastOptions(opt: unknown): boolean | { tone?: "def
 }
 
 /** D0124/D0335: one typed UI boundary, after the live/visible frame check. */
-function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement, claimReload: () => boolean, port: MessagePort): void {
+function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined, root: HTMLElement, claimReload: () => boolean, port: MessagePort, scope: FrameScope): void {
   const args = message.args;
   if (!Array.isArray(args) || args.length > 3) return;
   const text = (value: unknown, limit = 1000): value is string => typeof value === "string" && value.length <= limit;
@@ -193,9 +193,14 @@ function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { t
     if (text(args[0], 4000)) {
       const normalized = sanitizeFrameToastOptions(args[1]);
       if (normalized !== null) {
-        // A page's `undo` stays in the frame; the frame sends a token, and 「撤销」 hands it back.
+        // A page's `undo` stays in the frame; the frame sends a token, and 「撤销」 hands it back while the frame is still live.
         const token = args[1] && typeof args[1] === "object" ? (args[1] as Record<string, unknown>).undo : undefined;
-        const undo = typeof token === "string" && /^[0-9]{1,9}$/u.test(token) ? () => port.postMessage({ type: "toast-undo", token } satisfies FrameDown) : undefined;
+        const undo = typeof token === "string" && /^[0-9]{1,9}$/u.test(token)
+          ? () => {
+            if (!scope.alive) return;
+            try { port.postMessage({ type: "toast-undo", token } satisfies FrameDown); } catch { /* Frame port already closed. */ }
+          }
+          : undefined;
         host.showToast?.(args[0], undo ? { ...(typeof normalized === "object" ? normalized : { tone: normalized ? "error" : "default" }), undo } : normalized);
       }
     }
@@ -577,7 +582,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui") {
-        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId, root, claimReload, port);
+        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId, root, claimReload, port, scope);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
         else navigate(root, message, route(""), returns.link);

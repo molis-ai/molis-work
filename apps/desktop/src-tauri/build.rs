@@ -29,6 +29,22 @@ fn tray_words() {
         "stopped",
         "stopped-tip",
     ];
+    let wheel_fields = [
+        "shelf",
+        "send",
+        "summarize",
+        "extract",
+        "translate",
+        "to-markdown",
+    ];
+    let dialog_fields = [
+        "choose-folder-prompt",
+        "choose-folder-message",
+        "folder-downloads",
+        "folder-documents",
+        "folder-desktop",
+        "folder-custom",
+    ];
     let mut tray = Vec::new();
     let mut views = Vec::new();
     for descriptor in catalog["languages"]
@@ -46,20 +62,52 @@ fn tray_words() {
         let pack = design_resource(&languages, name.to_str().expect("locale file name"));
         assert_eq!(pack["owner"], "workbench");
         assert_eq!(pack["locale"], tag);
-        let label = |field: &str| {
-            let key = format!("workbench.native-tray.{field}");
+        let read_key = |prefix: &str, field: &str| {
+            let key = format!("{prefix}.{field}");
             pack["messages"][&key]
                 .as_str()
                 .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| panic!("Missing native tray word {key} for {tag}"))
+                .unwrap_or_else(|| panic!("Missing native locale word {key} for {tag}"))
         };
         let words = fields
             .into_iter()
-            .map(|field| (field.replace('-', "_"), serde_json::json!(label(field))))
+            .map(|field| {
+                (
+                    field.replace('-', "_"),
+                    serde_json::json!(read_key("workbench.native-tray", field)),
+                )
+            })
             .collect::<serde_json::Map<String, Value>>();
-        tray.push(serde_json::json!({ "language": { "tag": tag, "html_lang": descriptor["html_lang"], "direction": descriptor["direction"] }, "words": words }));
+        let wheel = wheel_fields
+            .into_iter()
+            .map(|field| {
+                (
+                    field.replace('-', "_"),
+                    serde_json::json!(read_key("workbench.native-wheel", field)),
+                )
+            })
+            .collect::<serde_json::Map<String, Value>>();
+        let dialogs = dialog_fields
+            .into_iter()
+            .map(|field| {
+                (
+                    field.replace('-', "_"),
+                    serde_json::json!(read_key("workbench.native-dialog", field)),
+                )
+            })
+            .collect::<serde_json::Map<String, Value>>();
+        tray.push(serde_json::json!({
+            "language": {
+                "tag": tag,
+                "html_lang": descriptor["html_lang"],
+                "direction": descriptor["direction"]
+            },
+            "words": words,
+            "wheel": wheel,
+            "dialogs": dialogs,
+        }));
         views.push(serde_json::json!({ "tag": tag, "html_lang": descriptor["html_lang"], "direction": descriptor["direction"],
-            "intl": descriptor["intl"], "loading": label("boot-loading"), "failed": label("boot-failed") }));
+            "intl": descriptor["intl"], "loading": read_key("workbench.native-tray", "boot-loading"), "failed": read_key("workbench.native-tray", "boot-failed") }));
     }
     let boot_tray =
         serde_json::json!({ "default": catalog["default"], "locales": tray }).to_string();

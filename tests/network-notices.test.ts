@@ -52,4 +52,7 @@ test("Settings links the docs page that lists every outbound class, in the inter
   const en = link(await (await fetch(`${origin}/settings/connectors`, { headers: { "accept-language": "en-US" } })).text());
   assert.equal(en?.[1], "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.en.md");
   assert.equal(en?.[2], "Where Molis Work connects to");
+  const ja = link(await (await fetch(`${origin}/settings/connectors`, { headers: { "accept-language": "ja-JP" } })).text());
+  assert.equal(ja?.[1], "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.en.md");
+  assert.match(ja?.[2] ?? "", /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
 });

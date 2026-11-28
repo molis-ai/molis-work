@@ -44,24 +44,73 @@ export function integrationDriverDirectory(declared: readonly IntegrationDrivers
     }
     return Object.freeze(aliases);
   }
+  const declarationPorts: IntegrationHostPorts = {
+    provider: () => () => { throw new Error("integration provider is not bound while reading declarations"); },
+  };
+  function collectDocuments(): {
+    readonly bySource: Readonly<Record<string, DocumentDriver>>;
+    readonly fallback: DocumentDriver | undefined;
+    readonly single: () => DocumentDriver;
+  } {
+    const bySource: Record<string, DocumentDriver> = {};
+    let fallback: DocumentDriver | undefined;
+    const all: DocumentDriver[] = [];
+    for (const drivers of declared) {
+      if (!drivers.documents) continue;
+      const sources = (drivers.integrations?.(declarationPorts) ?? [])
+        .flatMap(definition => (definition.manifest.integrations ?? [])
+          .flatMap(integration => integration.kind === "document_import" && integration.document_source ? [integration.document_source] : []));
+      if (sources.length) {
+        for (const source of sources) {
+          if (Object.hasOwn(bySource, source)) throw new Error(`two integrations declare the document driver of ${source}`);
+          bySource[source] = drivers.documents;
+        }
+      } else {
+        if (fallback) throw new Error("two integrations declare the document driver");
+        fallback = drivers.documents;
+      }
+      all.push(drivers.documents);
+    }
+    return {
+      bySource: Object.freeze(bySource),
+      fallback,
+      single: () => {
+        if (!all.length) throw new Error("no integration declares a document driver");
+        if (all.length > 1) throw new Error("two integrations declare the document driver");
+        return all[0]!;
+      },
+    };
+  }
   const accounts = merged<AccountDriver>(drivers => drivers.accounts, "account"), webSearch = merged<WebSearchDriver>(drivers => drivers.web_search, "web search");
   const marks = merged<string>(drivers => drivers.marks, "mark"), oauthCallbackAliases = callbackAliases();
   const localMcpServers = merged<LocalMcpServerDeclaration>(drivers => drivers.local_mcp_servers, "local MCP server");
   const cli = merged<CliDriver>(drivers => drivers.cli, "CLI"), publicFeed = single(drivers => drivers.public_feed, "public-feed driver");
+  const documents = collectDocuments();
+  const managedCliEnvironment = (() => {
+    const result: Record<string, string> = {};
+    for (const driver of Object.values(cli)) for (const [key, value] of Object.entries(driver.managed_environment ?? {})) {
+      if (Object.hasOwn(result, key)) throw new Error(`two integrations declare the managed CLI environment variable ${key}`);
+      result[key] = value;
+    }
+    return Object.freeze(result);
+  })();
   return {
     /** The integrations, in the order services are listed in. */
     integrations: (ports: IntegrationHostPorts): IntegrationDriverDefinition[] =>
       [...declared].sort((a, b) => a.order - b.order).flatMap(drivers => drivers.integrations?.(ports) ?? []),
     /** How an account is read, by service. */
     accounts,
-    documents: single<DocumentDriver>(drivers => drivers.documents, "document driver"),
+    documents: documents.single,
+    /** How an external document is read, by declared `document_source`. */
+    documentDriver: (source: string): DocumentDriver | undefined => Object.hasOwn(documents.bySource, source) ? documents.bySource[source] : documents.fallback,
+    documentsBySource: documents.bySource,
     webSearch,
     /** The services' brand marks. */
     marks,
     /** The official CLI drivers, by service: the Host runs only their fixed commands. */
     cli: () => cli,
     /** The variables every client the Host installed is run with. */
-    managedCliEnvironment: once((): Readonly<Record<string, string>> => Object.freeze(Object.assign({}, ...Object.values(cli).map(driver => driver.managed_environment ?? {})))),
+    managedCliEnvironment: (): Readonly<Record<string, string>> => managedCliEnvironment,
     /** The PowerShell modules the drivers run: the only ones installed. */
     powerShellModules: once((): ReadonlySet<string> => new Set(Object.values(cli).flatMap(({ distribution }) => distribution?.kind === "powershell" ? [distribution.module] : []))),
     cliReleaseHosts: once(() => listed(drivers => drivers.cli_release_hosts)),
@@ -86,6 +135,7 @@ export function integrationDriverDirectory(declared: readonly IntegrationDrivers
 const DIRECTORY = integrationDriverDirectory(INTEGRATION_DRIVERS);
 export const builtinIntegrationDrivers = DIRECTORY.integrations;
 export const builtinDocumentDriver = DIRECTORY.documents;
+export const builtinDocumentDriverFor = DIRECTORY.documentDriver;
 export const builtinCliDrivers = DIRECTORY.cli;
 export const builtinManagedCliEnvironment = DIRECTORY.managedCliEnvironment;
 export const builtinPowerShellModules = DIRECTORY.powerShellModules;

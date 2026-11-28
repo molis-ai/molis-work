@@ -29,6 +29,10 @@ export function scopeRuntimeReplica(source: SyncReplicaAdapter, scope: RuntimeSy
     committed?.();
     return result;
   };
+  const waitingCount = () => {
+    try { return source.conflicts().filter(row => row.waiting).length; }
+    catch { return undefined; }
+  };
   const wrapKey = (key: string) => { const wire = JSON.stringify([scope.projectId, key]); runtimeSyncKey(wire); return wire; };
   const localKey = (key: string) => { const parsed = runtimeSyncKey(key); if (parsed.projectId !== scope.projectId) throw invalid(); return parsed.key; };
   const mutation = (value: SyncMutation) => ({ ...value, key: wrapKey(value.key), value: runtimeSyncValue(scope, value.value) });
@@ -50,9 +54,9 @@ export function scopeRuntimeReplica(source: SyncReplicaAdapter, scope: RuntimeSy
     cursor: () => source.cursor(), counts: () => source.counts(), conflicts: () => source.conflicts().map(row => ({ ...row, key: wrapKey(row.key) })),
     resolve: (key, choice, revision, state) => change(() => source.resolve(localKey(key), choice, revision, state)),
     ...(source.retryWaiting ? { retryWaiting() {
-      const hadWaiting = source.conflicts().some(row => row.waiting);
+      const waiting = waitingCount();
       source.retryWaiting!();
-      if (hadWaiting) committed?.();
+      if (waiting && (waitingCount() ?? waiting) < waiting) committed?.();
     } } : {}),
     ...(source.inspectConflict ? { inspectConflict(key: string) { const value = source.inspectConflict!(localKey(key)); return value ? { ...value, key, local:runtimeSyncValue(scope,value.local),remote:runtimeSyncValue(scope,value.remote) } : null; } } : {}),
     ...(source.recoveries ? { recoveries: () => source.recoveries!().map(row => ({ ...row, key: wrapKey(row.key) })) } : {}),

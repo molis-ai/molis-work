@@ -1,8 +1,10 @@
 import { lstatSync } from "node:fs";
 import path from "node:path";
+import { hostLog } from "./host-log.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
-  SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+  readPluginReleaseManifest, readPluginRuntimeRecords, SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { checkSqliteBaselineVersion, assertSqliteBaselineShape, withHeldHomeSqlite, readDatabaseSpace, readStorageSpace, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
@@ -121,6 +123,39 @@ export function withReadOnlyHomePluginStore<T>(
 
 /** The Home Runtime's store in the Home's store registry (W4-11). */
 export const HOME_PLUGIN_RUNTIME_HOME_STORE: HomeStoreDeclaration = { path: "plugin-runtime", library: { baseline: HOME_PLUGIN_RUNTIME_BASELINE } };
+
+export interface HomePluginInstallationManifest {
+  readonly install_id: string;
+  readonly state: PluginInstanceRecord["state"];
+  readonly manifest: PluginManifest;
+}
+
+/**
+ * Resolves non-uninstalled Home plugin installations and their release manifests read-only (zero plugin wakes, no lazy DB creation).
+ * Falls back to `shippedManifest(pluginId)` only when its publisher signature matches the recorded installation.
+ */
+export function readHomePluginInstallations(
+  home: string,
+  shippedManifest?: (pluginId: string) => PluginManifest | undefined,
+  selection: { availableOnly?: boolean; installId?: string; pluginId?: string } = {},
+): HomePluginInstallationManifest[] {
+  return withReadOnlyHomePluginStore(home, db =>
+    readPluginRuntimeRecords(db).flatMap(record => {
+      if (record.state === "uninstalled" || (selection.installId && record.install_id !== selection.installId)
+        || (selection.pluginId && record.plugin_id !== selection.pluginId)) return [];
+      if (selection.availableOnly && (record.state === "disabled" || record.state === "quarantined")) return [];
+      try {
+        const shipped = shippedManifest?.(record.plugin_id);
+        const manifest = readPluginReleaseManifest(db, record)
+          ?? (shipped && shipped.publisher.signature === record.publisher_signature ? shipped : null);
+        return manifest ? [{ install_id: record.install_id, state: record.state, manifest }] : [];
+      } catch (error) {
+        if (!selection.availableOnly) throw error;
+        hostLog.warn("plugins", "installation_manifest_unavailable", error, { install_id: record.install_id });
+        return [];
+      }
+    })) ?? [];
+}
 
 /**
  * The Home's consent ledger and pinned publishers, for the project platforms of this Home (the Home's own Runtime holds the store open

@@ -16,8 +16,26 @@ const RECEIPT = ":diagnostics";
 
 /** How long a receipt that could not be read is left alone before it is asked for again. */
 const RETRY_UNREADABLE_MS = 30_000;
+/** Upper bound for cached settled receipts and negative retry timestamps (oldest-used evicted first). */
+const MAX_ENTRIES = 1000;
 
 type Load = (runId: string, writeIds: string[]) => Promise<AgentWriteCheckResult[]>;
+
+function rememberBounded<V>(map: Map<string, V>, key: string, value: V): void {
+  map.delete(key);
+  map.set(key, value);
+  for (const oldest of map.keys()) {
+    if (map.size <= MAX_ENTRIES) break;
+    map.delete(oldest);
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { name?: unknown; code?: unknown; cause?: unknown };
+  if (candidate.name === "AbortError" || candidate.code === "ABORT_ERR" || candidate.code === "actions.cancelled") return true;
+  return candidate.cause !== undefined && candidate.cause !== error && isAbortError(candidate.cause);
+}
 
 /** Immutable successes and short-lived misses, scoped to the original session, round and write. */
 export function writeCheckCache(now: () => number = Date.now) {
@@ -31,21 +49,55 @@ export function writeCheckCache(now: () => number = Date.now) {
         const ids = [...new Set((run.command_outputs ?? []).filter(ref => ref.run_id === runId && ref.call_id.endsWith(RECEIPT))
           .map(ref => ref.call_id.slice(0, -RECEIPT.length)).filter(Boolean))];
         const key = (id: string) => JSON.stringify([session, runId, id]);
-        const due = ids.filter(id => !loading.has(key(id)) && !settled.has(key(id)) && now() >= (retryAt.get(key(id)) ?? -Infinity));
+        const currentTime = now();
+        const due = ids.filter(id => {
+          const entryKey = key(id);
+          if (loading.has(entryKey) || settled.has(entryKey)) return false;
+          const retry = retryAt.get(entryKey);
+          if (retry !== undefined && currentTime < retry) return false;
+          if (retry !== undefined) retryAt.delete(entryKey);
+          return true;
+        });
         if (due.length) {
-          const batch = Promise.resolve().then(() => load(runId, due)).catch(() => []).then(rows => {
-            const results = new Map(rows.map(result => [result.call_id, result]));
-            for (const id of due) {
-              const result = results.get(id);
-              if (result) { settled.set(key(id), result); retryAt.delete(key(id)); }
-              else retryAt.set(key(id), now() + RETRY_UNREADABLE_MS);
-              loading.delete(key(id));
-            }
-          });
+          const batch = Promise.resolve()
+            .then(() => load(runId, due))
+            .then(
+              rows => {
+                const results = new Map(rows.map(result => [result.call_id, result]));
+                for (const id of due) {
+                  const entryKey = key(id);
+                  const result = results.get(id);
+                  if (result) {
+                    rememberBounded(settled, entryKey, result);
+                    retryAt.delete(entryKey);
+                  } else {
+                    rememberBounded(retryAt, entryKey, now() + RETRY_UNREADABLE_MS);
+                  }
+                  loading.delete(entryKey);
+                }
+              },
+              error => {
+                const aborted = isAbortError(error);
+                for (const id of due) {
+                  const entryKey = key(id);
+                  if (!aborted) rememberBounded(retryAt, entryKey, now() + RETRY_UNREADABLE_MS);
+                  loading.delete(entryKey);
+                }
+              },
+            );
           for (const id of due) loading.set(key(id), batch);
         }
         await Promise.all(new Set(ids.map(id => loading.get(key(id)))));
-        const write_checks: CodingWriteCheck[] = ids.map(id => settled.get(key(id)) ?? { call_id: id, unreadable: true });
+        const write_checks: CodingWriteCheck[] = ids.map(id => {
+          const entryKey = key(id);
+          const hit = settled.get(entryKey);
+          if (hit) {
+            settled.delete(entryKey);
+            settled.set(entryKey, hit);
+            return hit;
+          }
+          return { call_id: id, unreadable: true };
+        });
         return { ...run, write_checks };
       }));
     },

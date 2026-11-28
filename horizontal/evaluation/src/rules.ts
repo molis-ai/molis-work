@@ -16,7 +16,13 @@ import type {
   ObservationQueriedRecord,
 } from "@molis-ai/molis-work-contracts/services/observation";
 import type { CommandReceipt } from "./observation-bridge.js";
-import { buildEvidencePointers, unknownReasonForMissingEvidence } from "./unknown-and-funnel.js";
+import {
+  buildEvidencePointers,
+  isActionCommandRecord,
+  isAgentReplyRecord,
+  unknownReasonForMissingEvidence,
+  workModeExpectsReply,
+} from "./unknown-and-funnel.js";
 
 export interface RuleEvaluationContext {
   readonly records: readonly ObservationQueriedRecord[];
@@ -241,12 +247,35 @@ function evalEvidenceText(rule: EvaluationDeterministicRule, matched: readonly O
   return { verdict: "passed", unknownReasons: [], rationale: "证据快照内容符合预期约束", pointers: pointersFor(matched, ctx.evidenceByRecord) };
 }
 
+function parseFiniteNumber(value: string | number): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
+ * Determine whether `nextRevision` on a subsequent retry receipt (`retry.seq > failed.seq`) advances past
+ * `previousRevision`. Uses strict numeric `>` when both parse as finite numbers, and non-empty inequality for opaque
+ * non-numeric revision strings (e.g. `home-2-deadbeef` vs `home-1-cafebabe`).
+ */
+function isSuccessorRevision(nextRevision: string, previousRevision: string | number): boolean {
+  const nextNum = parseFiniteNumber(nextRevision);
+  const prevNum = parseFiniteNumber(previousRevision);
+  if (nextNum !== undefined && prevNum !== undefined) return nextNum > prevNum;
+  const nextText = nextRevision.trim();
+  const prevText = String(previousRevision).trim();
+  return Boolean(nextText && prevText && nextText !== prevText);
+}
+
 function evalNoSelfCertifyingSuccess(rule: EvaluationDeterministicRule, ctx: RuleEvaluationContext, matched: readonly ObservationQueriedRecord[]): RawVerdict {
   if (ctx.records.length === 0) return noCheckableMatchVerdict(ctx, "模型自证成功检查");
-  const commands = ctx.records.filter(record => record.owner.kind === "service" && record.owner.id === "gateway" && record.fact === "action.call" && record.detail.operation === "command" && record.work.call_id);
+  const commands = ctx.records.filter(record => isActionCommandRecord(record) && record.work.call_id);
   const failures = commands.filter(record => record.outcome === "failed" || record.outcome === "refused");
   const reported = ctx.records.filter(record => record.detail.self_certified === true || (record.outcome === "succeeded"
-    && (record.fact === "agent.reply" || record.fact === "agent.round_completed" || record.fact === "agent.run" && record.stage === "completed")));
+    && (record.fact === "agent.reply" || record.fact === "agent.round_completed"
+      || (record.fact === "agent.run" && (record.stage === "completed" || record.stage === "ended")))));
   const unverified: ObservationQueriedRecord[] = [];
   const verified = new Set<ObservationQueriedRecord>();
   for (const claim of reported) {
@@ -265,7 +294,7 @@ function evalNoSelfCertifyingSuccess(rule: EvaluationDeterministicRule, ctx: Rul
       // intentionally have no input snapshots. Only an identified target with a successor version suffices.
       const declared = rule.subject_id ? { id: rule.subject_id, kind: rule.subject_kind } : failed.subjects.find(subject => subject.kind !== "action");
       if (declared) {
-        const before = failed.subjects.find(subject => subject.kind === declared.kind && subject.id === declared.id)?.version;
+        const before = failed.subjects.find(subject => (!declared.kind || subject.kind === declared.kind) && subject.id === declared.id)?.version;
         let allOtherTargets = true;
         let recovered: ObservationQueriedRecord | undefined;
         for (const retry of retries) {
@@ -273,7 +302,7 @@ function evalNoSelfCertifyingSuccess(rule: EvaluationDeterministicRule, ctx: Rul
           if (receipt && (receipt.id !== declared.id || (declared.kind && receipt.kind !== declared.kind))) continue;
           allOtherTargets = false;
           const previous = receipt?.previousRevision ?? before;
-          if (receipt && previous !== undefined && Number(receipt.revision) > Number(previous)) {
+          if (receipt && previous !== undefined && isSuccessorRevision(receipt.revision, previous)) {
             recovered = retry;
             break;
           }
@@ -466,7 +495,7 @@ type TextRubric = Pick<EvaluationEvaluatorRule, "rubric" | "evidence_source" | "
 function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext, selectedRole?: string) {
   const reply = { fact: "agent.reply", role: "reply" };
   const expectsReply = rule.required_facts?.includes(reply.fact)
-    || stage === "delivery" && (ctx.workMode === "assistant" || ctx.records.some(record => record.fact === reply.fact));
+    || stage === "delivery" && (workModeExpectsReply(ctx.workMode) || ctx.records.some(record => record.fact === reply.fact));
   const source = rule.evidence_source ?? (expectsReply ? reply : undefined);
   const records = source ? ctx.records.filter(record => record.fact === source.fact) : ctx.records;
   const items: ObservationEvidenceItemView[] = [];
@@ -481,7 +510,7 @@ function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stag
       if (record.owner.kind === "plugin") {
         role ??= "output";
         if (!isPluginDeliveryRole(role)) continue;
-      } else if (record.owner.kind === "service" && record.owner.id === "agent" && record.fact === reply.fact) {
+      } else if (isAgentReplyRecord(record)) {
         if (role !== undefined && role !== reply.role) continue;
         role = reply.role;
       } else continue;

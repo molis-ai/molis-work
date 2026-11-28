@@ -102,7 +102,12 @@ operations["notes.add"] = async (input, sdk) => {
     replaceWait(target: "project" | "home", newProvider = provider) {
       withdraw();
       withdraw = registerWait(target, newProvider);
-      return () => { withdraw(); withdraw = registerWait(scope, provider); };
+      return async () => {
+        withdraw();
+        withdraw = registerWait(scope, provider);
+        // Wait for the production catalog to republish installed actions against the restored dependency.
+        await f.host.withProject(project.reference, () => undefined);
+      };
     },
     async atWrite(pending: () => Promise<Response>, refuse: () => void | Promise<void>) {
       const gate = { entered: deferred(), release: deferred() }; hold = gate;
@@ -150,7 +155,7 @@ test("S-47 SCS-11 QEA-138 project signed form submits through the original page 
   const rows = [{ id: "1", text: "once" }];
   assert.deepEqual(await f.read(fresh), rows, "one submit writes one row");
   assert.deepEqual(f.storedValues(),
-    [{ item_key: "notes", item_value: JSON.stringify(rows) }], "the installation snapshot sees the real sandbox write");
+    [{ item_key: "sandbox:entries", item_value: JSON.stringify([["notes", JSON.stringify(rows)]]) }], "the installation snapshot sees the real sandbox write");
   const caller = { ...f.caller, permissions: ["storage:private", dependencyGrant] }, views = await operationsOf(f.client, caller);
   assert.equal(await operate(f.client, caller, views, "notes.add", { text: "directory" }), true,
     "the actual exposed action accepts the same operation the raw HTTP path refused");
@@ -178,14 +183,14 @@ test("S-47 SCS-11 QEA-138 original signed page refuses same-version digest repla
     ["project", "system.signed_form_replacement", "provider"],
     ["home", undefined, "scope"],
   ] as const) {
-    let restoreProvider: (() => void) | undefined;
+    let restoreProvider: (() => Promise<void>) | undefined;
     try {
       const response = await f.atWrite(() => call("late after " + changed + " change"), () => { restoreProvider = f.replaceWait(target, provider); });
       assert.equal(response.ok, false, await response.text());
-    } finally { restoreProvider?.(); }
-    // An immediate page read can itself be fenced while the restored provider is being published.
+    } finally { await restoreProvider?.(); }
     assert.deepEqual(f.storedValues(), beforeReplacement,
       "a different " + changed + " cannot finish the original write");
+    assert.deepEqual(await f.read(fresh), [], "the original page can read after the restored provider is published");
   }
   let restoreApproval: (() => void) | undefined;
   try {

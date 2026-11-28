@@ -31,7 +31,7 @@ function pieceBundle(file: string | undefined): string {
 const embeddedFactoryHolding = (marker: string): string => pieceBundle(pieceHolding[marker]);
 const embeddedFactory = (name: string): string => pieceBundle(pieceFile[name]);
 
-function codingFixtureHtml(locale: "zh" | "en") {
+function codingFixtureHtml(locale: "zh" | "en" | "ja") {
   return withPageText(locale, ["coding"], () => renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
     primitives: { escape: escapeHtml, icon, text: pageText(locale, "coding"), formatDate: value => value } }));
 }
@@ -66,7 +66,7 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
       const labels=[...root.querySelectorAll('.coding-plan-state')].map(n=>n.textContent);
       const cooperation=(${embeddedFactory("cooperationUi")})({...ports,q:selector=>root.querySelector(selector),rounds:()=>[],openSession(){},refreshSessions:async()=>{},prefill(){},materialsChanged:async()=>{},
         api:async path=>path.endsWith('/background')?{commands:['running','succeeded','failed','stopped','interrupted'].map(state=>({state,summary:'command '+state}))}
-          :path.endsWith('/messages')?{messages:[{state:'queued',kind:'request',body:'请检查',outgoing:true},{state:'cancelled',kind:'request',body:'请检查',history:[{event:'failed'}]},{state:'cancelled',kind:'request',body:'已交办',await_reply:true,history:[{event:'stopped',note:'收信的会话被护栏叫停，没有答复'}]}]}
+          :path.endsWith('/messages')?{messages:[{state:'queued',kind:'request',body:'请检查',outgoing:true},{state:'cancelled',kind:'request',body:'请检查',history:[{event:'failed'}]},{state:'cancelled',kind:'request',body:'已交办',await_reply:true,history:[{event:'stopped',note:'mail.recipient_tripped'}]}]}
           :{incoming:null,related:[],outgoing:[{delegation_id:'d',state:'accepted',state_label:'已接受，等待发送',title:'检查',deliveries:[],receipts:[]}]}});
       await cooperation.refresh(true);await Promise.resolve();
       const states=selector=>[...root.querySelectorAll(selector+' .mw-state-ring')].map(n=>n.dataset.mwState);
@@ -83,6 +83,29 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
     assert.match(result.stoppedMail, /已停止/); assert.match(result.stoppedMail, /护栏叫停/); assert.doesNotMatch(result.stoppedMail, /在等答复|失败/);
     assert.equal(result.delegation, "ready", "accepting a delegation does not start execution");
     assert.deepEqual(result.errors, []);
+    // CORE-19: structured cancellation reason codes render in the active locale without leaking Chinese prose into EN/JA.
+    for (const [locale, expected] of [
+      ["en", ["stopped by a guardrail", "repeated attempts made no progress"]],
+      ["ja", ["ガードレールによって停止", "複数回の試行で進展がなく停止"]],
+    ] as const) {
+      await page.evaluate(`(()=>{${pageTextScript(locale, "coding")}})()`);
+      const notes = await page.evaluate<string[]>(`(async () => {
+        document.body.innerHTML=${JSON.stringify(codingFixtureHtml(locale))};
+        const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
+        const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root);
+        const cooperation=(${embeddedFactory("cooperationUi")})({lifetime,translate:globalThis.t.text,q:selector=>root.querySelector(selector),rounds:()=>[],current:()=>'session',status:()=>{},refresh:async()=>{},openSession(){},refreshSessions:async()=>{},prefill(){},materialsChanged:async()=>{},
+          api:async path=>path.endsWith('/background')?{commands:[]}
+            :path.endsWith('/messages')?{messages:[{state:'cancelled',kind:'request',body:'check',await_reply:true,history:[{event:'stopped',note:'mail.recipient_tripped'}]},{state:'cancelled',kind:'request',body:'check',await_reply:true,history:[{event:'stopped',note:'mail.recipient_circuit_tripped'}]}]}
+            :{incoming:null,related:[],outgoing:[]}});
+        await cooperation.refresh(true);await Promise.resolve();
+        return [...root.querySelectorAll('.coding-coop-mail .coding-coop-note')].map(node=>node.textContent);
+      })()`);
+      assert.ok(notes.some(text => text.includes(expected[0])), `${locale}: tripped note localized`);
+      assert.ok(notes.some(text => text.includes(expected[1])), `${locale}: circuit-tripped note localized`);
+      if (locale === "en") {
+        for (const text of notes) assert.doesNotMatch(text, /[\u4e00-\u9fff]/u, "EN mail note contains no Chinese");
+      }
+    }
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

@@ -14,7 +14,15 @@ export interface LocalizedAgentBody {
 }
 
 export function agentBodyIn(body: LocalizedAgentBody, locale?: string): string {
-  return locale && body.body_by_locale && Object.hasOwn(body.body_by_locale, locale) ? body.body_by_locale[locale] ?? body.body : body.body;
+  if (!locale || !body.body_by_locale) return body.body;
+  const trimmed = locale.trim();
+  if (!trimmed) return body.body;
+  if (Object.hasOwn(body.body_by_locale, trimmed)) return body.body_by_locale[trimmed] ?? body.body;
+  const lowered = trimmed.toLowerCase();
+  if (Object.hasOwn(body.body_by_locale, lowered)) return body.body_by_locale[lowered] ?? body.body;
+  const primary = lowered.split(/[-_]/u)[0];
+  if (primary && Object.hasOwn(body.body_by_locale, primary)) return body.body_by_locale[primary] ?? body.body;
+  return body.body;
 }
 
 /**

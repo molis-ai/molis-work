@@ -276,3 +276,56 @@ test("S-bundled-packages an unsigned bundled pack is signed by this Home only wh
     s.nothingWritten();
   } finally { await rm(b, { recursive: true, force: true }); }
 });
+
+test("S-reserved-host-prefix custom bundled directory IDs are recognized and a corrupt signed file fails closed without falling back to localKey", async () => {
+  const base = await mkdtemp(join(tmpdir(), "molis-work-release-binding-"));
+  const folder = join(base, "bundled-plugins");
+  const home = join(base, "home");
+  await mkdir(folder, { recursive: true });
+  await mkdir(home, { recursive: true });
+  const person = { ...caller, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management" as const, conversation_ref: "ap01:install", message_ref: "ap01:confirm" } };
+  const ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
+  const customSignedId = "io.molis.work.content.custom-signed";
+  const publisher = newPublisher();
+  const otherPublisher = newPublisher();
+  try {
+    // AP-02: a custom bundled directory carries an ID not in the default release folder, and installs under its verified signer only.
+    await writeFile(join(folder, `${customSignedId}.json`), JSON.stringify(signedContentPackage(publisher, { pluginId: customSignedId, scope: "home" })));
+    await packBundledDraft(PACK, folder);
+    const host1 = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, bundledPluginsDirectory: folder });
+    const databasePath = join(home, "project.sqlite");
+    seedDemoBoard(databasePath);
+    const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+    try {
+      const client = host1.actionClient(reference);
+      const pSigned = await client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: customSignedId, version: "1.0.0" } }) as { preview_id: string };
+      await client.invoke(person, ref(pluginInstallActions.confirm), { preview_id: pSigned.preview_id, consent: true, pin_label: "Custom Publisher" });
+      await assert.rejects(
+        client.invoke(person, ref(pluginInstallActions.preview), { bundle: signedContentPackage(otherPublisher, { pluginId: "io.molis.work.content.absent-pack" }) }),
+        refused("plugin.id_namespace_conflict"),
+        "an ID absent from the custom bundled directory is refused under io.molis.work.*",
+      );
+      // Install the draft pack under this Home's own localKey, then corrupt <id>.json beside the draft before reopening the Host.
+      const pDraft = await client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }) as { preview_id: string };
+      await client.invoke(person, ref(pluginInstallActions.confirm), { preview_id: pDraft.preview_id, consent: true, pin_label: "Local Home" });
+    } finally {
+      await host1.close();
+    }
+
+    // AP-01: with a corrupt <id>.json lying beside <id>.draft.json, the reopened Host MUST fail closed instead of falling back to localKey().
+    await writeFile(join(folder, `${PLUGIN_ID}.json`), "{corrupt-json");
+    const host2 = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, bundledPluginsDirectory: folder });
+    try {
+      await host2.homePlugins!.ready();
+      assert.match(host2.homePlugins!.packageError(PLUGIN_ID) ?? "", /只认随包那份的签名/u, "corrupt signed release file fails closed on signer binding instead of falling back to localKey");
+      assert.equal(host2.homePlugins!.packageError(PLUGIN_ID, "code"), "actions.plugin_unavailable");
+      assert.deepEqual(homeAgentDefinitions(home).methods().filter(item => item.owner_id === PLUGIN_ID), [], "refused corrupt release package exposes no active methods");
+      assert.equal(host2.homePlugins!.packageError(customSignedId), undefined, "valid custom-directory signed pack starts without error");
+      assert.equal(host2.homePlugins!.installation(customSignedId)?.state, "running", "valid custom-directory signed pack still starts cleanly");
+    } finally {
+      await host2.close();
+    }
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});

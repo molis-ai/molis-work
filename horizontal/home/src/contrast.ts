@@ -58,6 +58,13 @@ type Pair = { ink?: Color; paper?: Color };
 type Node = ReturnType<typeof parseDocument>["children"][number];
 const tokenRole = /^var\(\s*--([\w-]+)\s*\)$/iu;
 
+function paletteScheme(palette: (UiTokenMap & { readonly scheme?: "light" | "dark" }) | undefined): "light" | "dark" {
+  if (!palette) return "light";
+  if (palette.scheme === "dark" || palette.scheme === "light") return palette.scheme;
+  const bg = luminance("paper", palette) ?? luminance("page", palette);
+  return bg !== undefined && bg < 0.5 ? "dark" : "light";
+}
+
 /** Resolve declared text and surface colors on the page's own elements, including inherited foreground and transparent ancestors. */
 export function unreadablePage(
   files: readonly HomePageFile[],
@@ -82,7 +89,8 @@ export function unreadablePage(
     // The frame places the entry's body contents inside its own html/body wrapper.
     const doc = parseDocument('<html><body class="immersive-workbench">' + markup + "</body></html>");
     const elements = DomUtils.findAll(() => true, doc.children);
-    for (const [theme, palette] of (palettes.length ? palettes : [undefined]).entries()) {
+    for (const palette of palettes.length ? palettes : [undefined]) {
+      const scheme = paletteScheme(palette);
       const rules = new Map<Node, Pair>();
       for (const css of styles)
         css?.walkRules((rule) => {
@@ -91,7 +99,7 @@ export function unreadablePage(
               p.type === "atrule" &&
               p.name === "media" &&
               /prefers-color-scheme/i.test(p.params) &&
-              !p.params.includes(theme === 1 ? "dark" : "light")
+              !p.params.toLowerCase().includes(scheme)
             )
               return;
           }

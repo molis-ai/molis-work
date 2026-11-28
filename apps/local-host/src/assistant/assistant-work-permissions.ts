@@ -61,9 +61,16 @@ export async function beginAssistantWorkEnds(host: AgentHost, store: AssistantSt
     if (finish) endings.push({ work, finish });
   }
   return async (withCaller = true) => {
-    for (const { work, finish } of endings) {
-      await finish(withCaller ? undefined : assistantEndControl(store, work));
+    if (withCaller) {
+      for (const { finish } of endings) {
+        await finish(undefined);
+      }
+      return;
     }
+    // Deferred settlement runs in the background after unwinding: settle every work independently so one stale/deleted work never strands remaining child delegations in "ending".
+    const results = await Promise.allSettled(endings.map(({ work, finish }) => finish(assistantEndControl(store, work))));
+    const rejected = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (rejected) throw rejected.reason;
   };
 }
 
@@ -97,7 +104,13 @@ export async function stopOriginalRunWithSettlement(
   adapter: AgentRuntimeAdapter,
   run: AgentRunRef,
   control: AgentActionReviewControl,
-  options: { readonly timeoutMs?: number; readonly deferRunningSettlement?: boolean; readonly runningWaitMs?: number; readonly onSettled?: () => void } = {},
+  options: {
+    readonly timeoutMs?: number;
+    readonly deferRunningSettlement?: boolean;
+    readonly runningWaitMs?: number;
+    readonly onSettled?: () => void;
+    readonly onDispose?: (dispose: () => void) => void;
+  } = {},
 ): Promise<boolean> {
   const timeoutMs = options.timeoutMs ?? 10_000;
   const deferRunning = options.deferRunningSettlement === true;
@@ -154,6 +167,12 @@ export async function stopOriginalRunWithSettlement(
       return true;
     }
     handedOff = true;
+    options.onDispose?.(() => {
+      if (settledByEvent) return;
+      settledByEvent = true;
+      unsubscribe?.();
+      unsubscribe = undefined;
+    });
     return false;
   } finally {
     clearTimeout(timer);

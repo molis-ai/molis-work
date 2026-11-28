@@ -60,10 +60,20 @@ async function changedThisRound(done: { client: AgentActionClient; invoked: Exac
 export function watchRoundFacts(state: RoundState, run: { ref: { id: string }; subscribe(listener: (event: { type: string }) => void): () => void }, keepCompletedForView = false): void {
   const facts = emptyRoundFacts();
   state.roundFacts.set(run.ref.id, facts);
-  run.subscribe(event => {
+  let done = false;
+  let unsubscribe: (() => void) | undefined;
+  unsubscribe = run.subscribe(event => {
     noteRoundEvent(facts, event as { type: string; [key: string]: unknown });
+    if (!isTerminalEventType(event.type)) return;
+    if (!done) {
+      done = true;
+      queueMicrotask(() => { unsubscribe?.(); });
+    }
     // A completed run's facts are read once more for how it ended (endedOnPromise), and dropped there.
-    if (isTerminalEventType(event.type) && !(event.type === "completed" && keepCompletedForView)) { state.roundFacts.delete(run.ref.id); state.stopGuards.forEach(guard => guard.runs.delete(run.ref.id)); }
+    if (!(event.type === "completed" && keepCompletedForView)) {
+      state.roundFacts.delete(run.ref.id);
+      state.stopGuards.forEach(guard => guard.runs.delete(run.ref.id));
+    }
   });
 }
 

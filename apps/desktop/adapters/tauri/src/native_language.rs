@@ -163,6 +163,14 @@ impl BuiltinLocale {
             _ => Self::En,
         }
     }
+
+    fn tag(self) -> &'static str {
+        match self {
+            Self::Zh => "zh",
+            Self::En => "en",
+            Self::Ja => "ja",
+        }
+    }
 }
 
 /// Structured Shelf notice payload passed alongside localized fallback text so the workbench
@@ -314,32 +322,57 @@ impl NativeLanguage {
     }
 
     pub(crate) fn wheel_label(&self, action: WheelAction) -> String {
-        if let Some(wheel) = &self.wheel {
-            return wheel.label(action).to_string();
-        }
-        default_wheel_label(BuiltinLocale::from_tag(&self.language.tag), action).to_string()
+        self.wheel
+            .as_ref()
+            .or_else(|| {
+                builtin_for_locale(BuiltinLocale::from_tag(&self.language.tag))
+                    .wheel
+                    .as_ref()
+            })
+            .expect("compiled wheel words")
+            .label(action)
+            .to_string()
     }
 
     pub(crate) fn folder_name(&self, id: &str) -> String {
-        if let Some(dialogs) = &self.dialogs {
-            return dialogs.folder_name(id).to_string();
-        }
-        default_folder_name(BuiltinLocale::from_tag(&self.language.tag), id).to_string()
+        self.dialogs
+            .as_ref()
+            .or_else(|| {
+                builtin_for_locale(BuiltinLocale::from_tag(&self.language.tag))
+                    .dialogs
+                    .as_ref()
+            })
+            .expect("compiled dialog words")
+            .folder_name(id)
+            .to_string()
     }
 
     pub(crate) fn choose_folder_prompt(&self) -> String {
-        if let Some(dialogs) = &self.dialogs {
-            return dialogs.choose_folder_prompt.clone();
-        }
-        default_choose_folder_prompt(BuiltinLocale::from_tag(&self.language.tag)).to_string()
+        self.dialogs
+            .as_ref()
+            .or_else(|| {
+                builtin_for_locale(BuiltinLocale::from_tag(&self.language.tag))
+                    .dialogs
+                    .as_ref()
+            })
+            .expect("compiled dialog words")
+            .choose_folder_prompt
+            .clone()
     }
 
     pub(crate) fn choose_folder_message(&self, id: &str) -> String {
         let folder = self.folder_name(id);
-        let template = match &self.dialogs {
-            Some(dialogs) => dialogs.choose_folder_message.as_str(),
-            None => default_choose_folder_message(BuiltinLocale::from_tag(&self.language.tag)),
-        };
+        let template = self
+            .dialogs
+            .as_ref()
+            .or_else(|| {
+                builtin_for_locale(BuiltinLocale::from_tag(&self.language.tag))
+                    .dialogs
+                    .as_ref()
+            })
+            .expect("compiled dialog words")
+            .choose_folder_message
+            .as_str();
         template.replace("{folder}", &folder)
     }
 }
@@ -350,103 +383,20 @@ impl Default for NativeLanguage {
     }
 }
 
-fn default_wheel_label(locale: BuiltinLocale, action: WheelAction) -> &'static str {
-    match (locale, action) {
-        (BuiltinLocale::Zh, WheelAction::Shelf) => "加入材料",
-        (BuiltinLocale::Zh, WheelAction::Send) => "发给终端",
-        (BuiltinLocale::Zh, WheelAction::Summarize) => "总结",
-        (BuiltinLocale::Zh, WheelAction::Extract) => "提取信息",
-        (BuiltinLocale::Zh, WheelAction::Translate) => "翻译",
-        (BuiltinLocale::Zh, WheelAction::ToMarkdown) => "转 MD",
-        (BuiltinLocale::En, WheelAction::Shelf) => "Add files",
-        (BuiltinLocale::En, WheelAction::Send) => "To terminal",
-        (BuiltinLocale::En, WheelAction::Summarize) => "Summarize",
-        (BuiltinLocale::En, WheelAction::Extract) => "Extract data",
-        (BuiltinLocale::En, WheelAction::Translate) => "Translate",
-        (BuiltinLocale::En, WheelAction::ToMarkdown) => "To MD",
-        (BuiltinLocale::Ja, WheelAction::Shelf) => "資料に追加",
-        (BuiltinLocale::Ja, WheelAction::Send) => "端末へ送る",
-        (BuiltinLocale::Ja, WheelAction::Summarize) => "要約",
-        (BuiltinLocale::Ja, WheelAction::Extract) => "情報抽出",
-        (BuiltinLocale::Ja, WheelAction::Translate) => "翻訳",
-        (BuiltinLocale::Ja, WheelAction::ToMarkdown) => "MD に変換",
-    }
-}
-
-fn default_folder_name(locale: BuiltinLocale, id: &str) -> &'static str {
-    match (locale, id) {
-        (BuiltinLocale::Zh, "downloads") => "下载",
-        (BuiltinLocale::Zh, "documents") => "文稿",
-        (BuiltinLocale::Zh, "desktop") => "桌面",
-        (BuiltinLocale::Zh, _) => "其他文件夹",
-        (BuiltinLocale::En, "downloads") => "Downloads",
-        (BuiltinLocale::En, "documents") => "Documents",
-        (BuiltinLocale::En, "desktop") => "Desktop",
-        (BuiltinLocale::En, _) => "Another folder",
-        (BuiltinLocale::Ja, "downloads") => "ダウンロード",
-        (BuiltinLocale::Ja, "documents") => "書類",
-        (BuiltinLocale::Ja, "desktop") => "デスクトップ",
-        (BuiltinLocale::Ja, _) => "その他のフォルダー",
-    }
-}
-
-fn default_choose_folder_prompt(locale: BuiltinLocale) -> &'static str {
-    match locale {
-        BuiltinLocale::Zh => "允许访问",
-        BuiltinLocale::En => "Allow access",
-        BuiltinLocale::Ja => "アクセスを許可",
-    }
-}
-
-fn default_choose_folder_message(locale: BuiltinLocale) -> &'static str {
-    match locale {
-        BuiltinLocale::Zh => {
-            "为「{folder}」选择文件夹。下一步只会预览文件列表，确认开始后才会读取文件内容。"
-        }
-        BuiltinLocale::En => {
-            "Choose a folder for “{folder}”. The next step only previews the file list; file contents are read only after you start."
-        }
-        BuiltinLocale::Ja => {
-            "「{folder}」のフォルダーを選択してください。次のステップではファイル一覧のみをプレビューし、開始後に初めて内容を読み込みます。"
-        }
-    }
-}
-
-fn fallback_japanese_language() -> NativeLanguage {
-    NativeLanguage {
-        language: Language {
-            tag: "ja".into(),
-            html_lang: "ja".into(),
-            direction: Direction::Ltr,
-        },
-        words: TrayWords {
-            loading: "読み込み中".into(),
-            loading_tip: "Molis Work が現在の作業を読み込んでいます".into(),
-            disconnected: "接続が切れました".into(),
-            disconnected_tip: "最新の状態を確認するため、Molis Work が自動再接続しています".into(),
-            syncing: "同期中".into(),
-            syncing_tip: "Molis Work に再接続し、最新の作業状態を読み込んでいます".into(),
-            open: "Molis Work を開く".into(),
-            quit: "Molis Work を終了".into(),
-            quit_confirm_title: "Molis Work を終了しますか？".into(),
-            quit_confirm_body:
-                "終了するとローカルのバックグラウンドサービスが停止し、次回開くまでスケジュールとワークベンチが一時停止します。"
-                    .into(),
-            quit_confirm_active_body:
-                "実行中のターミナルやバックグラウンドタスクがあります。終了するとそれらも停止します。"
-                    .into(),
-            quit_confirm_upgrading_body:
-                "データをアップグレード中です。今終了すると中断されるため、完了してから終了することをおすすめします。"
-                    .into(),
-            quit_confirm_cancel: "キャンセル".into(),
-            quit_keep_service: "Molis Work を終了（バックグラウンドサービスは継続）".into(),
-            restore_appearance: "標準の外観に戻す".into(),
-            stopped: "停止中".into(),
-            stopped_tip: "Molis Work は実行されていません".into(),
-        },
-        wheel: None,
-        dialogs: None,
-    }
+fn builtin_for_locale(locale: BuiltinLocale) -> &'static NativeLanguage {
+    let locales = &bootstrap().locales;
+    locales
+        .iter()
+        .find(|entry| entry.language.tag.eq_ignore_ascii_case(locale.tag()))
+        .or_else(|| {
+            locales.iter().find(|entry| {
+                entry
+                    .language
+                    .tag
+                    .eq_ignore_ascii_case(&bootstrap().default)
+            })
+        })
+        .unwrap_or_else(|| &locales[0])
 }
 
 #[derive(Deserialize)]
@@ -482,58 +432,52 @@ impl ActiveLocale {
             .to_ascii_lowercase()
     }
 
-    fn effective_builtin(&self) -> BuiltinLocale {
+    fn projected_matches_surface(&self) -> Option<&NativeLanguage> {
+        let projected = self.projected.as_ref()?;
         if let Some(hint) = &self.surface_hint {
-            let matches_projected = self
-                .projected
-                .as_ref()
-                .is_some_and(|p| Self::primary_tag(&p.language.tag) == Self::primary_tag(hint));
-            if !matches_projected {
-                return BuiltinLocale::from_tag(hint);
+            if Self::primary_tag(&projected.language.tag) != Self::primary_tag(hint) {
+                return None;
             }
         }
-        if let Some(projected) = &self.projected {
+        Some(projected)
+    }
+
+    fn effective_builtin(&self) -> BuiltinLocale {
+        if let Some(projected) = self.projected_matches_surface() {
             return BuiltinLocale::from_tag(&projected.language.tag);
+        }
+        if let Some(hint) = &self.surface_hint {
+            return BuiltinLocale::from_tag(hint);
         }
         self.home_fallback
     }
 
     fn wheel_label(&self, action: WheelAction) -> String {
-        if let Some(hint) = &self.surface_hint {
-            let matches_projected = self
-                .projected
-                .as_ref()
-                .is_some_and(|p| Self::primary_tag(&p.language.tag) == Self::primary_tag(hint));
-            if !matches_projected {
-                return default_wheel_label(BuiltinLocale::from_tag(hint), action).to_string();
-            }
-        }
-        if let Some(projected) = &self.projected {
+        if let Some(projected) = self.projected_matches_surface() {
             return projected.wheel_label(action);
         }
-        default_wheel_label(self.home_fallback, action).to_string()
+        builtin_for_locale(self.effective_builtin()).wheel_label(action)
     }
 
     fn folder_name(&self, id: &str) -> String {
-        if let Some(projected) = &self.projected {
+        if let Some(projected) = self.projected_matches_surface() {
             return projected.folder_name(id);
         }
-        default_folder_name(self.effective_builtin(), id).to_string()
+        builtin_for_locale(self.effective_builtin()).folder_name(id)
     }
 
     fn choose_folder_prompt(&self) -> String {
-        if let Some(projected) = &self.projected {
+        if let Some(projected) = self.projected_matches_surface() {
             return projected.choose_folder_prompt();
         }
-        default_choose_folder_prompt(self.effective_builtin()).to_string()
+        builtin_for_locale(self.effective_builtin()).choose_folder_prompt()
     }
 
     fn choose_folder_message(&self, id: &str) -> String {
-        if let Some(projected) = &self.projected {
+        if let Some(projected) = self.projected_matches_surface() {
             return projected.choose_folder_message(id);
         }
-        let locale = self.effective_builtin();
-        default_choose_folder_message(locale).replace("{folder}", default_folder_name(locale, id))
+        builtin_for_locale(self.effective_builtin()).choose_folder_message(id)
     }
 }
 
@@ -610,14 +554,14 @@ pub(crate) fn wheel_label(action: WheelAction) -> String {
     active_store()
         .read()
         .map(|active| active.wheel_label(action))
-        .unwrap_or_else(|_| default_wheel_label(BuiltinLocale::Zh, action).to_string())
+        .unwrap_or_else(|_| builtin_for_locale(BuiltinLocale::Zh).wheel_label(action))
 }
 
 pub(crate) fn folder_name(id: &str) -> String {
     active_store()
         .read()
         .map(|active| active.folder_name(id))
-        .unwrap_or_else(|_| default_folder_name(BuiltinLocale::Zh, id).to_string())
+        .unwrap_or_else(|_| builtin_for_locale(BuiltinLocale::Zh).folder_name(id))
 }
 
 #[cfg(target_os = "macos")]
@@ -625,7 +569,7 @@ pub(crate) fn choose_folder_prompt() -> String {
     active_store()
         .read()
         .map(|active| active.choose_folder_prompt())
-        .unwrap_or_else(|_| default_choose_folder_prompt(BuiltinLocale::Zh).to_string())
+        .unwrap_or_else(|_| builtin_for_locale(BuiltinLocale::Zh).choose_folder_prompt())
 }
 
 #[cfg(target_os = "macos")]
@@ -633,10 +577,7 @@ pub(crate) fn choose_folder_message(id: &str) -> String {
     active_store()
         .read()
         .map(|active| active.choose_folder_message(id))
-        .unwrap_or_else(|_| {
-            default_choose_folder_message(BuiltinLocale::Zh)
-                .replace("{folder}", default_folder_name(BuiltinLocale::Zh, id))
-        })
+        .unwrap_or_else(|_| builtin_for_locale(BuiltinLocale::Zh).choose_folder_message(id))
 }
 
 fn valid_tag(value: &str) -> bool {
@@ -689,31 +630,14 @@ pub(crate) fn builtin_language(tag: &str) -> Option<NativeLanguage> {
                 || locale.language.tag.eq_ignore_ascii_case(primary)
         })
         .cloned()
-        .or_else(|| (primary == "ja").then(fallback_japanese_language))
 }
 
 pub(crate) fn bootstrap_view_values(
     failure: Option<&str>,
     preferred_locale: Option<&str>,
 ) -> serde_json::Value {
-    let mut catalog =
+    let catalog =
         serde_json::from_str::<serde_json::Value>(BOOTSTRAP_VIEW).expect("compiled startup words");
-    // Ensure Japanese startup strings are available even before languages.json registers `ja`.
-    if let Some(locales) = catalog.get_mut("locales").and_then(|v| v.as_array_mut()) {
-        let has_ja = locales
-            .iter()
-            .any(|row| row.get("tag").and_then(|v| v.as_str()) == Some("ja"));
-        if !has_ja {
-            locales.push(serde_json::json!({
-                "tag": "ja",
-                "html_lang": "ja",
-                "direction": "ltr",
-                "intl": "ja-JP",
-                "loading": "Molis Work に接続しています…",
-                "failed": "Molis Work を起動できませんでした",
-            }));
-        }
-    }
     serde_json::json!({
         "catalog": catalog,
         "token_rules": serde_json::from_str::<serde_json::Value>(BOOTSTRAP_TOKEN_RULES).expect("compiled startup token rules"),
@@ -929,11 +853,24 @@ mod tests {
 
         let ja = builtin_language("ja").unwrap();
         assert_eq!(ja.wheel_label(WheelAction::Shelf), "資料に追加");
-        assert_eq!(ja.wheel_label(WheelAction::ToMarkdown), "MD に変換");
+        assert_eq!(ja.wheel_label(WheelAction::ToMarkdown), "MDに変換");
         assert_eq!(ja.folder_name("documents"), "書類");
         assert!(ja.choose_folder_message("documents").contains("「書類」"));
         assert_eq!(ja.status(TrayStatusKind::Loading).0, "読み込み中");
         assert_eq!(ja.status(TrayStatusKind::Stopped).0, "停止中");
+
+        // IUI-03: surface_hint overrides a stale projected language for wheel AND folder dialogs.
+        let switched = ActiveLocale {
+            projected: Some(zh.clone()),
+            surface_hint: Some("ja".into()),
+            home_fallback: BuiltinLocale::Zh,
+        };
+        assert_eq!(switched.wheel_label(WheelAction::Shelf), "資料に追加");
+        assert_eq!(switched.folder_name("documents"), "書類");
+        assert_eq!(switched.choose_folder_prompt(), "アクセスを許可");
+        assert!(switched
+            .choose_folder_message("documents")
+            .contains("「書類」"));
 
         // N-language projection: a 4th language (e.g. French) drives both Drop Wheel and dialogs directly.
         let mut french = en.clone();

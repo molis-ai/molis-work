@@ -3,7 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { readOriginalText } from "./artifact-original-text.js";
 import { readMaterialHtml } from "./material-extraction.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { builtinDocumentDriver } from "./builtin-drivers.js";
+import { builtinDocumentDriverFor } from "./builtin-drivers.js";
 import {
   DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
   type ArtifactDocumentImportPorts, type ArtifactDocumentSourceOffer, type OfferedOriginal,
@@ -27,6 +27,7 @@ const artifactImportErrors = defineErrorCodes("artifacts.document", {
   connection_revoked: "invalid",
   connection_required: "invalid",
   credentials_unavailable: "invalid",
+  driver_unavailable: "unavailable",
 });
 
 /**
@@ -79,8 +80,11 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
     if (!active) throw artifactImportErrors.connection_revoked("读取期间连接已断开或改变，请重新授权后导入");
   };
   const offered = ports.offeredPath ? await offeredOriginal(home, ports.projectId, ports.offeredPath, ports.signal) : undefined;
+  let cachedImports: Promise<Record<string, { service: string; methods: readonly string[] }>> | undefined;
+  const loadImports = () => (cachedImports ??= documentImports(home));
   return importArtifactDocument(input, {
     ...ports,
+    externalSources: ports.externalSources ?? (async () => Object.keys(await loadImports())),
     ...offered ? { offered } : {},
     async beforeSave() {
       await ports.beforeSave?.();
@@ -93,8 +97,11 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
     },
     readFileText: file => readOriginalText(file, ports.signal ? { signal: ports.signal } : {}),
     async readExternal(document) {
-      const imports = await documentImports(home), entry = imports[document.source], service = entry?.service;
-      const candidates = entry ? listConnectorConnectionViews(home, entry.service).filter(row => readsWith(row, entry) && row.state === "connected") : [];
+      const imports = await loadImports(), entry = imports[document.source], service = entry?.service;
+      if (!entry) throw documentErrors.source_invalid("请选择支持的文档来源");
+      const driver = builtinDocumentDriverFor(document.source);
+      if (!driver) throw artifactImportErrors.driver_unavailable("该文档来源的读取驱动当前不可用");
+      const candidates = listConnectorConnectionViews(home, entry.service).filter(row => readsWith(row, entry) && row.state === "connected");
       const id = document.connection_id || (candidates.length === 1 ? candidates[0]!.connection_id : undefined);
       if (!id) throw artifactImportErrors.connection_required(candidates.length ? "该来源有多个账号，请选择要使用的连接" : "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
       try { return await withConnectorRequest(home, id, ports.signal, async signal => {
@@ -106,13 +113,13 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
         catch { signal.throwIfAborted(); throw artifactImportErrors.credentials_unavailable("所选连接不可用，请在连接器设置中重新授权"); }
         usedConnection = id;
         usedRevision = access.connection.updated_at;
-        const read = async () => ({ ...await builtinDocumentDriver().read(document, { token: access.token, fetch: access.fetchImpl, signal, beforeDispatch,
+        const read = async () => ({ ...await driver.read(document, { token: access.token, fetch: access.fetchImpl, signal, beforeDispatch,
           ...(access.connection.auth_method === "oauth" ? { tokenKind: "access_token" as const } : {}) }), source: document.source });
         try { return { ...await read(), connection_id: id }; }
         catch (error) {
           signal.throwIfAborted();
           assertConnection();
-          if (access.connection.auth_method !== "oauth" || !builtinDocumentDriver().refused(error)) throw error;
+          if (access.connection.auth_method !== "oauth" || !driver.refused(error)) throw error;
           await beforeDispatch();
           access = await resolveApiConnection(home, id, control, service, true);
           return { ...await read(), connection_id: id };

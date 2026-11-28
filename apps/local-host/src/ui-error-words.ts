@@ -307,43 +307,67 @@ function classifyTechnicalMessage(message: string): CommonErrorKey | null {
 const QUOTED_SEGMENTS = /「[^」]*」|『[^』]*』|“[^”]*”|《[^》]*》|"[^"]*"|(?<!\w)'[^']*'(?!\w)|`[^`]*`/gu;
 const NEUTRAL_PROPER_NOUNS = /\b(?:Molis Work|Molis|JSON|HTTP|HTTPS|URL|URI|API|MCP|OAuth|ID|MB|KB|GB|UTF-8|CSV|PDF|PNG|SVG|HTML|CSS|DOM|SSE|WS|tokens?|GitHub|Slack|Linear|Notion|Google|OpenAI|Anthropic|Gemini|Claude)\b/giu;
 const ENGLISH_PROSE_WORD = /\b(?:is|are|was|were|be|been|being|has|have|had|do|does|did|can|could|will|would|may|might|must|not|no|can['’]t|couldn['’]t|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|doesn['’]t|didn['’]t|won['’]t|don['’]t|the|a|an|this|that|these|those|your|you|it|its|for|with|from|into|by|to|in|on|of|at|as|or|and|but|if|while|when|during|before|after|already|still|yet|only|cannot|unable|failed|missing|found|updated|changed|deleted|moved|locked|expired|invalid|denied|refused|blocked|closed|stopped|canceled|cancelled|required|available|unavailable|exceeded|reached|unexpected|try|check|refresh|please)\b/iu;
+// Simplified-Chinese-only characters (absent from Japanese UI copy) and Chinese-only prose cues.
+const SIMPLIFIED_CHINESE_CHAR = /[请这还经给让进过说对为从错误权无试载录览页网络连账输验证据删读开关启复选择确认处资务户仅须应该够暂时败异损坏锁绝访问长别备夹库换变编辑译语设项标题图频视导归档隐藏显执动态结获发传达响线离缓临满节键值队链址协议书鉴凭绑销创齐总计统报历记笔简详细谢帮于并则谁么吗呢吧们您找扔丢拿摆挂拆拼册扫识压缩冻唤份邀驳办搁迟效溃]/u;
+const CHINESE_PROSE_CUE = /[，；]|没有|不是|不会|不到|不对|不够|不支持|不存在|找不到|已经|正在|尚未|只能|这里|这个|这项|这段|这次|这些|稍后|重试|错误|失败|无效|不可用|未找到|已过期|已停用|已关闭|已删除|已存在|已被/u;
+const JAPANESE_HIRAGANA_PROSE = /[\p{Script=Hiragana}]{2,}|[のはがをにでとただけも]/u;
 
 /**
  * Layer 2 detector: checks whether an unquoted error sentence is written in a different language
  * than the active UI locale (e.g. raw Chinese backend text in en/ja UI, raw English in zh/ja UI),
- * while preserving localized English sentences that embed unquoted CJK user titles (e.g. project or file names).
+ * while preserving localized sentences that embed unquoted foreign titles (e.g. project or file names)
+ * and short pure-kanji Japanese errors.
  */
 function isWrongLanguageForLocale(message: string, locale: string, status = 500): boolean {
   const core = message.replace(QUOTED_SEGMENTS, " ").replace(NEUTRAL_PROPER_NOUNS, " ").trim();
   if (!core) return false;
   const hanMatches = core.match(/\p{Script=Han}/gu);
   const kanaMatches = core.match(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
+  const hiraganaCount = core.match(/\p{Script=Hiragana}/gu)?.length ?? 0;
   const hanCount = hanMatches?.length ?? 0;
   const kanaCount = kanaMatches?.length ?? 0;
   const hasHan = hanCount > 0;
   const hasKana = kanaCount > 0;
   const latinWords = core.match(/\b[A-Za-z][A-Za-z'’]{1,}\b/gu) ?? [];
   const hasLatinWord = latinWords.length > 0;
+  const hasChineseCue = SIMPLIFIED_CHINESE_CHAR.test(core) || CHINESE_PROSE_CUE.test(core);
   const base = baseLanguageOf(locale);
-  if (base === "zh") {
-    if (hasKana) return true;
-    // Preserve clean domain/test English 4xx refusals in zh; only localize unexpected 5xx English prose.
-    if (status >= 500 && !hasHan && hasLatinWord) {
-      const hasCjkSentencePunct = /[。！？；，]/u.test(core);
-      return !hasCjkSentencePunct && latinWords.length >= 4 && ENGLISH_PROSE_WORD.test(core);
+  switch (base) {
+    case "zh": {
+      // Preserve clean domain/test English 4xx refusals in zh; only localize unexpected 5xx English prose (F-hc2-27).
+      if (status >= 500 && !hasHan && hasLatinWord) {
+        const hasCjkSentencePunct = /[。！？；，]/u.test(core);
+        if (!hasCjkSentencePunct && latinWords.length >= 4 && ENGLISH_PROSE_WORD.test(core)) return true;
+      }
+      if (!hasKana) return false;
+      if (!hasHan) return true;
+      // Keep localized Chinese sentences that embed an unquoted katakana/short kana title (real Japanese prose uses hiragana).
+      if (hasChineseCue && (hiraganaCount === 0 || (hiraganaCount < 2 && hanCount >= kanaCount))) return false;
+      return hiraganaCount >= 2 || kanaCount > hanCount || !hasChineseCue;
     }
-    return false;
+    case "ja": {
+      if (!hasHan && !hasKana) return hasLatinWord;
+      if (hasChineseCue) {
+        // Catch Chinese prose even when it embeds an unquoted kana title, while keeping Japanese sentences embedding a short Chinese title.
+        const isJapaneseProse = hiraganaCount >= 3 && JAPANESE_HIRAGANA_PROSE.test(core) && !/[，；]/u.test(core);
+        return !isJapaneseProse;
+      }
+      // Keep concise pure-kanji Japanese errors (e.g. "接続切断", "認証失敗") while catching longer Han-only prose.
+      if (!hasKana && hasHan) return hanCount >= 7;
+      return false;
+    }
+    default: {
+      if (!hasHan && !hasKana) return false;
+      const cjkCount = hanCount + kanaCount;
+      const hasCjkSentencePunct = /[。！？；，]/u.test(core);
+      const latinLetters = latinWords.reduce((sum, word) => sum + word.replace(/['’]/gu, "").length, 0);
+      const isEnglishProse = !hasCjkSentencePunct
+        && latinWords.length >= 2
+        && ENGLISH_PROSE_WORD.test(core)
+        && (latinLetters >= cjkCount || latinWords.length >= 3);
+      return !isEnglishProse;
+    }
   }
-  if (base === "ja") return !hasKana && (hasHan || hasLatinWord);
-  if (!hasHan && !hasKana) return false;
-  const cjkCount = hanCount + kanaCount;
-  const hasCjkSentencePunct = /[。！？；，]/u.test(core);
-  const latinLetters = latinWords.reduce((sum, word) => sum + word.replace(/['’]/gu, "").length, 0);
-  const isEnglishProse = !hasCjkSentencePunct
-    && latinWords.length >= 2
-    && ENGLISH_PROSE_WORD.test(core)
-    && (latinLetters >= cjkCount || latinWords.length >= 3);
-  return !isEnglishProse;
 }
 
 function keyForCodeAndMessage(code: string | undefined, rawMessage: string, status: number): CommonErrorKey {

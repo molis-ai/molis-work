@@ -571,6 +571,28 @@ test("a reinstall of a generated plugin may use an older release; a Host that sh
   await host.uninstall(hostId, { retain_private_data: true });
   assert.equal(await code(() => host.install({ definition: h1, deployment: "local", trust: { level: "host" } })), "plugin.kept_data_incompatible",
     "the Host only moves its plugins up: an older bundled version does not get newer kept data");
+
+  // Signed pinned sandbox downgrade over kept data surfaces kept_data_incompatible unless discard_kept_data is explicit.
+  const signedRuntime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
+  const fp = `ed25519:sha256:${"a".repeat(64)}`;
+  const signedIdName = "com.example.signed-downgrade";
+  const signedDef = (ver: string): PluginDefinition => {
+    const base = probe(ver, { sandbox: true });
+    return {
+      ...base,
+      manifest: {
+        ...base.manifest,
+        plugin_id: signedIdName,
+        publisher: { publisher_id: "ext", signature: fp },
+        ui: { contributions: [`${signedIdName}.main`], views: [{ view_id: "main", slot: "stage", title: "Main" }] },
+      },
+    };
+  };
+  const signedTrust = { level: "pinned" as const, publisher_key_id: fp };
+  const signedId = signedRuntime.install({ trust: signedTrust, definition: signedDef("2.0.0"), deployment: "local", grants: [] }).install.install_id;
+  await signedRuntime.uninstall(signedId, { retain_private_data: true });
+  assert.equal(await code(() => signedRuntime.install({ trust: signedTrust, definition: signedDef("1.0.0"), deployment: "local", grants: [] })), "plugin.kept_data_incompatible");
+  assert.equal(signedRuntime.install({ trust: signedTrust, definition: signedDef("1.0.0"), deployment: "local", grants: [], discard_kept_data: true }).install.version, "1.0.0");
 });
 
 test("a reinstall at the same version with a different manifest is still refused", async () => {

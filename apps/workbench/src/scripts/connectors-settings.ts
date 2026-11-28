@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createConnectorAuthorizationMonitor } from "./connector-authorization-monitor.js";
 import { connectorSwitchLeft } from "./connector-replacement.js";
 import { isLoopbackHostname, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { PLATFORM_CONNECTION_SERVICE_IDS } from "../settings-connector-guide.js";
 
 /** The service-connection parts' own program (src/browser/connections-page.ts → `molisWorkConnectionItems`), bundled when the package builds. */
 const CONNECTION_PARTS_SCRIPT = readFileSync(new URL("../../dist/connections-page-client.js", import.meta.url), "utf8").trim();
@@ -309,7 +310,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const parts = [...form.querySelectorAll('[data-credential-part]')].map(input => input.value.trim());
         return parts.length ? parts.join(form.dataset.credentialSeparator) : form.querySelector('[data-connector-token]').value.trim();
       };
-      const pluginKeys = new Set(['model-api', 'image-api', 'typesafe', 'mcp-bearer']);
+      const pluginKeys = new Set(${JSON.stringify(PLATFORM_CONNECTION_SERVICE_IDS)});
       // A key the host checks before it saves it (§13.1, §13.6 ④d): one the check did not pass is not saved and stays in its field. A
       // refused key is said under that field, with the old key still in use when it was a replacement; a rate limit is the service's,
       // and the same key is asked again by itself at the time the service gave, unless the person has typed since.
@@ -546,7 +547,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const initial = input => input.tagName === 'SELECT' ? [...input.options].find(option => option.defaultSelected)?.value ?? input.options[0]?.value : input.defaultValue;
       box.querySelectorAll('[data-connector-advanced]').forEach(advanced => {
         const service = detailOf(advanced)?.dataset.connectorDetail; if (!service) return;
-        const save = () => { const changed = Object.fromEntries(draftable(advanced).filter(input => input.value !== initial(input) && !input.dataset.prefilled).map(input => [draftId(input), bare(input.value)])); remember(draftKey(service), Object.keys(changed).length ? changed : null); };
+        const save = () => { for (const input of draftable(advanced)) if (input.dataset.prefilled && input.value !== input.dataset.prefilled) delete input.dataset.prefilled; const changed = Object.fromEntries(draftable(advanced).filter(input => input.value !== initial(input) && input.value !== input.dataset.prefilled).map(input => [draftId(input), bare(input.value)])); remember(draftKey(service), Object.keys(changed).length ? changed : null); };
         advanced.addEventListener('input', save); advanced.addEventListener('change', save);
         const draft = recalled(draftKey(service));
         if (!draft || box.dataset.setupId) return;

@@ -34,7 +34,7 @@ export function projectMcpUsagesHandler(home: string, port: ProjectMcpManagement
     if (!library?.catalog) throw new ActionError("actions.unavailable", "暂时无法读取项目外部工具配置");
     const matches = (await managedCatalog(library, caller)).filter(({ server }) => server.auth_connection_id === id);
     if (!matches.length) return { usages: [] };
-    const names = await projectNames?.();
+    const names = await projectNames?.().catch(() => new Map<string, string>());
     return { usages: matches.map(({ server, owner }) => ({ usage_id: server.id,
       title: `${names?.get(owner.project_id) ?? owner.project_id} · ${server.label}`, enabled: server.enabled, actions: [] })) };
   });

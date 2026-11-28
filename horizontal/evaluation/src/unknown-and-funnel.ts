@@ -4,14 +4,53 @@ import type {
   EvaluationObservedConditions,
   EvaluationSampleView,
   EvaluationUnknownReason,
+  EvaluationWorkMode,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
-import type {
-  ObservationCoverageGetOutput,
-  ObservationEvidenceItemView,
-  ObservationOutcome,
-  ObservationQueriedRecord,
-  ObservationSourceClass,
+import {
+  OBSERVATION_SERVICE_PREFIXES,
+  type ObservationCoverageGetOutput,
+  type ObservationEvidenceItemView,
+  type ObservationOutcome,
+  type ObservationQueriedRecord,
+  type ObservationService,
+  type ObservationSourceClass,
 } from "@molis-ai/molis-work-contracts/services/observation";
+
+/**
+ * Declared owner & mode classification helpers shared by funnel attribution, action-command inspection,
+ * and delivery-source checks. Defaults preserve existing evaluation semantics while avoiding scattered literals.
+ */
+export const DEFAULT_BUSINESS_WORK_SERVICES: ReadonlySet<ObservationService> = new Set<ObservationService>(["assistant"]);
+export const ACTION_COMMAND_SERVICE: ObservationService = "gateway";
+export const AGENT_DELIVERY_SERVICE: ObservationService = "agent";
+export const REPLY_EXPECTED_WORK_MODES: ReadonlySet<EvaluationWorkMode> = new Set<EvaluationWorkMode>(["assistant"]);
+
+export function isBusinessWorkOwner(
+  owner: ObservationQueriedRecord["owner"],
+  services: ReadonlySet<ObservationService> = DEFAULT_BUSINESS_WORK_SERVICES,
+): boolean {
+  return owner.kind === "plugin" || (owner.kind === "service" && services.has(owner.id));
+}
+
+export function isActionCommandRecord(
+  record: ObservationQueriedRecord,
+  service: ObservationService = ACTION_COMMAND_SERVICE,
+): boolean {
+  return record.owner.kind === "service"
+    && record.owner.id === service
+    && record.fact === `${OBSERVATION_SERVICE_PREFIXES[service]}.call`
+    && record.detail.operation === "command";
+}
+
+export function isAgentReplyRecord(record: ObservationQueriedRecord): boolean {
+  return record.owner.kind === "service"
+    && record.owner.id === AGENT_DELIVERY_SERVICE
+    && record.fact === `${OBSERVATION_SERVICE_PREFIXES[AGENT_DELIVERY_SERVICE]}.reply`;
+}
+
+export function workModeExpectsReply(workMode: EvaluationWorkMode): boolean {
+  return REPLY_EXPECTED_WORK_MODES.has(workMode);
+}
 
 const PRESENTED_FACTS = new Set([
   "ui.opportunity.presented",
@@ -66,12 +105,15 @@ export function funnelCounts(sets: Record<FunnelStage, Set<string>>): Evaluation
   };
 }
 
-export function collectFunnel(records: readonly ObservationQueriedRecord[]): Record<FunnelStage, Set<string>> {
+export function collectFunnel(
+  records: readonly ObservationQueriedRecord[],
+  businessWorkServices: ReadonlySet<ObservationService> = DEFAULT_BUSINESS_WORK_SERVICES,
+): Record<FunnelStage, Set<string>> {
   const stages = emptyFunnelSets();
   for (const record of records) {
     const owner = [record.project_id, record.install_id, record.owner.kind, "id" in record.owner ? record.owner.id : null];
     const work = record.work.work_ref;
-    const businessOwner = record.owner.kind === "plugin" || (record.owner.kind === "service" && record.owner.id === "assistant");
+    const businessOwner = isBusinessWorkOwner(record.owner, businessWorkServices);
     if (businessOwner && work && (record.stage === "executed" || record.stage === "completed")) {
       const key = JSON.stringify([...owner, work]);
       if (record.outcome === "succeeded" || record.stage === "executed" && record.outcome === "failed") stages.executed.add(key);

@@ -153,7 +153,7 @@ test("BL-491 RAC-2629 an installed package chooses among the enabled models insi
   assert.equal(view.selection, undefined);
   assert.deepEqual(await r.ask({ op: "settings.save", choice: { provider_id: "fixture", model_id: "model" } }), { provider_id: "fixture", model_id: "model" });
   const preference = join(r.h.home, "plugin-files", installId, ".model-settings", "preference.json");
-  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 1, selection: { provider_id: "fixture", model_id: "model" }, revision: 1, receipts: {} });
+  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 1, selection: { provider_id: "fixture", model_id: "model" }, revision: 1 });
   // B112-09: a fresh Host reconstructs the approved signed installation and reads its saved selection.
   await r.h.close();
   await r.h.host.close();

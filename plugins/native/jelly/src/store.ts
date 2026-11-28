@@ -99,7 +99,8 @@ export class JellyStore {
   }
   itemsInCategory(id: string): JellyItem[] { return this.many("item", "SELECT * FROM jelly_items WHERE category_id = ?", [id]); }
   seriesInCategory(id: string): JellySeries[] {
-    return this.many("series", "SELECT * FROM jelly_series WHERE category_id = ? OR exceptions LIKE ?", [id, `%${JSON.stringify(id)}%`]);
+    const escaped = JSON.stringify(id).replace(/[\\%_]/gu, "\\$&");
+    return this.many("series", "SELECT * FROM jelly_series WHERE category_id = ? OR exceptions LIKE ? ESCAPE '\\'", [id, `%"category_id":${escaped}%`]);
   }
   noteDays(start: string, end: string): string[] {
     return this.db.all("SELECT DISTINCT day FROM jelly_notes WHERE day BETWEEN ? AND ? ORDER BY day", [start, end]).map(row => String(row.day));

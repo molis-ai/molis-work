@@ -102,3 +102,13 @@ test("an Assistant's series edits: an earlier end drops what is after it, an end
   assert.deepEqual([back.start_date, back.end_date, back.exceptions["2026-09-23"]?.patch], ["2026-09-21", "2026-09-21", { start_date: "2026-09-23", end_date: "2026-09-23" }]);
   validateJellySeries(shorter, categories); validateJellySeries(longer, categories); validateJellySeries(moved, categories); validateJellySeries(back, categories);
 });
+
+test("series edits reject end_date before start_date and drop empty exception patches", () => {
+  assert.throws(() => changeJellySeries(series(), "2026-09-23", "all", { start_date: "2026-09-25", end_date: "2026-09-23" }, at, "x"), { code: "jelly.invalid" });
+  assert.throws(() => changeJellySeries(series(), "2026-09-23", "thisAndFuture", { start_date: "2026-09-25", end_date: "2026-09-23" }, at, "n"), { code: "jelly.invalid" });
+  const withTitleException = changeJellySeries(series(), "2026-09-23", "onlyThis", { title: "单次改名" }, at, "x").series!;
+  assert.deepEqual(withTitleException.exceptions["2026-09-23"], { patch: { title: "单次改名" } });
+  const unified = changeJellySeries(withTitleException, "2026-09-23", "all", { title: "统一改名" }, at, "x").series!;
+  assert.deepEqual(unified.exceptions, {}, "stripped empty exception patch is omitted instead of keeping { patch: {} }");
+  validateJellySeries(unified, categories);
+});

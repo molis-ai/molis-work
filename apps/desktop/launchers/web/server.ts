@@ -4,7 +4,8 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { finishMcpWebStartup, HOST_CANDIDATE_PORTS, hostLog, isLoopbackPortAvailable, lastUsedLocale, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { DEFAULT_WEB_LOCALE, finishMcpWebStartup, HOST_CANDIDATE_PORTS, hostLog, installHostUiText, isLoopbackPortAvailable, lastUsedLocale, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { say, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -24,45 +25,25 @@ function flag(args: string[], name: string): string | undefined {
   return index >= 0 ? args[index + 1] : undefined;
 }
 
-type LauncherLocale = "zh" | "en" | "ja";
-
-function resolveLauncherLocale(home: string): LauncherLocale {
+function resolveLauncherLocale(home: string): string {
   try {
-    const primary = lastUsedLocale(home).trim().toLowerCase().split(/[-_]/)[0];
-    if (primary === "zh" || primary === "en" || primary === "ja") return primary;
+    return lastUsedLocale(home);
   } catch {
     // Missing or unreadable preference falls back to the platform default.
+    return DEFAULT_WEB_LOCALE;
   }
-  return "zh";
 }
 
-function launcherText(locale: LauncherLocale) {
-  switch (locale) {
-    case "en":
-      return {
-        unsupportedFlag: (arg: string) =>
-          `Molis Work Web only starts by project; ${arg} is no longer supported. Create or open a project in Molis Work, or connect via MCP.`,
-        portsOccupied: "All local ports 127.0.0.1:4173–4199 are in use, so Molis Work Web couldn’t start.",
-        invalidMcpConfig: "Invalid MCP startup configuration.",
-        projectListNote: "Project list (the web page won’t change active session bindings)",
-      };
-    case "ja":
-      return {
-        unsupportedFlag: (arg: string) =>
-          `Molis Work Web はプロジェクト単位でのみ起動します。${arg} はサポートされなくなりました。Molis Work でプロジェクトを作成または開くか、MCP 経由で接続してください。`,
-        portsOccupied: "ローカルポート 127.0.0.1:4173–4199 がすべて使用中のため、Molis Work Web を起動できませんでした。",
-        invalidMcpConfig: "MCP の起動設定が無効です。",
-        projectListNote: "プロジェクト一覧（Web ページからはアクティブなセッションの紐づけを変更しません）",
-      };
-    default:
-      return {
-        unsupportedFlag: (arg: string) =>
-          `Molis Work Web 只按项目启动；${arg} 已不支持。请先在 Molis Work 里创建或打开项目，或通过 MCP 连接项目。`,
-        portsOccupied: "本地端口 127.0.0.1:4173–4199 都被其他程序占用了，Molis Work Web 暂时无法启动。",
-        invalidMcpConfig: "MCP 启动参数无效，请检查数据目录和端口配置。",
-        projectListNote: "项目列表（网页不会修改 Runtime Session 绑定）",
-      };
-  }
+function launcherText(locale: string) {
+  installHostUiText();
+  const read = (key: string, args?: Record<string, string>) =>
+    say.text({ owner: "workbench", key, ...(args ? { args: textArgs(args) } : {}) }, { locale });
+  return {
+    unsupportedFlag: (arg: string) => read("workbench.web-launcher.unsupported-flag", { flag: arg }),
+    portsOccupied: read("workbench.web-launcher.ports-occupied"),
+    invalidMcpConfig: read("workbench.web-launcher.invalid-mcp-config"),
+    projectListNote: read("workbench.web-launcher.project-list-note"),
+  };
 }
 
 const modulePath = fileURLToPath(import.meta.url);

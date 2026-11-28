@@ -34,7 +34,7 @@ import { settleProloguePending } from "./prologue-stream.js";
 import { guardedCheckpoints, guardedRecovery, guardedSubagents, prologueDescriptor, PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import type { PrologueAdapterOptions, PrologueAdapterPorts, PrologueRuntimePort } from "./prologue-ports.js";
 import { applyUnknownCommandOutcomes } from "./prologue-plan-steps.js";
-import { isEnded, PrologueRunStore } from "./prologue-run-store.js";
+import { clearNotifyTimer, isEnded, PrologueRunStore } from "./prologue-run-store.js";
 import { startPrologueRun } from "./prologue-run-start.js";
 
 export { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
@@ -316,6 +316,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     listener(structuredClone(record.view));
     return () => {
       record.listeners.delete(listener);
+      if (record.listeners.size === 0) clearNotifyTimer(record);
     };
   }
 
@@ -402,8 +403,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
     try {
       await this.#runtime.shutdown();
-      for (const record of this.#store.runs.values()) record.unsubscribe();
     } finally {
+      for (const record of this.#store.runs.values()) {
+        clearNotifyTimer(record);
+        record.unsubscribe();
+        record.listeners.clear();
+      }
       await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
       await this.#memoryUsage.flush();
     }

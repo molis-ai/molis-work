@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
+import { resolveManifestText } from "@molis-ai/molis-work-plugin-runtime";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { shippedOwnerManifest } from "./host-surfaces.js";
 import { homePageRequestBound } from "./home-page-authority.js";
@@ -16,6 +17,9 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { handlePersonActionRoutes, invokePersonPageAction } from "./person-action-http.js";
 import { handleMainlineViewHttp } from "./mainline-view-http.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { readWorkbenchText } from "./ui-error-words.js";
+import { manifestWordResolver, registeredBuiltinText } from "./ui-text-provider.js";
+import { projectActionLocaleReaders, resolveActionLibraryWords } from "./web-capabilities.js";
 import { webManagementAuthenticated } from "./web-sessions.js";
 
 const ROUTES = new Map<string, ActionDefinition>([
@@ -108,13 +112,25 @@ async function handleReceiveRoutes(request: IncomingMessage, response: ServerRes
       if (method !== "POST") return null;
       if (pluginPageRequest(request) || homePageRequestBound(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人放东西");
       if (pathname.endsWith("/targets")) {
-        const views = await bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).discover().catch(() => []);
+        const [views, projectReaders] = await Promise.all([
+          bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).discover().catch(() => []),
+          projectActionLocaleReaders(host, project),
+        ]);
+        const words = resolveActionLibraryWords(views, { host, projectReaders });
         const stations = new Map<string, { station: string; title: string; icon: string }>();
         for (const view of views) {
           const station = view.action.workflow_content;
-          if (station?.role === "receive" && station.id !== PLATFORM_RECEIVE_STATION && view.availability.available && !stations.has(station.id)) stations.set(station.id, { station: station.id, title: station.title, icon: station.icon });
+          if (station?.role === "receive" && station.id !== PLATFORM_RECEIVE_STATION && view.availability.available && !stations.has(station.id)) {
+            const localizedProvider = words.providers.get(view);
+            const title = localizedProvider && station.title === view.provider.title ? localizedProvider : station.title;
+            stations.set(station.id, { station: station.id, title, icon: station.icon });
+          }
         }
-        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shippedOwnerManifest(PLATFORM_RECEIVE_STATION)!.name, icon: "bookmark" }, ...stations.values()] } };
+        const shelfManifest = shippedOwnerManifest(PLATFORM_RECEIVE_STATION);
+        const shelfTitle = shelfManifest?.name_text !== undefined
+          ? resolveManifestText(shelfManifest.plugin_id, shelfManifest.name, shelfManifest.name_text, manifestWordResolver(registeredBuiltinText(shelfManifest)))
+          : readWorkbenchText("workbench.work-line.shelf");
+        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shelfTitle, icon: "bookmark" }, ...stations.values()] } };
       }
       const input = body as Record<string, unknown>;
       const title = typeof input.title === "string" ? input.title.slice(0, 200) : "", text = typeof input.text === "string" ? input.text : "";

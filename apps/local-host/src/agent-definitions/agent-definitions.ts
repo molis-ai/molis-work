@@ -3,6 +3,7 @@ import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { sandboxPromptId } from "@molis-ai/molis-work-plugin-sdk";
+import { textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import { SKILL_TABLES_SQL, SkillSettingsStore } from "./skill-settings.js";
 import { SKILL_WORK_TABLES_SQL, SkillDraftStore } from "./skill-drafts.js";
@@ -10,7 +11,9 @@ import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDecl
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { agentBodyIn, type InstructionPrompt, type PromptOverridePolicy } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
-import { cloneAgentRegistration, rememberComposedRoles } from "./display-words.js";
+import { readWorkbenchText } from "../ui-error-words.js";
+import { activeLocale } from "../web-locale.js";
+import { agentDisplayModel, cloneAgentRegistration, displayAgentPrompt, rememberComposedRoles } from "./display-words.js";
 import { isTrustedReplyLanguagePrompt } from "../reply-language.js";
 import { promptConfigJournal } from './prompt-overrides-replica.js';
 import {
@@ -59,6 +62,7 @@ interface Override { default_ref: string | null; key: string; revision: number; 
 
 const keyOf = (ownerId: string, promptId: string) => `${ownerId}/${promptId}`;
 const isProtectedPrompt = (prompt: { override_policy?: PromptOverridePolicy }): boolean => prompt.override_policy === "protected";
+const MULTI_INSTALL_NOTE = "此插件有多个安装：优先显示启用安装中的最新 Prompt 默认版本；各次调用仍使用自己的发布版本，你的修改由这些安装共享。";
 
 const storedRef = (value: string | null | undefined): SignedAgentReference | undefined => value ? JSON.parse(value) as SignedAgentReference : undefined;
 const sameRef = (left: SignedAgentReference | undefined, right: SignedAgentReference | undefined) => left?.kind === right?.kind && left?.entry_id === right?.entry_id
@@ -138,8 +142,7 @@ export class AgentDefinitions {
     }
     const owner = preferred.at(-1)!;
     this.owners.set(ownerId, { ...owner, prompts: [...prompts.values()],
-      ...(declarations.length > 1 ? { notes: [...new Set(declarations.flatMap(item => item.notes ?? [])),
-        "此插件有多个安装：优先显示启用安装中的最新 Prompt 默认版本；各次调用仍使用自己的发布版本，你的修改由这些安装共享。"] } : {}) });
+      ...(declarations.length > 1 ? { notes: [...new Set(declarations.flatMap(item => item.notes ?? [])), MULTI_INSTALL_NOTE] } : {}) });
   }
 
   hasPrompt(ownerId: string, promptId: string): boolean { return Boolean(this.owners.get(ownerId)?.prompts.some(prompt => prompt.prompt_id === promptId)); }
@@ -295,7 +298,7 @@ export class AgentDefinitions {
     const prompt = selectedBody(declaration, locale);
     const key = keyOf(ownerId, prompt.prompt_id);
     const { prompt: registered } = this.registered(key);
-    const edited = isProtectedPrompt(registered) ? null : this.override(key);
+    const edited = (isProtectedPrompt(declaration) || isProtectedPrompt(registered)) ? null : this.override(key);
     this.uses.record({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller: `agent:${ownerId}`, at: this.now().toISOString() });
     return edited ? { ...prompt, body: edited.body, user_revision: edited.revision } : prompt;
   }
@@ -332,17 +335,45 @@ export class AgentDefinitions {
   }
 
   /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */
-  diagnostics(): AgentDefinitionsDiagnostics {
+  diagnostics(locale?: string): AgentDefinitionsDiagnostics {
+    const resolvedLocale = locale ?? activeLocale() ?? undefined;
+    const separator = readWorkbenchText("common.list.separator", resolvedLocale);
+    const displayWords = agentDisplayModel([...this.owners.values()], resolvedLocale, "prompt");
     const used = new Set((this.db.prepare("SELECT DISTINCT key FROM prompt_uses").all() as Array<{ key: string }>).map(row => row.key));
     const owners = [...this.owners.values()].map(owner => {
-      const views = owner.prompts.map(prompt => this.view(owner, prompt));
+      const views = owner.prompts.map(prompt => displayAgentPrompt(this.view(owner, prompt, resolvedLocale), displayWords));
       const issues: AgentDefinitionsDiagnostics["owners"][number]["issues"] = [];
-      if (owner.source.kind === "plugin" && owner.source.state === "disabled") issues.push({ level: "warning", text: "插件已停用：这些 Prompt 暂时不会被调用，你的修改会保留" });
-      for (const note of owner.notes ?? []) issues.push({ level: "warning", text: note });
+      if (owner.source.kind === "plugin" && owner.source.state === "disabled") {
+        issues.push({ level: "warning", text: readWorkbenchText("workbench.agent-definitions.plugin-disabled", resolvedLocale) });
+      }
+      for (const note of owner.notes ?? []) {
+        issues.push({
+          level: "warning",
+          text: note === MULTI_INSTALL_NOTE
+            ? readWorkbenchText("workbench.agent-definitions.multiple-installations", resolvedLocale)
+            : note,
+        });
+      }
       const stale = views.filter(view => view.default_updated);
-      if (stale.length) issues.push({ level: "warning", text: `${stale.length} 段你的版本基于旧默认，默认已更新：${stale.map(view => view.title).join("、")}` });
+      if (stale.length) {
+        issues.push({
+          level: "warning",
+          text: readWorkbenchText("workbench.agent-definitions.stale-overrides", resolvedLocale, textArgs({
+            count: stale.length,
+            titles: stale.map(view => view.title).join(separator),
+          })),
+        });
+      }
       const idle = views.filter(view => !used.has(view.key));
-      if (idle.length) issues.push({ level: "info", text: `${idle.length} 段登记后还没有被调用过（功能可能还没用到）：${idle.map(view => view.title).join("、")}` });
+      if (idle.length) {
+        issues.push({
+          level: "info",
+          text: readWorkbenchText("workbench.agent-definitions.unused-prompts", resolvedLocale, textArgs({
+            count: idle.length,
+            titles: idle.map(view => view.title).join(separator),
+          })),
+        });
+      }
       return { owner_id: owner.owner_id, source: structuredClone(owner.source), prompts: views.filter(view => view.kind === "agent").length,
         instructions: views.filter(view => view.kind === "instruction").length, roles: owner.roles.length, ...(owner.methods?.length ? { methods: owner.methods.length } : {}),
         edited: views.filter(view => view.effective === "user").length, issues };

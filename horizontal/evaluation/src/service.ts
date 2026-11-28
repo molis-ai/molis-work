@@ -49,6 +49,7 @@ import type { EvaluationReplayScenario } from "./replay.js";
 import { isPluginDeliveryRole } from "./rules.js";
 import { executeSampleEvaluationRun } from "./run-executor.js";
 import { EvaluationStore, normalizeMetricsWindow } from "./store.js";
+import { workModeExpectsReply } from "./unknown-and-funnel.js";
 
 export interface EvaluationServiceOptions {
   readonly home: string;
@@ -95,7 +96,7 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
     } else if (exp.source === "deterministic" && exp.rule.check === "evidence_text") {
       facts = exp.rule.facts ?? (exp.rule.fact ? [exp.rule.fact] : []);
       role = exp.rule.evidence_role;
-      requiresReply = facts.includes("agent.reply") || (!facts.length && (input.work_mode === "assistant" || input.query.fact === "agent.reply"));
+      requiresReply = facts.includes("agent.reply") || (!facts.length && (workModeExpectsReply(input.work_mode) || input.query.fact === "agent.reply"));
     } else continue;
     if (!facts.length && input.query.fact) facts = [input.query.fact];
     const judgesReply = requiresReply || facts.some(fact => platformPrefixes.some(prefix => fact.startsWith(prefix + ".")));
@@ -185,7 +186,7 @@ export class EvaluationService {
         ...(caller.validate_permissions ? { validate_permissions: caller.validate_permissions } : {}),
       };
       try {
-        if (previous) {
+        if (previous && previous.record_ids.length > 0) {
           const { note, expires_at, record_ids } = previous;
           for (let offset = 0; offset < record_ids.length; offset += 500) {
             await commitEvaluationSampleHold(client, cleanup, target, { note, project_id: sample.project_id, expires_at },

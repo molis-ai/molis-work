@@ -88,7 +88,7 @@ function switchLocale(request: http.IncomingMessage, response: http.ServerRespon
     || (fetchDest !== undefined && fetchDest !== "document")
     || (fetchMode !== undefined && fetchMode !== "navigate" && (fetchDest !== undefined || fetchSite !== undefined || fetchMode !== "cors"))
   ) {
-    refuseLocalWebRequest(response);
+    refuseLocalWebRequest(response, resolveWebLocale(request.headers.cookie, request.headers["accept-language"]));
     return;
   }
   const requested = url.searchParams.get("lang");
@@ -199,7 +199,8 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
         if (routed === null) {
-          sendLocalWebJson(response, 404, { error: "没有这个入口" });
+          const requestLocale = resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+          sendLocalWebJson(response, 404, { error: readErrorWord("common.error.endpoint-not-found", requestLocale) }, requestLocale);
           return;
         }
         // Whatever reads the request itself further in (a POST's own path, the idempotency key's scope) sees the same inner address.

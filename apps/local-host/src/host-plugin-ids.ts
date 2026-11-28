@@ -25,5 +25,7 @@ export const RELEASE_PACKAGE_IDS: ReadonlySet<string> = releasePackageIds(bundle
  * in the folder the install preview reads (`directory`, the release's own unless a test gave the Host one), which for a package the
  * release ships unsigned is this Home's own publisher key (`localKey`, read when asked: a Home may make its key later).
  */
-export const releasePackagesFor = (directory: string | undefined, localKey: () => string | null): ReleasePackages =>
-  releasePackages(directory ?? bundledPackagesDirectory(), RELEASE_PACKAGE_IDS, localKey);
+export const releasePackagesFor = (directory: string | undefined, localKey: () => string | null): ReleasePackages => {
+  const dir = directory ?? bundledPackagesDirectory();
+  return releasePackages(dir, directory ? releasePackageIds(dir) : RELEASE_PACKAGE_IDS, localKey);
+};

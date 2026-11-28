@@ -11,7 +11,21 @@ test("U0-03: an active registration cannot hide a later action, manifest, role, 
     roles: [{ role_id: "parent", version: 1 }], prompts: [{ prompt_id: "base", version: 1 }],
     subagents: { roles: [{ role_id: "child", version: 1 }] },
   };
-  const manifest = { plugin_id: "notes", schema_version: 1, host_api_version: 1, agent, actions: [{ capability_id: "notes.read", version: 1 }], methods: [{ skill_id: "notes-tidy", version: 1 }] };
+  const manifest = {
+    plugin_id: "notes",
+    schema_version: 1,
+    host_api_version: 1,
+    agent,
+    actions: [{ capability_id: "notes.read", version: 1 }],
+    methods: [{ skill_id: "notes-tidy", version: 1 }],
+    databases: {
+      home: { store_name: "notes-home", version: 1 },
+      partition: { store_name: "notes-part", version: 1 },
+      project: { store_name: "notes-proj", version: 1 },
+    },
+    artifacts: { produces: [{ artifact_type_id: "notes.doc", schema_version: 1 }] },
+    sync: { collections: [{ id: "notes.items", schema_version: 1 }] },
+  };
   const view = { provider: { provider_id: "system.home" }, capability_id: "home.read", version: 1 };
   const registration = { owner_id: "assistant", prompts: [{ prompt_id: "work", version: 1 }], roles: [{ role_id: "system", version: 1 }] };
   const versionEntries = { "prompt.notes.summarize": 1, "method.goals.work-build-change": 1, "action.notes.read": 1 };
@@ -21,6 +35,11 @@ test("U0-03: an active registration cannot hide a later action, manifest, role, 
     ["schema_version", value => { manifest.schema_version = value; }],
     ["host_api_version", value => { manifest.host_api_version = value; }],
     ["notes.read", value => { manifest.actions[0]!.version = value; }],
+    ["notes-home", value => { manifest.databases.home.version = value; }],
+    ["notes-part", value => { manifest.databases.partition.version = value; }],
+    ["notes-proj", value => { manifest.databases.project.version = value; }],
+    ["notes.doc", value => { manifest.artifacts.produces[0]!.schema_version = value; }],
+    ["notes.items", value => { manifest.sync.collections[0]!.schema_version = value; }],
     ["home.read", value => { view.version = value; }],
     ["parent", value => { agent.roles[0]!.version = value; }],
     ["base", value => { agent.prompts[0]!.version = value; }],

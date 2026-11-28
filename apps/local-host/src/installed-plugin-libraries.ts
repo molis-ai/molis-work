@@ -184,6 +184,14 @@ export function reconcileInterruptedInstalledLibrary(home: string, owner: Instal
  */
 export function openInstalledPluginLibrary<Opened extends { close(): void }>(home: string, owner: InstalledLibraryOwner,
   declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry, open: (created: boolean) => Opened, now: () => Date = () => new Date()): Opened {
+  return openInstalledPluginLibraryWithUndo(home, owner, declaration, reserved, open, now, name => {
+    rmSync(join(home, name), { recursive: true, force: true });
+  });
+}
+
+function openInstalledPluginLibraryWithUndo<Opened extends { close(): void }>(home: string, owner: InstalledLibraryOwner,
+  declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry, open: (created: boolean) => Opened, now: () => Date,
+  undoMade: (name: string) => void): Opened {
   const name = declaration.store_name, who = `插件 ${owner.plugin_id} 的 Home 库 ${name}`;
   if (!INSTALLED_LIBRARY_NAME.test(name)) throw pluginErrors.declaration_invalid(`${who}：库名必须是一个目录名（小写字母开头，只含小写字母、数字和连字符）`);
   const holder = holderOf(name, reserved);
@@ -220,7 +228,7 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
     // SQLite may already have ended the transaction (SQLITE_FULL, SQLITE_IOERR); keep the original error rather than a second one.
     try { ledger.exec("ROLLBACK"); } catch { /* the transaction is already gone */ }
     try { opened?.close(); } catch { /* the library never opened for this call */ }
-    if (made) rmSync(join(home, name), { recursive: true, force: true });
+    if (made) undoMade(name);
     throw error;
   } finally {
     ledger.close();
@@ -353,15 +361,20 @@ export function stageInstalledHomeLibraryDiscard(home: string, owner: InstalledL
     if (kept) throw installedLibraryErrors.shape_mismatch("无法确认旧数据库归这个插件所有，已停止安装");
   };
   const close = () => {
-    if (backup && previous) {
+    if (backup && previous && existsSync(backup)) {
       removeLibraryDirectory(backup, previous.store_name);
       rmdirSync(backup);
+      backup = undefined;
     }
   };
   const putBack = () => {
     if (backup && previous && existsSync(join(backup, previous.store_name))) {
       renameSync(join(backup, previous.store_name), join(home, previous.store_name));
     }
+  };
+  const moveBackToBackup = (name: string) => {
+    if (!backup || !existsSync(join(home, name)) || existsSync(join(backup, name))) return;
+    try { renameSync(join(home, name), join(backup, name)); } catch { /* never rmSync the user's restored Home DB */ }
   };
   try {
     refuseKept(removeInstalledPluginLibrary(home, owner, previous, reserved, (directory, at) => {
@@ -382,11 +395,11 @@ export function stageInstalledHomeLibraryDiscard(home: string, owner: InstalledL
       refuseKept(removeInstalledPluginLibrary(home, owner, next, reserved));
       if (!previous || !created) return;
       const originalDate = new Date(created);
-      openInstalledPluginLibrary(home, owner, previous, reserved, made => {
+      openInstalledPluginLibraryWithUndo(home, owner, previous, reserved, made => {
         if (!made) throw installedLibraryErrors.object_taken("原插件库已被重新使用");
         putBack();
         return { close() {} };
-      }, () => originalDate);
+      }, () => originalDate, moveBackToBackup);
     },
   };
 }

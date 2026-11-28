@@ -10,6 +10,7 @@ import { createProjectWork } from "./prologue-project-work.js";
 import { createPrologueTaskBoards } from "./prologue-taskboard.js";
 import { applyUnknownCommandOutcomes, mergeReconciledSteps, shape, type PlanPlace, type ReconciledStepMap } from "./prologue-plan-steps.js";
 import { restorePrologueRun } from "./prologue-restored-session.js";
+import { readSdkRunEvents } from "./prologue-run-events.js";
 import { createPrologueWaits } from "./prologue-waits.js";
 import { readResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchGuards, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
@@ -136,19 +137,7 @@ async function readPlanUnknownStepIds(
   for (const attempt of attempts) {
     if (state.activeRuns.get(attempt.run_id!)?.live()) continue;
     const savedRun = terminal.find(run => run.id === attempt.run_id);
-    const attemptRunRef = savedRun ?? { kind: "run" as const, id: attempt.run_id!, revision: 1 };
-    let events: Awaited<ReturnType<typeof sdkSession.replay>> | undefined;
-    if (savedRun) {
-      events = await sdkSession.replay(savedRun).catch(() => undefined);
-    } else {
-      try {
-        events = await sdkSession.readRunProgress(attemptRunRef);
-      } catch (err) {
-        if ((err as { code?: string } | null)?.code === "RUN_NOT_REPLAYABLE") {
-          events = await sdkSession.replay(attemptRunRef).catch(() => undefined);
-        }
-      }
-    }
+    const events = await readSdkRunEvents(sdkSession, attempt.run_id!, terminal).catch(() => undefined);
     if (!events) continue;
     const runRef = { session_id: sessionId, run_id: attempt.run_id! };
     const { state: stream } = restorePrologueRun({

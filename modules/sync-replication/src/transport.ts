@@ -7,14 +7,23 @@ import {syncError} from './sync-errors.js';
  * Stop waiting the moment the request is cancelled, whatever the injected `fetch` does with its signal: a device stop or
  * sign-out waits for the operation holding the sync lock, so a response that never comes must not hold that lock.
  */
-function untilAborted(pending:Promise<Response>,signal:AbortSignal):Promise<Response>{
-  if(signal.aborted){pending.catch(()=>undefined);return Promise.reject(signal.reason);}
-  return new Promise<Response>((resolve,reject)=>{
-    const stop=()=>reject(signal.reason);
-    signal.addEventListener('abort',stop,{once:true});
+function untilAborted(pending: Promise<Response>, signal: AbortSignal): Promise<Response> {
+  if (signal.aborted) {
+    pending.catch(() => undefined);
+    return Promise.reject(signal.reason);
+  }
+  return new Promise<Response>((resolve, reject) => {
+    const stop = () => reject(signal.reason);
+    signal.addEventListener('abort', stop, { once: true });
     pending.then(
-      response=>{signal.removeEventListener('abort',stop);resolve(response);},
-      error=>{signal.removeEventListener('abort',stop);reject(error);},
+      response => {
+        signal.removeEventListener('abort', stop);
+        resolve(response);
+      },
+      error => {
+        signal.removeEventListener('abort', stop);
+        reject(error);
+      },
     );
   });
 }

@@ -75,7 +75,12 @@ test("ASC-07 ASC-14 ASC-19 ASC-22: closing and reopening the CLI page resumes in
   const deadline = Date.now() + 15_000;
   while (!source.downloads()) { assert.ok(Date.now() < deadline, "install must start its actual download"); await new Promise(resolve => setTimeout(resolve, 20)); }
   await leave(); await open(); await waitFor("document.querySelector('[data-pending-setup]')");
-  release(); await waitFor("document.querySelector('[data-cli-login]') && !document.querySelector('[data-pending-setup]')", 30_000);
+  release();
+  try { await waitFor("document.querySelector('[data-cli-login]') && !document.querySelector('[data-pending-setup]')", 30_000); }
+  catch (error) {
+    t.diagnostic(JSON.stringify({ status: (await state()).status, feedback: await evaluate("document.querySelector('[data-connector-detail]')?.innerText.slice(-800)") }));
+    throw error;
+  }
   assert.equal((await state()).status, "prepared");
   await click("[data-cli-login]"); await waitFor("/Enter fixture login:/.test(document.querySelector('[data-cli-output]')?.textContent || '')");
   const job = await evaluate<string>("document.querySelector('[data-cli-job]').dataset.cliJob");

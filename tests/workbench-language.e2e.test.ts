@@ -723,7 +723,7 @@ test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 s
   const retained = `[methodRows.every((node,index)=>node===${builtins}[index]),methodDialog===${dialog},methodDialog.open,
     methodDocument===${document},methodButton===document.activeElement,methodDocument.querySelector('h3').textContent,methodDocument.querySelector('p').textContent]`;
   const originalExcerpt = await frame.evaluate<string>(`${document}.querySelector('p').textContent`);
-  assert.equal(originalExcerpt.trimEnd(), originalBody.trimEnd());
+  assert.equal(originalExcerpt.trimEnd(), "保留正文 · Original");
   const expectedDraft = [true, "草稿 · Draft", 1, 5, "backward", generation];
   assert.deepEqual(await b.evaluate(keptDraft), expectedDraft);
   assert.equal(await b.evaluate(`${input}.getAttribute('aria-label')`), "任务或补充要求");

@@ -224,9 +224,21 @@ for (const stop of ["cancel", "revoke"] as const) {
 }
 
 
+async function ownedCodingSession(t: Parameters<typeof codingSdkRuntime>[0]) {
+  const fixture = await codingSdkRuntime(t);
+  await fixture.create("app");
+  const owner = { project_id: P, plugin_id: "io.molis.work.coding", actor_id: "web-user",
+    install_id: fixture.platform.supervisor.state("io.molis.work.coding")!.install_id! };
+  const session = await fixture.adapter.createSession({ ...owner, title: "app", directory: { canonical_path: fixture.home, realpath_verified: true } });
+  await fixture.sessions.setRuntimeSession(noEffect, P, "app", session.session_id, new Date().toISOString());
+  return { fixture, session };
+}
+
 test("RAC-189 Coding message cancel and background stop keep the request fence through real Host actions", async t => {
-  const fixture = await codingSdkRuntime(t); await fixture.create("app");
+  const { fixture, session } = await ownedCodingSession(t);
   const seen: string[] = [];
+  fixture.adapter.messages!.read = async () => [{ message_id: "m1", from_session: session.session_id, to_session: session.session_id, from_title: "app", to_title: "app", kind: "request", body: "fixture", state: "delivered", sent_at_ms: 1, audience: "people" }];
+  fixture.adapter.background!.read = async () => [{ task_id: "t1", session_id: session.session_id, summary: "fixture", state: "running", started_at_ms: 1 }];
   fixture.adapter.messages!.cancel = async () => { seen.push("cancel"); };
   fixture.adapter.background!.stop = async () => { seen.push("stop"); return true; };
   const dispatch = (path: string, beforeEffect: () => Promise<void>, signal?: AbortSignal) => fixture.platform.router().dispatch({
@@ -254,8 +266,7 @@ test("RAC-189 Coding message cancel and background stop keep the request fence t
 });
 
 test("RAC-189 Coding message reads also carry their request control into the actual Host action", async t => {
-  const fixture = await codingSdkRuntime(t); await fixture.create("app");
-  await fixture.sessions.setRuntimeSession(noEffect, P, "app", "sdk-app", new Date().toISOString());
+  const { fixture } = await ownedCodingSession(t);
   const seen: string[] = [];
   fixture.adapter.messages!.read = async () => { seen.push("read"); return []; };
   const response = await fixture.platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.coding/sessions/app/messages", actor_id: "web-user",

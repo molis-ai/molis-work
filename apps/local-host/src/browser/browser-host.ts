@@ -158,12 +158,12 @@ export class BrowserHost {
     });
     cdp.onClose(() => { if (this.current === running) child.kill("SIGTERM"); });
     await cdp.send("Target.setDiscoverTargets", { discover: true });
-    await cdp.send("Target.setAutoAttach", {
+    const autoAttached = await cdp.send("Target.setAutoAttach", {
       autoAttach: true,
       waitForDebuggerOnStart: true,
       flatten: true,
       filter: [{ type: "page", exclude: false }],
-    }).catch(() => undefined);
+    }).then(() => true, () => false);
     await cdp.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: this.downloadDir, eventsEnabled: true });
     cdp.on("Target.targetInfoChanged", params => this.route(params, (page, info) => page.targetInfo(info)));
     cdp.on("Target.attachedToTarget", params => {
@@ -183,7 +183,7 @@ export class BrowserHost {
         if (waitingForDebugger) void cdp.send("Runtime.runIfWaitingForDebugger", {}, sessionId).catch(() => undefined);
       }
     });
-    cdp.on("Target.targetCreated", params => {
+    if (!autoAttached) cdp.on("Target.targetCreated", params => {
       const info = params.targetInfo as { targetId: string; type: string; openerId?: string };
       if (info.type !== "page" || !info.openerId) return;
       for (const page of this.pages.values()) {

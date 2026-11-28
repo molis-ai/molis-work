@@ -168,12 +168,14 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     bubble(id, run) {
       observe(id, run.turns.map(turn => turn.steer?.key));
       if (item?.id !== id) return null;
-      const mark = (item.lost ? "1" : "0") + ":" + (activeUiLocale() ?? "");
-      if (item.node?.dataset.lost !== mark) {
+      const lost = item.lost ? "1" : "0";
+      const language = activeUiLocale() ?? "";
+      if (item.node?.dataset.lost !== lost || item.node.lang !== language) {
         const node = item.node = document.createElement("article");
         node.className = "coding-turn is-sending";
         node.dataset.kind = "user";
-        node.dataset.lost = mark;
+        node.dataset.lost = lost;
+        node.lang = language;
         node.textContent = item.text;
         node.append(small(item.lost ? uiText.text("coding.sent.lost") : uiText.text("coding.sent.sending")));
       }

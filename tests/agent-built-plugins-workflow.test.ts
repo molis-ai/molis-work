@@ -889,7 +889,7 @@ test('Studio offers an enabled image connection requiring role permissions after
   const active = await f.host.withProject(project.reference, runtime =>
     currentInstalledPluginHost(runtime.store, project.project_id)?.actions.client);
   assert.ok(active && 'discoverMatching' in active && typeof active.discoverMatching === 'function');
-  const batch = t.mock.method(active, 'discoverMatching');
+  const batch = t.mock.method(active, 'discoverMatching', {});
   const single = t.mock.method(active, 'discoverOne');
   assert.ok((await choices()).choices.some(choice => choice.key === offered.key), 'the same binding remains selectable after restart');
   assert.equal(batch.mock.callCount(), 1, 'all image roles use one availability snapshot');

@@ -16,9 +16,9 @@ export function normalizeSummary(value: string): string {
   return cutHead(value.trim(), 2_000);
 }
 
-export function mapFeedMaterial(row: Row): FeedMaterialRecord {
+export function mapFeedMaterial(row: Row, projectId: string): FeedMaterialRecord {
   return {
-    project_id: text(row.project_id),
+    project_id: projectId,
     material_id: text(row.material_id),
     item_id: text(row.item_id),
     canonical_url: optionalText(row.canonical_url),
@@ -39,9 +39,9 @@ export function mapFeedMaterial(row: Row): FeedMaterialRecord {
   };
 }
 
-export function mapFeedItem(row: Row, materials: FeedMaterialRecord[], linkedGoalId: string | null = null): FeedItemRecord {
+export function mapFeedItem(row: Row, projectId: string, materials: FeedMaterialRecord[], linkedGoalId: string | null = null): FeedItemRecord {
   return {
-    project_id: text(row.project_id),
+    project_id: projectId,
     item_id: text(row.item_id),
     source_id: optionalText(row.source_id),
     signal_id: optionalText(row.signal_id),

@@ -224,7 +224,7 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request);
       if (typeof body.archive === "boolean") return { session: await changeCodingSessionLifecycle(a, execution, record, body.archive, beforeWrite) };
       if (record.archived) throw codingError(codingSessionErrors.archived_edit, "coding.server.archived-edit");
-      const inputPatch=codingInputPatch(execution.sessions.inputs.read(projectId,record.session_id),body);
+      const inputPatch=codingInputPatch(execution.sessions.inputs.read(record.session_id),body);
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       if (materials && busy.has(record.session_id)) throw codingError(codingSessionErrors.materials_busy, "coding.server.materials-busy");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
@@ -238,7 +238,7 @@ const ROUTES: RouteMaker[] = [
       const skills = body.skills === undefined ? undefined : skillSelection(body.skills);
       const budget = body.budget === undefined ? undefined : codingBudgetSelection(body.budget);
       const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
-      const savedInputs=inputPatch?await execution.sessions.inputs.write(beforeWrite,projectId,record.session_id,inputPatch.expected,inputPatch.value):null;
+      const savedInputs=inputPatch?await execution.sessions.inputs.write(beforeWrite,record.session_id,inputPatch.expected,inputPatch.value):null;
       if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
       if (sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(sources));
       if (tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(tools));
@@ -264,7 +264,7 @@ const ROUTES: RouteMaker[] = [
           });
         } else storage.set(key, JSON.stringify(configuration));
       }
-      return { session: title === undefined ? current : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString()), input_revision:savedInputs?.revision??execution.sessions.inputs.read(projectId,record.session_id).revision };
+      return { session: title === undefined ? current : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString()), input_revision:savedInputs?.revision??execution.sessions.inputs.read(record.session_id).revision };
     });
   },
   (a) => {
@@ -281,7 +281,7 @@ const ROUTES: RouteMaker[] = [
         if (typeof body.wait_for === "string") {
           if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw codingError(codingSessionErrors.wait_round_open, "coding.server.wait-round-open");
           const role = roleForIntent(body.intent);
-          const savedInput = execution.sessions.inputs.read(projectId, record.session_id);
+          const savedInput = execution.sessions.inputs.read(record.session_id);
           roundImages(body.images);
           const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);
           if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.continue-plan");
@@ -328,7 +328,7 @@ const ROUTES: RouteMaker[] = [
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
           const item = await codingActions(context, beforeWrite).invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, item.work_id);
-          const cleared_input_revision = !plan && savedInput.draft === body.task && await execution.sessions.inputs.clearIfUnchanged(beforeWrite, projectId, record.session_id, savedInput.revision) ? savedInput.revision + 1 : undefined;
+          const cleared_input_revision = !plan && savedInput.draft === body.task && await execution.sessions.inputs.clearIfUnchanged(beforeWrite, record.session_id, savedInput.revision) ? savedInput.revision + 1 : undefined;
           await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", new Date().toISOString());
           a.waits.wakeLoop(api!, execution, record.runtime_id);
           return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target }, ...(cleared_input_revision === undefined ? {} : { cleared_input_revision }) };

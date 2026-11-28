@@ -267,13 +267,23 @@ test("embedded plugin dependencies are explicit IDs, not implicit grants or self
 });
 
 test("RAC-589 S-74 project_reach is declared on Home-scoped actions only, and only together with the projects:reach permission", () => {
-  const fresh = (): Record<string, unknown> => JSON.parse(JSON.stringify(briefRegistration.manifest));
+  // No shipped plugin declares it since batch 109-1 (Work Brief's personal brief went with its Home half), so a probe built on Work Brief's
+  // Manifest adds one Home-scoped action that reaches the person's projects, with the permission it needs.
+  const fresh = (): Record<string, unknown> => {
+    const manifest = JSON.parse(JSON.stringify(briefRegistration.manifest)) as Record<string, unknown>;
+    const actions = manifest.actions as Array<{ capability_id: string; action: Record<string, unknown> }>;
+    const project = actions.find(definition => definition.action.scope === "project")!;
+    actions.push({ ...JSON.parse(JSON.stringify(project)), capability_id: "work-brief.probe.reach", action: { ...JSON.parse(JSON.stringify(project.action)), scope: "home", project_reach: "person" } });
+    (manifest.permissions as Array<Record<string, unknown>>).push({ permission: "projects:reach", required: true, reason: "probe" });
+    return manifest;
+  };
   const actionsOf = (manifest: Record<string, unknown>) => manifest.actions as Array<{ capability_id: string; action: Record<string, unknown> }>;
   const refused = (mutate: (manifest: Record<string, unknown>) => void, needle: string) => assert.throws(() => { const manifest = fresh(); mutate(manifest); parsePluginManifest(manifest); },
     (error: unknown) => error instanceof ActionError && error.message.includes(needle), needle);
+  assert.ok(!parsePluginManifest(briefRegistration.manifest).actions!.some(definition => definition.action.project_reach !== undefined), "Work Brief itself reaches no project");
   const parsed = parsePluginManifest(fresh());
   const reaching = parsed.actions!.filter(definition => definition.action.project_reach === "person");
-  assert.ok(reaching.length > 0, "Work Brief's personal brief declares it (Todo's moved into partitions, batch 108)");
+  assert.equal(reaching.length, 1, "the probe's Home-scoped action declares it");
   assert.ok(reaching.every(definition => definition.action.scope === "home"));
   // Declared without the permission: the installation's confirmation could not show it, so the Manifest is refused.
   refused(manifest => { manifest.permissions = (manifest.permissions as Array<{ permission: string }>).filter(item => item.permission !== "projects:reach"); }, "projects:reach");

@@ -16,8 +16,6 @@ const ACTION_TEXT: Readonly<Record<string, { readonly title_text: TextRef; reado
   "work-brief.search.entries": { title_text: { key: "work-brief.actions.search-entries.title" }, description_text: { key: "work-brief.actions.search-entries.description" } },
   "work-brief.subject.read": { title_text: { key: "work-brief.actions.subject-read.title" }, description_text: { key: "work-brief.actions.subject-read.description" } },
   "work-brief.artifacts.preview": { title_text: { key: "work-brief.actions.artifacts-preview.title" }, description_text: { key: "work-brief.actions.artifacts-preview.description" } },
-  "work-brief.personal.get": { title_text: { key: "work-brief.actions.personal-get.title" }, description_text: { key: "work-brief.actions.personal-get.description" } },
-  "work-brief.personal.refresh": { title_text: { key: "work-brief.actions.personal-refresh.title" }, description_text: { key: "work-brief.actions.personal-refresh.description" } },
 };
 
 export function localizeManifestActions(definitions: readonly ActionDefinition[]): ActionDefinition[] {

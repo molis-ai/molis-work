@@ -9,7 +9,7 @@ import type { ScheduleTaskGrants } from "./task-grants.js";
 import { listScheduleConversationTasks } from "./tasks.js";
 
 /** No work starts inside activation: Runtime first registers the contribution and marks its installation running. */
-export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: string, installations: PluginInstallationClient, grants: ScheduleTaskGrants,
+export async function reconcileSchedule(runtime: ScheduleRuntime, installations: PluginInstallationClient, grants: ScheduleTaskGrants,
   control: PluginJobControl, report: (message: string | null) => void, changed: () => void = () => undefined): Promise<void> {
   await setTimeout(0, undefined, { signal: control.signal });
   while (!control.signal.aborted) {
@@ -20,10 +20,10 @@ export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: str
     const tell = () => { if (rescheduled) { rescheduled = false; changed(); } };
     try {
       await runtime.write(control.beforeEffect, () => {
-        pruneUninstalledSchedules(runtime, projectId, installations);
+        pruneUninstalledSchedules(runtime, installations);
         reconcileScheduledOperations(runtime.db, runtime.schedule);
         const moved = rescheduleEnabledConversationTasks(runtime.db, runtime.schedule);
-        rescheduled = endExpiredOnce(runtime.db, projectId, Date.now()) || moved;
+        rescheduled = endExpiredOnce(runtime.db, Date.now()) || moved;
       });
       // Grants of archived or vanished tasks: the platform keeps them, so they are cleared there, after Schedule's own write.
       const cleared = await grants.reconcile(() => new Set(listScheduleConversationTasks(runtime.db).map(task => task.task_id)));

@@ -5,7 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 
 
-import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID} from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
@@ -13,21 +14,21 @@ function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
   const now = "2026-08-29T08:00:00.000Z";
   store.db.prepare(`
     INSERT OR IGNORE INTO feed_sources (
-      project_id, source_id, kind, name, description, status, enabled, item_count,
+      source_id, kind, name, description, status, enabled, item_count,
       origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-    ) VALUES (?, 'source-rss', 'rss', '少数派', '公开 RSS', 'active', 1, 1,
+    ) VALUES ('source-rss', 'rss', '少数派', '公开 RSS', 'active', 1, 1,
       'molis_work', ?, 'completed', NULL, ?, ?)
-  `).run(DEMO_PROJECT_ID, now, now, now);
+  `).run(now, now, now);
   store.db.prepare(`
     INSERT INTO feed_items (
-      project_id, item_id, source_id, kind, title, summary, body,
+      item_id, source_id, kind, title, summary, body,
       source_kind, source_label, external_id, url, origin_status, priority,
       tags_json, author, disposition, read_at, revision,
       source_created_at, source_updated_at, imported_at, updated_at
-    ) VALUES (?, ?, 'source-rss', 'update', '第一条 Feed', '一个真实摘要', '一段正文',
+    ) VALUES (?, 'source-rss', 'update', '第一条 Feed', '一个真实摘要', '一段正文',
       'rss', '少数派', 'external-1', 'https://example.com/item', 'inbox', 'medium',
       '[]', '作者', 'inbox', NULL, 1, ?, ?, ?, ?)
-  `).run(DEMO_PROJECT_ID, itemId, now, now, now, now);
+  `).run(itemId, now, now, now, now);
 }
 
 test("a new project has separated Feed and Inbox tables with persisted read state", async () => {
@@ -77,7 +78,8 @@ test("opening a Feed item persists read state without invalidating its action re
 
       const reopened = feed.markRead(DEMO_PROJECT_ID, item.item_id);
       assert.equal(reopened.read_at, opened.read_at);
-      assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items[0]?.read_at, opened.read_at);
+      // The demo project also holds Feed's own sample, so the item is found by its id.
+      assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.find(row => row.item_id === item.item_id)?.read_at, opened.read_at);
       const readEvents = store.db.prepare(`
         SELECT COUNT(*) AS count FROM events
         WHERE project_id = ? AND object_id = ? AND type = 'feed_item.read'
@@ -101,14 +103,14 @@ test("Attention overlay no longer changes Feed Item type or blocks markRead", as
       const now = "2026-08-30T02:00:00.000Z";
       store.db.prepare(`
         INSERT INTO feed_items (
-          project_id, item_id, source_id, kind, title, summary, body,
+          item_id, source_id, kind, title, summary, body,
           source_kind, source_label, external_id, url, origin_status, priority,
           tags_json, author, disposition, read_at, revision,
           source_created_at, source_updated_at, imported_at, updated_at
-        ) VALUES (?, 'inbox-message-1', NULL, 'github_issue', ?, ?, NULL,
+        ) VALUES ('inbox-message-1', NULL, 'github_issue', ?, ?, NULL,
           'github', 'GitHub', 'issue-1', 'https://example.com/issues/1', 'open', 'high',
           '[]', 'octocat', 'inbox', NULL, 1, ?, ?, ?, ?)
-      `).run(DEMO_PROJECT_ID, "需要处理的 Issue", "这是一条待判断消息", now, now, now, now);
+      `).run("需要处理的 Issue", "这是一条待判断消息", now, now, now, now);
       const feed = createLocalFeedApplication(store.db);
       feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, "inbox-message-1", "source_rule", { source_id: "github" });
       assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, "inbox-message-1").item_type, "feed");
@@ -223,12 +225,12 @@ test("the Feed v1 schema refuses the removed processing disposition, and promoti
       const item = feed.getItem(DEMO_PROJECT_ID, "feed-processing-gone");
       // The v1 DDL no longer accepts the removed value: a real Feed database refuses it, not only the TypeScript type.
       assert.throws(
-        () => store.db.prepare("UPDATE feed_items SET disposition = 'processing' WHERE project_id = ? AND item_id = ?").run(DEMO_PROJECT_ID, item.item_id),
+        () => store.db.prepare("UPDATE feed_items SET disposition = 'processing' WHERE item_id = ?").run(item.item_id),
         /CHECK constraint/u,
       );
       const linked = feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted");
       assert.equal(linked.disposition, "promoted");
-      const events = store.db.prepare("SELECT type FROM feed_item_events WHERE project_id = ? AND item_id = ? ORDER BY at, event_id").all(DEMO_PROJECT_ID, item.item_id) as Array<{ type: string }>;
+      const events = store.db.prepare("SELECT type FROM feed_item_events WHERE item_id = ? ORDER BY at, event_id").all(item.item_id) as Array<{ type: string }>;
       assert.equal(events.at(-1)?.type, "feed_item.promoted", "promotion records the promoted event");
       assert.equal(events.some(event => event.type.includes("processing")), false, "no processing event is recorded");
     } finally {

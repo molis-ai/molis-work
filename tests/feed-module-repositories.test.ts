@@ -13,7 +13,8 @@ import { fromProjectConnection, FeedModule, type FeedModuleOptions } from "@moli
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextAccess } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
-import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID} from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 /** Feed's edges in the ledger, as the Host hands them to Feed: the project is the scope of every call. */

@@ -48,10 +48,11 @@ export const overviewPerson: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_
 function overviewManifests(home: string, kinds: readonly OverviewKind[]): { readonly manifests: Map<string, PluginManifest>; readonly installIds: Map<string, string> } {
   const manifests = new Map<string, PluginManifest>(), installIds = new Map<string, string>();
   const offer = (manifest: PluginManifest, installId?: string) => {
-    if (manifests.has(manifest.plugin_id)) return;
     if (!manifest.overview_projection?.kinds.some(kind => kinds.includes(kind))) return;
-    manifests.set(manifest.plugin_id, manifest);
-    installIds.set(manifest.plugin_id, installId ?? installIdentity(manifest));
+    const known = manifests.get(manifest.plugin_id);
+    if (known && known.publisher.signature !== manifest.publisher.signature) return;
+    if (!known) manifests.set(manifest.plugin_id, manifest);
+    if (installId) installIds.set(manifest.plugin_id, installId);
   };
   for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) offer(entry.manifest);
   const host = existingPartitionPluginHost(home);
@@ -123,8 +124,11 @@ export async function overviewRowsFor(source: HomeOverviewSource, caller: Action
       catch (error) { if (!(error instanceof ActionError && error.code === "actions.forbidden")) throw error; }
     }
     return [...partitionOverviewLibraries(home, [{ partition_id: partition.project_id,
-      plugins: [...manifests.values()].flatMap(manifest => reaches(manifest.plugin_id) !== false
-        ? [{ install_id: installIds.get(manifest.plugin_id) ?? installIdentity(manifest), manifest }] : []) }]),
+      plugins: [...manifests.values()].flatMap(manifest => {
+        const allowed = reaches(manifest.plugin_id), installed = installIds.get(manifest.plugin_id);
+        if (allowed === false || (allowed === undefined && !installed)) return [];
+        return [{ install_id: installed ?? installIdentity(manifest), manifest }];
+      }) }]),
       ...attentionLibraries];
   });
   const enabled = new Set(libraries.map(library => `${library.partition_id}\u0000${library.install_id}`));

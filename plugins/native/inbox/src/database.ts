@@ -3,12 +3,10 @@ import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/p
 /** The binding of Inbox's next-step scene in each project: which judgment rule the project uses (one row, optimistic by `binding_revision`). */
 export const INBOX_SCENE_BINDINGS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS inbox_scene_bindings (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      scene_id TEXT NOT NULL,
+      scene_id TEXT PRIMARY KEY,
       action_binding_json TEXT NOT NULL,
       binding_revision TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, scene_id)
+      updated_at TEXT NOT NULL
     );
 `;
 

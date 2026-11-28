@@ -21,13 +21,14 @@ const readPage = async (origin: string, cookie?: string, path = "/") => {
 };
 
 test("WAS-01 WAS-02 real workbench pages exclude Host credentials and require both cookie and CSRF proof", { timeout: 30_000 }, async t => {
-  const f = await serveHomeRuntime(t), a = await readPage(f.origin), b = await readPage(f.origin);
+  // Since batch 109-1 the build ships no Home plugin, so a Host fixture stands for the standalone Home page until it goes in 109-3.
+  const standalone = homeProbe("sessionpage"), f = await serveHomeRuntime(t, { pluginFixtures: { home: [standalone.definition] } });
+  const a = await readPage(f.origin), b = await readPage(f.origin);
   assert.equal((await f.request("/api/browser/assistant", { method: "POST", body: { enabled: false } })).status, 200);
   assert.ok(a.cookie); assert.match(a.cookies[0]!, /HttpOnly; SameSite=Strict/);
   assert.notEqual(a.proof, f.token); assert.notEqual(a.proof, b.proof);
   const project = await f.project("Session HTML coverage");
-  for (const path of ["/", "/settings/appearance", "/settings/models", `/projects/${project.project_id}/`, `/projects/${project.project_id}/settings`, "/plugins/work-brief"]) {
-    // A standalone Home page: Work Brief's since Issues and Jelly moved to the partitions (batch 108).
+  for (const path of ["/", "/settings/appearance", "/settings/models", `/projects/${project.project_id}/`, `/projects/${project.project_id}/settings`, `/plugins/${standalone.id}`]) {
     const page = await readPage(f.origin, a.cookie, path);
     assert.ok(!page.html.includes(f.token), path + " must not contain the Host control token");
     assert.doesNotMatch(page.html, /<meta[^>]+name=["']molis-work-control-token["']/);

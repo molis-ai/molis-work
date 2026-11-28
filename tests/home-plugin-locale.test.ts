@@ -7,8 +7,10 @@ import { htmlLang, installHostUiText, readText, runWithLocale } from "@molis-ai/
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 installHostUiText();
-const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.runtime?.scope === "home");
-assert.ok(entry, "the production catalog has a Home view");
+// No shipped plugin runs in the Home since batch 109-1; the Home page renderer stays until the Home runtime retires (109-3), and is drawn
+// here with a shipped plugin's entry.
+const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "issues");
+assert.ok(entry, "the production catalog has Issues");
 
 const draw = (tag: string, content: string | null, message: string | null, retry = false, side = false) =>
   runWithLocale(tag, () => renderHomePluginPage(entry, content, message, randomUUID(), { readText, htmlLang }, retry, side));
@@ -19,7 +21,7 @@ test("W2-18-HOME-LOCALE-01: the Home document uses its request locale before mou
   assert.match(english, /<html lang="en"/);
   assert.match(english, /id="home-model-title">Models<\/h2>/);
   assert.match(english, /data-home-model-close autofocus>Close<\/button>/);
-  // The plugin's own stylesheet goes ahead of its content (Jelly's, the Home view left after batch 108 moved Issues to the partitions).
+  // The plugin's own stylesheet goes ahead of its content.
   const ownContent = (html: string) => pluginDocuments(html).map(document => document.replace(/^(?:<link rel="stylesheet" href="\/assets\/molis-work-plugins\/[a-z0-9-]+\.css">)*/u, ""));
   assert.deepEqual(ownContent(english), [content], "owner content is passed through; this renderer only translates its own chrome");
   assert.match(english, /translate:globalThis\.t\.text/);

@@ -120,24 +120,21 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
 test("PG094-HOME-02 S-72 only a genuine Home Runtime provider bypasses the project list, consistently for live and discovery", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
   const project = await home.createProject("Installed Feed");
-  // Feed is a project plugin whose Home half provides actions: the only kind of provider the bypass is for.
   await unhide(home, project, "feed");
   assert.equal(await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog =>
     catalog.projectPluginMembership(project.project_id).plugins.includes("feed")), true);
   const homeCaller = callerIn(null);
-  // Feed's Home actions are for its own project half (audience `plugin`), so no person's discovery lists them: the provider is written
-  // the way the Runtime stamps it, from the Home installation the Host actually runs.
-  await home.host.homePlugins!.ready();
-  const installed = home.host.homePlugins!.installation(FEED_PLUGIN_ID);
-  assert.equal(installed?.state, "running", "the provider comes from the actual Home Runtime installation");
-  const action: Pick<ActionView, "provider"> = { provider: { provider_id: FEED_PLUGIN_ID, plugin_id: FEED_PLUGIN_ID, plugin_install_id: installed!.install_id, title: "Feed", kind: "plugin" } };
+  // Since batch 109-1 no built-in plugin has a Home half (Feed's evidence holds are the platform's), so the bypass has no genuine case in
+  // this build until it goes with the Home runtime in 109-3: a provider stamped the way the Runtime stamps an installation, under a
+  // built-in plugin with no Home runtime, is judged by the project list like any other, and a call outside a project has none.
+  const action: Pick<ActionView, "provider"> = { provider: { provider_id: FEED_PLUGIN_ID, plugin_id: FEED_PLUGIN_ID, plugin_install_id: "runtime-stamped", title: "Feed", kind: "plugin" } };
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   const check = async (caller: ActionCallContext, candidate: Pick<ActionView, "provider">, available: boolean) => {
     assert.equal((await availability(caller, candidate)).available, available);
     const snapshot = await availability.snapshotForDiscovery(caller);
     assert.equal(snapshot(caller, candidate).available, available);
   };
-  await check(homeCaller, action, true);
+  await check(homeCaller, action, false);
   await check(callerIn(project.project_id), action, true);
   for (const projectId of ["deleted-project", "standalone-project"]) {
     await check(callerIn(projectId), action, false);

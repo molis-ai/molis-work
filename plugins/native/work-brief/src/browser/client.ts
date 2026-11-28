@@ -1,12 +1,12 @@
 import type { BriefRefreshed, BriefSaved } from "../actions.js";
-import { renderBrief, renderPersonal, shownOf } from "./brief.js";
+import { renderBrief, shownOf } from "./brief.js";
 import { briefPage, failureOf } from "./page.js";
 import { text } from "./parts.js";
-import type { BriefPage, BriefView, NextMark, PersonalView, WorkBriefHost } from "./types.js";
+import type { BriefPage, BriefView, NextMark, WorkBriefHost } from "./types.js";
 
 /**
  * The brief page (docs/design/work-brief-core): the project's brief on the stage, with its versions, the bases after each sentence,
- * the person's own changes, a waiting proposal and the next steps; and the personal brief beside it. Every write goes through
+ * the person's own changes, a waiting proposal and the next steps. Every write goes through
  * Work Brief's own actions and the page reads the brief again from their answer. Objects of other plugins are drawn by the shell.
  */
 
@@ -18,7 +18,7 @@ function draw(page: BriefPage): void {
   const focused = document.activeElement instanceof HTMLElement && body.contains(document.activeElement) ? document.activeElement.dataset.wbFocus ?? null : null;
   const scroll = body.scrollTop;
   for (const held of placed) held.dispose();
-  body.innerHTML = state.mode === "personal" ? renderPersonal(page) : renderBrief(page);
+  body.innerHTML = renderBrief(page);
   placed = [...body.querySelectorAll<HTMLElement>("[data-wb-slot]")].map(element => page.host.view.surfaceSlot(element, {
     slot_id: SLOTS[element.dataset.wbSlot as keyof typeof SLOTS], subjects: [{ kind: element.dataset.kind ?? "", id: element.dataset.id ?? "" }] }));
   // A repaint (a background refresh, an answer arriving) keeps the place and the field in hand.
@@ -51,13 +51,6 @@ async function loadHead(page: BriefPage, options: { quiet?: boolean; finishWrite
     state.error = error instanceof Error && error.message ? error.message : text("error.failed");
     page.render();
   }
-}
-
-async function loadPersonal(page: BriefPage): Promise<void> {
-  const { state } = page;
-  try { state.personal = await page.call<PersonalView>("work-brief.personal.get", {}); state.personalError = ""; }
-  catch (error) { state.personalError = error instanceof Error && error.message ? error.message : text("error.failed"); }
-  page.render();
 }
 
 /** A write on the brief: the page is busy while it runs; a conflict means someone else moved the brief, so it is read again and said. */
@@ -173,18 +166,11 @@ function ask(page: BriefPage): void {
 async function onAct(page: BriefPage, action: string, value: string): Promise<void> {
   const { state } = page;
   switch (action) {
-    case "mode": state.mode = value === "personal" ? "personal" : "project"; state.pop = ""; page.render(); if (state.mode === "personal") await loadPersonal(page); return;
     case "pop": state.pop = state.pop === value ? "" : value; page.render(); return;
     case "then-now": state.thenNow = value === "now" ? "now" : "then"; page.render(); return;
     case "back": state.old = null; state.pop = ""; page.render(); return;
     case "reload": if (!state.loading) await loadHead(page); return;
-    case "reload-personal": state.personalError = ""; state.personal = null; page.render(); await loadPersonal(page); return;
     case "refresh": await refresh(page); return;
-    case "refresh-personal": {
-      state.busy = "refresh"; page.render();
-      try { state.personal = await page.call<PersonalView>("work-brief.personal.refresh", {}); state.personalError = ""; } finally { state.busy = ""; page.render(); }
-      return;
-    }
     case "version": await openVersion(page, Number(value)); return;
     case "fix": await fix(page, Number(value)); return;
     case "edit-claim": state.editing = value; state.pop = ""; page.render(); return;
@@ -235,12 +221,12 @@ export function mountWorkBrief(host: WorkBriefHost): void {
   page.render();
   // Opening the page reads what is saved and nothing else: no model, no refresh of the sources, no task (WBR-24).
   scope.whenVisible(() => {
-    page.run(() => state.mode === "personal" ? loadPersonal(page) : loadHead(page, { quiet: Boolean(shownOf(page)) }));
+    page.run(() => loadHead(page, { quiet: Boolean(shownOf(page)) }));
     // A brief the Assistant just saved (or anything of Work Brief changed elsewhere) is read again; an open editor is not disturbed.
     return scope.listen(window, "molis:assistant-effect", event => {
       const capability = (event as CustomEvent<{ capability_id?: unknown } | undefined>).detail?.capability_id;
       if (typeof capability !== "string" || !capability.startsWith("work-brief.") || state.editing || state.busy) return;
-      page.run(() => state.mode === "personal" ? loadPersonal(page) : loadHead(page, { quiet: true }));
+      page.run(() => loadHead(page, { quiet: true }));
     });
   });
 }

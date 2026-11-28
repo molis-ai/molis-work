@@ -1,5 +1,6 @@
 import { realpathSync } from "node:fs";
 import { pluginOverviewFor } from "./plugin-overview-service.js";
+import { pluginEvidenceFor } from "./plugin-evidence-service.js";
 import { mainOverviewLibrary, runningPartitionPlatformServices } from "./partition-platform-services.js";
 import { installHostUiText } from "./ui-text-provider.js";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
@@ -157,6 +158,8 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db,
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
+      // The sandbox is refused `evidence:collect` at start (`refuseUngivenSandboxServices`), so only a plugin the Host runs itself has it.
+      evidence: definition.execution === "sandbox" ? undefined : pluginEvidenceFor(manifest, context, options.project_id, options.home?.directory, assertActive),
       background: background?.client, directory: directory?.client, terminal: terminal?.client,
       projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
     const submit = installedComponentSubmit(definition, options.actions, readRecord);
@@ -339,6 +342,8 @@ interface SessionParts {
   readonly connections: ReturnType<typeof pluginConnectionsFor>;
   /** Pulling public sources and reading evidence bodies and research libraries, only when the Manifest declares `sources:pull_public_feed`, `sources:pull_query`, `evidence:read` or `sources:read_repository` (`pluginSourcePullFor`). */
   readonly sourcePull: ReturnType<typeof pluginSourcePullFor>;
+  /** This instance's holds in the platform's evidence ledger, only when the Manifest declares `evidence:collect` (`pluginEvidenceFor`, S-98). */
+  readonly evidence: import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginEvidenceClient | undefined;
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
   /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
   readonly directory: PluginDirectoryService | undefined;
@@ -415,6 +420,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...(parts.connections === undefined ? {} : { connections: parts.connections }),
       ...(parts.sourcePull === undefined ? {} : { sourcePull: parts.sourcePull }),
+      ...(parts.evidence === undefined ? {} : { evidence: parts.evidence }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
       ...(parts.terminal === undefined ? {} : { terminal: parts.terminal }),

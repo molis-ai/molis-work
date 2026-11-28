@@ -40,8 +40,8 @@ export function shippedPartByManifestId(pluginId: string): ShippedPart | undefin
 }
 
 /**
- * What makes a catalog unusable (W5-02-REG-02): two entries with one project key, Manifest id or position, or a short id in
- * `companions` or `workbench.clientUses` that names no entry. scripts/generate-plugin-registry.mjs
+ * What makes a catalog unusable (W5-02-REG-02): two entries with one project key, Manifest id or position, a short id in
+ * `workbench.clientUses` that names no entry, or a Manifest `dependencies` entry with `enable_with` that names no plugin of the catalog. scripts/generate-plugin-registry.mjs
  * refuses these in the plugins' sources; this holds the built list to the same, and the Host does not start on one. The platform's
  * own framed surfaces (`host-surfaces.ts`, 47-1 C) are held to it beside the plugins: no shared key, Manifest id or class prefix.
  */
@@ -68,11 +68,11 @@ export function catalogProblems(catalog: readonly (PluginRegistration | HostSurf
     if (entry.runtime && !entry.runtime.dual_instance && declaresProjectHalf(entry.manifest)) {
       problems.push(`${entry.project_plugin_id}: a Home instance pins no 成果 and is given no ports or events; declaring them takes a dual-instance plugin (the project half gets them)`);
     }
-    const named: Array<readonly [string, string]> = [
-      ...(entry.companions ?? []).map(id => ["companions", id] as const),
-      ...(entry.workbench.clientUses ?? []).map(id => ["workbench.clientUses", id] as const),
-    ];
-    for (const [field, id] of named) if (!listed.has(id)) problems.push(`${entry.project_plugin_id} names ${id} in ${field}, which is not in the catalog`);
+    for (const id of entry.workbench.clientUses ?? []) if (!listed.has(id)) problems.push(`${entry.project_plugin_id} names ${id} in workbench.clientUses, which is not in the catalog`);
+    // A built-in turns on only what this build ships with it: an `enable_with` dependency names a plugin of the catalog.
+    for (const dependency of entry.manifest.dependencies ?? []) {
+      if (dependency.enable_with && !catalog.some(other => other.manifest.plugin_id === dependency.plugin_id)) problems.push(`${entry.project_plugin_id} enables ${dependency.plugin_id} with it, which is not in the catalog`);
+    }
   }
   // Extra class prefixes a plugin declares for its own rules (PG-070): they decide which rules leave the shared sheet, so one
   // must not equal or cover a plugin's id namespace or repeat another prefix; the platform's own prefixes are not a plugin's.
@@ -211,6 +211,19 @@ export function requiredCompanions(projectPluginId: ProjectPluginId, catalog: re
   return [...needed];
 }
 
+/**
+ * The plugins a Manifest turns on with it (`dependencies` with `enable_with`, V9): the same declaration for every plugin, in place of the
+ * registration's old hard-coded companions. Each names a plugin by its Manifest id; what this build does not ship is left out.
+ */
+export function enabledWith(projectPluginId: ProjectPluginId, catalog: readonly PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS): ProjectPluginId[] {
+  const manifest = catalog.find(entry => entry.project_plugin_id === projectPluginId)?.manifest;
+  return (manifest?.dependencies ?? []).flatMap(dependency => {
+    if (!dependency.enable_with) return [];
+    const other = catalog.find(entry => entry.manifest.plugin_id === dependency.plugin_id);
+    return other && other.project_plugin_id !== projectPluginId ? [other.project_plugin_id] : [];
+  });
+}
+
 /** Look up an action definition from the generated built-in plugin registry without importing the plugin package. */
 export function registeredHostAction<I = unknown, O = unknown>(capabilityId: string, version?: number): ActionDefinition<I, O> | undefined {
   for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
@@ -231,5 +244,5 @@ export function registeredHostAction<I = unknown, O = unknown>(capabilityId: str
 export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
   has: pluginId => BUILTIN_PLUGIN_IDS.includes(pluginId),
   initial: () => PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.default_enabled).map(entry => entry.project_plugin_id),
-  companions: pluginId => [...(builtinPluginByProjectKey(pluginId)?.companions ?? []), ...requiredCompanions(pluginId)],
+  companions: pluginId => [...new Set([...enabledWith(pluginId), ...requiredCompanions(pluginId)])],
 };

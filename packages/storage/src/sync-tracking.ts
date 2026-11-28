@@ -10,7 +10,8 @@ const literal = (value: string | number | null): string => {
 const key = (parts: readonly SyncKeyPart[], row: string, namespace: string) => `json_array(${parts.map(part => 'column' in part ? `${row}.${name(part.column)}` : 'scope' in part ? `(SELECT project_id FROM ${name(namespace + "_context")} WHERE id=1)` : literal(part.literal)).join(',')})`;
 function condition(spec: SyncTrackedTable, row: string): string {
   const filters=(spec.where ?? []).map(filter => `${row}.${name(filter.column)} ${filter.op === 'eq' ? 'IS' : '>'} ${typeof filter.value === 'object' && filter.value !== null ? "json_extract((SELECT descriptor FROM molis_storage_space WHERE singleton=1),'$.ownerUserId')" : literal(filter.value)}`).join(' AND ') || '1=1';
-  const existence=spec.existsAny?.map(relation=>`EXISTS (SELECT 1 FROM ${name(relation.table)} AS sync_exists WHERE ${relation.match.map(pair=>`sync_exists.${name(pair.column)}=${row}.${name(pair.rowColumn)}`).join(' AND ')})`).join(' OR ');
+  // A relation with no match pairs asks only whether the table has a row: a library that holds one partition has no column to match on.
+  const existence=spec.existsAny?.map(relation=>`EXISTS (SELECT 1 FROM ${name(relation.table)} AS sync_exists${relation.match.length?` WHERE ${relation.match.map(pair=>`sync_exists.${name(pair.column)}=${row}.${name(pair.rowColumn)}`).join(' AND ')}`:''})`).join(' OR ');
   return existence?`(${filters}) AND (${existence})`:filters;
 }
 function selection(spec: SyncTrackedTable, row: string, namespace: string): string {

@@ -17,8 +17,8 @@ import { openTestHome } from "./fixtures/test-home.js";
  * and stops at the next one (or answers), so the refusal is the instance check's and nothing else's.
  *
  * Which half has what: the Host gives the project half the action dependencies, Agent, installations, notifications and scheduler,
- * the Home half its own installations (RAC-495a: which projects hold the plugin) and the evidence collector (S-98 provisional: the
- * Home's evidence store, which only the ledger half deletes from), and both halves an authorized directory and the terminal (S-103).
+ * the Home half its own installations (RAC-495a: which projects hold the plugin), only an instance in a partition the evidence ledger
+ * (S-98, batch 109: holds are recorded per partition and installation), and both halves an authorized directory and the terminal (S-103).
  */
 
 const NAME = "dualservices", PLUGIN = `com.example.${NAME}`;
@@ -34,10 +34,13 @@ type Outcome = { outcome: string; message?: string; value?: unknown };
  * says what its next call does (`next`), and it answers with what came back or the code and message it was refused with.
  */
 function servicesProbe() {
-  const action = (half: Half): ActionDefinition => ({ capability_id: `${NAME}.${half}`, version: 1, operation: "command",
-    action: { title: half, description: `双实例服务探针的 ${half} 一半`, kind: "operation", scope: half, audiences: ["user"], permissions: USED,
-      scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
-  const actions = { home: action("home"), project: action("project") };
+  const action = (half: Half, name: string = half, operation: "command" | "query" = "command", permissions: readonly string[] = USED): ActionDefinition => ({
+    capability_id: `${NAME}.${name}`, version: 1, operation,
+    action: { title: name, description: `双实例服务探针的 ${half} 一半`, kind: operation === "query" ? "query" : "operation", scope: half, audiences: ["user"],
+      permissions: [...permissions], scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
+  // The project half also offers a query declaring `evidence:collect`, and a command declaring everything but it (S-98's two refusals).
+  const actions = { home: action("home"), project: action("project"), "project-query": action("project", "project-query", "query", ["evidence:collect"]),
+    "project-undeclared": action("project", "project-undeclared", "command", USED.filter(permission => permission !== "evidence:collect")) };
   const owner_files: PluginOwnerFilesDeclaration = { store_name: NAME, entries: [{ name: "notes", kind: "directory" }], read_permission: FILES_READ, write_permission: FILES_WRITE };
   const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: NAME, kind: "app",
     publisher: { publisher_id: "example", signature: `dual-${NAME}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
@@ -49,13 +52,14 @@ function servicesProbe() {
   let next: Use | undefined;
   const half = (which: Half): PluginDefinition => ({ manifest, start(context) {
     services[which] = context.services;
-    return { kind: "app", actions: [{ ...actions[which], handle: async (caller: ActionExecutionContext): Promise<Outcome> => {
+    const handle = async (caller: ActionExecutionContext): Promise<Outcome> => {
       const use = next; next = undefined;
       try { return { outcome: "ok", value: await use!(services as Record<Half, PluginHostServices>, caller) ?? null }; }
       catch (error) {
         return error instanceof Error && "code" in error ? { outcome: String(error.code), message: error.message } : { outcome: "error", message: String(error) };
       }
-    } }] };
+    };
+    return { kind: "app", actions: Object.values(actions).filter(definition => definition.action.scope === which).map(definition => ({ ...definition, handle })) };
   } });
   return { actions, owner_files, home: half("home"), project: half("project"), use(run: Use) { next = run; } };
 }
@@ -69,7 +73,7 @@ async function open(t: TestContext) {
   const project = await home.createProject("双实例服务");
   const context = await home.host.localPersonContext(project.reference), client = home.host.actionClient(project.reference);
   /** Runs `use` inside the action of the half `inside`, as the local person in the project. */
-  const run = async (inside: Half, use: Use) => { probe.use(use); return await client.invoke(context, probe.actions[inside], {}) as Outcome; };
+  const run = async (inside: keyof typeof probe.actions, use: Use) => { probe.use(use); return await client.invoke(context, probe.actions[inside], {}) as Outcome; };
   return { home, project, context, run };
 }
 
@@ -165,29 +169,86 @@ test("BL-368, DUAL-16, S-48: a directory granted to the project half is not read
   assert.equal((own.value as { outcome: string }).outcome, "directory", JSON.stringify(own));
 });
 
-test("S-98 (provisional), S-48: only the Home half is given the evidence collector, only inside its own action, and it deletes what the owner says nothing refers to", { timeout: 60_000 }, async t => {
+test("S-98, S-48: only a partition instance is given services.evidence, a release runs only inside its own action, and a body another holder keeps stays", { timeout: 60_000 }, async t => {
   const s = await open(t);
   const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
-  const held = bodies.write("held body").contentRef, free = bodies.write("free body").contentRef, foreign = "research:not-a-body-of-this-store";
-  const collect = (services: Record<Half, PluginHostServices>) => services.home.evidenceCollector!.collect({ candidates: [held, free, foreign, held], isReferenced: ref => ref === held });
-  // A project instance is given none: the store is the Home's and the ledger it answers for is the Home half's.
-  assert.deepEqual(await s.run("project", services => services.project.evidenceCollector === undefined), { outcome: "ok", value: true });
-  assert.ok(otherInstance(await s.run("project", collect)), "the Home half's handle, inside the project half's action");
-  assert.ok(bodies.has(free), "nothing was deleted by the refused call");
-  const answered = await s.run("home", collect);
-  assert.deepEqual(answered, { outcome: "ok", value: { deleted: [free], kept: [held] } }, JSON.stringify(answered));
-  assert.deepEqual([bodies.has(held), bodies.has(free)], [true, false], "the body the owner holds stays, the one nothing refers to goes, the foreign reference is left alone");
-  // The request is closed: a judgment and a bounded list of references.
-  assert.equal((await s.run("home", services => services.home.evidenceCollector!.collect({ candidates: [held], isReferenced: undefined as never }))).outcome, "actions.input_invalid");
-  assert.equal((await s.run("home", services => services.home.evidenceCollector!.collect({ candidates: Array.from({ length: 10_001 }, (_, index) => `x${index}`), isReferenced: () => true }))).outcome, "actions.input_invalid");
+  const shared = bodies.write("shared body").contentRef, mine = bodies.write("only mine").contentRef, foreign = "research:not-a-body-of-this-store";
+  // The Home half runs in no partition, so it is given none (batch 109: the ledger records each partition's holds).
+  assert.deepEqual(await s.run("home", services => services.home.evidence === undefined), { outcome: "ok", value: true });
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-a", [shared, mine])), { outcome: "ok", value: { held: 2 } });
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-b", [shared])), { outcome: "ok", value: { held: 1 } });
+  // Only the store's own body references are taken: a research package's material is its library's, not a body here.
+  assert.equal((await s.run("project", services => services.project.evidence!.release("source-a", [mine, foreign]))).outcome, "actions.input_invalid");
+  assert.ok(bodies.has(mine), "a refused request gives nothing back");
+  const release = (services: Record<Half, PluginHostServices>) => services.project.evidence!.release("source-a", [shared, mine, shared]);
+  assert.ok(otherInstance(await s.run("home", release)), "the project instance's handle, inside the Home half's action");
+  assert.ok(bodies.has(mine), "nothing was deleted by the refused call");
+  assert.deepEqual(await s.run("project", release), { outcome: "ok", value: { holds_released: 2, bodies_deleted: 1, bodies_kept: 1 } });
+  assert.deepEqual([bodies.has(shared), bodies.has(mine)], [true, false], "the body another holder keeps stays, the one nothing holds goes");
+  // Reclaiming gives back only the named holds of one holder; then nothing holds the shared body and it goes.
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.reclaim("source-b", [shared])), { outcome: "ok", value: { holds_released: 1, bodies_deleted: 1, bodies_kept: 0 } });
+  assert.equal(bodies.has(shared), false);
+  // The request is closed: a holder key of 1 to 200 characters and a bounded list of references.
+  assert.equal((await s.run("project", services => services.project.evidence!.release("", []))).outcome, "actions.input_invalid");
+  assert.equal((await s.run("project", services => services.project.evidence!.hold("x".repeat(201), []))).outcome, "actions.input_invalid");
+  assert.equal((await s.run("project", services => services.project.evidence!.release("source-a", Array.from({ length: 5_001 }, (_, index) => `x${index}`)))).outcome, "actions.input_invalid");
 });
 
-test("S-98 (provisional): a collector handle kept past its call is refused outside every action", { timeout: 60_000 }, async t => {
+test("S-98: a services.evidence handle kept past its call is refused outside every action and deletes nothing", { timeout: 60_000 }, async t => {
   const s = await open(t);
   const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
   const body = bodies.write("kept body").contentRef;
-  let kept: PluginHostServices["evidenceCollector"];
-  await s.run("home", services => { kept = services.home.evidenceCollector; return null; });
-  assert.throws(() => kept!.collect({ candidates: [body], isReferenced: () => false }), { code: "actions.forbidden" });
+  let kept: PluginHostServices["evidence"];
+  await s.run("project", services => { kept = services.project.evidence; return null; });
+  await assert.rejects(kept!.release("source-a", [body]), { code: "actions.forbidden" });
+  await assert.rejects(kept!.reclaim("source-a", [body]), { code: "actions.forbidden" });
   assert.ok(bodies.has(body), "a call outside every action deleted nothing");
+});
+
+test("S-98: a read-only call can neither hold nor give back, an action that does not declare evidence:collect cannot give back, and neither deletes anything", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
+  const body = bodies.write("held body").contentRef, loose = bodies.write("loose body").contentRef;
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-held", [body])), { outcome: "ok", value: { held: 1 } });
+  for (const inside of ["project-query", "project-undeclared"] as const) {
+    for (const [name, use] of [
+      ["hold", (services: Record<Half, PluginHostServices>) => services.project.evidence!.hold("source-new", [loose])],
+      ["release", (services: Record<Half, PluginHostServices>) => services.project.evidence!.release("source-held", [body, loose])],
+      ["reclaim", (services: Record<Half, PluginHostServices>) => services.project.evidence!.reclaim("source-held", [body])],
+    ] as const) {
+      // The declaration is asked of the calls that delete; a hold deletes nothing, so only a read-only call is refused it.
+      if (inside === "project-undeclared" && name === "hold") continue;
+      const answer = await s.run(inside, use);
+      assert.equal(answer.outcome, "actions.forbidden", `${inside} ${name}: ${JSON.stringify(answer)}`);
+      assert.match(answer.message!, inside === "project-query" ? /只读调用/ : /evidence:collect/, `${inside} ${name}`);
+    }
+  }
+  assert.deepEqual([bodies.has(body), bodies.has(loose)], [true, true], "the refused calls deleted nothing");
+  // Nothing was recorded or given back: the held body is still held, and the refused hold left the loose body unheld.
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.release("source-held", [body, loose])),
+    { outcome: "ok", value: { holds_released: 1, bodies_deleted: 2, bodies_kept: 0 } });
+});
+
+test("S-98: a hold or a release still running after its action ended waits for the action's beforeEffect and records nothing", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
+  const body = bodies.write("late body").contentRef, held = bodies.write("held body").contentRef;
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-held", [held])), { outcome: "ok", value: { held: 1 } });
+  // The work starts inside the action and reaches the ledger only after the action answered: its call is over, so its beforeEffect refuses.
+  let release!: () => void;
+  const ended = new Promise<void>(resolve => { release = resolve; });
+  let lateHold!: Promise<unknown>, lateRelease!: Promise<unknown>;
+  assert.deepEqual(await s.run("project", services => {
+    lateHold = (async () => { await ended; return services.project.evidence!.hold("source-late", [body]); })();
+    lateRelease = (async () => { await ended; return services.project.evidence!.release("source-held", [held]); })();
+    lateHold.catch(() => undefined); lateRelease.catch(() => undefined);
+    return null;
+  }), { outcome: "ok", value: null });
+  release();
+  await assert.rejects(lateHold, (error: Error & { code?: string }) => typeof error.code === "string", "a hold after its call ended is refused");
+  await assert.rejects(lateRelease, (error: Error & { code?: string }) => typeof error.code === "string", "a release after its call ended is refused");
+  assert.ok(bodies.has(held), "the refused release deleted nothing");
+  // Nothing was recorded for the late hold: giving its holder's holds back finds none, and the body nobody holds goes.
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.release("source-late", [body])),
+    { outcome: "ok", value: { holds_released: 0, bodies_deleted: 1, bodies_kept: 0 } });
 });

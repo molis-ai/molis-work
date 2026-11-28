@@ -1,5 +1,5 @@
 import type { ProjectReplicaDefinition } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import type { SyncSectionDefinition, SyncSectionTable, SyncSectionsDefinition, SyncSectionsDeclaration, SyncTrackedTable } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
+import type { SyncKeyPart, SyncSectionDefinition, SyncSectionTable, SyncSectionsDefinition, SyncSectionsDeclaration, SyncTrackedTable } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 import { syncError } from './sync-errors.js';
 
 /** Convert an owner's row projection into data-only relations; arbitrary predicates never enter the public service. */
@@ -24,7 +24,9 @@ export function syncSectionsDeclaration(definition: SyncSectionsDefinition): Syn
 export function syncSectionsTracking(definition: SyncSectionsDeclaration): readonly SyncTrackedTable[] {
   return definition.business.flatMap(owner => owner.tables.map(table => {
     const column = table.parent?.projectColumn ?? table.projectColumn ?? 'project_id';
-    return {table:table.name, key:[{column},{literal:definition.kind},{column}],
+    // A table without a partition column holds only its library's partition (U3); the platform binds it.
+    const partition: SyncKeyPart = table.parent || table.columns.includes(column) ? {column} : {scope:'projectId'};
+    return {table:table.name, key:[partition,{literal:definition.kind},partition],
       ...(table.parent ? { lookup: {table:table.parent.table, match:[{column:table.parent.key,rowColumn:table.parent.column}]} } : {})};
   }));
 }

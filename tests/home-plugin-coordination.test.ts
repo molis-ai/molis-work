@@ -9,6 +9,10 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+/** The shipped list, which a test extends the way `project-rows-deletion.test.ts` does (`shippedParts` reads it at each use). */
+type Shipped = (typeof PLATFORM_PLUGIN_REGISTRATIONS)[number];
+const shipped = () => PLATFORM_PLUGIN_REGISTRATIONS as Shipped[];
+
 // specs/archive/repository-anti-corruption/slices/home-instance-project-services.md, PG-025: a Home instance is given no 成果, ports or events
 // (their wiring lives in a project); a plugin that declares them is a dual-instance plugin, whose project half gets them.
 
@@ -17,16 +21,20 @@ const publishing = (manifest: PluginManifest): PluginManifest => ({ ...manifest,
 
 
 /**
- * A Home plugin that is not dual-instance. Every shipped plugin that runs in the Home is dual-instance since the personal plugins moved
- * into partitions (batch 108), so the plain case is made here: Work Brief's identity and its registered Home library, with nothing of its
- * own to answer (no actions, views, routes or 成果) and a start that offers nothing.
+ * A Home plugin that is not dual-instance. No shipped plugin runs in the Home since Work Brief moved into partitions (batch 109-1), so the
+ * case is made here: Work Brief's identity, with its library declared as a Home library, nothing of its own to answer (no actions, views,
+ * routes or 成果) and a start that offers nothing. The Home runtime itself retires in 109-3, and this file with it.
  */
-function plainHomePlugin(): PluginRegistration {
+/** A partition library's declaration as a Home one: a Home library has no partition deletion step or pinned rows of its own. */
+const homeHalf = ({ deletion: _deletion, pinned_rows: _pinned, ...library }: NonNullable<NonNullable<PluginManifest["databases"]>["partition"]>) => library;
+
+function plainHomePlugin(): Shipped {
   const brief = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "work-brief")!;
   const manifest = { ...brief.manifest, actions: [], action_scenes: [], routes: [], ui: { locales: brief.manifest.ui.locales, contributions: [] }, artifacts: { produces: [], consumes: [] },
-    settings_entries: undefined, capabilities: { provides: [], consumes: [] }, read_groups: undefined, presentation: undefined } as PluginManifest;
-  const { dual_instance: _dual, ...runtime } = brief.runtime!;
-  return { ...brief, manifest, runtime: { ...runtime, create: (): PluginDefinition => ({ manifest, async start() { return { kind: "app", views: [], actions: [] }; } }) } };
+    settings_entries: undefined, overview_projection: undefined, capabilities: { provides: [], consumes: [] }, read_groups: undefined, presentation: undefined,
+    runtime: { scope: "home" }, databases: { home: homeHalf(brief.manifest.databases!.partition!) } } as PluginManifest;
+  const create = (): PluginDefinition => ({ manifest, async start() { return { kind: "app", views: [], actions: [] }; } });
+  return { ...brief, manifest, project_runtime: undefined, runtime: { create, package_name: brief.project_runtime!.package_name, factory_export: "createPlainHomePlugin" } };
 }
 
 test("RAC-744 the catalog refuses a Home plugin that declares 成果, ports or events unless its registration marks it dual-instance", () => {
@@ -57,6 +65,9 @@ test("RAC-744 the catalog refuses a Home plugin that declares 成果, ports or e
 
 test("RAC-745 a Home instance that is not dual-instance and declares an event is not started: the plugin's own start is never reached", async t => {
   const subject = plainHomePlugin();
+  // Its Home library is registered the way a shipped one is: from the shipped list, which a test may extend (`shippedParts`).
+  shipped().push(subject);
+  t.after(() => { shipped().splice(shipped().indexOf(subject), 1); });
   const declared = publishing(subject.manifest), type = declared.events!.publishes[0]!;
   const library = subject.manifest.databases?.home;
   assert.ok(library);

@@ -46,30 +46,29 @@ export interface ScheduledOperationExecutor {
 }
 
 const decode = <T>(row: unknown): T | null => row ? JSON.parse((row as { record_json: string }).record_json) as T : null;
-export function getScheduledOperation(db: ScheduleTaskDatabase, projectId: string, id: string): ScheduledOperation | null {
-  return decode(db.prepare("SELECT record_json FROM schedule_operations WHERE project_id = ? AND id = ?").get(projectId, id));
+export function getScheduledOperation(db: ScheduleTaskDatabase, id: string): ScheduledOperation | null {
+  return decode(db.prepare("SELECT record_json FROM schedule_operations WHERE id = ?").get(id));
 }
 export function scheduledOperationForJob(db: ScheduleTaskDatabase, jobId: string): ScheduledOperation | null {
   return decode(db.prepare("SELECT record_json FROM schedule_operations WHERE job_id = ?").get(jobId));
 }
-export function listScheduledOperations(db: ScheduleTaskDatabase, projectId?: string): ScheduledOperation[] {
-  return (projectId ? db.prepare("SELECT record_json FROM schedule_operations WHERE project_id = ?").all(projectId)
-    : db.prepare("SELECT record_json FROM schedule_operations").all()).map(row => decode<ScheduledOperation>(row)!);
+export function listScheduledOperations(db: ScheduleTaskDatabase): ScheduledOperation[] {
+  return db.prepare("SELECT record_json FROM schedule_operations").all().map(row => decode<ScheduledOperation>(row)!);
 }
 export function saveScheduledOperation(db: ScheduleTaskDatabase, operation: ScheduledOperation): void {
-  db.prepare("INSERT INTO schedule_operations (project_id, id, job_id, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, id) DO UPDATE SET record_json = excluded.record_json")
-    .run(operation.projectId, operation.id, operation.jobId, JSON.stringify(operation));
+  db.prepare("INSERT INTO schedule_operations (id, job_id, record_json) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET record_json = excluded.record_json")
+    .run(operation.id, operation.jobId, JSON.stringify(operation));
 }
-export function listScheduledOperationOccurrences(db: ScheduleTaskDatabase, projectId: string, operationId?: string): ScheduledOperationOccurrence[] {
-  return (operationId ? db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ? ORDER BY due_at").all(projectId, operationId)
-    : db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE project_id = ? ORDER BY due_at").all(projectId)).map(row => decode<ScheduledOperationOccurrence>(row)!);
+export function listScheduledOperationOccurrences(db: ScheduleTaskDatabase, operationId?: string): ScheduledOperationOccurrence[] {
+  return (operationId ? db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE operation_id = ? ORDER BY due_at").all(operationId)
+    : db.prepare("SELECT record_json FROM schedule_operation_occurrences ORDER BY due_at").all()).map(row => decode<ScheduledOperationOccurrence>(row)!);
 }
 export function saveScheduledOperationOccurrence(db: ScheduleTaskDatabase, occurrence: ScheduledOperationOccurrence): void {
-  db.prepare("INSERT INTO schedule_operation_occurrences (project_id, operation_id, due_at, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, operation_id, due_at) DO UPDATE SET record_json = excluded.record_json")
-    .run(occurrence.projectId, occurrence.operationId, occurrence.dueAt, JSON.stringify(occurrence));
+  db.prepare("INSERT INTO schedule_operation_occurrences (operation_id, due_at, record_json) VALUES (?, ?, ?) ON CONFLICT(operation_id, due_at) DO UPDATE SET record_json = excluded.record_json")
+    .run(occurrence.operationId, occurrence.dueAt, JSON.stringify(occurrence));
 }
-const occurrenceAt = (db: ScheduleTaskDatabase, run: Pick<ScheduledOperation, "projectId" | "id">, dueAt: string): ScheduledOperationOccurrence | null =>
-  decode(db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ? AND due_at = ?").get(run.projectId, run.id, dueAt));
+const occurrenceAt = (db: ScheduleTaskDatabase, run: Pick<ScheduledOperation, "id">, dueAt: string): ScheduledOperationOccurrence | null =>
+  decode(db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE operation_id = ? AND due_at = ?").get(run.id, dueAt));
 
 /** Called by Scheduler's synchronous prepare, inside the lease claim transaction. */
 export function prepareScheduledOperation(db: ScheduleTaskDatabase, input: ScheduleWakeupInput): void {
@@ -82,13 +81,13 @@ export function prepareScheduledOperation(db: ScheduleTaskDatabase, input: Sched
 function removeScheduledOperation(db: ScheduleTaskDatabase, schedule: ScheduledOperationScheduler, run: ScheduledOperation): void {
     try { schedule.cancel(run.jobId, run.jobOwner); }
     catch (error) { if (!(error instanceof ActionError) || error.code !== "scheduler.job_not_found") throw error; }
-    db.prepare("DELETE FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ?").run(run.projectId, run.id);
-    db.prepare("DELETE FROM schedule_operations WHERE project_id = ? AND id = ?").run(run.projectId, run.id);
+    db.prepare("DELETE FROM schedule_operation_occurrences WHERE operation_id = ?").run(run.id);
+    db.prepare("DELETE FROM schedule_operations WHERE id = ?").run(run.id);
 }
 
-export function cancelInstallationOperations(db: ScheduleTaskDatabase, schedule: ScheduledOperationScheduler, projectId: string, pluginId: string, installationId: string): number {
+export function cancelInstallationOperations(db: ScheduleTaskDatabase, schedule: ScheduledOperationScheduler, pluginId: string, installationId: string): number {
   return db.transaction(() => {
-    const runs = listScheduledOperations(db, projectId).filter(run => run.pluginId === pluginId && run.installationId === installationId);
+    const runs = listScheduledOperations(db).filter(run => run.pluginId === pluginId && run.installationId === installationId);
     runs.forEach(run => removeScheduledOperation(db, schedule, run)); return runs.length;
   }).immediate();
 }
@@ -116,7 +115,7 @@ export function createScheduledOperations(options: {
       return db.transaction(() => {
         const current = describe(identity), operation = current.operations.find(item => item.id === input.operation);
         if (!operation) throw scheduleErrors.job_invalid("只能定时运行这个插件自己的功能：没有 " + input.operation);
-        const count = listScheduledOperations(db, projectId).filter(run => run.pluginId === identity.pluginId && run.installationId === identity.installationId
+        const count = listScheduledOperations(db).filter(run => run.pluginId === identity.pluginId && run.installationId === identity.installationId
           && run.installationGeneration === current.generation && run.state !== "completed").length;
         if (count >= OPERATIONS_PER_INSTALLATION) throw scheduleErrors.job_invalid("这个插件的定时执行已经太多了，先取消一些");
         const id = randomUUID(), title = operation.description || operation.id, due = new Date(at).toISOString();
@@ -131,25 +130,25 @@ export function createScheduledOperations(options: {
     },
     cancel(identity: ScheduledOperationIdentity, input: { scheduleId: string }): { cancelled: boolean } {
       return db.transaction(() => {
-        const current = describe(identity), run = getScheduledOperation(db, projectId, input.scheduleId);
+        const current = describe(identity), run = getScheduledOperation(db, input.scheduleId);
         if (!run || run.state === "completed" || run.pluginId !== identity.pluginId || run.installationId !== identity.installationId || run.installationGeneration !== current.generation) return { cancelled: false };
         removeScheduledOperation(db, schedule, run); return { cancelled: true };
       }).immediate();
     },
-    cancelInstallation: (pluginId: string, installationId: string) => cancelInstallationOperations(db, schedule, projectId, pluginId, installationId),
+    cancelInstallation: (pluginId: string, installationId: string) => cancelInstallationOperations(db, schedule, pluginId, installationId),
   };
 }
 
 /** Reconciliation reads the shared lease, never an old process's in-memory promise. Unknown work is never replayed. */
 export function reconcileScheduledOperations(db: ScheduleTaskDatabase, schedule: ScheduledOperationScheduler): void {
   for (const item of listScheduledOperations(db)) db.transaction(() => {
-    const run = getScheduledOperation(db, item.projectId, item.id), job = run && schedule.get(run.jobId);
+    const run = getScheduledOperation(db, item.id), job = run && schedule.get(run.jobId);
     if (!run || !job || schedule.isExecuting(job.job_id)) return;
     if ("authorization" in job && job.authorization === "needs_confirmation") {
       if (run.state !== "completed" && run.state !== "needs_review") saveScheduledOperation(db, { ...run, state: "needs_confirmation", detail: "调度安装已变化，请确认后恢复" });
       return;
     }
-    const occurrences = listScheduledOperationOccurrences(db, run.projectId, run.id), interrupted = occurrences.filter(entry => entry.state === "running");
+    const occurrences = listScheduledOperationOccurrences(db, run.id), interrupted = occurrences.filter(entry => entry.state === "running");
     if (interrupted.length) {
       const detail = "上次调用已派出但结果未知，请先检查结果，再决定重试或跳过本次";
       interrupted.forEach(entry => saveScheduledOperationOccurrence(db, { ...entry, state: "unknown", detail }));
@@ -174,7 +173,7 @@ export function setScheduledOperationEnabled(db: ScheduleTaskDatabase, schedule:
     if (enabled && (run.state === "needs_confirmation" || run.state === "needs_review" || run.state === "completed")) {
       throw scheduleErrors.job_invalid(run.state === "completed" ? "这条一次性定时操作已经完成，请新建定时" : run.detail ?? "请先在定时操作详情确认恢复方式");
     }
-    if (enabled && run.state === "paused" && listScheduledOperationOccurrences(db, run.projectId, run.id).some(item => item.state === "running" || item.state === "unknown")) {
+    if (enabled && run.state === "paused" && listScheduledOperationOccurrences(db, run.id).some(item => item.state === "running" || item.state === "unknown")) {
       throw scheduleErrors.job_invalid("上次定时操作的结果尚未确认，不能直接重跑");
     }
     saveScheduledOperation(db, { ...run, state: enabled ? "enabled" : run.state === "needs_confirmation" || run.state === "needs_review" || run.state === "completed" ? run.state : "paused" });
@@ -202,7 +201,7 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
   const original = JSON.stringify(run), now = ports.now ?? (() => new Date());
   const assertCurrent = () => {
     wakeup.beforeEffect();
-    if (JSON.stringify(getScheduledOperation(db, run.projectId, run.id)) !== original) throw new Error("定时操作已暂停、取消或改变");
+    if (JSON.stringify(getScheduledOperation(db, run.id)) !== original) throw new Error("定时操作已暂停、取消或改变");
   };
   if (!run.installationId || !run.installationGeneration || !ports.currentInstallation(run)) {
     const detail = "定时操作的原安装身份不可用，需要重新确认归属";
@@ -233,7 +232,7 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
     saveScheduledOperationOccurrence(db, { ...occurrence, startedAt: occurrenceAt(db, run, input.due_at)!.startedAt,
       state: outcome.state, detail: text, finishedAt: outcome.state === "unknown" ? null : now().toISOString() });
     if (outcome.state === "unknown") saveScheduledOperation(db, { ...run, state: "needs_review", detail: "本次调用的结果未知，请先检查结果再决定是否重试：" + text });
-    else if (run.repeat === "none" && !listScheduledOperationOccurrences(db, run.projectId, run.id).some(item => item.state === "pending")) {
+    else if (run.repeat === "none" && !listScheduledOperationOccurrences(db, run.id).some(item => item.state === "pending")) {
       saveScheduledOperation(db, { ...run, state: "completed", detail: text });
     }
   });

@@ -44,7 +44,8 @@ async function newProject(directory: string) {
 /** What the library holds of the project's identity and of Goals' board. */
 const identity = (databasePath: string) => ({
   roots: rows(databasePath, "SELECT project_id FROM project_root").map(row => row.project_id),
-  boards: rows(databasePath, "SELECT project_id FROM boards").map(row => row.project_id),
+  // Goals' board is the library's one row (batch 109-1: `id = 1`, no project column; the partition is the root row's).
+  boards: rows(databasePath, "SELECT id FROM boards").map(row => row.id),
   created: rows(databasePath, "SELECT actor_id FROM events WHERE type = 'io.molis.work.goals:board.created'").map(row => row.actor_id),
 });
 
@@ -75,7 +76,7 @@ test("PG094-10 RAC-261 a new project's library holds its root row and no board; 
 test("PG094-10 RAC-262 opening the project makes Goals' board once, as the creation used to; reopening and the board action add nothing", async t => {
   const { home, projectId, databasePath } = await newProject(await scratch(t));
   await openProject(home, projectId, databasePath, undefined, true);
-  assert.deepEqual(identity(databasePath), { roots: [projectId], boards: [projectId], created: [LOCAL_PERSON_ACTOR_ID] }, "one board, made for the person on this machine");
+  assert.deepEqual(identity(databasePath), { roots: [projectId], boards: [1], created: [LOCAL_PERSON_ACTOR_ID] }, "one board, made for the person on this machine");
   await openProject(home, projectId, databasePath, undefined, true);
   assert.deepEqual(identity(databasePath).created, [LOCAL_PERSON_ACTOR_ID], "reopening makes no second board event");
   const replay = await openProject(home, projectId, databasePath, `project-catalog-create-${projectId}`);

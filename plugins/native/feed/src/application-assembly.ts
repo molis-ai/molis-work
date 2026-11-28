@@ -78,7 +78,7 @@ export function assembleFeedApplication(ports: FeedAssemblyPorts): FeedApplicati
       recoverInterruptedRuns: projectId => recoverInterruptedListenerRuns(sql, projectId),
       checkpoint: (projectId, sourceId, at) => readListenerCheckpoint(sql, projectId, sourceId, at),
       writeCursor: (projectId, sourceId, cursor, at) => writeListenerCursor(sql, projectId, sourceId, cursor, at),
-      deleteSourceState: (projectId, sourceId) => deleteListenerSourceState(sql, projectId, sourceId),
+      deleteSourceState: (_projectId, sourceId) => deleteListenerSourceState(sql, sourceId),
     },
   });
 }

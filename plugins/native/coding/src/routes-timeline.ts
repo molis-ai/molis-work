@@ -157,7 +157,7 @@ const ROUTES: RouteMaker[] = [
       const character_title = saved === "unreadable" ? codingText("coding.server.character-gone") : saved ? saved.title : null;
       const plan = execution.sessions.plan(projectId, record.session_id);
       const plan_revision=execution.sessions.planRevision(projectId,record.session_id);
-      const savedInputs=execution.sessions.inputs.read(projectId,record.session_id),draft=savedInputs.draft,input_revision=savedInputs.revision;
+      const savedInputs=execution.sessions.inputs.read(record.session_id),draft=savedInputs.draft,input_revision=savedInputs.revision;
       const savedConfiguration = context.services?.storage?.get(`configuration:${record.session_id}`);
       const configuration = typeof savedConfiguration === "string" ? nextConfiguration(JSON.parse(savedConfiguration)) : null;
       const savedMcp = context.services?.storage?.get(`mcp:${record.session_id}`);

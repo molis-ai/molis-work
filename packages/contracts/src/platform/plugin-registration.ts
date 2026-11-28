@@ -169,8 +169,6 @@ export interface PluginRegistration {
   readonly manifest: PluginManifest;
   /** Product setup choice for new projects; stored as ordinary membership and freely removable afterwards. */
   readonly default_enabled?: true;
-  /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */
-  readonly companions?: readonly string[];
   /**
    * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
    * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;

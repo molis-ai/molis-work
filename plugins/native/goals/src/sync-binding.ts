@@ -9,6 +9,6 @@ export function syncBindings(context: PluginStartContext): PluginSyncBinding[] {
   return [{...context.services.sync.sections("project_goals", goalSections),hasReference(projectId,assetId,version){
     context.sync!.assertActive();
     if(projectId!==context.project_id||version!==undefined)return false;
-    return database.get("SELECT goal_id FROM goals WHERE project_id=? AND goal_id=?",[projectId,assetId])!==null;
+    return database.get("SELECT goal_id FROM goals WHERE goal_id=?",[assetId])!==null;
   }}];
 }

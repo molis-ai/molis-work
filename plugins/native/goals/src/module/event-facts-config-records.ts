@@ -1,3 +1,4 @@
+import { libraryPartition } from "./library-partition.js";
 import type {
   GoalEventTypeDefinition,
 } from "../contract/goals.js";
@@ -18,13 +19,13 @@ export interface GoalEventConfigRow {
 export class GoalEventConfigRecords {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
-  getConfig(projectId: string, goalId: string): GoalEventConfigRow | null {
+  getConfig(_projectId: string, goalId: string): GoalEventConfigRow | null {
     const row = this.db.prepare(
-      "SELECT * FROM goal_event_configs WHERE project_id = ? AND goal_id = ?",
-    ).get(projectId, goalId) as Row | undefined;
+      "SELECT * FROM goal_event_configs WHERE goal_id = ?",
+    ).get(goalId) as Row | undefined;
     if (!row) return null;
     return {
-      project_id: rowText(row.project_id),
+      project_id: libraryPartition(this.db),
       goal_id: rowText(row.goal_id),
       current_version: Number(row.current_version),
       updated_at: rowText(row.updated_at),
@@ -34,13 +35,13 @@ export class GoalEventConfigRecords {
 
   upsertConfig(row: GoalEventConfigRow): void {
     this.db.prepare(`
-      INSERT INTO goal_event_configs (project_id, goal_id, current_version, updated_at, updated_by)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(project_id, goal_id) DO UPDATE SET
+      INSERT INTO goal_event_configs (goal_id, current_version, updated_at, updated_by)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(goal_id) DO UPDATE SET
         current_version = excluded.current_version,
         updated_at = excluded.updated_at,
         updated_by = excluded.updated_by
-    `).run(row.project_id, row.goal_id, row.current_version, row.updated_at, row.updated_by);
+    `).run(row.goal_id, row.current_version, row.updated_at, row.updated_by);
   }
 
   insertConfigVersion(input: {
@@ -53,10 +54,9 @@ export class GoalEventConfigRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_config_versions (
-        project_id, goal_id, version, actor_id, created_at, config_event_id
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        goal_id, version, actor_id, created_at, config_event_id
+      ) VALUES (?, ?, ?, ?, ?)
     `).run(
-      input.projectId,
       input.goalId,
       input.version,
       input.actorId,
@@ -75,11 +75,10 @@ export class GoalEventConfigRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_types (
-        project_id, goal_id, type_id, type_version, name, purpose, semantic_family,
+        goal_id, type_id, type_version, name, purpose, semantic_family,
         source_json, fields_json, created_at, created_in_config_version, actor_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      input.projectId,
       input.goalId,
       input.type.type_id,
       input.type.version,
@@ -94,42 +93,42 @@ export class GoalEventConfigRecords {
     );
   }
 
-  getType(projectId: string, goalId: string, typeId: string, version: number): GoalEventTypeDefinition | null {
+  getType(_projectId: string, goalId: string, typeId: string, version: number): GoalEventTypeDefinition | null {
     const row = this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_event_types
-      WHERE project_id = ? AND goal_id = ? AND type_id = ? AND type_version = ?
-    `).get(projectId, goalId, typeId, version) as Row | undefined;
+      WHERE goal_id = ? AND type_id = ? AND type_version = ?
+    `).get(goalId, typeId, version) as Row | undefined;
     return row ? mapType(row) : null;
   }
 
-  latestType(projectId: string, goalId: string, typeId: string): GoalEventTypeDefinition | null {
+  latestType(_projectId: string, goalId: string, typeId: string): GoalEventTypeDefinition | null {
     const row = this.db.prepare(`
       SELECT *, rowid AS stored_row FROM goal_event_types
-      WHERE project_id = ? AND goal_id = ? AND type_id = ?
+      WHERE goal_id = ? AND type_id = ?
       ORDER BY type_version DESC LIMIT 1
-    `).get(projectId, goalId, typeId) as Row | undefined;
+    `).get(goalId, typeId) as Row | undefined;
     return row ? mapType(row) : null;
   }
 
-  listLatestTypes(projectId: string, goalId: string): GoalEventTypeDefinition[] {
+  listLatestTypes(_projectId: string, goalId: string): GoalEventTypeDefinition[] {
     const rows = this.db.prepare(`
       SELECT t.*, t.rowid AS stored_row FROM goal_event_types t
       JOIN (
         SELECT type_id, MAX(type_version) AS type_version
         FROM goal_event_types
-        WHERE project_id = ? AND goal_id = ?
+        WHERE goal_id = ?
         GROUP BY type_id
       ) latest ON latest.type_id = t.type_id AND latest.type_version = t.type_version
-      WHERE t.project_id = ? AND t.goal_id = ?
+      WHERE t.goal_id = ?
       ORDER BY t.type_id
-    `).all(projectId, goalId, projectId, goalId) as Row[];
+    `).all(goalId, goalId) as Row[];
     return rows.map(mapType);
   }
 
-  typeExistsOnGoal(projectId: string, goalId: string, typeId: string): boolean {
+  typeExistsOnGoal(_projectId: string, goalId: string, typeId: string): boolean {
     return Boolean(this.db.prepare(`
-      SELECT 1 FROM goal_event_types WHERE project_id = ? AND goal_id = ? AND type_id = ? LIMIT 1
-    `).get(projectId, goalId, typeId));
+      SELECT 1 FROM goal_event_types WHERE goal_id = ? AND type_id = ? LIMIT 1
+    `).get(goalId, typeId));
   }
 }
 

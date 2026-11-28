@@ -19,6 +19,7 @@ import { goalsTreeUiContribution } from "./tree-ui.js";
 import { goalsStageUiContribution } from "./page/workbench-stage.js";
 import { GoalsModule, GoalInputBindings } from "./module/index.js";
 import { requestHash } from "./module/command-support.js";
+import { bindLibraryPartition } from "./module/library-partition.js";
 import { GovernanceCollaborationModule, GovernanceEventDecisions } from "./governance/index.js";
 import { createGoalsApplication } from "./goals-application.js";
 import { PluginSqlite } from "./plugin-sqlite.js";
@@ -100,6 +101,7 @@ export function createGoalsPlugin(): PluginDefinition {
     }
     const directory = actions.directory;
     const sqlite = new PluginSqlite(), clock = () => new Date();
+    bindLibraryPartition(sqlite, projectId);
     const journal = journalOver(sqlite, projectId), attentionPort = attentionOver(sqlite, attention, projectId), ledgerApi = ledgerOver(sqlite, ledger, projectId);
 
     const governanceModule = projectGovernance(sqlite, projectId, journal, approvalHistory);
@@ -170,7 +172,7 @@ export function createGoalsPlugin(): PluginDefinition {
         recordTrustedDecision: input => application.goalEvents.recordTrustedDecision(input),
       }));
     handlers.push(...goalsDecisionOfferHandlers(id => application.goalEvents.readState(projectId, id),
-      id => application.goalTree.readNative(projectId, id), id => goalForDecisionRequest(sqlite, projectId, id),
+      id => application.goalTree.readNative(projectId, id), id => goalForDecisionRequest(sqlite, id),
       { kind: "plugin", scope: "project", project_id: projectId, plugin_id: context.plugin_id,
         install_id: context.install_id, installation_generation: context.installation_generation, provider_id: context.provider_id ?? context.plugin_id }));
     handlers.push(createGoalsWorkPromptHandler(goalId => {

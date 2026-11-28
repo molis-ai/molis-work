@@ -24,7 +24,7 @@ export function createSchedulePlugin(): PluginDefinition {
     }
     const runtime = scheduleRuntimeDatabase(services.project_database, services.scheduler, services.notifications,
       services.overview ? { client: services.overview } : undefined), grants = createScheduleTaskGrants(actions);
-    services.background.keep(SCHEDULE_RECONCILE_JOB, control => reconcileSchedule(runtime, projectId, services.installations!, grants, control, value => { problem = value; },
+    services.background.keep(SCHEDULE_RECONCILE_JOB, control => reconcileSchedule(runtime, services.installations!, grants, control, value => { problem = value; },
       () => services.ui.invalidate()));
     const wakeups = new Set(Object.values(scheduleWakeupActions).map(item => item.capability_id));
     return { kind: "app", sync: syncBindings(context), views: [scheduleUiContribution], actions: scheduleManifest.actions!.map(definition => ({ ...definition,
@@ -34,7 +34,7 @@ export function createSchedulePlugin(): PluginDefinition {
         // Marking a task read changes nothing a page draws until it next reads: it tells no page.
         if (wakeups.has(definition.capability_id)) {
           try {
-            return await scheduleRuntimeWakeup(services, runtime, grants, context.install_id, caller, input as ScheduleWakeupInput, projectId);
+            return await scheduleRuntimeWakeup(services, runtime, grants, context.install_id, caller, input as ScheduleWakeupInput);
           } finally {
             tellOpenPages(services.ui, caller);
           }

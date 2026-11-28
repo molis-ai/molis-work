@@ -37,7 +37,6 @@ const listenerFailures = {
 /** The listener tables, as one current schema; the host composes them into the project database baseline. */
 export const LISTENER_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS listener_instances (
-      project_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
       cursor_json TEXT NOT NULL DEFAULT '{}',
       state TEXT NOT NULL CHECK (state IN ('idle', 'listening', 'retry_wait', 'quarantined')),
@@ -47,11 +46,10 @@ export const LISTENER_SCHEMA_SQL = `
       lease_owner TEXT,
       lease_expires_at TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
+      PRIMARY KEY (source_id)
     );
 
     CREATE TABLE IF NOT EXISTS listener_deliveries (
-      project_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
       operation_id TEXT NOT NULL,
       raw_event_id TEXT NOT NULL,
@@ -66,15 +64,14 @@ export const LISTENER_SCHEMA_SQL = `
       last_error_code TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id, raw_event_id)
+      PRIMARY KEY (source_id, raw_event_id)
     );
     CREATE INDEX IF NOT EXISTS listener_deliveries_recovery_idx
-      ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
+      ON listener_deliveries(source_id, state, updated_at, raw_event_id);
 
     -- The run ledger belongs to Listener Host and names its Source by id only: the Source table is modules/sources' own, and
     -- a Source's runs are forgotten explicitly (deleteListenerSourceState), never through another owner's foreign key.
     CREATE TABLE IF NOT EXISTS feed_source_runs (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       run_id TEXT NOT NULL,
       operation_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
@@ -89,11 +86,11 @@ export const LISTENER_SCHEMA_SQL = `
       started_at TEXT NOT NULL,
       completed_at TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, run_id),
-      UNIQUE (project_id, operation_id)
+      PRIMARY KEY (run_id),
+      UNIQUE (operation_id)
     );
     CREATE INDEX IF NOT EXISTS feed_source_runs_project_source_idx
-      ON feed_source_runs(project_id, source_id, started_at DESC);
+      ON feed_source_runs(source_id, started_at DESC);
 `;
 
 export function readListenerCheckpoint(
@@ -103,12 +100,12 @@ export function readListenerCheckpoint(
   at = new Date().toISOString(),
 ): ListenerCheckpoint {
   const row = db.get(`
-    SELECT * FROM listener_instances WHERE project_id = ? AND source_id = ?
-  `, projectId, sourceId) as Row | undefined;
+    SELECT * FROM listener_instances WHERE source_id = ?
+  `, sourceId) as Row | undefined;
   // A read writes nothing: a source nobody has listened to has the idle checkpoint the first write would make (a Runtime Feed reads through
   // a client that cannot write, and a listing of sources is not a reason to open a transaction).
-  return mapCheckpoint(row ?? { project_id: projectId, source_id: sourceId, cursor_json: "{}", state: "idle", attempt: 0, retry_at: null,
-    last_error_code: null, updated_at: at });
+  return mapCheckpoint(row ?? { source_id: sourceId, cursor_json: "{}", state: "idle", attempt: 0, retry_at: null,
+    last_error_code: null, updated_at: at }, projectId);
 }
 
 export function writeListenerCursor(
@@ -121,19 +118,18 @@ export function writeListenerCursor(
   ensureCheckpointRow(db, projectId, sourceId, at);
   db.run(`
     UPDATE listener_instances SET cursor_json = ?, updated_at = ?
-    WHERE project_id = ? AND source_id = ?
-  `, JSON.stringify(cursor ?? {}), at, projectId, sourceId);
+    WHERE source_id = ?
+  `, JSON.stringify(cursor ?? {}), at, sourceId);
   return readListenerCheckpoint(db, projectId, sourceId, at);
 }
 
 export function deleteListenerSourceState(
   db: FeedSql,
-  projectId: string,
   sourceId: string,
 ): void {
-  db.run("DELETE FROM listener_deliveries WHERE project_id = ? AND source_id = ?", projectId, sourceId);
-  db.run("DELETE FROM feed_source_runs WHERE project_id = ? AND source_id = ?", projectId, sourceId);
-  db.run("DELETE FROM listener_instances WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+  db.run("DELETE FROM listener_deliveries WHERE source_id = ?", sourceId);
+  db.run("DELETE FROM feed_source_runs WHERE source_id = ?", sourceId);
+  db.run("DELETE FROM listener_instances WHERE source_id = ?", sourceId);
 }
 
 export function getListenerRunByOperationId(
@@ -142,9 +138,9 @@ export function getListenerRunByOperationId(
   operationId: string,
 ): ListenerRunRecord | null {
   const row = db.get(`
-    SELECT * FROM feed_source_runs WHERE project_id = ? AND operation_id = ?
-  `, projectId, operationId) as Row | undefined;
-  return row ? mapRun(row) : null;
+    SELECT * FROM feed_source_runs WHERE operation_id = ?
+  `, operationId) as Row | undefined;
+  return row ? mapRun(row, projectId) : null;
 }
 
 export function listListenerRuns(
@@ -154,15 +150,18 @@ export function listListenerRuns(
 ): ListenerRunRecord[] {
   // A bounded directory read: each source's latest runs, as many as its settings list as pull history (`SOURCE_RUN_HISTORY`), newest
   // first, with only the receipt fields that list and the rate-limit notice read (when to retry, the RSS reply's status).
-  if (page?.summaries) return (db.all(`SELECT project_id,run_id,source_id,operation_id,phase,outcome,empty,error_code,
+  if (page?.summaries) return (db.all(`SELECT run_id,source_id,operation_id,phase,outcome,empty,error_code,
     CASE WHEN json_extract(receipt_json,'$.rss_http.status') IS NULL THEN json_object('retry_after_at',json_extract(receipt_json,'$.retry_after_at'))
       ELSE json_object('retry_after_at',json_extract(receipt_json,'$.retry_after_at'),'rss_http',json_object('status',json_extract(receipt_json,'$.rss_http.status'))) END AS receipt_json,
     created_count,deduped_count,recovery_count,started_at,completed_at,updated_at FROM
-    (SELECT *,ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY started_at DESC,run_id) AS position FROM feed_source_runs WHERE project_id = ?)
-    WHERE position <= ? ORDER BY started_at DESC, run_id`, projectId, SOURCE_RUN_HISTORY) as Row[]).map(mapRun);
-  if (page) return (db.all(`SELECT * FROM feed_source_runs WHERE project_id = ?${page.source_id ? " AND source_id = ?" : ""}${page.after_id ? " AND run_id > ?" : ""} ORDER BY run_id LIMIT ?`,
-    projectId, ...(page.source_id ? [page.source_id] : []), ...(page.after_id ? [page.after_id] : []), Math.min(200, Math.max(1, page.limit))) as Row[]).map(mapRun);
-  return (db.all("SELECT * FROM feed_source_runs WHERE project_id = ? ORDER BY started_at DESC, run_id", projectId) as Row[]).map(mapRun);
+    (SELECT *,ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY started_at DESC,run_id) AS position FROM feed_source_runs)
+    WHERE position <= ? ORDER BY started_at DESC, run_id`, SOURCE_RUN_HISTORY) as Row[]).map(row => mapRun(row, projectId));
+  if (page) {
+    const where = [...(page.source_id ? ["source_id = ?"] : []), ...(page.after_id ? ["run_id > ?"] : [])];
+    return (db.all(`SELECT * FROM feed_source_runs${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY run_id LIMIT ?`,
+      ...(page.source_id ? [page.source_id] : []), ...(page.after_id ? [page.after_id] : []), Math.min(200, Math.max(1, page.limit))) as Row[]).map(row => mapRun(row, projectId));
+  }
+  return (db.all("SELECT * FROM feed_source_runs ORDER BY started_at DESC, run_id") as Row[]).map(row => mapRun(row, projectId));
 }
 
 export function saveListenerRun(
@@ -173,11 +172,11 @@ export function saveListenerRun(
   if (current) assertRunTransition(current.phase, run.phase);
   db.run(`
     INSERT INTO feed_source_runs (
-      project_id, run_id, operation_id, source_id, phase, outcome, empty,
+      run_id, operation_id, source_id, phase, outcome, empty,
       error_code, receipt_json, created_count, deduped_count, recovery_count,
       started_at, completed_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(project_id, run_id) DO UPDATE SET
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(run_id) DO UPDATE SET
       phase = excluded.phase,
       outcome = excluded.outcome,
       empty = excluded.empty,
@@ -188,27 +187,27 @@ export function saveListenerRun(
       recovery_count = excluded.recovery_count,
       completed_at = excluded.completed_at,
       updated_at = excluded.updated_at
-  `, run.project_id, run.run_id, run.operation_id, run.source_id, run.phase, run.outcome, run.empty ? 1 : 0, run.error_code, run.connector_receipt == null ? null : JSON.stringify(run.connector_receipt), run.created_count, run.deduped_count, run.recovery_count, run.started_at, run.completed_at, run.updated_at);
+  `, run.run_id, run.operation_id, run.source_id, run.phase, run.outcome, run.empty ? 1 : 0, run.error_code, run.connector_receipt == null ? null : JSON.stringify(run.connector_receipt), run.created_count, run.deduped_count, run.recovery_count, run.started_at, run.completed_at, run.updated_at);
   return getListenerRunByOperationId(db, run.project_id, run.operation_id)!;
 }
 
 export function recoverInterruptedListenerRuns(
   db: FeedSql,
-  projectId: string,
+  _projectId: string,
   at = new Date().toISOString(),
 ): number {
   const result = db.run(`
     UPDATE feed_source_runs
     SET phase = 'interrupted', error_code = 'listener.process_interrupted', updated_at = ?
-    WHERE project_id = ? AND phase = 'running'
-  `, at, projectId);
+    WHERE phase = 'running'
+  `, at);
   db.run(`
     UPDATE listener_instances
     SET state = 'retry_wait', attempt = attempt + 1,
         last_error_code = 'listener.process_interrupted', lease_owner = NULL,
         lease_expires_at = NULL, updated_at = ?
-    WHERE project_id = ? AND state = 'listening'
-  `, at, projectId);
+    WHERE state = 'listening'
+  `, at);
   return Number(result.changes);
 }
 
@@ -455,27 +454,27 @@ export class ListenerHost implements ListenerHostApi {
   private pendingDeliveries(projectId: string, sourceId: string, operationId: string): Delivery[] {
     return (this.db.all(`
       SELECT * FROM listener_deliveries
-      WHERE project_id = ? AND source_id = ? AND operation_id = ?
+      WHERE source_id = ? AND operation_id = ?
         AND state IN ('pending', 'retry_wait')
       ORDER BY created_at, raw_event_id
-    `, projectId, sourceId, operationId) as Row[]).map(mapDelivery);
+    `, sourceId, operationId) as Row[]).map(row => mapDelivery(row, projectId));
   }
 
-  private hasQuarantinedDelivery(projectId: string, sourceId: string, operationId: string): boolean {
+  private hasQuarantinedDelivery(_projectId: string, sourceId: string, operationId: string): boolean {
     return Boolean(this.db.get(`
       SELECT 1 FROM listener_deliveries
-      WHERE project_id = ? AND source_id = ? AND operation_id = ? AND state = 'quarantined'
+      WHERE source_id = ? AND operation_id = ? AND state = 'quarantined'
       LIMIT 1
-    `, projectId, sourceId, operationId));
+    `, sourceId, operationId));
   }
 
   private delivery(projectId: string, sourceId: string, rawEventId: string): Delivery {
     const row = this.db.get(`
       SELECT * FROM listener_deliveries
-      WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-    `, projectId, sourceId, rawEventId) as Row | undefined;
+      WHERE source_id = ? AND raw_event_id = ?
+    `, sourceId, rawEventId) as Row | undefined;
     if (!row) throw listenerErrors.delivery_failed("Raw Event 没有先持久化");
-    return mapDelivery(row);
+    return mapDelivery(row, projectId);
   }
 
   private acquireLease(projectId: string, sourceId: string, operationId: string): void {
@@ -485,32 +484,32 @@ export class ListenerHost implements ListenerHostApi {
     const result = this.db.run(`
       UPDATE listener_instances
       SET state = 'listening', lease_owner = ?, lease_expires_at = ?, updated_at = ?
-      WHERE project_id = ? AND source_id = ?
+      WHERE source_id = ?
         AND (lease_owner IS NULL OR lease_owner = ? OR lease_expires_at <= ?)
-    `, operationId, expiresAt, at.toISOString(), projectId, sourceId, operationId, at.toISOString());
+    `, operationId, expiresAt, at.toISOString(), sourceId, operationId, at.toISOString());
     if (Number(result.changes) !== 1) {
       throw listenerErrors.lease_busy("这个 Source 已有 Listener 正在处理");
     }
   }
 
-  private releaseLease(projectId: string, sourceId: string, operationId: string): void {
+  private releaseLease(_projectId: string, sourceId: string, operationId: string): void {
     this.db.run(`
       UPDATE listener_instances
       SET lease_owner = NULL, lease_expires_at = NULL
-      WHERE project_id = ? AND source_id = ? AND lease_owner = ?
-    `, projectId, sourceId, operationId);
+      WHERE source_id = ? AND lease_owner = ?
+    `, sourceId, operationId);
   }
 
   private advanceCursor(projectId: string, sourceId: string, cursor: unknown): void {
     writeListenerCursor(this.db, projectId, sourceId, cursor, this.now().toISOString());
   }
 
-  private resetCheckpoint(projectId: string, sourceId: string, at: string): void {
+  private resetCheckpoint(_projectId: string, sourceId: string, at: string): void {
     this.db.run(`
       UPDATE listener_instances
       SET state = 'idle', attempt = 0, retry_at = NULL, last_error_code = NULL, updated_at = ?
-      WHERE project_id = ? AND source_id = ?
-    `, at, projectId, sourceId);
+      WHERE source_id = ?
+    `, at, sourceId);
   }
 
   private updateCheckpointFailure(
@@ -528,8 +527,8 @@ export class ListenerHost implements ListenerHostApi {
     this.db.run(`
       UPDATE listener_instances
       SET state = ?, attempt = attempt + 1, retry_at = ?, last_error_code = ?, updated_at = ?
-      WHERE project_id = ? AND source_id = ?
-    `, state, state === "retry_wait" ? computedRetry : null, errorCode, this.now().toISOString(), projectId, sourceId);
+      WHERE source_id = ?
+    `, state, state === "retry_wait" ? computedRetry : null, errorCode, this.now().toISOString(), sourceId);
   }
 
   private now(): Date {
@@ -546,9 +545,9 @@ interface Delivery {
   attempt: number;
 }
 
-function mapDelivery(row: Row): Delivery {
+function mapDelivery(row: Row, projectId: string): Delivery {
   return {
-    project_id: text(row.project_id),
+    project_id: projectId,
     source_id: text(row.source_id),
     operation_id: text(row.operation_id),
     event: parseJson<ConnectorRawEvent>(row.raw_event_json, {
@@ -563,9 +562,9 @@ function mapDelivery(row: Row): Delivery {
   };
 }
 
-function mapCheckpoint(row: Row): ListenerCheckpoint {
+function mapCheckpoint(row: Row, projectId: string): ListenerCheckpoint {
   return {
-    project_id: text(row.project_id),
+    project_id: projectId,
     source_id: text(row.source_id),
     cursor: parseJson<unknown>(row.cursor_json, {}),
     state: text(row.state) as ListenerCheckpoint["state"],
@@ -576,11 +575,11 @@ function mapCheckpoint(row: Row): ListenerCheckpoint {
   };
 }
 
-function mapRun(row: Row): ListenerRunRecord {
+function mapRun(row: Row, projectId: string): ListenerRunRecord {
   return {
     run_id: text(row.run_id),
     operation_id: text(row.operation_id),
-    project_id: text(row.project_id),
+    project_id: projectId,
     source_id: text(row.source_id),
     phase: text(row.phase) as ListenerRunRecord["phase"],
     outcome: optionalText(row.outcome) as ListenerRunRecord["outcome"],
@@ -638,16 +637,16 @@ function assertRunTransition(
 
 function ensureCheckpointRow(
   db: FeedSql,
-  projectId: string,
+  _projectId: string,
   sourceId: string,
   at: string,
 ): void {
   db.run(`
     INSERT OR IGNORE INTO listener_instances (
-      project_id, source_id, cursor_json, state, attempt, retry_at,
+      source_id, cursor_json, state, attempt, retry_at,
       last_error_code, lease_owner, lease_expires_at, updated_at
-    ) VALUES (?, ?, '{}', 'idle', 0, NULL, NULL, NULL, NULL, ?)
-  `, projectId, sourceId, at);
+    ) VALUES (?, '{}', 'idle', 0, NULL, NULL, NULL, NULL, ?)
+  `, sourceId, at);
 }
 
 function sha256(value: string): string {
@@ -703,8 +702,8 @@ async function acceptListenerDelivery(
         UPDATE listener_deliveries
         SET state = 'accepted', attempt = attempt + 1, signal_id = ?,
             last_error_code = NULL, updated_at = ?
-        WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-      `, receipt.signal.signal_id, at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
+        WHERE source_id = ? AND raw_event_id = ?
+      `, receipt.signal.signal_id, at, delivery.source_id, delivery.event.raw_event_id);
       if (delivery.event.cursor_after !== undefined) {
         advanceCursor(delivery.project_id, delivery.source_id, delivery.event.cursor_after);
       }
@@ -730,8 +729,8 @@ async function acceptListenerDelivery(
     await write(() => db.run(`
       UPDATE listener_deliveries
       SET state = ?, attempt = ?, last_error_code = ?, updated_at = ?
-      WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-    `, quarantined ? "quarantined" : "retry_wait", nextAttempt, quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed", at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id));
+      WHERE source_id = ? AND raw_event_id = ?
+    `, quarantined ? "quarantined" : "retry_wait", nextAttempt, quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed", at, delivery.source_id, delivery.event.raw_event_id));
     throw listenerFailures[quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed"]("Raw Event 尚未得到 Signal Receipt，cursor 不会推进");
   }
 }
@@ -740,10 +739,10 @@ const isThenable = (value: unknown): boolean => typeof value === "object" && val
 
 const INSERT_LISTENER_DELIVERY_SQL = `
   INSERT OR IGNORE INTO listener_deliveries (
-    project_id, source_id, operation_id, raw_event_id, provider_dedupe_id,
+    source_id, operation_id, raw_event_id, provider_dedupe_id,
     raw_event_json, cursor_after_json, adapter_plugin_id, adapter_version,
     state, attempt, signal_id, last_error_code, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
 `;
 
 function persistListenerDeliveries(
@@ -761,7 +760,6 @@ function persistListenerDeliveries(
   db.transaction(() => {
     for (const event of events) {
       db.run(INSERT_LISTENER_DELIVERY_SQL,
-        input.project_id,
         input.source_id,
         input.operation_id,
         event.raw_event_id,

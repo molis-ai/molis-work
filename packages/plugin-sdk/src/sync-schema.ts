@@ -17,7 +17,9 @@ export function parseSyncTracking(value: unknown): readonly SyncTrackedTable[] {
     }
     if(entry.existsAny!==undefined)for(const inputRelation of list(entry.existsAny)){
       const relation=row(inputRelation,['table','match']);if(!id(relation.table))fail();
-      for(const inputPair of list(relation.match)){const pair=row(inputPair,['column','rowColumn']);if(!id(pair.column)||!id(pair.rowColumn))fail();}
+      // An empty match is any row of that table: the platform allows it only where neither table has a partition column (batch 109-1).
+      if(!Array.isArray(relation.match)||relation.match.length>100)fail();
+      for(const inputPair of relation.match){const pair=row(inputPair,['column','rowColumn']);if(!id(pair.column)||!id(pair.rowColumn))fail();}
     }
     if (entry.lookup !== undefined) {
       const lookup = row(entry.lookup,['table','match']); if (!id(lookup.table)) fail();

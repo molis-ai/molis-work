@@ -60,7 +60,7 @@ function refused(t: TestContext, sql: string, schema?: string): void {
 test("S-upgrade-plugin-steps-scope: the platform's tables, another plugin's, and their rows: DROP TABLE, ALTER TABLE \"GOALS\", DELETE FROM, CREATE INDEX on them", t => {
   for (const sql of ["DROP TABLE plugin_project_databases", "DROP TABLE project_root", "DROP TABLE goals", "DROP TABLE neighbour_items",
     "ALTER TABLE \"GOALS\" ADD COLUMN probe TEXT", "DELETE FROM goals", "DELETE FROM neighbour_items", "UPDATE project_root SET project_id = project_id",
-    "INSERT INTO probe_notes (note) SELECT note FROM neighbour_items", "CREATE INDEX probe_on_goals ON goals(project_id)",
+    "INSERT INTO probe_notes (note) SELECT note FROM neighbour_items", "CREATE INDEX probe_on_goals ON goals(title)",
     "CREATE UNIQUE INDEX neighbour_items_probe ON neighbour_items(id)", "DROP INDEX neighbour_items_note"]) refused(t, sql);
 });
 

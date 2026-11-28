@@ -211,12 +211,12 @@ test("B2R-05/06 a new Agent image job sees another active partition's settings a
 test("B2R-06 remote settings notify an active installation after commit and isolate a failing listener", async t => {
   const home = mkdtempSync(join(tmpdir(), "images-setting-notify-"));
   const space = ensureStorageSpace(home, personalStorageSpace("https://auth.example.test", "molis-work", "image-owner"));
-  const heard: string[] = [];
+  const heard: string[][] = [];
   const f = await imageRuntimeFixture(t, { home, context(context) {
     if (context.project_id === "project-b") {
       const settings = context.services!.personSettings!;
       settings.onChange(async () => { throw new Error("listener failed"); });
-      settings.onChange(() => { heard.push(...settings.list().map(row => row.key)); });
+      settings.onChange(() => { heard.push(settings.list().map(row => row.key)); });
     }
     return context;
   } });
@@ -232,14 +232,16 @@ test("B2R-06 remote settings notify an active installation after commit and isol
     value: { space_id: space.spaceId, data: { value: { services: [] } } } };
   const store = openPersonSettings(home);
   try {
-    store.db.exec("CREATE TRIGGER fail_settings_head BEFORE INSERT ON person_settings_replica_heads BEGIN SELECT RAISE(ABORT,'rollback test'); END");
+    store.db.exec("CREATE TRIGGER fail_settings_cursor BEFORE UPDATE OF cursor ON person_settings_replica_state BEGIN SELECT RAISE(ABORT,'rollback test'); END");
     assert.throws(() => registration.withReplica(replica => replica.receive(event)), /rollback test/u);
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.deepEqual(heard, []);
-    store.db.exec("DROP TRIGGER fail_settings_head");
+    assert.equal(registration.withReplica(replica => replica.cursor()), 0);
+    store.db.exec("DROP TRIGGER fail_settings_cursor");
     registration.withReplica(replica => replica.receive(event));
     await new Promise<void>(resolve => setImmediate(resolve));
-    assert.deepEqual(heard, ["connections"]);
+    assert.deepEqual(heard, [["connections"]]);
+    assert.equal(registration.withReplica(replica => replica.cursor()), event.revision);
   } finally { store.close(); }
 });
 

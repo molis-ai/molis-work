@@ -25,7 +25,8 @@ function assertAnswerDataset(home: string, project: string, formId: string, tabl
     assert.deepEqual(saved.columns.map(column => column.name), ["request_id", "提交时间", "来源", "姓名", '团队, "方向"']);
     const rows = saved.rows.map(row => saved.columns.map(column => row.cells[column.id]));
     assert.equal(rows.length, 2);
-    assert.deepEqual(rows.find(row => row[3] === "林一"), ["a1", answerTimes["林一"], "试填", "林一", '设计；"体验"']);
+    // #2361: the CSV joins an answer's lines with a locale-neutral "; " (no hard-coded zh separator).
+    assert.deepEqual(rows.find(row => row[3] === "林一"), ["a1", answerTimes["林一"], "试填", "林一", '设计; "体验"']);
     assert.deepEqual(rows.find(row => row[3] === "周二"), ["a2", answerTimes["周二"], "试填", "周二", "工程"]);
     // The CSV contract uses semicolons for answer line breaks; the source retains the literal LF.
     assert.equal(forms.listSubmissions(formId).find(answer => answer.answers.name === "林一")!.answers.team, '设计\n"体验"');

@@ -224,8 +224,25 @@ for (const stop of ["cancel", "revoke"] as const) {
 }
 
 
+/**
+ * Message and background actions reach only letters and commands between the calling plugin's own sessions (R8 rules 3, 4, since
+ * #2345): the runtime here holds letter `m1` and command `t1` between Coding's sessions `sdk-a` and `sdk-b`, and `sdk-other` belongs
+ * to another plugin.
+ */
+function codingOwnsSessions(fixture: Awaited<ReturnType<typeof codingSdkRuntime>>) {
+  const install_id = fixture.platform.supervisor.state("io.molis.work.coding")?.install_id;
+  assert.ok(install_id);
+  const owner = { project_id: P, plugin_id: "io.molis.work.coding", install_id, actor_id: "web-user" };
+  fixture.adapter.sessionLifecycle!.readOwner = async ref => ref.session_id === "sdk-other" ? { ...owner, plugin_id: "io.molis.work.other" } : owner;
+  type Letter = Awaited<ReturnType<NonNullable<typeof fixture.adapter.messages>["read"]>>[number];
+  type Task = Awaited<ReturnType<NonNullable<typeof fixture.adapter.background>["read"]>>[number];
+  fixture.adapter.messages!.read = async () => [{ message_id: "m1", from_session: "sdk-a", to_session: "sdk-b" } as Letter, { message_id: "m-other", from_session: "sdk-a", to_session: "sdk-other" } as Letter];
+  fixture.adapter.background!.read = async () => [{ task_id: "t1", session_id: "sdk-a" } as Task, { task_id: "t-other", session_id: "sdk-other" } as Task];
+}
+
 test("RAC-189 Coding message cancel and background stop keep the request fence through real Host actions", async t => {
   const fixture = await codingSdkRuntime(t); await fixture.create("app");
+  codingOwnsSessions(fixture);
   const seen: string[] = [];
   fixture.adapter.messages!.cancel = async () => { seen.push("cancel"); };
   fixture.adapter.background!.stop = async () => { seen.push("stop"); return true; };
@@ -251,11 +268,17 @@ test("RAC-189 Coding message cancel and background stop keep the request fence t
     assert.equal((cancelled?.body as { code?: string }).code, "actions.forbidden");
     assert.deepEqual(seen, [], "request cancellation still reaches the action's effect boundary");
   }
+  for (const path of ["messages/m-other/cancel", "background/t-other/stop"]) {
+    const foreign = await dispatch(path, async () => {});
+    assert.equal((foreign?.body as { code?: string }).code, "agent.session_unknown", JSON.stringify(foreign));
+    assert.deepEqual(seen, [], "a letter or command touching another plugin's session never reaches the Runtime");
+  }
 });
 
 test("RAC-189 Coding message reads also carry their request control into the actual Host action", async t => {
   const fixture = await codingSdkRuntime(t); await fixture.create("app");
   await fixture.sessions.setRuntimeSession(noEffect, P, "app", "sdk-app", new Date().toISOString());
+  codingOwnsSessions(fixture);
   const seen: string[] = [];
   fixture.adapter.messages!.read = async () => { seen.push("read"); return []; };
   const response = await fixture.platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.coding/sessions/app/messages", actor_id: "web-user",

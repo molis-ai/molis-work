@@ -325,17 +325,18 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       strip.insertBefore(item,next?next.parentElement:null);panel.append(body);
     });
   };
-  const draw=(target)=>{
+  // chosen: a tab picked by an open or a click, whose plain pick cancels a target still waiting for its frame; a mere redraw keeps it.
+  const draw=(target,chosen=false)=>{
     drawPanes();marks();
     const id=current();
     for(const button of buttons()){const on=button.dataset.sideTab===id;button.toggleAttribute('data-side-closed',!tabOf(button.dataset.sideTab));button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
-    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=body.querySelector('[data-side-frame]');if(inner){if(target){targets.set(inner,target);ready(inner,()=>{if(open&&body.dataset.sideBody===current()&&targets.get(inner)===target&&inner.contentWindow){targets.delete(inner);inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin);}});}else targets.delete(inner);}}}
+    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=body.querySelector('[data-side-frame]');if(inner){if(target){targets.set(inner,target);ready(inner,()=>{if(open&&body.dataset.sideBody===current()&&targets.get(inner)===target&&inner.contentWindow){targets.delete(inner);inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin);}});}else if(chosen)targets.delete(inner);}}}
     expanded();imVisible();drawUndo();reveal();
   };
   const dropHelpTab=()=>{const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');if(helpBtn)helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
   const choose=id=>{if(!offered(id))return;const state=getState();if(tabOf(id))ops.selectSide(state,id);else{ops.openSide(state,id,views());ops.setSideOpen(state,open);}};
   const select=(id,target,restore=false)=>{
-    if(!restore)choose(id);if(id&&id!=='help')dropHelpTab();draw(target);
+    if(!restore)choose(id);if(id&&id!=='help')dropHelpTab();draw(target,!restore);
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{

@@ -120,7 +120,7 @@ test("export has a version and no secrets or absolute paths; importing twice add
   await assert.rejects(
     memory.importScope(person(), "project", {
       ...exportedWithState,
-      entries: [{ ...exportedDisabled, text: "未知字段拒绝", applies: { unknown_scope_key: ["x"] } as never }],
+      entries: [{ ...exportedDisabled, text: "已退役实体键拒绝", applies: { custom_entity_ids: ["x"] } as never }],
     }),
     /第 1 条的适用情境损坏/,
   );

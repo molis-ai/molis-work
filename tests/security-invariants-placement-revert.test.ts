@@ -6,7 +6,7 @@ import { placementCallPorts } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
   ActionError, bindObjectMoveHandler, defineObjectExportAction, defineObjectMoveAction, defineObjectPutAction, defineObjectRemoveAction, defineSubjectContextAction, sameCarriedRecord,
-  subjectContext, type ActionCallContext, type ActionExecutionContext,
+  subjectContext, type ActionCallContext, type ActionExecutionContext, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { CarrySettling, PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
@@ -407,7 +407,7 @@ test("AP-12 carryMove checks beforeEffect before noteCarrying, clears carrying e
           client: {
             ...scope.client,
             discover: scope.client.discover.bind(scope.client),
-            invoke: async (caller, ref, input) => {
+            invoke: async (caller: ActionCallContext, ref: ActionReference, input: unknown) => {
               const result = await origInvoke(caller, ref, input);
               if (ref.capability_id === exporter.capability_id) { exportCalls += 1; cancelled = true; }
               return result;

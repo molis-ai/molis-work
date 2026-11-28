@@ -452,7 +452,7 @@ test("PluginInstallService dual-instance confirm wraps Home upgrade in installOt
     const v1 = dualPackage(publisher, { version: "1.0.0" });
     const v2 = dualPackage(publisher, { version: "2.0.0", upgradesFrom: ["1.0.0"] });
     const ledger = new MemoryPluginConsentLedger();
-    ledger.pinPublisher({ key_id: publisher.identity, public_key_spki_base64: v1.publisher_key.public_key_spki_base64, label: "Dual", pinned_at: "2026-11-27T00:00:00.000Z", pinned_by: LOCAL_PERSON_ACTOR_ID });
+    ledger.pinPublisher({ key_id: publisher.identity, public_key_spki_base64: v1.publisher_key!.spki_base64, label: "Dual", pinned_at: "2026-11-27T00:00:00.000Z", pinned_by: LOCAL_PERSON_ACTOR_ID });
     const packages = new SandboxPackageStore(home);
     const parsedV1 = readSandboxPackage(v1.payload);
     packages.save(v1, parsedV1);
@@ -463,9 +463,12 @@ test("PluginInstallService dual-instance confirm wraps Home upgrade in installOt
       homeInstalled: async () => [{
         record: {
           install_id: "inst-dual", plugin_id: DUAL_PLUGIN_ID, version: "1.0.0", state: "running",
-          execution: "sandbox", publisher_trust: "pinned", publisher_signature: publisher.identity,
-          manifest_digest: "d1", installation_generation: "g1", deployment: "local", grants: [],
+          execution: "sandbox", publisher_id: parsedV1.manifest.publisher.publisher_id,
+          publisher_trust: "pinned", publisher_signature: publisher.identity,
+          manifest_digest: "d1", installation_generation: "g1", deployment: "local",
+          selected_entrypoint: "plugin.mjs", grants: [], recovery_count: 0, last_error_code: null,
           installed_at: "2026-11-27T00:00:00.000Z", updated_at: "2026-11-27T00:00:00.000Z",
+          uninstalled_at: null, retain_private_data: false,
         },
         manifest: parsedV1.manifest,
       }],
@@ -483,7 +486,7 @@ test("PluginInstallService dual-instance confirm wraps Home upgrade in installOt
         events.push("project-fail");
         throw new Error("project half failed");
       },
-      control: async () => "disabled",
+      control: async () => ({ state: "disabled" }),
     });
     const who = { project_id: "proj-1", actor_id: LOCAL_PERSON_ACTOR_ID };
     const preview = await service.preview({ bundle: v2 }, who);

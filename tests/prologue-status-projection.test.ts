@@ -210,7 +210,7 @@ test("CORE-05 CORE-06: coalescing timer cancels on unsubscribe/close and invalid
   const restoredSession = { session_id: "restored-session", runtime_id: "prologue" };
   const savedRun: SavedRun = {
     ref: { session_id: restoredSession.session_id, run_id: "prior-run" },
-    frozen,
+    frozen: savedFrozen,
     task: "Saved task",
     started_at: "2026-11-26T00:00:00Z",
     terminal: true,

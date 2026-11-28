@@ -262,19 +262,19 @@ test("RAC-2419: a card names the package that declared it, and the package name 
   const escapedHtml = renderConnectorsSettings({
     connectors: [{
       connector_id: "escape-probe", title: "Escape Probe", summary: "s", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
-      method_options: [{ kind: "token", support: "paste", links: [] }],
+      method_options: [{ kind: "token", support: "paste", note: "", links: [] }],
       card: {
         credential: {
-          separator: '":data-xss="1',
+          separator: '":data-xss="1' as never,
           fields: [{ label: "ID", type: 'text" onmouseover="alert(1)' as never, placeholder: "" }],
         },
       },
     }],
     connector_connections: [{
       connection_id: "conn-escape", service_id: "escape-probe", display_name: "Probe", account_label: null,
-      source: "managed", state: "connected", auth_method: "token",
+      source: "managed", enabled: true, state: "connected", auth_method: "token",
     }],
-  }, primitives);
+  }, { readText: L, escapeHtml, icon: () => "" });
   assert.doesNotMatch(escapedHtml, /onmouseover="alert\(1\)"/);
   assert.doesNotMatch(escapedHtml, /data-xss="1"/);
   assert.match(escapedHtml, /data-credential-separator="&quot;:data-xss=&quot;1"/);

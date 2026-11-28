@@ -9,8 +9,6 @@ import type { MemoryCaller } from "./service.js";
 
 /** The longest memory text, in characters. */
 export const MAX_TEXT = 400;
-/** Closed key set of `MemoryApplies`; unknown keys are rejected generically without plugin-specific checks. */
-const APPLIES_KEYS = new Set(["plugin_ids", "object_kinds", "objects", "task", "from", "until"]);
 /** The Molis memory package envelope version; the SDK export payload is versioned separately. */
 export const MEMORY_PACKAGE_VERSION = /* @version format.memory.export */ 1 as const;
 
@@ -92,7 +90,7 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
     if (typeof item.origin !== "string") refuse(`${at}缺少出处`);
     if (item.applies !== undefined) {
       if (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies)
-        || Object.keys(item.applies).some(key => !APPLIES_KEYS.has(key))) refuse(`${at}的适用情境损坏`);
+        || Object.keys(item.applies).some(key => key !== "plugin_ids" && key.endsWith("_ids"))) refuse(`${at}的适用情境损坏`);
       if (item.applies.objects !== undefined && (!Array.isArray(item.applies.objects) || item.applies.objects.length > 20
         || item.applies.objects.some(obj => !obj || typeof obj !== "object" || Array.isArray(obj)
           || typeof obj.plugin_id !== "string" || !obj.plugin_id.trim()

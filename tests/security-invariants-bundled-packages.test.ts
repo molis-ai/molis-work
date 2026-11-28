@@ -277,7 +277,7 @@ test("S-bundled-packages an unsigned bundled pack is signed by this Home only wh
   } finally { await rm(b, { recursive: true, force: true }); }
 });
 
-test("S-reserved-host-prefix custom bundled directory IDs are recognized and a corrupt signed file fails closed without falling back to localKey", mac, async () => {
+test("S-reserved-host-prefix custom bundled directory IDs are recognized and a corrupt signed file fails closed without falling back to localKey", async () => {
   const base = await mkdtemp(join(tmpdir(), "molis-work-release-binding-"));
   const folder = join(base, "bundled-plugins");
   const home = join(base, "home");

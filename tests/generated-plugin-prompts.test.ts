@@ -160,11 +160,12 @@ test("updatePluginAgentDefinitions writes disabled fallback even when only a pen
     const definition: PluginDefinition = { manifest, execution: "sandbox", instructions: releaseInstructions(v1, [v1]),
       start() { throw new Error("never started"); } };
     const installId = "install-pending-only";
+    const platformHome = { directory: home } as Parameters<typeof updatePluginAgentDefinitions>[0];
     const releaseHold = await withPendingPluginEnable("gen-pending", async () =>
-      registerPluginAgentDefinitions({ directory: home }, definition, installId, { installation_generation: "gen-pending" } as PluginInstanceRecord));
+      registerPluginAgentDefinitions(platformHome, definition, installId, { installation_generation: "gen-pending" } as PluginInstanceRecord));
     assert.ok(releaseHold);
     assert.equal(homeAgentDefinitions(home).hasPrompt(v1.pluginId, "summary"), false, "pending hold is not visible while enabling");
-    updatePluginAgentDefinitions({ directory: home }, definition, installId, "disabled");
+    updatePluginAgentDefinitions(platformHome, definition, installId, "disabled");
     const disabled = homeAgentDefinitions(home).prompt(`${v1.pluginId}/summary`);
     assert.equal(disabled.source.kind === "plugin" && disabled.source.state, "disabled", "disabled fallback is registered and remembered despite pending hold");
     releaseHold!();

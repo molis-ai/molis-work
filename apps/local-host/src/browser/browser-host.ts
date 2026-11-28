@@ -158,12 +158,14 @@ export class BrowserHost {
     });
     cdp.onClose(() => { if (this.current === running) child.kill("SIGTERM"); });
     await cdp.send("Target.setDiscoverTargets", { discover: true });
-    await cdp.send("Target.setAutoAttach", {
+    // A popup is held at start until its page has adopted it (`Target.attachedToTarget` below). Only when the browser cannot
+    // auto-attach does `Target.targetCreated` adopt it instead; doing both races, and the held popup is then never resumed.
+    const autoAttached = await cdp.send("Target.setAutoAttach", {
       autoAttach: true,
       waitForDebuggerOnStart: true,
       flatten: true,
       filter: [{ type: "page", exclude: false }],
-    }).catch(() => undefined);
+    }).then(() => true, () => false);
     await cdp.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: this.downloadDir, eventsEnabled: true });
     cdp.on("Target.targetInfoChanged", params => this.route(params, (page, info) => page.targetInfo(info)));
     cdp.on("Target.attachedToTarget", params => {
@@ -185,7 +187,7 @@ export class BrowserHost {
     });
     cdp.on("Target.targetCreated", params => {
       const info = params.targetInfo as { targetId: string; type: string; openerId?: string };
-      if (info.type !== "page" || !info.openerId) return;
+      if (autoAttached || info.type !== "page" || !info.openerId) return;
       for (const page of this.pages.values()) {
         if (page.owns(info.openerId) && !page.owns(info.targetId) && !page.adopting(info.targetId)) {
           void page.adoptPopup(info.targetId);

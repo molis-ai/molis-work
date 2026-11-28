@@ -96,7 +96,6 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     : mode === "after-run" ? uiText.text("coding.sent.after-run") : "";
   const againText = () => uiText.text("coding.sent.again");
   let item: Sent | null = null;
-  let drawnLocale: string | null = null;
   let initial: { signature: string; id: string } | undefined;
   const start = async <Result>(id: string, command: Record<string, unknown>): Promise<Result> => {
     const direct = typeof command.task === "string" && command.task.trim() && ["continued_from", "reask", "plan_revision", "continue_step_board_of", "origin_task", "wait_for"].every(key => command[key] === undefined);
@@ -169,14 +168,15 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     bubble(id, run) {
       observe(id, run.turns.map(turn => turn.steer?.key));
       if (item?.id !== id) return null;
-      const mark = item.lost ? "1" : "0";
-      const locale = activeUiLocale();
-      if (item.node?.dataset.lost !== mark || drawnLocale !== locale) {
+      // `data-lost` stays "1"/"0" (read by tests and styles); the language the bubble was drawn in is kept apart so a
+      // language change redraws the same bubble in place.
+      const mark = item.lost ? "1" : "0", locale = activeUiLocale() ?? "";
+      if (item.node?.dataset.lost !== mark || item.node.dataset.locale !== locale) {
         const node = item.node = document.createElement("article");
-        drawnLocale = locale;
         node.className = "coding-turn is-sending";
         node.dataset.kind = "user";
         node.dataset.lost = mark;
+        node.dataset.locale = locale;
         node.textContent = item.text;
         node.append(small(item.lost ? uiText.text("coding.sent.lost") : uiText.text("coding.sent.sending")));
       }

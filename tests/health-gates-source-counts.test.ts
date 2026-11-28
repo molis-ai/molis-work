@@ -341,6 +341,8 @@ test("44C PSD-02 G1 named exceptions: an unlisted file, a stale row, a wrong cou
   assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), {}, { required: true }).join("\n"), /a\.ts: the file names no plugin any more/);
   assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": row }), { "a.ts": 1 }, { required: true }).join("\n"), /"count" is 2 but the file measures 1/);
   assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, kind: "because" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"kind" must be one of/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, kind: "batches-106-109" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"kind" must be one of/);
+  assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, kind: "upgrade-step" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"kind" must be one of/);
   assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, reason: "ok" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"reason" needs/);
   assert.match(pluginNameExceptionProblems(snapshot({ "a.ts": { ...row, decided: "today" } }), { "a.ts": 2 }, { required: true }).join("\n"), /"decided" is the date/);
   assert.match(pluginNameExceptionProblems(snapshot({ "b.ts": row, "a.ts": row }), { "a.ts": 2, "b.ts": 2 }, { required: true }).join("\n"), /sorted order/);

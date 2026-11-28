@@ -92,7 +92,7 @@ export function saveGoalContext(context: PluginStartContext, sessionId: string, 
 export async function resolveGoalContext(context: PluginStartContext, sessionId: string, goalId: string | null, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   if (!goalId) return null;
   const saved = savedGoalContext(context, sessionId);
-  if (!saved || saved.snapshot.goal.goal_id !== goalId) throw codingLocalFailure("coding.server.goal-not-fixed", "关联目标尚未固定上下文，请打开目标并确认版本");
+  if (!saved || saved.snapshot.goal.goal_id !== goalId) throw codingLocalFailure("coding.server.goal-not-fixed", "关联目标还没有固定版本，请打开目标并确认版本");
   const current = await currentGoalContext(context, goalId, control);
   if (current.reference.artifact_id !== saved.reference.artifact_id) throw codingLocalFailure("coding.server.goal-context-changed", "目标内容或进展已变化，请打开关联目标查看并确认新版本后再发送");
   return saved;

@@ -644,11 +644,18 @@ test("audit-ui-copy.mjs enforces tightened zh rules, cross-language en/ja leak c
   assert.deepEqual(srcRules("apps/desktop/adapters/tauri/src/tray.rs", "// static ENGLISH: AtomicBool = AtomicBool::new(false);"), []);
   assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const x = locale === "en" ? "Save" : "保存";'), ["src.binary-locale-switch"]);
   assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const x = lang.startsWith("en") ? "Save" : "保存";'), ["src.binary-locale-switch"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const useEn = (locale: string) => !locale.toLowerCase().startsWith("zh");'), ["src.binary-locale-switch"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const x = !locale.toLowerCase().startsWith("zh") ? "Save" : "保存";'), ["src.binary-locale-switch"]);
   assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const en = document.documentElement.lang === "en";'), ["src.binary-locale-switch"]);
   assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const x = locale === "en" ? "Save" : locale === "ja" ? "保存" : "保存";'), []);
   assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'new Intl.DateTimeFormat("zh-CN").format(now);'), ["src.hardcoded-intl-zh"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'new Intl.DateTimeFormat("en-US").format(now);'), ["src.hardcoded-intl-zh"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'new Intl.NumberFormat("ja-JP").format(count);'), ["src.hardcoded-intl-zh"]);
   assert.deepEqual(srcRules("packages/plugin-sdk/src/action-cards.ts", 'new Intl.DateTimeFormat("en-CA").format(now);'), []);
   assert.deepEqual(srcRules("modules/shelf/src/ocr.ts", 'const langs = ["zh-Hans", "en-US"];'), []);
   assert.deepEqual(srcRules("apps/workbench/src/page.ts", 'const doc = `<!doctype html><html lang="zh-CN"><body></body></html>`;'), ["src.hardcoded-html-lang-zh"]);
+  assert.deepEqual(srcRules("apps/workbench/src/page.ts", 'const doc = `<!doctype html><html lang="en-US"><body></body></html>`;'), ["src.hardcoded-html-lang-zh"]);
   assert.deepEqual(srcRules("apps/workbench/src/page.ts", '// <html lang="zh-CN">\nconst doc = `<html lang="${htmlLang()}">`;'), []);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const label = count.toLocaleString("en-US");'), ["src.bare-to-locale-string"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const label = count.toLocaleString(activeLocale);'), []);
 });

@@ -110,7 +110,7 @@ const PROD_JS_TS_EXT = /\.(?:ts|mts|tsx|js|mjs)$/u;
 const PROD_NATIVE_EXT = /\.(?:rs|swift)$/u;
 const PROD_HTML_EXT = /\.html?$/iu;
 const EXCLUDED_SOURCE_PATH = /(?:^|\/)(?:tests?|dist|node_modules|fixtures)\/|\.test\.(?:ts|mts|js|mjs)$|\.d\.ts$/u;
-const SOURCE_PREFILTER = /(?:AtomicBool|ENGLISH|isEnglish|Intl\.|zh(?:-CN|-Hans)?|toLocale(?:Date|Time)?String\s*\(|startsWith\s*\(\s*["'](?:en|zh)|(?:===|!==|==|!=)\s*["'](?:en|zh))/iu;
+const SOURCE_PREFILTER = /(?:AtomicBool|ENGLISH|isEnglish|Intl\.|<html\b|zh(?:-CN|-Hans)?|toLocale(?:Date|Time)?String\s*\(|startsWith\s*\(\s*["'](?:en|zh)|(?:===|!==|==|!=)\s*["'](?:en|zh))/iu;
 
 const NATIVE_BINARY_LOCALE_FLAG = /\b(?:IS_)?ENGLISH\s*:\s*AtomicBool\b|\bstatic\s+(?:mut\s+)?(?:IS_)?ENGLISH\b|\b(?:var|let)\s+isEnglish\s*(?::\s*Bool)?\s*=/u;
 const LOCALE_EXPR = String.raw`(?:\b(?:currentLocale|activeLocale|pageLocale|baseLanguageOf|getLocale|resolveLocale)\s*\([^)\n]*\)|\b(?:locale|lang|language|uiLocale|webLocale|activeLang|tag|base)\b)`;
@@ -126,27 +126,59 @@ const BINARY_LOCALE_CONDITIONAL = new RegExp(
   `\\bif\\s*\\([^)\\n]*${LOCALE_EXPR}\\s*(?:===|!==|==|!=)\\s*["'](?:en|zh)(?:-[A-Za-z]+)?["']`,
   "u",
 );
-const BINARY_STARTSWITH_TERNARY = /\b(?:locale|lang|language|uiLocale|webLocale|activeLang|tag)\b[^;\n]{0,40}\.startsWith\(\s*["'](?:en|zh)["']\s*\)\s*\?/u;
-const BINARY_LOCALE_VAR = /\b(?:const|let|var)\s+(?:en|isEn|english|isEnglish|zh|isZh|chinese)\s*=\s*[^;\n]*(?:lang|locale|language)[^;\n]*(?:===|!==|\.startsWith)\s*\(?["'](?:en|zh)["']/u;
+const BINARY_STARTSWITH_TERNARY = new RegExp(
+  `!?\\s*${LOCALE_EXPR}[^;\\n]{0,60}\\.startsWith\\(\\s*["'](?:en|zh)["']\\s*\\)\\s*\\?`,
+  "u",
+);
+const BINARY_STARTSWITH_ARROW = new RegExp(
+  `=>\\s*(?:\\{\\s*return\\s+)?!?\\s*(?:Boolean\\s*\\(\\s*)?${LOCALE_EXPR}[^;\\n]{0,60}\\.startsWith\\(\\s*["'](?:en|zh)["']\\s*\\)`,
+  "u",
+);
+const BINARY_LOCALE_VAR = /\b(?:const|let|var)\s+(?:en|isEn|english|isEnglish|zh|isZh|chinese|nonZh|notZh|nonEn|notEn)\s*=\s*[^;\n]*(?:lang|locale|language|tag|base)[^;\n]*(?:===|!==|\.startsWith)\s*\(?\s*["'](?:en|zh)(?:-[A-Za-z]+)?["']/u;
 const THREE_WAY_JA_CHECK = /["']ja(?:-[A-Za-z]+)?["']/u;
-const HARDCODED_INTL_ZH = /\bIntl\.(?:DateTimeFormat|NumberFormat|Collator|RelativeTimeFormat|ListFormat)\(\s*["']zh(?:-CN|-Hans)?["']/u;
-const HARDCODED_HTML_LANG_ZH = /<html\b[^>]*\blang\s*=\s*["']zh(?:-CN|-Hans)?["']/iu;
-const BARE_TO_LOCALE_STRING = /\.toLocale(?:Date|Time)?String\(\s*(?:\)|\[\s*\]\s*[,)])/u;
+const BCP47_LITERAL = String.raw`["'][a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*["']`;
+const HARDCODED_INTL_LOCALE = new RegExp(
+  `\\bIntl\\.(?:DateTimeFormat|NumberFormat|Collator|RelativeTimeFormat|ListFormat)\\(\\s*${BCP47_LITERAL}`,
+  "u",
+);
+const HARDCODED_HTML_LANG = new RegExp(`<html\\b[^>]*\\blang\\s*=\\s*${BCP47_LITERAL}`, "iu");
+const BARE_TO_LOCALE_STRING = new RegExp(
+  `\\.toLocale(?:Date|Time)?String\\(\\s*(?:\\)|\\[\\s*\\]\\s*[,)]|${BCP47_LITERAL})`,
+  "u",
+);
 
-// Narrow, explicitly documented exemptions ONLY for legitimate multi-locale helpers (never masking real binary UI bugs).
+// Narrow, explicitly documented exemptions ONLY for legitimate multi-locale or non-UI machine helpers (never masking real binary UI bugs).
 const BINARY_LOCALE_EXEMPTIONS = [
   {
     file: "apps/local-host/src/material-source-providers.ts",
     pattern: /if\s*\(\s*base\s*===\s*["']en["']\s*\)\s*return\s*`\$\{intl\},en;q=0\.9`/u,
   },
+];
+
+const HARDCODED_INTL_EXEMPTIONS = [
   {
-    file: "apps/workbench/src/settings-renderer.ts",
-    pattern: /NETWORK_DOC_HREF\[currentLocale\(\)\s*===\s*["']zh["']\s*\?\s*["']zh["']\s*:\s*["']en["']\]/u,
+    // Machine-only ISO YYYY-MM-DD calendar day key (never shown to the user).
+    file: "packages/plugin-sdk/src/action-cards.ts",
+    pattern: /new\s+Intl\.DateTimeFormat\(\s*["']en-CA["']/u,
+  },
+  {
+    // Machine-only wall-clock formatToParts (hourCycle h23) and IANA timeZone validation.
+    file: "packages/plugin-sdk/src/card-values.ts",
+    pattern: /new\s+Intl\.DateTimeFormat\(\s*["']en(?:-US)?["']/u,
+  },
+  {
+    // IANA timeZone validation (no formatted output).
+    file: "packages/plugin-sdk/src/ui/message-format.ts",
+    pattern: /new\s+Intl\.DateTimeFormat\(\s*["']en["']\s*,\s*\{\s*timeZone\s*:/u,
   },
 ];
 
 function isExemptBinaryLocaleLine(file, line) {
   return BINARY_LOCALE_EXEMPTIONS.some((entry) => entry.file === file && entry.pattern.test(line));
+}
+
+function isExemptHardcodedIntlLine(file, line) {
+  return HARDCODED_INTL_EXEMPTIONS.some((entry) => entry.file === file && entry.pattern.test(line));
 }
 
 function stripHtmlComments(source) {
@@ -264,8 +296,8 @@ export function auditSourceText(file, source, options = {}) {
     const line = lines[i];
     if (!line.trim()) continue;
     if (isHtml) {
-      if (HARDCODED_HTML_LANG_ZH.test(line)) {
-        emit(i, "src.hardcoded-html-lang-zh", "Hardcoded <html lang=\"zh-CN\"> in production HTML (use active htmlLang())", line);
+      if (HARDCODED_HTML_LANG.test(line)) {
+        emit(i, "src.hardcoded-html-lang-zh", "Hardcoded <html lang=\"...\"> in production HTML (use active htmlLang())", line);
       }
       continue;
     }
@@ -279,21 +311,22 @@ export function auditSourceText(file, source, options = {}) {
     const nextTrimmed = (lines[i + 1] ?? "").trimStart();
     const isBinaryTernary = BINARY_LOCALE_TERNARY_LINE.test(line)
       || (BINARY_LOCALE_TERNARY_HEAD.test(line) && nextTrimmed.startsWith("?"))
-      || BINARY_STARTSWITH_TERNARY.test(line);
+      || BINARY_STARTSWITH_TERNARY.test(line)
+      || BINARY_STARTSWITH_ARROW.test(line);
     const isBinaryConditional = BINARY_LOCALE_CONDITIONAL.test(line);
     if ((isBinaryTernary || isBinaryConditional) && !THREE_WAY_JA_CHECK.test(windowText) && !isExemptBinaryLocaleLine(file, line)) {
       emit(i, "src.binary-locale-switch", "Binary zh/en locale switch in production source (must handle 3+ locales)", line);
-    } else if (BINARY_LOCALE_VAR.test(line) && !isExemptBinaryLocaleLine(file, line)) {
+    } else if (BINARY_LOCALE_VAR.test(line) && !THREE_WAY_JA_CHECK.test(windowText) && !isExemptBinaryLocaleLine(file, line)) {
       emit(i, "src.binary-locale-switch", "Binary zh/en locale flag in production source (must handle 3+ locales)", line);
     }
-    if (HARDCODED_INTL_ZH.test(line)) {
-      emit(i, "src.hardcoded-intl-zh", "Hardcoded zh-CN Intl formatter in production source (use active locale)", line);
+    if (HARDCODED_INTL_LOCALE.test(line) && !isExemptHardcodedIntlLine(file, line)) {
+      emit(i, "src.hardcoded-intl-zh", "Hardcoded locale literal in Intl formatter in production source (use active locale)", line);
     }
-    if (HARDCODED_HTML_LANG_ZH.test(line)) {
-      emit(i, "src.hardcoded-html-lang-zh", "Hardcoded <html lang=\"zh-CN\"> in production UI source (use active htmlLang())", line);
+    if (HARDCODED_HTML_LANG.test(line)) {
+      emit(i, "src.hardcoded-html-lang-zh", "Hardcoded <html lang=\"...\"> in production UI source (use active htmlLang())", line);
     }
     if (checkBareToLocale && BARE_TO_LOCALE_STRING.test(line)) {
-      emit(i, "src.bare-to-locale-string", "Bare UI .toLocaleString() ignores active Molis Work locale (pass active locale or use SDK format)", line);
+      emit(i, "src.bare-to-locale-string", "UI .toLocaleString() omits active locale or hardcodes a locale literal (pass active locale or use SDK format)", line);
     }
   }
   return findings;

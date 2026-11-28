@@ -121,6 +121,16 @@ export function initialVersionProblems({ manifests, hostViews, registrations, ve
     check(owner, "Manifest", "schema_version", manifest.schema_version);
     check(owner, "Manifest", "host_api_version", manifest.host_api_version);
     for (const action of manifest.actions ?? []) check(owner, "action", action.capability_id, action.version);
+    for (const scope of ["home", "partition", "project"]) {
+      const database = manifest.databases?.[scope];
+      if (database) check(owner, `${scope} database`, database.store_name ?? scope, database.version);
+    }
+    for (const artifact of manifest.artifacts?.produces ?? []) {
+      check(owner, "artifact", artifact.artifact_type_id, artifact.schema_version);
+    }
+    for (const collection of manifest.sync?.collections ?? []) {
+      check(owner, "sync collection", collection.id ?? collection.collection_id ?? "collection", collection.schema_version);
+    }
     if (manifest.agent) agent(owner, manifest.agent);
     for (const method of manifest.methods ?? []) content(owner, "method", method.skill_id, method.version);
   }

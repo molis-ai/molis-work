@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 3992,
+  "total": 3990,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -579,7 +579,7 @@
     "tests/plugin-sync-foundation.test.ts": 1,
     "tests/plugin-sync-service.test.ts": 2,
     "tests/plugin-tab-groups-multiselect.test.ts": 2,
-    "tests/plugin-tab-groups.e2e.test.ts": 3,
+    "tests/plugin-tab-groups.e2e.test.ts": 1,
     "tests/plugin-trust-view.test.ts": 3,
     "tests/plugin-upgrade-steps.test.ts": 7,
     "tests/plugin-words-owned.test.ts": 1,

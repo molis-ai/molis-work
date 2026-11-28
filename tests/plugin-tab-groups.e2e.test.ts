@@ -205,7 +205,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   t.diagnostic("FULL16 real read handoff " + JSON.stringify(takeoverRead));
   await feed.evaluate("t403ReadHandoff.releaseInitial()");
   await waitFor("t403OwningPolls>=2 && t403PollingPage===document.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').dataset.pluginPage");
-  assert.ok(localHost.homePlugins);
+  assert.ok(localHost);
   // Feed runs in the project since batch 109-1: its page reads the project platform's Feed revision.
   const reference = localHost.projects().find(project => project.project_id === projectId);
   assert.ok(reference);

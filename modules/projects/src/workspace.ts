@@ -196,8 +196,8 @@ export class ProjectWorkspaceService {
       if (place.project_id !== projectId) return refuse("这是另一个项目的默认输出目录，不能关联到这个项目");
       return this.member(place.row?.workspace_id ?? this.ownOutputRow(projectId), projectId, actorId, boundBy, roles);
     }
-    let verified = true;
-    try { realpathSync.native(place.canonical_path); } catch { verified = false; }
+    let verified = false;
+    try { verified = statSync(realpathSync.native(place.canonical_path)).isDirectory(); } catch { verified = false; }
     if (!verified) {
       if (intent === "explicit") throw projectDirectoryErrors.directory_missing("找不到这个文件夹，或没有权限读取它");
       return null;
@@ -287,7 +287,9 @@ export class ProjectWorkspaceService {
     if (typeof workspacePath !== "string" || !path.isAbsolute(workspacePath.trim())) throw catalogErrors.workspace_required("新的工作目录必须是绝对路径");
     const place = this.repository.workspaces.placeOf(workspacePath.trim());
     if (place.kind !== "folder") throw projectDirectoryErrors.directory_duplicate("不能把文件夹修到 Molis Work 的输出目录里");
-    try { realpathSync.native(place.canonical_path); } catch { throw projectDirectoryErrors.directory_missing("找不到新的位置，或没有权限读取它"); }
+    let isDir = false;
+    try { isDir = statSync(realpathSync.native(place.canonical_path)).isDirectory(); } catch { isDir = false; }
+    if (!isDir) throw projectDirectoryErrors.directory_missing("找不到新的位置，或没有权限读取它");
     if (place.row) throw projectDirectoryErrors.directory_duplicate("新的位置已经是另一个目录，不会合并两个目录");
     if (this.repository.workspaces.hasSourceLinks(workspaceId)) this.assertOutsideHome(place.canonical_path);
     this.repository.workspaces.repairWorkspacePath(workspaceId, place.canonical_path, path.basename(place.canonical_path) || place.canonical_path, this.now());
@@ -303,7 +305,11 @@ export class ProjectWorkspaceService {
     if ("workspace_path" in target) {
       const place = this.repository.workspaces.placeOf(target.workspace_path.trim());
       if (place.kind === "folder") {
-        try { this.assertOutsideHome(realpathSync.native(place.canonical_path)); } catch (error) {
+        try {
+          const resolved = realpathSync.native(place.canonical_path);
+          if (!statSync(resolved).isDirectory()) throw projectDirectoryErrors.directory_missing("找不到这个文件夹，或没有权限读取它");
+          this.assertOutsideHome(resolved);
+        } catch (error) {
           if (error instanceof ActionError) throw error;
           throw projectDirectoryErrors.directory_missing("找不到这个文件夹，或没有权限读取它");
         }

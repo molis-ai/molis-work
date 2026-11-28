@@ -37,12 +37,12 @@ export function boardUpdate(page: Page, id: string, data: BoardData & { readonly
   if ((root.dataset.codingBoardOpen === "true" || directory.dataset.codingCurrentFace === "taskboard") && s.boardAll.key !== key) {
     s.boardAll.key = key;
     void api<BoardRead>(page, sessionPath(id) + "/taskboard").then(value => {
-      if (s.current !== id) return;
+      if (s.current !== id || s.boardAll.key !== key) return;
       s.boardAll = { key, id, value };
       taskboard.update(id, mergedBoard(page, id, data));
     }).catch(() => {
       // The whole-session read failed: the board keeps what the window has, and asks again with the next read.
-      s.boardAll.key = "";
+      if (s.boardAll.key === key) s.boardAll.key = "";
     });
   }
 }

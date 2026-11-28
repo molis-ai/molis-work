@@ -146,3 +146,73 @@ test("a later round continues the same unfinished graph, keeping a person's chan
     await assert.rejects(host.start("prologue", request({ continue_step_board_of: second.ref.run_id }), authority), /已经结束/, "a finished graph is not reopened");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+test("F-horiz-runtime-05: reconciling a step keeps planVersion in version space so subsequent amendments still enforce CAS", { timeout: 45_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-step-reconcile-cas-"));
+  await writeFile(join(root, "sample.txt"), "EVIDENCE");
+  let turn = 0;
+  let release: () => void = () => {};
+  const held = new Promise<void>(resolve => { release = resolve; });
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    turn++;
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    const system = JSON.stringify(body.system), messages = JSON.stringify(body.messages);
+    const board = system.match(/本轮确认计划在项目任务图 (\S+) 上/)?.[1], prefix = system.match(/编号以 (\S+?)\. 开头/)?.[1];
+    assert.ok(board && prefix, system);
+    const version = Number([...messages.matchAll(/board (?:at|[^ ]+ at) version (\d+)/g)].at(-1)?.[1] || 1);
+    const report = (node: string, state: string, note: string) => response("", { name: "board-report", input: { board, node: `${prefix}.${node}`, state, note, version } });
+    if (turn === 1) return response("", { name: "board-read", input: { board } });
+    if (turn === 2) return report("step-1", "running", "开始第一步");
+    if (turn === 3) return report("step-1", "succeeded", "第一步完成");
+    if (turn === 4) { await held; return response("Finished."); }
+    return response("Finished.");
+  });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.step-reconcile-cas", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: new AgentReviewQueue(),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const plan = { source: { artifact_id: "fixed-plan", version: 1 }, title: "Plan", steps: [
+    { id: "step-1", title: "第一步", acceptance: "完成第一步" }, { id: "step-2", title: "第二步", acceptance: "完成第二步" }] };
+  const material = { material_id: "plan", source_artifact_id: plan.source.artifact_id, source_version: 1, title: plan.title, text: JSON.stringify(plan) };
+  try {
+    const host = new AgentHost(); host.register(adapter);
+    const session = await adapter.createSession({ ...owner, directory, title: "ReconcileCAS" });
+    const started = await host.start("prologue", { ...owner, session, directory, role_id: "builder", task: "Follow steps.", execution_plan: plan, text_materials: [material] },
+      { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] });
+    const deadline = Date.now() + 10_000;
+    while (turn < 4) {
+      if (Date.now() > deadline) throw new Error("model never reached the held turn");
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const before = (await adapter.read(started.ref)).step_board!;
+    const v0 = before.version;
+    const afterReconcile = await adapter.collaboration!.revise(
+      started.ref,
+      { kind: "reconcile", node: "step-1", action: "confirm-done", note: "人工核对通过" },
+      v0,
+      "user",
+    );
+    const v1 = afterReconcile.version;
+    assert.ok(v1 > v0 && v1 < 1_000_000, `expected small monotonic version after reconcile, got v0=${v0}, v1=${v1}`);
+    const afterEstimate = await adapter.collaboration!.revise(
+      started.ref,
+      { kind: "estimate", node: "step-2", story_points: 3, reason: "重估" },
+      v1,
+      "user",
+    );
+    const v2 = afterEstimate.version;
+    assert.ok(v2 > v1, `expected subsequent board mutation to advance planVersion, got v1=${v1}, v2=${v2}`);
+    await assert.rejects(
+      adapter.collaboration!.revise(started.ref, { kind: "estimate", node: "step-2", story_points: 5, reason: "旧版本写入" }, v1, "user"),
+      /刚刚有更新/,
+      "stale expectedVersion from reconcile must be rejected after subsequent step changes",
+    );
+    release();
+    const until = Date.now() + 20_000;
+    let view = await adapter.read(started.ref);
+    while (!["completed", "failed", "stopped", "cancelled"].includes(view.phase)) {
+      if (Date.now() > until) throw new Error("run did not finish");
+      await new Promise(resolve => setTimeout(resolve, 10));
+      view = await adapter.read(started.ref);
+    }
+  } finally { release(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});

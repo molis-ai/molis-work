@@ -25,9 +25,14 @@ function publicIpv4(address: string, fakeIpProxy: boolean): boolean {
   return !((a === 192 && b === 0 && (c === 0 || c === 2)) || (a === 192 && b === 88 && c === 99) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113));
 }
 
+const IPV6_CHARS = /^[0-9a-fA-F:.]+$/u;
+
 function publicIpv6(address: string): boolean {
-  let normalized: string;
-  try { normalized = new URL(`https://[${address}]/`).hostname.slice(1, -1).toLowerCase(); } catch { return false; }
+  if (!IPV6_CHARS.test(address)) return false;
+  let parsed: URL;
+  try { parsed = new URL(`https://[${address}]/`); } catch { return false; }
+  if (parsed.username || parsed.password || parsed.port || parsed.pathname !== "/" || parsed.search || parsed.hash) return false;
+  const normalized = parsed.hostname.slice(1, -1).toLowerCase();
   const [first = "", second = ""] = normalized.split(":");
   const head = Number.parseInt(first, 16), next = Number.parseInt(second || "0", 16);
   if (!Number.isFinite(head) || head < 0x2000 || head > 0x3fff) return false;

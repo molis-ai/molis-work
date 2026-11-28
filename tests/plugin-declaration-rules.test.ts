@@ -5,6 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 // then confirmed against the code as it stood before the move, and is written out in full on purpose: a check that is
 // dropped, reworded or reordered fails here, not somewhere downstream.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
@@ -662,3 +663,24 @@ for (const { rule, version, compatibility, message } of UPGRADES) {
     assert.deepEqual(failure, message === null ? null : { code: "plugin.manifest_invalid", message });
   });
 }
+
+test("every bundled Manifest passes the same contract a new plugin must meet, including declared action permissions", () => {
+  const failures = BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+    try {
+      parsePluginManifest(entry.manifest);
+      return [];
+    } catch (error) {
+      return [`${entry.manifest.plugin_id}: ${(error as Error).message}`];
+    }
+  });
+  assert.deepEqual(failures, []);
+});
+
+// REL-03: also check the runtime catalog, independently of the source-level release check.
+test("every Manifest in the built-in catalog has the product version", () => {
+  const product = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+  assert.ok(BUILTIN_PLUGIN_CATALOG.length > 0);
+  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+    assert.equal(entry.manifest.version, product.version, entry.manifest.plugin_id);
+  }
+});

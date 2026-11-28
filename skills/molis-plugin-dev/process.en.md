@@ -13,6 +13,8 @@ First-party plugins written and integrated by an author and plugins generated in
 | 7. Accept | Follow acceptance steps as a person would. | Exercise the main path, empty state, failures and narrow layout. Publish only after all pass. |
 | 8. Release and upgrade | Advance the version, declare data compatibility and list permissions at install. | Upgrade preserves data; uninstall offers to keep or remove it; no release silently breaks the old version. |
 
+When an object has durable state, confirm capabilities and ownership first, then define legal transitions and the Manifest declaration following [state and transitions](state-machine.md).
+
 ## Who does it
 
 | Step | First-party | Studio |

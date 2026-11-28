@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { assertSecretStoreWritable, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -116,72 +117,97 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
  * status; a request that cannot be made or answered (no connection, a timeout, an answer with no code in it) is tried again after a
  * longer wait, until the authorization expires (RFC 8628 §3.5).
  */
+const activeDevicePolls = new Map<string, Promise<unknown>>();
+
 export async function pollDeviceOAuth(home: string, input: { origin: string; state: string; signal?: AbortSignal }, fetchImpl?: typeof fetch, owners: OAuthOwners = registryOwners(home)) {
   const origin = localOrigin(input.origin), state = input.state;
-  const read = () => {
-    const session = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin), true);
-    if (!session) throw new ApiOAuthError("授权已失效，请重新开始");
-    const config = session.configuration;
-    if (config.protocol !== "oauth" || config.grant !== "device") throw new ApiOAuthError("设备授权方式不匹配，请重新开始");
-    return config;
-  };
-  const first = read();
-  const secrets = connectorProtocolSecrets(home, first.sessionId);
-  let terminal = false;
-  try {
-    return await serialized(home, first.connectionId, async () => {
-      if (input.signal?.aborted) return { status: "pending" as const };
-      const config = read();
-      assertConnectorAuthorizationPending(home, state);
-      if (Date.now() < config.nextPollAt) return { status: "pending" as const };
-      const later = () => {
-        config.interval = Math.min(MAX_INTERVAL_SECONDS * 1000, config.interval + SLOW_DOWN_SECONDS * 1000);
+  const pollKey = `${resolve(home)}:${state}`;
+  const executePoll = async () => {
+    const read = () => {
+      const session = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin), true);
+      if (!session) throw new ApiOAuthError("授权已失效，请重新开始");
+      const config = session.configuration;
+      if (config.protocol !== "oauth" || config.grant !== "device") throw new ApiOAuthError("设备授权方式不匹配，请重新开始");
+      return config;
+    };
+    const first = read();
+    const secrets = connectorProtocolSecrets(home, first.sessionId);
+    let ownsSession = false;
+    let terminal = false;
+    try {
+      return await serialized(home, first.connectionId, async () => {
+        if (input.signal?.aborted) return { status: "pending" as const };
+        const config = read();
+        assertConnectorAuthorizationPending(home, state);
+        ownsSession = true;
+        if (Date.now() < config.nextPollAt) return { status: "pending" as const };
+        const later = () => {
+          config.interval = Math.min(MAX_INTERVAL_SECONDS * 1000, config.interval + SLOW_DOWN_SECONDS * 1000);
+          config.nextPollAt = Date.now() + config.interval;
+          withConnectorProtocols(home, store => store.update(state, config));
+          return { status: "pending" as const };
+        };
+        // Whatever the service answers, nobody asks it again before the interval has run: a poll that fails keeps the record from being hit twice.
         config.nextPollAt = Date.now() + config.interval;
         withConnectorProtocols(home, store => store.update(state, config));
-        return { status: "pending" as const };
-      };
-      // Whatever the service answers, nobody asks it again before the interval has run: a poll that fails keeps the record from being hit twice.
-      config.nextPollAt = Date.now() + config.interval;
-      withConnectorProtocols(home, store => store.update(state, config));
-      await assertStillDeclared(config, owners);
-      const owner = await owners(config.serviceId, "device");
-      const method = deviceMethod(declaredMethod(owner, config.serviceId), config.serviceId);
-      const deviceCode = secrets.get("device");
-      if (!deviceCode) throw new ApiOAuthError("设备授权已失效，请重新开始", config.serviceId);
-      // A token the service hands over is claimed once: the vault that keeps it is asked before the poll goes.
-      assertSecretStoreWritable(home);
-      const send = sender(fetchImpl, { beforeEffect: () => assertStillDeclared(config, owners), current: () => assertConnectorAuthorizationPending(home, state) });
-      const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings, owner?.word), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
-      let tokens: Json;
-      try {
-        const response = await send(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "error", signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000) });
-        tokens = object(await response.json().catch(() => undefined));
-      } catch (error) {
-        // The checks that run around the request refuse with the flow's own errors; anything else is the network.
-        if (error instanceof ApiOAuthError || error instanceof ActionError) throw error;
-        // The Host stopping is not the service failing: nothing is written for it.
-        return input.signal?.aborted ? { status: "pending" as const } : later();
-      }
-      assertConnectorAuthorizationPending(home, state);
-      if (!text(tokens.access_token)) {
-        const reason = text(tokens.error);
-        if (reason === "authorization_pending") return { status: "pending" as const };
-        if (!reason || reason === "slow_down") return later();
+        await assertStillDeclared(config, owners);
+        const owner = await owners(config.serviceId, "device");
+        const method = deviceMethod(declaredMethod(owner, config.serviceId), config.serviceId);
+        const deviceCode = secrets.get("device");
+        if (!deviceCode) throw new ApiOAuthError("设备授权已失效，请重新开始", config.serviceId);
+        // A token the service hands over is claimed once: the vault that keeps it is asked before the poll goes.
+        assertSecretStoreWritable(home);
+        const send = sender(fetchImpl, { beforeEffect: () => assertStillDeclared(config, owners), current: () => assertConnectorAuthorizationPending(home, state) });
+        const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings, owner?.word), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
+        let tokens: Json;
+        try {
+          const response = await send(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "error", signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000) });
+          tokens = object(await response.json().catch(() => undefined));
+        } catch (error) {
+          // The checks that run around the request refuse with the flow's own errors; anything else is the network.
+          if (error instanceof ApiOAuthError || error instanceof ActionError) throw error;
+          // The Host stopping is not the service failing: nothing is written for it.
+          return input.signal?.aborted ? { status: "pending" as const } : later();
+        }
+        assertConnectorAuthorizationPending(home, state);
+        if (!text(tokens.access_token)) {
+          const reason = text(tokens.error);
+          if (reason === "authorization_pending") return { status: "pending" as const };
+          if (!reason || reason === "slow_down") return later();
+          terminal = true;
+          const status = reason === "expired_token" ? "expired" as const : reason === "access_denied" ? "cancelled" as const : "failed" as const;
+          finishConnectorAuthorization(home, state, status);
+          return { status };
+        }
+        // The token is claimed once: a second poll finds the record taken.
+        withConnectorProtocols(home, store => store.consume(state, origin)); terminal = true;
+        const result = await commitApiOAuth(home, state, config, method, tokens, send, owners, secrets, owner?.word);
+        return result.status === "pending" ? result : { status: "authorized" as const, connection_id: result.connection!.connection_id };
+      });
+    } catch (error) {
+      if (ownsSession) {
         terminal = true;
-        const status = reason === "expired_token" ? "expired" as const : reason === "access_denied" ? "cancelled" as const : "failed" as const;
-        finishConnectorAuthorization(home, state, status);
-        return { status };
+        finishConnectorAuthorization(home, state, "failed");
       }
-      // The token is claimed once: a second poll finds the record taken.
-      withConnectorProtocols(home, store => store.consume(state, origin)); terminal = true;
-      const result = await commitApiOAuth(home, state, config, method, tokens, send, owners, secrets, owner?.word);
-      return result.status === "pending" ? result : { status: "authorized" as const, connection_id: result.connection!.connection_id };
+      throw error instanceof ApiOAuthError ? error : new ApiOAuthError("设备授权未完成，请重新准备接入", first.serviceId);
+    } finally { if (terminal && ownsSession) { withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); } }
+  };
+  const existing = activeDevicePolls.get(pollKey);
+  if (existing) {
+    if (!input.signal) return existing as ReturnType<typeof executePoll>;
+    if (input.signal.aborted) return { status: "pending" as const };
+    let onAbort!: () => void;
+    const cancelled = new Promise<{ status: "pending" }>(done => {
+      onAbort = () => done({ status: "pending" as const });
+      input.signal!.addEventListener("abort", onAbort, { once: true });
     });
-  } catch (error) {
-    terminal = true;
-    finishConnectorAuthorization(home, state, "failed");
-    throw error instanceof ApiOAuthError ? error : new ApiOAuthError("设备授权未完成，请重新准备接入", first.serviceId);
-  } finally { if (terminal) { withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); } }
+    try { return await Promise.race([existing as ReturnType<typeof executePoll>, cancelled]); }
+    finally { input.signal.removeEventListener("abort", onAbort); }
+  }
+  const task = executePoll();
+  activeDevicePolls.set(pollKey, task);
+  try { return await task; }
+  finally { if (activeDevicePolls.get(pollKey) === task) activeDevicePolls.delete(pollKey); }
 }
 
 /**

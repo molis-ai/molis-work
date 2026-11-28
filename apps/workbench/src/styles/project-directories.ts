@@ -15,7 +15,7 @@ export const PROJECT_DIRECTORIES_STYLES = `
   .project-directory__head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; }
   .project-directory__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .project-directory__roles { display: inline-flex; flex: none; gap: 4px; }
-  .project-directory__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.5 var(--mono); color: var(--muted); }
+  .project-directory__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.5 var(--font-mono); color: var(--muted); }
   .project-directory__note { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
   .project-directory__note > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .project-directory__note svg { flex: none; width: 14px; height: 14px; }
@@ -44,7 +44,7 @@ export const PROJECT_DIRECTORIES_STYLES = `
   .project-directory-chooser__head strong { font-size: 13px; color: var(--ink); }
   .project-directory-chooser__head small { font-size: 12px; color: var(--muted); }
   .project-directory-chooser .mw-menu__item, .project-directory-chooser [data-slot=menu-item-label] { min-width: 0; }
-  .project-directory-chooser [data-target=pick][data-chosen] .mw-menu__desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+  .project-directory-chooser [data-target=pick][data-chosen] .mw-menu__desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
   .project-directory-chooser__say { margin: 0; padding: 4px 14px 8px; color: var(--muted); font-size: 12px; line-height: 1.5; text-wrap: pretty; }
   .project-directory-chooser__say[data-tone=error] { color: var(--red); }
   .project-directory-chooser__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px 12px; border-top: 1px solid var(--line); }

@@ -9,7 +9,7 @@ import {
   type ExternalSessionEntry,
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import { EXTERNAL_SESSION_NATIVE_ID_PATTERN, type ExternalToolEntry } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { readSessionSourceFailure, sessionSourceFailure, type AdapterHistoryInput, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
 
@@ -66,17 +66,32 @@ export function isValidNativeId(value: unknown): boolean {
   return typeof value === "string" && EXTERNAL_SESSION_NATIVE_ID_PATTERN.test(value);
 }
 
+const MAX_FOUR_DIGIT_YEAR_MS = 253_402_300_799_999;
+
+function msToIsoIfInRange(ms: number): string | null {
+  if (!Number.isFinite(ms) || ms < 0 || ms > MAX_FOUR_DIGIT_YEAR_MS) return null;
+  return new Date(ms).toISOString();
+}
+
 export function normalizeIsoTimestamp(value: unknown, fallbackMs?: number): string | null {
   if (typeof value === "string" && value.trim()) {
     const parsed = Date.parse(value);
-    if (Number.isFinite(parsed)) return new Date(parsed).toISOString();
+    const iso = msToIsoIfInRange(parsed);
+    if (iso !== null) return iso;
   }
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    const ms = value < 1e11 ? value * 1000 : value;
-    return new Date(ms).toISOString();
+    const ms = value >= 1e17
+      ? value / 1e6
+      : value >= 1e14
+        ? value / 1e3
+        : value < 1e11
+          ? value * 1e3
+          : value;
+    const iso = msToIsoIfInRange(ms);
+    if (iso !== null) return iso;
   }
   if (fallbackMs !== undefined && Number.isFinite(fallbackMs) && fallbackMs > 0) {
-    return new Date(fallbackMs).toISOString();
+    return msToIsoIfInRange(fallbackMs);
   }
   return null;
 }
@@ -114,15 +129,16 @@ export function makeEntry(input: {
   role: ExternalSessionEntry["role"];
   at: string | null;
   text: string;
+  truncated?: boolean;
   step?: ExternalSessionEntry["step"];
 }): ExternalSessionEntry {
-  const { text, truncated } = truncateEntryText(input.text);
+  const cut = truncateEntryText(input.text);
   return {
     position: input.position,
     role: input.role,
     at: input.at,
-    text,
-    truncated,
+    text: cut.text,
+    truncated: Boolean(input.truncated || cut.truncated),
     ...(input.step ? { step: input.step } : {}),
   };
 }
@@ -151,7 +167,11 @@ export function paginateAndSearchTranscript(
   parsed: ParsedTranscriptResult,
   input: AdapterHistoryInput,
 ): AdapterReadOutput {
-  const allEntries = input.opening ? parsed.entries.filter(entry => entry.role === "you").slice(0, input.limit) : parsed.entries;
+  const baseEntries = input.opening ? parsed.entries.filter(entry => entry.role === "you").slice(0, input.limit) : parsed.entries;
+  // Never mutate `parsed.entries` in place: `withFileTranscriptCache` caches unredacted entries for person reads.
+  const allEntries = input.redact
+    ? baseEntries.map(entry => ({ ...entry, text: redactSecrets(entry.text) }))
+    : baseEntries;
   if (allEntries.length === 0) {
     if (parsed.partial_stop) {
       if (parsed.partial_stop.code === "sessions.version_unreadable") {
@@ -449,9 +469,65 @@ export async function walkFilesUnderRoot(
   return { files, skipped };
 }
 
-type JsonlRecordKind = "housekeeping" | "sidechain" | "session_header" | "message" | "unsupported_version" | "other";
+const METADATA_FALLBACK_SCAN_BYTES = 2 * 1024 * 1024;
 
-const HOUSEKEEPING_TYPES = new Set(["summary", "file-history-snapshot", "queue-operation"]);
+export async function locateJsonlSessionFile<TCheck extends { candidate: boolean; stem: string }>(
+  ports: SessionsPorts,
+  root: string,
+  files: readonly { relative: string; entry: SessionDirectoryEntry }[],
+  nativeId: string,
+  classify: (relative: string, fileName: string) => TCheck,
+  signal: AbortSignal,
+  options?: {
+    allowMetadataFallback?: (check: TCheck) => boolean;
+    scanBytes?: number;
+  },
+): Promise<{ relative: string; check: TCheck } | null> {
+  const candidates: Array<{ item: { relative: string; entry: SessionDirectoryEntry }; check: TCheck }> = [];
+  for (const item of files) {
+    const check = classify(item.relative, item.entry.name);
+    if (!check.candidate) continue;
+    if (check.stem === nativeId) {
+      return { relative: item.relative, check };
+    }
+    candidates.push({ item, check });
+  }
+  const scanBytes = options?.scanBytes ?? METADATA_FALLBACK_SCAN_BYTES;
+  for (const { item, check } of candidates) {
+    signal.throwIfAborted();
+    if (options?.allowMetadataFallback && !options.allowMetadataFallback(check)) continue;
+    try {
+      const stream = await ports.files.open(root, item.relative, signal);
+      const { lines } = await readJsonlLines(stream, signal, scanBytes);
+      const meta = extractJsonlMetadata(lines, item.entry.mtime_ms);
+      if (meta.sessionId === nativeId) {
+        return { relative: item.relative, check };
+      }
+    } catch (error) {
+      if (signal.aborted) throw error;
+    }
+  }
+  return null;
+}
+
+type JsonlRecordKind =
+  | "housekeeping"
+  | "sidechain"
+  | "session_header"
+  | "message"
+  | "unsupported_version"
+  | "unknown_type"
+  | "other";
+
+const HOUSEKEEPING_TYPES = new Set([
+  "summary",
+  "file-history-snapshot",
+  "queue-operation",
+  "progress",
+  "custom-title",
+  "pr-link",
+  "last-prompt",
+]);
 const KNOWN_MESSAGE_TYPES = new Set(["user", "human", "assistant", "model", "tool", "system"]);
 
 /**
@@ -472,7 +548,7 @@ export function classifyJsonlRecord(obj: Record<string, unknown>, subagent = fal
   if (isRecord(obj.message) || typeof obj.role === "string" || (type !== undefined && KNOWN_MESSAGE_TYPES.has(type))) {
     return "message";
   }
-  if (type !== undefined) return "unsupported_version";
+  if (type !== undefined) return "unknown_type";
   return "other";
 }
 
@@ -583,6 +659,10 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
 
     const kind = classifyJsonlRecord(obj, subagent);
     if (kind === "housekeeping" || kind === "sidechain") continue;
+    if (kind === "unknown_type") {
+      unsupportedRecords++;
+      continue;
+    }
     if (kind === "unsupported_version") {
       unsupportedRecords++;
       if (entries.length > 0) {
@@ -692,7 +772,7 @@ export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallback
       sidechainCount++;
       continue;
     }
-    if (kind === "unsupported_version") {
+    if (kind === "unsupported_version" || kind === "unknown_type") {
       unsupportedVersionCount++;
       continue;
     }

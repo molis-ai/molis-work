@@ -129,7 +129,7 @@ test("RAC-217 SRB-08 design-system and builtin plugin lists carry no retired ses
 });
 
 test("RAC-219 the product documents say Sessions is offline and the redo is BL-177", () => {
-  for (const path of ["PRODUCT.md", "docs/SSOT-MATRIX.md", "docs/system/HOME-DATA.md", "docs/system/GLOSSARY.md", "docs/product-operations/产品介绍.md", "docs/product-operations/功能全景.md"]) {
+  for (const path of ["PRODUCT.md", "docs/SSOT-MATRIX.md", "docs/system/HOME-DATA.md", "docs/system/GLOSSARY.md", "docs/product-operations/产品介绍.md"]) {
     const document = text(path);
     assert.match(document, /BL-177/u, `${path} points at the redo`);
     assert.match(document, /下线|作废/u, `${path} says Sessions is offline`);

@@ -128,3 +128,79 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("F-goals-03: ancestor_minimum approval rule propagates through part_of ancestors to query, policy and completion", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-ancestor-policy-"));
+  const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
+  try {
+    const app = new GoalProjectApplication(store);
+    app.initializeBoard({ project_id: "board-ancestor", actor_id: "user-1", idempotency_key: "init" });
+    const approvalRules = (project: string, history: boolean) => projectApprovalRules(store.db, project).read(history).rules;
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {}, { approvalRules });
+
+    for (const [goalId, title, parent] of [
+      ["goal-gp", "祖父 Goal", undefined],
+      ["goal-parent", "父 Goal", "goal-gp"],
+      ["goal-leaf", "子叶 Goal", "goal-parent"],
+      ["goal-sibling", "无关 Goal", undefined],
+    ] as const) {
+      app.goalEvents.createIntent({
+        project_id: "board-ancestor",
+        goal_id: goalId,
+        title,
+        outcome: `${title}结果`,
+        ...(parent ? { parent_goal_id: parent } : {}),
+        requirements: [{ requirement_id: `${goalId}-r1`, statement: "交付完成" }],
+        actor_id: "runtime-1",
+        actor_kind: "runtime",
+        idempotency_key: `intent:${goalId}`,
+      });
+    }
+
+    insertHistoricalPolicy(store.db, {
+      policy_binding_id: "policy-default-off",
+      project_id: "board-ancestor",
+      scope: "project_default",
+      policy: { human_approval: false },
+      reason: "默认不要求额外完成审批",
+      created_by: "user-1",
+    });
+    insertHistoricalPolicy(store.db, {
+      policy_binding_id: "policy-ancestor-min",
+      project_id: "board-ancestor",
+      goal_id: "goal-gp",
+      scope: "ancestor_minimum",
+      policy: { human_approval: true },
+      reason: "祖父及全部子孙必须由本人确认完成",
+      created_by: "user-1",
+    });
+
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-gp").human_approval, true);
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-parent").human_approval, true);
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-leaf").human_approval, true);
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-sibling").human_approval, false);
+    assert.equal(goals.query.readGoal("board-ancestor", "goal-leaf").resolved_policy.human_approval, true);
+    assert.equal(goals.query.readGoal("board-ancestor", "goal-sibling").resolved_policy.human_approval, false);
+
+    // Completion of a descendant must still respect the ancestor_minimum rule.
+    app.decide("board-ancestor", "goal-leaf", ["goal-leaf-r1"]);
+    const leafState = app.goalEvents.readState("board-ancestor", "goal-leaf");
+    const blocked = app.goalEvents.submitClosure({
+      project_id: "board-ancestor",
+      goal_id: "goal-leaf",
+      actor_id: "runtime-1",
+      actor_kind: "runtime",
+      idempotency_key: "close-leaf-without-approval",
+      kind: "complete",
+      result: "叶目标结果",
+      reason: "尝试跳过祖先审批底线",
+      expected_config_version: leafState.config.version,
+      expected_agreement_version: leafState.agreement.version,
+    });
+    assert.equal(blocked.completion_applied, false);
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.human_approval_required"));
+  } finally {
+    store.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

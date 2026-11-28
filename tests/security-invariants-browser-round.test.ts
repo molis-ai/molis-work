@@ -286,3 +286,40 @@ test("APR-11: an explicit destination never consumes a retained address even aft
   await performSurface(f.surface, { what: "navigate", url: "https://permitted.example/" }, original.control);
   assert.deepEqual(f.inputs().slice(before).map(frame => frame.params.url), ["https://permitted.example/"]);
 });
+
+test("F-host-subsystems-w2-07 auto-attached popup enables Fetch interception before resuming debugger and closes unowned popups", { timeout: 15_000 }, async t => {
+  const f = await fixture(t);
+  t.mock.method(f.host, "forbiddenOrigins", () => ["http://127.0.0.1:4173"]);
+  const mainTargetId = (await f.page.session()).targetId;
+  assert.ok(f.frames.some(frame => frame.method === "Target.setAutoAttach" && frame.params.waitForDebuggerOnStart === true),
+    "browser attaches Target.setAutoAttach with waitForDebuggerOnStart");
+
+  const startIndex = f.frames.length;
+  f.event("Target.attachedToTarget", {
+    sessionId: "session-owned-popup",
+    waitingForDebugger: true,
+    targetInfo: { targetId: "owned-popup", type: "page", url: "https://popup.example/", openerId: mainTargetId },
+  }, "");
+  for (let n = 0; !f.frames.slice(startIndex).some(frame => frame.method === "Runtime.runIfWaitingForDebugger" && frame.sessionId === "session-owned-popup") && n < 200; n++) {
+    await setImmediate();
+  }
+  const popupFrames = f.frames.slice(startIndex).filter(frame => frame.sessionId === "session-owned-popup");
+  const fetchIndex = popupFrames.findIndex(frame => frame.method === "Fetch.enable");
+  const resumeIndex = popupFrames.findIndex(frame => frame.method === "Runtime.runIfWaitingForDebugger");
+  assert.ok(fetchIndex >= 0, "Fetch.enable is installed on auto-attached popup session");
+  assert.ok(resumeIndex > fetchIndex, "Fetch.enable runs before Runtime.runIfWaitingForDebugger");
+
+  const foreignIndex = f.frames.length;
+  f.event("Target.attachedToTarget", {
+    sessionId: "session-foreign-popup",
+    waitingForDebugger: true,
+    targetInfo: { targetId: "foreign-popup", type: "page", url: "https://evil.example/", openerId: "unknown-opener" },
+  }, "");
+  for (let n = 0; !f.frames.slice(foreignIndex).some(frame => frame.method === "Target.closeTarget" && frame.params.targetId === "foreign-popup") && n < 200; n++) {
+    await setImmediate();
+  }
+  assert.ok(
+    f.frames.slice(foreignIndex).some(frame => frame.method === "Target.closeTarget" && frame.params.targetId === "foreign-popup"),
+    "unowned auto-attached popup is closed via Target.closeTarget",
+  );
+});

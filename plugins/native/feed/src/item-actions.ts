@@ -2,7 +2,9 @@ import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { retainActionAuthority, ActionError, WORK_ITEM_PROMOTION_PROTOCOL, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
+import { feedErrors } from "./contract/feed.js";
 import { findGoalPromotionProvider, type FeedGoalPromotionInput, type promoteFeedItemToGoal } from "./goal-promotion.js";
+import { admitToInbox } from "./inbox-admission.js";
 import type { FeedItemRecord } from "./projection.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -79,13 +81,17 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
       return { offers };
     }),
     bind(feedItemActions.read, input => ({ item: feed.markRead(board, input.item_id) })),
-    bind(feedItemActions.inbox, async (input, caller) => {
-      const item = feed.addToInbox(board, input.item_id, input.expected_revision);
+    // Not `async`: validation and admission run synchronously inside the Runtime's write transaction so any throw rolls back cleanly.
+    bind(feedItemActions.inbox, (input, caller) => {
+      const item = feed.getFeedItem(board, input.item_id);
+      if (input.expected_revision !== item.revision) {
+        throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
+      }
+      const { entry } = admitToInbox(feed, board, item.item_id, "web_user");
       // Admission starts the Inbox next-step judgment with this caller's authority, as the Workbench route always did. The
-      // action runs beside the project's queue while the model answers, so it judges the entry it admitted and no other's.
-      const entry = feed.listInboxEntries(board).find(entry => entry.subject_type === "feed_item" && entry.subject_id === item.item_id && (entry.status === "open" || entry.status === "in_progress"));
-      if (entry) await feed.flushPendingInboxJudgments(retainActionAuthority(caller, feedItemActions.inbox), [entry.entry_id]);
-      return { item };
+      // action runs beside the project's queue while the model answers, so it judges the exact entry it admitted and no other's.
+      return feed.flushPendingInboxJudgments(retainActionAuthority(caller, feedItemActions.inbox), [entry.entry_id])
+        .then(() => ({ item }));
     }),
     bind(feedItemActions.disposition, input => ({ item: feed.setDisposition(board, input.item_id, input.disposition, input.expected_revision) })),
     bind(feedItemActions.restore, input => ({ item: feed.restoreToFeed(board, input.item_id, input.expected_revision) })),

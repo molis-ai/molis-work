@@ -611,6 +611,7 @@
     "feed.actions.content-release.title": "Release retained item text",
     "feed.actions.content-release.description": "Releases a deleted source’s references to saved text and removes bodies no longer referenced anywhere.",
     "feed.actions.content-reclaim.title": "Reclaim unreferenced item text",
-    "feed.actions.content-reclaim.description": "Reclaims orphaned text references after a failed, canceled, or interrupted fetch and cleans up unreferenced bodies."
+    "feed.actions.content-reclaim.description": "Reclaims orphaned text references after a failed, canceled, or interrupted fetch and cleans up unreferenced bodies.",
+    "feed.project-deletion.data": "Feed retained body references"
   }
 }

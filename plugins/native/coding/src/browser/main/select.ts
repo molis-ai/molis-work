@@ -14,7 +14,7 @@ import { DEFAULT_SESSION_TITLE } from "../../session-title.js";
 import type { SessionData, SessionRecord } from "./shapes.js";
 
 /** Forgets what the last session on show was holding, so the next one is read from nothing. */
-function leaveSession(page: Page) {
+export function leaveSession(page: Page, flush = true) {
   const { q, s, turns } = page, { cooperationUi, draft } = page.refs;
   // A choice open in a dialog belongs to the session it was opened on: switching closes it unsaved.
   s.materialTicket++;
@@ -25,7 +25,7 @@ function leaveSession(page: Page) {
   closeReport(page);
   if (s.current) {
     s.offsets.set(s.current, turns.scrollTop);
-    void draft.flush().catch(error => status(page, errorMessage(error), true));
+    if (flush) void draft.flush().catch(error => status(page, errorMessage(error), true));
   }
   void showReviews(page, q("[data-coding-host-reviews]"), []);
   s.recoveryLoading = false;

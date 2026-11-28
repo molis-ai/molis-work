@@ -85,11 +85,16 @@ export function bookmarkLabel(href: string): string {
   }
 }
 
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/u;
+
 /** Normalize a user-supplied link target, dropping anything that is not a safe navigable URL. */
 export function safePagesHref(value: unknown): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  if (raw.startsWith("#") || raw.startsWith("/")) return raw;
+  const text = String(value ?? "");
+  if (CONTROL_CHARS.test(text)) return "";
+  const raw = text.trim();
+  if (!raw || /\s/u.test(raw)) return "";
+  if (raw.startsWith("#")) return raw;
+  if (raw.startsWith("/")) return raw.startsWith("//") || raw.startsWith("/\\") ? "" : raw;
   const candidate = HAS_SCHEME.test(raw) ? raw : BARE_DOMAIN.test(raw) ? "https://" + raw : "";
   if (!candidate) return "";
   try {

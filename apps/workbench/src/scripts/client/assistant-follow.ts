@@ -16,8 +16,12 @@ export const ASSISTANT_FOLLOW_FACTORY_SCRIPT = String.raw`(input) => {
         failures = 0;
         if (result.version !== since && input.current() === id && !controller.signal.aborted) { since = result.version; input.show(result.view); }
         if (!input.followed(result.view)) break;
-      } catch {
+      } catch (error) {
         if (controller.signal.aborted) return;
+        if (error?.status === 404 || error?.status === 403) {
+          input.onMissing?.(id, error);
+          break;
+        }
         failures += 1;
         await pause(Math.min(8000, 1200 * failures));
       }

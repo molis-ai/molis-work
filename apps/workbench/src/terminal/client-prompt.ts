@@ -1,9 +1,13 @@
-import { WORK_TERMINAL_PATH } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SUBJECT_CONTEXT_PATH, type SubjectContextAnswer } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { WORK_TERMINAL_PATH as WorkTerminalPath } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SUBJECT_CONTEXT_PATH as SubjectContextPath, SubjectContextAnswer } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TerminalTranslate } from "./client-dom.js";
 import type { TerminalGuard } from "./client-guard.js";
 import type { PanelRecord, TerminalRequest, WorkTerminalSubjectRef } from "./types.js";
+
+// Literals verified at compile time against the contracts; keeps the action/plugin barrels out of pty-client.js.
+const WORK_TERMINAL_PATH: typeof WorkTerminalPath = "/api/work-terminals";
+const SUBJECT_CONTEXT_PATH: typeof SubjectContextPath = "/api/host/subject-context";
 
 export interface AdvancePromptOptions {
   text: TerminalTranslate;
@@ -29,6 +33,7 @@ const promptUrl = (route: (path: string) => string, ref: WorkTerminalSubjectRef)
 export function createAdvancePrompt(options: AdvancePromptOptions) {
   const { route, subject, guard } = options;
   let promptCache: { key: string; text: string } | null = null;
+  let writing = false;
 
   const sourceContexts = (ref: WorkTerminalSubjectRef) => options.request<SubjectContextAnswer | null>(
     route(`${SUBJECT_CONTEXT_PATH}?kind=${encodeURIComponent(ref.subject_kind)}&id=${encodeURIComponent(ref.subject_id)}`),
@@ -58,20 +63,30 @@ export function createAdvancePrompt(options: AdvancePromptOptions) {
   };
 
   const writePrompt = async (send: boolean) => {
+    if (writing) return;
     const panel = options.current();
     if (!guard.canControlPanel(panel)) return;
-    const text = await loadAdvancePrompt({ plugin_id: panel.plugin_id, subject_kind: panel.subject_kind, subject_id: panel.subject_id });
-    const fillText = text
-      .replace(/[\r\n]+/g, " ⏎ ")
-      .replace(/[\u0000-\u001f\u007f]/g, " ");
-    await options.sendPty({ type: "write", panelId: panel.panel_id, data: send ? `${fillText}\r` : fillText });
+    writing = true;
+    try {
+      const text = await loadAdvancePrompt({ plugin_id: panel.plugin_id, subject_kind: panel.subject_kind, subject_id: panel.subject_id });
+      const active = options.current();
+      if (!active || active.panel_id !== panel.panel_id || !guard.canControlPanel(active)) return;
+      const fillText = text
+        .replace(/[\u2028\u2029]/g, "\n")
+        .replace(/[\r\n]+/g, " ⏎ ")
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .replace(/[\u0080-\u009f]/g, " ");
+      await options.sendPty({ type: "write", panelId: panel.panel_id, data: send ? `${fillText}\r` : fillText });
+    } finally {
+      writing = false;
+    }
   };
 
   const copyAdvancePrompt = async () => {
     const text = await loadAdvancePrompt();
     const { copyBtn } = options;
     const copied = copyBtn && window.molisCopy ? await window.molisCopy(copyBtn, text, { done: uiText.text("workbench.client-prompt.copied"), failed: uiText.text("workbench.client-prompt.could-not-copy") })
-      : await navigator.clipboard.writeText(text).then(() => true, () => false);
+      : navigator.clipboard?.writeText ? await navigator.clipboard.writeText(text).then(() => true, () => false) : false;
     if (!copied) options.showToast(uiText.text("workbench.client-prompt.clipboard-unavailable-copy-manually"), true);
   };
 

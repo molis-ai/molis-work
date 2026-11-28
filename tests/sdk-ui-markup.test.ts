@@ -3,6 +3,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import * as sdkUi from "@molis-ai/molis-work-plugin-sdk/ui";
 import * as diffView from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import {
@@ -23,8 +25,11 @@ import {
   renderField,
   renderInput,
   renderKept,
+  renderNumberField,
+  renderOtpField,
   renderPluginStageShell,
   renderProgress,
+  renderSheet,
   renderSidebar,
   renderSkeleton,
   renderSpinner,
@@ -348,4 +353,39 @@ test("VUX-55: ui.help and sandbox help declarations validate structure, owner ke
     topics: [{ id: "page", title: { key: "common.help.title" }, sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { literal: "<script>" } }] }],
   });
   assert.match(declScript, /^<script type="application\/json" data-mw-help-declaration>.*\\u003cscript>.*<\/script>$/u);
+});
+
+test("F-cf2-11 calendar, field, number, otp, and sheet primitives localize in en/ja without leaking hardcoded Chinese", () => {
+  const enHtml = runWithLocale("en", () => [
+    renderCalendar({ year: 2026, month: 9 }),
+    renderDatePicker({ name: "due", calendar: { year: 2026, month: 9 } }),
+    renderField({ label: "Title", required: true, control: renderInput({ name: "title" }) }),
+    renderNumberField({ name: "count", step: 2 }),
+    renderOtpField({ length: 4, name: "otp" }),
+    renderSheet({ labelledBy: "sheet-title", title: "Settings", body: "<p>Body</p>", footer: "" }),
+  ].join("\n"));
+  assert.doesNotMatch(enHtml, /[\u4e00-\u9fff]/u, "English UI primitives must contain zero hardcoded Chinese");
+  assert.match(enHtml, /Previous/u);
+  assert.doesNotMatch(enHtml, /上个月|下个月|打开日历|选择日期|关闭|必填|减少|增加/u);
+
+  const jaHtml = runWithLocale("ja", () => [
+    renderCalendar({ year: 2026, month: 9 }),
+    renderDatePicker({ name: "due", calendar: { year: 2026, month: 9 } }),
+    renderField({ label: "タイトル", required: true, control: renderInput({ name: "title" }) }),
+    renderNumberField({ name: "count", step: 5 }),
+    renderOtpField({ length: 4, name: "otp" }),
+    renderSheet({ labelledBy: "sheet-title", title: "設定", body: "<p>Body</p>", footer: "" }),
+  ].join("\n"));
+  assert.doesNotMatch(jaHtml, /上个月|下个月|打开日历|选择日期|关闭|必填|减少|增加/u);
+  assert.notEqual(jaHtml, enHtml, "Japanese localization must differ from English");
+});
+
+test("F-cf2-09 codeLanguage and codeTokens ignore Object.prototype keys without throwing", () => {
+  for (const hint of ["language-constructor", "foo.__proto__", "a.toString", "valueOf", "hasOwnProperty"]) {
+    assert.equal(codeLanguage(hint), "", hint);
+  }
+  for (const lang of ["constructor", "__proto__", "toString", "valueOf"]) {
+    const tokens = codeTokens("const x = 1;", lang);
+    assert.equal(tokens.map(([, value]) => value).join(""), "const x = 1;", lang);
+  }
 });

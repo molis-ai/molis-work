@@ -22,9 +22,20 @@ let searchSeq = 0;
 let linkedTimer: ReturnType<typeof setTimeout> | undefined;
 let linkedSeq = 0;
 
+function syncLiveDrafts(page: RiskPage): void {
+  const draftForm = page.body.querySelector<HTMLFormElement>('form[data-rk-form="new"], form[data-rk-form="edit"]');
+  if (draftForm) readDraft(draftForm);
+  const noteInput = page.body.querySelector<HTMLInputElement>('form[data-rk-form="note"] input[name="note"]');
+  if (noteInput) page.state.noteDraft = noteInput.value;
+}
+
 function draw(page: RiskPage): void {
+  if (!page.scope.alive) return;
   const { state, body } = page;
-  const focused = document.activeElement instanceof HTMLElement && body.contains(document.activeElement) ? document.activeElement.dataset.rkFocus ?? null : null;
+  const active = document.activeElement instanceof HTMLElement && body.contains(document.activeElement) ? document.activeElement : null;
+  const focused = active?.dataset.rkFocus ?? null;
+  const activeField = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+    ? { form: active.form?.dataset.rkForm ?? "", name: active.name, start: active.selectionStart, end: active.selectionEnd } : null;
   linkSlots?.dispose();
   linkSlots = null;
   body.innerHTML = state.view === "overview" ? renderOverview(page) : state.view === "new" ? renderDraftForm(page, "new")
@@ -34,10 +45,22 @@ function draw(page: RiskPage): void {
   else if (state.pop === "linked") body.querySelector<HTMLInputElement>("#rk-linked-query")?.focus();
   else if (state.pop === "review") body.querySelector<HTMLInputElement>("#rk-review-focus")?.focus();
   else if (focused) body.querySelector<HTMLElement>(`[data-rk-focus="${CSS.escape(focused)}"]`)?.focus();
+  else if (activeField?.form && activeField.name) {
+    const restored = body.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+      `form[data-rk-form="${CSS.escape(activeField.form)}"] [name="${CSS.escape(activeField.name)}"]`);
+    if (restored) {
+      restored.focus();
+      if (activeField.start !== null && activeField.end !== null
+        && (restored instanceof HTMLTextAreaElement || restored.type === "text" || restored.type === "search")) {
+        restored.setSelectionRange(activeField.start, activeField.end);
+      }
+    }
+  }
 }
 
 /** Each linked object is drawn by the shell as its owner presents it (or says it is gone); the page holds only kind and id. */
 function placeLinks(page: RiskPage): void {
+  if (!page.scope.alive) return;
   const slots = [...page.body.querySelectorAll<HTMLElement>("[data-rk-link-slot]")];
   if (!slots.length) return;
   const held = slots.map(element => {
@@ -49,12 +72,19 @@ function placeLinks(page: RiskPage): void {
 
 async function openRecord(page: RiskPage, riskId: string, options: { quiet?: boolean } = {}): Promise<void> {
   const { state } = page;
+  state.overviewEpoch += 1;
+  const epoch = ++state.recordEpoch;
+  const current = () => page.scope.alive && state.recordEpoch === epoch && state.view === "record";
   const same = state.record?.risk.risk_id === riskId;
-  Object.assign(state, { view: "record", recordError: "", editing: false, conflict: null, pop: "", ...(same ? {} : { record: null, review: null, reviewError: "", readOnly: false }), recordId: riskId });
+  Object.assign(state, { view: "record", recordError: "", editing: false, conflict: null, pop: "",
+    ...(same ? {} : { record: null, review: null, reviewError: "", readOnly: false, noteDraft: "" }), recordId: riskId });
   page.render();
   try {
-    state.record = await page.call<RecordAnswer>("risk.get", { risk_id: riskId });
+    const answer = await page.call<RecordAnswer>("risk.get", { risk_id: riskId });
+    if (!current()) return;
+    state.record = answer;
   } catch (error) {
+    if (!current()) return;
     const failure = failureOf(error);
     if (failure.status === 404 || failure.status === 403) {
       // The workbench is told so it neither names it nor carries it; a reopen nobody asked for forgets it without a word.
@@ -67,28 +97,31 @@ async function openRecord(page: RiskPage, riskId: string, options: { quiet?: boo
     return;
   }
   page.render();
-  await loadReview(page);
+  await loadReview(page, "review", epoch);
 }
 
 function updateReviewSection(page: RiskPage): void {
+  if (!page.scope.alive) return;
   const section = page.body.querySelector("[data-rk-section=review]"), record = page.state.record;
   if (section && record) section.outerHTML = renderReview(page, record.risk);
 }
 
-async function loadReview(page: RiskPage, region: "review" | "record" = "review"): Promise<void> {
+async function loadReview(page: RiskPage, region: "review" | "record" = "review", expectedEpoch = page.state.recordEpoch): Promise<void> {
   const { state } = page;
   const riskId = state.record?.risk.risk_id;
   if (!riskId) return;
+  const current = () => page.scope.alive && state.view === "record" && state.recordEpoch === expectedEpoch && state.record?.risk.risk_id === riskId;
   try {
     const answer = await page.call<ReviewAnswer>("risk.review.get", { risk_id: riskId });
-    if (state.record?.risk.risk_id !== riskId) return;
+    if (!current()) return;
     state.review = answer;
     state.reviewError = "";
   } catch (error) {
-    if (state.record?.risk.risk_id !== riskId) return;
+    if (!current()) return;
     state.review = null;
     state.reviewError = error instanceof Error ? error.message : text("error.failed");
   }
+  if (!current()) return;
   if (region === "record") page.render();
   else updateReviewSection(page);
 }
@@ -108,7 +141,10 @@ async function write<O>(page: RiskPage, capability: string, input: unknown): Pro
 async function reread(page: RiskPage, message?: string): Promise<void> {
   const riskId = page.state.record?.risk.risk_id;
   if (!riskId) return;
-  page.state.record = await page.call<RecordAnswer>("risk.get", { risk_id: riskId });
+  const epoch = ++page.state.recordEpoch;
+  const answer = await page.call<RecordAnswer>("risk.get", { risk_id: riskId });
+  if (!page.scope.alive || page.state.recordEpoch !== epoch || page.state.view !== "record") return;
+  page.state.record = answer;
   page.state.pop = "";
   if (message) page.toast(message);
   page.render();
@@ -117,6 +153,7 @@ async function reread(page: RiskPage, message?: string): Promise<void> {
 async function saveEdit(page: RiskPage, form: HTMLFormElement): Promise<void> {
   const record = page.state.record;
   if (!record) return;
+  const epoch = page.state.recordEpoch;
   const draft = readDraft(form);
   if (!draft.title.trim() || !draft.statement.trim()) { page.toast(text("form.required"), true); return; }
   const base = page.state.conflict?.current ?? record.risk;
@@ -124,11 +161,13 @@ async function saveEdit(page: RiskPage, form: HTMLFormElement): Promise<void> {
   if (!Object.keys(changed).length) { page.state.editing = false; page.state.conflict = null; page.render(); return; }
   try {
     const answer = await write<{ risk: RiskRecord }>(page, "risk.update", { risk_id: base.risk_id, expected_revision: base.revision, ...changed });
+    if (!page.scope.alive || page.state.recordEpoch !== epoch) return;
     if (!answer) { page.render(); return; }
     page.state.editing = false;
     page.state.conflict = null;
     await reread(page, text("record.saved"));
   } catch (error) {
+    if (!page.scope.alive || page.state.recordEpoch !== epoch) return;
     const failure = failureOf(error);
     const current = failure.details?.current as RiskRecord | undefined;
     if (failure.code === "risk.conflict" && current) {
@@ -147,6 +186,7 @@ async function create(page: RiskPage, form: HTMLFormElement): Promise<void> {
   if (!draft.title.trim() || !draft.statement.trim()) { page.toast(text("form.required"), true); return; }
   const answer = await write<{ risk: RiskRecord }>(page, "risk.create", { title: draft.title, statement: draft.statement, impact: draft.impact,
     likelihood: draft.likelihood, ...(draft.treatment.trim() ? { treatment: draft.treatment } : {}), ...(draft.owner_name.trim() ? { owner_name: draft.owner_name } : {}) });
+  if (!page.scope.alive) return;
   if (!answer) { page.render(); return; }
   setDraft(blankDraft());
   page.toast(text("form.recorded"));
@@ -156,8 +196,10 @@ async function create(page: RiskPage, form: HTMLFormElement): Promise<void> {
 async function setStatus(page: RiskPage, status: RiskStatus): Promise<void> {
   const risk = page.state.record?.risk;
   if (!risk || risk.status === status) { page.state.pop = ""; page.render(); return; }
+  const epoch = page.state.recordEpoch;
   const answer = await write<{ risk: RiskRecord; review_left?: { task_id: string | null } }>(page, "risk.status.set",
     { risk_id: risk.risk_id, expected_revision: risk.revision, status });
+  if (!page.scope.alive || page.state.recordEpoch !== epoch) return;
   if (!answer) { page.render(); return; }
   await reread(page, text("record.status-set", { status: text(`status.${status}`) }));
   // Closing archives the review; when Schedule could not be reached, the task is left and the person is told.
@@ -169,11 +211,13 @@ async function setStatus(page: RiskPage, status: RiskStatus): Promise<void> {
 async function schedule(page: RiskPage, form: HTMLFormElement, submitter: HTMLElement | null): Promise<void> {
   const risk = page.state.record?.risk;
   if (!risk) return;
+  const epoch = page.state.recordEpoch;
   const days = (submitter as HTMLButtonElement | null)?.value ?? "custom";
   const at = days === "custom" ? customAt((form.elements.namedItem("at") as HTMLInputElement | null)?.value ?? "") : reviewAt(Number(days));
   if (!at) { page.toast(text("review.pick-time"), true); return; }
   const focus = ((form.elements.namedItem("focus") as HTMLInputElement | null)?.value ?? "").trim();
   const answer = await write<{ review: RiskReview }>(page, "risk.review.schedule", { risk_id: risk.risk_id, at, ...(focus ? { focus } : {}) });
+  if (!page.scope.alive || page.state.recordEpoch !== epoch) return;
   if (!answer) { page.render(); return; }
   page.state.review = { state: "ok", review: answer.review };
   page.state.pop = "";
@@ -184,7 +228,9 @@ async function schedule(page: RiskPage, form: HTMLFormElement, submitter: HTMLEl
 async function reviewCommand(page: RiskPage, capability: "risk.review.enabled" | "risk.review.cancel", input: Record<string, unknown>): Promise<void> {
   const risk = page.state.record?.risk;
   if (!risk) return;
+  const epoch = page.state.recordEpoch;
   const answer = await write<{ review?: RiskReview; cancelled?: boolean }>(page, capability, { risk_id: risk.risk_id, ...input });
+  if (!page.scope.alive || page.state.recordEpoch !== epoch) return;
   if (!answer) { page.render(); return; }
   if (capability === "risk.review.cancel") page.toast(text("review.cancelled"));
   await loadReview(page, "record");
@@ -197,14 +243,15 @@ function searchLinks(page: RiskPage, query: string): void {
   if (!query.trim()) { list.innerHTML = ""; return; }
   const seq = ++searchSeq;
   searchTimer = setTimeout(() => page.run(async () => {
+    if (!page.scope.alive || seq !== searchSeq) return;
     let found: Candidate[];
     try { found = (await page.call<{ candidates: Candidate[] }>("search.references", { kinds: ["goal"], query: query.trim(), limit: 8 })).candidates; }
     catch (error) {
-      if (seq !== searchSeq) return;
+      if (!page.scope.alive || seq !== searchSeq) return;
       list.innerHTML = `<li class="rk-muted">${esc(error instanceof Error && error.message ? error.message : text("error.failed"))}</li>`;
       return;
     }
-    if (seq !== searchSeq) return;
+    if (!page.scope.alive || seq !== searchSeq) return;
     const linked = new Set(page.state.record?.links.map(link => `${link.subject.kind}\n${link.subject.id}`));
     list.innerHTML = found.length ? found.map(item => `<li class="mw-item rk-found__item" role="button" tabindex="0" data-rk-act="link" data-rk-value="${esc(`${item.kind}\n${item.id}`)}"${
       linked.has(`${item.kind}\n${item.id}`) ? ' aria-disabled="true"' : ""}><span><strong>${esc(item.label)}</strong><small>${esc(item.snippet || item.plugin_title)}</small></span></li>`).join("")
@@ -221,14 +268,15 @@ function searchLinked(page: RiskPage, query: string): void {
   if (!kinds.length) { list.innerHTML = `<li class="rk-muted">${esc(text("filter.no-kind"))}</li>`; return; }
   const seq = ++linkedSeq;
   linkedTimer = setTimeout(() => page.run(async () => {
+    if (!page.scope.alive || seq !== linkedSeq) return;
     let found: Candidate[];
     try { found = (await page.call<{ candidates: Candidate[] }>("search.references", { kinds, query: query.trim(), limit: 8 })).candidates; }
     catch (error) {
-      if (seq !== linkedSeq) return;
+      if (!page.scope.alive || seq !== linkedSeq) return;
       list.innerHTML = `<li class="rk-muted">${esc(error instanceof Error && error.message ? error.message : text("error.failed"))}</li>`;
       return;
     }
-    if (seq !== linkedSeq) return;
+    if (!page.scope.alive || seq !== linkedSeq) return;
     list.innerHTML = found.length ? found.map(item => `<li class="mw-item rk-found__item" role="button" tabindex="0" data-rk-act="set-linked"
       data-rk-value="${esc(`${item.kind}\n${item.id}`)}" data-rk-label="${esc(item.label)}"><span><strong>${esc(item.label)}</strong><small>${
       esc(item.plugin_title)}</small></span></li>`).join("") : `<li class="rk-muted">${esc(text("filter.no-object"))}</li>`;
@@ -241,8 +289,22 @@ async function onAct(page: RiskPage, action: string, value: string, element: HTM
   const { state } = page;
   const risk = state.record?.risk;
   switch (action) {
-    case "back": state.view = "overview"; state.pop = ""; await loadOverview(page); return;
-    case "new": setDraft(blankDraft()); state.view = "new"; page.render(); page.body.querySelector<HTMLInputElement>('input[name="title"]')?.focus(); return;
+    case "back":
+      state.recordEpoch += 1;
+      state.noteDraft = "";
+      state.view = "overview";
+      state.pop = "";
+      await loadOverview(page);
+      return;
+    case "new":
+      state.overviewEpoch += 1;
+      state.recordEpoch += 1;
+      state.noteDraft = "";
+      setDraft(blankDraft());
+      state.view = "new";
+      page.render();
+      page.body.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
+      return;
     case "reload": await loadOverview(page); return;
     case "more": await loadOverview(page, true); return;
     case "clear-filter": state.filter = { ...state.filter, impact: "", owner_name: "", linked: "", linkedSubject: null, linkedLabel: "" }; await loadOverview(page); return;
@@ -294,7 +356,17 @@ function onSubmit(page: RiskPage, event: SubmitEvent): void {
     const input = form.elements.namedItem("note") as HTMLInputElement;
     const note = input.value.trim();
     if (!note) return;
-    page.run(async () => { const answer = await write(page, "risk.notes.add", { risk_id: risk.risk_id, text: note }); if (answer) await reread(page); else page.render(); });
+    const epoch = page.state.recordEpoch;
+    page.run(async () => {
+      const answer = await write(page, "risk.notes.add", { risk_id: risk.risk_id, text: note });
+      if (!page.scope.alive || page.state.recordEpoch !== epoch) return;
+      if (answer) {
+        page.state.noteDraft = "";
+        await reread(page);
+      } else {
+        page.render();
+      }
+    });
   }
 }
 
@@ -346,13 +418,20 @@ export function mountRisk(host: RiskHost): void {
     page.run(() => loadOverview(page));
   });
   scope.listen(body, "input", event => {
-    const input = event.target as HTMLInputElement;
-    if (input.form?.dataset.rkForm === "link-search") searchLinks(page, input.value);
-    else if (input.form?.dataset.rkForm === "linked-search") searchLinked(page, input.value);
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+    const kind = target.form?.dataset.rkForm;
+    if (kind === "link-search") searchLinks(page, target.value);
+    else if (kind === "linked-search") searchLinked(page, target.value);
+    else if ((kind === "new" || kind === "edit") && target.form) readDraft(target.form);
+    else if (kind === "note" && target.name === "note") page.state.noteDraft = target.value;
   });
   scope.listen(body, "submit", event => onSubmit(page, event as SubmitEvent));
   scope.listen(root, "molis-work:select-item", event => onSelectItem(page, event));
-  scope.listen(document, "molis-work:language-changed", () => page.render());
+  scope.listen(document, "molis-work:language-changed", () => {
+    syncLiveDrafts(page);
+    page.render();
+  });
   scope.own(() => { linkSlots?.dispose(); clearTimeout(searchTimer); clearTimeout(linkedTimer); });
   if (page.side) { page.state.view = "idle"; page.render(); }
   scope.whenVisible(() => {

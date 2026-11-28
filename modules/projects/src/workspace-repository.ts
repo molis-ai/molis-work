@@ -120,8 +120,9 @@ export class WorkspaceRepository {
         workspace.realpath_verified, workspace.display_name,
         workspace.created_at, workspace.updated_at
       FROM workspaces AS workspace
-      ${projectId ? "INNER JOIN workspace_project_memberships AS selected_membership ON selected_membership.workspace_id = workspace.workspace_id" : ""}
-      ${projectId ? "WHERE selected_membership.project_id = ?" : ""}
+      INNER JOIN workspace_project_memberships AS selected_membership ON selected_membership.workspace_id = workspace.workspace_id
+      WHERE selected_membership.project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
+        ${projectId ? "AND selected_membership.project_id = ?" : ""}
       ORDER BY workspace.display_name COLLATE NOCASE, workspace.canonical_path
     `).all(...(projectId ? [projectId] : [])) as Row[];
     const memberships = this.listWorkspaceMemberships();
@@ -297,7 +298,7 @@ export class WorkspaceRepository {
       ).run(projectId).changes);
       for (const workspaceId of workspaceIds) this.removeWorkspaceIfEmpty(workspaceId);
       return removed;
-    })();
+    }).immediate();
   }
 
   removeWorkspaceIfEmpty(workspaceId: string): void {

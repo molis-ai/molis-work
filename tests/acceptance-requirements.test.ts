@@ -68,7 +68,7 @@ function rig(t: TestContext) {
     set: (caller, input) => library(caller.project_id).set(caller, input),
     deliver: (caller, input, ports) => library(caller.project_id).deliver(caller, input, ports),
     report: (caller, input, ports) => library(caller.project_id).report(caller, input, ports),
-    decide: (caller, input) => library(caller.project_id).decide(caller, input),
+    decide: (caller, input, decisionId?, beforeCommit?) => library(caller.project_id).decide(caller, input, decisionId, beforeCommit),
   } satisfies Pick<AcceptanceService, "read" | "set" | "deliver" | "report" | "decide">;
   const readOne = (caller: AcceptanceCaller, subject: typeof SUBJECT) => service.read(caller, { subjects: [subject] }).views[0]!;
   return { home, service, readOne, library, drop };
@@ -265,4 +265,33 @@ test("PWA-144 APR-15 the record is the project's and goes with it: the same obje
   // Deleting the project deletes its library, and the record with it; the other project keeps its own.
   drop("p1");
   assert.deepEqual([readOne(me(), SUBJECT).requirements.length, readOne(me("p2"), SUBJECT).requirements.length], [0, 3]);
+});
+
+test("F-modules-server-06/09 stale or wrong-object contradicts reports cannot overturn verified or accepted items; blank method/observed and decision replay mismatch are refused", async t => {
+  const { service, world } = await delivered(t);
+  const ports = world.ports(agent());
+  await service.report(agent(), { subject: SUBJECT, reports: [
+    report("r1", "v3", { evidence: [receipt("c1")] }),
+    report("r3", "v3", { evidence: [receipt("c3")] }),
+  ] }, ports);
+  const accepted = service.decide(me(), { subject: SUBJECT, version: "v3", accepts: [{ id: "r3", version: 1 }], returns: [] }, "dec-fixed");
+  assert.equal(item(accepted, "r1").verified, true);
+  assert.equal(item(accepted, "r3").person, "accepted");
+
+  // Replaying the same decisionId with a different item set must fail.
+  assert.throws(() => service.decide(me(), { subject: SUBJECT, version: "v3", accepts: [{ id: "r1", version: 1 }], returns: [] }, "dec-fixed"), code("acceptance.invalid"));
+
+  // Blank method or observed is refused locally (aligned with sync replica validation).
+  await assert.rejects(service.report(agent(), { subject: SUBJECT, reports: [report("r2", "v3", { method: "   " })] }, ports), code("acceptance.invalid"));
+  await assert.rejects(service.report(agent(), { subject: SUBJECT, reports: [report("r2", "v3", { observed: " \t " })] }, ports), code("acceptance.invalid"));
+
+  // Stale (v2) and wrong-object contradicts checks must neither clear verified nor overturn an accepted decision on v3.
+  const afterStale = await service.report(agent(), { subject: SUBJECT, reports: [
+    report("r1", "v2", { verdict: "contradicts", evidence: [receipt("c1")] }),
+    report("r3", "v2", { verdict: "contradicts", evidence: [receipt("c3")] }),
+    report("r1", "v3", { verdict: "contradicts", checked: { version: "v3", subject: { kind: "page", id: "other" } }, evidence: [receipt("c1")] }),
+    report("r3", "v3", { verdict: "contradicts", checked: { version: "v3", subject: { kind: "page", id: "other" } }, evidence: [receipt("c3")] }),
+  ] }, ports);
+  assert.deepEqual([item(afterStale, "r1").verified, item(afterStale, "r1").satisfied], [true, true]);
+  assert.deepEqual([item(afterStale, "r3").person, item(afterStale, "r3").verified, item(afterStale, "r3").satisfied], ["accepted", true, true]);
 });

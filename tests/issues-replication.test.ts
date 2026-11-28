@@ -92,3 +92,16 @@ test("large Issue images remain exact portable content for the attachment transp
   assert.equal(a.read(issue.id).images[0]?.data_url, data_url);
   assert.equal(f.replicas[0]!.counts().pending, 1);
 });
+
+test("F-plugins-rest-w2-01: Issue sync counts Unicode code points and rejects whitespace-only keys", async t => {
+  const f = fixture(t), [a, b] = f.stores;
+  const title = "😀".repeat(150), description = "😀".repeat(60_000);
+  const issue = await a!.create({ title, type: "bug", description }, caller);
+  const event = f.take();
+  f.replicas[1]!.receive(event);
+  assert.equal(f.replicas[1]!.counts().conflicts, 0);
+  const received = b!.read(issue.id);
+  assert.equal(received.title, title);
+  assert.equal(received.description, description);
+  assert.throws(() => f.replicas[1]!.receive({ ...event, key: JSON.stringify(["issue", "   "]), operationId: "blank-key", revision: 2 }), /不合法/);
+});

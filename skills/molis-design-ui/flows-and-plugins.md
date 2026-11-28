@@ -36,7 +36,7 @@
 
 ---
 
-## 3. 界面文案与双语规范（单一真相，不复制）
+## 3. 界面文案与多语言规范（单一真相，不复制）
 
 全部界面短句写法、零 AI 基础转译表、九类元素公式与标点规则以 [`skills/molis-plugin-dev/text-and-appearance.md`](../molis-plugin-dev/text-and-appearance.md) 与 [`docs/system/GLOSSARY.md`](../../docs/system/GLOSSARY.md) 为**唯一真相**。动手时守住 5 条底线：
 

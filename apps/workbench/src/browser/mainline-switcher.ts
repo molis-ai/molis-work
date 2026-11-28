@@ -199,6 +199,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   };
 
   let readGeneration = 0;
+  let switchGeneration = 0;
   const refresh = async (emit = true): Promise<MainlineViewResponse | null> => {
     const generation = ++readGeneration;
     try {
@@ -223,7 +224,9 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   };
 
   const switchTo = async (itemId: string | null, originEl?: Element | null, openHomeOnNull = false) => {
+    const switchToken = ++switchGeneration;
     if (!hydrated && itemId !== null) await refresh(false);
+    if (switchToken !== switchGeneration) return;
     const prev = view.mainline.current;
     if (prev === itemId) {
       closeCorner();
@@ -231,12 +234,12 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       return;
     }
     try {
-      ++readGeneration;
+      const token = ++readGeneration;
       const firstEntry = Boolean(itemId && !visited.has(itemId));
       await api("/api/mainline/switch", { item_id: itemId });
-      const generation = ++readGeneration;
+      if (token !== readGeneration || switchToken !== switchGeneration) return;
       const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
-      if (generation !== readGeneration) return;
+      if (token !== readGeneration || switchToken !== switchGeneration) return;
       view = next;
       lastCurrent = next.mainline.current;
       announce(next, prev, firstEntry && next.mainline.current === itemId);
@@ -246,7 +249,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       }
       const craft = globals.molisCraft;
       const applyVisual = () => {
-        if (view !== next) return;
+        if (switchToken !== switchGeneration) return;
         paint();
         closeCorner();
         if (itemId === null && openHomeOnNull) host.openHome();

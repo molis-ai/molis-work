@@ -306,7 +306,7 @@ function classifyTechnicalMessage(message: string): CommonErrorKey | null {
 
 const QUOTED_SEGMENTS = /「[^」]*」|『[^』]*』|“[^”]*”|《[^》]*》|"[^"]*"|(?<!\w)'[^']*'(?!\w)|`[^`]*`/gu;
 const NEUTRAL_PROPER_NOUNS = /\b(?:Molis Work|Molis|JSON|HTTP|HTTPS|URL|URI|API|MCP|OAuth|ID|MB|KB|GB|UTF-8|CSV|PDF|PNG|SVG|HTML|CSS|DOM|SSE|WS|tokens?|GitHub|Slack|Linear|Notion|Google|OpenAI|Anthropic|Gemini|Claude)\b/giu;
-const ENGLISH_PROSE_WORD = /\b(?:is|are|was|were|be|been|being|has|have|had|do|does|did|can|could|will|would|may|might|must|not|no|can['’]t|couldn['’]t|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|doesn['’]t|didn['’]t|won['’]t|don['’]t|the|a|an|this|that|these|those|your|you|it|its|for|with|from|into|by|to|in|on|of|at|as|or|and|but|if|before|after|already|still|yet|only|cannot|unable|failed|missing|found|updated|changed|deleted|moved|locked|expired|invalid|denied|refused|blocked|closed|stopped|canceled|cancelled|required|available|unavailable|exceeded|reached|try|check|refresh|please)\b/iu;
+const ENGLISH_PROSE_WORD = /\b(?:is|are|was|were|be|been|being|has|have|had|do|does|did|can|could|will|would|may|might|must|not|no|can['’]t|couldn['’]t|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|doesn['’]t|didn['’]t|won['’]t|don['’]t|the|a|an|this|that|these|those|your|you|it|its|for|with|from|into|by|to|in|on|of|at|as|or|and|but|if|while|when|during|before|after|already|still|yet|only|cannot|unable|failed|missing|found|updated|changed|deleted|moved|locked|expired|invalid|denied|refused|blocked|closed|stopped|canceled|cancelled|required|available|unavailable|exceeded|reached|unexpected|try|check|refresh|please)\b/iu;
 // Simplified-Chinese-only characters (absent from Japanese UI copy) and Chinese-only prose cues.
 const SIMPLIFIED_CHINESE_CHAR = /[请这还经给让进过说对为从错误权无试载录览页网络连账输验证据删读开关启复选择确认处资务户仅须应该够暂时败异损坏锁绝访问长别备夹库换变编辑译语设项标题图频视导归档隐藏显执动态结获发传达响线离缓临满节键值队链址协议书鉴凭绑销创齐总计统报历记笔简详细谢帮于并则谁么吗呢吧们您找扔丢拿摆挂拆拼册扫识压缩冻唤份邀驳办搁迟效溃]/u;
 const CHINESE_PROSE_CUE = /[，；]|没有|不是|不会|不到|不对|不够|不支持|不存在|找不到|已经|正在|尚未|只能|这里|这个|这项|这段|这次|这些|稍后|重试|错误|失败|无效|不可用|未找到|已过期|已停用|已关闭|已删除|已存在|已被/u;
@@ -318,7 +318,7 @@ const JAPANESE_HIRAGANA_PROSE = /[\p{Script=Hiragana}]{2,}|[のはがをにで�
  * while preserving localized sentences that embed unquoted foreign titles (e.g. project or file names)
  * and short pure-kanji Japanese errors.
  */
-function isWrongLanguageForLocale(message: string, locale: string): boolean {
+function isWrongLanguageForLocale(message: string, locale: string, status = 500): boolean {
   const core = message.replace(QUOTED_SEGMENTS, " ").replace(NEUTRAL_PROPER_NOUNS, " ").trim();
   if (!core) return false;
   const hanMatches = core.match(/\p{Script=Han}/gu);
@@ -334,7 +334,11 @@ function isWrongLanguageForLocale(message: string, locale: string): boolean {
   const base = baseLanguageOf(locale);
   switch (base) {
     case "zh": {
-      if (!hasHan && latinWords.length >= 2 && ENGLISH_PROSE_WORD.test(core)) return true;
+      // Preserve clean domain/test English 4xx refusals in zh; only localize unexpected 5xx English prose (F-hc2-27).
+      if (status >= 500 && !hasHan && hasLatinWord) {
+        const hasCjkSentencePunct = /[。！？；，]/u.test(core);
+        if (!hasCjkSentencePunct && latinWords.length >= 4 && ENGLISH_PROSE_WORD.test(core)) return true;
+      }
       if (!hasKana) return false;
       if (!hasHan) return true;
       // Keep localized Chinese sentences that embed an unquoted katakana/short kana title (real Japanese prose uses hiragana).
@@ -414,10 +418,38 @@ export function localizeWebErrorBody(status: number, value: unknown, localeOverr
     return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
   }
 
-  if (locale && isWrongLanguageForLocale(raw, locale)) {
+  if (locale && isWrongLanguageForLocale(raw, locale, status)) {
     return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
   }
 
+  return value;
+}
+
+const GATEWAY_OS_PATH = /(?:\/Users\/|\/home\/|\/var\/|\/tmp\/|\/private\/|\/etc\/|\/opt\/|\/Library\/|file:\/\/\/|[A-Za-z]:\\)[^\s"'`,)\]]+/gu;
+
+/**
+ * Sanitize machine-gateway `{ error, code?, details?, ... }` responses (`R-07`): scrubs raw OS paths,
+ * stack traces, and upstream `account.*` raw English while preserving contract schema hints and
+ * uncoded resident error names (such as `ENOENT`, `W3-02-G1-01`) expected by CLI/MCP forwarding clients.
+ */
+export function sanitizeGatewayErrorBody(status: number, value: unknown, localeOverride?: string | null): unknown {
+  if (status < 400 || typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if (typeof record.error !== "string") return value;
+  const raw = record.error;
+  const trimmed = raw.trim();
+  const code = typeof record.code === "string" ? record.code : undefined;
+  const locale = localeOverride ?? activeLocale() ?? pageLocale();
+  if (shouldAlwaysLocalizeCode(code)) {
+    return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
+  }
+  if (/\n\s*at\s+/u.test(trimmed)) {
+    return { ...record, error: readErrorWord(keyForCodeAndMessage(code, raw, status), locale) };
+  }
+  if (GATEWAY_OS_PATH.test(raw)) {
+    GATEWAY_OS_PATH.lastIndex = 0;
+    return { ...record, error: raw.replace(GATEWAY_OS_PATH, "[path]") };
+  }
   return value;
 }
 
@@ -454,7 +486,7 @@ export function localizeWebErrorMessage(
   if (shouldAlwaysLocalizeCode(code)) {
     return readErrorWord(keyForCodeAndMessage(code, raw, response.status), locale);
   }
-  if (locale && isWrongLanguageForLocale(raw, locale)) {
+  if (locale && isWrongLanguageForLocale(raw, locale, response.status)) {
     const key = code === "actions.execution_failed" ? fallbackKey : keyForCodeAndMessage(code, raw, response.status);
     return readErrorWord(key, locale);
   }

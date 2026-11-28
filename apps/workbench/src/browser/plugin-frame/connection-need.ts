@@ -20,7 +20,12 @@ export const CONNECTION_NEED_UNAVAILABLE = "Unavailable";
 type Choice = { connection_id: string; label: string; auth_method: string; state: string };
 type Read = { service_id: string; service_title: string; reason?: string; origin?: string; connection: Choice | null; disabled?: true;
   authorization?: { authorization_id: string; status: string; url: string; method: string } };
-type Auth = { id: string; url: string; relogin: boolean; timer?: ReturnType<typeof setTimeout> };
+type Auth = { id: string; url: string; relogin: boolean; timer?: ReturnType<typeof setTimeout>; unlisten?: () => void };
+const stopAuth = (entry: Entry) => {
+  clearTimeout(entry.auth?.timer);
+  entry.auth?.unlisten?.();
+  entry.auth = undefined;
+};
 interface Entry extends ConnectionNeedView { id: number; readonly key: string; readonly target: UiConnectionNeedTarget; readonly area: FramedArea; readonly heights: { narrow: number; wide: number };
   read: Read | null; auth?: Auth; other?: Choice }
 
@@ -50,7 +55,7 @@ interface Card {
   live(entry: Entry): boolean; draw(entry: Entry): void; act(entry: Entry, work: () => Promise<void>): Promise<void>;
   host<T>(entry: Entry, body: Record<string, unknown>): Promise<T>; settings<T>(path: string, body?: unknown, method?: "PATCH" | "DELETE"): Promise<T>;
   /** Shows what an answer says: connected folds the card, anything else is the stage it starts from again. */
-  settle(entry: Entry, answer: Read): void; fail(entry: Entry, note?: string): void; load(entry: Entry): Promise<void>; put(entry: Entry, connection_id: string): Promise<void>;
+  settle(entry: Entry, answer: Read): void; fail(entry: Entry, note?: string): void; load(entry: Entry, initial?: Read): Promise<void>; put(entry: Entry, connection_id: string): Promise<void>;
 }
 
 /** The person's own login or key, prepared as the person (C2), then in the browser or pasted, and the login watched until it ends. */
@@ -68,9 +73,9 @@ function loginSteps(c: Card) {
       catch (error) { state = { status: (error as { status?: number }).status === 404 ? "expired" : "pending" }; }
       if (!live(entry) || entry.auth !== auth) return;
       // Refused, failed or expired in the browser: said in the card, which starts over from where it was (§13.5 三第 3 条).
-      if (["cancelled", "failed", "expired"].includes(state.status)) { entry.auth = undefined; c.fail(entry); c.draw(entry); return; }
+      if (["cancelled", "failed", "expired"].includes(state.status)) { stopAuth(entry); c.fail(entry); c.draw(entry); return; }
       if (state.status !== "connected") { later(); return; }
-      entry.auth = undefined;
+      stopAuth(entry);
       await c.act(entry, async () => {
         const now = await c.host<Read>(entry, { operation: "read" }), id = state.connection_id;
         if (!live(entry)) return;
@@ -83,7 +88,7 @@ function loginSteps(c: Card) {
       });
     };
     later();
-    c.scope.listen(window, "focus", () => { if (entry.auth === auth) void poll(); });
+    auth.unlisten = c.scope.listen(window, "focus", () => { if (entry.auth === auth) void poll(); });
   };
   /** 连接 / 再加一个 / 用原账号重新登录. */
   const connect = (entry: Entry, relogin: boolean) => {
@@ -94,12 +99,13 @@ function loginSteps(c: Card) {
     void c.act(entry, async () => { try {
       const prepared = await c.host<Read>(entry, { operation: "prepare", ...again }), setup = prepared.authorization!;
       if (!live(entry)) throw closed();
-      if (setup.method !== "oauth") { popup?.close(); entry.auth = { id: setup.authorization_id, url: "", relogin }; entry.stage = "key"; return; }
+      if (setup.method !== "oauth") { popup?.close(); stopAuth(entry); entry.auth = { id: setup.authorization_id, url: "", relogin }; entry.stage = "key"; return; }
       const started = await settings<{ authorization_url: string; authorization_id?: string }>("methods/oauth/start", { service_id: prepared.service_id, display_name: prepared.service_title, setup_id: setup.authorization_id, ...again });
       // Only a web page goes into the window: https, or the login's own callback on this computer.
       const url = started.authorization_url;
       if (!isConnectionLoginUrl(url)) throw new Error(t("common.connection-need.service-returned-invalid-authorization-address-please-retry"));
       if (!live(entry)) throw closed();
+      stopAuth(entry);
       const auth: Auth = entry.auth = { id: started.authorization_id ?? setup.authorization_id, url, relogin };
       if (external) await external(url); else if (popup && !popup.closed) popup.location.replace(url);
       else entry.note = t("common.connection-need.browser-blocked-new-window-click-open-sign-page");
@@ -116,7 +122,7 @@ function loginSteps(c: Card) {
       const saved = await (auth.relogin ? settings<{ connection: { connection_id: string } }>("connections/" + encodeURIComponent(read.connection!.connection_id), body, "PATCH")
         : settings<{ connection: { connection_id: string } }>("connections", { ...body, service_id: read.service_id, display_name: read.service_title }));
       if (!live(entry)) return;
-      entry.auth = undefined;
+      stopAuth(entry);
       if (auth.relogin) { const now = await c.host<Read>(entry, { operation: "read" }); if (live(entry)) c.settle(entry, now); }
       else await c.put(entry, saved.connection.connection_id);
     });
@@ -141,7 +147,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     { body: { target, ...body }, headers: { "x-molis-context-page": pageId }, scope });
   const byId = (id: number) => [...entries.values()].find(entry => entry.id === id);
   const live = (entry: Entry) => scope.alive && entries.get(entry.key) === entry;
-  const close = (key: string) => { const entry = entries.get(key); if (!entry) return; clearTimeout(entry.auth?.timer); entry.area.close(); entries.delete(key); };
+  const close = (key: string) => { const entry = entries.get(key); if (!entry) return; stopAuth(entry); entry.area.close(); entries.delete(key); };
   scope.own(() => { opening.clear(); for (const key of [...entries.keys()]) close(key); });
   const draw = (entry: Entry) => {
     if (!live(entry)) return;
@@ -152,7 +158,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
   };
   /** Folds the card into its one line, after the page has its answer; the focus, if it was in the card, lands on the line. */
   const fold = (entry: Entry, line: string, outcome?: UiConnectionNeedOutcome) => {
-    clearTimeout(entry.auth?.timer); entry.auth = undefined;
+    stopAuth(entry);
     const held = entry.area.surface.contains(document.activeElement);
     if (outcome && !entry.answered) { entry.answered = true; send("done", entry.id, { outcome }); }
     entry.heights.narrow = entry.heights.wide = CONNECTION_NEED_HEIGHTS.line;
@@ -169,8 +175,8 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     },
     fail: (entry, note) => { entry.note = note || t("common.connection-need.not-connected-nothing-changed-here-can-try-again"); entry.danger = true; if (entry.stage === "running") entry.stage = startStage(entry); },
     /** Reads the target and, when nothing usable is on it, this service's accounts the card may offer (an image target's: unpinned or pinned here). */
-    load: async entry => {
-      const read = entry.read = await ask<Read>(entry.target, { operation: "read" });
+    load: async (entry, initial) => {
+      const read = entry.read = initial ?? await ask<Read>(entry.target, { operation: "read" });
       const directory = await c.settings<{ connections: Array<ConnectorConnectionView | { project_id: string }> }>("connections?service_id=" + encodeURIComponent(read.service_id));
       entry.accounts = directory.connections.filter((row): row is ConnectorConnectionView => !("project_id" in row) && row.state === "connected"
         && row.connection_id !== read.connection?.connection_id && (!row.target_origin || row.target_origin === read.origin));
@@ -194,9 +200,9 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     },
   };
   const { connect, save } = loginSteps(c);
-  const begin = async (entry: Entry) => {
+  const begin = async (entry: Entry, initial?: Read) => {
     Object.assign(entry.heights, { narrow: CONNECTION_NEED_HEIGHTS.narrow, wide: CONNECTION_NEED_HEIGHTS.wide });
-    await c.load(entry);
+    await c.load(entry, initial);
     if (!live(entry)) return;
     entry.note = ""; entry.danger = false; c.settle(entry, entry.read!); if (entry.stage !== "line") draw(entry);
   };
@@ -212,7 +218,16 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     relogin: entry => { if (entry.stage === "expired") connect(entry, true); },
     enable: entry => { if (entry.stage === "disabled") void c.act(entry, async () => { const answer = await ask<Read>(entry.target, { operation: "enable" }); if (live(entry)) c.settle(entry, answer); }); },
     switch: entry => { const other = entry.other; if (other) void c.act(entry, () => c.put(entry, other.connection_id)); },
-    reopen: entry => { if (entry.auth?.url) window.open(entry.auth.url, "_blank", "noopener,noreferrer"); },
+    reopen: entry => {
+      const target = entry.auth?.url;
+      if (!target || !isConnectionLoginUrl(target)) return;
+      const openExternal = globalThis.molisWorkOpenExternalUrl;
+      if (typeof openExternal === "function") {
+        void Promise.resolve(openExternal(target)).catch(() => undefined);
+      } else {
+        window.open(target, "_blank", "noopener,noreferrer");
+      }
+    },
     retry: entry => void c.act(entry, () => begin(entry)),
     // The connections page as a return trip of this page with the card's slot (specs/draft-and-return §4, R4): back here, the card reads
     // its target again and goes on from what it finds.
@@ -282,7 +297,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     // Cancelled once on this page: asked again, only the folded line shows, opened by the person (§13.5 三第 1 条).
     if (refused.has(key)) { heights.narrow = heights.wide = CONNECTION_NEED_HEIGHTS.line; entry.stage = "line"; entry.line = t("common.connection-need.not-connected"); draw(entry); return; }
     try {
-      await begin(entry);
+      await begin(entry, read);
     } catch {
       if (live(entry)) {
         const currentId = entry.id;

@@ -178,3 +178,48 @@ test('Form rejects a tampered captured answer and a child ID owned by another fo
   const other=b.create({}),row=b.submit(other.id,{});const collision=structuredClone(source.value) as TestEnvelope;collision.children.submissions[0].id=row.id;
   rb.receive({...source,operationId:'wrong-child-owner',value:collision,revision:f.nextRevision()});assert.equal(b.listSubmissions(other.id)[0]!.id,row.id);assert.equal(b.listSubmissions(d.id)[0]!.answers.rating,'5');
 });
+
+test('Form, Lingguang, Dataset and PPT sync validate limits by Unicode code points and Lingguang full body limit',t=>{
+  const f=fixture(t),wide=(n:number)=>'😀'.repeat(n);
+  // F-plugins-rest-01: Form accepts 80-emoji title, 2000-emoji description, 200-emoji question title and 4000-emoji answer.
+  const fa=f.open(openFormStore,0),fb=f.open(openFormStore,1),fra=fa.replica(f.context),frb=fb.replica(f.context);
+  const form=fa.create({title:wide(80)});
+  fa.update(form.id,{description:wide(2000),questions:[{id:'q1',title:wide(200),type:'text',required:true}]});
+  fa.publish(form.id);
+  fa.submit(form.id,{q1:wide(4000)},{requestId:'emoji-answer'});
+  f.send(fra,frb);
+  assert.equal(frb.counts().conflicts,0);
+  assert.equal(fb.get(form.id).title,wide(80));
+  assert.equal(fb.get(form.id).description,wide(2000));
+  assert.equal(fb.get(form.id).questions[0]!.title,wide(200));
+  assert.equal(fb.listSubmissions(form.id)[0]!.answers.q1,wide(4000));
+
+  // F-plugins-rest-w2-01: Lingguang accepts 50-emoji title and >8000-character body up to LINGGUANG_BODY_LIMIT.
+  const la=f.open(openLingguangStore,0),lb=f.open(openLingguangStore,1),lra=la.replica(f.context),lrb=lb.replica(f.context);
+  const longBody='长'.repeat(12_000),spark=la.create({title:wide(50),body:longBody});
+  f.send(lra,lrb);
+  assert.equal(lrb.counts().conflicts,0);
+  assert.equal(lb.get(spark.id).title,wide(50));
+  assert.equal(lb.get(spark.id).body,longBody);
+
+  // F-plugins-rest-w2-01: Dataset accepts 50-emoji title, column name and snapshot note; rejects >80-code-point note.
+  const da=f.open(openDatasetStore,0),db=f.open(openDatasetStore,1),dra=da.replica(f.context),drb=db.replica(f.context);
+  const table=da.create({title:wide(50)});
+  da.update(table.id,{description:wide(1200),columns:[{id:'c1',name:wide(50),type:'text'}]});
+  da.saveVersion(table.id,wide(50));
+  f.send(dra,drb);
+  assert.equal(drb.counts().conflicts,0);
+  assert.equal(db.get(table.id).title,wide(50));
+  assert.equal(db.get(table.id).columns[0]!.name,wide(50));
+  assert.equal(db.listVersions(table.id)[0]!.note,wide(50));
+
+  // F-plugins-rest-w2-01: PPT accepts 50-emoji deck/slide titles, 120-emoji bullet and 1500-emoji notes.
+  const pa=f.open(openPptStore,0),pb=f.open(openPptStore,1),pra=pa.replica(f.context),prb=pb.replica(f.context);
+  const deck=pa.create({title:wide(50)});
+  pa.update(deck.id,{description:wide(1200),slides:[{id:'s1',title:wide(50),bullets:[wide(120)],notes:wide(1500)}]});
+  f.send(pra,prb);
+  assert.equal(prb.counts().conflicts,0);
+  assert.equal(pb.get(deck.id).title,wide(50));
+  assert.equal(pb.get(deck.id).slides[0]!.bullets[0],wide(120));
+  assert.equal(pb.get(deck.id).slides[0]!.notes,wide(1500));
+});

@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { isValidFibonacciStoryPoints } from "../plan-content.js";
 import { el } from "./dom.js";
 import type { Amendment, StepNode } from "./shapes.js";
 import { svg } from "./taskboard-format.js";
@@ -152,7 +153,14 @@ function stepTools(tools: Tools) {
       submit: uiText.text("coding.board.estimate-ok"),
       build: ([pts, reason]) => {
         const cleaned = (pts ?? "").trim();
-        const parsed = !cleaned || cleaned === "0" || cleaned === "-" ? null : Number(cleaned);
+        if (!cleaned || cleaned === "0" || cleaned === "-") {
+          return { kind: "estimate", node: node.id, story_points: null, ...(reason ? { reason } : {}) };
+        }
+        const parsed = Number(cleaned);
+        if (!isValidFibonacciStoryPoints(parsed)) {
+          tools.view.ports.status(uiText.text("coding.server.plan-story-points"), true);
+          return null;
+        }
         return { kind: "estimate", node: node.id, story_points: parsed, ...(reason ? { reason } : {}) };
       },
     }));

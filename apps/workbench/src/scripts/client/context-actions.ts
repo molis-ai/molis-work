@@ -137,6 +137,7 @@ const PANE_PART = String.raw`  const readText = host.translate;
   // What the plugins declare as their search sources: surface → the one kind it opens and the plugin that owns it. Read once.
   // The declarations are a project's: a page with no project open (choosing one) has none and asks nothing (N53).
   let surfaces = null;
+  document.addEventListener("molis-work:plugins-changed", () => { surfaces = null; });
   const known=()=>!document.body.dataset.projectId?Promise.resolve({}):surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
   // A surface opened an item (the workbench's molis-work:select-item) but did not name it: name it from what the
   // plugins declare as their search sources (surface → kind), so its text can be acted on like any declared object.
@@ -145,7 +146,7 @@ const PANE_PART = String.raw`  const readText = host.translate;
     const namedItself = (context) => Boolean(context && context.object && context.named_by !== "workbench");
     // Items a surface said it could not read (molis-work:item-unreadable): never named after the tab, so the Assistant
     // does not carry a gone item as what the person is looking at.
-    const unreadable = new WeakMap();
+    const unreadable = new WeakMap(), selectSeq = new WeakMap();
     const forget = (surf, itemId) => {
       const own = read(surf);
       if (own && own.object && own.object.id === itemId) { delete own.object; delete own.named_by; surf.setAttribute("data-assistant-context", JSON.stringify(own)); }
@@ -163,8 +164,11 @@ const PANE_PART = String.raw`  const readText = host.translate;
       if (!(surf instanceof Element) || !surf.hasAttribute("data-work-surface")) return;
       if (event.detail?.invalidate && event.detail.itemId === undefined) return;
       const itemId = event.detail && typeof event.detail.itemId === "string" ? event.detail.itemId : "";
+      const seq = (selectSeq.get(surf) || 0) + 1;
+      selectSeq.set(surf, seq);
       // After the plugin's own handler, which may name the object itself.
       setTimeout(async () => {
+        if (selectSeq.get(surf) !== seq) return;
         if (!itemId) {
           const own = read(surf);
           if (own && own.named_by === "workbench") { delete own.object; delete own.named_by; surf.setAttribute("data-assistant-context", JSON.stringify(own)); }
@@ -172,6 +176,7 @@ const PANE_PART = String.raw`  const readText = host.translate;
         }
         if (namedItself(read(surf)) || unreadable.get(surf)?.has(itemId)) return;
         const entry = (await known())[surf.getAttribute("data-work-surface")];
+        if (selectSeq.get(surf) !== seq) return;
         // Read again: a plugin still loading the item (a reload) names it while the surfaces are read, and its naming stands.
         const own = read(surf);
         if (!entry || !surf.isConnected || namedItself(own) || unreadable.get(surf)?.has(itemId)) return;

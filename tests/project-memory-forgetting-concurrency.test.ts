@@ -34,6 +34,7 @@ test(`project deletion refuses an actual ${change} mutation during its last asyn
   release(); await rejected;
   assert.deepEqual(f.ledger().forgetting.read().decisions, [], "no stale selection may become an accepted terminal decision");
   await assert.rejects(purgeProjectMemories({ backend: f.raw(), ledger: f.ledger(), caller: operation }, "project-a"),
+    (error: unknown) => error instanceof Error && ((error as { code?: string }).code === "memory.conflict" || /That memory changed since it was observed/u.test(error.message)),
     "replaying the same request cannot refresh its old versions");
   assert.equal((await service.list(caller("read"), { scope: "project" })).items.some(one => one.memory_id === saved.memory_id), true);
   assert.equal((await f.raw().candidates.list("project", "project-a")).some(one => one.candidate_id === candidate.candidate_id), true);

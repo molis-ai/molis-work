@@ -1,17 +1,24 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
+import { retitleCodingWaits } from "../../timeline.js";
 import { retitleSavedHistory } from "../saved-history.js";
+import { sessionTitle } from "../session-title.js";
 import { codingTranscript } from "../transcript.js";
 import { renderArtifacts } from "./artifacts.js";
+import { boardUpdate } from "./board.js";
 import { changeTally } from "./change-tally.js";
 import { renderDirectory } from "./directory.js";
 import type { CodingHost } from "./host.js";
+import { renderEarlier } from "./live.js";
 import type { Page, Refs, State } from "./page.js";
+import { renderQueued } from "./queued.js";
 import { readCurrent } from "./read.js";
+import { showReport } from "./report.js";
 import { retitleCodingComposer } from "./composer-mount.js";
 import { api, status } from "./request.js";
-import { mountResultsIndex } from "./results-index.js";
+import { mountResultsIndex, refreshResultsIndex } from "./results-index.js";
 import { renderFacts } from "./run-facts.js";
+import { renderRuns } from "./runs.js";
 
 /** The words of a round's state, as the header, the directory and the facts name it. */
 function phaseWords(_L: Page["readText"]): Record<string, string> {
@@ -99,11 +106,27 @@ export function mountFoundations(page: Page) {
     retitleCodingComposer(page);
     renderDirectory(page, true);
     retitleSavedHistory(turns);
+    retitleCodingWaits(turns);
+    page.refs.filesFace?.retitle();
     if (s.artifactRows.length) renderArtifacts(page);
-    if (s.lastData) {
+    if (s.current && s.lastData) {
+      if (!page.root.querySelector("[data-coding-title] input")) page.q("[data-coding-title]").textContent = sessionTitle(s.lastData.session.title);
+      page.q("[data-coding-goal-label]").textContent = s.lastData.session.goal_id ? uiText.text("coding.goal.next", { title: s.lastData.session.goal_title || s.lastData.session.goal_id }) : uiText.text("coding.goal.none-next-label");
+      const resultsLabel = s.recovery || s.checkpointBusy || s.lastData.runs.some(run => run.phase === "awaiting-review") ? uiText.text("coding.results.pending") : uiText.text("coding.results.title");
+      page.q("[data-coding-results-label]").textContent = resultsLabel;
+      renderRuns(page, s.allRuns.filter(run => !run.light), s.allRuns);
+      renderEarlier(page);
       renderFacts(page, s.allRuns);
+      renderQueued(page, s.current, s.lastData.session.queued);
       page.refs.usageMeter?.render(s.lastData, s.lastRun);
+      page.refs.plans?.update(s.current, s.lastData.plan ?? null, s.allRuns, s.lastData.plan_revision);
+      page.refs.subagents?.update(s.current, s.subagentGroups);
+      boardUpdate(page, s.current, s.lastData);
+      void page.refs.cooperationUi?.refresh(true);
+      page.refs.changeReview?.retitle();
+      if (s.reportRun && !s.reportSaving) void showReport(page, s.reportRun);
     }
+    refreshResultsIndex(page);
   });
   const { timeline, turnChanges } = codingTranscript({ readText, lifetime, turns, changeTally: runId => changeTally(page, runId) });
   page.refs.timeline = timeline;

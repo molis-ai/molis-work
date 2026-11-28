@@ -158,12 +158,39 @@ export class BrowserHost {
     });
     cdp.onClose(() => { if (this.current === running) child.kill("SIGTERM"); });
     await cdp.send("Target.setDiscoverTargets", { discover: true });
+    await cdp.send("Target.setAutoAttach", {
+      autoAttach: true,
+      waitForDebuggerOnStart: true,
+      flatten: true,
+      filter: [{ type: "page", exclude: false }],
+    }).catch(() => undefined);
     await cdp.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: this.downloadDir, eventsEnabled: true });
     cdp.on("Target.targetInfoChanged", params => this.route(params, (page, info) => page.targetInfo(info)));
+    cdp.on("Target.attachedToTarget", params => {
+      const info = params.targetInfo as { targetId?: string; type?: string; openerId?: string } | undefined;
+      const sessionId = typeof params.sessionId === "string" ? params.sessionId : "";
+      const waitingForDebugger = params.waitingForDebugger === true;
+      if (!info?.targetId || info.type !== "page" || !sessionId) return;
+      if (!info.openerId) {
+        if (waitingForDebugger) void cdp.send("Runtime.runIfWaitingForDebugger", {}, sessionId).catch(() => undefined);
+        return;
+      }
+      const owner = [...this.pages.values()].find(page => page.owns(info.openerId!));
+      if (owner) {
+        void owner.adoptPopup(info.targetId, { sessionId, waitingForDebugger });
+      } else {
+        void cdp.send("Target.closeTarget", { targetId: info.targetId }).catch(() => undefined);
+        if (waitingForDebugger) void cdp.send("Runtime.runIfWaitingForDebugger", {}, sessionId).catch(() => undefined);
+      }
+    });
     cdp.on("Target.targetCreated", params => {
       const info = params.targetInfo as { targetId: string; type: string; openerId?: string };
       if (info.type !== "page" || !info.openerId) return;
-      for (const page of this.pages.values()) if (page.owns(info.openerId)) void page.adoptPopup(info.targetId);
+      for (const page of this.pages.values()) {
+        if (page.owns(info.openerId) && !page.owns(info.targetId) && !page.adopting(info.targetId)) {
+          void page.adoptPopup(info.targetId);
+        }
+      }
     });
     cdp.on("Target.targetDestroyed", params => { for (const page of this.pages.values()) page.targetGone(String(params.targetId), false); });
     cdp.on("Target.targetCrashed", params => { for (const page of this.pages.values()) page.targetGone(String(params.targetId), true); });

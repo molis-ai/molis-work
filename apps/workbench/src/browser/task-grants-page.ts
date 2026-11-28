@@ -113,15 +113,16 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   const post: Post = body => molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.request-failed") });
   let listed: Listed | null = null;
   const currentLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
-  let drawnLanguage = "", pendingLanguage = "", languageTurn = 0;
+  let drawnLanguage = "", pendingLanguage = "", languageTurn = 0, loadTurn = 0;
   /** Titles found this time the page is open, by installation; `asked` is which keys each installation was asked for. */
   const titles = new Map<string, Map<string, Title>>(), asked = new Map<string, Set<string>>(), busy = new Set<string>();
 
-  async function load(): Promise<void> {
-    const language = currentLanguage();
+  async function load(): Promise<boolean> {
+    const turn = ++loadTurn, language = currentLanguage();
     list.setAttribute("aria-busy", "true");
     try {
       const next = await post<Listed>({ mode: "list" });
+      if (!root.isConnected || turn !== loadTurn) return false;
       await Promise.all(next.installations.filter(install => install.titled).map(install => {
         const keys = new Set(next.subjects.filter(subject => subject.plugin_install_id === install.plugin_install_id).map(subject => subject.key));
         const before = asked.get(install.plugin_install_id);
@@ -130,11 +131,15 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         titles.set(install.plugin_install_id, found); asked.set(install.plugin_install_id, keys);
         return readTitles(post, install.plugin_install_id, keys, found);
       }));
+      if (!root.isConnected || turn !== loadTurn) return false;
       listed = next; drawnLanguage = language; draw();
       if (language !== currentLanguage()) void retitle();
+      return true;
     } catch {
+      if (!root.isConnected || turn !== loadTurn) return false;
       list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(uiText.text("workbench.task-grants-page.read-failed"))}</span>${button("common.control.retry", "mw-btn--secondary", "reload")}</div>`;
-    } finally { list.removeAttribute("aria-busy"); }
+      return false;
+    } finally { if (turn === loadTurn) list.removeAttribute("aria-busy"); }
   }
 
   async function retitle(): Promise<void> {
@@ -206,16 +211,18 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
     listed = { ...listed, subjects: listed.subjects.flatMap(item => subjectId(item) !== subjectId(subject) ? [item] : next && next.categories.length ? [next] : []) };
   }
   /** A write failed: changed elsewhere reads the page again (§3.6 冲突); anything else leaves the grants as they were. */
-  async function failed(error: unknown): Promise<void> {
-    if ((error as { code?: string }).code === "actions.conflict") { toast(uiText.text("workbench.task-grants-page.changed-elsewhere-refreshed")); await load(); return; }
+  async function failed(error: unknown): Promise<boolean> {
+    if ((error as { code?: string }).code === "actions.conflict") { toast(uiText.text("workbench.task-grants-page.changed-elsewhere-refreshed")); return await load(); }
     toast(uiText.text("workbench.task-grants-page.write-failed"), true);
+    return true;
   }
   async function write(subject: TaskGrantSubject, send: () => Promise<TaskGrantSubject | null>, done: () => string): Promise<void> {
     const id = subjectId(subject); if (busy.has(id)) return;
     busy.add(id); draw();
+    let shouldDraw = true;
     try { settle(subject, await send()); toast(done()); }
-    catch (error) { busy.delete(id); await failed(error); }
-    finally { busy.delete(id); draw(); }
+    catch (error) { shouldDraw = await failed(error); }
+    finally { busy.delete(id); if (shouldDraw && root.isConnected) draw(); }
   }
 
   /** Taking one category back, allowing one, or removing one no longer offered: one `set` of the task's categories as read, ± this one. */

@@ -33,15 +33,15 @@ export const SKILL_PACK_BOARD_STYLES = `
   .mw-item__more > summary:hover { color: var(--ink-soft); }
   .mw-item__more > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
   .mw-item__more .mw-collapsible__body { padding: 4px 0 6px; }
-  .mw-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; max-width: 640px; font-size: 13px; line-height: 1.55; }
-  .mw-facts dt { color: var(--muted); font-size: 12px; }
-  .mw-facts dd { min-width: 0; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
-  .mw-facts dd:last-child { margin-bottom: 0; }
-  .mw-facts code { font-size: 12px; }
-  .mw-facts ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-  .mw-facts li { display: flex; flex-wrap: wrap; gap: 2px 10px; }
-  .mw-facts li > span { color: var(--muted); font-size: 12px; }
-  .mw-facts blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-soft); }
+  dl.mw-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; max-width: 640px; font-size: 13px; line-height: 1.55; }
+  dl.mw-facts dt { color: var(--muted); font-size: 12px; }
+  dl.mw-facts dd { min-width: 0; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+  dl.mw-facts dd:last-child { margin-bottom: 0; }
+  dl.mw-facts code { font-size: 12px; }
+  dl.mw-facts ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  dl.mw-facts li { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  dl.mw-facts li > span { color: var(--muted); font-size: 12px; }
+  dl.mw-facts blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-soft); }
 
   /* 4 · Buttons inside an alert: under its words, so the next step reads as the answer to what the alert says. */
   .mw-alert__problems { display: grid; gap: 2px; margin: 4px 0 0; padding-left: 18px; color: var(--ink-soft); }

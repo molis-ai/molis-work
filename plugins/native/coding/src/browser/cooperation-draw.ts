@@ -38,17 +38,24 @@ function button(coop: Coop, label: string, variant: Variant, handler: () => unkn
   return node;
 }
 
-/** Posts a change to a delegation, says it is done, and reads again. */
-async function act(coop: Coop, path: string, body: unknown, done?: string) {
+/** Posts a change to a delegation, says it is done, and reads again. Returns true only when the action succeeded while still on the same session. */
+async function act(coop: Coop, path: string, body: unknown, done?: string): Promise<boolean> {
   const { api, current, status, lifetime } = coop.ports;
+  const owner = current();
+  if (!owner) return false;
   try {
-    await api("/sessions/" + encodeURIComponent(current()) + "/delegations" + path, "POST", body);
-    if (done) status(done);
-    await coop.again();
+    await api("/sessions/" + encodeURIComponent(owner) + "/delegations" + path, "POST", body);
+    const same = lifetime.alive && current() === owner;
+    if (same && done) status(done);
+    if (same) await coop.again();
+    return lifetime.alive && current() === owner;
   } catch (error) {
-    if (!lifetime.alive) return;
-    status(errorMessage(error), true);
-    await coop.again();
+    if (!lifetime.alive) return false;
+    if (current() === owner) {
+      status(errorMessage(error), true);
+      await coop.again();
+    }
+    return false;
   }
 }
 
@@ -157,7 +164,10 @@ function deliverForm(coop: Coop, incoming: Delegation, path: string) {
   lifetime.listen(form, "submit", event => {
     event.preventDefault();
     send.disabled = true;
-    void act(coop, path + "/deliveries", { run_id: choice.value, kind: kind.value, note: note.value, expected_revision: incoming.revision }, uiText.text("coding.coop.delivered"));
+    void act(coop, path + "/deliveries", { run_id: choice.value, kind: kind.value, note: note.value, expected_revision: incoming.revision }, uiText.text("coding.coop.delivered"))
+      .then(ok => {
+        if (!ok && lifetime.alive && send.isConnected) send.disabled = false;
+      });
   });
   return form;
 }
@@ -182,7 +192,13 @@ function answerRow(coop: Coop, incoming: Delegation, path: string) {
   const row = el("div", "", "coding-coop-actions");
   const reject = (why: string) => reasonForm(coop, why, uiText.text("coding.coop.reject-ok"), reason => act(coop, path, { action: "reject", reason, expected_revision: incoming.revision }, uiText.text("coding.coop.rejected")));
   if (incoming.state === "delivered") {
-    row.append(button(coop, uiText.text("coding.coop.accept"), "secondary", () => void act(coop, path, { action: "accept", expected_revision: incoming.revision }, uiText.text("coding.coop.accepted")).then(() => coop.ports.prefill(incoming.task))), button(coop, uiText.text("coding.coop.reject"), "ghost", () => {
+    row.append(button(coop, uiText.text("coding.coop.accept"), "secondary", () => {
+      const owner = coop.ports.current();
+      void act(coop, path, { action: "accept", expected_revision: incoming.revision }, uiText.text("coding.coop.accepted"))
+        .then(ok => {
+          if (ok && coop.ports.current() === owner) coop.ports.prefill(incoming.task);
+        });
+    }), button(coop, uiText.text("coding.coop.reject"), "ghost", () => {
       row.replaceChildren(reject(uiText.text("coding.coop.reject-why-seen")));
       row.querySelector("textarea")?.focus();
     }));
@@ -262,7 +278,13 @@ function deliveryRow(coop: Coop, delegation: Delegation, delivery: Delivery, pat
   const decide = path + "/deliveries/" + encodeURIComponent(delivery.delivery_id);
   if (delivery.state === "sent" && open) {
     const actions = el("div", "", "coding-coop-actions");
-    actions.append(button(coop, uiText.text("coding.coop.take"), "secondary", () => void act(coop, decide, { decision: "accept", expected_revision: delegation.revision }, uiText.text("coding.coop.taken")).then(() => coop.ports.materialsChanged())), button(coop, uiText.text("coding.coop.decline"), "ghost", () => {
+    actions.append(button(coop, uiText.text("coding.coop.take"), "secondary", () => {
+      const owner = coop.ports.current();
+      void act(coop, decide, { decision: "accept", expected_revision: delegation.revision }, uiText.text("coding.coop.taken"))
+        .then(ok => {
+          if (ok && coop.ports.current() === owner) void coop.ports.materialsChanged();
+        });
+    }), button(coop, uiText.text("coding.coop.decline"), "ghost", () => {
       actions.replaceChildren(reasonForm(coop, uiText.text("coding.coop.decline-why"), uiText.text("coding.coop.confirm"), reason => act(coop, decide, { decision: "reject", reason, expected_revision: delegation.revision }, uiText.text("coding.coop.declined"))));
     }));
     row.append(actions);

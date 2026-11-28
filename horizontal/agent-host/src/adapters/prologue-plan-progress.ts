@@ -9,6 +9,7 @@ export interface ReconciledStepEntry {
   action: "confirm-done" | "rerun";
   note: string;
   at_ms: number;
+  count?: number;
 }
 
 export type ReconciledStepMap = Record<string, ReconciledStepEntry>;
@@ -19,7 +20,7 @@ export function mergeReconciledSteps(maps: ReadonlyArray<ReconciledStepMap | und
     if (!map) continue;
     for (const [stepId, entry] of Object.entries(map)) {
       const existing = merged[stepId];
-      if (!existing || entry.at_ms >= existing.at_ms) merged[stepId] = entry;
+      if (!existing || entry.at_ms > existing.at_ms || (entry.at_ms === existing.at_ms && (entry.count ?? 1) >= (existing.count ?? 1))) merged[stepId] = entry;
     }
   }
   return merged;

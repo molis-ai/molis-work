@@ -239,7 +239,7 @@ function connectOpenCodeConfig(contents: string | null, desired: DesiredConnecti
     ? { $schema: "https://opencode.ai/config.json" }
     : parseJsoncObject(contents, "OpenCode 用户配置");
   const mcp: Record<string, unknown> = { ...objectOrEmpty(root.mcp), "molis-work": desiredOpenCodeEntry(desired) };
-  return replaceTopLevelJsonProperty(contents, root, "mcp", mcp);
+  return replaceTopLevelJsonProperty(contents, root, "mcp", mcp, { jsonc: true });
 }
 
 function removeOpenCodeConfig(contents: string | null): string | null {
@@ -247,7 +247,7 @@ function removeOpenCodeConfig(contents: string | null): string | null {
   const root = parseJsoncObject(contents, "OpenCode 用户配置");
   const mcp = { ...objectOrEmpty(root.mcp) };
   delete mcp["molis-work"];
-  return replaceTopLevelJsonProperty(contents, root, "mcp", mcp);
+  return replaceTopLevelJsonProperty(contents, root, "mcp", mcp, { jsonc: true });
 }
 
 function desiredPiEntry(desired: DesiredConnection): Record<string, unknown> {

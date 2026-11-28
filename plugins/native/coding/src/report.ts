@@ -7,8 +7,33 @@ import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platfo
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingUsageSummary } from "./usage.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
-import { codingText } from "./words.js";
+import { codingLocalFailure } from "./words.js";
 import { CODING_REPORT_TYPE, type CodingReport } from "./artifacts.js";
+
+/** Fixed Chinese wording for immutable persisted report Markdown so en/ja UI sessions never write mixed-language artifacts. */
+const REPORT_ZH_WORDS: Readonly<Record<string, string>> = {
+  "coding.goal-version.label": "工作约定 v{version}",
+  "coding.goal-version.none": "还没建立工作约定",
+  "coding.list.joiner": "、",
+  "coding.list.semicolon": "；",
+  "coding.usage-line.cache_creation": "缓存写入",
+  "coding.usage-line.cached_input": "缓存读取",
+  "coding.usage-line.compaction": "已计入上下文整理 {count} 次请求",
+  "coding.usage-line.compaction-incomplete": "，仍有整理过程缺少完整用量",
+  "coding.usage-line.cost_usd": "费用",
+  "coding.usage-line.estimated": "（估算）",
+  "coding.usage-line.incomplete": "用量不完整或含估算：{reason}",
+  "coding.usage-line.input": "输入",
+  "coding.usage-line.output": "输出",
+  "coding.usage-line.partial": "（已知小计）",
+  "coding.usage-line.partial-estimated": "（已知小计，含估算）",
+  "coding.usage-line.recorded": "（已记录）",
+  "coding.usage-line.unknown": "{label}未知",
+};
+const reportChineseText = (key: string, values?: Record<string, string | number>): string => {
+  const template = REPORT_ZH_WORDS[key] ?? key;
+  return values ? template.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? "")) : template;
+};
 
 import { codingChangeSetReference } from "./changeset.js";
 
@@ -65,7 +90,7 @@ export function readCodingExecutionReport(artifacts: PluginArtifactClient, sessi
   if (artifact.artifact_type_id !== CODING_REPORT_TYPE || artifact.schema_version !== /* @version type.coding.report */ 1
     || !report || report.source?.session_id !== sessionId || report.run_id !== runId
     || typeof report.body_markdown !== "string" || typeof report.title !== "string") {
-    throw new Error("保存的报告与当前会话或执行不匹配，不能替换成另一轮结果");
+    throw codingLocalFailure("coding.server.report-mismatch", "保存的报告与当前会话或执行不匹配，不能替换成另一轮结果");
   }
   return { report, reference, saved_at: artifact.created_at };
 }
@@ -85,7 +110,7 @@ export function createCodingExecutionReport(input: {
 }): CodingExecutionReport {
   const { run } = input;
   if (!["completed", "failed", "stopped", "cancelled"].includes(run.phase)) {
-    throw new Error("这一轮尚未结束或仍需核对结果，暂不能保存报告");
+    throw codingLocalFailure("coding.server.report-not-ready", "这一轮尚未结束或仍需核对结果，暂不能保存报告");
   }
   const phase = { completed: "本轮结束", failed: "执行失败", stopped: "已停止", cancelled: "已取消" };
   const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text)).join("\n\n");
@@ -112,21 +137,23 @@ export function createCodingExecutionReport(input: {
   });
   const staleCheck = lastEditAt >= 0 && lastPassAt >= 0 && lastEditAt > lastPassAt;
   const unknownCmdCount = input.commands.filter(({ output }) => !output || (!output.timed_out && !output.cancelled && output.exit_code === null)).length;
-  const failedCmdCount = input.commands.filter(({ output }) => Boolean(output && (output.timed_out || (output.exit_code !== null && output.exit_code !== 0)))).length;
+  const cancelledCmdCount = input.commands.filter(({ output }) => Boolean(output && !output.timed_out && output.cancelled)).length;
+  const failedCmdCount = input.commands.filter(({ output }) => Boolean(output && (output.timed_out || (!output.cancelled && output.exit_code !== null && output.exit_code !== 0)))).length;
   const passedCmdCount = input.commands.filter(({ output }) => Boolean(output && !output.timed_out && !output.cancelled && output.exit_code === 0)).length;
   const openSteps = activeLeafSteps(run.step_board?.nodes ?? []).filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state));
+  const zhJoiner = reportChineseText("coding.list.joiner");
   const deliveredSummary = changedFiles.length
-    ? `本轮已写入 ${changedFiles.length} 个文件：${changedFiles.slice(0, 12).join(codingText("coding.list.joiner"))}${changedFiles.length > 12 ? ` 等 ${changedFiles.length} 个` : ""}。`
+    ? `本轮已写入 ${changedFiles.length} 个文件：${changedFiles.slice(0, 12).join(zhJoiner)}${changedFiles.length > 12 ? ` 等 ${changedFiles.length} 个` : ""}。`
     : "本轮没有写入工作区文件。";
   const verifiedSummary = input.commands.length === 0
     ? "本轮未记录验证命令（无验证证据，不等于检查通过）。"
     : [
-        `共记录 ${input.commands.length} 条命令：通过 ${passedCmdCount} 条，失败 ${failedCmdCount} 条，结果未知 ${unknownCmdCount} 条。`,
+        `共记录 ${input.commands.length} 条命令：通过 ${passedCmdCount} 条，失败 ${failedCmdCount} 条${cancelledCmdCount > 0 ? `，已取消 ${cancelledCmdCount} 条` : ""}，结果未知 ${unknownCmdCount} 条。`,
         staleCheck ? "注意：最后一次通过的检查之后又改动过文件，旧检查不算对最终改动的验证。" : "",
         unknownCmdCount > 0 ? "含退出状态未知的命令，结果待核对，不视作验证通过。" : "",
       ].filter(Boolean).join(" ");
   const remainingSummary = [
-    openSteps.length ? `计划尚余 ${openSteps.length} 步未完成（${openSteps.slice(0, 6).map(n => n.title ?? n.id).join(codingText("coding.list.joiner"))}）。` : "",
+    openSteps.length ? `计划尚余 ${openSteps.length} 步未完成（${openSteps.slice(0, 6).map(n => n.title ?? n.id).join(zhJoiner)}）。` : "",
     run.awaiting_input.length ? `遗留 ${run.awaiting_input.length} 个待回答问题。` : "",
     unknownCmdCount > 0 ? `${unknownCmdCount} 条命令结果待核对。` : "",
     run.phase !== "completed" ? `本轮以「${phase[run.phase as keyof typeof phase]}」结束，原任务可能尚未收尾。` : "",
@@ -136,7 +163,7 @@ export function createCodingExecutionReport(input: {
     run.frozen.directories?.execution.kind === "worktree" ? `运行位置：独立工作树 ${run.frozen.directories.execution.worktree_id}。` : "运行位置：项目当前授权输出目录。",
     changedFiles.length ? `工作区含本轮 ${changedFiles.length} 个改动文件${lastCheckpoint ? `（最近检查点 ${lastCheckpoint}）` : ""}，尚未自动提交 Git。` : "工作区无本轮文件改动。",
   ].join(" ");
-  const usage = codingUsageSummary(run.usage, codingText);
+  const usage = codingUsageSummary(run.usage, reportChineseText);
   const { directory: _directory, ...frozen } = run.frozen;
   return {
     title: `${input.title} · 执行报告`, run_id: run.ref.run_id,
@@ -155,7 +182,7 @@ export function createCodingExecutionReport(input: {
       `## 本轮任务\n${task || "任务正文未保存，不能补造。"}`,
       ...(input.steps ? [codingReportStepsMarkdown(run, input.steps, literal)] : []),
       ...(input.goal_source_error ? [`## 目标来源暂不可读\n本轮回答和执行证据仍已保留。无法确认原目标归属，不使用会话后来选择的目标替代，也不能据此回写 Goal 进展。\n${literal(`${input.goal_source_error.reason}\n原固定来源：${input.goal_source_error.references.map(ref => `${ref.artifact_id} v${ref.version}`).join("、")}`)}`] : []),
-      ...(input.goal ? [`## 本轮关联目标\n${literal(`${input.goal.title}\n目标：${input.goal.goal_id}\n${codingGoalVersionLabel(input.goal, codingText)} · 目标事件 ${input.goal.goal_event_cursor}\n固定来源：${input.goal.reference.artifact_id} v${input.goal.reference.version}`)}\n这是开始本轮时固定的目标，不随会话改关联；本报告不代表目标验收。`] : []),
+      ...(input.goal ? [`## 本轮关联目标\n${literal(`${input.goal.title}\n目标：${input.goal.goal_id}\n${codingGoalVersionLabel(input.goal, reportChineseText)} · 目标事件 ${input.goal.goal_event_cursor}\n固定来源：${input.goal.reference.artifact_id} v${input.goal.reference.version}`)}\n这是开始本轮时固定的目标，不随会话改关联；本报告不代表目标验收。`] : []),
       ...(supplemental ? [supplemental] : []),
       ...(run.awaiting_input.length ? [`## 遗留问题\n${run.awaiting_input.map(question => `${literal(question.prompt)}\n${question.unavailable_reason || "本轮已结束，问题不可再回答；不能据此推断已收到正式回答。"}`).join("\n\n")}`] : []),
       `## 模型答复\n以下是模型的表述；检查证据另列，不自动据此判定通过。\n\n${modelAnswer || "没有已保存的模型答复。"}`,

@@ -233,3 +233,104 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     assert.deepEqual(await snapshot(), beforeConflict, "whole confirmation does not partially create the parent or relation");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("F-goals-02: goals.tree.check preview never leaks requirements into platform acceptance", async t => {
+  const home = await mkdtemp(join(tmpdir(), "goals-tree-preview-hang-"));
+  const project = await withCatalog({ homeDirectory: home }, async c => {
+    const created = await c.createProject({ display_name: "Tree Preview", actor_id: "user" });
+    c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" });
+    return created;
+  });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const caller: ActionCallContext = {
+    actor_id: "runtime:tree-preview",
+    audit_actor_id: "runtime:tree-preview:session",
+    runtime_session_id: "session",
+    actor_kind: "runtime",
+    project_id: project.project_id,
+    audience: "agent",
+    permissions: ["goals:read", "goals:write", "attention:write"],
+  };
+  const bound = bindActionClient(host.actionClient(ref), () => caller);
+  try {
+    const served = await serveTestHost(t, { home, host });
+    const review = webGoalReviews(served.web, project.project_id);
+    await initializeBoard(host, ref);
+
+    const submitted = await bound.invoke(goalsActions.treeSubmit, {
+      summary: "Preview requirement isolation",
+      idempotency_key: "preview-req-submit",
+      items: [{
+        item_id: "preview-req-goal",
+        kind: "goal",
+        operation: "create",
+        payload: {
+          goal_id: "PREVIEW-REQ-GOAL",
+          title: "Preview requirement goal",
+          outcome: "Only approved requirements enter acceptance",
+          requirements: [{ requirement_id: "req-1", statement: "Initial preview statement", human_decision_required: false }],
+        },
+        source_refs: ["conversation://tree-preview"],
+        reason: "Check preview isolation",
+        confidence: 1,
+      }],
+    });
+    const checked = await bound.invoke(goalsActions.treeCheck, {
+      proposal_id: submitted.proposal.proposal_id,
+      idempotency_key: "preview-req-check",
+    });
+    assert.deepEqual(checked.conflict_item_ids, []);
+
+    // Previewing a proposal with requirements must leave platform acceptance empty.
+    const afterCheck = await host.withProject(ref, r => goalApplicationOf(r).acceptanceView(project.project_id, "PREVIEW-REQ-GOAL"));
+    assert.deepEqual(afterCheck.requirements, [], "goals.tree.check must not hang unapproved requirements in modules/acceptance");
+
+    // Revising and approving the proposal must hang the revised requirement with requires_person = true.
+    const revised = await review.submit<GoalTreeProposalDecisionResult<never>>(await review.prepare(goalsActions.treeDecide, {
+      proposal_id: submitted.proposal.proposal_id,
+      idempotency_key: "preview-req-revise",
+      reason: "Tighten requirement before approval",
+      decisions: [{
+        item_id: "preview-req-goal",
+        decision: "revise",
+        reason: "Require person sign-off",
+        revised_item: {
+          item_id: "preview-req-goal-v2",
+          kind: "goal",
+          operation: "create",
+          payload: {
+            goal_id: "PREVIEW-REQ-GOAL",
+            title: "Preview requirement goal",
+            outcome: "Only approved requirements enter acceptance",
+            requirements: [{ requirement_id: "req-1", statement: "Approved final statement", human_decision_required: true }],
+          },
+          source_refs: ["conversation://tree-preview"],
+          reason: "Revised requirement",
+          confidence: 1,
+        },
+      }],
+    }));
+    const revisionId = revised.result?.revision_proposals[0]?.proposal_id;
+    assert.ok(revisionId, "revision proposal must be created");
+    await bound.invoke(goalsActions.treeCheck, { proposal_id: revisionId, idempotency_key: "preview-req-check-v2" });
+    const afterSecondCheck = await host.withProject(ref, r => goalApplicationOf(r).acceptanceView(project.project_id, "PREVIEW-REQ-GOAL"));
+    assert.deepEqual(afterSecondCheck.requirements, [], "checking revised proposal must still leave acceptance empty");
+
+    await review.submit(await review.prepare(goalsActions.treeDecide, {
+      proposal_id: revisionId,
+      confirm_all_pending: true,
+      reason: "Approve revised requirement",
+      idempotency_key: "preview-req-approve-v2",
+    }));
+    const afterApprove = await host.withProject(ref, r => goalApplicationOf(r).acceptanceView(project.project_id, "PREVIEW-REQ-GOAL"));
+    assert.equal(afterApprove.requirements.length, 1);
+    assert.equal(afterApprove.requirements[0]?.id, "req-1");
+    assert.equal(afterApprove.requirements[0]?.statement, "Approved final statement");
+    assert.equal(afterApprove.requirements[0]?.requires_person, true);
+    await served.close();
+  } finally {
+    await host.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});

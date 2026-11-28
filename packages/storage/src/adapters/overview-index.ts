@@ -5,7 +5,7 @@ import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platfo
 import { OVERVIEW_KINDS, OVERVIEW_MAIN_TABLE, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewKind } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { OverviewIndexLibrary, OverviewIndexPort, OverviewIndexStoredRow, OverviewTableRow } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openHomeSqliteDatabase, openHomeSqliteFile } from "../home-sqlite.js";
-import { TEXT_SEARCH_STORE } from "./text-search-index.js";
+import { isRebuildableSearchDbError, searchIndexIntegrityError, TEXT_SEARCH_STORE } from "./text-search-index.js";
 
 /** Verifies `candidate` stays strictly inside `partitionId`'s root under `homeDirectory` with no symlink segment. */
 function isPartitionLibraryConfined(homeDirectory: string, partitionId: string, candidate: string): boolean {
@@ -63,11 +63,16 @@ type Row = Record<string, unknown>;
 export function openOverviewIndex(options: { readonly homeDirectory: string }): OverviewIndexPort {
   const dbPath = homeSqlitePath(options.homeDirectory, TEXT_SEARCH_STORE);
   const open = (): DatabaseSync => {
-    const handle = openHomeSqliteDatabase(options.homeDirectory, TEXT_SEARCH_STORE);
+    const handle = openHomeSqliteDatabase(options.homeDirectory, TEXT_SEARCH_STORE, undefined, {
+      busyTimeoutMs: 5000,
+      journalMode: "wal",
+      synchronous: "NORMAL",
+    });
     try {
-      handle.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
       const check = handle.prepare("PRAGMA quick_check").all() as Row[];
-      if (!check.every(row => Object.values(row).every(value => value === "ok"))) throw new Error("overview index failed integrity check");
+      if (!check.every(row => Object.values(row).every(value => value === "ok"))) {
+        throw searchIndexIntegrityError("overview index failed integrity check");
+      }
       return handle;
     } catch (error) {
       try { handle.close(); } catch { /* closing failed handle */ }
@@ -75,8 +80,10 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
     }
   };
   let db: DatabaseSync;
-  try { db = open(); }
-  catch {
+  try {
+    db = open();
+  } catch (error) {
+    if (!isRebuildableSearchDbError(error)) throw error;
     for (const suffix of ["", "-wal", "-shm"]) if (existsSync(dbPath + suffix)) rmSync(dbPath + suffix, { force: true });
     db = open();
   }
@@ -90,19 +97,24 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
       throw error;
     }
   };
-  transaction(() => {
-    db.exec("CREATE TABLE IF NOT EXISTS overview_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-    const version = (db.prepare("SELECT value FROM overview_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
-    if (version !== OVERVIEW_INDEX_VERSION) {
-      db.exec(`DROP TABLE IF EXISTS overview_rows; DROP TABLE IF EXISTS overview_libraries;
+  try {
+    transaction(() => {
+      db.exec("CREATE TABLE IF NOT EXISTS overview_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+      const version = (db.prepare("SELECT value FROM overview_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
+      if (version !== OVERVIEW_INDEX_VERSION) {
+        db.exec(`DROP TABLE IF EXISTS overview_rows; DROP TABLE IF EXISTS overview_libraries;
         CREATE TABLE overview_libraries (partition_id TEXT NOT NULL, install_id TEXT NOT NULL, plugin_id TEXT NOT NULL,
           dirty INTEGER NOT NULL CHECK (dirty IN (0, 1)), refreshed_at TEXT, PRIMARY KEY (partition_id, install_id));
         CREATE TABLE overview_rows (partition_id TEXT NOT NULL, install_id TEXT NOT NULL, plugin_id TEXT NOT NULL, kind TEXT NOT NULL,
           row_id TEXT NOT NULL, fields_json TEXT NOT NULL, sort_at TEXT, PRIMARY KEY (partition_id, install_id, kind, row_id));
         CREATE INDEX overview_rows_kind ON overview_rows (kind, sort_at);`);
-      db.prepare("INSERT OR REPLACE INTO overview_meta (key, value) VALUES ('schema', ?)").run(OVERVIEW_INDEX_VERSION);
-    }
-  });
+        db.prepare("INSERT OR REPLACE INTO overview_meta (key, value) VALUES ('schema', ?)").run(OVERVIEW_INDEX_VERSION);
+      }
+    });
+  } catch (error) {
+    try { db.close(); } catch { /* closing failed handle */ }
+    throw error;
+  }
   const removeWhere = (where: string, parameters: readonly string[]) => transaction(() => {
     for (const table of ["overview_rows", "overview_libraries"]) db.prepare(`DELETE FROM ${table} WHERE ${where}`).run(...parameters);
   });

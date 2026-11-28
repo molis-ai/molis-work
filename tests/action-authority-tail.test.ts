@@ -231,3 +231,77 @@ test("MEM-V0-C2 bound nested calls intersect both live source checks and reject 
     assert.equal(writes, 1, "neither child control nor Promise-returning checker can bypass the original source fence");
   } finally { dispose(); }
 });
+
+const reviewDefinition: ActionDefinition = {
+  capability_id: "fixture.review.write",
+  version: 1,
+  operation: "command",
+  action: {
+    title: "Write",
+    description: "Write the selected text",
+    kind: "operation",
+    scope: "project",
+    audiences: ["agent"],
+    permissions: ["fixture:write"],
+    subject_kinds: [],
+    input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
+  },
+};
+const reviewCaller: ActionCallContext = { actor_id: "agent", project_id: "p", audience: "agent", permissions: ["fixture:write"] };
+const reviewGate = () => {
+  let release!: () => void;
+  const promise = new Promise<void>(resolve => { release = resolve; });
+  return { promise, release };
+};
+
+test("APR-07/08: a review pins the original registration, provider and scope without invoking or rediscovering", async () => {
+  const service = new ActionService();
+  let writes = 0;
+  const register = () => service.registerProvider({
+    provider: { provider_id: "original", project_id: "p", kind: "plugin", title: "Original" },
+    definitions: [reviewDefinition],
+    handlers: [{ ...reviewDefinition, handle: () => { writes++; return null; } }],
+  });
+  const remove = register();
+  const offered = service.discover(reviewCaller)[0]!;
+  const control = service.prepareReview(reviewCaller, offered, { text: "fixed" });
+  const unrelated = service.registerProvider({
+    provider: { provider_id: "unrelated", project_id: "p", kind: "plugin", title: "Other" },
+    definitions: [{ ...reviewDefinition, capability_id: "fixture.other.write" }],
+    handlers: [{ ...reviewDefinition, capability_id: "fixture.other.write", handle: () => null }],
+  });
+  control.assertCurrent();
+  unrelated();
+  control.assertCurrent();
+  assert.throws(() => service.prepareReview(reviewCaller, { ...offered, provider: { ...offered.provider, provider_id: "forged" } }, { text: "fixed" }));
+  assert.throws(() => service.prepareReview({ ...reviewCaller, project_id: "other" }, offered, { text: "fixed" }));
+  assert.throws(() => service.prepareReview(reviewCaller, offered, { text: 12 }));
+  remove();
+  const removeReplacement = register();
+  assert.throws(control.assertCurrent, { code: "actions.provider_changed" });
+  await assert.rejects(control.beforeEffect(), { code: "actions.provider_changed" });
+  assert.equal(writes, 0);
+  removeReplacement();
+});
+
+test("APR-08: the same registration guard rejects revocation during asynchronous Host policy checking", async () => {
+  const entered = reviewGate();
+  const resume = reviewGate();
+  let granted = true;
+  let writes = 0;
+  const service = new ActionService(undefined, { beforeEffect: async () => { entered.release(); await resume.promise; } });
+  const remove = service.registerProvider({
+    provider: { provider_id: "owner", project_id: "p", kind: "plugin", title: "Owner" },
+    definitions: [reviewDefinition],
+    handlers: [{ ...reviewDefinition, handle: () => { writes++; return null; } }],
+  });
+  const context = { ...reviewCaller, assert_authority_current: () => assert.ok(granted, "original grant revoked") };
+  const control = service.prepareReview(context, service.discover(context)[0]!, { text: "fixed" });
+  const checking = control.beforeEffect();
+  await entered.promise;
+  granted = false;
+  resume.release();
+  await assert.rejects(checking, /original grant revoked/);
+  assert.equal(writes, 0);
+  remove();
+});

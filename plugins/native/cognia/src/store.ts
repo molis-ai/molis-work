@@ -13,6 +13,7 @@ const SKIP_REASON_CODES: Readonly<Record<string, string>> = {
   暂不支持此文件类型: "unsupported",
   超过文件或批次大小限制: "too_large",
   文件超过大小限制: "too_large",
+  "批次超过 32 MB，请选择较小目录": "too_large",
   文件编码无效或超过大小限制: "unreadable",
   文件编码无效: "unreadable",
   正文不是有效UTF8: "unreadable",
@@ -90,7 +91,7 @@ export class CogniaStore {
         continue;
       }
       try {
-        const decoded = decodeFile(file); total += decoded.bytes.length; requireCognia(total <= COGNIA_LIMITS.batch_bytes, "批次超过 32 MB，请选择较小目录");
+        const decoded = decodeFile(file); requireCognia(total + decoded.bytes.length <= COGNIA_LIMITS.batch_bytes, "批次超过 32 MB，请选择较小目录"); total += decoded.bytes.length;
         const old = this.atPath(source.id, path), hash = contentHash(decoded.bytes);
         const status: ImportEntry["status"] = old ? old.hash === hash ? "unchanged" : "update" : "new";
         const material: Material = { ...metadata(decoded.body, path), id: old?.id ?? randomUUID(), source_id: source.id, path, domain_id: source.domain_id, role: materialRole(path, decoded.text, source.kind), revision: (old?.revision ?? 0) + 1, hash, bytes: decoded.bytes.length, updated_at: new Date().toISOString(), mime: decoded.mime, body: decoded.body };

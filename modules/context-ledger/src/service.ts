@@ -52,6 +52,7 @@ export class ContextLedgerService implements ContextLedgerApi, ContextLedgerRela
     put: (access: ContextAccess, input: ContextEdgeInput) => this.put(access, input),
     remove: (access: ContextAccess, key: string, cause: string, recordedAt?: string) => {
       this.checkAccess(access, "write");
+      if (!key.trim() || !cause.trim()) throw ledgerErrors.invalid_reference("关系 key 和 cause 不能为空");
       return this.repository.transaction(() => {
         const previous = this.repository.latest(access.scope, key);
         if (!previous || previous.state === "removed") return previous;

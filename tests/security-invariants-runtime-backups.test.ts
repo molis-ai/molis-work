@@ -135,7 +135,7 @@ test("S-12 RAC-104: the same budget fails a read that waits on a FIFO, and a can
   assert.equal(blocked.timedOut, true, "a read waiting for a writer outlives the budget");
   assert.equal(blocked.refused, null);
   assert.equal(blocked.signal, "SIGKILL");
-  assert.throws(() => assertRefusedPromptly(blocked, "installer.runtime_backup.invalid"), "the check a prompt refusal passes must fail a blocked read");
+  assert.throws(() => assertRefusedPromptly(blocked, "installer.runtime_backup.invalid"), assert.AssertionError, "the check a prompt refusal passes must fail a blocked read");
   const controller = new AbortController();
   const cancelled = await children.run("block", { home: f.home, plan: "none", fifo }, { signal: controller.signal, onEntered: () => controller.abort() });
   t.diagnostic(`cancelled: ${JSON.stringify({ ...cancelled, stderrTail: undefined })}`);

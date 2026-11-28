@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 import { UI_FORMAT_VERSIONS, type OwnedTextRef, type UiLocalePack, type UiMessage, type UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
-import { createTextReader, dateArg, escapeHtml, format, installTextForTest, installUiText, numberArg, parseLocalePack, say, t, tryOwnedTextRef, UI_TEXT_UNAVAILABLE } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { createTextReader, dateArg, escapeHtml, format, installTextForTest, installUiText, numberArg, parseLocalePack, say, t, tryOwnedTextRef, tryUiText, UI_TEXT_UNAVAILABLE } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // `t`, `say`, `format` and the context behind them: FSS-44, FSS-69 and FSS-70 (specs/font-and-skin-system/spec.md §11). What needs a real Host and a
 // real page (requests, timers, a sandbox) is slice T8's; the bundled copy of the SDK reading the context is tests/ui-text-bundle.test.ts.
@@ -367,4 +367,21 @@ test("a browser records which sentence a text is, in plain text, for a change of
     ["Rename A&B", { owner: OWNER, key: "notes.main.rename", args: [{ name: "title", kind: "text", text: "A&B" }] }],
     ["Notes", { owner: OWNER, key: "notes.main.title" }],
   ]);
+});
+
+test("F-cf2-10 tryUiText returns undefined silently on missing keys without logging ui.text_missing or returning unavailable placeholder", () => {
+  assert.equal(tryUiText("notes.main.title"), undefined, "without context");
+  const problems: Array<{ code: string }> = [];
+  const uninstall = installTextForTest({ packs: PACKS, locale: "en", problem: (problem) => problems.push(problem) });
+  try {
+    assert.equal(tryUiText("notes.main.title"), "Notes");
+    assert.equal(tryUiText("notes.main.rename", { title: "Draft" }), "Rename Draft");
+    assert.equal(tryUiText("notes.main.missing"), undefined);
+    assert.equal(tryUiText("common.missing.key"), undefined);
+    assert.equal(tryUiText("unknown.prefix.key"), undefined);
+    assert.equal(tryUiText("notes.main.missing") ?? "Fallback", "Fallback");
+    assert.deepEqual(problems, [], "tryUiText must not emit ui.text_missing problems");
+  } finally {
+    uninstall();
+  }
 });

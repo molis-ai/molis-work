@@ -8,6 +8,10 @@ import type { PagesStores } from "./store.js";
 import { pagesErrors } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
+function isConfigurationChanged(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "actions.configuration_changed";
+}
+
 export async function generatePagesFromMaterials(stores: PagesStores, caller: Pick<ActionExecutionContext, "beforeEffect" | "signal">, record: PagesGenerationRecord,
   complete?: (prompt: InstructedPrompt) => Promise<PluginModelResult>) {
   const { signal } = caller;
@@ -17,15 +21,26 @@ export async function generatePagesFromMaterials(stores: PagesStores, caller: Pi
   signal?.throwIfAborted();
   const request = await stores.write(caller, store => store.beginGeneration(record));
   if (request.status === "completed" && request.document_id) return { document: stores.read(store => store.get(request.document_id!)), replayed: true };
+  const releaseAttempt = () => { stores.read(store => store.releaseGenerationAttempt(request)); };
   const refusedEnds = async () => {
     try { signal?.throwIfAborted(); await caller.beforeEffect(); }
-    catch (refused) { stores.read(store => store.releaseGenerationAttempt(request)); throw refused; }
+    catch (refused) { releaseAttempt(); throw refused; }
   };
   const fail = async (error: unknown): Promise<never> => {
-    // Failure bookkeeping is also an effect. If the call was cancelled or lost authority it writes nothing;
-    // it only notes, in this process, that its attempt is over, so a new call here can take the request over.
+    // Failure bookkeeping is also an effect. If the call was cancelled, lost authority, or the model binding
+    // changed while running (S-18), it writes nothing; it only notes, in this process, that its attempt is over,
+    // so a new call here can take the request over.
+    if (isConfigurationChanged(error)) {
+      releaseAttempt();
+      throw error;
+    }
     await refusedEnds();
-    await stores.write(caller, store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
+    try {
+      await stores.write(caller, store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
+    } catch (writeError) {
+      releaseAttempt();
+      throw writeError;
+    }
     throw error;
   };
   let body: PagesBody;

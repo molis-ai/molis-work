@@ -98,7 +98,9 @@ export async function loadEarlier(page: Page) {
   } catch (error) {
     if (s.current === id) status(page, errorMessage(error), true);
   } finally {
-    s.pageLoading = false;
-    if (s.current === id) renderEarlier(page);
+    if (ticket === s.generation) {
+      s.pageLoading = false;
+      if (s.current === id) renderEarlier(page);
+    }
   }
 }

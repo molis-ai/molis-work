@@ -4,6 +4,8 @@ The unified action service (`ActionService`) is the only directory of system cap
 
 ## Three fields describe each action
 
+State transitions still go through write actions, authorization, and pre-write checks. Action references in a state machine are static declarations; see [state and transitions](state-machine.md).
+
 | Field | Meaning |
 |---|---|
 | `audiences` | Who can see and call it: `user`, `agent`, `workflow`, `mcp`, `plugin`. |
@@ -23,6 +25,14 @@ An action with the `agent` audience is also offered to generated plugins, except
 - A write credited to a Runtime session declares `authorship: "session"`. MCP calls must carry a stable session; read authorship from `caller.audit_actor_id`.
 - Handlers that wait for a model or another service declare `scheduling: "concurrent"`. After the wait, `await caller.beforeEffect()` and commit against the version originally read.
 - Validate reads and writes against the current strict contract. Maintenance updates existing data; the schema does not accept historical values. Invalid query output is `actions.output_invalid`. When a command already committed, invalid output is `actions.output_invalid_after_effect`; callers refresh instead of repeating the write.
+
+## Declare bounded delegation scope
+
+Actions that cannot fix a target or verify ownership before business writes declare `action.delegation: "confirmation-only"`. This forbids reusable auto-delegation without blocking calls confirmed by a person; outer actions that indirectly invoke such entries must also declare it. Only an `undeclared` extraction result can enter exact full-argument authorization; `confirmation-only` and other bounded-declaration failures stay on confirmation. Preparation, granting, and execution handle this consistently without guessing by plugin name.
+
+A plugin can declare finite string targets, individual side effects, and version/idempotency `control_fields` in `action.delegation`. The input must be a closed top-level object where each business field belongs to only one operation; move or relation fields are both target and side effect and cannot hide in `control_fields`. Omitting a target is allowed only with a constant `default_value` explicitly declared by the owner; dynamically read current associations cannot serve as authorization. Display names use the provider's locale pack: target/operation `title_text` and empty-string target `empty_title` must be non-literal `TextRef` values, and an empty label never substitutes for allowed values.
+
+Run SDK `extractActionDelegation` only after original schema validation; field presence activates an operation (including `false` and `""`), and every active operation must fall within the granted row. Extraction is not authorization: execution still checks the owner's object, project, version, installation, and pre-write currency. If declared but the call omits a target or passes an unsupported value, keep confirmation instead of falling back to full-argument matching. Display titles reuse `presentation.values` in owner batches without reading bodies and never replace pre-write owner checks. Pages' non-empty Goal currently lacks final owner validation and supports auto-scope only for explicit unlinked `""`; see [bounded delegation contract](../../specs/agent-approval/delegation-contract-design.md).
 
 ## Generated plugins
 

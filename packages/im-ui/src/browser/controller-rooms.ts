@@ -49,6 +49,8 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
       c.updateHeader();
       c.render('group', 'latest');
       await c.restorePosition('group', version);
+      if (version !== s.epoch)
+        return;
       c.formFor('group').hidden = false;
       c.restoreDraft('group');
       storage.write(c.key('room'), id);

@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import { createPrologueCheckpoints } from "../horizontal/agent-host/dist/adapters/prologue-checkpoints.js";
@@ -230,4 +232,58 @@ test("BL-360: closing a real rewind while its entry waits rejects before SDK can
     assert.equal(f.queue.receipt(review.review_id)?.status, "cancelled");
     assert.equal(await readFile(join(f.project, "a.ts"), "utf8"), "changed\n");
   } finally { release.resolve(); finishCancel.resolve(); await closing; await f.close(); }
+});
+
+test("F-TEST-08 F-cf-08: real ActionService validates agent.checkpoints.prepare-rewind output_schema including reference and install_id", async () => {
+  const f = await fixture();
+  try {
+    const checkpointId = await f.edit("a.ts", "rewind-target\n");
+    const service = new ActionService();
+    service.registerProvider({
+      provider: { provider_id: "system.agent-host", title: "Agent Host", kind: "system", project_id: "board" },
+      definitions: [agentHostCapabilities.prepareRewind],
+      handlers: [{
+        ...agentHostCapabilities.prepareRewind,
+        handle: async (_context, [session, id]) => f.checkpoints.prepareRewind(session, id),
+      }],
+    });
+    const caller = {
+      actor_id: "person",
+      project_id: "board",
+      audience: "plugin" as const,
+      permissions: [] as string[],
+    };
+    const review = await service.invoke(caller, agentHostCapabilities.prepareRewind, [f.session, checkpointId, "editor"]) as {
+      review_id: string;
+      kind: string;
+      project_id: string;
+      plugin_id: string;
+      install_id: string;
+      reference: {
+        owner: { kind: string; project_id: string; plugin_id: string; install_id: string };
+        id: string;
+        version: string;
+      };
+      document: { kind: string; checkpoint_id: string };
+    };
+    assert.equal(typeof review.review_id, "string");
+    assert.ok(review.review_id.length > 0);
+    assert.equal(review.kind, "rewind");
+    assert.equal(review.project_id, "board");
+    assert.equal(review.plugin_id, "coding");
+    assert.equal(review.install_id, "checkpoint-install");
+    assert.deepEqual(review.reference.owner, {
+      kind: "agent-review",
+      project_id: "board",
+      plugin_id: "coding",
+      install_id: "checkpoint-install",
+    });
+    assert.equal(review.reference.id, review.review_id);
+    assert.equal(typeof review.reference.version, "string");
+    assert.ok(review.reference.version.length > 0);
+    assert.equal(review.document.kind, "rewind");
+    assert.equal(review.document.checkpoint_id, checkpointId);
+  } finally {
+    await f.close();
+  }
 });

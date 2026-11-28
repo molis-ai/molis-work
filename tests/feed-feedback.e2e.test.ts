@@ -194,6 +194,29 @@ test("B27-FF02 B27-FF03 Feed keeps form errors local and retries just the missin
     };
   })()`);
   await child.click(ADD);
+  // F-pm3-11: every add-source choice resolves a real locale key for the dialog heading, never the missing-key fallback.
+  for (const [kind, expectedTitle] of [
+    ["custom_rss", "RSS / Atom"],
+    ["youtube_channel", "YouTube"],
+    ["github", "GitHub"],
+    ["gmail", "Gmail"],
+    ["research_library", "共享研究库"],
+    ["rss", "目录订阅"],
+    ["web_query", "网页搜索"],
+  ] as const) {
+    await child.click(`[data-feed-choose-kind="${kind}"]`);
+    const heading = await child.evaluate<string>("document.querySelector('#feed-source-dialog-title').textContent.trim()");
+    assert.equal(heading, expectedTitle, `F-pm3-11: ${kind} add-source modal title`);
+    assert.doesNotMatch(heading, /暂不可用|显示不了|…|^feed\./u);
+    await child.click("[data-feed-setup-back]");
+  }
+  if (await child.evaluate<boolean>("Boolean(document.querySelector('[data-feed-choose-kind=\"account\"]'))")) {
+    await child.click('[data-feed-choose-kind="account"]');
+    const heading = await child.evaluate<string>("document.querySelector('#feed-source-dialog-title').textContent.trim()");
+    assert.equal(heading, "其他服务的账号", "F-pm3-11: account add-source modal title");
+    assert.doesNotMatch(heading, /暂不可用|显示不了|…|^feed\./u);
+    await child.click("[data-feed-setup-back]");
+  }
   await child.click('[data-feed-choose-kind="custom_rss"]');
   const field = '[data-feed-source-value="custom_rss"]';
   const set = (selector: string, value: string) => child.evaluate(`(() => {

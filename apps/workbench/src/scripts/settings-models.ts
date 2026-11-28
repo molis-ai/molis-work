@@ -60,9 +60,11 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/mod
         return { connection_id: find('[data-model-connection]')?.value || '', ...(key ? { api_key: key } : {}) };
       };
       const refresh = async (query = '') => {
+        clearTimeout(recheck); recheck = 0; edits += 1;
         const doc = new DOMParser().parseFromString(await molisWorkRequest('/settings/models' + query, { as: 'text', fallback: globalThis.t.text("workbench.settings-models.cannot-load-model-settings") }), 'text/html');
         const replacement = doc.querySelector('[data-model-settings]');
         if (!replacement) throw new Error(globalThis.t.text("workbench.settings-models.model-settings-page-incomplete"));
+        clearTimeout(recheck); recheck = 0; edits += 1;
         root.replaceChildren(...replacement.childNodes);
         dirty = false;
       };
@@ -96,12 +98,13 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/mod
         }
         if (error?.code === 'model_provider.rate_limited') {
           progress(1, 'hold');
-          const box = find('[data-model-limited]'), seen = edits, wait = 60000;
+          clearTimeout(recheck);
+          const box = find('[data-model-limited]'), seen = edits, wait = 60000, providerId = find('[data-model-detail]')?.dataset.modelDetail;
           const time = globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: new Date(Date.now() + wait).toISOString(), style: "time" } });
           // What was kept is said once, on the status line.
           box.querySelector('p').textContent = globalThis.t.text("workbench.settings-models.services-side-not-something-typed-wrong-checks-again", { minutes: 1, time });
           box.hidden = false;
-          recheck = setTimeout(() => { if (root.isConnected && !box.hidden && edits === seen) find('[data-model-recheck]')?.click(); }, wait);
+          recheck = setTimeout(() => { if (root.isConnected && box.isConnected && !box.hidden && edits === seen && find('[data-model-detail]')?.dataset.modelDetail === providerId) find('[data-model-recheck]')?.click(); }, wait);
           return status(unsaved, true);
         }
         progress(1, 'failed');

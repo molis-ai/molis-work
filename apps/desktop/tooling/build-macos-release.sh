@@ -30,11 +30,30 @@ export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-$SIGNING_IDENTITY}"
 pnpm --dir "$REPO_ROOT" build
 bash "$SCRIPT_DIR/prepare-macos-runtime.sh"
 
+BUNDLE_ROOT="$REPO_ROOT/apps/desktop/src-tauri/target/release/bundle"
+rm -rf "$BUNDLE_ROOT/dmg" "$BUNDLE_ROOT/macos/$APP_NAME.app"
+
 (cd "$REPO_ROOT/apps/desktop" && "$REPO_ROOT/node_modules/.bin/tauri" build --bundles app,dmg --ci --config "$TAURI_SETTINGS")
 
-BUNDLE_ROOT="$REPO_ROOT/apps/desktop/src-tauri/target/release/bundle"
 APP_PATH="$BUNDLE_ROOT/macos/$APP_NAME.app"
-DMG_PATH="$(find "$BUNDLE_ROOT/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+case "$RELEASE_ARCH" in
+  arm64) TAURI_DMG_ARCH="aarch64" ;;
+  x64) TAURI_DMG_ARCH="x64" ;;
+esac
+DMG_PATH="$BUNDLE_ROOT/dmg/${APP_NAME}_${VERSION}_${TAURI_DMG_ARCH}.dmg"
+if [[ ! -f "$DMG_PATH" ]]; then
+  DMG_MATCHES=()
+  if [[ -d "$BUNDLE_ROOT/dmg" ]]; then
+    while IFS= read -r match; do
+      DMG_MATCHES+=("$match")
+    done < <(find "$BUNDLE_ROOT/dmg" -maxdepth 1 -type f -name "${APP_NAME}_${VERSION}_*.dmg" -print)
+  fi
+  if [[ "${#DMG_MATCHES[@]}" -eq 1 ]]; then
+    DMG_PATH="${DMG_MATCHES[0]}"
+  else
+    DMG_PATH=""
+  fi
+fi
 if [[ ! -d "$APP_PATH" || -z "$DMG_PATH" || ! -f "$DMG_PATH" ]]; then
   echo "Tauri did not produce the expected $APP_NAME.app and DMG." >&2
   exit 1
@@ -45,11 +64,20 @@ OUTPUT_DIR="$REPO_ROOT/release/macos"
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DMG="$OUTPUT_DIR/$APP_NAME-${VERSION}-macos-${RELEASE_ARCH}.dmg"
 OUTPUT_ZIP="$OUTPUT_DIR/$APP_NAME-${VERSION}-macos-${RELEASE_ARCH}.app.zip"
+STAGE_DIR="$(mktemp -d "$OUTPUT_DIR/.molis-release-stage.XXXXXX")"
+cleanup() { rm -rf "$STAGE_DIR"; }
+trap cleanup EXIT INT TERM
+STAGED_DMG="$STAGE_DIR/$(basename "$OUTPUT_DMG")"
+STAGED_ZIP="$STAGE_DIR/$(basename "$OUTPUT_ZIP")"
+cp "$DMG_PATH" "$STAGED_DMG"
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$STAGED_ZIP"
+(cd "$STAGE_DIR" && shasum -a 256 "$(basename "$OUTPUT_DMG")" > "$(basename "$OUTPUT_DMG").sha256")
+(cd "$STAGE_DIR" && shasum -a 256 "$(basename "$OUTPUT_ZIP")" > "$(basename "$OUTPUT_ZIP").sha256")
 rm -f "$OUTPUT_DMG" "$OUTPUT_ZIP" "$OUTPUT_DMG.sha256" "$OUTPUT_ZIP.sha256"
-cp "$DMG_PATH" "$OUTPUT_DMG"
-ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUTPUT_ZIP"
-(cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$OUTPUT_DMG")" > "$(basename "$OUTPUT_DMG").sha256")
-(cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$OUTPUT_ZIP")" > "$(basename "$OUTPUT_ZIP").sha256")
+mv "$STAGED_DMG" "$OUTPUT_DMG"
+mv "$STAGED_ZIP" "$OUTPUT_ZIP"
+mv "$STAGED_DMG.sha256" "$OUTPUT_DMG.sha256"
+mv "$STAGED_ZIP.sha256" "$OUTPUT_ZIP.sha256"
 
 echo "Built Molis Work macOS release:"
 echo "  $OUTPUT_DMG"

@@ -375,7 +375,7 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
       return;
     }
     if (!target || !path.includes(float)) {
-      if (!path.some(node => node instanceof Element && node.matches("[data-assistant-panel],[data-work-bar],[data-side-panel]"))) shell.hide();
+      if (!document.querySelector("dialog[open]") && !path.some(node => node instanceof Element && node.matches("[data-assistant-panel],[data-work-bar],[data-side-panel],dialog,[popover]"))) shell.hide();
       return;
     }
     const stop = target.closest<HTMLElement>('[data-task-control="stop"]'), task = tasks.find(one => one.id === (stop?.dataset.task ?? carded));
@@ -400,7 +400,7 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
     else if (target.closest("[data-task-go]")) go(task);
   });
   installDecisionKeys(() => {
-    if (!float) return false;
+    if (!float || document.querySelector("dialog[open]")) return false;
     shell.hide();
     return true;
   });

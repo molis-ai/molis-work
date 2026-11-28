@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { defineErrorCodes, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createSecureServer } from "node:https";
 import { readFile } from "node:fs/promises";
@@ -39,15 +40,22 @@ export async function startServer(options: ServerOptions) {
   const {events} = options;
   const hostname = options.hostname ?? "127.0.0.1", port = options.port ?? 4187;
   if (!isLoopbackHostname(hostname,{numeric:true}) && (!options.tls || !options.publicOrigin)) throw new ImError("im.server.https_required","局域网入口必须显式配置 HTTPS 证书和 publicOrigin");
-  if (options.publicOrigin && new URL(options.publicOrigin).origin !== options.publicOrigin) throw new ImError("im.server.invalid_origin","publicOrigin 必须是完整 origin，不带路径");
-  if (options.publicOrigin && new URL(options.publicOrigin).protocol !== (options.tls ? "https:" : "http:")) throw new ImError("im.server.invalid_origin","publicOrigin 的协议必须与实际服务一致");
+  if (options.publicOrigin) {
+    let parsedOrigin: URL;
+    try { parsedOrigin = new URL(options.publicOrigin); }
+    catch { throw new ImError("im.server.invalid_origin","publicOrigin 必须是完整 origin，不带路径"); }
+    if (parsedOrigin.origin !== options.publicOrigin) throw new ImError("im.server.invalid_origin","publicOrigin 必须是完整 origin，不带路径");
+    if (parsedOrigin.protocol !== (options.tls ? "https:" : "http:")) throw new ImError("im.server.invalid_origin","publicOrigin 的协议必须与实际服务一致");
+  }
   let origin = options.publicOrigin ?? "";
   const listener = createServerRequestHandler(options,()=>origin);
   const server = options.tls ? createSecureServer(options.tls,listener) : createServer(listener);
   await new Promise<void>((resolve,reject) => {server.once("error",reject);server.listen(port,hostname,()=>{server.removeListener("error",reject);resolve();});});
   const address = server.address();
   if (!origin && address && typeof address === "object") origin = `${options.tls ? "https" : "http"}://${hostname === "::1" ? "[::1]" : hostname}:${address.port}`;
-  return {server,origin,close:async()=>{events.close();server.closeAllConnections();await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}};
+  const cleanupTimer = setInterval(() => { try { options.identity.purgeExpiredAnonymousSessions(); } catch { /* Best-effort background sweep. */ } }, 10 * 60 * 1000);
+  cleanupTimer.unref();
+  return {server,origin,close:async()=>{clearInterval(cleanupTimer);events.close();server.closeAllConnections();await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}};
 }
 /** Same protected routes for standalone and same-origin desktop embedding. */
 export function createServerRequestHandler(options: ServerOptions, getOrigin: () => string) {
@@ -58,8 +66,14 @@ export function createServerRequestHandler(options: ServerOptions, getOrigin: ()
     response.setHeader("referrer-policy","no-referrer"); response.setHeader("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'");
     try {
       const origin = getOrigin();
-      const url = new URL(request.url ?? "/",origin);
-      if (request.headers.host !== new URL(origin).host || url.origin !== origin) throw new ImError("im.server.host_denied","服务地址不匹配",403);
+      let url: URL, expectedHost: string;
+      try {
+        url = new URL(request.url ?? "/",origin);
+        expectedHost = new URL(origin).host;
+      } catch {
+        throw new ImError("im.server.invalid_url", tryUiText("common.error.invalid") ?? "Invalid request URL", 400);
+      }
+      if (request.headers.host !== expectedHost || url.origin !== origin) throw new ImError("im.server.host_denied","服务地址不匹配",403);
       if (!["GET","POST"].includes(request.method ?? "")) throw new ImError("im.server.method_denied","不支持此请求方式",405);
       if (request.method === "POST" && request.headers.origin !== origin) throw new ImError("im.server.origin_denied","请求必须来自当前工作台",403);
       if (request.headers["sec-fetch-site"] === "cross-site") throw new ImError("im.server.origin_denied","不接受跨站请求",403);
@@ -75,7 +89,13 @@ export function createServerRequestHandler(options: ServerOptions, getOrigin: ()
       }
       if (path === "/continuity/api/connect" && request.method === "POST") {
         const value = await body(request);
-        const session = identity.connect({code:value.code,display_name:value.display_name,device_label:value.device_label},request,response,!!options.tls);
+        const session = identity.connect(
+          {code:value.code,display_name:value.display_name,device_label:value.device_label},
+          request,
+          response,
+          !!options.tls,
+          revokedId => continuity.deviceRevoked(revokedId),
+        );
         json(response,{member:identity.member(session)});events.notify();return;
       }
       if (path === "/continuity/api/session" && request.method === "GET") {
@@ -116,17 +136,30 @@ export function createServerRequestHandler(options: ServerOptions, getOrigin: ()
       throw new ImError("im.server.not_found","找不到此入口",404);
     } catch (error) {
       if (response.headersSent) {response.end();return;}
-      if (error instanceof ImError) {json(response,{code:error.code,error:error.message},error.status);return;}
-      if (error instanceof ActionError && ["im.invalid_path", "im.stream_limit"].includes(error.code)) { json(response,{code:error.code,error:error.message},actionHttpStatus(error));return; }
+      if (error instanceof ImError) {
+        if (error.status === 429) response.setHeader("retry-after", "60");
+        json(response, { code: error.code, error: error.message }, error.status);
+        return;
+      }
+      if (error instanceof ActionError) {
+        const failure = actionErrorResponse(error);
+        if (failure.status === 429) response.setHeader("retry-after", "60");
+        json(response, failure.body, failure.status);
+        return;
+      }
       const candidate = error && typeof error === "object" && "code" in error ? String(error.code) : "";
       const code = /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$/.test(candidate) ? candidate : "im.server.unavailable";
       // The injected IM domain owns its error class; translate known access failures without leaking arbitrary messages.
       if (code === "im.forbidden" || code === "im.unauthenticated") {
-        json(response,{code,error:code === "im.forbidden" ? "你没有这个群的访问权限" : "请重新连接设备"},code === "im.forbidden" ? 403 : 401);return;
+        const message = code === "im.forbidden"
+          ? (tryUiText("common.error.forbidden") ?? "你没有这个群的访问权限")
+          : (tryUiText("common.error.connection-required") ?? "请重新连接设备");
+        json(response, { code, error: message }, code === "im.forbidden" ? 403 : 401);
+        return;
       }
       // D0017: the request can be correlated without logging inputs, paths, stacks or credentials.
       process.stderr.write(JSON.stringify({event:"server.request_failed",request_id:requestId,code}) + "\n");
-      json(response,{code,request_id:requestId,error:"桌面服务暂不可用或尚未授权此成员。请在桌面检查连接和动作授权，再核对重试。"},503);
+      json(response,{code,request_id:requestId,error:tryUiText("common.error.unavailable") ?? "Service unavailable"},503);
     }
   };
 }

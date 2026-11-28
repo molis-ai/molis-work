@@ -978,3 +978,83 @@ test("contextual framing supports English locale cleanly while keeping default C
   assert.match(jaQuestions.next.instructions, /この箇所を執筆中です/);
   for (const text of Object.values(jaQuestions.surface.criteria)) assert.match(text, /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
 });
+
+test("F-host-subsystems-05 recallForJudgment forwards AbortSignal and judgment service bounds unresponsive recall by recallMs", async () => {
+  const memoryView = view(provider("system.memory", "Memory"), "memory.recall");
+  let forwardedSignal: AbortSignal | undefined;
+  let invokeCount = 0;
+  const caller = {
+    directory: JSON.stringify(["/home", "proj-a", "alice"]),
+    actions: {
+      discover: async () => [memoryView],
+      invoke: async (_ref: ActionReference, _input: unknown, signal?: AbortSignal) => {
+        invokeCount += 1;
+        forwardedSignal = signal;
+        return { state: "ok", items: [{ kind: "preference", text: "结论先行" }] };
+      },
+    },
+  };
+  const live = new AbortController();
+  const recalled = await recallForJudgment(focus(), caller, live.signal);
+  assert.equal(recalled.state, "ok");
+  assert.equal(forwardedSignal, live.signal, "recallForJudgment must pass signal through to actions.invoke");
+
+  const aborted = new AbortController();
+  aborted.abort(new Error("recall cancelled"));
+  await assert.rejects(recallForJudgment(focus(), caller, aborted.signal), /recall cancelled/);
+  assert.equal(invokeCount, 1, "already-aborted signal must skip memory.recall invoke");
+
+  const candidates = fragmentCandidates(directory(), focus());
+  const service = createContextualJudgmentService<string>({
+    directory: async () => directory(),
+    recallMs: 20,
+    recall: () => new Promise(() => { /* intentionally ignores signal to verify hard recall timeout */ }),
+    evaluate: async () => ({ basis: "jev", body: answer(candidates, "counter") }),
+  });
+  const started = Date.now();
+  const out = await service.judge({ pane_id: "p-recall-timeout", focus: focus() }, "me");
+  assert.equal(out.plan.basis, "judgment");
+  assert.ok(out.receipt.screened.some(note => note.includes("记忆")), "timed-out recall is recorded in receipt.screened");
+  assert.ok(Date.now() - started < 2_000, "unresponsive recall must not stall judgment past recallMs");
+});
+
+test("F-host-subsystems-06 judgment cache isolates callers by directory and distinguishes selection/context changes", async () => {
+  const candidates = fragmentCandidates(directory(), focus());
+  let evalCalls = 0;
+  const service = createContextualJudgmentService<{ readonly directory: string }>({
+    directory: async () => directory(),
+    evaluate: async ({ state }) => {
+      evalCalls += 1;
+      return { basis: "jev", body: answer(candidates, state.includes("风险") ? "counter" : "explain") };
+    },
+  });
+  const sharedFocus = focus({ context_id: "pages:doc-1", object: { kind: "doc", id: "doc-1", title: "Plan" } });
+  const callerA = { directory: JSON.stringify(["/home", "project-a", "alice"]) };
+  const callerB = { directory: JSON.stringify(["/home", "project-b", "alice"]) };
+  const callerC = { directory: JSON.stringify(["/home", "project-a", "bob"]) };
+
+  await service.judge({ pane_id: "p1", focus: sharedFocus }, callerA);
+  await service.judge({ pane_id: "p1", focus: sharedFocus }, callerA);
+  assert.equal(evalCalls, 1, "identical caller directory and focus hit cache");
+
+  await service.judge({ pane_id: "p2", focus: sharedFocus }, callerB);
+  assert.equal(evalCalls, 2, "different project scope in caller.directory must not reuse cache");
+
+  await service.judge({ pane_id: "p3", focus: sharedFocus }, callerC);
+  assert.equal(evalCalls, 3, "different actor_id in caller.directory must not reuse cache");
+
+  await service.judge({ pane_id: "p1", focus: { ...sharedFocus, targets: [{ kind: "text_range", role: "paragraph", text: "风险极高。" }] } }, callerA);
+  assert.equal(evalCalls, 4, "changed selection text with same context_id must miss cache");
+
+  await service.judge({ pane_id: "p1", focus: { ...sharedFocus, activity: "editing" } }, callerA);
+  assert.equal(evalCalls, 5, "changed activity with same context_id must miss cache");
+
+  await service.judge({ pane_id: "p1", focus: { ...sharedFocus, surroundings: { heading_path: ["新章节"] } } }, callerA);
+  assert.equal(evalCalls, 6, "changed surroundings with same context_id must miss cache");
+
+  await service.judge({ pane_id: "p1", focus: { ...sharedFocus, belongs_to: { plugin_id: "goals", kind: "goal", id: "g1", title: "Q4" } } }, callerA);
+  assert.equal(evalCalls, 7, "changed belongs_to with same context_id must miss cache");
+
+  await service.judge({ pane_id: "p1", focus: sharedFocus, recent: ["总结"] }, callerA);
+  assert.equal(evalCalls, 8, "changed recent actions with same context_id must miss cache");
+});

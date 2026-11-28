@@ -4,7 +4,7 @@ import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, Plu
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider, pluginActionView } from "./plugin-action-provider.js";
-import { checkedReference } from "./plugin-action-query.js";
+import { checkedReference, stripPluginDelegatedFields } from "./plugin-action-query.js";
 import { activeLocale } from "./web-locale.js";
 
 /** The Manifest permission that gives a plugin `services.actions.directory`. Declared and granted like any other; never implied by who published the plugin. */
@@ -41,13 +41,8 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     // travel to the nested caller. A person's, agent's, MCP client's or workflow's call is reached as workflow and carries no plugin identity.
     // A plugin's own call (audience `plugin`) keeps its audience and its installation and Host caller: the Host checks them as it checks them
     // for that plugin's direct call, so the nested call can reach what that plugin could reach and nothing the delegating plugin can.
-    const { plugin_install_id, host_plugin, beforeEffect, retainAuthority, retainBackgroundAuthority, ...inherited } = original;
-    Reflect.deleteProperty(inherited, "stage_scene_metadata");
-    // Where the original was itself handed in from stays with it: one hop only. What this call carries is the running handler's own
-    // action, from the Runtime's scope of it (BL-803), never from the caller.
-    Reflect.deleteProperty(inherited, "delegated_action"); Reflect.deleteProperty(inherited, "direct_person_entry");
-    // Whose object the Host's own grant was for is that grant's, never a plugin's to hand on (S-acceptance-subject-owner).
-    Reflect.deleteProperty(inherited, "acting_for");
+    const { plugin_install_id, host_plugin, ...rawInherited } = original;
+    const inherited = stripPluginDelegatedFields(rawInherited);
     const plugin = original.audience === "plugin";
     const source = () => { grant(); assertCapturedPluginActionCurrent(scope, context); };
     const check = async () => { source(); await original.beforeEffect(); source(); };

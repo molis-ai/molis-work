@@ -261,7 +261,7 @@ test("SSC-03: a directory has at least one role, none repeated, and a known stat
   await assert.rejects(answer([{ ...directory, roles: ["input", "input"], state: "ok" }]));
   await assert.rejects(answer([{ ...directory, roles: ["reference"], state: "ok" }]));
   await assert.rejects(answer([{ ...directory, roles: ["output"], state: "gone" }]));
-  await assert.rejects(answer([{ ...directory, roles: ["output"], state: "revoked" }]), "a revoked folder is a refusal when it is used, not a state of the directory");
+  await assert.rejects(answer([{ ...directory, roles: ["output"], state: "revoked" }]), code("actions.output_invalid"), "a revoked folder is a refusal when it is used, not a state of the directory");
   await assert.rejects(answer([{ ...directory, roles: ["output"], state: "ok", is_default: true }]));
 });
 
@@ -293,12 +293,12 @@ test("SSC-12, SSC-25: recent materials come back with an origin read just now, a
   assert.deepEqual(await read([item]), { items: [item] });
   await read(Array.from({ length: MATERIAL_RECENT_KEEP }, () => item));
   await assert.rejects(read(Array.from({ length: MATERIAL_RECENT_KEEP + 1 }, () => item)));
-  await assert.rejects(read([{ ref: currentFile }]), "the origin is part of the answer");
+  await assert.rejects(read([{ ref: currentFile }]), code("actions.output_invalid"), "the origin is part of the answer");
   // SSC-02's wording of a lost material rests on these states.
   await read([{ ref: fixedArtifact, origin: { source: "object", owner: origin.owner, state: "forbidden" } }]);
   await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "object", owner: origin.owner, state: "cached" } }]));
-  await assert.rejects(read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "ok" } }]), "a directory origin says which directory");
-  await assert.rejects(read([{ ref: fixedArtifact, origin: { ...origin, source: "object" } }]), "only a directory origin carries one");
+  await assert.rejects(read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "ok" } }]), code("actions.output_invalid"), "a directory origin says which directory");
+  await assert.rejects(read([{ ref: fixedArtifact, origin: { ...origin, source: "object" } }]), code("actions.output_invalid"), "only a directory origin carries one");
   // `unmapped`: an id that is not this project's directory and has no folder named for it. Only a directory can be that, and it then has none to name.
   await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "unmapped" } }]);
   await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "object", owner: origin.owner, state: "unmapped" } }]));
@@ -306,7 +306,7 @@ test("SSC-12, SSC-25: recent materials come back with an origin read just now, a
   await assert.rejects(read([{ ref: currentFile, origin: { ...origin, state: "unmapped" } }]));
   // A directory origin the caller may not read, or whose file is gone, need not say which directory (SSC-30); one that is there must.
   for (const state of ["forbidden", "missing"] as const) await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state } }]);
-  await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "import", owner: origin.owner, directory: origin.directory, state: "ok" } }]), "an import has no directory");
+  await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "import", owner: origin.owner, directory: origin.directory, state: "ok" } }]), code("actions.output_invalid"), "an import has no directory");
   await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "unmapped", note: "这个项目原来的默认输出目录" } }]);
   // To the person, a line whose object has no one owner now (uninstalled, or declared twice) comes back without an origin (合同台第二十二轮).
   await read([{ ref: fixedArtifact, origin: null }]);

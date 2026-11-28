@@ -73,20 +73,31 @@ async function collectInstallations(source: ProjectPluginHost, homeRows: Install
   preparedProjectRows?: InstalledPluginEntry[]): Promise<ScopeSnapshot> {
   const homeSupervisor = homeRows.length ? (await source.homePlugins()?.ready({ start: false }))?.supervisor : undefined;
   const project = reference ? await source.host.withExistingRuntime(reference, async runtime => {
-    const records = pluginInstallRecords(runtime.store.db);
     // Built-in and installed plugins run on the project's one platform (47-1 B).
     const platforms = await runningProjectPluginPlatforms(runtime.store, runtime.project_id);
-    return (preparedProjectRows ?? installedPluginEntries(runtime.store.db)).map((row): ScopeInstallation => ({
-      ...row, scope: "project",
-      readLocalePacks: () => currentWords(row.record, platforms.map(platform => platform.supervisor)),
-      assertCurrent: currentInstallation(row.record, () => records.get(row.record.install_id)),
-    }));
+    const supervisors = platforms.map(platform => platform.supervisor);
+    const rows = preparedProjectRows ?? installedPluginEntries(runtime.store.db);
+    return { rows, supervisors };
   }) : null;
+  const liveProjectRecord = (installId: string): PluginInstanceRecord | null => {
+    if (!reference || source.ownerClosing?.() || source.host.lifecycle() !== "running") return null;
+    const open = source.host.projects().find(row => row.project_id === reference.project_id);
+    if (!open || open.state !== "ready") return null;
+    const runtime = source.host.openRuntimes().find(item => item.project_id === reference.project_id);
+    if (!runtime || !runtime.store.db.open) return null;
+    try { return pluginInstallRecords(runtime.store.db).get(installId); }
+    catch { return null; }
+  };
+  const projectInstallations: ScopeInstallation[] = (project?.rows ?? []).map((row): ScopeInstallation => ({
+    ...row, scope: "project",
+    readLocalePacks: () => currentWords(row.record, project!.supervisors),
+    assertCurrent: currentInstallation(row.record, () => liveProjectRecord(row.record.install_id)),
+  }));
   const installations = new Map<string, ScopeInstallation>([
     ...homeRows.map(row => [row.record.install_id, { ...row, scope: "home" as const,
       readLocalePacks: () => currentWords(row.record, [homeSupervisor]),
       assertCurrent: currentInstallation(row.record, () => source.homePlugins()?.installation(row.record.install_id) ?? null) }] as const),
-    ...(project ?? []).map(row => [row.record.install_id, row] as const),
+    ...projectInstallations.map(row => [row.record.install_id, row] as const),
   ]);
   return { reference, installations: [...installations.values()] };
 }

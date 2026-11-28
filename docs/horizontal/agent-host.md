@@ -6,7 +6,7 @@
 
 **不拥有：** 编码任务的业务含义、角色与 Prompt 正文（归插件）、模型选择与凭据（归宿主设置）、以及批准决定本身（归用户）。
 
-**Adapter：** 就近放在 `horizontal/agent-host/adapters/`，不建立顶层 adapters package。
+**Adapter：** 就近放在 `horizontal/agent-host/src/adapters/`，不建立顶层 adapters package。
 
 ## 启动授权：三道闸加一道复核
 
@@ -51,7 +51,7 @@ adapter 不自己解析角色，也不发明 Prompt。
 
 ## 项目 MCP 配置与执行
 
-Coding 的 MCP 配置通过 `agent.mcp.list`、`agent.mcp.save`、`agent.mcp.control`（各 @1）到 Node 适配层，所有者由 Host 的项目和插件作用域给出。stdio 的工作目录须在该项目授权列表，连接时复核；HTTP 认证通过 SDK Credential 引用，公开配置不含密钥。（2026-11-08 审计更正：原写作 `agent.mcp.list/save/control.v1`；N29 去掉动作名末尾的 `.vN`，现行三个动作名见 `packages/contracts/src/services/agent-host.ts:586、591、596` 与 `tooling/gates/actions/host-actions.tsv`（`agent.mcp.control`、`agent.mcp.list`、`agent.mcp.save`，各 @1）。）
+Coding 的 MCP 配置通过 `agent.mcp.list`、`agent.mcp.save`、`agent.mcp.control`（各 @1）到 Node 适配层，所有者由 Host 的项目和插件作用域给出。stdio 的工作目录须在该项目授权列表，连接时复核；HTTP 认证通过 SDK Credential 引用，公开配置不含密钥。（2026-11-08 审计更正：原写作 `agent.mcp.list/save/control.v1`；N29 去掉动作名末尾的 `.vN`，现行三个动作定义见 `packages/contracts/src/services/agent-host-capabilities.ts:440、445、450` 与 `tooling/gates/actions/host-actions.tsv`（`agent.mcp.control`、`agent.mcp.list`、`agent.mcp.save`，各 @1）。）
 
 选择固定 `server + configuration_version + tool + version`；后两项分别固定服务配置与参数形状。适配层为每份配置版本建立不同 SDK 连接身份，因此编辑配置不会把旧的待批请求送往新地址。重启保留配置和历史，但连接需要重新建立；失效选择不能静默替换。
 

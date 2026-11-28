@@ -1,4 +1,4 @@
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** A value is a word or number as it is, or another of Coding's keys worded in the same language (a field's name). */
 type Values = Readonly<Record<string, string | number | { readonly key: string }>>;
@@ -26,4 +26,9 @@ export function codingErrorIn(error: unknown): unknown {
   const reported = error as Error & { codingKey?: string; codingValues?: Values };
   if (reported.codingKey) error.message = codingText(reported.codingKey, reported.codingValues);
   return error;
+}
+
+/** Error worded from a Coding key when a UI text context is active, with a fallback outside a request/page context. */
+export function codingLocalFailure(key: string, fallback: string, values?: Record<string, string | number>): Error {
+  return Object.assign(new Error(tryUiText(key, values) ?? fallback), { codingKey: key, ...(values ? { codingValues: values } : {}) });
 }

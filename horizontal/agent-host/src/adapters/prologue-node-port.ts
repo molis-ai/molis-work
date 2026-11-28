@@ -145,18 +145,25 @@ interface PortDeps extends RunDeps {
   readonly shutdown: PrologueRuntimePort["shutdown"];
 }
 
-/** Marking a session as priority: the other sessions working on the same files are asked to give them up for now. */
+/** Marking a session as priority: only the caller's own other sessions working on the same files are asked to give them up for now (R8 rules 3, 4). */
 function prioritize(deps: PortDeps): NonNullable<PrologueRuntimePort["messages"]>["prioritize"] {
   return async (project, sessionId, actorId) => {
     const { projectWork, state } = deps;
     const index = await deps.index.read(sessionId).catch(() => undefined);
-    if (!index || index.owner.project_id !== project) throw new Error("会话不属于这个项目");
+    if (!index || index.owner.project_id !== project) throw agentErrors.session_unknown("会话不属于这个项目");
     // Its work under way (or waiting): the files it names, against the other work under way in its directory.
     const mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && ["running", "waiting"].includes(item.state));
     if (!mine) return { notified: [], paths: [] };
     const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
-    const targets = [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))].slice(0, MAX_BROADCAST);
-    const paths = [...new Set(seen.overlaps.flatMap(overlap => overlap.paths))];
+    // Never expose overlapping paths or inject steers into sessions of another plugin, installation or person.
+    const ownOverlaps = [];
+    for (const overlap of seen.overlaps) {
+      const other = await deps.index.read(overlap.work.session_id).catch(() => undefined);
+      if (other && sameOwner(other.owner, index.owner)) ownOverlaps.push(overlap);
+    }
+    const targets = [...new Set(ownOverlaps.map(overlap => overlap.work.session_id))].slice(0, MAX_BROADCAST);
+    const paths = [...new Set(ownOverlaps.flatMap(overlap => overlap.paths))];
+    if (!targets.length) return { notified: [], paths: [] };
     // The person's word, said by the Host to each round running now: it is not a letter between the sessions' agents.
     const text = `（宿主代用户发出）用户把会话「${mine.title.slice(0, 40)}」标成了优先。它要改 ${paths.join("、")}：请让出这些文件——先别再改它们，手头和它们有关的修改先停下，说明你停在哪里；等它做完或用户另行安排再继续。和这些文件无关的部分照常做。（标记人：${actorId}）`;
     const notified: string[] = [];
@@ -689,6 +696,48 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
 export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const { runtime, state, stepBoards, messages, mcpLibrary } = deps;
   const openSession = (sessionId: string, unreadable: string) => openSessionOf(deps, sessionId, unreadable);
+  const ownerOfSession = async (sessionId: string): Promise<SessionIndex["owner"] | undefined> => {
+    const saved = await deps.index.read(sessionId).catch(() => undefined);
+    if (saved) return saved.owner;
+    const child = runtime.subagents.list().find(one => one.session.id === sessionId);
+    const parent = child && await deps.index.read(child.parentSession.id).catch(() => undefined);
+    return parent?.owner;
+  };
+  const readEnvelope = (id: string) => {
+    try { return runtime.delivery.get({ kind: "envelope", id, revision: 1 } as ExactRef<"envelope">); }
+    catch { return undefined; }
+  };
+  const assertEnvelopeSameOwner = async (project: string, id: string) => {
+    const envelope = readEnvelope(id);
+    if (!envelope) throw agentErrors.session_unknown("这封信不属于这个项目");
+    const from = await ownerOfSession(envelope.from.id);
+    const to = await ownerOfSession(envelope.to.id);
+    if (!from || !to || from.project_id !== project || !sameOwner(from, to)) throw agentErrors.session_unknown("这封信不属于这个项目");
+  };
+  // Enforce full (project, plugin, install, actor) owner isolation for model-initiated `session-send` calls (R8 rules 3, 4).
+  const ownerHook = "molis-session-messages-owner";
+  runtime.hooks.register({ id: ownerHook, event: "tool-before", blocking: true, handler: async context => {
+    if (context.toolName !== "session-send" || !context.origin?.session) return { kind: "allow" };
+    const deny = (why: string) => ({ kind: "deny" as const, why });
+    const sender = await deps.index.read(context.origin.session).catch(() => undefined);
+    if (!sender) return deny("这个会话缺少归属信息，不能发信");
+    const input = context.input as { to?: unknown; recipients?: unknown } | undefined;
+    if (Array.isArray(input?.recipients)) {
+      const kept: string[] = [];
+      for (const id of input.recipients.map(String)) {
+        const target = await deps.index.read(id).catch(() => undefined);
+        if (target && !target.parent_run && sameOwner(target.owner, sender.owner)) kept.push(id);
+      }
+      if (kept.length === input.recipients.length) return { kind: "allow" };
+      if (!kept.length) return deny("只能发给同一个插件归属的其他会话");
+      return { kind: "rewrite", input: { ...input, recipients: kept }, why: "只发给同归属会话" };
+    }
+    if (typeof input?.to === "string") {
+      const target = await deps.index.read(input.to).catch(() => undefined);
+      if (!target || target.parent_run || !sameOwner(target.owner, sender.owner)) return deny("只能发给同一个插件归属的另一个会话");
+    }
+    return { kind: "allow" };
+  } });
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     listenModelRequests(listen) {
@@ -699,17 +748,70 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       return unexecutedApprovalCallOf(runtime, run, waiting);
     },
     readStepBoard: run => stepBoards.read(run),
-    messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),
-      sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),
-      act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
-      prioritize: prioritize(deps) },
+    messages: {
+      read: async (project, sessionId) => {
+        if (sessionId !== undefined) {
+          const target = await ownerOfSession(sessionId);
+          if (!target || target.project_id !== project) return [];
+          return messages.read(project, sessionId, async id => {
+            const other = await ownerOfSession(id);
+            return Boolean(other && sameOwner(other, target));
+          });
+        }
+        const listed = await messages.read(project);
+        const same = await Promise.all(listed.map(async letter => {
+          const from = await ownerOfSession(letter.from_session);
+          const to = await ownerOfSession(letter.to_session);
+          return Boolean(from && to && from.project_id === project && sameOwner(from, to));
+        }));
+        return listed.filter((_letter, index) => same[index]);
+      },
+      cancel: async (project, id) => {
+        await assertEnvelopeSameOwner(project, id);
+        return messages.cancel(project, id);
+      },
+      sendForPeople: async (project, input, actorId) => {
+        const from = await deps.index.read(input.from_session).catch(() => undefined);
+        const to = await deps.index.read(input.to_session).catch(() => undefined);
+        if (!from || !to || from.owner.project_id !== project || from.parent_run || to.parent_run || !sameOwner(from.owner, to.owner)) {
+          throw new Error("只能在这个项目的两个会话之间发信");
+        }
+        if (input.in_reply_to) {
+          const parent = readEnvelope(input.in_reply_to);
+          const parentFrom = parent && await ownerOfSession(parent.from.id);
+          const parentTo = parent && await ownerOfSession(parent.to.id);
+          if (!parent || !parentFrom || !parentTo || !sameOwner(from.owner, parentFrom) || !sameOwner(from.owner, parentTo)) {
+            throw agentErrors.session_unknown("这封信不属于当前会话归属");
+          }
+        }
+        return messages.sendForPeople(project, input, actorId);
+      },
+      act: async (project, id, action, detail, actorId) => {
+        await assertEnvelopeSameOwner(project, id);
+        return messages.act(project, id, action, detail, actorId);
+      },
+      prioritize: prioritize(deps),
+    },
     collaboration: { ...deps.waitsPort.collaboration, serveStarts: starter => deps.starts.serve(starter), revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key, and gives it back while it still waits.
     queue: {
       add: async (sessionId, input) => (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input),
       withdraw: async (sessionId, inputId) => (await openSession(sessionId, "这条会话读不到，撤不回排着的补充")).withdrawQueuedInput(inputId),
     },
-    background: deps.waitsPort.background,
+    background: {
+      read: async (project, sessionId) => {
+        if (sessionId !== undefined) {
+          const target = await ownerOfSession(sessionId);
+          if (!target || target.project_id !== project) return [];
+          return deps.waitsPort.background.read(project, sessionId, async id => {
+            const other = await ownerOfSession(id);
+            return Boolean(other && sameOwner(other, target));
+          });
+        }
+        return deps.waitsPort.background.read(project);
+      },
+      stop: (project, taskId) => deps.waitsPort.background.stop(project, taskId),
+    },
     projectWork: projectWorkPort(deps),
     images: createPrologueImageIntake(runtime, deps.options.storageRoot),
     memory: deps.platformMemory.capability,
@@ -734,7 +836,10 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     ...commandReceipts(deps),
     sessions: sessionsPort(deps),
     startAgentRun: input => startPrologueRun(deps, input),
-    shutdown: deps.shutdown,
+    shutdown: async () => {
+      runtime.hooks.unregister(ownerHook);
+      return deps.shutdown();
+    },
   };
 }
 

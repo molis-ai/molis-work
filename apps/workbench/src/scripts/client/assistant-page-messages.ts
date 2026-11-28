@@ -26,7 +26,7 @@ export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugi
     if (sending) { showOffer(message, false); return; }
     if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
     else await aboutObject(message.work_id ? null : message.object);
-    await executorsLoaded;
+    await ensureExecutors();
     if (!message.work_id && message.executor && executorOffer(message.executor)) { nextExec = message.executor; nextMode = ""; paintAim(); paintSum(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
     if (!message.text) { setPanel(true); input.focus(); return; }

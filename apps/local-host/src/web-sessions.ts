@@ -80,7 +80,18 @@ export class WebSessions {
     const proof = request.headers[WEB_PAGE_SESSION_HEADER], scope = webPageScope(expected);
     let session = proof === undefined ? candidates.find(value => value.scope === scope) ?? candidates[0] ?? null
       : candidates.find(value => controlTokenMatches(value.proof, proof)) ?? null;
-    const url = new URL(request.url ?? "/", "http://localhost");
+    let url: URL;
+    try {
+      const rawUrl = request.url ?? "/";
+      url = new URL(rawUrl, "http://localhost");
+      if (url.origin !== "http://localhost" && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+        requestSessions.set(request, { owner: this, session: null, candidates: [], expected, statusRead: false });
+        return;
+      }
+    } catch {
+      requestSessions.set(request, { owner: this, session: null, candidates: [], expected, statusRead: false });
+      return;
+    }
     const page = request.method === "GET" && !/^(?:\/api(?:\/|$)|\/projects\/[^/]+\/api(?:\/|$)|\/assets\/|\/health$|\/locale$|\/account\/callback$)/.test(url.pathname);
     const site = request.headers["sec-fetch-site"], source = request.headers.origin;
     const trustedPage = request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined && request.headers["x-molis-work-control-token"] === undefined && site !== "cross-site" && (source === undefined || source === origin) && request.headers["sec-fetch-dest"] !== "empty";

@@ -11,6 +11,7 @@ import { noteChangeTally } from "./change-tally.js";
 import { refreshState, rememberConfiguration } from "./configuration.js";
 import { controls } from "./controls.js";
 import { returnFromChange } from "./goals.js";
+import { showReviews } from "./helpers.js";
 import { paintDiffs } from "./code.js";
 import { closeReport } from "./report.js";
 import { readCurrent } from "./read.js";
@@ -20,9 +21,9 @@ import type { Page } from "./page.js";
 
 /** The split of a directory into worktrees: who works where, and which directory the next round uses. */
 function mountWriterDirectories(page: Page) {
-  const { readText, host, lifetime, q, refs, s } = page;
+  const { readText, lifetime, q, refs, s } = page;
   refs.writerDirectories = writerDirectories({
-    lifetime, translate: readText, q, api: s.ports.api, reviews: (box, parent) => host.showReviews?.(box, [], null, parent), current: () => s.current, workspace: () => s.workspaceId,
+    lifetime, translate: readText, q, api: s.ports.api, reviews: (box, parent) => showReviews(page, box, [], null, parent), current: () => s.current, workspace: () => s.workspaceId,
     workspaceLabel: () => s.state.workspaces.find(item => item.workspace_id === s.workspaceId)?.canonical_path || s.workspaceId, status: s.ports.status,
     assignments: () => s.configurations.get(s.current)?.writer_assignments || [],
     saveAssignments: async (owner, parent, assignments) => {
@@ -49,8 +50,10 @@ function mountWriterDirectories(page: Page) {
         await refs.draft.flush();
       } catch (error) {
         if (!lifetime.alive) return;
-        s.worktree = previous;
-        rememberConfiguration(page);
+        if (s.current === owner) {
+          s.worktree = previous;
+          rememberConfiguration(page);
+        }
         throw error;
       }
       await refreshState(page);

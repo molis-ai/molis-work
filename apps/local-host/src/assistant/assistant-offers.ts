@@ -192,10 +192,22 @@ export class AssistantOffers {
    * The card is claimed first, so a second click, another tab or a retry after a restart cannot run it again.
    */
   async runCard(workId: string, cardId: string, input: { revision: number; values?: unknown }, decision?: AssistantPersonDecision): Promise<AssistantCard> {
+    decision?.assertCurrent();
     const work = this.ports.store.get(this.ports.actorId, workId);
     const card = this.ports.store.card(work.work_id, cardId);
     // What the card's controls hold (a pick, a day, a moment in the person's zone), as the strings the input takes.
     const values = cardInputValues(input.values, this.ports.timeZone);
+    const storeFor = (assertCurrent?: () => void) => {
+      let claimed = false;
+      return {
+        update: (current: StoredCard, expected: number, patch: Partial<StoredCard>) => {
+          if (!claimed) assertCurrent?.();
+          const updated = this.ports.store.updateCard(current, expected, patch);
+          if (patch.status === "running") claimed = true;
+          return updated;
+        },
+      };
+    };
     let job: Awaited<ReturnType<AssistantJobs["follow"]>> = null;
     if (card.runs_as === "person") {
       // The Host's card for the person: their own actions, and its result (with the undo it declares) kept on the work.
@@ -211,28 +223,81 @@ export class AssistantOffers {
           }
         };
         assertCurrent();
-        currentDecision = { ...decision!, assertCurrent, beforeEffect: async () => { await decision!.beforeEffect(); assertCurrent(); },
+        currentDecision = {
+          ...decision!,
+          assertCurrent,
+          beforeEffect: async () => {
+            await decision!.beforeEffect();
+            assertCurrent();
+          },
           receipt: {
             record: id => { if (checked) this.ports.personUndo?.(work, checked, { adoption_id: id }); },
             clear: id => this.ports.store.saveUndo(this.ports.actorId, { undo_id: id, work_id: workId, remove: true }),
-          } };
+          },
+        };
       }
       const actions = this.ports.personActions ? await this.ports.personActions(work, currentDecision) : null;
       if (!actions) throw this.ports.fail("assistant.unsupported", "现在不能执行这张卡");
-      return cardView(await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
-        authority: async () => ({ discover: () => actions.discover(), ...(actions.discoverOne ? { discoverOne: actions.discoverOne } : {}),
-          check: (view, prepared) => { assertActionInput(view.action.input_schema, prepared); checked = view; },
-          invoke: (reference, prepared) => actions.invoke(reference, prepared) }),
-        started: async (view, output, claimed) => { this.ports.personRan?.(work, view, claimed.input, output); return false; } }));
+      currentDecision?.assertCurrent();
+      return cardView(await runActionCard(card, { revision: input.revision, values }, {
+        ...this.rules(work),
+        store: storeFor(currentDecision?.assertCurrent),
+        authority: async () => {
+          await currentDecision?.beforeEffect();
+          currentDecision?.assertCurrent();
+          return {
+            discover: () => actions.discover(),
+            ...(actions.discoverOne ? { discoverOne: actions.discoverOne } : {}),
+            check: (view, prepared) => {
+              assertActionInput(view.action.input_schema, prepared);
+              checked = view;
+            },
+            invoke: (reference, prepared) => actions.invoke(reference, prepared),
+          };
+        },
+        started: async (view, output, claimed) => {
+          this.ports.personRan?.(work, view, claimed.input, output);
+          return false;
+        },
+      }));
     }
-    const ran = await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
+    const validate = decision
+      ? async () => {
+          await decision.beforeEffect();
+          decision.assertCurrent();
+        }
+      : undefined;
+    const review = decision
+      ? {
+          beforeEffect: () => decision.beforeEffect(),
+          assertCurrent: () => decision.assertCurrent(),
+        }
+      : undefined;
+    const ran = await runActionCard(card, { revision: input.revision, values }, {
+      ...this.rules(work),
+      store: storeFor(decision?.assertCurrent),
       authority: async () => {
+        await validate?.();
         const authority = await this.ports.authority(work);
+        await validate?.();
         if (!authority.actions) throw this.ports.fail("assistant.unsupported", "当前没有可用的业务能力");
-        const client = await authority.actions(RUNTIME);
-        return { discover: () => client.discover(), ...(client.discoverOne ? { discoverOne: client.discoverOne } : {}), check: (view, prepared) => assertActionInput(view.action.input_schema, prepared), invoke: (reference, prepared) => client.invoke(reference, prepared) };
+        const client = await authority.actions(RUNTIME, validate);
+        await validate?.();
+        return {
+          discover: () => client.discover(),
+          ...(client.discoverOne ? { discoverOne: client.discoverOne } : {}),
+          check: (view, prepared) => assertActionInput(view.action.input_schema, prepared),
+          invoke: async (reference, prepared) => {
+            await validate?.();
+            return client.invoke(reference, prepared, decision?.signal, undefined, review);
+          },
+        };
       },
-      started: async (view, output, claimed) => { job = await this.ports.jobs.follow(work, view, output); return job !== null && this.ports.jobs.claimForCard(claimed, job); } });
+      started: async (view, output, claimed) => {
+        job = await this.ports.jobs.follow(work, view, output);
+        return job !== null && this.ports.jobs.claimForCard(claimed, job);
+      },
+    });
     // Shown running for its job: linked now, so the job's end (even one that came first) settles it.
     return cardView(job && ran.status === "running" ? await this.ports.jobs.linkCard(ran, job) : ran);
   }

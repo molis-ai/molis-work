@@ -33,7 +33,7 @@ interface PlacementHostPorts {
 export interface PlacementHost {
   readonly service: PlacementService;
   relationsFor(projectId: string, candidates: readonly PlacedObject[]): ReturnType<typeof placementRelationsFor>;
-  close(): void;
+  close(): Promise<void>;
 }
 
 /**
@@ -52,37 +52,62 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   const ledger = createContextLedger(ledgerDatabase(db), { initializeSchema: false,
     authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id && access.scope.kind === "personal" && access.scope.id === PLACEMENT_LEDGER_ACCESS.scope.id,
   });
+  let closed = false;
+  let closing: Promise<void> | undefined;
+  const assertOpen = () => {
+    if (closed || !db.isOpen) throw new ActionError("actions.expired", "原放置服务已关闭");
+  };
   const record = async (projectId: string): Promise<PlacementProjectRecord> => {
+    assertOpen();
     const found = (await ports.projects())?.find(project => project.project_id === projectId);
+    assertOpen();
     if (!found) throw new ActionError("placement.project_missing", uiText.text("workbench.placement-actions.project-not-found"));
     return found;
   };
   const servicePorts: PlacementPorts = {
     ledger,
     spaces: async () => {
+      assertOpen();
       const projects = await ports.projects() ?? [];
+      assertOpen();
       const spaces: PlacementSpaceView[] = [{ project_id: PERSONAL_SPACE_PROJECT_ID, title: uiText.text("workbench.placement-actions.personal-space"), kind: "personal" }];
       for (const project of projects) if (!isPersonalSpace(project)) spaces.push({ project_id: project.project_id, title: project.display_name, kind: "project" });
       return spaces;
     },
     scope: async projectId => {
-      if (projectId === null) return { client: ports.homeClient(), caller: await ports.ownerContext(undefined) };
+      assertOpen();
+      if (projectId === null) {
+        const caller = await ports.ownerContext(undefined);
+        assertOpen();
+        return { client: ports.homeClient(), caller };
+      }
       const reference = await ports.open(await record(projectId));
-      return { client: ports.projectClient(reference), caller: await ports.ownerContext(reference) };
+      assertOpen();
+      const caller = await ports.ownerContext(reference);
+      assertOpen();
+      return { client: ports.projectClient(reference), caller };
     },
     titles: {
-      get: (kind, id) => (db.prepare("SELECT title FROM placement_titles WHERE kind = ? AND id = ?").get(kind, id) as { title: string } | undefined)?.title ?? null,
-      set: (kind, id, title) => { db.prepare("INSERT INTO placement_titles (kind, id, title, seen_at) VALUES (?, ?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET title = excluded.title, seen_at = excluded.seen_at")
-        .run(kind, id, title.slice(0, 200), new Date().toISOString()); },
+      get: (kind, id) => {
+        assertOpen();
+        return (db.prepare("SELECT title FROM placement_titles WHERE kind = ? AND id = ?").get(kind, id) as { title: string } | undefined)?.title ?? null;
+      },
+      set: (kind, id, title) => {
+        assertOpen();
+        db.prepare("INSERT INTO placement_titles (kind, id, title, seen_at) VALUES (?, ?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET title = excluded.title, seen_at = excluded.seen_at")
+          .run(kind, id, title.slice(0, 200), new Date().toISOString());
+      },
     },
     text: (zh, vars) => uiText.text(zh, vars),
   };
-  let closed = false;
   const service = new PlacementService(servicePorts);
   // A move the Host stopped in the middle of (between its put and its remove) is settled once the Host answers placement calls again, as
   // the local person, in the background, one pass at a time; one left unsettled is tried again when a new carry is recorded or after
   // `CARRY_RETRY_MS`, not on every call (a pass opens both partitions). `move` settles its own object before it starts.
-  const carrying = new CarrySettling(service, { isClosed: () => closed, settled: pass => {
+  const carrying = new CarrySettling({
+    pendingCarryRecords: () => (closed || !db.isOpen ? [] : service.pendingCarryRecords()),
+    settleCarries: () => (closed || !db.isOpen ? Promise.resolve(0) : service.settleCarries()),
+  }, { isClosed: () => closed || !db.isOpen, settled: pass => {
     // The pass in the work records (batch 108): the carries themselves are the ledger's own history, so only the counts and how it ended.
     liveObservation(ports.homeDirectory)?.sink("home").bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null })
       .record({ fact: "home.placement_carry_settle", outcome: pass.failed ? "failed" : pass.left < pass.pending ? "succeeded" : "no_action",
@@ -109,16 +134,20 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   ];
   const dispose = ports.registry.registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "放置", kind: "system" },
     definitions: [...Object.values(placementActions), ...Object.values(placementAttachActions)], handlers });
-  return { service,
+  return {
+    service,
     relationsFor: (projectId, candidates) => {
-      if (closed) throw new ActionError("actions.expired", "原放置服务已关闭");
+      assertOpen();
       return placementRelationsFor(ledger, projectId, candidates);
     },
     close: () => {
       closed = true;
       carrying.close();
       dispose();
-      db.close();
+      return closing ??= (async () => {
+        await carrying.idle().catch(() => undefined);
+        if (db.isOpen) db.close();
+      })();
     },
   };
 }

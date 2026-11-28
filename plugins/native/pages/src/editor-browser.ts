@@ -18,7 +18,7 @@ import { slashPlugin, mentionPlugin } from "./editor-insert-menu.js";
 import { chromePlugin } from "./editor-gap.js";
 import { handlePaste, handleDrop } from "./editor-paste.js";
 import { nodesToMarkdown } from "./to-markdown.js";
-import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
+import { emptyDoc, nodeFromUnknown, pagesSchema, safePagesHeadingLevel } from "./schema.js";
 import { pagesFocusPlugin } from "./focus.js";
 import type { Translate, PagesEditorMountOptions, PagesEditorHandle } from "./editor-types.js";
 import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -109,7 +109,7 @@ function refreshToc(view: EditorView, translate?: Translate): void {
   const headings: Array<{ level: number; text: string }> = [];
   view.state.doc.descendants((node) => {
     if (node.type === pagesSchema.nodes.heading) {
-      headings.push({ level: node.attrs.level as number, text: node.textContent });
+      headings.push({ level: safePagesHeadingLevel(node.attrs.level), text: node.textContent });
     }
   });
   const current = headingIndexAt(view.state.doc, view.state.selection.from);

@@ -416,16 +416,40 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
   return violations;
 }
 
-interface CodeFrame { t: "code"; brace: number; close: "eof" | "interp" }
+interface CodeFrame {
+  t: "code";
+  brace: number;
+  close: "eof" | "interp";
+  regexAllowed: boolean;
+  lastKeyword: string;
+  afterDot: boolean;
+  parenAllowsRegex: boolean[];
+}
 interface LineFrame { t: "line" }
 interface BlockFrame { t: "block" }
 interface SingleQuoteFrame { t: "sq"; chunkStart: number }
 interface DoubleQuoteFrame { t: "dq"; chunkStart: number }
 interface TemplateFrame { t: "tpl"; chunkStart: number }
-type ScanFrame = CodeFrame | LineFrame | BlockFrame | SingleQuoteFrame | DoubleQuoteFrame | TemplateFrame;
+interface RegexFrame { t: "regex"; inClass: boolean; chunkStart: number }
+type ScanFrame = CodeFrame | LineFrame | BlockFrame | SingleQuoteFrame | DoubleQuoteFrame | TemplateFrame | RegexFrame;
+
+const REGEX_PREFIX_KEYWORDS = new Set([
+  "return", "throw", "case", "in", "instanceof", "typeof", "void",
+  "delete", "new", "yield", "await", "of", "do", "else", "export", "default",
+]);
+const CONDITIONAL_KEYWORDS = new Set(["if", "while", "for", "with"]);
+
+function markParentValueEnded(stack: readonly ScanFrame[]): void {
+  const parent = stack[stack.length - 1];
+  if (parent && parent.t === "code") {
+    parent.regexAllowed = false;
+    parent.lastKeyword = "";
+    parent.afterDot = false;
+  }
+}
 
 /**
- * Blank comments and record string/template ranges without swallowing `${...}`
+ * Blank comments and regex literals, and record string/template/regex ranges without swallowing `${...}`
  * code. Offsets stay UTF-16 so they match RegExp match.index.
  */
 function scanImportSource(source: string): {
@@ -434,7 +458,7 @@ function scanImportSource(source: string): {
 } {
   const characters = source.split("");
   const ranges: Array<readonly [number, number]> = [];
-  const stack: ScanFrame[] = [{ t: "code", brace: 0, close: "eof" }];
+  const stack: ScanFrame[] = [{ t: "code", brace: 0, close: "eof", regexAllowed: true, lastKeyword: "", afterDot: false, parenAllowsRegex: [] }];
   const pushRange = (start: number, end: number): void => {
     if (start >= 0 && start <= end) ranges.push([start, end]);
   };
@@ -459,12 +483,45 @@ function scanImportSource(source: string): {
       } else if (character !== "\n") characters[index] = " ";
       continue;
     }
+    if (context.t === "regex") {
+      if (character === "\\") {
+        characters[index] = " ";
+        if (index + 1 < characters.length && next !== "\n") {
+          characters[index + 1] = " ";
+          index += 1;
+        }
+        continue;
+      }
+      if (character === "\n") {
+        pushRange(context.chunkStart, index - 1);
+        stack.pop();
+        const parent = stack[stack.length - 1];
+        if (parent && parent.t === "code") {
+          parent.regexAllowed = true;
+          parent.lastKeyword = "";
+          parent.afterDot = false;
+        }
+        continue;
+      }
+      characters[index] = " ";
+      if (character === "[") {
+        context.inClass = true;
+      } else if (character === "]") {
+        context.inClass = false;
+      } else if (character === "/" && !context.inClass) {
+        pushRange(context.chunkStart, index);
+        stack.pop();
+        markParentValueEnded(stack);
+      }
+      continue;
+    }
     if (context.t === "sq" || context.t === "dq") {
       const quote = context.t === "sq" ? "'" : '"';
       if (character === "\\") index += 1;
       else if (character === quote) {
         pushRange(context.chunkStart, index);
         stack.pop();
+        markParentValueEnded(stack);
       }
       continue;
     }
@@ -476,13 +533,14 @@ function scanImportSource(source: string): {
       if (character === "`") {
         pushRange(context.chunkStart, index);
         stack.pop();
+        markParentValueEnded(stack);
         continue;
       }
       if (character === "$" && next === "{") {
         pushRange(context.chunkStart, index + 1);
         context.chunkStart = -1;
         index += 1;
-        stack.push({ t: "code", brace: 0, close: "interp" });
+        stack.push({ t: "code", brace: 0, close: "interp", regexAllowed: true, lastKeyword: "", afterDot: false, parenAllowsRegex: [] });
       }
       continue;
     }
@@ -514,22 +572,111 @@ function scanImportSource(source: string): {
       continue;
     }
     if (context.t !== "code") continue;
+    if (character === "/") {
+      if (context.regexAllowed) {
+        characters[index] = " ";
+        stack.push({ t: "regex", inClass: false, chunkStart: index });
+      } else {
+        context.regexAllowed = true;
+        context.lastKeyword = "";
+        context.afterDot = false;
+      }
+      continue;
+    }
+    if (/\s/u.test(character)) continue;
     if (character === "{") {
       context.brace += 1;
+      context.regexAllowed = true;
+      context.lastKeyword = "";
+      context.afterDot = false;
       continue;
     }
     if (character === "}") {
-      if (context.brace > 0) context.brace -= 1;
-      else if (context.close === "interp") {
+      if (context.brace > 0) {
+        context.brace -= 1;
+        context.regexAllowed = true;
+        context.lastKeyword = "";
+        context.afterDot = false;
+      } else if (context.close === "interp") {
         stack.pop();
         const parent = stack[stack.length - 1];
         if (parent && parent.t === "tpl") parent.chunkStart = index;
       }
+      continue;
     }
+    if (character === "(") {
+      context.parenAllowsRegex.push(CONDITIONAL_KEYWORDS.has(context.lastKeyword));
+      context.regexAllowed = true;
+      context.lastKeyword = "";
+      context.afterDot = false;
+      continue;
+    }
+    if (character === ")") {
+      context.regexAllowed = context.parenAllowsRegex.pop() ?? false;
+      context.lastKeyword = "";
+      context.afterDot = false;
+      continue;
+    }
+    if (character === "[") {
+      context.regexAllowed = true;
+      context.lastKeyword = "";
+      context.afterDot = false;
+      continue;
+    }
+    if (character === "]") {
+      context.regexAllowed = false;
+      context.lastKeyword = "";
+      context.afterDot = false;
+      continue;
+    }
+    if (/[A-Za-z_$]/u.test(character)) {
+      let end = index + 1;
+      while (end < characters.length && /[\w$]/u.test(characters[end] ?? "")) end += 1;
+      const word = source.slice(index, end);
+      index = end - 1;
+      if (context.afterDot) {
+        context.regexAllowed = false;
+        context.lastKeyword = "";
+      } else {
+        context.regexAllowed = REGEX_PREFIX_KEYWORDS.has(word);
+        context.lastKeyword = word;
+      }
+      context.afterDot = false;
+      continue;
+    }
+    if (/[0-9]/u.test(character)) {
+      let end = index + 1;
+      while (end < characters.length && /[0-9A-Za-z_]/u.test(characters[end] ?? "")) end += 1;
+      index = end - 1;
+      context.regexAllowed = false;
+      context.lastKeyword = "";
+      context.afterDot = false;
+      continue;
+    }
+    if ((character === "+" && next === "+") || (character === "-" && next === "-")) {
+      index += 1;
+      context.lastKeyword = "";
+      context.afterDot = false;
+      continue;
+    }
+    if (character === ".") {
+      context.afterDot = true;
+      context.regexAllowed = false;
+      context.lastKeyword = "";
+      continue;
+    }
+    if (character === "!" && next !== "=" && !context.regexAllowed) {
+      context.lastKeyword = "";
+      context.afterDot = false;
+      continue;
+    }
+    context.regexAllowed = true;
+    context.lastKeyword = "";
+    context.afterDot = false;
   }
 
   for (const frame of stack) {
-    if ((frame.t === "sq" || frame.t === "dq" || frame.t === "tpl") && frame.chunkStart >= 0) {
+    if ((frame.t === "sq" || frame.t === "dq" || frame.t === "tpl" || frame.t === "regex") && frame.chunkStart >= 0) {
       pushRange(frame.chunkStart, characters.length);
     }
   }

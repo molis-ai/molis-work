@@ -123,7 +123,7 @@ function bindWorkRecordsEvents(ctx: WorkRecordsActions): void {
     if (act === "remSave") {
       const inputEl = root.querySelector<HTMLInputElement>("[data-wr-rem-input]");
       const gb = Math.max(0.5, Math.round((parseFloat(inputEl?.value || String(S.remDraftGb)) || 2) * 10) / 10);
-      S.editingRem = false;
+      S.remDraftGb = gb;
       void updateSettings({ space_reminder_bytes: Math.round(gb * 1e9) });
     }
   });
@@ -140,12 +140,13 @@ function bindWorkRecordsEvents(ctx: WorkRecordsActions): void {
     }
     if (t instanceof HTMLInputElement && t.dataset.wrAct === "remToggle") {
       if (t.checked) { S.editingRem = true; S.remDraftGb = 2; render(); }
-      else { S.editingRem = false; void updateSettings({ space_reminder_bytes: null }); }
+      else { void updateSettings({ space_reminder_bytes: null }); }
       return;
     }
     if (t instanceof HTMLInputElement && t.hasAttribute("data-wr-rem-input")) {
       S.remDraftGb = Math.max(0.5, parseFloat(t.value) || 2);
-      S.editingRem = true; render(); return;
+      if (!S.editingRem) { S.editingRem = true; render(); }
+      return;
     }
     if (t instanceof HTMLSelectElement && t.hasAttribute("data-wr-ver")) {
       S.versionFilter = t.value;
@@ -169,6 +170,9 @@ function bindWorkRecordsEvents(ctx: WorkRecordsActions): void {
     e.preventDefault();
     S.dlgOpen = false;
     renderCleanupDialog(dlg, S, projects);
+  });
+  dlg?.addEventListener("close", () => {
+    S.dlgOpen = false;
   });
 }
 
@@ -295,6 +299,7 @@ export function mountWorkRecords(root: HTMLElement): () => void {
       const [space] = await Promise.all([postObservation<ObservationSpaceView>("space"), fetchCoverage()]);
       S.space = space;
       S.draftPeriod = null;
+      if (patch.space_reminder_bytes !== undefined) S.editingRem = false;
       if (msg) announce(msg);
     } catch (err) {
       if (root.isConnected) showError(err);

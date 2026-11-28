@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ActionError, objectLink, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY } from "./scene-options.js";
@@ -40,7 +42,12 @@ export interface FeedCaptureScenePorts {
   resolve(itemId: string): FeedItemRecord | Promise<FeedItemRecord>;
   record(item: FeedItemRecord, rule: FeedOutRuleRecord, binding: ActionSceneBinding, result: { status: "ok" | "needs_review"; suggested_behavior_ids: string[]; error_code?: string }, caller: ActionCallContext): JudgmentRecord | Promise<JudgmentRecord>;
 }
-export const feedCaptureContent = (item: FeedItemRecord) => [item.title, item.summary, item.body ?? "", ...item.materials.map(material => material.content ?? "")].filter(Boolean).join("\n");
+const FEED_CAPTURE_CONTENT_MAX = 8000;
+export const feedCaptureContent = (item: FeedItemRecord) =>
+  cutHead(
+    redactSecrets([item.title, item.summary, item.body ?? "", ...item.materials.map(material => material.content ?? "")].filter(Boolean).join("\n")),
+    FEED_CAPTURE_CONTENT_MAX,
+  );
 export function feedCaptureSubjectRevision(item: FeedItemRecord): string {
   return createHash("sha256").update(JSON.stringify([item.revision, feedCaptureContent(item)])).digest("hex");
 }
@@ -76,7 +83,8 @@ export function createFeedCaptureSceneHandler(ports: FeedCaptureScenePorts): Act
       const rule = ports.rules().find(rule => rule.rule_id === rule_id);
       if (!rule || !feedOutRuleMatches(rule, item)) throw new ActionError("actions.subject_unavailable", "消息不再匹配捕捉规则");
       if (rule.admission === "inbox" && !caller.permissions.includes("inbox:write")) throw new ActionError("actions.forbidden", "自动入箱需要 Inbox 写入权限");
-      return { input: { content: feedCaptureContent(item) }, state: { item, rule, content: feedCaptureContent(item) } satisfies CaptureState };
+      const content = feedCaptureContent(item);
+      return { input: { content }, state: { item, rule, content } satisfies CaptureState };
     },
     consume: async (caller, _input, result, execution) => {
       const { item, rule } = await checked(execution.state, execution.binding, caller);

@@ -1,6 +1,7 @@
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
-import { BACKGROUND_TASK_MAX_HELD_REVIEWS } from "../platform/reviews.js";
+import { BACKGROUND_TASK_MAX_HELD_REVIEWS, REVIEW_REFERENCE_SCHEMA } from "../platform/reviews.js";
+import { LOCALE_TAG } from "../platform/ui-text.js";
 import { CHARACTER_TASK_SELECTION_SCHEMA } from "../modules/character-role-scope.js";
 import { CONVERSATION_ATTACHMENT_LIMITS } from "./materials.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
@@ -133,7 +134,7 @@ const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", 
   workspace: { enum: ["required", "none", "business"] }, directory: object, call_id: string,
   prompts: list(shape(["prompt_id", "version", "layer"], { prompt_id: string, version: number, layer: { enum: ["base", "role", "project", "task"] }, user_revision: number })),
   skills: list(shape(["ref", "origin", "name", "tools", "named"], { ref: object, origin: { enum: ["own", "catalog"] }, name: string, tools: strings, named: { type: "boolean" } })),
-  reply_locale: { enum: ["zh", "en"] },
+  reply_locale: { type: "string", pattern: LOCALE_TAG.source },
   instructions: shape(["trusted", "files"], { trusted: { type: "boolean" }, files: list(shape(["path", "chars", "truncated", "sha256"], { path: string, chars: number, truncated: { type: "boolean" }, sha256: string })) }),
   code_intelligence: shape(["languages"], { problem: string, languages: list(shape(["language", "command", "state"], { language: string, command: string,
     state: { enum: ["ready", "missing"] }, source: { enum: ["this_machine", "tools"] } })) }),
@@ -170,8 +171,8 @@ const sessionViewOutput = { type: "object", required: ["owner", "session", "titl
   owner: { type: "object", required: ["project_id", "plugin_id", "install_id"], properties: { project_id: { type: "string" }, plugin_id: { type: "string" }, install_id: { type: "string" }, actor_id: { type: "string" } } },
   session: sessionRefOutput, title: { type: "string" }, runs: { type: "array", items: runRefOutput }, latest_run: { anyOf: [runViewOutput, { type: "null" }] },
   queued_inputs: list(shape(["input_id", "text", "source"], { input_id: string, text: string, source: { enum: ["person", "host", "peer"] }, key: string, about: string })) } } as const;
-const reviewRequestOutput = { type: "object", required: ["review_id", "run", "project_id", "plugin_id", "kind", "document", "requested_at", "expires_at"], additionalProperties: false, properties: {
-  review_id: { type: "string" }, run: { anyOf: [runRefOutput, { type: "null" }] }, operation: object, project_id: { type: "string" }, plugin_id: { type: "string" }, kind: { type: "string" },
+const reviewRequestOutput = { type: "object", required: ["review_id", "reference", "run", "project_id", "plugin_id", "kind", "document", "requested_at", "expires_at"], additionalProperties: false, properties: {
+  review_id: { type: "string" }, reference: REVIEW_REFERENCE_SCHEMA, run: { anyOf: [runRefOutput, { type: "null" }] }, operation: object, project_id: { type: "string" }, plugin_id: { type: "string" }, install_id: { type: "string" }, kind: { type: "string" },
   document: object, requested_at: { type: "string" }, expires_at: { type: ["string", "null"] } } } as const;
 const subagentState = { enum: ["running", "completed", "failed", "cancelled", "reconcile-required"] } as const;
 const subagentRetrySource = { enum: ["check-failed", "model-error", "user-requested"] } as const;

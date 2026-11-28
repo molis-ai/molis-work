@@ -71,6 +71,6 @@ test('AC-11: packed SDK: stop withdraws waiting reviews and never surfaces one a
     await until(async()=>(await adapter.read(third.ref)).phase==='stopped','the command round to stop without a decision');
     await queue.refresh('board');
     assert.equal(queue.receipt(asked.review_id)?.status,'cancelled');
-    await assert.rejects(readFile(join(project,'ran.txt'),'utf8'),'the command never ran');
+    await assert.rejects(readFile(join(project,'ran.txt'),'utf8'),{code:'ENOENT'},'the command never ran');
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
 });

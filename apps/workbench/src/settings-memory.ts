@@ -500,7 +500,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     function paintSessionResults(items) {
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
       for (const [index, item] of items.entries()) {
-        const row = el("li", "settings-muted", readText("workbench.settings-memory.version") + " " + (index + 1) + " " + readText("workbench.settings-memory.items") + " · " + readText(item.kind === "memory-candidate" ? "workbench.settings-memory.pending-candidate" : "workbench.settings-memory.saved-memory")
+        const row = el("li", "settings-muted", readText("workbench.settings-memory.batch-item-index", { n: index + 1 }) + " · " + readText(item.kind === "memory-candidate" ? "workbench.settings-memory.pending-candidate" : "workbench.settings-memory.saved-memory")
           + " · " + readText(BATCH_STATES[item.outcome]) + " · " + readText(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted" : "workbench.settings-memory.forgetting-not-accepted") + " · " + readText(item.cleanup === "complete" ? "workbench.settings-memory.cleanup-complete" : item.cleanup === "pending" ? "workbench.settings-memory.cleanup-pending" : "workbench.settings-memory.needs-checking"));
         row.dataset.memorySessionItem = item.kind + ":" + (item.kind === "memory-candidate" ? item.candidate_id : item.memory_id); list.append(row);
       }
@@ -508,7 +508,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     function paintBatchResults(items) {
       batchPositions.clear(); items.forEach((item, index) => batchPositions.set(item.memory_id, index + 1));
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
-      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", readText("workbench.settings-memory.version") + " " + (index + 1) + " " + readText("workbench.settings-memory.items") + " · " + readText(BATCH_STATES[item.outcome] || "workbench.settings-memory.needs-checking")
+      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", readText("workbench.settings-memory.batch-item-index", { n: index + 1 }) + " · " + readText(BATCH_STATES[item.outcome] || "workbench.settings-memory.needs-checking")
         + (item.cleanup === "needs-reconcile" ? " · " + readText("workbench.settings-memory.needs-checking") : "")));
     }
     function paintSelection() {
@@ -519,7 +519,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       root.querySelectorAll("[data-memory-selection-index]").forEach(node => {
         const id = node.closest("[data-memory-id]").dataset.memoryId;
         const index = selected.has(id) ? [...selected.keys()].indexOf(id) + 1 : batchPositions.get(id);
-        node.hidden = !index; node.textContent = index ? readText("workbench.settings-memory.version") + " " + index + " " + readText("workbench.settings-memory.items") : "";
+        node.hidden = !index; node.textContent = index ? readText("workbench.settings-memory.batch-item-index", { n: index }) : "";
       });
       root.querySelectorAll("[data-memory-batch-action]").forEach(node => { node.disabled = !selected.size || busy || reading; });
     }
@@ -576,7 +576,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         // A long-term memory learned in this session is shown here but belongs to its own page: the session cannot change it.
         if (sessionMode && item.classification?.lifecycle !== "session") {
           const elsewhere = el("a", "mw-btn mw-btn--ghost mw-btn--sm", readText(item.project_id ? "workbench.settings-memory.manage-in-project" : "workbench.settings-memory.manage-in-personal"));
-          elsewhere.href = (item.project_id ? "/projects/" + encodeURIComponent(project) : "") + "/settings/memory";
+          elsewhere.href = (item.project_id ? "/projects/" + encodeURIComponent(item.project_id) : "") + "/settings/memory";
           elsewhere.dataset.memoryManageElsewhere = "";
           actions.append(elsewhere); row.append(copy, actions); list.append(row);
           return;

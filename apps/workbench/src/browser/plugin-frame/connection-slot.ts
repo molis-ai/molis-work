@@ -70,7 +70,7 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
     const finish = (value: UiConnectionSlotChoice | null, error?: string, need?: true) => {
       if (settled) return; settled = true; controller.abort(); popup?.remove();
       if (current === request) current = null;
-      if (scope.alive && scope.visible && !frame.hidden) port.postMessage({ type: "connection-slot", id: message.id, value, ...(error ? { error } : {}), ...(need ? { need } : {}) } satisfies FrameDown);
+      if (scope.alive) port.postMessage({ type: "connection-slot", id: message.id, value, ...(error ? { error } : {}), ...(need ? { need } : {}) } satisfies FrameDown);
     };
     const request = { id: message.id, finish }; current = request;
     const check = () => { scope.assertCurrent(); if (!scope.visible || frame.hidden || current !== request || settled || controller.signal.aborted) throw new DOMException("View changed", "AbortError"); };

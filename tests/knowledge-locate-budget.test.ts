@@ -82,7 +82,7 @@ test("RAC-2499 knowledge.locate@1 answers with omitted, and its output schema re
   const { found } = await locate([tree("p1", 2, index => `节 ${index + 1}`, () => "一句摘要")]);
   assert.doesNotThrow(() => assertActionInput(schema, found));
   const { omitted: _omitted, ...older } = found;
-  assert.throws(() => assertActionInput(schema, older), "an answer without omitted is not the current contract");
+  assert.throws(() => assertActionInput(schema, older), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid", "an answer without omitted is not the current contract");
   assert.throws(() => assertActionInput(schema, { ...found, omitted: -1 }));
 });
 

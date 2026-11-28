@@ -26,10 +26,9 @@ import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 
 const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
 // Pages, PPT, Forms, Dataset, 灵光 and Workflows (U2, batch 107), and Todo, Issues, Cognia and Images (batch 108) keep a library in each
-// partition, which goes with the partition whole. Work Brief is the shipped library left that declares its project's rows; it also keeps the
-// person's own brief (no project), and its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).
-const DECLARING = ["work-brief"];
-
+// partition, which goes with the partition whole. Feed content ledger and Work Brief are the shipped Home libraries left that declare their
+// project's rows; Work Brief also keeps the person's own brief (no project), and its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).
+const DECLARING = ["feed", "work-brief"];
 /**
  * A Home library whose project rows name files (S-86), shaped as Images' was before its jobs moved into each partition (batch 108): no
  * shipped library names files now, so these tests give the Images registration this library back for the length of one test.

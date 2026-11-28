@@ -4,7 +4,21 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, checkStandaloneReviewPort, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalReadOwnerSql, checkGoalStorageOwnership, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, checkStandaloneReviewPort, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+
+test("production Store/Web boundaries reject restored Goal schema and coverage SQL", () => {
+  for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES]) {
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.deepEqual(checkGoalStorageOwnership(source), [], file);
+    for (const sql of ["CREATE TABLE goals (goal_id TEXT)", "ALTER TABLE policy_bindings ADD COLUMN note TEXT",
+      "CREATE TABLE IF NOT EXISTS project_guidance_revisions (revision INTEGER)",
+      "CREATE UNIQUE INDEX history_idx ON goal_relations(from_goal_id)",
+      "INSERT INTO acceptance_criteria VALUES (?)", "SELECT * FROM goal_relations", "UPDATE goals SET title = ''"]) {
+      assert.notDeepEqual(checkGoalStorageOwnership(source + `\nstore.db.exec(${JSON.stringify(sql)});`), [], sql);
+    }
+  }
+  assert.deepEqual(checkGoalStorageOwnership("CREATE TABLE events(seq INTEGER); SELECT * FROM schema_migrations; UPDATE boards SET active_goal_id = NULL;"), []);
+});
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",

@@ -527,6 +527,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // press lands on is still the one that takes the click.
   new MutationObserver(records=>{if(records.some(record=>record.target!==strip))draw();}).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
   paint();select(current(),undefined,true);
+  addEventListener('molis:shelf-send-tui',event=>{const body=panel.querySelector('[data-side-body^="plugin:shelf/"]'),inner=body?.querySelector('[data-side-frame]');if(!body||!inner||'loaded' in inner.dataset)return;load(body);ready(inner,()=>inner.contentWindow?.postMessage({type:'molis:shelf-desktop-event',name:'molis:shelf-send-tui',detail:event.detail??null},location.origin));});
   // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A
   // narrow window (760 and under, where only the focused pane shows: the side is a sheet over half the work) loads with the
   // side collapsed, its tabs, current tab and width as kept; the saved open stays, so a wide window opens it again.

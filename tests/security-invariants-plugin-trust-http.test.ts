@@ -27,7 +27,7 @@ async function setup(t: Parameters<typeof residentManagement>[0]) {
   return { ...env, prefix, send, overview };
 }
 
-test("RAC-407 the plugin routes need the control token, take only the steps they name, and refuse a body that says who the person is", mac, async t => {
+test("RAC-407 the plugin routes need the control token, take only the steps they name, and refuse a body that says who the person is", { timeout: 240_000 }, async t => {
   const env = await setup(t);
   const bundle = signedPackage(newPublisher());
   const control = ["installed/disable", "installed/enable", "installed/uninstall"];
@@ -68,7 +68,7 @@ test("RAC-408 a package is previewed (nothing is written), then installed under 
   assert.equal(after.plugins.some(item => item.trust === "host"), true, "the plugins that ship with Molis Work are listed too, as such");
 });
 
-test("BL910-03 S-103 the person's install preview explains the sandbox terminal refusal and changes nothing", mac, async t => {
+test("BL910-03 S-103 the person's install preview explains the sandbox terminal refusal and changes nothing", { timeout: 240_000 }, async t => {
   const env = await setup(t);
   const before = await env.overview();
   const bundle = signedPackage(newPublisher(), (_files, manifest) => {
@@ -122,7 +122,7 @@ test("RAC-409 taking an agreement back through the settings door writes revoked_
   assert.notEqual(after.consents[0]!.revoked_at, null, "kept as a row, marked revoked");
 });
 
-test("RAC-406 the project's settings has a 插件 page, in the directory and as an embedded section", mac, async t => {
+test("RAC-406 the project's settings has a 插件 page, in the directory and as an embedded section", { timeout: 240_000 }, async t => {
   const env = await setup(t);
   const page = await fetch(`${env.prefix}/settings/plugins`).then(response => response.text());
   assert.match(page, /data-plugin-trust-settings/);
@@ -132,7 +132,7 @@ test("RAC-406 the project's settings has a 插件 page, in the directory and as 
   assert.doesNotMatch(embedded, /<main class="settings-shell">/, "an embedded section brings no page chrome");
 });
 
-test("SKC-10 S-skill-import disconnecting plugin confirmation cancels the real action before installation", mac, async t => {
+test("SKC-10 S-skill-import disconnecting plugin confirmation cancels the real action before installation", { timeout: 240_000 }, async t => {
   const env = await setup(t), publisher = newPublisher(), bundle = signedPackage(publisher);
   const preview = await env.send<{ preview_id: string }>("/api/plugin-trust/install/preview", { body: { bundle } });
   let entered!: () => void, resume!: () => void, observed!: () => void, settled!: () => void;

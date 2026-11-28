@@ -272,7 +272,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     const head=source+download+(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(globalThis.t.text("workbench.side-panel-files.only-beginning-shown-open-its-plugin-full-content"))+'</p>':'');
     if(file.url&&type==='application/pdf'){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.url)+'"></iframe>';return;}
     if(file.url&&/^image\//.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="'+esc(file.url)+'">';return;}
-    if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
+    if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(type)&&typeof file.data==='string'&&/^[A-Za-z0-9+/=\s]+$/.test(file.data)){body.innerHTML=head;const img=document.createElement('img');img.alt=file.title||'';img.src='data:'+type+';base64,'+file.data.replace(/\s+/g,'');body.append(img);return;}
     if(file.encoding==='base64'&&type==='application/pdf'&&file.raw){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.raw)+'"></iframe>';return;}
     if(file.encoding==='base64'){body.innerHTML=head+'<p class="side-files-note">'+esc(globalThis.t.text("workbench.side-panel-files.kind-file-type-cannot-be-previewed-here-can",{type}))+'</p>';return;}
     body.innerHTML=head+(note&&!file.data?'':renderFilePreview({...file,truncated:false},{escape:esc,text:readText}));
@@ -298,13 +298,15 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const cardAction=async(action,control)=>{
     const card=cardBox.cardRecord;if(!card)return;
+    let updated=null;
     try{
       if(action==='edit'){paintCard(card,true);cardBox.querySelector('input')?.focus();return;}
       if(action==='cancel'){paintCard(card,false);return;}
-      if(action==='organize'){await post('/api/knowledge/organize',{subjects:[card.subject]});paintCard({...card,state:'pending',error:null},false);return;}
-      if(action==='exclude'){const next=await post('/api/knowledge/exclude',{subject:card.subject,excluded:control.checked});paintCard(next,false);}
-    }catch(error){if(control&&action==='exclude')control.checked=!control.checked;molisWorkRequest.show(cardBox.querySelector('.side-files-card-head')||cardBox,error);}
-    const held=stateOf(card.subject.kind,card.subject.id);if(held&&cardBox.cardRecord){const next=cardBox.cardRecord;Object.assign(held,{state:next.state,excluded:next.excluded,changed:!!next.suggestion});paint();}
+      if(action==='organize'){await post('/api/knowledge/organize',{subjects:[card.subject]});updated={...card,state:'pending',error:null};}
+      if(action==='exclude'){updated=await post('/api/knowledge/exclude',{subject:card.subject,excluded:control.checked});}
+      if(updated&&cardBox.cardRecord===card)paintCard(updated,false);
+    }catch(error){if(cardBox.cardRecord===card){if(control&&action==='exclude')control.checked=!control.checked;molisWorkRequest.show(cardBox.querySelector('.side-files-card-head')||cardBox,error);}return;}
+    const held=stateOf(card.subject.kind,card.subject.id);if(held&&updated){Object.assign(held,{state:updated.state,excluded:updated.excluded,changed:!!updated.suggestion});paint();}
   };
   cardBox.addEventListener('click',event=>{const control=event.target?.closest?.('[data-side-card]');if(control&&control.type!=='checkbox')void cardAction(control.dataset.sideCard,control);});
   cardBox.addEventListener('change',event=>{const control=event.target?.closest?.('[data-side-card="exclude"]');if(control)void cardAction('exclude',control);});
@@ -313,7 +315,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     const keywords=form.elements.keywords.value.split(/[,，、;；]/).map(word=>word.trim()).filter(Boolean);
     const change={};if(form.elements.title.value.trim()!==card.title)change.title=form.elements.title.value.trim();if(form.elements.brief.value.trim()!==card.brief)change.brief=form.elements.brief.value.trim();if(keywords.join(globalThis.t.text('common.list.separator'))!==(card.keywords||[]).join(globalThis.t.text('common.list.separator')))change.keywords=keywords;
     if(!Object.keys(change).length){paintCard(card,false);return;}
-    try{paintCard(await post('/api/knowledge/edit',{subject:card.subject,...change}),false);}catch(error){molisWorkRequest.show(form.querySelector('.side-files-card-actions'),error);}
+    try{const next=await post('/api/knowledge/edit',{subject:card.subject,...change});if(cardBox.cardRecord===card)paintCard(next,false);}catch(error){if(cardBox.cardRecord===card&&form.isConnected)molisWorkRequest.show(form.querySelector('.side-files-card-actions'),error);}
   });
   const wordsAt=at=>globalThis.t.text("common.generated.formatted", { value: { kind: "date", at, style: "datetime-with-seconds" } });
   document.addEventListener('molis-work:language-changed',()=>{
@@ -377,7 +379,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       host.openRecord?.(surface,id,name);return;}
     if(action==='source'){const url=target.closest('[data-url]')?.dataset.url;if(url)document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url},focus:true}}));return;}
   });
-  root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!preview.hidden&&!wide&&!event.target.closest?.('dialog')){event.preventDefault();show(false);current=null;paint();}});
+  root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!preview.hidden&&!wide&&!event.target.closest?.('dialog')){event.preventDefault();show(false);current=null;reader.close();paint();}});
   filter.addEventListener('input',()=>{
     paint();clearTimeout(searchTimer);const query=filter.value.trim().toLowerCase();
     if(query.length<2){found=null;return;}

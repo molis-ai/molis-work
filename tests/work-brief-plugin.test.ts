@@ -526,3 +526,98 @@ test("WBR-07 clear an interrupted step after replacement and reopen, then retry 
   assert.deepEqual(received.marks, []);
   assert.equal(calls, 1);
 });
+
+test("F-plugins-rest-w2-03: offline devices creating home and personal briefs converge on one sync key and legacy collisions yield structured conflict", { timeout: 90_000 }, async t => {
+  const { owner, space, source, target } = await syncOwnerPair(t, ["risk", "work-brief"]);
+  const projectId = source.project().project_id;
+  const caller = { ...person([...RISK_WRITE, ...WORK_BRIEF_WRITE], projectId), actor_id: owner };
+  const call = <T>(device: typeof source, definition: Parameters<typeof ref>[0], input: unknown) => device.actions().invoke(caller, ref(definition), input) as Promise<T>;
+  const homeCall = (device: typeof source, definition: Parameters<typeof ref>[0]) => device.host.homeActionClient().invoke({ ...caller, project_id: null }, ref(definition), {});
+  const a = await source.bind(WORK_BRIEF_PLUGIN_ID), b = await target.bind(WORK_BRIEF_PLUGIN_ID);
+
+  // Both devices independently create the project's home brief and the person's personal brief offline.
+  const homeA = await call<BriefSaved>(source, workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "Device A home", supplied_by: "owner" }] } });
+  const homeB = await call<BriefSaved>(target, workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "Device B home", supplied_by: "owner" }] } });
+  assert.equal(homeA.brief.brief_id, homeB.brief.brief_id, "singleton home briefs share one deterministic id");
+  await homeCall(source, workBriefPersonalActions.refresh);
+  await homeCall(target, workBriefPersonalActions.refresh);
+
+  let revision = 0;
+  const delivered: string[] = [];
+  while (true) {
+    const mutation = a.withReplica(replica => replica.next());
+    if (!mutation) break;
+    const packed = a.content!.encode(mutation.key, mutation.value);
+    const value = await b.content!.decode(mutation.key, packed.value, async ref => packed.blobs.find(blob => blob.digest === ref.digest)!.bytes);
+    const event = { ...mutation, value, revision: ++revision };
+    await b.prepare(event);
+    b.withReplica(replica => replica.receive(event));
+    a.withReplica(replica => replica.acknowledge(mutation.key, mutation.operationId, revision));
+    delivered.push(mutation.key);
+  }
+  assert.equal(delivered.length, 2, "both home and personal singleton briefs transfer");
+  for (const key of delivered) {
+    const conflict = b.withReplica(replica => replica.inspectConflict!(key));
+    assert.ok(conflict, `conflict on shared singleton key ${key}`);
+    assert.doesNotMatch(conflict.reason, /UNIQUE constraint|ERR_SQLITE_ERROR|briefs\./i);
+    b.withReplica(replica => replica.resolve(key, "remote", conflict.revision, conflict.state));
+  }
+  assert.deepEqual(b.withReplica(replica => replica.conflicts()), []);
+  assert.equal((await call<BriefView>(target, workBriefActions.get, {})).version!.claims[0]!.text, "Device A home");
+
+  // Defense-in-depth: a legacy random-UUID home brief arriving alongside an existing home brief fails cleanly without raw SQLite errors.
+  const legacyId = "brief-legacy-other";
+  const legacyKey = JSON.stringify([null, JSON.stringify([projectId, "brief", legacyId])]);
+  const legacyEvent = {
+    key: legacyKey, operationId: "legacy-home-op", base: 0, revision: ++revision,
+    value: {
+      sync_runtime: 1,
+      spaceId: space.spaceId,
+      projectId: null,
+      value: {
+        spaceId: space.spaceId,
+        brief: { id: legacyId, project_id: projectId, actor_id: "", scope: "home", title: "", current_version: 0, fixed_json: "{}",
+          created_at: "2026-11-22T00:00:00.000Z", updated_at: "2026-11-22T00:00:00.000Z", artifact_id: "", artifact_version: 0 },
+        children: { brief_versions: [], brief_edits: [], brief_proposals: [], brief_next_marks: [] },
+      },
+    },
+  };
+  await b.prepare(legacyEvent);
+  b.withReplica(replica => replica.receive(legacyEvent));
+  const legacyConflict = b.withReplica(replica => replica.inspectConflict!(legacyKey));
+  assert.ok(legacyConflict);
+  assert.doesNotMatch(legacyConflict.reason, /UNIQUE constraint|ERR_SQLITE_ERROR|briefs\./i);
+});
+
+test("F-plugins-rest-w2-04: edit and proposal resolve refuse exceeding 40 claims so sync never deadlocks", { timeout: 90_000 }, async t => {
+  const { owner, source } = await syncOwnerPair(t, ["risk", "work-brief"]);
+  const caller = { ...person([...RISK_WRITE, ...WORK_BRIEF_WRITE], source.project().project_id), actor_id: owner };
+  const call = <T>(definition: Parameters<typeof ref>[0], input: unknown) => source.actions().invoke(caller, ref(definition), input) as Promise<T>;
+  const a = await source.bind(WORK_BRIEF_PLUGIN_ID);
+
+  const forty = Array.from({ length: 40 }, (_, i) => ({ text: `结论 ${i + 1}`, supplied_by: "owner" as const }));
+  const saved = await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: forty } });
+  const briefId = saved.brief.brief_id;
+  await assert.rejects(
+    call(workBriefActions.edit, { brief_id: briefId, expected_revision: saved.brief.revision, text: "第 41 条结论" }),
+    { code: "work_brief.invalid" },
+  );
+  // Edit claim #1, then save a fresh 40-claim proposal that drops claim #1 so resolving with "mine" would create 41 claims.
+  const firstClaim = saved.version!.claims[0]!.claim_id;
+  const edited = await call<BriefSaved>(workBriefActions.edit, { brief_id: briefId, expected_revision: saved.brief.revision, claim_id: firstClaim, text: "本人保留第 1 条" });
+  const proposed = await call<BriefSaved>(workBriefActions.save, {
+    request_id: once(), brief_id: briefId,
+    draft: { claims: Array.from({ length: 40 }, (_, i) => ({ text: `新提案 ${i + 1}`, supplied_by: "owner" as const })) },
+  });
+  assert.ok(proposed.proposal);
+  await assert.rejects(
+    call(workBriefActions.resolve, {
+      brief_id: briefId, proposal_id: proposed.proposal.proposal_id, expected_revision: edited.brief.revision,
+      choices: [{ claim_id: firstClaim, take: "mine" }],
+    }),
+    { code: "work_brief.invalid" },
+  );
+  assert.ok((await call<BriefView>(workBriefActions.get, { brief_id: briefId })).proposal, "failed resolve must leave proposal intact");
+  const mutation = a.withReplica(replica => replica.next());
+  assert.ok(mutation, "replica.next() still serializes cleanly within claim limits");
+});

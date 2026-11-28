@@ -364,7 +364,10 @@ test("SQLD-04 no ExperimentalWarning: importing and using the driver on the lock
     new DatabaseSync(":memory:").exec("SELECT 1");
     setTimeout(() => process.stdout.write(JSON.stringify(warnings)), 50);`], { encoding: "utf8" });
   assert.equal(child.status, 0, child.stderr);
-  if (!OFFICIAL_LOCKED_NODE) { t.diagnostic(`${process.version} is not the locked official build: warnings ${child.stdout}`); return; }
+  if (!OFFICIAL_LOCKED_NODE) {
+    t.skip(`${process.version} is not the locked official build: warnings ${child.stdout}`);
+    return;
+  }
   assert.equal(child.stdout, "[]");
   assert.equal(child.stderr, "");
 });

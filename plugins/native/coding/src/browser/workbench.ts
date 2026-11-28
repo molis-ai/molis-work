@@ -35,6 +35,7 @@ export interface CodingWorkbenchHost {
   readonly openItem?: (plugin: string, id: string, title?: string) => void;
   readonly openBeside?: (plugin: string, id: string, title?: string) => void;
   readonly openPlugin?: (plugin: string) => void;
+  readonly surfaceFor?: CodingHost["surfaceFor"];
   readonly hideDirectory?: () => void;
   readonly workspaces: UiPageWorkspaces;
   readonly clients: Readonly<Record<string, CompanionClient | undefined>>;
@@ -86,5 +87,6 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
     selectWorkspace: async (id: string) => { gitBrowser?.browse?.(id); }, invokeAction: host.invokeAction,
     openItem: (plugin: string, id: string, title?: string) => host.openItem?.(plugin, id, title),
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),
+    surfaceFor: host.surfaceFor,
   });
 }

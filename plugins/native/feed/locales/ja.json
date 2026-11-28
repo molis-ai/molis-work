@@ -603,6 +603,7 @@
     "feed.actions.content-release.title": "ソースが保持する原文を解放",
     "feed.actions.content-release.description": "ソース削除後に参照していた原文の登録を解除し、どこからも参照されなくなった原文を整理します。",
     "feed.actions.content-reclaim.title": "不要な原文登録を回収",
-    "feed.actions.content-reclaim.description": "取得の失敗・キャンセル・中断後に残った未参照の原文登録を回収し、不要な原文を整理します。"
+    "feed.actions.content-reclaim.description": "取得の失敗・キャンセル・中断後に残った未参照の原文登録を回収し、不要な原文を整理します。",
+    "feed.project-deletion.data": "Feed が保持する本文の参照記録"
   }
 }

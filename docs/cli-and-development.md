@@ -37,7 +37,7 @@ source /path/to/molis-work/node_modules/.cache/toolchains/activate-work-build-en
 pnpm build
 ```
 
-2026-11-05 扩展验证又确认 Homebrew Node 26.9.0 依赖外部 `libnode.147.dylib`，插件的既有 Seatbelt 规则拒绝该动态库。采用官方独立 Node 26.9.0（ABI 147）后，原先 5 个失败文件在同一干净主线构建上全部通过，包含插件安装与项目清理。官方包 SHA-256 为 `8dd6e383c216dbadd04e6eaac5b8fcaec8ba700a58fa51ebd38d4f9532741909`，代码签名 Node.js Foundation（HX7739G8FX）有效；没有更改全局 Node、重装原生依赖或修改沙箱规则。组合激活脚本会同时选择这份 Node 和 Swift；两份来源记录保存在同一工具链缓存。
+2026-11-05 排查发现 Homebrew 构建的 Node 依赖外部 `libnode.*.dylib`，会被插件既有的 Seatbelt 沙箱规则拒绝。仓库现已强锁定官方独立发行版 **Node `24.15.x`**（与 `.nvmrc` 的 `24.15.0`、根 `package.json` 的 `engines.node: ">=24.15.0 <24.16.0"` 以及内置 SQLite `3.51.3` 一致；使用其他 Node 版本会导致项目库插件 SQL 语句全部被拒，见下方「发布产物验证」）。请使用官方独立 Node `24.15.x` 安装包搭配完整 Swift 工具链，不要启用旧的 Node 26.x 或 Homebrew 动态链接版 Node；组合激活脚本同步选择该份 Node `24.15.x` 与 Swift 工具链，来源记录保存在同一工具链缓存。
 
 脚本只设置该 shell 的 PATH、SDKROOT 和工具链路径。其他机器不依赖此绝对路径，使用一致的完整 Swift 工具链与匹配 SDK 即可。当前来源为 Swift 官方 `swift-6.3.3-RELEASE-osx.pkg`，SHA-256 为 `ee82e57774d6650f94aa06302435d6f44a055b9411698db8ecb85d9a3bcc91d0`，签名 Swift Open Source（V9AUD2URP3）与 Apple notarization 验证通过。
 

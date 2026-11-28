@@ -16,6 +16,7 @@ function overlapLine(_page: Page, overlap: Overlap): string {
 export function askOverlap(page: Page, overlaps: readonly Overlap[]): Promise<OverlapChoice> {
   const { lifetime, root } = page;
   return new Promise(resolve => {
+    let settled = false;
     const dialog = el("dialog", "", "mw-dialog coding-overlap"), box = el("div", "", "mw-dialog__shell coding-overlap-body"), list = el("ul"), actions = el("div", "", "coding-overlap-actions");
     dialog.setAttribute("aria-label", uiText.text("coding.overlap.label"));
     for (const overlap of overlaps) {
@@ -23,10 +24,17 @@ export function askOverlap(page: Page, overlaps: readonly Overlap[]): Promise<Ov
       item.append(el("strong", uiText.text("coding.quote", { title: overlap.title })), document.createTextNode(overlapLine(page, overlap)));
       list.append(item);
     }
-    const choose = (value: OverlapChoice) => {
+    const settle = (value: OverlapChoice) => {
+      if (settled) return;
+      settled = true;
       dialog.close();
       dialog.remove();
       resolve(value);
+    };
+    const release = lifetime.own(() => settle("cancel"));
+    const choose = (value: OverlapChoice) => {
+      release();
+      settle(value);
     };
     const button = (label: string, value: OverlapChoice, primary = false) => {
       const node = el("button", label, "mw-btn" + (primary ? " mw-btn--primary" : ""));

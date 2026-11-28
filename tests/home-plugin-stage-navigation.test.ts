@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";

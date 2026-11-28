@@ -1,3 +1,5 @@
+import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionReference, type ActionSceneClient, type ActionSceneHandlerBinding, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedApplication } from "./application.js";
@@ -89,7 +91,7 @@ export function createFeedSceneRuntime(options: FeedSceneRuntimeOptions): { hand
     },
     preview: async (reference, content, caller) => {
       await selection.validate(reference, caller);
-      return await actions.invoke(caller, reference, { content }) as { status: "ok" | "needs_review"; suggested_behavior_ids: string[] };
+      return await actions.invoke(caller, reference, { content: cutHead(redactSecrets(content), 8000) }) as { status: "ok" | "needs_review"; suggested_behavior_ids: string[] };
     },
     validate: async (reference, caller) => {
       const found = captureScenes(await scenes.discoverScenes(caller, reference));

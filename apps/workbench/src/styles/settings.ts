@@ -171,7 +171,7 @@ export const SETTINGS_STYLES = `
   .project-delete-kept__title { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
   .project-delete-kept__title svg { width: 16px; height: 16px; flex: none; color: var(--ink-soft); }
   .project-delete-kept__path { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; min-width: 0; }
-  .project-delete-kept__path code { flex: 1 1 240px; min-width: 0; padding: 6px 8px; border-radius: var(--r-tag); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font: 12px/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; user-select: all; }
+  .project-delete-kept__path code { flex: 1 1 240px; min-width: 0; padding: 6px 8px; border-radius: var(--r-tag); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font: 12px/1.5 var(--font-mono); color: var(--ink); overflow-wrap: anywhere; user-select: all; }
   .project-delete-kept > p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
   :is(.settings-page, body.immersive-workbench) .project-delete-dialog [hidden] { display: none; }
   .connection-settings-section { margin-top: 32px; padding-top: 32px; border-top: 1px solid var(--line-strong); }

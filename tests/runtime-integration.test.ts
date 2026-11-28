@@ -723,3 +723,68 @@ test("RAC-1240 the installer shows each Runtime with RUNTIME_DISPLAY_NAMES, and 
     }
   });
 });
+
+test("F-host-subsystems-w2-10 OpenCode JSONC connect and remove preserve comments and handle brace/quote tokens inside comments", async () => {
+  await withFixture(async fixture => {
+    const integration = service(fixture);
+    const opencodeConfig = join(fixture.userHome, ".config", "opencode", "opencode.json");
+    await mkdir(join(fixture.userHome, ".config", "opencode"), { recursive: true });
+    const withMcp = [
+      "// Leading comment before root object",
+      "{",
+      "  // Model comment with } and \" inside",
+      "  \"$schema\": \"https://opencode.ai/config.json\",",
+      "  \"model\": \"keep-jsonc\", /* inline block comment with } ] \" */",
+      "  /* Block comment before mcp */",
+      "  \"mcp\": /* comment after colon */ {",
+      "    // Comment inside mcp with } ] \" characters",
+      "    \"other\": { \"type\": \"local\", \"command\": [\"keep-me\"] }",
+      "  }",
+      "  // Trailing comment before closing brace",
+      "}",
+      "",
+    ].join("\n");
+    await writeFile(opencodeConfig, withMcp);
+
+    const connectPlan = await integration.prepare("opencode", "connect");
+    assert.equal(connectPlan.status, "ready");
+    const connected = await integration.confirm({ runtime_id: "opencode", plan_id: connectPlan.plan_id, decision: "confirmed" });
+    assert.equal(connected.status, "connected");
+    const afterConnect = await readFile(opencodeConfig, "utf8");
+    assert.match(afterConnect, /\/\/ Leading comment before root object/);
+    assert.match(afterConnect, /\/\* Block comment before mcp \*\//);
+    assert.match(afterConnect, /\/\* comment after colon \*\//);
+    assert.match(afterConnect, /\/\/ Trailing comment before closing brace/);
+    assert.equal((await integration.detect("opencode")).connection_state, "connected");
+
+    const removePlan = await integration.prepare("opencode", "remove");
+    assert.equal(removePlan.status, "ready");
+    const removed = await integration.confirm({ runtime_id: "opencode", plan_id: removePlan.plan_id, decision: "confirmed" });
+    assert.equal(removed.status, "removed");
+    const afterRemove = await readFile(opencodeConfig, "utf8");
+    assert.match(afterRemove, /\/\/ Leading comment before root object/);
+    assert.match(afterRemove, /\/\* Block comment before mcp \*\//);
+    assert.match(afterRemove, /"other"/);
+    assert.doesNotMatch(afterRemove, /"molis-work"/);
+    assert.equal((await integration.detect("opencode")).connection_state, "not_connected");
+
+    // Also preserve comments when inserting "mcp" into a JSONC file that does not have "mcp" yet.
+    const withoutMcp = [
+      "{",
+      "  // User OpenCode notes",
+      "  \"$schema\": \"https://opencode.ai/config.json\",",
+      "  \"model\": \"keep-without-mcp\" // inline comment on last property",
+      "}",
+      "",
+    ].join("\n");
+    await writeFile(opencodeConfig, withoutMcp);
+    const insertPlan = await integration.prepare("opencode", "connect");
+    assert.equal(insertPlan.status, "ready");
+    const inserted = await integration.confirm({ runtime_id: "opencode", plan_id: insertPlan.plan_id, decision: "confirmed" });
+    assert.equal(inserted.status, "connected");
+    const afterInsert = await readFile(opencodeConfig, "utf8");
+    assert.match(afterInsert, /\/\/ User OpenCode notes/);
+    assert.match(afterInsert, /\/\/ inline comment on last property/);
+    assert.equal((await integration.detect("opencode")).connection_state, "connected");
+  });
+});

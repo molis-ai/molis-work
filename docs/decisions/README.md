@@ -5,3 +5,5 @@
 ADR 只记录已经接受的决定、背景、取舍、影响和替代关系，不用来保存开放想法或实现进度。实现状态写在各任务的 spec 里（`specs/<task>/spec.md`）。
 
 其他已接受的决定分两处：路线书的[决定记录](../../specs/post-anticorruption-roadmap/reference/decisions.md)与各 spec 的「决策」节。需要长期解释为什么这样做时再抽成 ADR，不在本目录维护第二份决定表。
+
+已退役的历史 ADR 归档在 [`docs/archive/decisions/`](../archive/decisions/)（如 [Goal 关系写入直接命令路径](../archive/decisions/goal-relation-write-path.md)）。

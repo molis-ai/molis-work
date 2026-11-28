@@ -8,7 +8,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
-import { localizeActionErrorResponse, localizeWebErrorBody, readErrorWord, readWorkbenchText } from "./ui-error-words.js";
+import { localizeActionErrorResponse, localizeWebErrorBody, readErrorWord, readWorkbenchText, sanitizeGatewayErrorBody } from "./ui-error-words.js";
 import { activeLocale, resolveWebLocale } from "./web-locale.js";
 
 /**
@@ -28,7 +28,55 @@ export function requestHeader(request: Pick<IncomingMessage, "headers">, name: s
   return undefined;
 }
 
-export function sendLocalGatewayJson(response: ServerResponse, status: number, value: unknown): void {
+/** Default strict CSP for local workbench and plugin HTML documents (S-21). */
+export const LOCAL_PAGE_CSP = "default-src 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://avatars.githubusercontent.com; frame-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'";
+
+/** Parses an incoming HTTP request target without throwing on malformed paths or IPv6 literals. */
+export function parseLocalRequestUrl(raw: string | undefined): URL | null {
+  const value = raw ?? "/";
+  try {
+    const parsed = new URL(value, "http://localhost");
+    if (parsed.origin !== "http://localhost" && !value.startsWith("http://") && !value.startsWith("https://")) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Tracks client disconnect for an in-flight HTTP request and cleans up its listeners once the handler ends.
+ * Covers both `request.aborted` and premature `response.close` (before `response.writableEnded`).
+ */
+export function requestAbortSignal(
+  request: IncomingMessage,
+  response: ServerResponse,
+  reason: string | Error = "调用连接已关闭",
+): { readonly signal: AbortSignal; dispose(): void } {
+  const controller = new AbortController();
+  const abort = () => {
+    if (!response.writableEnded && !controller.signal.aborted) {
+      controller.abort(typeof reason === "string" ? new Error(reason) : reason);
+    }
+  };
+  if (request.aborted || (response.destroyed && !response.writableEnded)) abort();
+  request.once("aborted", abort);
+  response.once("close", abort);
+  return {
+    signal: controller.signal,
+    dispose() {
+      request.removeListener("aborted", abort);
+      response.removeListener("close", abort);
+    },
+  };
+}
+
+function writeLocalJson(response: ServerResponse, status: number, value: unknown): void {
+  if (response.headersSent) return;
+  if (response.destroyed) {
+    response.statusCode = status;
+    response.end();
+    return;
+  }
   const answer = withRecordedCallId(status, value);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -38,9 +86,14 @@ export function sendLocalGatewayJson(response: ServerResponse, status: number, v
   response.end(JSON.stringify(answer.body));
 }
 
+export function sendLocalGatewayJson(response: ServerResponse, status: number, value: unknown): void {
+  const sanitized = status >= 400 ? sanitizeGatewayErrorBody(status, value) : value;
+  writeLocalJson(response, status, sanitized);
+}
+
 export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown, localeOverride?: string | null): void {
   const sanitized = status >= 400 ? localizeWebErrorBody(status, value, localeOverride) : value;
-  sendLocalGatewayJson(response, status, sanitized);
+  writeLocalJson(response, status, sanitized);
 }
 
 /**

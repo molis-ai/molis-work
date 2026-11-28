@@ -34,7 +34,11 @@ interface Mcp {
   /** What each server is being asked to do right now. */
   readonly pending: Map<string, Control>;
   poll: ReturnType<typeof setInterval> | null;
+  inFlight: boolean;
 }
+
+const currentLocale = () => document.documentElement.lang || "";
+const isHidden = (state: Mcp) => document.hidden || Boolean(state.root.closest("[hidden]"));
 
 const status = (state: Mcp, text: string) => {
   state.q("[data-mcp-status]").textContent = text;
@@ -124,7 +128,7 @@ function serverRow(state: Mcp, server: McpServer, opened: ReadonlySet<string | u
 
 /** Draws the servers, unless nothing they show changed. */
 function render(state: Mcp) {
-  const list = state.q("[data-mcp-servers]"), key = JSON.stringify([state.servers, [...state.pending]]);
+  const list = state.q("[data-mcp-servers]"), key = JSON.stringify([currentLocale(), state.servers, [...state.pending]]);
   if (list.dataset.key === key) return;
   list.dataset.key = key;
   const opened = new Set([...list.querySelectorAll<HTMLElement>("details[open]")].map(item => item.dataset.server));
@@ -133,39 +137,53 @@ function render(state: Mcp) {
   if (!state.servers.length) list.textContent = uiText.text("coding.mcp-config.none");
 }
 
+function drawConnections(state: Mcp) {
+  const select = state.field<HTMLSelectElement>("auth_connection_id");
+  const connected = state.authConnections.filter(item => item.state === "connected");
+  const key = JSON.stringify([currentLocale(), connected.map(item => [item.connection_id, item.display_name])]);
+  if (select.dataset.options === key) return;
+  const current = select.value, none = el("option", uiText.text("coding.mcp-config.choose-connection"));
+  none.value = "";
+  select.replaceChildren(none, ...connected.map(item => {
+    const option = el("option", item.display_name);
+    option.value = item.connection_id;
+    return option;
+  }));
+  select.dataset.options = key;
+  select.value = current;
+}
+
 /** The connections the section offers in its sign-in list. A failed read leaves the list as it is. */
 async function readConnections(state: Mcp) {
   const response = await molisWorkRequest<Response>("/api/settings/connectors/connections", { as: "response" });
   if (!response.ok) return;
   const data: { connections?: AuthConnection[] } = await response.json();
   state.authConnections = (data.connections || []).filter(item => item.service_id === "mcp-bearer" || (item.auth_method === "mcp" && item.agent_available !== false));
-  const select = state.field<HTMLSelectElement>("auth_connection_id"), current = select.value, none = el("option", uiText.text("coding.mcp-config.choose-connection"));
-  none.value = "";
-  select.replaceChildren(none, ...state.authConnections.filter(item => item.state === "connected").map(item => {
-    const option = el("option", item.display_name);
-    option.value = item.connection_id;
-    return option;
-  }));
-  select.value = current;
+  drawConnections(state);
 }
 
 /** Reads the servers, the project's directories and the connections again, and draws them. */
 async function refresh(state: Mcp) {
-  const result = await api<{ mcp?: McpServer[]; workspaces: Workspace[] }>(state, "/state");
-  state.servers = result.mcp || [];
-  state.workspaces = result.workspaces;
-  await readConnections(state);
-  const select = state.field<HTMLSelectElement>("workspace"), key = JSON.stringify(state.workspaces), previous = select.value;
-  if (select.dataset.options !== key) {
-    select.replaceChildren(...state.workspaces.map(item => {
-      const option = el("option", item.canonical_path);
-      option.value = item.workspace_id;
-      return option;
-    }));
-    select.dataset.options = key;
-    if (state.workspaces.some(item => item.workspace_id === previous)) select.value = previous;
+  state.inFlight = true;
+  try {
+    const result = await api<{ mcp?: McpServer[]; workspaces: Workspace[] }>(state, "/state");
+    state.servers = result.mcp || [];
+    state.workspaces = result.workspaces;
+    await readConnections(state);
+    const select = state.field<HTMLSelectElement>("workspace"), key = JSON.stringify(state.workspaces), previous = select.value;
+    if (select.dataset.options !== key) {
+      select.replaceChildren(...state.workspaces.map(item => {
+        const option = el("option", item.canonical_path);
+        option.value = item.workspace_id;
+        return option;
+      }));
+      select.dataset.options = key;
+      if (state.workspaces.some(item => item.workspace_id === previous)) select.value = previous;
+    }
+    render(state);
+  } finally {
+    state.inFlight = false;
   }
-  render(state);
 }
 
 /** Asks the Host to connect, disconnect, cancel or remove a server. */
@@ -272,6 +290,7 @@ function resume(state: Mcp) {
       state.poll = null;
       return;
     }
+    if (isHidden(state) || state.inFlight) return;
     void refresh(state).catch(error => unavailable(state, error));
   }, 3000);
 }
@@ -298,7 +317,7 @@ export function bindMcp(scope: ParentNode) {
     if (!found) throw new Error("mcp settings: " + name);
     return found as Kind;
   };
-  const state: Mcp = { root, form, q, field, servers: [], workspaces: [], authConnections: [], editing: null, pending: new Map(), poll: null };
+  const state: Mcp = { root, form, q, field, servers: [], workspaces: [], authConnections: [], editing: null, pending: new Map(), poll: null, inFlight: false };
   form.addEventListener("submit", event => void submit(state, event));
   field("auth_connection_id").addEventListener("change", () => {
     const selected = state.authConnections.find(item => item.connection_id === field<HTMLSelectElement>("auth_connection_id").value);
@@ -309,6 +328,26 @@ export function bindMcp(scope: ParentNode) {
   });
   field("transport").addEventListener("change", () => transport(state));
   q("[data-mcp-reset]").addEventListener("click", () => reset(state));
+  const onLanguageChanged = () => {
+    if (!state.root.isConnected) {
+      document.removeEventListener("molis-work:language-changed", onLanguageChanged);
+      return;
+    }
+    state.q("[data-mcp-form-title]").textContent = state.editing ? uiText.text("coding.mcp-config.edit-title", { name: state.field("label").value }) : uiText.text("coding.mcp-config.add");
+    drawConnections(state);
+    render(state);
+  };
+  document.addEventListener("molis-work:language-changed", onLanguageChanged);
+  const onVisibilityChanged = () => {
+    if (!state.root.isConnected) {
+      document.removeEventListener("visibilitychange", onVisibilityChanged);
+      return;
+    }
+    if (!isHidden(state) && !state.inFlight && state.poll !== null) {
+      void refresh(state).catch(error => unavailable(state, error));
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibilityChanged);
   transport(state);
   sections.set(root, () => resume(state));
   resume(state);

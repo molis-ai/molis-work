@@ -564,9 +564,10 @@ pub fn occupied_message(label: &str) -> String {
 }
 
 pub fn document_title(html: &str) -> Option<String> {
-    let start = find_ignore_ascii_case(html, "<title")?;
+    let start = find_tag_open(html, "title")?;
     let after = html[start..].find('>')? + start + 1;
-    let end = find_ignore_ascii_case(&html[after..], "</title>")? + after;
+    let (end_rel, _) = find_tag_close(&html[after..], "title")?;
+    let end = after + end_rel;
     let text = collapse_space(&decode_entities(&strip_tags(&html[after..end])));
     if text.is_empty() {
         None
@@ -772,13 +773,50 @@ fn find_ignore_ascii_case(hay: &str, needle: &str) -> Option<usize> {
         .position(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
 }
 
-fn strip_block(html: &str, tag: &str) -> String {
+fn is_tag_name_boundary(byte: u8) -> bool {
+    byte.is_ascii_whitespace() || byte == b'>' || byte == b'/'
+}
+
+fn find_tag_open(html: &str, tag: &str) -> Option<usize> {
     let open = format!("<{tag}");
-    let close = format!("</{tag}>");
+    let bytes = html.as_bytes();
+    let mut offset = 0;
+    while offset < html.len() {
+        let rel = find_ignore_ascii_case(&html[offset..], &open)?;
+        let start = offset + rel;
+        let after = start + open.len();
+        if bytes.get(after).copied().is_some_and(is_tag_name_boundary) {
+            return Some(start);
+        }
+        offset = after;
+    }
+    None
+}
+
+fn find_tag_close(html: &str, tag: &str) -> Option<(usize, usize)> {
+    let close = format!("</{tag}");
+    let bytes = html.as_bytes();
+    let mut offset = 0;
+    while offset < html.len() {
+        let rel = find_ignore_ascii_case(&html[offset..], &close)?;
+        let start = offset + rel;
+        let mut cursor = start + close.len();
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor += 1;
+        }
+        if bytes.get(cursor) == Some(&b'>') {
+            return Some((start, cursor + 1));
+        }
+        offset = start + close.len();
+    }
+    None
+}
+
+fn strip_block(html: &str, tag: &str) -> String {
     let mut rest = html;
     let mut out = String::new();
     loop {
-        let Some(start) = find_ignore_ascii_case(rest, &open) else {
+        let Some(start) = find_tag_open(rest, tag) else {
             out.push_str(rest);
             break;
         };
@@ -787,8 +825,12 @@ fn strip_block(html: &str, tag: &str) -> String {
             break;
         };
         let inner = start + gt + 1;
-        if let Some(end_rel) = find_ignore_ascii_case(&rest[inner..], &close) {
-            rest = &rest[inner + end_rel + close.len()..];
+        if rest[start..start + gt].trim_end().ends_with('/') {
+            rest = &rest[inner..];
+            continue;
+        }
+        if let Some((_, end_after)) = find_tag_close(&rest[inner..], tag) {
+            rest = &rest[inner + end_after..];
         } else {
             break;
         }
@@ -797,29 +839,32 @@ fn strip_block(html: &str, tag: &str) -> String {
 }
 
 fn inner_html(html: &str, tag: &str) -> Option<String> {
-    let open = format!("<{tag}");
-    let close = format!("</{tag}>");
-    let start = find_ignore_ascii_case(html, &open)?;
+    let start = find_tag_open(html, tag)?;
     let gt = html[start..].find('>')?;
+    if html[start..start + gt].trim_end().ends_with('/') {
+        return None;
+    }
     let inner = start + gt + 1;
-    let end = find_ignore_ascii_case(&html[inner..], &close)? + inner;
-    Some(html[inner..end].to_string())
+    let (end_rel, _) = find_tag_close(&html[inner..], tag)?;
+    Some(html[inner..inner + end_rel].to_string())
 }
 
 fn replace_pre(html: &str) -> String {
     let mut rest = html;
     let mut out = String::new();
     loop {
-        let Some(start) = find_ignore_ascii_case(rest, "<pre") else {
+        let Some(start) = find_tag_open(rest, "pre") else {
             out.push_str(rest);
             break;
         };
         out.push_str(&rest[..start]);
         let Some(gt) = rest[start..].find('>') else {
+            out.push_str(&rest[start..]);
             break;
         };
         let inner = start + gt + 1;
-        let Some(end_rel) = find_ignore_ascii_case(&rest[inner..], "</pre>") else {
+        let Some((end_rel, end_after)) = find_tag_close(&rest[inner..], "pre") else {
+            out.push_str(&rest[start..]);
             break;
         };
         let code = strip_tags(&rest[inner..inner + end_rel]).trim().to_string();
@@ -828,7 +873,7 @@ fn replace_pre(html: &str) -> String {
             out.push_str(&code);
             out.push_str("\n```\n\n");
         }
-        rest = &rest[inner + end_rel + 6..];
+        rest = &rest[inner + end_after..];
     }
     out
 }
@@ -837,27 +882,19 @@ fn replace_links(html: &str) -> String {
     let mut rest = html;
     let mut out = String::new();
     loop {
-        let Some(start) = find_ignore_ascii_case(rest, "<a") else {
+        let Some(start) = find_tag_open(rest, "a") else {
             out.push_str(rest);
             break;
         };
-        let after = &rest[start + 2..];
-        if after
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_alphanumeric())
-        {
-            out.push_str(&rest[..=start + 1]);
-            rest = &rest[start + 2..];
-            continue;
-        }
         out.push_str(&rest[..start]);
         let Some(gt) = rest[start..].find('>') else {
+            out.push_str(&rest[start..]);
             break;
         };
         let tag = &rest[start..start + gt + 1];
         let inner_start = start + gt + 1;
-        let Some(end_rel) = find_ignore_ascii_case(&rest[inner_start..], "</a>") else {
+        let Some((end_rel, end_after)) = find_tag_close(&rest[inner_start..], "a") else {
+            out.push_str(&rest[start..]);
             break;
         };
         let label = collapse_space(&strip_tags(&rest[inner_start..inner_start + end_rel]));
@@ -873,7 +910,7 @@ fn replace_links(html: &str) -> String {
             out.push_str(&href);
             out.push(')');
         }
-        rest = &rest[inner_start + end_rel + 4..];
+        rest = &rest[inner_start + end_after..];
     }
     out
 }
@@ -881,40 +918,40 @@ fn replace_links(html: &str) -> String {
 fn replace_wrap(html: &str, tag: &str, open: &str, close: &str) -> String {
     let mut rest = html;
     let mut out = String::new();
-    let start_pat = format!("<{tag}");
-    let end_pat = format!("</{tag}>");
     loop {
-        let Some(start) = find_ignore_ascii_case(rest, &start_pat) else {
+        let Some(start) = find_tag_open(rest, tag) else {
             out.push_str(rest);
             break;
         };
         out.push_str(&rest[..start]);
         let Some(gt) = rest[start..].find('>') else {
+            out.push_str(&rest[start..]);
             break;
         };
         let inner = start + gt + 1;
-        let Some(end_rel) = find_ignore_ascii_case(&rest[inner..], &end_pat) else {
+        let Some((end_rel, end_after)) = find_tag_close(&rest[inner..], tag) else {
+            out.push_str(&rest[start..]);
             break;
         };
         out.push_str(open);
         out.push_str(&rest[inner..inner + end_rel]);
         out.push_str(close);
-        rest = &rest[inner + end_rel + end_pat.len()..];
+        rest = &rest[inner + end_after..];
     }
     out
 }
 
 fn replace_open(html: &str, tag: &str, replacement: &str) -> String {
-    let pat = format!("<{tag}");
     let mut rest = html;
     let mut out = String::new();
     loop {
-        let Some(start) = find_ignore_ascii_case(rest, &pat) else {
+        let Some(start) = find_tag_open(rest, tag) else {
             out.push_str(rest);
             break;
         };
         out.push_str(&rest[..start]);
         let Some(gt) = rest[start..].find('>') else {
+            out.push_str(&rest[start..]);
             break;
         };
         out.push_str(replacement);
@@ -1175,6 +1212,34 @@ mod tests {
             website_filename("Example Domain", "https://example.com/"),
             "Example Domain.md"
         );
+    }
+
+    #[test]
+    fn html_markdown_preserves_header_and_handles_head_tag_boundaries() {
+        let html = r#"<html><head><title>Doc</title></head><body><header>Site Nav</header><main><h1>Article</h1><p>Body text</p><picture><img alt="pic"></picture><link rel="canonical" href="https://example.com/"><ul><li>Real item</li></ul></main></body></html>"#;
+        let markdown = html_to_markdown(html);
+        assert!(markdown.contains("# Article"), "{markdown}");
+        assert!(markdown.contains("Body text"), "{markdown}");
+        assert!(markdown.contains("- Real item"), "{markdown}");
+        assert!(
+            !markdown.contains("- \n"),
+            "link must not become a list item: {markdown}"
+        );
+
+        for head_open in [
+            "<head><meta></head>",
+            "<head class=\"meta\"><meta></head>",
+            "<head\t><meta></head>",
+            "<head\n><meta></head>",
+            "<head/>",
+        ] {
+            let doc =
+                format!("<html>{head_open}<body><header>Banner</header><p>Kept</p></body></html>");
+            let out = html_to_markdown(&doc);
+            assert!(out.contains("Banner"), "{head_open} => {out}");
+            assert!(out.contains("Kept"), "{head_open} => {out}");
+            assert!(!out.contains("<meta>"), "{head_open} => {out}");
+        }
     }
 
     #[test]

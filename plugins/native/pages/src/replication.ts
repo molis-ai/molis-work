@@ -33,7 +33,7 @@ export function pagesCollection(projectId: string): PluginSyncCollectionDefiniti
     },
     read(key){
       const [kind,id]=decode(key),project=caller.project(projectId);
-      const record=readRecord(db,kind,id);
+      const record=readRecord(db,projectId,kind,id);
       if(!record)return null;
       const value={project:{id:projectId,title:project.title},record};
       limit(value);return value;
@@ -54,7 +54,7 @@ export function pagesCollection(projectId: string): PluginSyncCollectionDefiniti
       const envelope=value as {project?:{id:string;title:string};record?:{id:string;folder_id?:string}};
       if(envelope.project?.id!==projectId||typeof envelope.project.title!=='string'||envelope.project.title.length>120||envelope.record?.id!==id)throw syncError('invalid','文档同步记录与项目或资产标识不一致');
       const folders=kind==='folder'?[envelope.record]:dependencyFolder(db,envelope.record.folder_id);
-      const parsed=parsePayload({folders,documents:kind==='document'?[envelope.record]:[]});
+      const parsed=parsePayload({folders,documents:kind==='document'?[envelope.record]:[]},projectId);
       if(kind==='folder'){
         const row=parsed.folders[0]!;
         db.prepare('INSERT INTO folders(id,title,created_at,updated_at) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,created_at=excluded.created_at,updated_at=excluded.updated_at').run(id,row.title,row.created_at,row.updated_at);
@@ -80,15 +80,15 @@ function dependencyFolder(db:PluginSyncBusinessDatabase,folderId:unknown){
  if(!folder)throw syncError('dependencies','等待文档所属文件夹');
  return [folder];
 }
-function readRecord(db:PluginSyncBusinessDatabase,kind:'folder'|'document',id:string){
+function readRecord(db:PluginSyncBusinessDatabase,projectId:string,kind:'folder'|'document',id:string){
  if(kind==='folder'){
   const folder=db.prepare('SELECT id,title,created_at,updated_at FROM folders WHERE id=?').get(id);
-  return folder?parsePayload({folders:[folder],documents:[]}).folders[0]:null;
+  return folder?parsePayload({folders:[folder],documents:[]},projectId).folders[0]:null;
  }
  const row=db.prepare('SELECT id,title,body_json,folder_id,starred,goal_id,artifact_id,artifact_version,created_at,updated_at,publication_pending_json FROM pages WHERE id=?').get(id);
  if(!row)return null;
  if(row.publication_pending_json)throw syncError('busy','请先恢复文档成果发布');
  const {body_json,starred,publication_pending_json:_pending,...record}=row;
- return parsePayload({folders:dependencyFolder(db,row.folder_id),documents:[{...record,body:JSON.parse(String(body_json)),starred:!!starred}]}).documents[0];
+ return parsePayload({folders:dependencyFolder(db,row.folder_id),documents:[{...record,body:JSON.parse(String(body_json)),starred:!!starred}]},projectId).documents[0];
 }
 function limit(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>100000000)throw syncError('limit','文档超过账号容量上限（100 MB），原数据仍保留在本机');}

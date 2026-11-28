@@ -2,6 +2,8 @@ import {CODING_HISTORY_SCHEMA_SQL,readCodingSavedHistory} from './saved-history.
 import { OVERVIEW_ROW_LIMIT, type PluginDatabase, type PluginDatabaseReader, type PluginDatabaseTransaction, type PluginOverviewClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingOverviewRow } from "./home-background.js";
 import { codingStoreErrors } from "./store-errors.js";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { codingLocalFailure } from "./words.js";
 import {CodingInputStore,CODING_INPUTS_SCHEMA_SQL} from './inputs.js';
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
 import type { CodingPlanDraft } from "./plans.js";
@@ -192,16 +194,16 @@ export class CodingSessionStore {
     return this.db.transaction(beforeEffect, tx => {
       guard?.();
       sessionIn(tx, projectId, sessionId);
-      if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw new Error("计划修订无效");
+      if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw codingLocalFailure("coding.server.plan-revision", "计划修订无效");
       const clock = tx.get("SELECT revision FROM coding_plan_versions WHERE project_id=? AND session_id=?", [projectId,sessionId]);
-      if (Number(clock?.revision ?? 0) !== expected) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
+      if (Number(clock?.revision ?? 0) !== expected) throw codingStoreErrors.plan_conflict(tryUiText("coding.server.plan-conflict-merge") ?? "计划已被另一页面修改，请重新打开后合并修改");
       const exists = planIn(tx, projectId, sessionId);
       const result = !exists
         ? tx.run("INSERT OR IGNORE INTO coding_plan_drafts (project_id, session_id, revision, draft_json) VALUES (?, ?, ?, ?)",
           [projectId, sessionId, draft.revision, JSON.stringify(draft)])
         : tx.run("UPDATE coding_plan_drafts SET revision = ?, draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?",
           [draft.revision, JSON.stringify(draft), projectId, sessionId, expected]);
-      if (Number(result.changes) !== 1) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
+      if (Number(result.changes) !== 1) throw codingStoreErrors.plan_conflict(tryUiText("coding.server.plan-conflict-merge") ?? "计划已被另一页面修改，请重新打开后合并修改");
       tx.run("INSERT INTO coding_plan_versions VALUES (?,?,?) ON CONFLICT(project_id,session_id) DO UPDATE SET revision=excluded.revision", [projectId,sessionId,draft.revision]);
       return planIn(tx, projectId, sessionId)!;
     });
@@ -213,7 +215,7 @@ export class CodingSessionStore {
       guard?.();
       const result = tx.run("UPDATE coding_plan_drafts SET draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?",
         [JSON.stringify(draft), projectId, sessionId, draft.revision]);
-      if (Number(result.changes) !== 1) throw new Error("计划已变化，请重新查看并确认当前修订");
+      if (Number(result.changes) !== 1) throw codingStoreErrors.plan_conflict(tryUiText("coding.server.plan-changed-confirm") ?? "计划已变化，请重新查看并确认当前修订");
       return planIn(tx, projectId, sessionId)!;
     });
   }

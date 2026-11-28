@@ -228,6 +228,22 @@ function evalEvidenceText(rule: EvaluationDeterministicRule, matched: readonly O
       return { verdict: "failed", unknownReasons: [], rationale: `证据内容缺少预期片段「${term}」`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
   }
+  if ((rule.forbids_any?.length ?? 0) > 0 && (missingReasons.size > 0 || ctx.runCoverageUnknowns.includes("window_incomplete"))) {
+    const reasons = Array.from(
+      new Set<EvaluationUnknownReason>([
+        ...missingReasons,
+        ...(ctx.runCoverageUnknowns.includes("window_incomplete") ? (["window_incomplete"] as const) : []),
+      ]),
+    );
+    return {
+      verdict: "unknown",
+      unknownReasons: reasons,
+      rationale: missingReasons.size > 0
+        ? "部分匹配记录的证据快照缺失，无法确认其中不包含禁止片段"
+        : "观察窗口尚未结束，暂无法确认后续证据不包含禁止片段",
+      pointers: pointersFor(matched, ctx.evidenceByRecord),
+    };
+  }
   return { verdict: "passed", unknownReasons: [], rationale: "证据快照内容符合预期约束", pointers: pointersFor(matched, ctx.evidenceByRecord) };
 }
 

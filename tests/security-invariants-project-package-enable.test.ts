@@ -1,3 +1,4 @@
+// @requires-platform darwin
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { DatabaseSync } from "node:sqlite";

@@ -794,7 +794,7 @@ test('closing a project releases every owner and closes its database even when o
     installed.platform.runtime.stop = async (...args: Parameters<typeof stop>) => { await stop(...args); if (args[0] === failing) throw new Error('stop failed'); };
 
     await assert.rejects(host.closeProject(fixture.ref), /安装插件停止失败/);
-    assert.throws(() => store.db.prepare('SELECT 1').get(), 'the release steps after the failing one ran, so the project database is closed');
+    assert.throws(() => store.db.prepare('SELECT 1').get(), /The database connection is not open/u, 'the release steps after the failing one ran, so the project database is closed');
     assert.equal(closedReferences, 1, 'the close was announced');
     assert.deepEqual(host.status().projects, [], 'the Host no longer lists the project');
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }

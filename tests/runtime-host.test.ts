@@ -238,3 +238,28 @@ test("RAC-1673: after a kill with no restart, output the old process still print
     old.kill("SIGKILL");
   }
 });
+
+test("F-horiz-runtime-08: kill() escalates to SIGKILL when a child process ignores SIGHUP and SIGTERM", async () => {
+  let output = "";
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit() { /* ignored after kill */ },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 50));
+  host.spawn({
+    panelId: "stubborn",
+    command: "/bin/sh",
+    cwd: os.tmpdir(),
+    args: ["-c", 'trap "" HUP TERM; printf "stubborn:%s\\n" "$$"; exec cat'],
+  });
+  try {
+    await waitUntil(() => /stubborn:(\d+)\r?\n/.test(output), tick);
+    const pid = Number(/stubborn:(\d+)/.exec(output)![1]);
+    host.kill("stubborn");
+    assert.equal(host.alive("stubborn"), false);
+    await waitUntil(() => processExited(pid), tick, 8_000);
+    assert.equal(processExited(pid), true, "stubborn process must be terminated by SIGKILL escalation");
+  } finally {
+    host.killAll();
+  }
+});

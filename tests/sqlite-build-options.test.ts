@@ -23,7 +23,10 @@ test("SQLD-04 the official build's compile options, recorded", t => {
   const db = new DatabaseSync(":memory:");
   const options = (db.prepare("PRAGMA compile_options").all() as { compile_options: string }[]).map(row => row.compile_options).filter(option => !option.startsWith("COMPILER="));
   db.close();
-  if (!OFFICIAL_LOCKED_NODE) { t.diagnostic(`this Node ${process.version} is not the locked official build`); return; }
+  if (!OFFICIAL_LOCKED_NODE) {
+    t.skip(`this Node ${process.version} is not the locked official build`);
+    return;
+  }
   // On every platform: what the code relies on. On the macOS build these were read from: the whole list.
   for (const needed of ["ENABLE_FTS5", "ENABLE_MATH_FUNCTIONS", "DEFAULT_MEMSTATUS=0"]) assert.ok(options.includes(needed), needed);
   if (process.platform === "darwin") assert.deepEqual(options, OFFICIAL_COMPILE_OPTIONS);

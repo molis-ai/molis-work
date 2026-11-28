@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs";
+import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { ExternalToolId } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import {
@@ -6,8 +8,13 @@ import {
   type ExternalSessionSourceReason,
   type ExternalSessionSourceState,
 } from "@molis-ai/molis-work-contracts/services/sessions";
-import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
-import type { DerivedDirectoryEvaluation } from "./attribution.js";
+import { openBaselineHomeSqlite, rollbackPreservingError } from "@molis-ai/molis-work-storage";
+import {
+  expandHomeRelativePath,
+  normalizeHomeRelativePath,
+  workspaceDirectoryKeyForPath,
+  type DerivedDirectoryEvaluation,
+} from "./attribution.js";
 import type { SessionDirectoryIdentity } from "./git-files.js";
 import { EXTERNAL_SESSIONS_BASELINE, EXTERNAL_SESSIONS_STORE, clearExternalSessionsProjectRows } from "./schema.js";
 import { SessionsDecisionStore } from "./store-decisions.js";
@@ -153,13 +160,24 @@ function parseDirectoryRow(raw: Record<string, unknown>): StoredDirectoryRow {
  */
 export class SessionsStore {
   readonly homeDirectory: string;
+  private readonly normHomeDirectory: string;
+  private readonly realHomeDirectory: string;
   readonly db: DatabaseSync;
   readonly decisions: SessionsDecisionStore;
   private workspaceIdentities = new Map<string, SessionDirectoryIdentity | null>();
+  private workspaceCacheLoaded = false;
   private closed = false;
 
   constructor(homeDirectory: string) {
     this.homeDirectory = homeDirectory;
+    this.normHomeDirectory = path.resolve(homeDirectory);
+    this.realHomeDirectory = (() => {
+      try {
+        return realpathSync(this.normHomeDirectory);
+      } catch {
+        return this.normHomeDirectory;
+      }
+    })();
     this.db = openBaselineHomeSqlite(homeDirectory, EXTERNAL_SESSIONS_STORE, EXTERNAL_SESSIONS_BASELINE);
     this.decisions = new SessionsDecisionStore(this.db);
   }
@@ -177,7 +195,8 @@ export class SessionsStore {
       this.db.exec("COMMIT");
       return result;
     } catch (error) {
-      try { this.db.exec("ROLLBACK"); } catch { /* ignore */ }
+      rollbackPreservingError(error, () => this.db.exec("ROLLBACK"));
+      this.workspaceCacheLoaded = false;
       throw error;
     }
   }
@@ -269,12 +288,75 @@ export class SessionsStore {
     return map;
   }
 
+  private normalizeWorkspacePathForStorage(filePath: string): string {
+    const viaNorm = normalizeHomeRelativePath(filePath, this.normHomeDirectory);
+    if (viaNorm !== filePath || this.realHomeDirectory === this.normHomeDirectory) return viaNorm;
+    return normalizeHomeRelativePath(filePath, this.realHomeDirectory);
+  }
+
+  private loadWorkspaceCache(): void {
+    const rows = this.db.prepare("SELECT * FROM session_directories WHERE kind = 'workspace'").all() as Record<string, unknown>[];
+    const map = new Map<string, SessionDirectoryIdentity | null>();
+    for (const raw of rows) {
+      const parsed = parseDirectoryRow(raw);
+      const storedCanonical = parsed.evidence_path ?? parsed.path;
+      const identity: SessionDirectoryIdentity | null = parsed.realpath_verified
+        ? {
+            real_path: expandHomeRelativePath(parsed.path, this.realHomeDirectory),
+            repository_key: parsed.repository_key,
+            worktree_relative: parsed.worktree_relative,
+          }
+        : null;
+      map.set(expandHomeRelativePath(storedCanonical, this.normHomeDirectory), identity);
+      if (storedCanonical.startsWith("$MOLIS_HOME") && this.realHomeDirectory !== this.normHomeDirectory) {
+        map.set(expandHomeRelativePath(storedCanonical, this.realHomeDirectory), identity);
+      }
+    }
+    this.workspaceIdentities = map;
+    this.workspaceCacheLoaded = true;
+  }
+
   workspaceCache(): ReadonlyMap<string, SessionDirectoryIdentity | null> {
+    if (!this.workspaceCacheLoaded) this.loadWorkspaceCache();
     return this.workspaceIdentities;
   }
 
-  setWorkspaceCache(entries: ReadonlyMap<string, SessionDirectoryIdentity | null>): void {
+  setWorkspaceCache(entries: ReadonlyMap<string, SessionDirectoryIdentity | null>, directoryDigest = ""): void {
+    const apply = () => {
+      const keepKeys = new Set<string>();
+      for (const [canonicalPath, identity] of entries.entries()) {
+        const storedCanonical = this.normalizeWorkspacePathForStorage(canonicalPath);
+        const storedReal = identity ? this.normalizeWorkspacePathForStorage(identity.real_path) : storedCanonical;
+        const storedIdentity = identity ? { ...identity, real_path: storedReal } : null;
+        const directoryKey = workspaceDirectoryKeyForPath(storedCanonical);
+        keepKeys.add(directoryKey);
+        this.upsertDirectory({
+          directory_key: directoryKey,
+          path: storedReal,
+          kind: "workspace",
+          identity: storedIdentity,
+          derived: {
+            derived_state: "no_relation",
+            derived_project_id: null,
+            evidence_kind: null,
+            evidence_path: storedCanonical,
+            candidates: [],
+          },
+          directory_digest: directoryDigest,
+        });
+      }
+      const existingRows = this.db
+        .prepare("SELECT directory_key FROM session_directories WHERE kind = 'workspace'")
+        .all() as Array<{ directory_key: string }>;
+      const remove = this.db.prepare("DELETE FROM session_directories WHERE directory_key = ? AND kind = 'workspace'");
+      for (const row of existingRows) {
+        if (!keepKeys.has(row.directory_key)) remove.run(row.directory_key);
+      }
+    };
+    if (this.db.isTransaction) apply();
+    else this.inTransaction(apply);
     this.workspaceIdentities = new Map(entries);
+    this.workspaceCacheLoaded = true;
   }
 
   upsertDirectory(input: {

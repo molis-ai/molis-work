@@ -52,7 +52,8 @@ export function openPluginTables(db: PluginRuntimeDatabase, path: string, manife
   const roots = listProjectRoots(db as ReplicaDatabase), library = pluginSyncLibraryManifest(manifest, declaration);
   if (roots.length === 1) for (const collection of library.sync?.collections ?? []) {
     const context = `${pluginSyncNamespace(library, collection.id)}_context`;
-    // Read before writing: a library opened read-only (a dormant project's registry read, F-hc2-24) must not see a write statement.
+    // Read before writing, so a settled read-only library (a dormant project's registry read, F-hc2-24) meets no write statement here;
+    // one whose context is still empty would still be written, and refuses as read-only.
     if (db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?").get(context)
       && db.prepare(`SELECT 1 FROM "${context}" WHERE id = 1 AND project_id IS NULL`).get())
       db.prepare(`UPDATE "${context}" SET project_id = ? WHERE id = 1 AND project_id IS NULL`).run(roots[0]!.project_id);

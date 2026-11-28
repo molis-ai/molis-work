@@ -369,7 +369,7 @@ test("WBR-06 WBR-07 a next step runs the prepared action once as the person; a c
   assert.notEqual(await code(call(workBriefActions.runNext, { brief_id: id, option_id: close }, { ...caller, audience: "agent" })), "accepted");
 });
 
-test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries the opening sentences for the one home, beside every plugin's own card; taken out, the same home is what is left", { timeout: 90_000 }, async t => {
+test("WBR-22 POLISH-82 with Work Brief in the project its card carries the opening sentences for the one home, beside every plugin's own card; taken out, the same home is what is left", { timeout: 90_000 }, async t => {
   const { call, caller, risk, change } = await fixture(t);
   const home = () => call<SurfaceDescription>(surfaceCompositionActions.compose, { slot: { kind: "home" } }, person([...caller.permissions], caller.project_id));
   const card = (description: SurfaceDescription) => description.groups.find(group => group.kind === "plugin" && group.owner_plugin_id === WORK_BRIEF_PLUGIN_ID);
@@ -399,7 +399,7 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   const basic = await home();
   assert.equal(card(basic)?.plugin_card?.lede, undefined);
   assert.ok(cards(basic).some(([owner, state]) => owner === RISK_ID && state === "ok"));
-  assert.deepEqual(cards(basic).find(([owner]) => owner === WORK_BRIEF_PLUGIN_ID), [WORK_BRIEF_PLUGIN_ID, "disabled"], "what is left of it is the card that offers to add it back");
+  // What is left of it (the card that offers to add it back) is WBR-23, below.
   // Put back: the brief is still there (its data follows the plugin's lifecycle, not the page's).
   await change("POST", "work-brief");
   assert.equal((await call<BriefView>(workBriefActions.get, {})).version!.claims.length, 1);
@@ -409,6 +409,17 @@ test("WBR-22 WBR-23 POLISH-82 with Work Brief in the project its card carries th
   await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: astralClaim, cites: [{ kind: "risk", id: made.risk_id }] }] } });
   const astral = card(await home())?.plugin_card?.lede?.sentences[0]?.text ?? "";
   assert.equal(astral, astralClaim, "lede sentence keeps all 600 code points instead of UTF-16 slicing or splitting a surrogate pair");
+});
+
+// WBR-23 is handed to 109-3 (user 2026-11-27): a partition plugin taken out of a project leaves no card offering to add it back until
+// 109-3 assembles every plugin per partition; recorded in specs/post-anticorruption-roadmap/reference/batches/109.md (109-1).
+test("WBR-23 taken out of the project, what is left of Work Brief on the home is the card that offers to add it back",
+  { timeout: 90_000, skip: "a removed partition plugin's add-back card returns with the per-partition assembly in 109-3" }, async t => {
+  const { call, caller, change } = await fixture(t);
+  await change("DELETE", "work-brief");
+  const home = await call<SurfaceDescription>(surfaceCompositionActions.compose, { slot: { kind: "home" } }, person([...caller.permissions], caller.project_id));
+  const cards = home.groups.filter(group => group.kind === "plugin").map(group => [group.owner_plugin_id, group.state]);
+  assert.deepEqual(cards.find(([owner]) => owner === WORK_BRIEF_PLUGIN_ID), [WORK_BRIEF_PLUGIN_ID, "disabled"], "what is left of it is the card that offers to add it back");
 });
 
 // WBR-24, batch 109: the person's briefs across partitions are the platform's overview (`overview.read@1`), not a personal brief of Work

@@ -34,10 +34,13 @@ type Outcome = { outcome: string; message?: string; value?: unknown };
  * says what its next call does (`next`), and it answers with what came back or the code and message it was refused with.
  */
 function servicesProbe() {
-  const action = (half: Half): ActionDefinition => ({ capability_id: `${NAME}.${half}`, version: 1, operation: "command",
-    action: { title: half, description: `双实例服务探针的 ${half} 一半`, kind: "operation", scope: half, audiences: ["user"], permissions: USED,
-      scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
-  const actions = { home: action("home"), project: action("project") };
+  const action = (half: Half, name: string = half, operation: "command" | "query" = "command", permissions: readonly string[] = USED): ActionDefinition => ({
+    capability_id: `${NAME}.${name}`, version: 1, operation,
+    action: { title: name, description: `双实例服务探针的 ${half} 一半`, kind: operation === "query" ? "query" : "operation", scope: half, audiences: ["user"],
+      permissions: [...permissions], scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
+  // The project half also offers a query declaring `evidence:collect`, and a command declaring everything but it (S-98's two refusals).
+  const actions = { home: action("home"), project: action("project"), "project-query": action("project", "project-query", "query", ["evidence:collect"]),
+    "project-undeclared": action("project", "project-undeclared", "command", USED.filter(permission => permission !== "evidence:collect")) };
   const owner_files: PluginOwnerFilesDeclaration = { store_name: NAME, entries: [{ name: "notes", kind: "directory" }], read_permission: FILES_READ, write_permission: FILES_WRITE };
   const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: NAME, kind: "app",
     publisher: { publisher_id: "example", signature: `dual-${NAME}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
@@ -49,13 +52,14 @@ function servicesProbe() {
   let next: Use | undefined;
   const half = (which: Half): PluginDefinition => ({ manifest, start(context) {
     services[which] = context.services;
-    return { kind: "app", actions: [{ ...actions[which], handle: async (caller: ActionExecutionContext): Promise<Outcome> => {
+    const handle = async (caller: ActionExecutionContext): Promise<Outcome> => {
       const use = next; next = undefined;
       try { return { outcome: "ok", value: await use!(services as Record<Half, PluginHostServices>, caller) ?? null }; }
       catch (error) {
         return error instanceof Error && "code" in error ? { outcome: String(error.code), message: error.message } : { outcome: "error", message: String(error) };
       }
-    } }] };
+    };
+    return { kind: "app", actions: Object.values(actions).filter(definition => definition.action.scope === which).map(definition => ({ ...definition, handle })) };
   } });
   return { actions, owner_files, home: half("home"), project: half("project"), use(run: Use) { next = run; } };
 }
@@ -69,7 +73,7 @@ async function open(t: TestContext) {
   const project = await home.createProject("双实例服务");
   const context = await home.host.localPersonContext(project.reference), client = home.host.actionClient(project.reference);
   /** Runs `use` inside the action of the half `inside`, as the local person in the project. */
-  const run = async (inside: Half, use: Use) => { probe.use(use); return await client.invoke(context, probe.actions[inside], {}) as Outcome; };
+  const run = async (inside: keyof typeof probe.actions, use: Use) => { probe.use(use); return await client.invoke(context, probe.actions[inside], {}) as Outcome; };
   return { home, project, context, run };
 }
 
@@ -199,6 +203,30 @@ test("S-98: a services.evidence handle kept past its call is refused outside eve
   await assert.rejects(kept!.release("source-a", [body]), { code: "actions.forbidden" });
   await assert.rejects(kept!.reclaim("source-a", [body]), { code: "actions.forbidden" });
   assert.ok(bodies.has(body), "a call outside every action deleted nothing");
+});
+
+test("S-98: a read-only call can neither hold nor give back, an action that does not declare evidence:collect cannot give back, and neither deletes anything", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  const bodies = runWithMolisWorkHome(s.home.home, () => createEvidenceContentStore());
+  const body = bodies.write("held body").contentRef, loose = bodies.write("loose body").contentRef;
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.hold("source-held", [body])), { outcome: "ok", value: { held: 1 } });
+  for (const inside of ["project-query", "project-undeclared"] as const) {
+    for (const [name, use] of [
+      ["hold", (services: Record<Half, PluginHostServices>) => services.project.evidence!.hold("source-new", [loose])],
+      ["release", (services: Record<Half, PluginHostServices>) => services.project.evidence!.release("source-held", [body, loose])],
+      ["reclaim", (services: Record<Half, PluginHostServices>) => services.project.evidence!.reclaim("source-held", [body])],
+    ] as const) {
+      // The declaration is asked of the calls that delete; a hold deletes nothing, so only a read-only call is refused it.
+      if (inside === "project-undeclared" && name === "hold") continue;
+      const answer = await s.run(inside, use);
+      assert.equal(answer.outcome, "actions.forbidden", `${inside} ${name}: ${JSON.stringify(answer)}`);
+      assert.match(answer.message!, inside === "project-query" ? /只读调用/ : /evidence:collect/, `${inside} ${name}`);
+    }
+  }
+  assert.deepEqual([bodies.has(body), bodies.has(loose)], [true, true], "the refused calls deleted nothing");
+  // Nothing was recorded or given back: the held body is still held, and the refused hold left the loose body unheld.
+  assert.deepEqual(await s.run("project", services => services.project.evidence!.release("source-held", [body, loose])),
+    { outcome: "ok", value: { holds_released: 1, bodies_deleted: 2, bodies_kept: 0 } });
 });
 
 test("S-98: a hold or a release still running after its action ended waits for the action's beforeEffect and records nothing", { timeout: 60_000 }, async t => {

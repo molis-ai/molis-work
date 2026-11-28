@@ -26,7 +26,8 @@ function hostTaskSource(home: TestHome, projects: readonly TestProject[]) {
 }
 
 test("QEA-14/16 Home attention keeps partial failure, invalid-answer and timeout evidence until a real read recovers", { timeout: 90_000 }, async t => {
-  const home = await openTestHome(t, { catalogPolicy: false });
+  let denied = "";
+  const home = await openTestHome(t, { catalogPolicy: false, host: { overviewProjectAccess: (_caller, id) => id !== denied } });
   const a = await home.createProject("Alpha"), b = await home.createProject("Beta");
   const provider = hostTaskSource(home, [a, b]);
   const read = async () => (await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention")).background_tasks;
@@ -68,6 +69,25 @@ test("QEA-14/16 Home attention keeps partial failure, invalid-answer and timeout
   assert.deepEqual([chooser.line, chooser.tasks], [null, null], "Home does not read a project line it never renders");
   assert.deepEqual(provider.calls.slice(beforeHomeView).map(call => call.project).sort(), [a.project_id, b.project_id].sort(), "each provider is read only once, without a second Mainline read");
   assert.equal((await home.web.get<{ background_tasks: null }>(`/projects/${a.project_id}/api/attention`)).background_tasks, null, "the ordinary project page still has no Home aggregate");
+  // B2R-02: revoke A while both system providers are being read. Keep B, and never query A on a subsequent read.
+  const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+  provider.answer = async id => {
+    if (id === a.project_id) {
+      entered.resolve();
+      await resume.promise;
+      throw new ActionError("example.read_failed", secret);
+    }
+    return answer(id);
+  };
+  const pending = read();
+  try { await entered.promise; denied = a.project_id; } finally { resume.resolve(); }
+  const filtered = await pending;
+  assert.deepEqual(filtered.issues, []);
+  assert.deepEqual(filtered.tasks.map(row => row.project_id), [b.project_id]);
+  provider.answer = answer;
+  const beforeDeniedRead = provider.calls.length;
+  assert.deepEqual((await read()).tasks.map(row => row.project_id), [b.project_id]);
+  assert.deepEqual(provider.calls.slice(beforeDeniedRead).map(row => row.project), [b.project_id]);
   provider.answer = () => ({ source, tasks: [] });
   assert.deepEqual(await read(), { tasks: [], issues: [] }, "only a complete empty read means no background work");
   assert.ok(provider.calls.every(call => call.query_only));

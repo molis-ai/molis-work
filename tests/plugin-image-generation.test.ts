@@ -177,6 +177,34 @@ test("RAC-2002 the port keeps blank refused, counts padding (nothing is trimmed 
   await assert.rejects(service.generate(request({ model: `${WIDE.repeat(200)}a` })), refused);
 });
 
+test("B2R-05/06 a new Agent image job sees another active partition's settings and concurrent account changes keep their owner", async t => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let hold = false;
+  const f = await imageRuntimeFixture(t, { context(context) {
+    const generation = context.services!.imageGeneration!;
+    return { ...context, services: { ...context.services!, imageGeneration: { ...generation, async bind(target, account) {
+      if (hold && context.project_id === "project-a") { entered.resolve(); await release.promise; }
+      await generation.bind(target, account);
+    } } } };
+  } });
+  const account = (name: string) => withConnectorConnections(f.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: name + "-test-token" }).connection_id);
+  const one = account("first"), two = account("second");
+  const a = f.client("project-a"), b = f.client("project-b"), agent = f.client("project-b", { audience: "agent" });
+  const { connection } = await a.invoke(actions.saveConnection, { ...f.input, auth_connection_id: one });
+  await assert.rejects(agent.invoke(actions.connections, {}), { code: "actions.forbidden" });
+  const { job } = await agent.invoke(actions.start, { request_id: "other-partition", connection_id: connection.id, prompt: "new service" });
+  assert.equal((await imageTerminal(agent, job.id)).status, "succeeded");
+  hold = true;
+  const update = { ...f.input, id: connection.id, auth_connection_id: two };
+  const first = a.invoke(actions.saveConnection, update);
+  try {
+    await entered.promise;
+    await assert.rejects(b.invoke(actions.saveConnection, { ...update, auth_connection_id: one }), { code: "images.connection_changed" });
+  } finally { release.resolve(); }
+  assert.equal((await first).connection.auth_connection_id, two);
+  assert.equal((await b.invoke(actions.connections, {})).connections[0]?.auth_connection_id, two);
+});
+
 test("ARF-4 an unfinished account switch or deletion survives restart and refuses dispatch until retried", async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();

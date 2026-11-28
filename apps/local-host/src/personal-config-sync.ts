@@ -3,6 +3,7 @@ import { attentionContentReplicationDefinition } from '@molis-ai/molis-work-modu
 import { FUNCTIONS_HOME_STORE, FUNCTIONS_STORE_BASELINE, judgmentConfigReplica } from '@molis-ai/molis-work-module-judgment-rules';
 import { blueprintConfigReplica, BLUEPRINTS_BASELINE, BLUEPRINTS_STORE } from '@molis-ai/molis-work-service-blueprints';
 import { SURFACE_CONFIG_JOURNAL, surfaceConfigOwner } from '@molis-ai/molis-work-service-surfaces';
+import { personSettingsChanged } from './plugin-partition-services.js';
 import { PERSON_SETTINGS_BASELINE, PERSON_SETTINGS_STORE, personSettingsConfigReplica, type PersonSettingsInstallation } from '@molis-ai/molis-work-service-person-settings';
 import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
 import { assertPortableConfig, createProjectContentReplicaFactory, openBaselineHomeSqlite, personalConfigReplica, readStorageSpace, validateProjectContentReplication } from '@molis-ai/molis-work-storage';
@@ -75,7 +76,7 @@ export function personalConfigRegistrations(context: { home: string; spaceId: st
     // Only a preference a plugin installed here declares portable goes out or comes in (S-person-settings-private).
     homeConfig('person-settings', (authorize, run) => own(
       () => openBaselineHomeSqlite(home, PERSON_SETTINGS_STORE, PERSON_SETTINGS_BASELINE),
-      db => run(personSettingsObserved(home, personSettingsConfigReplica(db, spaceId, authorize, context.personSettings ?? (() => null)))))),
+      db => run(personSettingsObserved(home, personSettingsConfigReplica(db, spaceId, authorize, context.personSettings ?? (() => null), undefined, install => personSettingsChanged(home, install)))))),
     projectPlatformSyncRegistration({
       owner: 'surfaces', journal: SURFACE_CONFIG_JOURNAL, denied: '呈现组合的同步授权或项目已变化', locate: projectLink,
       replica: (db, id, scope, authorize) => personalConfigReplica(db, SURFACE_CONFIG_JOURNAL, { spaceId: scope, authorize }, surfaceConfigOwner(db, id, actor)),

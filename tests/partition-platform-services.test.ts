@@ -382,7 +382,7 @@ test("UPP-34 overview index preserves rows on non-ENOENT read errors, clears onl
     services.partitionChanged("project-a");
     assert.equal(services.overview.refresh(libraries[0]!), null, "corrupt library returns null instead of wiping rows");
     assert.deepEqual(services.readOverview(localPerson, libraries, () => ({ readable: ["project-a"], grants: [] })),
-      { rows: [], updating: true }, "an unreadable library never delivers its obsolete row");
+      { rows: [], unavailable: ["project-a"] }, "a failed source stays out of the answer and stops the progress poll");
     assert.throws(() => services.overview.row(libraries[0]!, "task", "keep-me"), { code: "actions.plugin_unavailable" });
     assert.equal(services.due.entries().length, 1, "existing reminder preserved");
     writeFileSync(libraries[0]!.path, original);

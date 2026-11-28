@@ -17,7 +17,7 @@ export function createImagesPlugin(): PluginDefinition {
     if (!database || !ownerFiles || !imageGeneration || !background || !personSettings) throw new ActionError("actions.unredeemed", "宿主未提供图片运行服务");
     const connections = new ImagesConnections(personSettings);
     if (!context.project_id) throw new ActionError("actions.unredeemed", "宿主未提供图片运行服务");
-    const current = new ImagesService({ projectId: context.project_id, database, connections, ...(due ? { due } : {}), files: ownerFiles, imageGeneration, background, sync:context.sync, syncClient:context.services?.sync });
+    const current = new ImagesService({ installationGeneration: context.installation_generation, projectId: context.project_id, database, connections, ...(due ? { due } : {}), files: ownerFiles, imageGeneration, background, sync:context.sync, syncClient:context.services?.sync });
     services.set(context, current);
     let recovering = true;
     const control = (...needed: string[]) => {
@@ -40,6 +40,7 @@ export function createImagesPlugin(): PluginDefinition {
     }
     finally { recovering = false; }
     // The services this instance may use for a caller that may not read them (an Agent's generation): read once now, as the plugin itself.
+    personSettings.onChange(() => { connections.list(); });
     try { connections.list(); } catch { /* None to remember: a generation then asks the person to add one. */ }
     return { kind: "app", sync: syncBindings(context), views: [imagesUiContribution], actions: createImagesActionHandlers({ service: () => current, directory: context.services?.actions?.directory }),
       routes: imagesRoutes(context),

@@ -8,7 +8,7 @@ import { currentHostPresence } from "./host-presence.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { homeScheduledRuns, hostOverviewSource } from "./home-overview.js";
+import { homeScheduledRuns, hostOverviewSource, overviewPerson } from "./home-overview.js";
 import { decideRuntimeRun, hasNetwork, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
 import { expiredSeen, markExpiredSeen } from "./runs-expired-seen.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -26,6 +26,7 @@ function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReferen
 
 export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: string): RuntimeOverviewPorts {
   return {
+    readableProjects: ids => host.overviewReadable(overviewPerson, ids),
     projectRuns: async (window, bounds) => {
       const source = hostOverviewSource(host);
       return source ? homeScheduledRuns(source, await host.partitions(), window, bounds) : null;

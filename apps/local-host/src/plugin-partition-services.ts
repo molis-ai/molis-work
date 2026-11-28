@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { resolveConfiguredHome } from "./product-home.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDueClient, PluginDueEntry, PluginManifest, PluginPersonSettingsClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginInvocation, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
@@ -25,8 +27,25 @@ function settingsCaller(instance: Instance): PersonSettingsCaller {
   return scope.caller;
 }
 
+const settingsListeners = new Map<string, Set<() => void>>();
+const pendingSettings = new Set<string>();
+const settingsKey = (home: string, installId: string) => JSON.stringify([resolveConfiguredHome(home), installId]);
+
+/** Read after the owner's transaction has returned, including the sync receiver's surrounding transaction. */
+export function personSettingsChanged(home: string, installId: string): void {
+  const key = settingsKey(home, installId);
+  if (!settingsListeners.has(key) || pendingSettings.has(key)) return;
+  pendingSettings.add(key);
+  queueMicrotask(() => {
+    pendingSettings.delete(key);
+    for (const listener of settingsListeners.get(key) ?? []) {
+      try { listener(); } catch { /* A subscriber cannot prevent another instance from refreshing. */ }
+    }
+  });
+}
+
 /** `services.personSettings`: given when the Manifest declares `person_settings` and the platform has a Home; each call opens the Home store once. */
-export function pluginPersonSettingsFor(home: string | undefined, manifest: PluginManifest, instance: Instance, assertActive: () => void): PluginPersonSettingsClient | undefined {
+export function pluginPersonSettingsFor(home: string | undefined, manifest: PluginManifest, instance: Instance, assertActive: () => void, lifetime: AbortSignal): PluginPersonSettingsClient | undefined {
   const declarations = manifest.person_settings;
   if (!declarations || home === undefined) return undefined;
   const owner = { install_id: instance.install_id, plugin_id: manifest.plugin_id };
@@ -39,6 +58,21 @@ export function pluginPersonSettingsFor(home: string | undefined, manifest: Plug
   return Object.freeze<PluginPersonSettingsClient>({
     get: key => use((store, caller) => store.get(caller, owner.install_id, declarations, key)),
     list: () => use((store, caller) => store.list(caller, owner.install_id)),
+    onChange(listener) {
+      assertActive();
+      if (currentPluginInvocation()) throw new ActionError("actions.forbidden", "本人设置的订阅由插件启动时登记");
+      const key = settingsKey(home, owner.install_id), listeners = settingsListeners.get(key) ?? new Set<() => void>();
+      const notify = AsyncLocalStorage.bind(() => { assertActive(); listener(); });
+      const stop = () => {
+        lifetime.removeEventListener("abort", stop);
+        listeners.delete(notify);
+        if (!listeners.size && settingsListeners.get(key) === listeners) settingsListeners.delete(key);
+      };
+      listeners.add(notify);
+      settingsListeners.set(key, listeners);
+      lifetime.addEventListener("abort", stop, { once: true });
+      return stop;
+    },
     snapshot: () => use((store, caller) => {
       const read = (source: typeof store) => source.list(caller, owner.install_id);
       const records = read(store);
@@ -46,9 +80,21 @@ export function pluginPersonSettingsFor(home: string | undefined, manifest: Plug
       const stamp = version(records);
       return { records, current: () => use(source => version(read(source)) === stamp) };
     }),
-    setMany: changes => use((store, caller) => store.setMany(caller, owner, declarations, changes)),
-    set: (key, value, options = {}) => use((store, caller) => store.set(caller, owner, declarations, key, value, options)),
-    remove: key => use((store, caller) => store.remove(caller, owner.install_id, declarations, key)),
+    setMany: changes => use((store, caller) => {
+      const records = store.setMany(caller, owner, declarations, changes);
+      if (records.length) personSettingsChanged(home, owner.install_id);
+      return records;
+    }),
+    set: (key, value, options = {}) => use((store, caller) => {
+      const record = store.set(caller, owner, declarations, key, value, options);
+      personSettingsChanged(home, owner.install_id);
+      return record;
+    }),
+    remove: key => use((store, caller) => {
+      const removed = store.remove(caller, owner.install_id, declarations, key);
+      if (removed) personSettingsChanged(home, owner.install_id);
+      return removed;
+    }),
   });
 }
 

@@ -111,12 +111,18 @@ export function passivePartitionSync(
       conflicts: () => use(({ replica }) => replica.conflicts()),
       resolve: (key, choice, revision, state) => use(({ replica }) => replica.resolve(key, choice, revision, state)),
       locate: (key) => use((binding) => binding.locate?.(key) ?? null),
-      hasProjectChanges: (id) => use(({ replica }) => replica.hasProjectChanges!(id)),
-      retryWaiting: () => use(({ replica }) => replica.retryWaiting!()),
-      inspectConflict: (key) => use(({ replica }) => replica.inspectConflict!(key)),
-      recoveries: () => use(({ replica }) => replica.recoveries!()),
-      inspectRecovery: (id) => use(({ replica }) => replica.inspectRecovery!(id)),
-      restoreRecovery: (id, choice, revision) => use(({ replica }) => replica.restoreRecovery!(id, choice, revision)),
+      hasProjectChanges: (id) => use(({ replica }) => {
+        if (!replica.hasProjectChanges) throw new ActionError("actions.plugin_unavailable", "同步集合未提供项目变更判断");
+        return replica.hasProjectChanges(id);
+      }),
+      retryWaiting: () => use(({ replica }) => replica.retryWaiting?.()),
+      inspectConflict: (key) => use(({ replica }) => replica.inspectConflict?.(key) ?? null),
+      recoveries: () => use(({ replica }) => replica.recoveries?.() ?? []),
+      inspectRecovery: (id) => use(({ replica }) => replica.inspectRecovery?.(id) ?? null),
+      restoreRecovery: (id, choice, revision) => use(({ replica }) => {
+        if (!replica.restoreRecovery) throw new ActionError("actions.plugin_unavailable", "同步集合未提供记录恢复");
+        return replica.restoreRecovery(id, choice, revision);
+      }),
     },
     content: {
       prepare: (key, value) =>

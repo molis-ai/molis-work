@@ -23,7 +23,11 @@ export type ImagesControl = Omit<PluginExecutionControl, "project_id">;
 export const IMAGES_JOB_DEADLINE_MS = 30 * 60_000;
 const dueKey = (id: string) => `job:${id}`;
 
+// A service and its account slot belong to one Home installation. Only simultaneous edits share this guard.
+const changingConnections = new Set<string>();
+
 export interface ImagesServiceOptions {
+  installationGeneration: string;
   /** The partition this instance serves: its library holds only that partition's jobs. */
   projectId: string;
   sync?:PluginSyncContext;
@@ -42,7 +46,6 @@ export class ImagesService {
   private readonly store: ImagesStore;
   private readonly active = new Map<string, AbortController>();
   private readonly interruptions = new Map<string, { projectId: string; at: string }>();
-  private readonly changingConnections = new Set<string>();
   private closed = false;
 
   constructor(private readonly options: ImagesServiceOptions) {
@@ -148,9 +151,10 @@ export class ImagesService {
   }
 
   private async changeConnection<T>(id: string, change: () => Promise<T>): Promise<T> {
-    if (this.changingConnections.has(id)) throw imagesErrors.connection_changed("另一项服务更改正在进行，请稍后重试。");
-    this.changingConnections.add(id);
-    try { return await change(); } finally { this.changingConnections.delete(id); }
+    const key = JSON.stringify([this.options.installationGeneration, id]);
+    if (changingConnections.has(key)) throw imagesErrors.connection_changed("另一项服务更改正在进行，请稍后重试。");
+    changingConnections.add(key);
+    try { return await change(); } finally { changingConnections.delete(key); }
   }
 
   private executionState(job: ImageJob): ImageJob {

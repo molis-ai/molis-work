@@ -15,16 +15,22 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
   let retry: number | undefined;
   const request = globalThis.molisWorkRequest;
   type Place = { project_id: string; display_name: string; plugins: string[]; revision: string };
-  const button = (label: string) => {
+  let translate: (() => void) | undefined;
+  const words = (paint: () => void) => {
+    translate = paint;
+    paint();
+  };
+  const onLanguage = () => translate?.();
+  const button = () => {
     const control = document.createElement("button");
     control.type = "button";
     control.className = "mw-btn mw-btn--secondary";
-    control.textContent = label;
     return control;
   };
   const draw = async () => {
     clearTimeout(retry);
     read?.abort();
+    translate = undefined;
     body.replaceChildren();
     if (!panel.open) return;
     const { signal } = (read = new AbortController());
@@ -58,15 +64,21 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
             li.append(link);
             list.append(li);
           }
+          translate = undefined;
           body.replaceChildren();
           if (list.childElementCount) body.append(list);
           if (result.updating) {
             const status = document.createElement("p");
             status.setAttribute("role", "status");
-            status.textContent = t.text("workbench.home.refreshing");
+            words(() => { status.textContent = t.text("workbench.home.refreshing"); });
             body.append(status);
             retry = window.setTimeout(() => void refresh().catch(showError), 750);
-          } else if (!list.childElementCount) body.textContent = t.text("workbench.personal-tasks.empty");
+          } else if (result.incomplete) {
+            const status = document.createElement("p");
+            status.setAttribute("role", "status");
+            words(() => { status.textContent = t.text("workbench.attention.tasks-incomplete"); });
+            body.append(status);
+          } else if (!list.childElementCount) words(() => { body.textContent = t.text("workbench.personal-tasks.empty"); });
         };
         await refresh();
         return;
@@ -75,8 +87,13 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
       if (!place) return;
       if (!place.plugins.includes(taskMember)) {
         const prompt = document.createElement("p");
-        prompt.textContent = t.text("workbench.side-view.enable-personal", { name: t.text("workbench.personal-tasks.name") });
-        const enable = button(t.text("workbench.side-view.enable-confirm"));
+        const enable = button(), cancel = button(), failure = document.createElement("span");
+        let retryEnable = false;
+        words(() => {
+          prompt.textContent = t.text("workbench.side-view.enable-personal", { name: t.text("workbench.personal-tasks.name") });
+          enable.textContent = retryEnable ? t.text("common.control.retry") : t.text("workbench.side-view.enable-confirm");
+          cancel.textContent = t.text("common.control.cancel");
+        });
         enable.onclick = async () => {
           enable.disabled = true;
           try {
@@ -89,15 +106,17 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
           } catch (error) {
             if (!signal.aborted) {
               enable.disabled = false;
-              request.show(body, error);
+              request.show(failure, error);
+              retryEnable = true;
+              onLanguage();
+              enable.onclick = draw;
             }
           }
         };
-        const cancel = button(t.text("common.control.cancel"));
         cancel.onclick = () => {
           panel.open = false;
         };
-        body.append(prompt, enable, cancel);
+        body.append(prompt, failure, enable, cancel);
         return;
       }
       const template = panel.querySelector<HTMLTemplateElement>("[data-personal-task-entry]");
@@ -105,8 +124,12 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
       if (!form) return;
       const input = form.querySelector("input")!;
       const save = form.querySelector("button")!;
-      form.querySelector("label span")!.textContent = t.text("workbench.personal-tasks.prompt");
-      save.textContent = t.text("workbench.personal-tasks.save");
+      const failure = document.createElement("span");
+      form.append(failure);
+      words(() => {
+        form.querySelector("label span")!.textContent = t.text("workbench.personal-tasks.prompt");
+        save.textContent = t.text("workbench.personal-tasks.save");
+      });
       body.append(form);
       form.onsubmit = async (event) => {
         event.preventDefault();
@@ -118,11 +141,11 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
             body: { title: input.value.trim() },
             signal,
           });
-          if (!signal.aborted) body.textContent = t.text("workbench.personal-tasks.saved");
+          if (!signal.aborted) words(() => { body.textContent = t.text("workbench.personal-tasks.saved"); });
         } catch (error) {
           if (!signal.aborted) {
             save.disabled = false;
-            request.show(body, error);
+            request.show(failure, error);
           }
         }
       };
@@ -132,11 +155,11 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
   };
   panel.addEventListener("toggle", draw);
   if (panel.open) void draw();
-  document.addEventListener("molis-work:language-changed", draw);
+  document.addEventListener("molis-work:language-changed", onLanguage);
   return () => {
     clearTimeout(retry);
     read?.abort();
     panel.removeEventListener("toggle", draw);
-    document.removeEventListener("molis-work:language-changed", draw);
+    document.removeEventListener("molis-work:language-changed", onLanguage);
   };
 }

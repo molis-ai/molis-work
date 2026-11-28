@@ -253,9 +253,32 @@ test("UPP-30 B2R-09 capture a task in personal space after confirmation, then fi
   await b.waitFor("document.querySelectorAll('[data-personal-tasks-body] button').length === 2");
   await b.click(panel + " button:first-of-type");
   await b.waitFor("!!document.querySelector('[data-personal-tasks-body] form input')");
-  await b.evaluate("document.querySelector('[data-personal-tasks-body] form input').value='B2 personal capture'");
+  const switchLanguage = async (tag: string) => {
+    await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await b.waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+  };
+  await b.evaluate("window.captureInput=document.querySelector('[data-personal-tasks-body] form input'); captureInput.value='B2 personal capture'; captureInput.focus()");
+  await switchLanguage("en");
+  assert.deepEqual(await b.evaluate("[document.activeElement === captureInput, captureInput.isConnected, captureInput.value]"), [true, true, "B2 personal capture"]);
+  assert.equal(await b.evaluate("captureInput.form.querySelector('button').textContent"), await b.evaluate("t.text('workbench.personal-tasks.save')"));
+  // A rejected write leaves the original form editable and retryable.
+  await b.evaluate(`(() => { const real = window.fetch;
+    window.fetch = (input, init) => {
+      if (new URL(input?.url || input, location.href).pathname.endsWith('/api/plugins/io.molis.work.todo/items') && (init?.method || input?.method) === 'POST') {
+        window.fetch = real;
+        return Promise.resolve(Response.json({ message: 'capture temporarily unavailable' }, { status: 503 }));
+      }
+      return real(input, init);
+    };
+  })()`);
+  await b.click(panel + " form button");
+  await b.waitFor("captureInput.form?.lastElementChild.textContent && !captureInput.form.querySelector('button').disabled");
+  assert.equal(await b.evaluate("captureInput.value"), "B2 personal capture");
   await b.click(panel + " form button");
   await b.waitFor("!document.querySelector('[data-personal-tasks-body] form')");
+  await switchLanguage("ja");
+  await b.waitFor("document.querySelector('[data-personal-tasks-body]').textContent === t.text('workbench.personal-tasks.saved')");
   assert.equal(await member(), true);
   await b.web.post("/projects/" + b.projectId + "/api/plugins/io.molis.work.todo/items", { title: "B2 project task" });
   await visit("/projects/personal/");

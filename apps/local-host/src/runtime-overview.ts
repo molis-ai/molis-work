@@ -45,6 +45,7 @@ export interface RuntimeOverviewPorts {
    * counted from its `bounds`; null when no overview is read here.
    */
   projectRuns(window: { readonly now: Date; readonly until: Date }, bounds: (owner: HomeRunsOwner) => RunsExpiryBounds): Promise<HomeScheduledRuns | null>;
+  readableProjects?(ids: readonly string[]): readonly string[];
   within<T>(projectId: string | null, work: (client: RunsClient) => Promise<T>): Promise<T | undefined>;
   now(): Date;
   /** Whether this computer has a network to reach anything on; false is written as 「没联网」. */
@@ -132,21 +133,24 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
       }));
     }).catch((error: unknown) => { signal?.throwIfAborted(); unavailable.push({ project_id: null, provider_id: null, code: codeOf(error) }); }),
   ]);
+  const candidates = [...new Set([...(projects?.unavailable ?? []), ...(projects?.owners ?? []).map(owner => owner.project_id), ...[...upcoming, ...missed].flatMap(run => run.project_id ? [run.project_id] : [])])];
+  const allowed = new Set(ports.readableProjects?.(candidates) ?? candidates);
   if (projects) {
+    for (const id of projects.unavailable ?? []) if (allowed.has(id)) unavailable.push({ project_id: id, provider_id: null, code: "actions.plugin_unavailable" });
     const sourceOf = (owner: { project_id: string; plugin_id: string; surface: string; title: string }): RuntimeRunSource =>
       ({ scope_project_id: owner.project_id, provider_id: owner.plugin_id, surface: owner.surface, title: owner.title });
-    for (const run of projects.upcoming) upcoming.push({ run_id: run.run_id, title: run.title, due_at: run.due_at, project_id: run.owner.project_id, open: run.open, needs: run.needs, source: sourceOf(run.owner) });
-    for (const run of projects.missed) missed.push({ run_id: run.run_id, title: run.title, due_at: run.due_at, project_id: run.owner.project_id, open: run.open, needs: run.needs,
+    for (const run of projects.upcoming) if (allowed.has(run.owner.project_id)) upcoming.push({ run_id: run.run_id, title: run.title, due_at: run.due_at, project_id: run.owner.project_id, open: run.open, needs: run.needs, source: sourceOf(run.owner) });
+    for (const run of projects.missed) if (allowed.has(run.owner.project_id)) missed.push({ run_id: run.run_id, title: run.title, due_at: run.due_at, project_id: run.owner.project_id, open: run.open, needs: run.needs,
       missed_at: run.missed_at!, source: sourceOf(run.owner) });
-    for (const owner of projects.owners) owners.push(expiredOwnerKey(owner.project_id, owner.plugin_id));
-    for (const [owner, count] of projects.expired) expired.set(owner.title, (expired.get(owner.title) ?? 0) + count);
+    for (const owner of projects.owners) if (allowed.has(owner.project_id)) owners.push(expiredOwnerKey(owner.project_id, owner.plugin_id));
+    for (const [owner, count] of projects.expired) if (allowed.has(owner.project_id)) expired.set(owner.title, (expired.get(owner.title) ?? 0) + count);
   }
   const waiting = { network: !ports.online(), model: !ports.model() };
   return {
     state: "running", ...(projects?.updating && { updating: true }), waiting, gaps: ports.gaps(),
-    upcoming: upcoming.sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, UPCOMING_SHOWN)
+    upcoming: upcoming.filter(run => !run.project_id || allowed.has(run.project_id)).sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, UPCOMING_SHOWN)
       .map(run => ({ ...run, waiting: run.needs.some(need => need === "network" ? waiting.network : waiting.model) })),
-    missed: missed.sort((a, b) => b.due_at.localeCompare(a.due_at)),
+    missed: missed.filter(run => !run.project_id || allowed.has(run.project_id)).sort((a, b) => b.due_at.localeCompare(a.due_at)),
     expired: { count: [...expired.values()].reduce((sum, count) => sum + count, 0), through: now.toISOString(),
       sources: [...expired].map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count || a.title.localeCompare(b.title)), owners: owners.sort() },
     unavailable_sources: unavailable,

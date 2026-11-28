@@ -80,11 +80,15 @@ export interface OverviewServiceOptions {
 export class OverviewService {
   private readonly pending = new Map<string, OverviewLibrary>();
   private turn?: NodeJS.Immediate;
+  private readonly failedReads = new Map<string, { library: OverviewLibrary; retryAt: number }>();
 
   constructor(private readonly port: OverviewIndexPort, private readonly options: OverviewServiceOptions = {}) {}
 
   /** A synchronized write or a restore reached this partition (or one installation in it): read it again on the next open. */
-  markDirty(partitionId: string, installId?: string): void { this.port.markDirty(partitionId, installId); }
+  markDirty(partitionId: string, installId?: string): void {
+    this.forgetFailures(partitionId, installId);
+    this.port.markDirty(partitionId, installId);
+  }
 
   /** A library to read; a new one is dirty until it is read. */
   track(library: OverviewLibrary): void { this.port.track(library); }
@@ -125,26 +129,39 @@ export class OverviewService {
   }
 
   /** The foreground may read one source. A backlog is rebuilt one library per host event-loop turn. */
-  refreshForRead(libraries: readonly OverviewLibrary[]): OverviewLibrary[] {
+  refreshForRead(libraries: readonly OverviewLibrary[]): { pending: OverviewLibrary[]; unavailable: OverviewLibrary[] } {
+    const unavailable: OverviewLibrary[] = [];
     const dirty = libraries.filter(library => {
       const state = this.port.state(library.partition_id, library.install_id);
       if (!state) this.port.track(library);
-      return !state || state.dirty;
+      if (state && !state.dirty) return false;
+      const failed = this.failedReads.get(JSON.stringify([library.partition_id, library.install_id]));
+      if (failed && Date.now() < failed.retryAt) {
+        unavailable.push(library);
+        return false;
+      }
+      return true;
     });
     if (dirty.length === 1 && !this.turn) {
-      return this.refreshAvailable(dirty[0]!) ? [] : dirty;
+      if (!this.refreshAvailable(dirty[0]!)) unavailable.push(dirty[0]!);
+      return { pending: [], unavailable };
     }
     for (const library of dirty) this.pending.set(JSON.stringify([library.partition_id, library.install_id]), library);
     if (this.pending.size && !this.turn) this.scheduleTurn(0, 0);
-    return dirty;
+    return { pending: dirty, unavailable };
   }
 
   private refreshAvailable(library: OverviewLibrary): boolean {
-    try { return this.refresh(library) !== null; }
-    catch {
-      // Replacement commits last. Keep this source dirty and allow other sources to be shown.
-      return false;
-    }
+    const key = JSON.stringify([library.partition_id, library.install_id]);
+    try {
+      if (this.refresh(library) !== null) {
+        this.failedReads.delete(key);
+        return true;
+      }
+    } catch { /* Keep the source dirty when the replacement cannot commit. */ }
+    // Revisit on the next change or a later read. A broken file is not work in progress.
+    this.failedReads.set(key, { library, retryAt: Date.now() + 30_000 });
+    return false;
   }
 
   private scheduleTurn(refreshed: number, failed: number): void {
@@ -173,8 +190,13 @@ export class OverviewService {
     return this.port.rows({ partitions: [partition_id], kinds: [kind], ownerRow: { install_id, row_id: rowId }, limit: 1 })[0] ?? null;
   }
 
-  removeInstall(installId: string, partitionId?: string): void { this.port.removeInstall(installId, partitionId); }
-  removePartition(partitionId: string): void { this.port.removePartition(partitionId); }
+  private forgetFailures(partition?: string, install?: string): void {
+    for (const [key, { library }] of this.failedReads) {
+      if ((!partition || library.partition_id === partition) && (!install || library.install_id === install)) this.failedReads.delete(key);
+    }
+  }
+  removeInstall(installId: string, partitionId?: string): void { this.forgetFailures(partitionId, installId); this.port.removeInstall(installId, partitionId); }
+  removePartition(partitionId: string): void { this.forgetFailures(partitionId); this.port.removePartition(partitionId); }
 
   /**
    * The rows `reach` allows of the asked kinds, with only the allowed fields. `reach` is asked before the read and again before the rows

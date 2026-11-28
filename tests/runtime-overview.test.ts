@@ -261,6 +261,25 @@ test("BL-missed-runs-never-expire /api/runtime/expired/seen isolates homes, igno
   assert.equal(after.expired.count, 0, "acknowledged expired summary is not repeated");
 });
 
+test("B2R-02 a delayed Home provider cannot retain a revoked project in the runtime response", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const { ports } = harness([
+    row("p1", "schedule", "first", "2026-11-11T10:00:00.000Z"), row("p2", "schedule", "second", "2026-11-11T10:00:00.000Z"),
+    row("p1", "schedule", "missed", "2026-11-11T06:00:00.000Z", { missed_at: NOW }),
+    row("p1", "schedule", "expired", "2026-10-01T00:00:00.000Z", { missed_at: NOW }),
+  ], { "home:assistant.runs.overview": async input => { entered.resolve(); await release.promise; return overview("assistant", [])(input); } });
+  let denied = "";
+  const pending = runtimeOverview({ ...ports, readableProjects: ids => ids.filter(id => id !== denied) });
+  await entered.promise;
+  denied = "p1";
+  release.resolve();
+  const result = await pending;
+  assert.deepEqual(result.upcoming.map(run => run.run_id), ["second"]);
+  assert.deepEqual(result.missed, []);
+  assert.equal(result.expired.count, 0);
+  assert.ok(!result.expired.owners.includes(expiredOwnerKey("p1", "schedule")));
+});
+
 test("UPP-30 the runtime panel applies project readability to cached scheduled runs", async t => {
   let denied = "";
   const home = await openTestHome(t, { host: { overviewProjectAccess: (_caller, id) => id !== denied } });

@@ -172,17 +172,18 @@ export class PartitionPlatformServices {
    * handed over (`overview-readers`).
    */
   readOverview(caller: ActionCallContext, libraries: readonly OverviewLibrary[], now: () => { readonly readable: readonly string[]; readonly grants: readonly OverviewGrant[] },
-    query: { readonly kinds?: readonly OverviewKind[]; readonly limit?: number } = {}): OverviewReadResult {
+    query: { readonly kinds?: readonly OverviewKind[]; readonly limit?: number } = {}): OverviewReadResult & { unavailable?: string[] } {
     const initial = overviewReach(caller, now());
     const allowed = new Set(initial.map(entry => entry.partition_id));
-    const pending = this.overview.refreshForRead(libraries.filter(library => allowed.has(library.partition_id)));
+    const { pending, unavailable } = this.overview.refreshForRead(libraries.filter(library => allowed.has(library.partition_id)));
     let reach = initial;
     const rows = this.overview.read(() => {
       reach = overviewReach(caller, now());
       return reach;
     }, query);
-    const updating = pending.some(library => reach.some(entry => entry.partition_id === library.partition_id));
-    return updating ? { rows, updating } : { rows };
+    const visible = new Set(reach.map(entry => entry.partition_id));
+    const missing = [...new Set(unavailable.map(library => library.partition_id).filter(id => visible.has(id)))];
+    return { rows, ...(pending.some(library => visible.has(library.partition_id)) && { updating: true }), ...(missing.length && { unavailable: missing }) };
   }
 
   /** The plugin was disabled in this partition: its due entries and overview rows there go now. */
